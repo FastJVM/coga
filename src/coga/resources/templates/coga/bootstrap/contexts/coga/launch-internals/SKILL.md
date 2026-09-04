@@ -272,8 +272,14 @@ session-ending edits again require a committed ticket baseline equal to freshly
 fetched control. Each accepted detached edit advances that baseline with
 another exact-leaf commit. Another megalaunch cannot reclaim either form;
 ordinary `coga launch` refuses pending admission and is the explicit recovery
-path only for a plain admitted claim. Workflow advancement and lifecycle
-transitions that end or park that admitted session clear the generation.
+path for a plain admitted claim. If post-release admission publication fails,
+the launcher instead retains `released:<uuid>` only in its checkout and kills
+the child. An explicit ordinary launch fetches control, accepts only the exact
+matching pending or already-admitted ticket, strictly normalizes both sides to
+the plain UUID, and only then starts recovery. Broad sweeps cannot publish the
+released witness, and another megalaunch refuses it. Workflow advancement and
+lifecycle transitions that end or park an admitted session clear the
+generation.
 
 The dependency drain enters that boundary with one extra state change. It
 re-captures the exact `blocked` ticket and open asks, validates the prospective
@@ -316,12 +322,15 @@ the now-launched child. A mismatch or unverifiable pre-release fetch
 conditionally removes the owned audit line, refuses the child, and retains the
 pending `in_progress` state for reconciliation; an audit failure likewise kills
 the held child. A post-release admission failure kills the child but retains
-the audit, and an uncertain push retains admitted local bytes. Thus an edit
-during the append cannot start stale work or publish a false launch record, and
-no audit failure or release-boundary interrupt starts unrecorded work. It never
-compensates backward to `active`; the retained pending or admitted claim is the
-durable reconciliation witness. Another megalaunch refuses either form before
-it can rotate the claim.
+the audit and records `released:<uuid>` locally before retaining it for
+reconciliation. `coga launch <slug>` is the supported retry: it verifies the
+whole remote ticket is the matching pending or already-admitted revision,
+strictly publishes the plain UUID, and refuses to spawn if that proof or Git
+publication fails. Thus an edit during the append cannot start stale work or
+publish a false launch record, and no audit failure or release-boundary
+interrupt starts unrecorded work. It never compensates backward to `active`;
+the retained pending, released, or admitted claim is the durable reconciliation
+witness. Another megalaunch refuses every form before it can rotate the claim.
 
 Git-disabled repositories use a plain generation and retain both exact local
 rereads and the local admission barrier without claiming a nonexistent control

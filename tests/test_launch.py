@@ -3508,6 +3508,99 @@ def test_launch_refuses_a_pending_megalaunch_admission(
     assert ticket_md.read_bytes() == before
 
 
+def test_launch_reconciles_a_released_megalaunch_admission_before_spawn(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The supported recovery path durably admits release before execution."""
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    ticket_md = Path(ref["path"])
+    ticket = Ticket.read(ticket_md)
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.frontmatter["launch_generation"] = "released:held-generation"
+    ticket.write(ticket_md)
+    reconciled: list[bytes] = []
+
+    def reconcile(_cfg, path, *, expected_ticket_bytes):  # type: ignore[no-untyped-def]
+        assert path == ticket_md
+        assert Ticket.parse(expected_ticket_bytes.decode()).launch_generation == (
+            "released:held-generation"
+        )
+        admitted = Ticket.parse(expected_ticket_bytes.decode())
+        admitted.frontmatter["launch_generation"] = "held-generation"
+        admitted.write(path)
+        admitted_bytes = path.read_bytes()
+        reconciled.append(admitted_bytes)
+        return admitted_bytes
+
+    monkeypatch.setattr(
+        launch_module, "_reconcile_released_launch_admission", reconcile
+    )
+    calls = _launch_single_spawn(monkeypatch)
+
+    result = CliRunner().invoke(app, ["launch", slug])
+
+    assert result.exit_code == 0, result.output
+    assert "Reconciled released megalaunch admission" in result.output
+    assert len(reconciled) == 1
+    assert len(calls) == 1
+    assert Ticket.read(ticket_md).launch_generation == "held-generation"
+
+
+@pytest.mark.parametrize(
+    "control_generation",
+    ["pending:held-generation", "held-generation"],
+)
+def test_released_launch_admission_reconciles_control_ticket(
+    git_repo, control_generation: str,
+) -> None:
+    """Recovery accepts only the matching pending/already-admitted remote."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Reconcile released admission",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ref = next(item for item in list_tasks(cfg) if item.id_slug == created["slug"])
+    coga_git.sync_task_state(
+        cfg, ref.path, message="Seed released-admission reconciliation"
+    )
+    control = Ticket.read(ref.ticket_path)
+    control.frontmatter["status"] = "in_progress"
+    control.frontmatter["launch_generation"] = control_generation
+    control.write(ref.ticket_path)
+    ticket_rel = str(ref.ticket_path.relative_to(git_repo.root))
+    git_repo.git("add", ticket_rel)
+    git_repo.git("commit", "-m", "Publish launch admission state")
+    git_repo.git("push", "origin", "main")
+
+    released = Ticket.read(ref.ticket_path)
+    released.frontmatter["launch_generation"] = "released:held-generation"
+    released_bytes = released.render().encode()
+    released.write(ref.ticket_path)
+
+    admitted_bytes = launch_module._reconcile_released_launch_admission(
+        cfg,
+        ref.ticket_path,
+        expected_ticket_bytes=released_bytes,
+    )
+
+    assert Ticket.parse(admitted_bytes.decode()).launch_generation == (
+        "held-generation"
+    )
+    assert Ticket.read(ref.ticket_path).launch_generation == "held-generation"
+    remote = Ticket.parse(
+        git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
+    )
+    assert remote.launch_generation == "held-generation"
+    assert git_repo.git("status", "--porcelain") == ""
+
+
 def test_launch_auto_activate_bails_without_workflow(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

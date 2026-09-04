@@ -58,6 +58,13 @@ EXTENSION_MARKER = "# --- extensions ---"
 # the gate byte. A plain generation therefore means the child was admitted.
 PENDING_LAUNCH_GENERATION_PREFIX = "pending:"
 
+# If post-gate publication cannot be confirmed, the launcher keeps this local
+# form instead of restoring ``pending:``.  It proves the child was released
+# (and then terminated) while remaining impossible to publish through an
+# ordinary state sweep.  ``coga launch`` reconciles it against control before
+# allowing an explicit recovery session.
+RELEASED_LAUNCH_GENERATION_PREFIX = "released:"
+
 
 def pending_launch_generation(generation: str | None) -> bool:
     """Whether ``generation`` still guards a held megalaunch child."""
@@ -68,13 +75,36 @@ def pending_launch_generation(generation: str | None) -> bool:
     )
 
 
+def released_launch_generation(generation: str | None) -> bool:
+    """Whether ``generation`` is a local post-release recovery witness."""
+    return bool(
+        generation
+        and generation.startswith(RELEASED_LAUNCH_GENERATION_PREFIX)
+        and generation.removeprefix(RELEASED_LAUNCH_GENERATION_PREFIX)
+    )
+
+
 def admitted_launch_generation(generation: str) -> str:
-    """Return the stable session generation after held-child admission."""
+    """Return the stable session generation after release/reconciliation."""
+    if pending_launch_generation(generation):
+        return generation.removeprefix(PENDING_LAUNCH_GENERATION_PREFIX)
+    if released_launch_generation(generation):
+        return generation.removeprefix(RELEASED_LAUNCH_GENERATION_PREFIX)
+    raise ValueError(
+        f"launch generation is not awaiting admission: {generation!r}"
+    )
+
+
+def released_generation_from_pending(generation: str) -> str:
+    """Return the local recovery witness for one released pending claim."""
     if not pending_launch_generation(generation):
         raise ValueError(
             f"launch generation is not pending admission: {generation!r}"
         )
-    return generation.removeprefix(PENDING_LAUNCH_GENERATION_PREFIX)
+    return (
+        f"{RELEASED_LAUNCH_GENERATION_PREFIX}"
+        f"{generation.removeprefix(PENDING_LAUNCH_GENERATION_PREFIX)}"
+    )
 
 
 @dataclass
@@ -270,6 +300,9 @@ __all__ = [
     "CANONICAL_TICKET_KEYS",
     "PENDING_LAUNCH_GENERATION_PREFIX",
     "pending_launch_generation",
+    "RELEASED_LAUNCH_GENERATION_PREFIX",
+    "released_generation_from_pending",
+    "released_launch_generation",
     "Ticket",
     "TicketError",
     "TicketNotFoundError",

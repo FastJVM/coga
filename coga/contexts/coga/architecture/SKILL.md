@@ -925,17 +925,19 @@ provisional audit and keeps the session out of usage teardown before killing
 the still-held child. A changed or unverifiable pre-release claim conditionally
 removes only the owned audit line, refuses the child, and retains the pending
 `in_progress` state for explicit reconciliation. A post-release admission
-failure kills the child but retains its audit; an uncertain publication also
-retains the admitted local bytes because the remote may have accepted them.
+failure kills the child but retains its audit and a local `released:<uuid>`
+witness, whether the publication definitely failed or its result is uncertain.
 Thus the audit stays out of `log.md` until the PTY child actually exists, while
 an edit during the append cannot release stale preflighted work or publish a
 false audit. An audit failure likewise kills the held child, so no unrecorded
-work starts. Another megalaunch never reclaims either claim form. Ordinary
-`coga launch` refuses pending claims and remains the explicit recovery path
-only after a plain generation proves release. A step advance or lifecycle
-transition that ends or parks that admitted session clears it. Megalaunch never
-compensates a refused claim backward to `active`: retained claim state is the
-human-legible reconciliation evidence.
+work starts. Another megalaunch never reclaims any claim form. Ordinary
+`coga launch` refuses pending claims; for a released witness it first fetches
+control, verifies the whole ticket is the matching pending or admitted
+revision, and strictly publishes the plain UUID before starting the explicit
+recovery session. A step advance or lifecycle transition that ends or parks
+that admitted session clears it. Megalaunch never compensates a refused claim
+backward to `active`: retained claim state is the human-legible reconciliation
+evidence.
 `coga launch`'s
 `while True:` supervisor chain
 (per-step CLI re-resolution, claude↔codex rotation, `COGA_SUPERVISED`, the

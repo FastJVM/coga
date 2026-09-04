@@ -3695,6 +3695,64 @@ def test_pending_claim_blocks_remote_lifecycle_between_final_fetch_and_gate(
     assert "without changing task state" in run.results[0].detail
 
 
+def test_failed_post_release_admission_retains_released_recovery_witness(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A definite admission push failure cannot restore an unrecoverable hold."""
+    from coga import git as git_module
+    import coga.megalaunch as megalaunch_module
+    from coga.tasks import TaskRef, resolve_target
+
+    cfg = load_config(git_repo.coga_os)
+    active = create_task(
+        cfg=cfg,
+        title="Recover a released launch admission",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ref = resolve_target(cfg, active["slug"])
+    assert isinstance(ref, TaskRef)
+    git_module.sync_task_state(
+        cfg, ref.path, message="Seed released-admission recovery"
+    )
+    pending = Ticket.read(ref.ticket_path)
+    pending.frontmatter["status"] = "in_progress"
+    pending.frontmatter["launch_generation"] = "pending:released-generation"
+    pending.write(ref.ticket_path)
+    expected_pending = ref.ticket_path.read_bytes()
+    ticket_rel = str(ref.ticket_path.relative_to(git_repo.root))
+    git_repo.git("add", ticket_rel)
+    git_repo.git("commit", "-m", "Publish held launch admission")
+    git_repo.git("push", "origin", "main")
+
+    def fail_admission_publication(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise git_module.GitError("simulated post-release transport failure")
+
+    monkeypatch.setattr(
+        git_module, "_sync_paths_without_barrier", fail_admission_publication
+    )
+
+    with pytest.raises(megalaunch_module._LaunchClaimRefused) as excinfo:
+        megalaunch_module._admit_launch_claim_after_release(
+            cfg,
+            ref,
+            expected_started_bytes=expected_pending,
+        )
+
+    assert f"coga launch {active['slug']}" in str(excinfo.value)
+    assert Ticket.read(ref.ticket_path).launch_generation == (
+        "released:released-generation"
+    )
+    remote = Ticket.parse(
+        git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
+    )
+    assert remote.launch_generation == "pending:released-generation"
+
+
 def test_megalaunch_selection_does_not_reactivate_pick_started_during_earlier_launch(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -97,7 +97,14 @@ from coga.tasks import (
     read_ticket,
     resolve_target,
 )
-from coga.ticket import Ticket, TicketError, pending_launch_generation
+from coga.ticket import (
+    PENDING_LAUNCH_GENERATION_PREFIX,
+    Ticket,
+    TicketError,
+    admitted_launch_generation,
+    pending_launch_generation,
+    released_launch_generation,
+)
 from coga.validate import TaskValidationError
 from coga.version_skew import warn_if_installed_predates_source
 from coga.workflow import WorkflowError
@@ -489,6 +496,147 @@ def launch_with_before_spawn(
             record_launch=False,
             recurring_authorized=False,
         )
+
+
+def _reconcile_released_launch_admission(
+    cfg: Config,
+    ticket_path: Path,
+    *,
+    expected_ticket_bytes: bytes,
+) -> bytes:
+    """Turn one local ``released:`` witness into a durable admitted claim.
+
+    A post-gate admission failure cannot restore ``pending:``: the child was
+    already able to execute, even though the supervisor then terminated it.
+    Megalaunch therefore retains ``released:<uuid>`` only in its checkout.
+    An explicit ordinary launch calls this boundary before recovery. It accepts
+    control only when the whole remote ticket is either the matching pending
+    revision (publication definitely failed) or the matching plain revision
+    (an ambiguous push actually landed), then strictly publishes/normalizes the
+    plain UUID. Every failure restores the local ``released:`` witness so a
+    later retry remains recognizable, and no broad state sweep can admit it.
+    """
+    with git.state_publication_barrier(cfg):
+        try:
+            current_bytes = ticket_path.read_bytes()
+        except OSError as exc:
+            raise git.FeaturePublicationError(
+                f"could not read released launch admission: {exc}"
+            ) from exc
+        if current_bytes != expected_ticket_bytes:
+            raise git.StateRegressionError(
+                "released launch admission changed before reconciliation"
+            )
+        try:
+            released_ticket = Ticket.parse(current_bytes.decode("utf-8"))
+        except (UnicodeDecodeError, TicketError) as exc:
+            raise git.FeaturePublicationError(
+                f"released launch admission is unreadable: {exc}"
+            ) from exc
+        generation = released_ticket.launch_generation
+        if not released_launch_generation(generation):
+            raise git.StateRegressionError(
+                "launch admission is no longer awaiting released-state "
+                "reconciliation"
+            )
+        assert generation is not None
+        if not cfg.git_enabled:
+            raise git.FeaturePublicationError(
+                "released launch admission requires Git sync to reconcile its "
+                "pending control revision"
+            )
+
+        root = git._toplevel(ticket_path)
+        if root is None:
+            raise git.FeaturePublicationError(
+                "released launch admission requires a Git checkout"
+            )
+        if not git._remote_configured(root, cfg.git_remote):
+            raise git.FeaturePublicationError(
+                f"remote {cfg.git_remote!r} is unavailable for released "
+                "launch-admission reconciliation"
+            )
+        if not git._control_branch_present(
+            root, cfg.git_control_branch, cfg.git_remote
+        ):
+            raise git.FeaturePublicationError(
+                git._control_branch_mismatch_message(cfg, root)
+            )
+
+        admitted_ticket = Ticket(
+            frontmatter=dict(released_ticket.frontmatter),
+            body=released_ticket.body,
+        )
+        admitted_ticket.frontmatter["launch_generation"] = (
+            admitted_launch_generation(generation)
+        )
+        admitted_bytes = admitted_ticket.render().encode("utf-8")
+        pending_ticket = Ticket(
+            frontmatter=dict(released_ticket.frontmatter),
+            body=released_ticket.body,
+        )
+        pending_ticket.frontmatter["launch_generation"] = (
+            f"{PENDING_LAUNCH_GENERATION_PREFIX}"
+            f"{admitted_launch_generation(generation)}"
+        )
+        pending_bytes = pending_ticket.render().encode("utf-8")
+
+        base = git._control_base_for_attempt(
+            root,
+            cfg.git_remote,
+            cfg.git_control_branch,
+            1,
+        )
+        rel = git._relative_to_root(root, ticket_path)
+        control_bytes = git._tree_bytes(root, base, rel)
+        if control_bytes not in {pending_bytes, admitted_bytes}:
+            raise git.StateRegressionError(
+                f"{rel}: control ticket changed before released "
+                "launch-admission reconciliation"
+            )
+
+        mutation = git.FileMutationRollback.capture((ticket_path,))
+        mutation.require_unchanged(ticket_path)
+        admit_pending = control_bytes == pending_bytes
+        try:
+            admitted_ticket.write(ticket_path)
+            mutation.arm({ticket_path: admitted_bytes})
+            # This helper already owns the non-reentrant publication barrier.
+            git._sync_paths_without_barrier(
+                cfg,
+                ticket_path,
+                (ticket_path,),
+                message="Ticket: reconcile released launch admission",
+                guard=git.ticket_state_guard(
+                    cfg,
+                    ticket_path,
+                    expected_ticket_bytes=control_bytes,
+                    allow_launch_claim_admission=admit_pending,
+                ),
+                generated_paths=mutation.generated,
+                raise_state_regression=True,
+                raise_git_error=True,
+                allow_launch_claim_admission=admit_pending,
+            )
+        except git.GitError as exc:
+            refused = mutation.restore()
+            if refused:
+                paths = ", ".join(str(path) for path in refused)
+                raise git.UncertainFeaturePublicationError(
+                    f"{exc}; released admission witness could not be restored "
+                    f"from {paths}"
+                ) from exc
+            raise
+        except OSError as exc:
+            refused = mutation.restore()
+            detail = ""
+            if refused:
+                paths = ", ".join(str(path) for path in refused)
+                detail = f"; released witness could not be restored from {paths}"
+            raise git.FeaturePublicationError(
+                f"could not record reconciled launch admission: {exc}{detail}"
+            ) from exc
+        return admitted_bytes
 
 
 def _launch(
@@ -894,6 +1042,30 @@ def _launch(
         return
 
     ticket = post_alignment_setup_call(lambda: _read(ref))
+
+    if (
+        isinstance(ref, TaskRef)
+        and released_launch_generation(ticket.launch_generation)
+    ):
+        try:
+            released_bytes = ref.ticket_path.read_bytes()
+            admitted_bytes = _reconcile_released_launch_admission(
+                cfg,
+                ref.ticket_path,
+                expected_ticket_bytes=released_bytes,
+            )
+            ticket = Ticket.parse(admitted_bytes.decode("utf-8"))
+        except (OSError, UnicodeError, TicketError, git.GitError) as exc:
+            _bail(
+                f"Cannot launch {ref.id_slug}: its released megalaunch "
+                "admission could not be reconciled with control. The "
+                f"recoverable local witness was retained; fix Git and retry: "
+                f"{exc}",
+                exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+            )
+        typer.echo(
+            f"Reconciled released megalaunch admission for {ref.id_slug}."
+        )
 
     if (
         isinstance(ref, TaskRef)

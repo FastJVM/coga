@@ -681,7 +681,12 @@ deletion, blocker, report, and status paths all share the same cross-checkout
 seal. The sole allowance is the internal post-gate transition whose working
 bytes exactly equal the committed ticket with only `pending:` removed and whose
 guard binds the whole pending revision. Ordinary launch refuses pending rather
-than bypassing that admission protocol.
+than bypassing that admission protocol. If that post-gate publication fails,
+the launcher retains `released:<uuid>` only as a local recovery witness. No
+ordinary or catch-all publisher may land that form. An explicit `coga launch`
+must first fetch control and strictly normalize the exact matching pending or
+already-admitted whole ticket to the plain UUID; a mismatch or Git failure
+retains the released witness and refuses recovery.
 
 Once the plain UUID is admitted, a scoped publisher may clear it only while
 ending or advancing the claimed session. Acquisition's exact lease directly
