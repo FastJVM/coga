@@ -2419,6 +2419,95 @@ def test_catch_all_sync_cannot_delete_a_published_launch_claim(
     assert remote.launch_generation == "live-generation"
 
 
+def test_explicit_path_sync_cannot_change_a_pending_launch_admission(
+    git_repo, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Every task publisher seals the control revision of a held child."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(
+        git_repo, status="in_progress", blackboard="original notes\n"
+    )
+    pending = _claimed_ticket_text(
+        generation="pending:held-generation",
+        blackboard="held child\n",
+    )
+    ticket.write_text(pending)
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "hold demo child before admission")
+    git_repo.git("push", "origin", "main")
+
+    finished = Ticket.read(ticket)
+    finished.frontmatter["status"] = "done"
+    finished.frontmatter.pop("step", None)
+    finished.frontmatter.pop("launch_generation", None)
+    finished.write(ticket)
+
+    # Deliberately omit a command-specific guard. The explicit-path publisher
+    # itself must protect pending admission for lifecycle, blocker, deletion,
+    # and authoring callers alike.
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — done before child release",
+    )
+
+    captured = capsys.readouterr()
+    assert "pending launch admission 'pending:held-generation'" in captured.err
+    remote = Ticket.parse(
+        git_repo.git("show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin)
+    )
+    assert remote.status == "in_progress"
+    assert remote.launch_generation == "pending:held-generation"
+
+
+def test_pending_launch_admission_allows_only_exact_prefix_removal(
+    git_repo,
+) -> None:
+    """The post-gate publisher can admit the same UUID and no other edit."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(
+        git_repo, status="in_progress", blackboard="original notes\n"
+    )
+    pending = _claimed_ticket_text(
+        generation="pending:held-generation",
+        blackboard="held child\n",
+    ).encode()
+    ticket.write_bytes(pending)
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "hold demo child before admission")
+    git_repo.git("push", "origin", "main")
+
+    admitted = Ticket.read(ticket)
+    admitted.frontmatter["launch_generation"] = "held-generation"
+    admitted_bytes = admitted.render().encode()
+    admitted.write(ticket)
+
+    with git.state_publication_barrier(cfg):
+        git._sync_paths_without_barrier(
+            cfg,
+            ticket.parent,
+            (ticket,),
+            message="Ticket: demo — launch admitted",
+            guard=git.ticket_state_guard(
+                cfg,
+                ticket,
+                expected_ticket_bytes=pending,
+                allow_launch_claim_admission=True,
+            ),
+            generated_paths={ticket: admitted_bytes},
+            raise_state_regression=True,
+            raise_git_error=True,
+            allow_launch_claim_admission=True,
+        )
+
+    remote = Ticket.parse(
+        git_repo.git("show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin)
+    )
+    assert remote.status == "in_progress"
+    assert remote.launch_generation == "held-generation"
+    assert "held child" in remote.body
+
+
 def test_catch_all_sync_cannot_add_a_claimed_ticket_without_a_control_lease(
     git_repo, capsys: pytest.CaptureFixture[str]
 ) -> None:

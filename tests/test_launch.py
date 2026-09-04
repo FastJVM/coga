@@ -3482,6 +3482,32 @@ def test_launch_refuses_canceled_ticket(
     assert ticket_md.read_text() == before
 
 
+def test_launch_refuses_a_pending_megalaunch_admission(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only the held-child supervisor may turn a pending claim executable."""
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    ticket_md = Path(ref["path"])
+    ticket = Ticket.read(ticket_md)
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.frontmatter["launch_generation"] = "pending:held-generation"
+    ticket.write(ticket_md)
+    before = ticket_md.read_bytes()
+
+    calls = _launch_single_spawn(monkeypatch)
+    result = CliRunner().invoke(app, ["launch", slug])
+
+    assert result.exit_code == 2
+    combined = result.output + (result.stderr or "")
+    assert "megalaunch admission 'pending:held-generation' is still pending" in (
+        combined
+    )
+    assert "held child must be released" in combined
+    assert calls == []
+    assert ticket_md.read_bytes() == before
+
+
 def test_launch_auto_activate_bails_without_workflow(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

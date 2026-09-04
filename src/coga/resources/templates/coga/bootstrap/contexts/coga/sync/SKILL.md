@@ -581,13 +581,17 @@ publishers (`sync_paths`, `sync_log`, and the catch-all `sync_coga_state`) and
 all Coga lifecycle ticket/blocker writes take the short state
 admission/publication barrier described in `coga/architecture`. The held-child
 launch boundary takes the same barrier across its provisional audit append,
-last proof, and pipe release, so a lifecycle change cannot invalidate that
-proof before release and a broad sweep cannot make a refused launch record
-durable. Ticket writes take it even when Git sync is disabled. This is not task
-ownership: the inert lock file is outside the worktree and the kernel releases
-the advisory lock on process exit. Concurrent cross-checkout or cross-machine
-processes still each fetch→build→push; exactly one fast-forwards per round and
-the losers retry, so nothing on the control branch is clobbered.
+last proof, pipe release, and post-release admission publication, so a local
+lifecycle change cannot invalidate that proof and a broad sweep cannot make a
+refused launch record durable. The published `pending:<uuid>` claim is the
+cross-checkout half of the boundary: every task publisher refuses to replace
+that exact control ticket until megalaunch strictly removes only the prefix
+after gate delivery. Ticket writes take the local barrier even when Git sync is
+disabled. This is not task ownership: the inert lock file is outside the
+worktree and the kernel releases the advisory lock on process exit. Concurrent
+cross-checkout or cross-machine processes still each fetch→build→push; exactly
+one fast-forwards per round and the losers retry, so nothing on the control
+branch is clobbered.
 
 Fetch results used by strict assist alignment and publication are isolated too.
 Each requested branch tip is written to a UUID-scoped command-owned ref with
@@ -669,11 +673,21 @@ soft-skip under the failure model below).
 `launch_generation` has a stronger, system-owned rule. The catch-all sweep may
 never add, clear, or replace that claim, including by creating, deleting, or
 making one side of the ticket unreadable. A scoped ticket-state publisher may
-acquire it only under an exact whole-ticket lease and may clear it only while
+acquire it only under an exact whole-ticket lease. A Git-backed megalaunch
+acquires `pending:<uuid>` while its child is held. While that form exists on
+control, the explicit-path publisher itself refuses every changed ticket —
+even for a caller with no command-specific lifecycle guard — so authoring,
+deletion, blocker, report, and status paths all share the same cross-checkout
+seal. The sole allowance is the internal post-gate transition whose working
+bytes exactly equal the committed ticket with only `pending:` removed and whose
+guard binds the whole pending revision. Ordinary launch refuses pending rather
+than bypassing that admission protocol.
+
+Once the plain UUID is admitted, a scoped publisher may clear it only while
 ending or advancing the claimed session. Acquisition's exact lease directly
 proves the whole unclaimed control ticket, even when detached `HEAD` predates
 the same bytes this checkout already published through an ordinary detached
-sync. Once a claim exists, every edit involving it must also prove against a
+sync. Every later edit involving the admitted claim must also prove against a
 freshly fetched candidate control tip that the ticket blob at checkout `HEAD`
 exactly matched the control copy before Coga made its local state commit. That
 baseline is sampled before the commit and retained across publication.
@@ -700,8 +714,9 @@ cancellation:
   blackboard without a status flip. Its `blocked → active` branch delegates to
   `mark_active` and is guarded there.
 
-Callers that are not publishing a ticket's state (authoring, deletes, recurring
-child writes) pass no guard.
+Callers without a command-specific lifecycle transition (authoring, deletes,
+recurring child writes) pass no ticket-state guard. They still pass through the
+explicit-path publisher's automatic pending-admission seal.
 
 **The one deliberate backward move is a human rewind.** It is an exceptional
 debug/recovery operation, not normal lifecycle progression. `coga bump

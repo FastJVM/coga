@@ -114,7 +114,12 @@ from coga.logfile import append_log, ref_tag_for_path
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.paths import log_path, tasks_dir
 from coga.taskfile import TaskFileError, split_body
-from coga.ticket import Ticket, TicketError
+from coga.ticket import (
+    Ticket,
+    TicketError,
+    admitted_launch_generation,
+    pending_launch_generation,
+)
 
 # Bounded retries when racing `refs/heads/<control>`: each loss is a refetch +
 # rebuild + repush, so a small ceiling is plenty under realistic contention
@@ -1215,6 +1220,7 @@ def _sync_paths_without_barrier(
     generated_paths: Mapping[Path, bytes | None] | None = None,
     raise_state_regression: bool = False,
     raise_git_error: bool = False,
+    allow_launch_claim_admission: bool = False,
 ) -> None:
     """Commit explicit paths and push them to the control branch.
 
@@ -1264,6 +1270,10 @@ def _sync_paths_without_barrier(
     committed with a local ref lease, an unaccepted commit is unwound, and an
     ambiguous control push is probed by exact candidate OID before caller-owned
     files may be restored.
+    Every changed task ticket also receives the pending-launch seal here,
+    independent of a caller-supplied lifecycle guard. The private
+    ``allow_launch_claim_admission`` escape hatch accepts only the exact
+    pending-to-plain generation transition performed after child release.
     """
     selected = _dedupe_paths(paths)
     if not selected:
@@ -1317,6 +1327,28 @@ def _sync_paths_without_barrier(
             )
 
         rels = [_relative_to_root(root, path) for path in selected]
+        guard_before_local_commit = guard is not None
+        pending_ticket_rels = _task_ticket_rels_for_pathspecs(
+            root,
+            cfg.repo_root,
+            rels,
+            _changed_paths_under(root, rels),
+        )
+        if pending_ticket_rels:
+            caller_guard = guard
+
+            def guard_pending_admission(base: str) -> None:
+                _guard_pending_launch_admissions(
+                    cfg,
+                    root,
+                    pending_ticket_rels,
+                    base,
+                    allow_admission=allow_launch_claim_admission,
+                )
+                if caller_guard is not None:
+                    caller_guard(base)
+
+            guard = guard_pending_admission
         generated_rels = (
             {
                 _relative_to_root(root, path): data
@@ -1370,6 +1402,7 @@ def _sync_paths_without_barrier(
             feature_publication_guard=feature_publication_guard,
             after_strict_publication=after_strict_publication,
             generated_paths=generated_rels,
+            guard_before_local_commit=guard_before_local_commit,
         )
     except FeaturePublicationError as exc:
         sys.stderr.write(
@@ -2291,6 +2324,7 @@ def _dispatch_branch_sync(
     feature_publication_guard: _FeaturePublicationGuard | None = None,
     after_strict_publication: Callable[[], None] | None = None,
     generated_paths: Mapping[str, bytes | None] | None = None,
+    guard_before_local_commit: bool = True,
 ) -> None:
     """Commit `local_rels` on the current branch and land `overlay_rels` on the
     control branch — the branch-aware core shared by `sync_paths` and
@@ -2315,6 +2349,11 @@ def _dispatch_branch_sync(
     after an ambiguous push failure before allowing caller-owned file rollback.
     On detached HEAD its exact local commit also becomes the clean baseline for
     later guarded edits.
+    ``guard_before_local_commit=False`` identifies the automatic pending-claim
+    seal added for an otherwise unguarded explicit-path publisher. Claim-free
+    writes preserve the ordinary local-first failure model, while the guard
+    still runs before any control landing and unwinds a locally committed stale
+    ticket if it finds a pending remote revision.
     """
     control_union_rels = control_union_rels or []
     try:
@@ -2338,10 +2377,19 @@ def _dispatch_branch_sync(
     # in that case (calm notice, no raw fatal). Every other push failure stays
     # loud via the caller's `except GitError`.
     remote_ok = _remote_configured(root, cfg.git_remote)
+    changed_rels = (
+        _changed_paths_under(root, local_rels) if guard is not None else []
+    )
+    claim_sync = guard is not None and _changes_involve_launch_claim(
+        cfg,
+        root,
+        changed_rels,
+    )
     if (
         not remote_ok
         and branch != cfg.git_control_branch
         and guard is not None
+        and (guard_before_local_commit or claim_sync)
         and not strict_feature_publication
         and not strict_state_publication
     ):
@@ -2374,7 +2422,13 @@ def _dispatch_branch_sync(
             )
             return
         committed = _sync_paths_on_control_branch(
-            cfg, root, local_rels, message=message, guard=guard, push=remote_ok
+            cfg,
+            root,
+            local_rels,
+            message=message,
+            guard=guard,
+            guard_before_commit=(guard_before_local_commit or claim_sync),
+            push=remote_ok,
         )
         # Only when something was actually saved: a clean no-op sync pushes
         # nothing even *with* a remote, so announcing a skipped push there would
@@ -2395,14 +2449,15 @@ def _dispatch_branch_sync(
         detached_before: str | None = None
         detached_committed = False
         detached_control_base: str | None = None
-        detached_changed_rels = _changed_paths_under(root, local_rels)
-        detached_claim_sync = guard is not None and _changes_involve_launch_claim(
-            cfg,
-            root,
-            detached_changed_rels,
-        )
+        detached_changed_rels = changed_rels
+        detached_claim_sync = claim_sync
         if (
             guard is not None
+            and (
+                guard_before_local_commit
+                or detached_claim_sync
+                or commit_detached
+            )
             and not strict_feature_publication
             and not strict_state_publication
         ):
@@ -2648,8 +2703,10 @@ def _dispatch_branch_sync(
                 f"local {branch!r} moved from verified tip "
                 f"{expected_current_branch_oid} to {current_oid}"
             )
+        ordinary_claim_sync = claim_sync
         if (
             guard is not None
+            and (guard_before_local_commit or ordinary_claim_sync)
             and not strict_feature_publication
             and not strict_state_publication
             and remote_ok
@@ -2661,11 +2718,6 @@ def _dispatch_branch_sync(
             # misreading a stale local ref as an attempted acquisition; other
             # transitions preserve the local-first failure model. Reuse that
             # tip for the first landing attempt.
-            ordinary_claim_sync = _changes_involve_launch_claim(
-                cfg,
-                root,
-                _changed_paths_under(root, local_rels),
-            )
             strict_control_tip = _control_base_for_attempt(
                 root,
                 cfg.git_remote,
@@ -3408,6 +3460,7 @@ def guard_ticket_state(
     expected_lifecycle: tuple[str | None, str | None, str | None] | None = None,
     expected_ticket_bytes: bytes | None = None,
     allow_launch_claim_acquisition: bool = False,
+    allow_launch_claim_admission: bool = False,
     checkout_ticket_bytes: bytes | None | object = _ANY_WORKTREE_BYTES,
 ) -> None:
     """Refuse to land one ticket over a newer copy already on `base`.
@@ -3465,6 +3518,10 @@ def guard_ticket_state(
             allow_launch_claim_acquisition
             and expected_ticket_bytes is not None
         ),
+        allow_launch_claim_admission=(
+            allow_launch_claim_admission
+            and expected_ticket_bytes is not None
+        ),
         allow_launch_claim_release=True,
         checkout_ticket_bytes=checkout_baseline,
     )
@@ -3479,6 +3536,7 @@ def ticket_state_guard(
     expected_lifecycle: tuple[str | None, str | None, str | None] | None = None,
     expected_ticket_bytes: bytes | None = None,
     allow_launch_claim_acquisition: bool = False,
+    allow_launch_claim_admission: bool = False,
 ) -> _StateGuard:
     """Bind `guard_ticket_state` to one ticket, ready for `sync_paths(guard=)`.
 
@@ -3499,6 +3557,8 @@ def ticket_state_guard(
     may change only while that baseline still exactly matches control.
     ``allow_launch_claim_acquisition`` is reserved for megalaunch's claim
     write and has no effect without that exact-byte lease.
+    ``allow_launch_claim_admission`` is likewise reserved for its post-release
+    removal of the pending prefix and requires the exact pending ticket bytes.
     """
     checkout_ticket_bytes: bytes | None | object = _ANY_WORKTREE_BYTES
 
@@ -3518,6 +3578,7 @@ def ticket_state_guard(
             expected_lifecycle=expected_lifecycle,
             expected_ticket_bytes=expected_ticket_bytes,
             allow_launch_claim_acquisition=allow_launch_claim_acquisition,
+            allow_launch_claim_admission=allow_launch_claim_admission,
             checkout_ticket_bytes=checkout_ticket_bytes,
         )
 
@@ -3605,6 +3666,70 @@ def _lifecycle_state_summary(
     return f"status={status!r}, step={step!r}, assignee={assignee!r}"
 
 
+def _pending_launch_admission_reason(
+    rel: str,
+    *,
+    committed: bytes | None,
+    working: bytes | None,
+    allow_admission: bool,
+) -> str | None:
+    """Why ``working`` cannot replace a still-held child claim."""
+    if committed is None or working == committed:
+        return None
+    try:
+        committed_ticket = Ticket.parse(committed.decode("utf-8"))
+    except (UnicodeDecodeError, TicketError):
+        return None
+    generation = committed_ticket.launch_generation
+    if not pending_launch_generation(generation):
+        return None
+    assert generation is not None
+    if allow_admission and working is not None:
+        admitted = Ticket(
+            frontmatter=dict(committed_ticket.frontmatter),
+            body=committed_ticket.body,
+        )
+        admitted.frontmatter["launch_generation"] = admitted_launch_generation(
+            generation
+        )
+        if working == admitted.render().encode("utf-8"):
+            return None
+    return (
+        f"{rel}: pending launch admission {generation!r} cannot change "
+        "before the held child is released"
+    )
+
+
+def _guard_pending_launch_admissions(
+    cfg: Config,
+    root: Path,
+    rels: Iterable[str],
+    base: str,
+    *,
+    allow_admission: bool = False,
+) -> None:
+    """Seal pending claim bytes against every explicit-path publisher."""
+    refusals: list[str] = []
+    for rel in rels:
+        reason = _pending_launch_admission_reason(
+            rel,
+            committed=_tree_bytes(root, base, rel),
+            working=_working_tree_bytes(root, rel),
+            allow_admission=allow_admission,
+        )
+        if reason is None:
+            continue
+        append_log(
+            cfg,
+            _task_ref_for_ticket_rel(cfg, root, rel),
+            "git",
+            f"sync refused: {reason}",
+        )
+        refusals.append(reason)
+    if refusals:
+        raise StateRegressionError("; ".join(refusals))
+
+
 def _guard_coga_state_regressions(
     cfg: Config,
     root: Path,
@@ -3614,6 +3739,7 @@ def _guard_coga_state_regressions(
     allow_step_rewind: bool = False,
     allow_terminal_change: bool = False,
     allow_launch_claim_acquisition: bool = False,
+    allow_launch_claim_admission: bool = False,
     allow_launch_claim_release: bool = False,
     checkout_ticket_bytes: Mapping[str, bytes | None] | None = None,
 ) -> None:
@@ -3637,8 +3763,15 @@ def _guard_coga_state_regressions(
         committed_state = (
             _ticket_state_from_bytes(committed) if committed is not None else None
         )
-        reason: str | None = None
-        if (
+        reason = _pending_launch_admission_reason(
+            rel,
+            committed=committed,
+            working=working,
+            allow_admission=allow_launch_claim_admission,
+        )
+        if reason is not None:
+            pass
+        elif (
             committed_state is not None
             and committed_state.launch_generation is not None
             and working_state is None
@@ -3664,6 +3797,7 @@ def _guard_coga_state_regressions(
                 committed=committed_state,
                 working=working_state,
                 allow_acquisition=allow_launch_claim_acquisition,
+                allow_admission=allow_launch_claim_admission,
                 allow_release=allow_launch_claim_release,
             )
             if reason is None:
@@ -3685,16 +3819,28 @@ def _guard_coga_state_regressions(
                     committed_state.launch_generation is not None
                     or working_state.launch_generation is not None
                 )
-                # An explicitly authorized acquisition is already bound to
-                # ``expected_ticket_bytes`` by ``guard_ticket_state``.  That
-                # exact control lease is sufficient even when detached HEAD
-                # predates bytes this same checkout previously published
-                # without a local commit.  Existing-claim edits still require
-                # HEAD to prove the session baseline.
+                # Explicitly authorized acquisition/admission transitions are
+                # already bound to ``expected_ticket_bytes`` by
+                # ``guard_ticket_state``. That exact control lease is
+                # sufficient even when detached HEAD predates bytes this same
+                # checkout previously published without a local commit.
+                # Existing-claim edits still require HEAD to prove the session
+                # baseline.
                 and not (
                     allow_launch_claim_acquisition
                     and committed_state.launch_generation is None
                     and working_state.launch_generation is not None
+                )
+                and not (
+                    allow_launch_claim_admission
+                    and committed_state.launch_generation is not None
+                    and pending_launch_generation(
+                        committed_state.launch_generation
+                    )
+                    and working_state.launch_generation
+                    == admitted_launch_generation(
+                        committed_state.launch_generation
+                    )
                 )
                 and working != committed
                 and checkout_bytes != committed
@@ -3734,6 +3880,41 @@ def _changed_task_ticket_rels(
         if not (root / path.parent / "ticket.md").exists():
             out.append(rel)
     return out
+
+
+def _task_ticket_rels_for_pathspecs(
+    root: Path,
+    coga_root: Path,
+    pathspecs: Iterable[str],
+    changed_rels: list[str],
+) -> list[str]:
+    """Ticket leaves an explicit-path publisher can overlay onto control.
+
+    Dirty paths cover normal command mutations and deletions. Expand existing
+    task-directory pathspecs too: a feature checkout may have committed its
+    ticket before asking the publisher to land that clean revision, and a
+    pending control claim must still seal it.
+    """
+    tasks_rel = _relative_to_root(root, coga_root / "tasks")
+    prefix = f"{tasks_rel}/" if tasks_rel != "." else ""
+    candidates = list(changed_rels)
+    for rel in pathspecs:
+        if rel != tasks_rel and not rel.startswith(prefix):
+            continue
+        path = root / rel
+        if path.is_dir():
+            candidates.extend(
+                candidate.relative_to(root).as_posix()
+                for candidate in path.rglob("*.md")
+                if candidate.is_file()
+            )
+        else:
+            candidates.append(rel)
+    return list(
+        dict.fromkeys(
+            _changed_task_ticket_rels(root, coga_root, candidates)
+        )
+    )
 
 
 def _changes_involve_launch_claim(
@@ -3791,6 +3972,7 @@ def _ticket_launch_claim_change_reason(
     committed: _TicketState,
     working: _TicketState,
     allow_acquisition: bool,
+    allow_admission: bool,
     allow_release: bool,
 ) -> str | None:
     """Why changing Coga's system-owned launch claim is not authorized."""
@@ -3802,6 +3984,13 @@ def _ticket_launch_claim_change_reason(
         if allow_acquisition:
             return None
         return f"{rel}: launch claim would be added outside an exact ticket lease"
+    if (
+        before is not None
+        and pending_launch_generation(before)
+        and allow_admission
+        and after == admitted_launch_generation(before)
+    ):
+        return None
     if before is not None and after is None:
         session_ended = (
             committed.status != working.status or committed.step != working.step
@@ -3903,6 +4092,7 @@ def _sync_paths_on_control_branch(
     *,
     message: str,
     guard: _StateGuard | None = None,
+    guard_before_commit: bool = True,
     push: bool = True,
 ) -> bool:
     """Stage explicit pathspecs, commit if anything changed, and push.
@@ -3911,20 +4101,20 @@ def _sync_paths_on_control_branch(
     no-remote notice to a sync that really saved something.
 
     `push=False` is the no-remote path: commit locally but perform no remote
-    step. The guard still runs — it just resolves its base locally (attempt 0 →
-    `refs/heads/<control>`) instead of fetching the remote tip, which would be
-    the very fatal we are suppressing. Skipping it outright would be wrong: with
-    no remote, a *sibling worktree* can still advance the local control branch
-    through the plumbing landing path, so a stale checkout here has newer state
-    it could bury. A refusal propagates as `StateRegressionError` before any
-    commit is made. The caller emits the calm no-remote notice.
+    step. A command-specific guard still resolves its base locally (attempt 0 →
+    `refs/heads/<control>`) before commit, because a sibling worktree can
+    advance that ref. The automatic pending-only guard may be deferred to the
+    push/retry boundary so a transport failure preserves the ordinary
+    local-first commit contract; a pending-claim refusal still unwinds that
+    commit. The caller emits the calm no-remote notice.
     """
     before: str | None = None
     if guard is not None:
-        base = _control_base_for_attempt(
-            root, cfg.git_remote, cfg.git_control_branch, 1 if push else 0
-        )
-        guard(base)
+        if guard_before_commit:
+            base = _control_base_for_attempt(
+                root, cfg.git_remote, cfg.git_control_branch, 1 if push else 0
+            )
+            guard(base)
         before = _run_git(root, "rev-parse", "HEAD").strip()
     if not _commit_paths(root, rels, message):
         return False

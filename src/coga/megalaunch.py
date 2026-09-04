@@ -114,7 +114,14 @@ from coga.tasks import (
     read_ticket,
     resolve_bootstrap,
 )
-from coga.ticket import Ticket, TicketError, TicketNotFoundError
+from coga.ticket import (
+    PENDING_LAUNCH_GENERATION_PREFIX,
+    Ticket,
+    TicketError,
+    TicketNotFoundError,
+    admitted_launch_generation,
+    pending_launch_generation,
+)
 from coga.validate import TaskValidationError
 from coga.views import last_updated_map
 
@@ -1383,6 +1390,13 @@ def _launch_until_stop(
                 expected_started_bytes=expected_started_bytes,
             )
 
+        def admit_released_launch_claim() -> None:
+            _admit_launch_claim_after_release(
+                cfg,
+                ref,
+                expected_started_bytes=expected_started_bytes,
+            )
+
         before = prepared_launch.ticket
         try:
             agent = prepared_launch.agent
@@ -1408,6 +1422,9 @@ def _launch_until_stop(
                 composed_prompt=prepared_launch.prompt,
                 validate_before_spawn=revalidate_launch_claim,
                 validate_after_spawn=revalidate_launch_claim,
+                after_spawn_release=(
+                    admit_released_launch_claim if cfg.git_enabled else None
+                ),
                 record_launch_on_spawn=True,
             )
         except _LaunchClaimRefused as exc:
@@ -1717,10 +1734,10 @@ def _revalidate_launch_claim_before_spawn(
     reach spawn. Exact ticket bytes bind the proof to the preflighted prompt as
     well as the generation.
 
-    Refusal deliberately leaves ``in_progress`` untouched. Ordinary
-    ``coga launch`` may already have resumed those same bytes and changed only
-    the blackboard; unlike megalaunch it does not rotate ``launch_generation``,
-    so no compensation can prove that moving the ticket backward is safe.
+    Refusal deliberately leaves the pending ``in_progress`` claim untouched.
+    Ordinary ``coga launch`` refuses that visible held-child state; only the
+    post-release admission callback turns it into a plain generation that can
+    be recovered explicitly.
     """
     def require_local_claim() -> None:
         try:
@@ -1768,6 +1785,102 @@ def _revalidate_launch_claim_before_spawn(
     # update the blackboard. Keep the last filesystem action before returning
     # to the PTY call an exact local reread too.
     require_local_claim()
+
+
+def _admit_launch_claim_after_release(
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    expected_started_bytes: bytes,
+) -> None:
+    """Publish pending-to-admitted only after the held child is released.
+
+    The supervisor calls this while retaining the same-checkout publication
+    barrier that covered the final remote proof and gate write. Cross-checkout
+    publishers see the visible ``pending:`` claim and refuse every replacement;
+    this exact one-field transition is the sole exception. Once it lands, the
+    child can already execute, so ordinary lifecycle changes may proceed.
+    """
+    if not cfg.git_enabled:
+        return
+    try:
+        current_bytes = ref.ticket_path.read_bytes()
+    except OSError as exc:
+        raise _LaunchClaimRefused(
+            f"pending launch claim could not be read after child release: {exc}"
+        ) from exc
+    if current_bytes != expected_started_bytes:
+        raise _LaunchClaimRefused(
+            "pending launch claim changed locally during child release"
+        )
+    try:
+        ticket = Ticket.parse(current_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, TicketError) as exc:
+        raise _LaunchClaimRefused(
+            f"pending launch claim became unreadable after child release: {exc}"
+        ) from exc
+    generation = ticket.launch_generation
+    if not pending_launch_generation(generation):
+        raise _LaunchClaimRefused(
+            "launch claim was not pending after child release"
+        )
+    assert generation is not None
+
+    audit_path = log_path(cfg)
+    mutation = git.FileMutationRollback.capture(
+        (ref.ticket_path, audit_path),
+        union_paths=(audit_path,),
+    )
+    try:
+        mutation.require_unchanged(ref.ticket_path)
+        ticket.frontmatter["launch_generation"] = admitted_launch_generation(
+            generation
+        )
+        admitted_bytes = ticket.render().encode("utf-8")
+        ticket.write(ref.ticket_path)
+        mutation.arm({ref.ticket_path: admitted_bytes})
+        # The supervisor already holds ``state_publication_barrier`` through
+        # this callback. Re-entering it would deadlock, so use the shared
+        # publisher's narrow no-barrier form for this exact transition.
+        git._sync_paths_without_barrier(
+            cfg,
+            ref.path,
+            (ref.ticket_path,),
+            message=f"Ticket: {ref.id_slug} — launch admitted",
+            guard=git.ticket_state_guard(
+                cfg,
+                ref.ticket_path,
+                expected_ticket_bytes=current_bytes,
+                allow_launch_claim_admission=True,
+            ),
+            generated_paths=mutation.generated,
+            raise_state_regression=True,
+            raise_git_error=True,
+            allow_launch_claim_admission=True,
+        )
+    except git.UncertainFeaturePublicationError as exc:
+        raise _LaunchClaimRefused(
+            "launch-admission publication outcome is uncertain; admitted "
+            f"local state retained for reconciliation — {exc}"
+        ) from exc
+    except git.GitError as exc:
+        refused = mutation.restore()
+        detail = ""
+        if refused:
+            paths = ", ".join(str(path) for path in refused)
+            detail = f"; generated bytes could not be restored from {paths}"
+        raise _LaunchClaimRefused(
+            f"launch admission could not be published: {exc}{detail}"
+        ) from exc
+    except (OSError, ValueError) as exc:
+        refused = mutation.restore()
+        detail = ""
+        if refused:
+            paths = ", ".join(str(path) for path in refused)
+            detail = f"; generated bytes could not be restored from {paths}"
+        raise _LaunchClaimRefused(
+            f"launch admission could not be recorded: {exc}{detail}"
+        ) from exc
 
 
 def _reblock_unresolved(
@@ -1871,6 +1984,12 @@ def _preflight_agent_launch(
     if ticket.status not in {"active", "in_progress"}:
         return f"status is {ticket.status}; expected active or in_progress"
     if ticket.status == "in_progress" and ticket.launch_generation is not None:
+        if pending_launch_generation(ticket.launch_generation):
+            return (
+                "ticket already carries a pending megalaunch admission; its "
+                "held child must be released or the claim reconciled before "
+                "another session can start"
+            )
         return (
             "ticket already carries a published megalaunch claim; refusing "
             "an automatic concurrent resume — use `coga launch "
@@ -1886,7 +2005,12 @@ def _preflight_agent_launch(
     launch_ticket = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
     if launch_ticket.status == "active":
         launch_ticket.frontmatter["status"] = "in_progress"
-    launch_ticket.frontmatter["launch_generation"] = str(uuid4())
+    generation = str(uuid4())
+    launch_ticket.frontmatter["launch_generation"] = (
+        f"{PENDING_LAUNCH_GENERATION_PREFIX}{generation}"
+        if cfg.git_enabled
+        else generation
+    )
     try:
         prompt = compose_prompt(
             cfg, ref, launch_ticket, launch_context="megalaunch"

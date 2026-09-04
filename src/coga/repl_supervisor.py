@@ -238,6 +238,7 @@ def run_with_done_marker(
     spawn_release_guard: (
         Callable[[], AbstractContextManager[None]] | None
     ) = None,
+    after_spawn_release: Callable[[], None] | None = None,
     on_spawn_admission_failure: Callable[[], None] | None = None,
 ) -> ReplOutcome:
     """Spawn `cmd` in a PTY, proxy stdio, SIGTERM the child on done signal.
@@ -279,6 +280,10 @@ def run_with_done_marker(
     ``spawn_release_guard`` optionally surrounds both that callback and the
     gate write, so a caller can keep a short cross-process critical section
     held until the child is irrevocably released.
+    ``after_spawn_release`` runs after the gate byte is delivered and the child
+    is classified as released, but before that guard is dropped. It is for a
+    caller's exact post-release admission transition: failure kills the now-
+    released child and deliberately does not retract pre-release effects.
     ``on_spawn_admission_failure`` runs inside that same guard when the callback
     fails or gate-byte delivery is known not to have completed. It lets a caller
     retract provisional callback effects before the held child is killed and
@@ -288,6 +293,8 @@ def run_with_done_marker(
     """
     if spawn_release_guard is not None and after_spawn is None:
         raise ValueError("spawn_release_guard requires after_spawn")
+    if after_spawn_release is not None and after_spawn is None:
+        raise ValueError("after_spawn_release requires after_spawn")
     if on_spawn_admission_failure is not None and after_spawn is None:
         raise ValueError("on_spawn_admission_failure requires after_spawn")
 
@@ -314,6 +321,8 @@ def run_with_done_marker(
                     # is restored must retain the launch audit and started
                     # state because the child can already execute.
                     child_released = True
+                if after_spawn_release is not None:
+                    after_spawn_release()
             except BaseException as admission_exc:
                 if not child_released and on_spawn_admission_failure is not None:
                     try:

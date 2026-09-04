@@ -3128,7 +3128,7 @@ def test_megalaunch_launch_claim_cas_excludes_a_second_checkout(
 
     assert run.results[0].outcome == "failed"
     assert not run.results[0].launched
-    assert "exact control ticket changed" in run.results[0].detail
+    assert "pending launch admission" in run.results[0].detail
     assert len(spawned_paths) == 1
     assert peer_generation is not None
     local = Ticket.read(active["path"])
@@ -3252,7 +3252,7 @@ def test_megalaunch_revalidates_control_claim_at_final_spawn_boundary(
 def test_megalaunch_final_refusal_keeps_audit_out_of_peer_state_commit(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A same-checkout publisher waits until the provisional audit is decided."""
+    """A same-checkout publisher waits, then cannot alter a pending claim."""
     from coga import git as git_module
     from coga.commands import launch as launch_module
 
@@ -3348,8 +3348,8 @@ def test_megalaunch_final_refusal_keeps_audit_out_of_peer_state_commit(
                 peer.write(ticket_path)
                 peer_mutated.set()
                 # The write is visible to the final claim proof, but this Git
-                # publisher must wait until the held child is released or the
-                # provisional audit append has been rolled back.
+                # publisher must wait until the provisional audit is decided;
+                # the pending claim then seals the remote ticket revision.
                 peer_called_sync.set()
                 git_module.sync_coga_state(
                     cfg,
@@ -3391,7 +3391,7 @@ def test_megalaunch_final_refusal_keeps_audit_out_of_peer_state_commit(
     )
     assert remote.status == "in_progress"
     assert remote.launch_generation == outer_generation
-    assert "Peer edited the task." in remote.body
+    assert "Peer edited the task." not in remote.body
     assert _log_lines_for(
         cfg, active["slug"], "launched via coga megalaunch"
     ) == []
@@ -3561,12 +3561,138 @@ def test_megalaunch_claim_cannot_be_replaced_after_final_control_check(
     assert peer_result is not None
     assert peer_result.outcome == "failed"
     assert not peer_result.launched
-    assert "already carries a published megalaunch claim" in peer_result.detail
+    assert "already carries a pending megalaunch admission" in peer_result.detail
     remote = Ticket.parse(
         git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
     )
     assert remote.status == "in_progress"
     assert remote.launch_generation == outer_generation
+
+
+def test_pending_claim_blocks_remote_lifecycle_between_final_fetch_and_gate(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A peer transition cannot overtake the final proof and child release."""
+    from coga import git as git_module
+
+    cfg = load_config(git_repo.coga_os)
+    active = create_task(
+        cfg=cfg,
+        title="Seal the final child release",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ticket_path = Path(active["path"])
+    ticket_rel = str(ticket_path.relative_to(git_repo.root))
+    git_module.sync_task_state(
+        cfg, ticket_path, message="Seed final release seal"
+    )
+
+    peer_root = git_repo.root.parent / "release-window-peer"
+    git_repo.git(
+        "clone", str(git_repo.origin), str(peer_root), cwd=git_repo.root.parent
+    )
+    git_repo.git("config", "user.email", "peer@example.com", cwd=peer_root)
+    git_repo.git("config", "user.name", "Peer", cwd=peer_root)
+    git_repo.git("config", "commit.gpgsign", "false", cwd=peer_root)
+    git_repo.git("checkout", "-B", "main", "origin/main", cwd=peer_root)
+    (peer_root / "coga" / "coga.local.toml").write_text(
+        'user = "marc"\n', encoding="utf-8"
+    )
+    peer_cfg = load_config(peer_root / "coga")
+    peer_ticket_path = peer_root / ticket_rel
+
+    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    pending_at_gate: str | None = None
+    remote_during_gate: Ticket | None = None
+    admitted_after_gate: Ticket | None = None
+    gate_delivered = False
+
+    class _Outcome:
+        exit_code = 0
+        kind = "natural"
+        reason = None
+
+    def race_after_final_fetch(
+        _cmd,
+        _env,
+        *,
+        after_spawn,
+        spawn_release_guard,
+        after_spawn_release,
+        **_kwargs,
+    ):  # type: ignore[no-untyped-def]
+        nonlocal pending_at_gate, remote_during_gate, admitted_after_gate
+        nonlocal gate_delivered
+        assert after_spawn is not None
+        assert spawn_release_guard is not None
+        assert after_spawn_release is not None
+        with spawn_release_guard():
+            # Includes the second post-audit fetch: this returns at the exact
+            # boundary from the review, while the modeled child is still held.
+            after_spawn()
+            git_repo.git("pull", "--ff-only", "origin", "main", cwd=peer_root)
+            peer = Ticket.read(peer_ticket_path)
+            pending_at_gate = peer.launch_generation
+            assert pending_at_gate is not None
+            assert pending_at_gate.startswith("pending:")
+
+            peer.frontmatter["status"] = "done"
+            peer.frontmatter.pop("step", None)
+            peer.frontmatter.pop("launch_generation", None)
+            peer.write(peer_ticket_path)
+            # No command-specific guard: the shared publisher must refuse the
+            # peer lifecycle update solely because control is still pending.
+            git_module.sync_task_state(
+                peer_cfg,
+                peer_ticket_path.parent,
+                message="Peer completion inside final release window",
+            )
+            remote_during_gate = Ticket.parse(
+                git_repo.git(
+                    "show", f"main:{ticket_rel}", cwd=git_repo.origin
+                )
+            )
+            assert remote_during_gate.status == "in_progress"
+            assert remote_during_gate.launch_generation == pending_at_gate
+
+            # Model the successful one-byte gate delivery, then run the real
+            # supervisor callback before dropping the local barrier.
+            gate_delivered = True
+            assert gate_delivered
+            after_spawn_release()
+            admitted_after_gate = Ticket.parse(
+                git_repo.git(
+                    "show", f"main:{ticket_rel}", cwd=git_repo.origin
+                )
+            )
+        return _Outcome()
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", race_after_final_fetch
+    )
+
+    run = run_megalaunch(cfg, selection=[active["slug"]])
+
+    assert gate_delivered
+    assert pending_at_gate is not None
+    assert remote_during_gate is not None
+    assert admitted_after_gate is not None
+    assert admitted_after_gate.status == "in_progress"
+    assert admitted_after_gate.launch_generation == pending_at_gate.removeprefix(
+        "pending:"
+    )
+    assert run.results[0].outcome == "failed"
+    assert run.results[0].launched
+    assert "without changing task state" in run.results[0].detail
 
 
 def test_megalaunch_selection_does_not_reactivate_pick_started_during_earlier_launch(

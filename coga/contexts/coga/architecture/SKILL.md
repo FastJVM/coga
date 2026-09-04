@@ -214,13 +214,18 @@ task under `tasks/recurring/`. The creator stamps it once per stable-path
 generation and the runner's start lease reads it back as a bounded witness;
 templates and ordinary tasks that declare it are rejected. See `coga/recurring`.
 
-`launch_generation` is megalaunch's transient, durable session-claim token:
-an unclaimed start or resume writes it before
-spawn; another megalaunch may not rotate a published generation. Advancing the
-workflow or marking the session blocked, paused, done, or canceled clears it,
-as does activation. An operator may explicitly recover an abandoned claim with
-ordinary `coga launch`. Both generation fields are system-owned optional
-fields, never repository extensions.
+`launch_generation` is megalaunch's transient,
+durable session-claim token. A Git-backed start or resume first publishes it as
+`pending:<uuid>` while the spawned child is held before exec. Every Coga task
+publisher seals that exact pending control revision, and ordinary `coga launch`
+refuses it. Only after the supervisor delivers the child gate does megalaunch
+remove the prefix and strictly publish the same UUID; the plain token means the
+session was admitted and is available to ordinary explicit recovery. Another
+megalaunch may not rotate either form. Advancing the workflow or marking the
+admitted session blocked, paused, done, or canceled clears it, as does
+activation. Git-disabled launches use the plain token behind the local release
+barrier. Both generation fields are system-owned optional fields, never
+repository extensions.
 
 `secrets` is nullable and declared **inline** — there is no central
 `[secrets]` catalog. Absent / `null` / `[]` inject nothing; otherwise it is a
@@ -900,30 +905,37 @@ detached edit advances that baseline with another exact-leaf commit.
 At the shared pre-audit
 `validate_before_spawn` seam, megalaunch rereads those exact local bytes and
 freshly fetches every effective control destination; the whole control ticket,
-including `launch_generation`, must still match. It repeats that proof through
-`validate_after_spawn` after the PTY child exists but while the supervisor
-still holds it before exec. Megalaunch then appends the launch audit and repeats
-the same `validate_after_spawn` proof after that append, immediately before
-release. The local state admission/publication barrier spans that append,
-final proof, and pipe write; every Coga lifecycle writer and Git publisher
-waits, so no ticket mutation can invalidate the successful proof before release
-and no publisher can commit the provisional line before admission becomes
-irrevocable. If the pipe write itself fails, the supervisor runs admission
-compensation before releasing that barrier: it removes the provisional audit
-and keeps the session out of usage teardown before killing the still-held
-child. A changed or unverifiable claim conditionally removes only the owned
-audit line, refuses the child, and retains `in_progress` for safe resume.
-Thus the audit stays out of
-`log.md` until the PTY child actually exists, while an edit during the append
-cannot release stale preflighted work or publish a false audit. An audit failure
-likewise kills the held child, so no unrecorded work starts. Once published, a
-generation is not automatically reclaimable by another megalaunch, closing the
-interval after the point-in-time final fetch; a step advance or lifecycle
-transition that ends or parks the session clears it.
-Ordinary `coga launch` remains the explicit recovery path and can resume the
-same generation while writing its blackboard. Megalaunch therefore never
-compensates a refused claim backward to `active`: the unchanged token cannot
-prove that no ordinary session is running.
+including the pending `launch_generation`, must still match. It repeats that
+proof through `validate_after_spawn` after the PTY child exists but while the
+supervisor still holds it before exec. Megalaunch then appends the launch audit
+and repeats the same proof after that append, immediately before release. The
+local state admission/publication barrier spans that append, final proof, pipe
+write, and post-release admission callback; every same-checkout Coga lifecycle
+writer and Git publisher waits. Across checkouts, every task publisher refuses
+to replace a control ticket carrying `pending:<uuid>`. A lifecycle transition
+that begins after the last fetch therefore cannot overtake the gate: it is
+refused while pending, or observes the plain admitted UUID only after the child
+can execute.
+
+After successful gate delivery, but before dropping the local barrier, the
+callback strips only `pending:` and strictly publishes that exact one-field
+transition under the original whole-ticket lease. If the pipe write itself
+fails, the supervisor runs admission compensation first: it removes the
+provisional audit and keeps the session out of usage teardown before killing
+the still-held child. A changed or unverifiable pre-release claim conditionally
+removes only the owned audit line, refuses the child, and retains the pending
+`in_progress` state for explicit reconciliation. A post-release admission
+failure kills the child but retains its audit; an uncertain publication also
+retains the admitted local bytes because the remote may have accepted them.
+Thus the audit stays out of `log.md` until the PTY child actually exists, while
+an edit during the append cannot release stale preflighted work or publish a
+false audit. An audit failure likewise kills the held child, so no unrecorded
+work starts. Another megalaunch never reclaims either claim form. Ordinary
+`coga launch` refuses pending claims and remains the explicit recovery path
+only after a plain generation proves release. A step advance or lifecycle
+transition that ends or parks that admitted session clears it. Megalaunch never
+compensates a refused claim backward to `active`: retained claim state is the
+human-legible reconciliation evidence.
 `coga launch`'s
 `while True:` supervisor chain
 (per-step CLI re-resolution, claude↔codex rotation, `COGA_SUPERVISED`, the

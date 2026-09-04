@@ -97,7 +97,7 @@ from coga.tasks import (
     read_ticket,
     resolve_target,
 )
-from coga.ticket import Ticket, TicketError
+from coga.ticket import Ticket, TicketError, pending_launch_generation
 from coga.validate import TaskValidationError
 from coga.version_skew import warn_if_installed_predates_source
 from coga.workflow import WorkflowError
@@ -894,6 +894,17 @@ def _launch(
         return
 
     ticket = post_alignment_setup_call(lambda: _read(ref))
+
+    if (
+        isinstance(ref, TaskRef)
+        and pending_launch_generation(ticket.launch_generation)
+    ):
+        setup_bail(
+            f"Cannot launch {ref.id_slug}: megalaunch admission "
+            f"{ticket.launch_generation!r} is still pending. Its held child "
+            "must be released or the pending claim reconciled before another "
+            "session can start."
+        )
 
     post_alignment_setup_call(
         lambda: typer.echo(
@@ -2993,6 +3004,7 @@ def spawn_agent_session(
     validate_before_spawn: Callable[[], None] | None = None,
     before_spawn: Callable[[], None] | None = None,
     validate_after_spawn: Callable[[], None] | None = None,
+    after_spawn_release: Callable[[], None] | None = None,
     record_launch: bool = True,
     record_launch_on_spawn: bool = False,
     secrets_are_scoped: bool = True,
@@ -3060,6 +3072,9 @@ def spawn_agent_session(
     the append and immediately before release. The append, proof, and supervisor
     pipe release share Git's local state-publication barrier, so another Coga
     command cannot commit the provisional line while that proof is in flight.
+    ``after_spawn_release`` runs after that pipe release but before the same
+    barrier is dropped. A Git-backed megalaunch uses it to admit its visible
+    pending claim only after the held child can execute.
     Refusal conditionally removes only this invocation's append. A pipe-release
     failure invokes the same compensation inside the barrier and clears the
     session-started flag before the held child is killed. Such an audit cannot
@@ -3224,7 +3239,9 @@ def spawn_agent_session(
             before_spawn()
 
         gated_spawn_admission = (
-            validate_after_spawn is not None or deferred_launch_audit
+            validate_after_spawn is not None
+            or deferred_launch_audit
+            or after_spawn_release is not None
         )
         if not gated_spawn_admission:
             spawn_started = True
@@ -3298,9 +3315,10 @@ def spawn_agent_session(
             after_spawn=admit_spawned_child if gated_spawn_admission else None,
             spawn_release_guard=(
                 (lambda: git.state_publication_barrier(cfg))
-                if deferred_launch_audit
+                if deferred_launch_audit or after_spawn_release is not None
                 else None
             ),
+            after_spawn_release=after_spawn_release,
             on_spawn_admission_failure=(
                 rollback_spawn_admission if gated_spawn_admission else None
             ),

@@ -52,6 +52,30 @@ CANONICAL_TICKET_KEYS: frozenset[str] = frozenset({
 
 EXTENSION_MARKER = "# --- extensions ---"
 
+# A Git-backed megalaunch publishes this visible prefix while its child is
+# still held before exec. Other Coga publishers treat that revision as sealed;
+# the launcher removes only the prefix, preserving the UUID, after delivering
+# the gate byte. A plain generation therefore means the child was admitted.
+PENDING_LAUNCH_GENERATION_PREFIX = "pending:"
+
+
+def pending_launch_generation(generation: str | None) -> bool:
+    """Whether ``generation`` still guards a held megalaunch child."""
+    return bool(
+        generation
+        and generation.startswith(PENDING_LAUNCH_GENERATION_PREFIX)
+        and generation.removeprefix(PENDING_LAUNCH_GENERATION_PREFIX)
+    )
+
+
+def admitted_launch_generation(generation: str) -> str:
+    """Return the stable session generation after held-child admission."""
+    if not pending_launch_generation(generation):
+        raise ValueError(
+            f"launch generation is not pending admission: {generation!r}"
+        )
+    return generation.removeprefix(PENDING_LAUNCH_GENERATION_PREFIX)
+
 
 @dataclass
 class Ticket:
@@ -242,7 +266,10 @@ class Ticket:
 
 
 __all__ = [
+    "admitted_launch_generation",
     "CANONICAL_TICKET_KEYS",
+    "PENDING_LAUNCH_GENERATION_PREFIX",
+    "pending_launch_generation",
     "Ticket",
     "TicketError",
     "TicketNotFoundError",

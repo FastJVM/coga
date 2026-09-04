@@ -126,7 +126,7 @@ def test_no_tty_after_spawn_callback_releases_held_child(
     assert marker.read_text() == "ran"
 
 
-def test_no_tty_spawn_release_guard_covers_callback_and_gate_write(
+def test_no_tty_spawn_release_guard_covers_callbacks_and_gate_write(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -159,16 +159,27 @@ def test_no_tty_spawn_release_guard_covers_callback_and_gate_write(
         assert not marker.exists()
         events.append("callback")
 
+    def record_release() -> None:
+        assert guard_held
+        events.append("after-release")
+
     monkeypatch.setattr("coga.repl_supervisor.os.write", tracked_write)
     outcome = run_with_done_marker(
         [sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ran')"],
         env={},
         after_spawn=record_spawn,
         spawn_release_guard=release_guard,
+        after_spawn_release=record_release,
     )
 
     assert (outcome.exit_code, outcome.kind) == (0, "natural")
-    assert events == ["guard-enter", "callback", "release", "guard-exit"]
+    assert events == [
+        "guard-enter",
+        "callback",
+        "release",
+        "after-release",
+        "guard-exit",
+    ]
     assert marker.read_text() == "ran"
 
 
