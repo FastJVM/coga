@@ -164,8 +164,11 @@ Slack-channel failure:
   user at the `[notification.slack].webhook` key, removing slack from
   `[notification].channels`, or the opt-out.
 - Network or webhook-rejection error during `requests.post` →
-  `typer.Exit(1)` with the error and (when `task_path` is given) a line
-  appended (tagged with that task's ref) to the repo-global `coga/log.md`.
+  `typer.Exit(1)` with a *redacted* failure category — never the raw exception
+  string or response body, both of which can carry the webhook URL — and (when
+  `task_path` is given) a line appended (tagged with that task's ref) to the
+  repo-global `coga/log.md`. See the redaction rule in the implementation
+  pointers below.
 
 Once recurring jobs run, `[notification.slack].important_webhook` is a second
 operational prerequisite. Default `coga validate` warns, without a network
@@ -348,17 +351,26 @@ new string:
   reference or omits the key.
 - `cfg.slack_users` (`dict[str, str]`, coga name → Slack member ID) — parsed
   from `[notification.slack.users]` in `coga.toml`.
-- Live producers (`post`): `commands/block.py`; `commands/slack.py` (important
-  only with its existing flag); `commands/bump.py` when `--message` is present;
-  `commands/launch.py` / `mark.mark_in_progress` (active → in_progress session
-  start); `blocker_reminders.py::remind_blocked_tasks`; the script-failure path
+- Live producers (`post`) — the module that actually calls `post`, not the
+  command a user types to reach it: `mark.py::mark_blocked` (the shared blocker
+  finalizer behind `coga block`, `fatal=False`); `commands/slack.py` (important
+  only with its existing flag); `bump.py::advance_step`, which posts only when
+  its caller passes `notify_slack=True` (`commands/bump.py` does so when
+  `--message` is present); `mark.py::mark_in_progress` (active → in_progress
+  session start, driven by `commands/launch.py`);
+  `blocker_reminders.py::remind_blocked_tasks`; the script-failure path
   in `launch_script.py` (important); the stale-period-state warning in
   `mark.py` (important); `dream_validate_drift.py` (flow);
   `autoclose.py::_report_retire_followups` (the retire-pending sweep summary,
   flow, `fatal=False`); `recurring_autofix.py` on both its ticket-filing paths
   (`run_autofix` and `run_autofix_analyze_recipe`, flow); and
   `commands/megalaunch.py` (flow). `commands/digest.py` is the flow delivery
-  consumer for the outcome aggregate. Outcome producers (`notify`):
+  consumer for the outcome aggregate. The `commands/*` module fronting a
+  lifecycle transition contributes the `preflight_post(cfg)` configuration
+  check and the rendered `slack_text`, not the delivery — `commands/block.py`,
+  `commands/bump.py`, and `commands/launch.py` each preflight and hand a
+  finished string down to `mark.py` / `bump.py`, so grep for an actual `post(`
+  call before listing a module here. Outcome producers (`notify`):
   `mark.mark_done` (including the autoclose sweep), `mark.mark_canceled`, the
   recurring scan-error summary, and `mark.mark_paused` only when the recurring
   watchdog supplies `slack_text`. Both paths pass
@@ -368,6 +380,29 @@ new string:
   empty-text payload that Slack rejects without notifying the channel.
   Honors the opt-out (skipped when `enabled = false`). Default validation does
   no network I/O and separately warns when the important webhook is unresolved.
+- `src/coga/slack_response.py` — the response boundary shared by **both** the
+  live post (`notification/slack.py`) and the validator's
+  `validate.probe_slack`. `classify_slack_response(status_code, text)` returns
+  `live` (any 2xx/4xx that is not a revocation), `revoked` (HTTP 404 or a
+  `no_service` body), or `unreachable` (5xx; each caller maps a `requests`
+  exception into the same category). Neither caller invents its own reading:
+  `SlackChannel` reports a revoked webhook as its own failure category rather
+  than a generic non-OK response, and `validate` raises `slack-revoked` and
+  `slack-unreachable` as distinct `error` issues (alongside
+  `slack-misconfigured` for a webhook that never resolved) instead of one
+  opaque probe failure. A new Slack caller classifies through this module.
+- **Never render a raw Slack exception or response body.** The webhook URL is a
+  bearer token, and `requests`/`urllib3` embed the requested URL in their
+  exception strings — which the failure path above writes to stderr *and*
+  appends to the **git-tracked** repo-global `coga/log.md`. A call site that
+  formatted `str(exc)` itself would therefore commit a live credential.
+  `format_slack_request_error(exc)` is the only sanctioned rendering: it emits
+  an exception class name plus a fixed non-secret category (DNS/name
+  resolution, TLS/SSL, proxy, timeout, connection, generic request) and never
+  the original message. `redact_slack_webhook_credentials(text)` strips full or
+  relative `hooks.slack.com/services/…` paths and is applied to every response
+  body before it reaches a detail string. Route new Slack diagnostics through
+  those two functions; a third rendering path is the mistake to avoid.
 
 ## The daily digest — a blackboard producer/consumer
 
