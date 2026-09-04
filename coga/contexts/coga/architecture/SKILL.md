@@ -193,7 +193,17 @@ reserved — no extension or alias may collide with them:
 
 `slug`, `title`, `status`, `owner`, `human`, `agent`,
 `assignee`, `watchers`, `workflow`, `step`, `contexts`, `skills`, `delegate`,
-`secrets`.
+`period_generation`, `secrets`.
+
+That is `ticket.CANONICAL_TICKET_KEYS`, and it is the set
+`validate.REQUIRED_TASK_KEYS` plus `OPTIONAL_TASK_KEYS` admits. The collision
+check that points readers here — `config._RESERVED_TICKET_FIELD_NAMES` — is
+currently narrower at both ends: it omits `period_generation` and `slug`, so
+`[ticket.fields.period_generation]` and `[ticket.fields.slug]` load without
+error even though the runner writes `period_generation:` onto every
+materialized recurring period task and `slug:` is required on every ticket. The
+list above is the reserved set regardless; the gap in that check is a known
+defect, not permission to take those two names.
 
 `slug` is the task's path-qualified reference, recorded on the ticket for
 legibility (the path under `tasks/` stays the addressing source of truth).
@@ -203,6 +213,11 @@ materialized task directly under `tasks/recurring/`. Creation copies its
 template's `bootstrap/<name>` value into the period ticket; sweeps, named
 retries, and direct `coga launch recurring/<name>` calls read only that frozen
 value. Ordinary tasks may not declare it.
+
+`period_generation` is likewise system-authored and reserved to a materialized
+task under `tasks/recurring/`. The creator stamps it once per stable-path
+generation and the runner's start lease reads it back as a bounded witness;
+templates and ordinary tasks that declare it are rejected. See `coga/recurring`.
 
 `secrets` is nullable and declared **inline** — there is no central
 `[secrets]` catalog. Absent / `null` / `[]` inject nothing; otherwise it is a
@@ -589,16 +604,28 @@ blackboard. A falsy result fails loud with the command that produces the
 artifact. This is a data check, independent of which agent owns the step;
 human rewinds (`--to` / `--backward`) are never gated.
 
-`code/open-pr` is an ordinary agent step with `requires: pr`. The agent runs
+Two tokens are registered. `requires: branch` gates the `implement` step of
+all three packaged `code/*` workflows: it passes only when a usable `branch:`
+*and* a usable `worktree:` are recorded under `## Dev` — a `(`-prefixed
+placeholder reads as absent. `coga bump` sees only the ticket copy in the
+checkout it runs from, so a `## Dev` write made inside the feature checkout
+does not satisfy a bump run from the control checkout; the remediation names
+both moves that fix it, and warns that a stale `## Dev` from an earlier attempt
+satisfies the gate while stranding the current one.
+
+`requires: pr` gates `code/open-pr`, an ordinary agent step. The agent runs
 `coga open-pr <slug>` — a default alias for `coga run open-pr <slug>` — from
 the checkout that owns the live ticket: the primary control checkout when
 `worktree:` is a separate linked checkout, or the primary checkout's recorded
 feature branch when both are the same checkout. The witness variables and
 sync rules that make that safe are in `coga/launch-internals`. A skipped
 command cannot be papered over with a bump because the gate reads the
-recorded artifact. The registry remains generic
-(`step_gate.py` owns both `pr` policies);
-`bump` never hardcodes a `code/*` skill name.
+recorded artifact.
+
+The registry stays generic: a token owns its own predicate, remediation, and
+transition policy — only `pr` sets `publish_current_branch`, which is what puts
+the transition commit on the feature branch — and `bump` never hardcodes a
+`code/*` skill name.
 
 ## Prompt composition
 
@@ -632,15 +659,26 @@ writes it to a temp file. Layers, in order:
 5. Ticket-level skills and the current workflow step's skill (if any).
 6. The ticket itself, last and contiguous, in the order it sits on disk:
    `## Description`, then the inline `## Context`, then the blackboard region
-   below the fence.
+   below the fence — those three regions and nothing else (see below).
 
 Layer 6 is one block on purpose. These were three separate layers scattered
 across the prompt, with skills wedged between them, back when they were three
 files (`ticket.md` / `blackboard.md` / `log.md`); the single-file task format
 collapsed the files and the split outlived its reason. They remain distinct
 entries in `--prompt-report` so the blackboard can still be sized on its own —
-that line is how a bloated blackboard gets noticed — but the agent reads the
-ticket as written.
+that line is how a bloated blackboard gets noticed — but they compose as one
+contiguous block.
+
+**Layer 6 is a three-region extract, not the whole ticket body.** The section
+extractor takes one `##` heading and stops at the next `##`, so composition
+carries exactly `## Description`, `## Context`, and the blackboard region below
+the fence. Every other `##` section above the fence is dropped silently — no
+warning, no `--prompt-report` line, nothing the authoring step can observe.
+Content a later step must read therefore has to sit under one of those two
+headings or on the blackboard. A sibling `## Acceptance Criteria` or
+`## Proposed Shape` is legible to a human reading the file on disk and
+invisible to the launched agent. This is a constraint on how tickets are
+written, not a guarantee about what the agent sees.
 
 **Session conduct is selected, not appended.** The escalation boundary is
 layer 2, and exactly one conduct resource is ever composed. The selector is
@@ -909,7 +947,9 @@ Every launched agent and ticket script subprocess receives
 task metadata as environment variables:
 `COGA_TASK_SLUG`, `COGA_TASK_DIR`, `COGA_TASK_TICKET`,
 `COGA_TASK_BLACKBOARD`, `COGA_TASK_STEP`,
-`COGA_COGA_OS_ROOT`, and `COGA_REPO_ROOT`. There is no `COGA_TASK_LOG`: the
+`COGA_COGA_OS_ROOT`, and `COGA_REPO_ROOT`. Three further names complete the
+namespace — `COGA_ASSIST_AGENT`, `COGA_ASSIST_BRANCH`, `COGA_ASSIST_PR`, ten
+members in all — and are described below. There is no `COGA_TASK_LOG`: the
 audit log is one repo-global `coga/log.md`, so a per-task variable naming it
 was a leftover from the three-file task layout and nothing ever read it. Derive
 the path from `COGA_COGA_OS_ROOT` if a script needs it. `COGA_TASK_STEP` is the frozen
@@ -921,8 +961,8 @@ does not export cannot survive by inheritance either. `COGA_COGA_OS_ROOT` is
 the `coga/` root; `COGA_REPO_ROOT` is the host repo (its parent when `coga/` is
 nested in a repo).
 
-Two members are conditional, and that is the whole point of the second one.
-`COGA_TASK_STEP` is absent without a current workflow step.
+Five of the ten members are conditional, and that is the whole point of the
+second one. `COGA_TASK_STEP` is absent without a current workflow step.
 `COGA_TASK_BLACKBOARD` is absent for a stateless bootstrap target, which has no
 blackboard. Because the blackboard is the final region of the single ticket
 file, `COGA_TASK_BLACKBOARD` and `COGA_TASK_TICKET` carry the same path when
@@ -936,6 +976,22 @@ path appends into a file that ships in the wheel (a repo-local
 already treat an absent blackboard as "write the report to stdout", and they
 refuse a path outside a `tasks/` tree for the same reason — defence in depth
 on the reading side, for a value inherited from an older process.
+
+The other three conditional members carry the assist capability, and they are
+exported together or not at all. `COGA_ASSIST_AGENT`, `COGA_ASSIST_BRANCH`, and
+`COGA_ASSIST_PR` — the effective launch agent, the exact aligned feature
+branch, and the recorded `pr:` URL — are set only once launch has verified a
+strict human-assist checkout, for both the agent session and a `ticket.py`
+subprocess. An ordinary spawn drops all three before exec, so nested work
+cannot inherit an outer session's publish rights. In-session lifecycle commands
+opt into strict publication only when the assist branch and expected-task
+witness are both present and the witness names the current task. Once that
+predicate selects the strict path, a missing recorded PR or effective agent —
+or an unknown agent — is refused. A missing branch or expected-task witness,
+or a witness for another task, selects the ordinary non-assist path instead.
+Launch itself exports the complete scoped capability together; clearing the
+namespace before an ordinary spawn prevents a partial outer capability from
+silently reaching nested work.
 
 Each known skill's `SKILL.md` carries a `## Known Skill Contract` section
 with these fields:
