@@ -799,17 +799,27 @@ Failure model:
   notification opt-out, this is a deliberate exit for dev/test/solo repos, not
   the normal team path.
 - A non-git checkout is a soft warning and no-op.
-- A **control-branch mismatch** is a soft-skip, not a crash. When
+- **Init resolves only unambiguous control-branch mismatches.** Before its first
+  commit, `coga init` treats an unborn HEAD already named for the configured
+  branch as a match. If the configured branch is absent, init records the
+  current branch only for a ref-less fresh repo with no configured remote; in
+  an established repo it records only a confirmed cached remote default. A
+  detached HEAD, failed local/cached-ref probe, or ambiguous established
+  checkout leaves the configured default untouched and prints the exact
+  `[git] control_branch` line to verify or change. Init performs no live remote
+  probe for this decision, so an offline or stalled remote cannot delay
+  scaffolding. This keeps first-run `git init -b master` quiet without ever
+  promoting a transient feature branch to shared policy.
+- A **steady-state control-branch mismatch** is a soft-skip, not a crash. When
   `[git].control_branch` (default `main`) is not present as a local branch, a
   remote-tracking ref, or an exact configured remote branch, sync prints an
   actionable message naming the missing branch and the one-line
-  `[git].control_branch = "<branch>"` fix, and commits nothing — Coga never
-  auto-guesses the branch. The guard is checked *before* resolving the current
-  branch, so it also covers a fresh `git init -b master` repo whose unborn
-  branch would otherwise raise (the literal first-run case). This is the third
-  soft-skip, alongside disabled and non-git; without it the missing-branch
-  failure was swallowed yet still exited 0, so a first-time user saw a confusing
-  error with no actual failure.
+  `[git].control_branch = "<branch>"` fix, and commits nothing — steady-state
+  sync never auto-guesses the branch. The guard is checked *before* resolving
+  the current branch, so an unresolved mismatch still warns rather than raising
+  on an unborn HEAD. This is the third soft-skip, alongside disabled and
+  non-git; without it the missing-branch failure was swallowed yet still exited
+  0, so a user saw a confusing error with no actual failure.
 - **No configured remote is the fourth soft-skip, and it skips only the push.**
   `coga init` leaves a new user with `git init` and no remote ("push when
   ready"), so every state-changing command used to greet their first ticket with

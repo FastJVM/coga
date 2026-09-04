@@ -5855,18 +5855,28 @@ def _remote_branch_present(root: Path, remote: str, branch: str) -> bool:
     return _remote_branch_oid(root, remote, branch) is not None
 
 
-def _control_branch_present(root: Path, branch: str, remote: str) -> bool:
+def _control_branch_present(
+    root: Path,
+    branch: str,
+    remote: str,
+    *,
+    probe_remote: bool = True,
+) -> bool:
     """True when the configured control branch exists locally or remotely.
 
     Local refs cover the common same-branch and cloned-feature cases without a
     remote probe. When no local ref exists, ask the configured remote exactly:
     a remote-only `origin/main` is still valid because the cross-branch landing
-    path fetches that branch before pushing.
+    path fetches that branch before pushing. Callers that must stay local, such
+    as `coga init`, set ``probe_remote=False`` and use only existing local and
+    remote-tracking refs.
     """
     if _git_ref_present(root, f"refs/heads/{branch}"):
         return True
     if _git_ref_present(root, f"refs/remotes/{remote}/{branch}"):
         return True
+    if not probe_remote:
+        return False
     return _remote_branch_present(root, remote, branch)
 
 
