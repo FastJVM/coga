@@ -608,6 +608,63 @@ def test_spawn_agent_session_retracts_audit_when_child_release_fails(
     assert usage_calls == []
 
 
+def test_spawn_agent_session_retains_audit_after_released_child_interrupt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An interrupt after gate delivery remains an interrupted launch."""
+    ref = TaskRef(slug="guarded-ticket", path=tmp_path / "guarded-ticket")
+    ref.path.mkdir()
+    log_file = tmp_path / "log.md"
+    usage_calls: list[dict] = []
+
+    def interrupt_after_release(
+        _cmd,
+        _env,
+        *,
+        after_spawn,
+        spawn_release_guard,
+        **_kwargs,
+    ):  # type: ignore[no-untyped-def]
+        assert after_spawn is not None
+        assert spawn_release_guard is not None
+        with spawn_release_guard():
+            after_spawn()
+            assert "launched before interrupt" in log_file.read_text()
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        interrupt_after_release,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: usage_calls.append(kwargs),
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        spawn_agent_session(
+            SimpleNamespace(repo_root=tmp_path),
+            ref,
+            _ticket(),
+            AgentType(
+                name="claude",
+                cli="claude",
+                file="CLAUDE.md",
+                mode="local",
+            ),
+            env={},
+            actor="megalaunch",
+            log_message="launched before interrupt",
+            composed_prompt="# Materialized\nchecked once",
+            validate_after_spawn=lambda: None,
+            record_launch_on_spawn=True,
+        )
+
+    assert "launched before interrupt" in log_file.read_text()
+    assert len(usage_calls) == 1
+    assert usage_calls[0]["outcome_status"] == "interrupted"
+
+
 def test_spawn_agent_session_rejects_publishing_a_guarded_deferred_audit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

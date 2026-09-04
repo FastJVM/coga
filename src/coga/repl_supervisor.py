@@ -28,10 +28,10 @@ import tempfile
 import termios
 import time
 import tty
-from contextlib import AbstractContextManager, nullcontext
+from contextlib import AbstractContextManager, contextmanager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Mapping
+from typing import Callable, Iterator, Mapping
 
 from coga.atomicio import atomic_write_text
 
@@ -116,6 +116,31 @@ class AgentCliNotFound(FileNotFoundError):
     def __init__(self, cli: str) -> None:
         super().__init__(f"agent CLI {cli!r} not found")
         self.cli = cli
+
+
+@contextmanager
+def _defer_spawn_release_interrupts() -> Iterator[None]:
+    """Defer process-control signals across the child-release commit point.
+
+    A one-byte pipe write is atomic, but Python may run a signal handler after
+    the kernel accepted that byte and before ``os.write`` returns to our next
+    bytecode. Block SIGINT/SIGTERM for that tiny window so the caller can mark
+    the child released before a pending handler raises. Restoring the prior
+    mask deliberately happens inside the surrounding admission ``try``: an
+    interrupt delivered there sees the already-recorded release state.
+    """
+    pthread_sigmask = getattr(signal, "pthread_sigmask", None)
+    if pthread_sigmask is None:  # pragma: no cover - this module is POSIX-only
+        yield
+        return
+    previous = pthread_sigmask(
+        signal.SIG_BLOCK,
+        {signal.SIGINT, signal.SIGTERM},
+    )
+    try:
+        yield
+    finally:
+        pthread_sigmask(signal.SIG_SETMASK, previous)
 
 
 @dataclass(frozen=True)
@@ -254,9 +279,12 @@ def run_with_done_marker(
     ``spawn_release_guard`` optionally surrounds both that callback and the
     gate write, so a caller can keep a short cross-process critical section
     held until the child is irrevocably released.
-    ``on_spawn_admission_failure`` runs inside that same guard when either the
-    callback or gate write fails. It lets a caller retract provisional callback
-    effects before the held child is killed and peer publishers can proceed.
+    ``on_spawn_admission_failure`` runs inside that same guard when the callback
+    fails or gate-byte delivery is known not to have completed. It lets a caller
+    retract provisional callback effects before the held child is killed and
+    peer publishers can proceed. SIGINT/SIGTERM are deferred across delivery and
+    its released-state update; an interrupt observed after delivery retains the
+    callback effects because agent work may already be running.
     """
     if spawn_release_guard is not None and after_spawn is None:
         raise ValueError("spawn_release_guard requires after_spawn")
@@ -264,6 +292,7 @@ def run_with_done_marker(
         raise ValueError("on_spawn_admission_failure requires after_spawn")
 
     def release_gated_child(gate_write_fd: int) -> None:
+        child_released = False
         guard = (
             spawn_release_guard()
             if spawn_release_guard is not None
@@ -273,14 +302,20 @@ def run_with_done_marker(
             assert after_spawn is not None
             try:
                 after_spawn()
-                written = os.write(gate_write_fd, b"\0")
-                if written != 1:
-                    raise OSError(
-                        errno.EIO,
-                        "short write while releasing held agent child",
-                    )
+                with _defer_spawn_release_interrupts():
+                    written = os.write(gate_write_fd, b"\0")
+                    if written != 1:
+                        raise OSError(
+                            errno.EIO,
+                            "short write while releasing held agent child",
+                        )
+                    # This assignment is part of the signal-masked commit
+                    # point. A pending interrupt delivered as the prior mask
+                    # is restored must retain the launch audit and started
+                    # state because the child can already execute.
+                    child_released = True
             except BaseException as admission_exc:
-                if on_spawn_admission_failure is not None:
+                if not child_released and on_spawn_admission_failure is not None:
                     try:
                         on_spawn_admission_failure()
                     except BaseException as compensation_exc:
@@ -333,6 +368,10 @@ def run_with_done_marker(
             try:
                 release_gated_child(gate_write_fd)
             except BaseException:
+                # Before delivery this kills a still-held child after the
+                # helper retracts admission effects. After delivery (for
+                # example, a deferred SIGINT raised while restoring the signal
+                # mask) it terminates a launched child but retains its audit.
                 try:
                     os.kill(pid, signal.SIGKILL)
                 except OSError:
@@ -409,8 +448,9 @@ def run_with_done_marker(
         try:
             release_gated_child(gate_write_fd)
         except BaseException:
-            # The child is still blocked before exec. Kill it before closing
-            # the gate, so EOF cannot release unrecorded agent work.
+            # Before delivery the child is still blocked and the helper has
+            # retracted admission effects. After delivery it may have exec'd;
+            # terminate the process group but retain its launch audit.
             try:
                 os.killpg(pid, signal.SIGKILL)
             except OSError:

@@ -231,6 +231,80 @@ def test_no_tty_release_failure_compensates_before_reaping_held_child(
     assert not marker.exists()
 
 
+def test_no_tty_interrupt_after_gate_delivery_retains_admission(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A deferred interrupt cannot turn a released child into a false refusal."""
+    marker = tmp_path / "child-ran"
+    events: list[str] = []
+    guard_held = False
+    real_write = os.write
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+
+    @contextmanager
+    def release_guard():
+        nonlocal guard_held
+        guard_held = True
+        events.append("guard-enter")
+        try:
+            yield
+        finally:
+            events.append("guard-exit")
+            guard_held = False
+
+    def deferred_interrupt_mask(how, signals):  # type: ignore[no-untyped-def]
+        if how == signal.SIG_BLOCK:
+            assert signals == {signal.SIGINT, signal.SIGTERM}
+            events.append("interrupts-blocked")
+            return {signal.SIGUSR1}
+        assert how == signal.SIG_SETMASK
+        assert signals == {signal.SIGUSR1}
+        events.append("interrupt-delivered")
+        raise KeyboardInterrupt
+
+    def release_then_interrupt(fd: int, data: bytes) -> int:
+        if data == b"\0":
+            assert guard_held
+            events.append("release-delivered")
+        return real_write(fd, data)
+
+    def record_spawn() -> None:
+        assert guard_held
+        assert not marker.exists()
+        events.append("callback")
+
+    def compensate_spawn() -> None:
+        events.append("compensate")
+
+    monkeypatch.setattr(
+        "coga.repl_supervisor.signal.pthread_sigmask",
+        deferred_interrupt_mask,
+    )
+    monkeypatch.setattr(
+        "coga.repl_supervisor.os.write",
+        release_then_interrupt,
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        run_with_done_marker(
+            [sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ran')"],
+            env={},
+            after_spawn=record_spawn,
+            spawn_release_guard=release_guard,
+            on_spawn_admission_failure=compensate_spawn,
+        )
+
+    assert events == [
+        "guard-enter",
+        "callback",
+        "interrupts-blocked",
+        "release-delivered",
+        "interrupt-delivered",
+        "guard-exit",
+    ]
+
+
 def _run_through_pty(
     monkeypatch: pytest.MonkeyPatch,
     cmd: list[str],

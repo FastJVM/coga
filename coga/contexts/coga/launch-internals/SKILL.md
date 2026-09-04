@@ -303,12 +303,15 @@ publisher can commit the provisional line while refusal is still possible. If
 the one-byte pipe release fails after the callback succeeds, the supervisor
 invokes its admission-failure hook under
 that same barrier; the hook removes the provisional audit and clears the
-session-started flag before the still-held child is killed. A mismatch or
-unverifiable fetch conditionally removes the owned audit line, refuses the
+session-started flag before the still-held child is killed. SIGINT and SIGTERM
+are masked across the atomic gate write and released-state update; if a pending
+handler raises when the prior mask is restored, the supervisor retains the
+audit and started state before terminating the now-launched child. A mismatch
+or unverifiable fetch conditionally removes the owned audit line, refuses the
 child, and retains the current `in_progress` state for safe resume; an audit
 failure likewise kills the held child. Thus an edit during the append cannot
-start stale work or publish a false launch record, and no audit failure starts
-unrecorded work. It
+start stale work or publish a false launch record, and no audit failure or
+release-boundary interrupt starts unrecorded work. It
 never compensates backward to `active`: an ordinary `coga launch` resume may
 already be running
 from the same generation and changing its blackboard, so that token alone is
