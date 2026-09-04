@@ -42,8 +42,9 @@ Directory index: `v2/cleanup-core-commands/README`.
 
 Existing prior art:
 
-- `ticket` has an irreducible command head plus `bootstrap/ticket` interview and
-  finalize logic.
+- `ticket` currently has a command head plus `bootstrap/ticket` interview and
+  finalize logic; the residual-command ticket must still prove whether that
+  coordinator requires package co-versioning or belongs at the edge.
 - recurring scan has been collapsed toward `bootstrap/recurring-scan`.
 - digest/autoclose/delete behavior already has script/workflow precedent.
 

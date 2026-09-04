@@ -46,11 +46,13 @@ Reach for the lowest tier the *shape* allows — shape decides, not taste:
 - **Ticket / workflow** if it is a stateful, reviewable unit of work — it wants
   its own blackboard, log, and (often) a PR. Its deterministic half can live in
   a `ticket.py` sibling without acquiring a kernel registry entry.
-- **Kernel** if `launch` calls or depends on it mid-flight, it must exist before
-  any launch can run, or it is one of the deliberately fixed deterministic
-  commands registered behind `coga run` (below).
+- **Kernel** if `launch` calls or depends on it mid-flight, it must exist
+  before any launch can run, it is one of the deliberately fixed deterministic
+  commands registered behind `coga run` (below), or its reviewed contract names
+  a package-private invariant that requires the command and kernel to be
+  versioned together (below).
 
-## The kernel is the launch closure plus fixed recipes
+## The kernel is the launch closure, fixed recipes, and proven command code
 
 Most of the kernel is not a taxonomy to memorize — it is **one thing and its
 dependency closure**. The kernel is `launch`/compose, plus everything `launch`
@@ -60,13 +62,29 @@ any launch can run at all. For ordinary command-surface decisions, ask:
 > Does `launch` call it *while running*, or does a human/cron call it *to start* a
 > launch? Mid-flight → kernel. Kick-off → movable (ticket or external tool).
 
-There is one explicit exception: `coga run <recipe>` exposes a closed,
-in-package name-to-function table for deterministic jobs whose argv, output,
-and exit behavior are part of Coga's command contract. Those registered
-functions are real Python command implementations, not aliases or discovered
-skill plugins, so they also live in focused core modules. Adding a name is a
-reviewed kernel change; repository-local tickets and skills cannot extend the
-table.
+There are two explicit exceptions. The first is `coga run <recipe>`, which
+exposes a closed, in-package name-to-function table for deterministic jobs
+whose argv, output, and exit behavior are part of Coga's command contract.
+Those registered functions are real Python command implementations, not aliases
+or discovered skill plugins, so they also live in focused core modules. Adding
+a name is a reviewed kernel change; repository-local tickets and skills cannot
+extend the table.
+
+The second is a **proven co-versioned command implementation**. It stays in the
+kernel even when no launch depends on it only when its reviewed contract names
+the exact package-private invariant or atomic transaction it enforces and shows
+why an edge command using Coga's stable CLI and files-on-disk interfaces cannot
+preserve that invariant. This is the same narrow rule `coga/codebase`,
+`AGENTS.md`, and `CLAUDE.md` state for `src/coga/`; the launch closure is its
+common case, not its whole extent. Python logic only proves that a verb is not
+an alias. Operands, validation, Coga-file access, or an implementation already
+living in `src/coga/` do not distinguish a kernel command from a command ticket
+or independently versioned external CLI. A verb whose whole body starts a
+launch is still an alias however it is spelled. `coga digest`
+(`commands/digest.py`) and `coga megalaunch` (`megalaunch.py`) are current
+in-package implementations, not ratified examples of this exception: the
+active command-cleanup design ticket must either record the required
+co-versioning proof or migrate each command where its shape allows.
 
 What that closure contains, and why each is there:
 
@@ -86,8 +104,8 @@ What that closure contains, and why each is there:
   launch needs to exist). A workflow runs *on a ticket*, so neither can be a ticket
   without eating itself.
 
-That is the launch dependency closure. Outside the fixed recipe table, a
-user-facing command that merely starts a launch remains movable.
+That is the launch dependency closure. Outside it and the two exceptions
+above, a user-facing command that merely starts a launch remains movable.
 
 ## The stateless command-ticket home
 
@@ -130,50 +148,31 @@ The classifier is deliberately smaller than a plugin mechanism. For the one
 target already selected, launch stats the exact sibling `ticket.py`; it never
 scans a tree, discovers capabilities, imports edge modules, or consults a
 frontmatter mode. Core subprocesses the file as
-`[sys.executable, <path-to-ticket.py>]`. Only that reserved name changes
-dispatch. A `run.py`, a test helper, or any other script attachment remains an
-ordinary file unless agent instructions invoke it explicitly.
+`[sys.executable, <path-to-ticket.py>]` and never imports from a ticket or
+skill directory. Only that reserved name changes dispatch. A `run.py`, a test
+helper, or any other script attachment remains an ordinary file unless agent
+instructions invoke it explicitly.
 
 For a stateful ticket, `ticket.py` runs once per workflow step. If it completes
 the step through `coga bump`, `coga mark done`, or `coga block`, launch observes
 the new frontmatter and does not spawn an agent for that step. If it exits zero
 while the step remains open, launch composes the freshly re-read ticket — so a
 blackboard append is the visible handoff — and starts the agent on the same
-step. A step advance repeats `ticket.py` only while control stays with a
-configured agent; a human or unassigned handoff stops the chain. A recorded
-single-checkout human assist aligns its authoritative PR tip and publishes the
-started lifecycle before either the entry-point stat or user code runs, then
-gives the script the same scoped assist capability and strictly republishes its
-valid ticket/result state from an exact publishable post-child byte snapshot
-captured by a pre-execution publication lease; ignored untracked leaves,
-including non-regular local-environment entries, are excluded while tracked
-symlinks still refuse publication. The result must still pass ordinary task
-validation; invalid output is restored and audited rather than published. If a
-nested lifecycle command already published, recovery uses the latest
-re-verified feature/control lifecycle instead of rewinding it. Live
-notification configuration is preflighted before strict user code or state
-publication. An
-in-script `coga bump`, `coga mark paused/done/canceled`,
-`coga block`, or `coga unblock` consumes a fresh inherited assist lease around
-its own exact task-tree/log (and, for outcomes, digest-spool) mutation, so
-attachments written earlier in that deterministic phase ride the same
-transition. Period completion includes its recurring parent's high-water
-state. The parent then renews only for the trailing exit audit instead of
-reusing a stale pre-child control witness. The inherited assist scope disables
-the CLI's broad
-end-of-command subtree sweep, so an early command failure cannot bypass the
-exact publisher. Ordinary lifecycle or audit sync can also move a
-control checkout, so config, ticket, secrets, and `ticket.py` are re-derived
-after that boundary. A removed entry point falls through as agent-only work. A
-nonzero exit halts before composition and remains the reported/audited result
-even when the script deleted or malformed its ticket. After a successful child
-boundary, config, target, and ticket are reloaded before handoff. Each later
-agent spawn rebuilds its secret environment from the current ticket, and a
-human-assist override no longer routes or receives credit after the durable
-workflow hands control to a configured agent, while the aligned checkout
-retains strict publication through that configured-agent chain.
-This completion contract makes a forgotten completion fail toward running the
-agent, never toward silently skipping judgment.
+step. A nonzero exit halts before composition and remains the reported and
+audited result even when the script deleted or malformed its ticket. A removed
+entry point falls through as agent-only work. A step advance repeats
+`ticket.py` only while control stays with a configured agent; a human or
+unassigned handoff stops the chain. This completion contract makes a forgotten
+completion fail toward running the agent, never toward silently skipping
+judgment.
+
+That is the whole extension-model contract: which filename changes dispatch,
+and what an exit code means for composition. What a strict human assist must
+prove around that script phase — the pre-execution publication lease, the exact
+post-child byte snapshot, the fresh inherited lease each in-script lifecycle
+command consumes, task validation before publication, and the sync boundaries
+that force config, ticket, secrets, and the entry-point stat to be re-derived —
+lives in `coga/launch-internals`, and is not restated here.
 
 ## Ticket vs. command: statefulness decides
 
@@ -242,16 +241,24 @@ actively fights the capability boundary.
 
 | Home | Members |
 | --- | --- |
-| **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · fresh `init` · fixed `coga run` recipes · *(hooks)* secret-inject, skill-verify-at-compose |
+| **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · fresh `init` · fixed `coga run` recipes · commands proven to require co-versioning with a named package-private invariant · *(hooks)* secret-inject, skill-verify-at-compose |
 | **Stateful tickets** | reviewable work with its own lifecycle; may run `ticket.py`, an agent, or both |
 | **Stateless command tickets** | package/repo bootstrap targets such as `resolve-conflicts`; agent-backed or no-operand `ticket.py`, launched in place |
 | **External tools** | existing CLIs such as `git`, `gh`, and `op` |
 | **Alias (sugar)** | fixed rewrites to launch/bootstrap or other real command targets |
 
+The table names home criteria and settled primitives; it does not ratify every
+current `src/coga/` verb as a permanent kernel member. Several live verbs are
+still under classification — including `digest` and `megalaunch` — and may
+move when their reviewed shape permits it. `docs/cli-extension-audit.md` holds
+the current verb-by-verb inventory; an active migration ticket remains
+authoritative about decisions it was created to settle.
+
 ## Migration rule, not a redesign
 
-When a built-in verb is stateless and does not belong to `launch`'s dependency
-closure, move its implementation into one command ticket without changing its
+When a built-in verb is stateless, does not belong to `launch`'s dependency
+closure or the fixed recipe table, and has no reviewed co-versioning proof,
+move its implementation to the appropriate edge without changing its
 semantics:
 
 1. Preserve shared parsers, preflights, and declarative completion gates in the
@@ -274,3 +281,6 @@ semantics:
 - The primitives the homes are built from (tickets, workflows, skills, launch
   composition, the files-on-disk invariant) — see `coga/architecture`.
 - Where the kernel source lives and how to test it — see `coga/codebase`.
+- The strict publication invariants around a `ticket.py` phase and around
+  launch generally — leases, recorded-checkout and PR-head proofs,
+  compare-and-set publication, compensation — see `coga/launch-internals`.

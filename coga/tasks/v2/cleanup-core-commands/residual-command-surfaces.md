@@ -46,7 +46,8 @@ behind aliases. Read `src/coga/cli.py`, `docs/cli-extension-audit.md`,
 Design first. Decide for each surface whether it is:
 
 - true bootstrap substrate (`init` may be, because it exists before `coga/`);
-- an irreducible command head plus bootstrap ticket/script body (`ticket`);
+- a current command head plus bootstrap ticket/script body whose permanent
+  home still needs a named co-versioning proof or an edge migration (`ticket`);
 - already script-shaped and only needing docs/taxonomy updates (`delete`);
 - excluded external/tooling surface (`skill *`);
 - alias sugar over an existing launch/recurring launch path.
