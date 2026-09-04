@@ -416,6 +416,66 @@ def test_spawn_agent_session_uses_precomposed_prompt_without_rederiving_it(
     ]
 
 
+def test_spawn_agent_session_can_record_audit_only_after_child_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A guarded caller exposes no launch line until the supervisor spawns."""
+    ref = TaskRef(slug="guarded-ticket", path=tmp_path / "guarded-ticket")
+    ref.path.mkdir()
+    log_file = tmp_path / "log.md"
+    events: list[str] = []
+
+    def fake_supervisor(
+        _cmd, _env, *, after_spawn, **_kwargs
+    ):  # type: ignore[no-untyped-def]
+        assert not log_file.exists()
+        events.append("spawn")
+        after_spawn()
+        assert "launched after spawn" in log_file.read_text()
+        events.append("audit")
+        return ReplOutcome(0, "natural")
+
+    def final_guard() -> None:
+        assert not log_file.exists()
+        events.append("validate")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", fake_supervisor
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    def sync_audit(*args, **kwargs):  # type: ignore[no-untyped-def]
+        assert "launched after spawn" in log_file.read_text()
+        events.append("sync")
+        return True
+
+    monkeypatch.setattr("coga.commands.launch.git.sync_log", sync_audit)
+
+    spawn_agent_session(
+        SimpleNamespace(repo_root=tmp_path),
+        ref,
+        _ticket(),
+        AgentType(
+            name="claude",
+            cli="claude",
+            file="CLAUDE.md",
+            mode="local",
+        ),
+        env={},
+        actor="megalaunch",
+        log_message="launched after spawn",
+        composed_prompt="# Materialized\nchecked once",
+        validate_after_spawn=final_guard,
+        record_launch_on_spawn=True,
+        commit_log=True,
+    )
+
+    assert events == ["spawn", "validate", "sync", "audit"]
+
+
 def test_spawn_agent_session_rederives_nested_recurring_task_env(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

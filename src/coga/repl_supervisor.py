@@ -30,7 +30,7 @@ import time
 import tty
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Callable, Mapping
 
 from coga.atomicio import atomic_write_text
 
@@ -208,6 +208,7 @@ def run_with_done_marker(
     max_session: float | None = None,
     output_fd: int | None = None,
     input_fd: int | None = None,
+    after_spawn: Callable[[], None] | None = None,
 ) -> ReplOutcome:
     """Spawn `cmd` in a PTY, proxy stdio, SIGTERM the child on done signal.
 
@@ -239,20 +240,74 @@ def run_with_done_marker(
     wall-clock cap.
 
     `output_fd` / `input_fd` exist for tests; production callers leave them
-    None and the supervisor proxies the real stdio.
+    None and the supervisor proxies the real stdio. ``after_spawn`` runs in
+    the parent only after the child process exists, while that child waits on
+    a private pipe before executing ``cmd``. A callback failure kills and
+    reaps the held child before propagating; success releases it. Callers can
+    therefore durably record an actual spawn without either recording a
+    refused pre-spawn attempt or letting unrecorded agent work begin.
     """
     if not sys.stdout.isatty():
         import subprocess
 
-        try:
-            code = subprocess.run(
-                cmd, env=dict(env), check=False
-            ).returncode
-        except FileNotFoundError as exc:
-            # Name the failure at its source. The PTY path below reports the
-            # same condition as a 127 exit from the child, so this is the one
-            # spawn route that can surface it as an exception at all.
-            raise AgentCliNotFound(cmd[0]) from exc
+        if after_spawn is None:
+            try:
+                code = subprocess.run(
+                    cmd, env=dict(env), check=False
+                ).returncode
+            except FileNotFoundError as exc:
+                # Name the failure at its source. The PTY path below reports
+                # the same condition as a 127 exit from the child, so this is
+                # the one spawn route that can surface it as an exception.
+                raise AgentCliNotFound(cmd[0]) from exc
+        else:
+            gate_read_fd, gate_write_fd = os.pipe()
+            try:
+                pid = os.fork()
+            except BaseException:
+                os.close(gate_read_fd)
+                os.close(gate_write_fd)
+                raise
+            if pid == 0:
+                os.close(gate_write_fd)
+                try:
+                    released = os.read(gate_read_fd, 1)
+                except OSError:
+                    os._exit(126)
+                finally:
+                    os.close(gate_read_fd)
+                if released != b"\0":
+                    os._exit(126)
+                try:
+                    os.execvpe(cmd[0], cmd, dict(env))
+                except OSError as exc:
+                    os.write(2, f"coga: exec {cmd[0]} failed: {exc}\n".encode())
+                    os._exit(127)
+
+            os.close(gate_read_fd)
+            try:
+                after_spawn()
+                os.write(gate_write_fd, b"\0")
+            except BaseException:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except OSError:
+                    pass
+                os.close(gate_write_fd)
+                try:
+                    os.waitpid(pid, 0)
+                except ChildProcessError:
+                    pass
+                raise
+            else:
+                os.close(gate_write_fd)
+            _, status = os.waitpid(pid, 0)
+            if os.WIFEXITED(status):
+                code = os.WEXITSTATUS(status)
+            elif os.WIFSIGNALED(status):
+                code = -os.WTERMSIG(status)
+            else:  # pragma: no cover - waitpid returns exited/signalled here
+                code = 1
         return ReplOutcome(code, "natural")
 
     sentinel_dir = tempfile.mkdtemp(prefix="coga-done-")
@@ -260,8 +315,34 @@ def run_with_done_marker(
     child_env = dict(env)
     child_env[SENTINEL_ENV] = sentinel_path
 
-    pid, master_fd = pty.fork()
+    gate_read_fd: int | None = None
+    gate_write_fd: int | None = None
+    if after_spawn is not None:
+        gate_read_fd, gate_write_fd = os.pipe()
+    try:
+        pid, master_fd = pty.fork()
+    except BaseException:
+        if gate_read_fd is not None:
+            os.close(gate_read_fd)
+        if gate_write_fd is not None:
+            os.close(gate_write_fd)
+        try:
+            os.rmdir(sentinel_dir)
+        except OSError:
+            pass
+        raise
     if pid == 0:  # child
+        if gate_write_fd is not None:
+            os.close(gate_write_fd)
+        if gate_read_fd is not None:
+            try:
+                released = os.read(gate_read_fd, 1)
+            except OSError:
+                os._exit(126)
+            finally:
+                os.close(gate_read_fd)
+            if released != b"\0":
+                os._exit(126)
         for k, v in child_env.items():
             os.environ[k] = v
         try:
@@ -273,7 +354,47 @@ def run_with_done_marker(
             os.write(2, f"coga: exec {cmd[0]} failed: {exc}\r\n".encode())
             os._exit(127)
 
+    if gate_read_fd is not None:
+        os.close(gate_read_fd)
+    # A gated child cannot inspect its terminal before this parent-side setup
+    # completes. Preserve that ordering when the admission callback releases
+    # a fast TUI executable.
     _resize_pty(master_fd)
+    if after_spawn is not None:
+        assert gate_write_fd is not None
+        try:
+            after_spawn()
+            os.write(gate_write_fd, b"\0")
+        except BaseException:
+            # The child is still blocked before exec. Kill it before closing
+            # the gate, so EOF cannot release unrecorded agent work.
+            try:
+                os.killpg(pid, signal.SIGKILL)
+            except OSError:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except OSError:
+                    pass
+            os.close(gate_write_fd)
+            try:
+                os.close(master_fd)
+            except OSError:
+                pass
+            try:
+                os.waitpid(pid, 0)
+            except ChildProcessError:
+                pass
+            try:
+                os.unlink(sentinel_path)
+            except OSError:
+                pass
+            try:
+                os.rmdir(sentinel_dir)
+            except OSError:
+                pass
+            raise
+        else:
+            os.close(gate_write_fd)
 
     out_fd = output_fd if output_fd is not None else sys.stdout.fileno()
     stdin_fd = input_fd if input_fd is not None else sys.stdin.fileno()

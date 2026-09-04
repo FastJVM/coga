@@ -1016,6 +1016,147 @@ def test_megalaunch_skips_open_blocker(repo: Path) -> None:
     assert "need owner answer" in run.results[0].detail
 
 
+@pytest.mark.parametrize(
+    ("late_change", "expected_outcome", "expected_detail"),
+    [
+        ("owner", "skipped-human-gate", "is not current operator marc"),
+        ("blocker", "skipped-unresolved-blocker", "Late blocker"),
+        ("step", "skipped-human-gate", "no current workflow step"),
+        ("paused", "skipped-unlaunchable", "status is paused"),
+        ("draft", "skipped-unlaunchable", "status is draft"),
+    ],
+)
+def test_megalaunch_reapplies_sweep_gates_to_exact_ticket_bytes(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    late_change: str,
+    expected_outcome: str,
+    expected_detail: str,
+) -> None:
+    """A queue candidate cannot outrun a later owner/blocker/step edit."""
+    from coga import megalaunch as megalaunch_module
+    from coga.blackboard import append_blocker
+
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title=f"Late {late_change} gate",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ticket_path = Path(created["path"])
+    real_candidate = megalaunch_module._candidate_result
+    changed = False
+
+    def candidate_then_peer_edit(
+        cfg_, ref_, ticket_, **kwargs
+    ):  # type: ignore[no-untyped-def]
+        nonlocal changed
+        result = real_candidate(cfg_, ref_, ticket_, **kwargs)
+        if ref_.id_slug != created["slug"] or changed:
+            return result
+        assert kwargs["explicit"] is False
+        assert result is None
+        changed = True
+        if late_change == "blocker":
+            append_blocker(
+                ticket_path,
+                actor="claude",
+                reason="Late blocker",
+            )
+        elif late_change in {"owner", "step"}:
+            peer = Ticket.read(ticket_path)
+            if late_change == "owner":
+                peer.frontmatter["owner"] = "lea"
+            else:
+                peer.frontmatter.pop("step", None)
+            peer.write(ticket_path)
+        else:
+            peer = Ticket.read(ticket_path)
+            peer.frontmatter["status"] = late_change
+            peer.write(ticket_path)
+        return result
+
+    def fail_spawn(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("an exact-ticket gate refusal must not spawn")
+
+    monkeypatch.setattr(
+        "coga.megalaunch._candidate_result", candidate_then_peer_edit
+    )
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    run = run_megalaunch(cfg)
+
+    assert changed
+    assert len(run.results) == 1
+    assert run.results[0].outcome == expected_outcome
+    assert expected_detail in run.results[0].detail
+    assert not run.results[0].launched
+
+
+def test_megalaunch_late_park_does_not_consume_attempt_budget(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A candidate paused before exact reread leaves max-tasks for real work."""
+    from coga import megalaunch as megalaunch_module
+
+    cfg = load_config(repo)
+    first = create_task(
+        cfg=cfg,
+        title="A first candidate",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    second = create_task(
+        cfg=cfg,
+        title="B actual launch",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    real_candidate = megalaunch_module._candidate_result
+    parked = False
+
+    def park_after_queue_check(
+        cfg_, ref_, ticket_, **kwargs
+    ):  # type: ignore[no-untyped-def]
+        nonlocal parked
+        result = real_candidate(cfg_, ref_, ticket_, **kwargs)
+        if ref_.id_slug == first["slug"] and not parked:
+            assert result is None
+            parked = True
+            peer = Ticket.read(first["path"])
+            peer.frontmatter["status"] = "paused"
+            peer.write(first["path"])
+        return result
+
+    monkeypatch.setattr("coga.megalaunch._candidate_result", park_after_queue_check)
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg, max_tasks=1)
+
+    assert parked
+    assert launched == [second["slug"]]
+    assert [result.outcome for result in run.results] == [
+        "skipped-unlaunchable",
+        "completed",
+    ]
+
+
 def test_megalaunch_drains_blocker_after_dependency_finishes(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1517,6 +1658,88 @@ def test_megalaunch_drain_shares_max_tasks_budget(
     assert run.counts["drained"] == 0
     assert Ticket.read(blocked["path"]).status == "blocked"
     assert len(open_blockers(Path(blocked["path"]))) == 1
+
+
+def test_megalaunch_drain_late_park_does_not_consume_attempt_budget(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A late gate skip in the drain leaves its budget for another dependency."""
+    from coga import megalaunch as megalaunch_module
+    from coga.blackboard import append_blocker
+
+    cfg = load_config(repo)
+    dependency = create_task(
+        cfg=cfg,
+        title="A finished dependency",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    dependency_ticket = Ticket.read(dependency["path"])
+    dependency_ticket.frontmatter["status"] = "done"
+    dependency_ticket.frontmatter.pop("step", None)
+    dependency_ticket.write(dependency["path"])
+
+    blocked = []
+    for title in ("B first dependency retry", "C actual dependency retry"):
+        created = create_task(
+            cfg=cfg,
+            title=title,
+            workflow_name="code",
+            contexts=[],
+            owner="marc",
+            assignee="claude",
+            status="active",
+            watchers=[],
+        )
+        append_blocker(
+            Path(created["path"]),
+            actor="claude",
+            reason=f"Waiting for {dependency['slug']}",
+        )
+        ticket = Ticket.read(created["path"])
+        ticket.frontmatter["status"] = "blocked"
+        ticket.write(created["path"])
+        blocked.append(created)
+
+    real_candidate = megalaunch_module._candidate_result
+    parked = False
+
+    def park_after_dependency_activation(
+        cfg_, ref_, ticket_, **kwargs
+    ):  # type: ignore[no-untyped-def]
+        nonlocal parked
+        result = real_candidate(cfg_, ref_, ticket_, **kwargs)
+        if (
+            ref_.id_slug == blocked[0]["slug"]
+            and ticket_.status == "active"
+            and result is None
+            and not parked
+        ):
+            parked = True
+            peer = Ticket.read(ref_.ticket_path)
+            peer.frontmatter["status"] = "paused"
+            peer.write(ref_.ticket_path)
+        return result
+
+    monkeypatch.setattr(
+        "coga.megalaunch._candidate_result", park_after_dependency_activation
+    )
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(cfg, max_tasks=1)
+
+    assert parked
+    assert launched == [blocked[1]["slug"]]
+    first = next(result for result in run.results if result.slug == blocked[0]["slug"])
+    assert (first.outcome, first.launched, first.drained) == (
+        "skipped-unlaunchable",
+        False,
+        True,
+    )
 
 
 def test_megalaunch_drain_matches_complete_task_slug_not_substring(
@@ -2631,6 +2854,7 @@ def test_megalaunch_does_not_reclaim_a_published_session_claim(
     ):  # type: ignore[no-untyped-def]
         assert claimed.launch_generation == outer_generation
         kwargs["validate_before_spawn"]()
+        kwargs["validate_after_spawn"]()
         finished = Ticket.read(active["path"])
         finished.frontmatter["status"] = "done"
         finished.frontmatter.pop("step", None)
@@ -2949,34 +3173,51 @@ def test_megalaunch_revalidates_control_claim_at_final_spawn_boundary(
     reached_spawn_boundary = False
     real_spawn = megalaunch_module.spawn_agent_session
 
-    def fail_if_spawned(*_args, **_kwargs):  # type: ignore[no-untyped-def]
-        raise AssertionError("a refused final claim must not reach PTY spawn")
+    def hold_child_for_final_guard(
+        _cmd, _env, *, after_spawn, **_kwargs
+    ):  # type: ignore[no-untyped-def]
+        assert after_spawn is not None
+        after_spawn()
+        raise AssertionError("a refused final claim must not release the child")
 
     monkeypatch.setattr(
-        "coga.commands.launch.run_with_done_marker", fail_if_spawned
+        "coga.commands.launch.run_with_done_marker", hold_child_for_final_guard
     )
 
     def rotate_before_pty(
-        cfg_, ref_, claimed: Ticket, agent_, *, validate_before_spawn, **kwargs
+        cfg_,
+        ref_,
+        claimed: Ticket,
+        agent_,
+        *,
+        validate_before_spawn,
+        validate_after_spawn,
+        **kwargs,
     ):  # type: ignore[no-untyped-def]
         nonlocal outer_generation, reached_spawn_boundary
         outer_generation = claimed.launch_generation
         assert outer_generation is not None
         assert outer_generation != peer_generation
-        peer = Ticket.parse(
-            git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
-        )
-        assert peer.launch_generation == outer_generation
-        peer.frontmatter["launch_generation"] = peer_generation
-        peer.body = f"{peer.body.rstrip()}\n\nPeer claimant is running.\n"
-        git_repo.push_competing_commit(ticket_rel, peer.render())
-        reached_spawn_boundary = True
+
+        def rotate_at_final_boundary() -> None:
+            nonlocal reached_spawn_boundary
+            peer = Ticket.parse(
+                git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
+            )
+            assert peer.launch_generation == outer_generation
+            peer.frontmatter["launch_generation"] = peer_generation
+            peer.body = f"{peer.body.rstrip()}\n\nPeer claimant is running.\n"
+            git_repo.push_competing_commit(ticket_rel, peer.render())
+            reached_spawn_boundary = True
+            validate_after_spawn()
+
         return real_spawn(
             cfg_,
             ref_,
             claimed,
             agent_,
             validate_before_spawn=validate_before_spawn,
+            validate_after_spawn=rotate_at_final_boundary,
             **kwargs,
         )
 
@@ -3005,6 +3246,112 @@ def test_megalaunch_revalidates_control_claim_at_final_spawn_boundary(
         cfg, active["slug"], "launched via coga megalaunch"
     ) == []
     assert _log_lines_for(cfg, active["slug"], "restored (") == []
+
+
+def test_megalaunch_final_refusal_keeps_audit_out_of_peer_state_commit(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A same-checkout peer cannot publish a pre-spawn launch record."""
+    from coga import git as git_module
+    import coga.megalaunch as megalaunch_module
+
+    cfg = load_config(git_repo.coga_os)
+    active = create_task(
+        cfg=cfg,
+        title="No false committed launch",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ticket_path = Path(active["path"])
+    ticket_rel = str(ticket_path.relative_to(git_repo.root))
+    git_module.sync_task_state(
+        cfg, ticket_path, message="Seed committed-audit race"
+    )
+    monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    real_spawn = megalaunch_module.spawn_agent_session
+    peer_generation = "same-checkout-peer-claim"
+    reached_final_boundary = False
+
+    def hold_child_for_final_guard(
+        _cmd, _env, *, after_spawn, **_kwargs
+    ):  # type: ignore[no-untyped-def]
+        assert after_spawn is not None
+        after_spawn()
+        raise AssertionError("a changed claim must not release the child")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", hold_child_for_final_guard
+    )
+
+    def commit_peer_edit_before_final_proof(
+        cfg_,
+        ref_,
+        claimed: Ticket,
+        agent_,
+        *,
+        validate_before_spawn,
+        validate_after_spawn,
+        **kwargs,
+    ):  # type: ignore[no-untyped-def]
+        assert kwargs["record_launch_on_spawn"] is True
+
+        def publish_peer_then_refuse() -> None:
+            nonlocal reached_final_boundary
+            peer = Ticket.read(ticket_path)
+            assert peer.launch_generation == claimed.launch_generation
+            peer.frontmatter["launch_generation"] = peer_generation
+            peer.body = f"{peer.body.rstrip()}\n\nPeer session is running.\n"
+            peer.write(ticket_path)
+            git_module.sync_task_state(
+                cfg,
+                ref_.path,
+                message="Peer changes claim at final boundary",
+            )
+            reached_final_boundary = True
+            validate_after_spawn()
+
+        return real_spawn(
+            cfg_,
+            ref_,
+            claimed,
+            agent_,
+            validate_before_spawn=validate_before_spawn,
+            validate_after_spawn=publish_peer_then_refuse,
+            **kwargs,
+        )
+
+    monkeypatch.setattr(
+        "coga.megalaunch.spawn_agent_session",
+        commit_peer_edit_before_final_proof,
+    )
+
+    run = run_megalaunch(cfg, selection=[active["slug"]])
+
+    assert reached_final_boundary
+    assert run.results[0].outcome == "failed"
+    assert not run.results[0].launched
+    assert "launch claim changed locally before agent spawn" in (
+        run.results[0].detail
+    )
+    assert Ticket.read(ticket_path).launch_generation == peer_generation
+    remote = Ticket.parse(
+        git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
+    )
+    assert remote.launch_generation == peer_generation
+    assert _log_lines_for(
+        cfg, active["slug"], "launched via coga megalaunch"
+    ) == []
+    remote_log = git_repo.git(
+        "show", "main:coga/log.md", cwd=git_repo.origin
+    )
+    assert "launched via coga megalaunch" not in remote_log
 
 
 def test_megalaunch_claim_cannot_be_replaced_after_final_control_check(
@@ -3060,6 +3407,7 @@ def test_megalaunch_claim_cannot_be_replaced_after_final_control_check(
         _agent,
         *,
         validate_before_spawn,
+        validate_after_spawn,
         **_kwargs,
     ):  # type: ignore[no-untyped-def]
         nonlocal outer_generation, peer_result
@@ -3068,12 +3416,13 @@ def test_megalaunch_claim_cannot_be_replaced_after_final_control_check(
         spawned_paths.append(ref_obj.ticket_path)
         outer_generation = claimed.launch_generation
         assert outer_generation is not None
-        # This is the actual shared final validation seam. Start the competing
-        # megalaunch only after A has completed that point-in-time proof.
+        # Start the competing megalaunch after A's pre-audit proof, then run
+        # the held-child proof that guards the executable boundary.
         validate_before_spawn()
         git_repo.git("pull", "--ff-only", "origin", "main", cwd=peer_root)
         peer_run = run_megalaunch(peer_cfg, selection=[active["slug"]])
         peer_result = peer_run.results[0]
+        validate_after_spawn()
         finished = Ticket.read(ref_obj.ticket_path)
         finished.frontmatter["status"] = "done"
         finished.frontmatter.pop("step", None)
@@ -3363,6 +3712,69 @@ def test_megalaunch_selection_leaves_picks_beyond_max_tasks_unactivated(
     assert Path(second["path"]).read_bytes() == before
     assert Ticket.read(second["path"]).status == "draft"
     assert _log_lines_for(cfg, second["slug"], "activated") == []
+
+
+def test_megalaunch_selection_late_gate_does_not_consume_attempt_budget(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An exact-reread selection skip leaves max-tasks for the next pick."""
+    from coga import megalaunch as megalaunch_module
+
+    cfg = load_config(repo)
+    first = create_task(
+        cfg=cfg,
+        title="A selected late gate",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    second = create_task(
+        cfg=cfg,
+        title="B selected launch",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    real_candidate = megalaunch_module._candidate_result
+    changed = False
+
+    def remove_step_after_selection_check(
+        cfg_, ref_, ticket_, **kwargs
+    ):  # type: ignore[no-untyped-def]
+        nonlocal changed
+        result = real_candidate(cfg_, ref_, ticket_, **kwargs)
+        if ref_.id_slug == first["slug"] and not changed:
+            assert kwargs["explicit"] is True
+            assert result is None
+            changed = True
+            peer = Ticket.read(first["path"])
+            peer.frontmatter.pop("step", None)
+            peer.write(first["path"])
+        return result
+
+    monkeypatch.setattr(
+        "coga.megalaunch._candidate_result", remove_step_after_selection_check
+    )
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(
+        cfg,
+        selection=[first["slug"], second["slug"]],
+        max_tasks=1,
+    )
+
+    assert changed
+    assert launched == [second["slug"]]
+    assert [result.outcome for result in run.results] == [
+        "skipped-human-gate",
+        "completed",
+    ]
 
 
 def test_megalaunch_selection_logs_activation_before_start(

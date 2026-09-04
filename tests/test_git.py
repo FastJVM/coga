@@ -99,6 +99,20 @@ def _step_ticket_text(
     return head + blackboard
 
 
+def _claimed_ticket_text(
+    *,
+    generation: str,
+    blackboard: str,
+    status: str = "in_progress",
+    step: str = "1 (implement)",
+) -> str:
+    ticket = Ticket.parse(
+        _step_ticket_text(step=step, status=status, blackboard=blackboard)
+    )
+    ticket.frontmatter["launch_generation"] = generation
+    return ticket.render()
+
+
 def _write_config(tmp_path: Path, *, shared_extra: str = "", local_extra: str = "") -> Path:
     root = tmp_path / "coga"
     root.mkdir()
@@ -1155,6 +1169,40 @@ def test_sync_detached_head_uses_local_control_ref_before_fetch(git_repo, monkey
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
     assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
+
+
+def test_unclaimed_detached_state_guard_uses_local_control_before_fetch(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A claim-free detached transition keeps the ordinary local-first path."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(
+        git_repo, status="active", blackboard="original notes\n"
+    )
+    git_repo.git("checkout", "--detach", "HEAD")
+    moved = Ticket.read(ticket)
+    moved.frontmatter["status"] = "in_progress"
+    moved.write(ticket)
+    real_run_git = git._run_git
+
+    def refuse_eager_fetch(root, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if args and args[0] == "fetch":
+            raise AssertionError("claim-free first attempt must not fetch")
+        return real_run_git(root, *args, **kwargs)
+
+    monkeypatch.setattr(git, "_run_git", refuse_eager_fetch)
+
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — in_progress",
+        guard=git.ticket_state_guard(cfg, ticket),
+    )
+
+    remote = Ticket.parse(
+        git_repo.git("show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin)
+    )
+    assert remote.status == "in_progress"
 
 
 def test_sync_detached_head_union_merges_log_to_control_branch(git_repo, tmp_path):
@@ -2300,6 +2348,623 @@ def _seed_demo_ticket(
     git_repo.git("commit", "-m", f"seed demo {status}")
     git_repo.git("push", "origin", "main")
     return ticket
+
+
+def test_catch_all_sync_cannot_clear_a_published_launch_claim(
+    git_repo, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A stale prose edit cannot erase another megalaunch's live claim."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(
+        git_repo, status="in_progress", blackboard="original notes\n"
+    )
+    git_repo.checkout_branch("feature/stale-launch-claim")
+    before_head = git_repo.git("rev-parse", "HEAD").strip()
+
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md",
+        _claimed_ticket_text(
+            generation="live-generation",
+            blackboard="claimed by peer\n",
+        ),
+    )
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="stale local prose\n",
+        )
+    )
+
+    git.sync_coga_state(cfg)
+
+    assert "published launch claim would be cleared" in capsys.readouterr().err
+    assert git_repo.git("rev-parse", "HEAD").strip() == before_head
+    assert "coga/tasks/demo/ticket.md" in git_repo.git("status", "--porcelain")
+    remote = Ticket.parse(
+        git_repo.git("show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin)
+    )
+    assert remote.launch_generation == "live-generation"
+    assert "claimed by peer" in remote.body
+    assert "stale local prose" not in remote.body
+
+
+def test_catch_all_sync_cannot_delete_a_published_launch_claim(
+    git_repo, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A stale checkout cannot bypass claim protection by deleting the file."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(
+        git_repo, status="in_progress", blackboard="original notes\n"
+    )
+    git_repo.checkout_branch("feature/stale-claim-delete")
+    before_head = git_repo.git("rev-parse", "HEAD").strip()
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md",
+        _claimed_ticket_text(
+            generation="live-generation",
+            blackboard="claimed by peer\n",
+        ),
+    )
+    ticket.unlink()
+
+    git.sync_coga_state(cfg)
+
+    assert "published launch claim would be cleared" in capsys.readouterr().err
+    assert git_repo.git("rev-parse", "HEAD").strip() == before_head
+    assert "coga/tasks/demo/ticket.md" in git_repo.git("status", "--porcelain")
+    remote = Ticket.parse(
+        git_repo.git("show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin)
+    )
+    assert remote.launch_generation == "live-generation"
+
+
+def test_catch_all_sync_cannot_add_a_claimed_ticket_without_a_control_lease(
+    git_repo, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A locally new ticket cannot smuggle in a system-owned claim."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/unleased-new-claim")
+    before_head = git_repo.git("rev-parse", "HEAD").strip()
+    ticket = git_repo.coga_os / "tasks" / "demo" / "ticket.md"
+    ticket.parent.mkdir(parents=True)
+    ticket.write_text(
+        _claimed_ticket_text(
+            generation="unleased-generation",
+            blackboard="local claimed state\n",
+        )
+    )
+
+    git.sync_coga_state(cfg)
+
+    assert "claim would be added over a missing" in capsys.readouterr().err
+    assert git_repo.git("rev-parse", "HEAD").strip() == before_head
+    assert ticket.is_file()
+    assert git_repo.git("status", "--porcelain").strip()
+    assert not git_repo.origin_tracks("coga/tasks/demo/ticket.md")
+
+
+def test_scoped_lifecycle_sync_cannot_release_a_claim_from_a_stale_baseline(
+    git_repo, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A step move releases only the claim the checkout actually observed."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(
+        git_repo, status="in_progress", blackboard="original notes\n"
+    )
+    git_repo.checkout_branch("feature/stale-claim-release")
+    before_head = git_repo.git("rev-parse", "HEAD").strip()
+
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md",
+        _claimed_ticket_text(
+            generation="live-generation",
+            blackboard="claimed by peer\n",
+        ),
+    )
+    ticket.write_text(
+        _step_ticket_text(
+            step="2 (review)",
+            status="in_progress",
+            blackboard="stale step move\n",
+        )
+    )
+
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — step 2 (review)",
+        guard=git.ticket_state_guard(cfg, ticket),
+    )
+
+    captured = capsys.readouterr()
+    assert "claimed control ticket changed" in captured.err
+    assert git_repo.git("rev-parse", "HEAD").strip() == before_head
+    remote = Ticket.parse(
+        git_repo.git("show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin)
+    )
+    assert remote.launch_generation == "live-generation"
+    assert remote.step == "1 (implement)"
+    assert "claimed by peer" in remote.body
+
+
+def test_scoped_lifecycle_sync_can_release_claim_from_current_baseline(
+    git_repo,
+) -> None:
+    """The claim guard still permits its intended session-ending step move."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(
+        git_repo, status="in_progress", blackboard="original notes\n"
+    )
+    ticket.write_text(
+        _claimed_ticket_text(
+            generation="finishing-generation",
+            blackboard="agent result\n",
+        )
+    )
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "claim demo")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/current-claim-release")
+    ticket.write_text(
+        _step_ticket_text(
+            step="2 (review)",
+            status="in_progress",
+            blackboard="agent result\n",
+        )
+    )
+
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — step 2 (review)",
+        guard=git.ticket_state_guard(cfg, ticket),
+    )
+
+    remote = Ticket.parse(
+        git_repo.git("show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin)
+    )
+    assert remote.launch_generation is None
+    assert remote.step == "2 (review)"
+
+
+def test_exact_ticket_lease_does_not_implicitly_authorize_claim_acquisition(
+    git_repo,
+) -> None:
+    """Only megalaunch's explicit capability may write the system claim."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(
+        git_repo, status="in_progress", blackboard="original notes\n"
+    )
+    git_repo.checkout_branch("feature/unprivileged-claim")
+    source_bytes = ticket.read_bytes()
+    ticket.write_text(
+        _claimed_ticket_text(
+            generation="unauthorized-generation",
+            blackboard="original notes\n",
+        )
+    )
+
+    with pytest.raises(git.StateRegressionError, match="outside an exact ticket lease"):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — unprivileged claim",
+            guard=git.ticket_state_guard(
+                cfg,
+                ticket,
+                expected_ticket_bytes=source_bytes,
+            ),
+            raise_state_regression=True,
+        )
+
+    remote = Ticket.parse(
+        git_repo.git("show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin)
+    )
+    assert remote.launch_generation is None
+
+
+def test_catch_all_sync_allows_same_claim_edit_from_current_feature_baseline(
+    git_repo,
+) -> None:
+    """The captured baseline survives the feature commit made before landing."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(
+        git_repo, status="in_progress", blackboard="original notes\n"
+    )
+    ticket.write_text(
+        _claimed_ticket_text(
+            generation="current-generation",
+            blackboard="claimed state\n",
+        )
+    )
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "claim demo")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/current-claim-edit")
+    ticket.write_text(
+        _claimed_ticket_text(
+            generation="current-generation",
+            blackboard="legitimate blackboard edit\n",
+        )
+    )
+
+    git.sync_coga_state(cfg)
+
+    remote = Ticket.parse(
+        git_repo.git("show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin)
+    )
+    assert remote.launch_generation == "current-generation"
+    assert "legitimate blackboard edit" in remote.body
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_same_claim_edit_uses_live_control_when_local_main_is_stale(
+    git_repo,
+) -> None:
+    """A stale local control ref cannot look like a fresh claim acquisition."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(
+        git_repo, status="in_progress", blackboard="original notes\n"
+    )
+    stale_main = git_repo.git("rev-parse", "main").strip()
+    git_repo.checkout_branch("feature/current-claim-stale-main")
+    ticket.write_text(
+        _claimed_ticket_text(
+            generation="current-generation",
+            blackboard="claimed state\n",
+        )
+    )
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "claim demo from feature")
+    git_repo.git("push", "origin", "HEAD:main")
+    assert git_repo.git("rev-parse", "main").strip() == stale_main
+
+    ticket.write_text(
+        _claimed_ticket_text(
+            generation="current-generation",
+            blackboard="edit after published claim\n",
+        )
+    )
+    git.sync_coga_state(cfg)
+
+    remote = Ticket.parse(
+        git_repo.git("show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin)
+    )
+    assert remote.launch_generation == "current-generation"
+    assert "edit after published claim" in remote.body
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_strict_detached_claim_is_committed_and_allows_current_blackboard_edits(
+    git_repo,
+) -> None:
+    """A detached claim becomes clean without replacing newer sibling state."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(
+        git_repo, status="in_progress", blackboard="original notes\n"
+    )
+    attachment = ticket.parent / "notes.txt"
+    attachment.write_text("attachment before detach\n")
+    git_repo.git("add", "coga/tasks/demo/notes.txt")
+    git_repo.git("commit", "-m", "seed demo attachment")
+    git_repo.git("push", "origin", "main")
+    git_repo.git("checkout", "--detach")
+    before_head = git_repo.git("rev-parse", "HEAD").strip()
+    source_bytes = ticket.read_bytes()
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/notes.txt",
+        "attachment edited by peer\n",
+    )
+    claimed_bytes = _claimed_ticket_text(
+        generation="detached-generation",
+        blackboard="original notes\n",
+    ).encode()
+    ticket.write_bytes(claimed_bytes)
+
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — claimed for megalaunch",
+        guard=git.ticket_state_guard(
+            cfg,
+            ticket,
+            expected_ticket_bytes=source_bytes,
+            allow_launch_claim_acquisition=True,
+        ),
+        generated_paths={ticket: claimed_bytes},
+        raise_state_regression=True,
+        raise_git_error=True,
+    )
+
+    assert git_repo.git("rev-parse", "HEAD").strip() != before_head
+    assert git_repo.git(
+        "status", "--porcelain", "--", "coga/tasks/demo/ticket.md"
+    ) == ""
+    assert Ticket.parse(
+        git_repo.git("show", "HEAD:coga/tasks/demo/ticket.md")
+    ).launch_generation == "detached-generation"
+
+    edited = Ticket.read(ticket)
+    edited.body = edited.body.replace(
+        "original notes", "ordinary launch blackboard edit"
+    )
+    edited.write(ticket)
+    git.sync_coga_state(cfg)
+
+    remote = Ticket.parse(
+        git_repo.git("show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin)
+    )
+    assert remote.launch_generation == "detached-generation"
+    assert "ordinary launch blackboard edit" in remote.body
+    assert (
+        git_repo.git("show", "main:coga/tasks/demo/notes.txt", cwd=git_repo.origin)
+        == "attachment edited by peer\n"
+    )
+
+
+def test_exact_claim_can_follow_an_ordinary_detached_publication(git_repo) -> None:
+    """An exact control lease can claim bytes absent from stale detached HEAD."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(
+        git_repo, status="active", blackboard="original notes\n"
+    )
+    git_repo.git("checkout", "--detach")
+    original_head = git_repo.git("rev-parse", "HEAD").strip()
+
+    published = Ticket.read(ticket)
+    published.body = published.body.replace(
+        "original notes", "published from detached checkout"
+    )
+    published.write(ticket)
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — detached hand edit",
+    )
+    source_bytes = ticket.read_bytes()
+    assert git_repo.git("rev-parse", "HEAD").strip() == original_head
+    assert git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    ).encode() == source_bytes
+
+    claimed_bytes = _claimed_ticket_text(
+        generation="detached-generation",
+        blackboard="published from detached checkout\n",
+    ).encode()
+    ticket.write_bytes(claimed_bytes)
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — claimed for megalaunch",
+        guard=git.ticket_state_guard(
+            cfg,
+            ticket,
+            expected_ticket_bytes=source_bytes,
+            allow_launch_claim_acquisition=True,
+        ),
+        generated_paths={ticket: claimed_bytes},
+        raise_state_regression=True,
+        raise_git_error=True,
+    )
+
+    assert git_repo.git("rev-parse", "HEAD").strip() != original_head
+    assert Ticket.parse(
+        git_repo.git("show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin)
+    ).launch_generation == "detached-generation"
+    assert git_repo.git(
+        "status", "--porcelain", "--", "coga/tasks/demo/ticket.md"
+    ) == ""
+
+
+def test_detached_same_claim_edits_advance_the_session_baseline(git_repo) -> None:
+    """A claimed detached session can publish prose and then end normally."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(
+        git_repo, status="in_progress", blackboard="original notes\n"
+    )
+    ticket.write_text(
+        _claimed_ticket_text(
+            generation="detached-generation",
+            blackboard="claimed state\n",
+        )
+    )
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed detached claim")
+    git_repo.git("push", "origin", "main")
+    git_repo.git("checkout", "--detach")
+    claim_head = git_repo.git("rev-parse", "HEAD").strip()
+
+    ticket.write_text(
+        _claimed_ticket_text(
+            generation="detached-generation",
+            blackboard="resolved blocker in session\n",
+        )
+    )
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — asks resolved",
+        guard=git.ticket_state_guard(cfg, ticket),
+    )
+    edited_head = git_repo.git("rev-parse", "HEAD").strip()
+    assert edited_head != claim_head
+    assert git_repo.git(
+        "status", "--porcelain", "--", "coga/tasks/demo/ticket.md"
+    ) == ""
+
+    ticket.write_text(
+        _step_ticket_text(
+            step="2 (review)",
+            status="in_progress",
+            blackboard="resolved blocker in session\n",
+        )
+    )
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — step 2 (review)",
+        guard=git.ticket_state_guard(cfg, ticket),
+    )
+
+    assert git_repo.git("rev-parse", "HEAD").strip() != edited_head
+    assert git_repo.git(
+        "status", "--porcelain", "--", "coga/tasks/demo/ticket.md"
+    ) == ""
+    remote = Ticket.parse(
+        git_repo.git("show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin)
+    )
+    assert remote.launch_generation is None
+    assert remote.step == "2 (review)"
+
+
+def test_detached_claim_refusal_cannot_replay_clean_claim_over_peer_edit(
+    git_repo,
+) -> None:
+    """A trailing sweep excludes the clean claim after a peer edit wins."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(
+        git_repo, status="in_progress", blackboard="original notes\n"
+    )
+    git_repo.git("checkout", "--detach")
+    source_bytes = ticket.read_bytes()
+    claimed_bytes = _claimed_ticket_text(
+        generation="detached-generation",
+        blackboard="claimed locally\n",
+    ).encode()
+    ticket.write_bytes(claimed_bytes)
+    git.sync_task_state(
+        cfg,
+        ticket.parent,
+        message="Ticket: demo — claimed for megalaunch",
+        guard=git.ticket_state_guard(
+            cfg,
+            ticket,
+            expected_ticket_bytes=source_bytes,
+            allow_launch_claim_acquisition=True,
+        ),
+        generated_paths={ticket: claimed_bytes},
+        raise_state_regression=True,
+        raise_git_error=True,
+    )
+    assert git_repo.git(
+        "status", "--porcelain", "--", "coga/tasks/demo/ticket.md"
+    ) == ""
+
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md",
+        _claimed_ticket_text(
+            generation="detached-generation",
+            blackboard="peer edit after claim\n",
+        ),
+    )
+    append_log(cfg, "demo", "megalaunch", "post-claim refusal")
+    git.sync_coga_state(cfg)
+
+    remote = Ticket.parse(
+        git_repo.git("show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin)
+    )
+    assert remote.launch_generation == "detached-generation"
+    assert "peer edit after claim" in remote.body
+    assert "claimed locally" not in remote.body
+
+
+def test_failed_strict_detached_claim_preserves_unrelated_staged_task_file(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Claim cleanup resets generated leaves, not a user's staged sibling."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(
+        git_repo, status="in_progress", blackboard="original notes\n"
+    )
+    attachment = ticket.parent / "notes.txt"
+    attachment.write_text("committed attachment\n")
+    git_repo.git("add", "coga/tasks/demo/notes.txt")
+    git_repo.git("commit", "-m", "seed demo attachment")
+    git_repo.git("push", "origin", "main")
+    git_repo.git("checkout", "--detach")
+    before_head = git_repo.git("rev-parse", "HEAD").strip()
+    source_bytes = ticket.read_bytes()
+
+    attachment.write_text("staged user edit\n")
+    git_repo.git("add", "coga/tasks/demo/notes.txt")
+    claimed_bytes = _claimed_ticket_text(
+        generation="detached-generation",
+        blackboard="original notes\n",
+    ).encode()
+    ticket.write_bytes(claimed_bytes)
+
+    def refuse_landing(*args: object, **kwargs: object) -> None:
+        raise git.GitError("injected control landing failure")
+
+    monkeypatch.setattr(git, "_land_paths_on_control_branch", refuse_landing)
+    with pytest.raises(git.GitError, match="injected control landing failure"):
+        git.sync_task_state(
+            cfg,
+            ticket.parent,
+            message="Ticket: demo — claimed for megalaunch",
+            guard=git.ticket_state_guard(
+                cfg,
+                ticket,
+                expected_ticket_bytes=source_bytes,
+                allow_launch_claim_acquisition=True,
+            ),
+            generated_paths={ticket: claimed_bytes},
+            raise_state_regression=True,
+            raise_git_error=True,
+        )
+
+    assert git_repo.git("rev-parse", "HEAD").strip() == before_head
+    assert git_repo.git("diff", "--cached", "--name-only").splitlines() == [
+        "coga/tasks/demo/notes.txt"
+    ]
+    assert attachment.read_text() == "staged user edit\n"
+    assert git_repo.git("diff", "--name-only").splitlines() == [
+        "coga/tasks/demo/ticket.md"
+    ]
+
+
+def test_same_claim_edit_refuses_when_control_changed_since_checkout_baseline(
+    git_repo, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Matching generation alone does not authorize overwriting peer prose."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(
+        git_repo, status="in_progress", blackboard="original notes\n"
+    )
+    claimed = _claimed_ticket_text(
+        generation="shared-generation",
+        blackboard="claimed state\n",
+    )
+    ticket.write_text(claimed)
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed claimed demo")
+    git_repo.git("push", "origin", "main")
+    git_repo.git("checkout", "--detach")
+
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md",
+        _claimed_ticket_text(
+            generation="shared-generation",
+            blackboard="newer peer prose\n",
+        ),
+    )
+    ticket.write_text(
+        _claimed_ticket_text(
+            generation="shared-generation",
+            blackboard="stale local prose\n",
+        )
+    )
+
+    git.sync_coga_state(cfg)
+
+    assert "claimed control ticket changed" in capsys.readouterr().err
+    remote = Ticket.parse(
+        git_repo.git("show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin)
+    )
+    assert "newer peer prose" in remote.body
+    assert "stale local prose" not in remote.body
 
 
 def test_sync_paths_guard_refuses_stale_overwrite_of_terminal_control_copy(

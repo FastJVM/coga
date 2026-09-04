@@ -693,22 +693,36 @@ working launch:
    in the read/capture window cannot make an ask-less blocked ticket launch.
    With Git sync enabled, both lifecycle writes use that source as an exact
    whole-ticket control compare-and-set and must publish durably before spawn,
-   so two checkouts cannot both claim one revision. After
+   so two checkouts cannot both claim one revision. The unattended sweep also
+   reapplies its owner, status, blocker, and current-step gates to the exact
+   preflight reread, so a later edit cannot cross the earlier queue
+   classification or consume `--max-tasks` as a launch attempt. After
    `mark_in_progress` returns, the live ticket must still equal the exact
    preflighted `in_progress` bytes. An unclaimed megalaunch start or resume
    writes a unique, visible `launch_generation` before spawn; another
-   megalaunch refuses a published generation instead of replacing it. The
-   final shared `validate_before_spawn` seam rereads those local bytes and
-   freshly verifies the whole
-   ticket on every effective control destination before the launch audit and
-   PTY. A changed or unverifiable claim refuses the child without a false
-   launch record and retains
-   `in_progress`; it never compensates backward to `active`, because an
-   ordinary `coga launch` may already be running from the same generation and
-   changing the blackboard. Step advancement and lifecycle transitions that
-   end or park the session clear the generation; ordinary `coga launch` is the
-   explicit recovery path for an abandoned one. Preflight also
-   materializes the
+   megalaunch refuses a published generation instead of replacing it. In a
+   detached checkout, strict publication also commits those exact generated
+   bytes locally and overlays only those leaves on control, preserving newer
+   sibling attachments and leaving a successful claim clean so CLI teardown
+   cannot replay it over a peer edit. The shared state guard treats the claim as
+   system-owned and requires the committed checkout baseline to match freshly
+   fetched control before same-generation blackboard or session-ending edits
+   land; each accepted detached edit advances that baseline again. The shared
+   `validate_before_spawn` seam rereads those local bytes and freshly verifies
+   the whole ticket on every effective control destination before the launch
+   audit; `validate_after_spawn` repeats that proof after the PTY child exists
+   but while a private pipe still holds it before exec. A changed or
+   unverifiable claim refuses the child and retains `in_progress`. Megalaunch
+   withholds its launch audit from `log.md` throughout both proofs. The
+   supervisor then creates and holds the PTY child before exec, appends the
+   audit in the parent, and releases the executable only after that succeeds;
+   neither a refusal nor an audit failure can expose false or unrecorded work
+   to another same-checkout state sync. It never compensates backward to
+   `active`, because an ordinary `coga launch` may already be running from the
+   same generation and changing the blackboard. Step advancement and lifecycle
+   transitions that end or park the session clear the generation; ordinary
+   `coga launch` is the explicit recovery path for an abandoned one. Preflight
+   also materializes the
    exact prompt, resolved secret environment, and agent used by the spawn, so
    no fallible input derivation is repeated after lifecycle state is written.
 

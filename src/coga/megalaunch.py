@@ -344,18 +344,22 @@ def _run_sweep(
             results.append(candidate)
             continue
 
-        attempted += 1
-        results.append(
-            _launch_until_stop(
-                cfg,
-                ref,
-                ticket,
-                agent_override=agent_override,
-                max_steps_per_task=max_steps_per_task,
-                idle_timeout=idle_timeout,
-                max_session=max_session,
-            )
+        result = _launch_until_stop(
+            cfg,
+            ref,
+            ticket,
+            agent_override=agent_override,
+            max_steps_per_task=max_steps_per_task,
+            idle_timeout=idle_timeout,
+            max_session=max_session,
         )
+        # A peer can move a queued candidate behind a sweep gate before the
+        # exact reread. Such a reclassification was never a launch attempt and
+        # must not consume the shared max-tasks budget. A task that launched
+        # before later chaining into a gate still counts.
+        if result.launched or not result.outcome.startswith("skipped-"):
+            attempted += 1
+        results.append(result)
     return _drain_satisfied_blockers(
         cfg,
         results,
@@ -597,7 +601,6 @@ def _drain_satisfied_blockers(
                 _replace_result(results, _as_drained(candidate, dependency))
                 continue
 
-            attempted += 1
             result = _launch_until_stop(
                 cfg,
                 ref,
@@ -607,6 +610,11 @@ def _drain_satisfied_blockers(
                 idle_timeout=idle_timeout,
                 max_session=max_session,
             )
+            # The exact launch reread can reclassify a dependency activation
+            # just like a main-sweep candidate. Only real attempts share the
+            # budget; a late gate skip leaves room for the next dependency.
+            if result.launched or not result.outcome.startswith("skipped-"):
+                attempted += 1
             _replace_result(results, _as_drained(result, dependency))
             if result.launched:
                 launched_in_pass = True
@@ -885,21 +893,25 @@ def _run_selection(
                     )
                 )
                 continue
-        attempted += 1
-        results.append(
-            _launch_until_stop(
-                cfg,
-                ref,
-                ticket,
-                agent_override=agent_override,
-                max_steps_per_task=max_steps_per_task,
-                idle_timeout=idle_timeout,
-                max_session=max_session,
-                blocked_resume=blocked_resume,
-                activate=needs_activation,
-                activation_snapshot=activation_snapshot,
-            )
+        result = _launch_until_stop(
+            cfg,
+            ref,
+            ticket,
+            agent_override=agent_override,
+            max_steps_per_task=max_steps_per_task,
+            idle_timeout=idle_timeout,
+            max_session=max_session,
+            blocked_resume=blocked_resume,
+            activate=needs_activation,
+            activation_snapshot=activation_snapshot,
+            explicit=True,
         )
+        # A selected candidate can cross a current-step, assignee, or terminal
+        # gate at the exact reread just like a sweep candidate.  Only a real
+        # attempt consumes the shared limit.
+        if result.launched or not result.outcome.startswith("skipped-"):
+            attempted += 1
+        results.append(result)
     return results
 
 
@@ -1117,6 +1129,7 @@ def _launch_until_stop(
     blocked_resume: bool = False,
     activate: bool = False,
     activation_snapshot: git.FileMutationRollback | None = None,
+    explicit: bool = False,
 ) -> MegalaunchResult:
     # `ticket` is `active` / `in_progress` unless `activate` is set — the sweep
     # only reaches here for ready work, while the selection path hands over a
@@ -1149,6 +1162,13 @@ def _launch_until_stop(
             try:
                 preflight_source_bytes = ref.ticket_path.read_bytes()
                 ticket = Ticket.parse(preflight_source_bytes.decode("utf-8"))
+                _body, exact_blackboard = split_body(ticket.body)
+                assert exact_blackboard is not None
+                exact_blockers = [
+                    blocker
+                    for blocker in parse_blockers_text(exact_blackboard)
+                    if not blocker.resolved
+                ]
             except FileNotFoundError:
                 return _result(
                     ref,
@@ -1157,7 +1177,7 @@ def _launch_until_stop(
                     ticket.assignee,
                     launched=launched,
                 )
-            except (UnicodeDecodeError, TicketError) as exc:
+            except (UnicodeDecodeError, TicketError, TaskFileError) as exc:
                 return _result(
                     ref,
                     "failed",
@@ -1165,6 +1185,49 @@ def _launch_until_stop(
                     ticket.assignee,
                     launched=launched,
                 )
+
+            # The outer queue scan is only a candidate hint. A peer may change
+            # owner, status, blockers, or the current workflow step before this
+            # exact reread, so reapply every sweep gate to these same bytes
+            # before deriving a prompt or lifecycle mutation from them.
+            if not explicit and ticket.owner != cfg.current_user:
+                return _result(
+                    ref,
+                    "skipped-human-gate",
+                    f"owner {ticket.owner or 'unassigned'} is not current "
+                    f"operator {cfg.current_user}",
+                    ticket.assignee,
+                    launched=launched,
+                )
+            if not explicit and ticket.status not in {
+                "active",
+                "in_progress",
+                "blocked",
+            }:
+                return _result(
+                    ref,
+                    "skipped-unlaunchable",
+                    f"status is {ticket.status}",
+                    ticket.assignee,
+                    launched=launched,
+                )
+            if ticket.status in TERMINAL_STATUSES:
+                return _result(
+                    ref,
+                    "skipped-unlaunchable",
+                    f"status is {ticket.status}",
+                    ticket.assignee,
+                    launched=launched,
+                )
+            exact_candidate = _candidate_result(
+                cfg,
+                ref,
+                ticket,
+                explicit=explicit,
+                blockers=exact_blockers,
+            )
+            if exact_candidate is not None:
+                return replace(exact_candidate, launched=launched)
 
         if ticket.assignee not in cfg.agents:
             return _result(
@@ -1266,6 +1329,7 @@ def _launch_until_stop(
                         expected_ticket_bytes=(
                             prepared_launch.source_ticket_bytes
                         ),
+                        allow_launch_claim_acquisition=True,
                     )
                     if cfg.git_enabled
                     else None
@@ -1343,6 +1407,8 @@ def _launch_until_stop(
                 warn_blackboard=True,
                 composed_prompt=prepared_launch.prompt,
                 validate_before_spawn=revalidate_launch_claim,
+                validate_after_spawn=revalidate_launch_claim,
+                record_launch_on_spawn=True,
             )
         except _LaunchClaimRefused as exc:
             return _result(

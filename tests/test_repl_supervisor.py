@@ -7,6 +7,7 @@ import os
 import signal
 import sys
 import time
+from pathlib import Path
 
 import pytest
 
@@ -103,11 +104,33 @@ def test_no_tty_missing_binary_raises_agent_cli_not_found(
     assert isinstance(excinfo.value, FileNotFoundError)
 
 
+def test_no_tty_after_spawn_callback_releases_held_child(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    marker = tmp_path / "child-ran"
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+
+    def record_spawn() -> None:
+        time.sleep(0.05)
+        assert not marker.exists()
+
+    outcome = run_with_done_marker(
+        [sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ran')"],
+        env={},
+        after_spawn=record_spawn,
+    )
+
+    assert (outcome.exit_code, outcome.kind) == (0, "natural")
+    assert marker.read_text() == "ran"
+
+
 def _run_through_pty(
     monkeypatch: pytest.MonkeyPatch,
     cmd: list[str],
     *,
     session_id: str | None = None,
+    after_spawn=None,  # type: ignore[no-untyped-def]
 ) -> ReplOutcome:
     """Force the PTY path with /dev/null fds for output and input."""
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
@@ -120,6 +143,7 @@ def _run_through_pty(
             session_id=session_id,
             output_fd=devnull_out,
             input_fd=devnull_in,
+            after_spawn=after_spawn,
         )
     finally:
         os.close(devnull_out)
@@ -133,6 +157,51 @@ def test_natural_exit_passes_through_exit_code(
     forwarded."""
     outcome = _run_through_pty(monkeypatch, ["bash", "-c", "exit 7"])
     assert (outcome.exit_code, outcome.kind) == (7, "natural")
+
+
+def test_after_spawn_callback_releases_held_pty_child(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    marker = tmp_path / "child-ran"
+    events: list[str] = []
+
+    def record_spawn() -> None:
+        # Give an ungated child ample time to create the marker. The callback
+        # must observe it held before exec instead.
+        time.sleep(0.05)
+        assert not marker.exists()
+        events.append("spawned")
+
+    outcome = _run_through_pty(
+        monkeypatch,
+        [sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ran')"],
+        after_spawn=record_spawn,
+    )
+
+    assert outcome.exit_code == 0
+    assert events == ["spawned"]
+    assert marker.read_text() == "ran"
+
+
+def test_after_spawn_failure_reaps_pty_child(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    marker = tmp_path / "child-ran"
+
+    def refuse_record() -> None:
+        time.sleep(0.05)
+        assert not marker.exists()
+        raise RuntimeError("audit unavailable")
+
+    with pytest.raises(RuntimeError, match="audit unavailable"):
+        _run_through_pty(
+            monkeypatch,
+            [sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ran')"],
+            after_spawn=refuse_record,
+        )
+    assert not marker.exists()
 
 
 def _run_through_pty_idle(

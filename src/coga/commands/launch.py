@@ -2947,11 +2947,12 @@ class AgentSessionResult(NamedTuple):
 def missing_launch_file_message(exc: FileNotFoundError) -> str:
     """Report a pre-spawn `FileNotFoundError` as the missing file it is.
 
-    `spawn_agent_session` composes the prompt, writes it to disk, and appends
-    the log *before* it spawns anything, so a `FileNotFoundError` escaping it
-    is far more often a missing prompt layer than a missing agent CLI — and
-    blaming the CLI sends the operator to debug a PATH that is fine. Name the
-    path instead; `AgentCliNotFound` carries the genuine CLI case.
+    `spawn_agent_session` composes the prompt and writes it to disk before its
+    executable boundary (ordinary launches also append their audit there), so
+    a `FileNotFoundError` escaping it is far more often a missing prompt layer
+    than a missing agent CLI — and blaming the CLI sends the operator to debug
+    a PATH that is fine. Name the path instead; `AgentCliNotFound` carries the
+    genuine CLI case.
     """
     missing = exc.filename or "a file it needed"
     detail = exc.strerror or str(exc)
@@ -2988,7 +2989,9 @@ def spawn_agent_session(
     before_recompose: Callable[[], None] | None = None,
     validate_before_spawn: Callable[[], None] | None = None,
     before_spawn: Callable[[], None] | None = None,
+    validate_after_spawn: Callable[[], None] | None = None,
     record_launch: bool = True,
+    record_launch_on_spawn: bool = False,
     secrets_are_scoped: bool = True,
     stateless_identity: tuple[str, str] | None = None,
     include_blocker_preamble: bool = True,
@@ -3043,10 +3046,15 @@ def spawn_agent_session(
     signal so the caller can reload and re-compose from state those publications
     may have moved. The recomposed pass sets ``record_launch=False`` because the
     first pass already made that audit durable. ``validate_before_spawn`` is a
-    guard-only boundary before the launch audit, so a refusal cannot leave a
-    false ``launched`` record. ``before_spawn`` remains the final publication
-    boundary immediately before the PTY supervisor: human assists publish
-    lifecycle there, while recurring delegation revalidates its period lease.
+    guard-only boundary before the launch audit. ``before_spawn`` remains the
+    final publication boundary immediately before the PTY supervisor: human
+    assists publish lifecycle there, while recurring delegation revalidates its
+    period lease. ``validate_after_spawn`` is the narrower executable-admission
+    guard: it runs after the supervisor creates its child but while a private
+    pipe still holds that child before exec. ``record_launch_on_spawn`` defers
+    the audit append into that same gate, after ``validate_after_spawn``
+    succeeds and before the child is released, keeping the line out of
+    concurrent state commits throughout every guard.
     """
     # A nested launch inherits its parent's process environment. Re-derive the
     # task metadata at this last shared boundary so an agent identifies the
@@ -3146,32 +3154,42 @@ def spawn_agent_session(
         if validate_before_spawn is not None:
             validate_before_spawn()
 
-        if record_launch:
+        deferred_launch_audit = record_launch and record_launch_on_spawn
+
+        def record_and_publish_launch_audit() -> None:
             append_log(cfg, ref.id_slug, actor, log_message)
-        if record_launch and commit_log:
-            # Commit the launch line before spawning. A bootstrap target has no
-            # later task-state sync to carry it; a human-step assist may share
-            # the PR checkout whose clean-tree gate the agent is about to run.
-            # Non-fatal on any git failure.
-            log_synced = git.sync_log(
-                cfg,
-                message=f"Log: {ref.id_slug}",
-                publish_if_remote_aligned=publish_aligned_branch is not None,
-                expected_feature_branch=publish_aligned_branch,
-                # A recorded assist was aligned before ticket/config/prompt
-                # derivation. If its remote moves now, refuse to spawn instead
-                # of fast-forwarding underneath already-composed state.
-                allow_feature_fast_forward=publish_aligned_branch is None,
-                feature_publication_guard=feature_publication_guard,
-            )
-            if publish_aligned_branch is not None and not log_synced:
-                raise _AssistPublicationRefused(
-                    "The recorded PR branch moved or could not be verified "
-                    "after launch composition. No agent was started; retry "
-                    "the launch so its prompt is composed from the new tip. "
-                    "The launch audit append remains dirty and the catch-all "
-                    "state sweep has been suppressed."
+            if commit_log:
+                # A bootstrap target has no later task-state sync to carry its
+                # launch line; a human-step assist may share the PR checkout
+                # whose clean-tree gate the agent is about to run. When audit
+                # recording is spawn-gated, this publication remains inside
+                # that gate too.
+                log_synced = git.sync_log(
+                    cfg,
+                    message=f"Log: {ref.id_slug}",
+                    publish_if_remote_aligned=(
+                        publish_aligned_branch is not None
+                    ),
+                    expected_feature_branch=publish_aligned_branch,
+                    # A recorded assist was aligned before ticket/config/prompt
+                    # derivation. If its remote moves now, refuse to spawn
+                    # instead of fast-forwarding underneath composed state.
+                    allow_feature_fast_forward=(
+                        publish_aligned_branch is None
+                    ),
+                    feature_publication_guard=feature_publication_guard,
                 )
+                if publish_aligned_branch is not None and not log_synced:
+                    raise _AssistPublicationRefused(
+                        "The recorded PR branch moved or could not be verified "
+                        "after launch composition. No agent was started; retry "
+                        "the launch so its prompt is composed from the new tip. "
+                        "The launch audit append remains dirty and the catch-all "
+                        "state sweep has been suppressed."
+                    )
+
+        if record_launch and not deferred_launch_audit:
+            record_and_publish_launch_audit()
 
         if before_recompose is not None:
             before_recompose()
@@ -3183,7 +3201,21 @@ def spawn_agent_session(
 
         if before_spawn is not None:
             before_spawn()
-        spawn_started = True
+
+        gated_spawn_admission = (
+            validate_after_spawn is not None or deferred_launch_audit
+        )
+        if not gated_spawn_admission:
+            spawn_started = True
+
+        def admit_spawned_child() -> None:
+            nonlocal spawn_started
+            if validate_after_spawn is not None:
+                validate_after_spawn()
+            if deferred_launch_audit:
+                record_and_publish_launch_audit()
+            spawn_started = True
+
         # Agent CLIs (`claude`, `codex`) don't exit on their own. Run through a
         # PTY watcher so an agent that writes the session-done sentinel after
         # `coga bump` / `coga mark done` / `coga mark canceled` / `coga block`
@@ -3201,6 +3233,7 @@ def spawn_agent_session(
             session_id=ref.id_slug,
             idle_timeout=idle_timeout,
             max_session=max_session,
+            after_spawn=admit_spawned_child if gated_spawn_admission else None,
         )
         outcome_status = _session_outcome_status(outcome)
         publish_session_log = _completed_publishing_gate(ticket, ref, outcome)

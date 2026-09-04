@@ -597,8 +597,9 @@ an ambiguous accepted push retains its generated evidence for reconciliation.
 
 The drain is a fixed-point walk: after each actual launch it restarts from the
 oldest blocked ticket, and a complete pass with no launch ends the run. A task
-is drained at most once per run, every retry attempt shares `--max-tasks` with
-the main sweep, and the summary keeps one result row per task with a separate
+is drained at most once per run, every real retry attempt shares `--max-tasks`
+with the main sweep, and a late exact-gate reclassification consumes no budget
+in either path. The summary keeps one result row per task with a separate
 `drained` count. Explicit `--pick` and `--relaunch` selections do not run this
 drain, because completing a selection must not expand into unpicked work.
 
@@ -860,17 +861,34 @@ writes to the eventual spawn. Its pre-write compare-and-swap prevents a stale
 local write; when Git sync is enabled, deferred activation and every start also
 compare-and-swap against the exact whole-ticket control revision and require
 strict control publication before spawn. Two checkouts starting from the same
-revision therefore cannot both acquire a launch claim. An exact local reread
-after synchronous `in_progress` publication prevents a peer change during
-that sync from reaching spawn. At the shared final `validate_before_spawn`
-seam, megalaunch rereads those exact local bytes and freshly fetches every
-effective control destination; the whole control ticket, including `launch_generation`,
-must still match before the launch audit append and PTY start. A changed or
-unverifiable claim refuses the child, records no false launch audit, and retains
-`in_progress` for safe resume. Once published, a generation is not
-automatically reclaimable by another megalaunch, closing the interval after
-the point-in-time final fetch; a step
-advance or lifecycle transition that ends or parks the session clears it.
+revision therefore cannot both acquire a launch claim. The unattended sweep
+also reapplies its owner, status, blocker, and current-step gates to the exact
+preflight reread rather than trusting its earlier queue classification; a
+gate-only reclassification does not consume `--max-tasks`. An exact local
+reread after synchronous `in_progress` publication prevents a peer change
+during that sync from reaching spawn. On detached HEAD, strict publication
+seals the exact generated claim bytes in a scoped detached commit and overlays
+only those leaves on control, so concurrent sibling attachments survive and a
+later broad state sweep cannot replay retained claim state over a peer edit.
+The shared state guard treats that generation as system-owned and requires the
+checkout's committed ticket baseline to match freshly fetched control before
+any same-generation blackboard or session-ending edit lands. Each accepted
+detached edit advances that baseline with another exact-leaf commit.
+At the shared pre-audit
+`validate_before_spawn` seam, megalaunch rereads those exact local bytes and
+freshly fetches every effective control destination; the whole control ticket,
+including `launch_generation`, must still match. It repeats that proof through
+`validate_after_spawn` after the PTY child exists but while the supervisor
+still holds it before exec. A changed or unverifiable claim refuses the child
+and retains `in_progress` for safe resume. Megalaunch keeps the launch audit
+out of `log.md` until the PTY child actually exists. The
+supervisor holds that child behind a private pre-exec gate, appends the audit in
+the parent, and releases the executable only after the append succeeds, so
+neither a refusal nor an audit failure can expose false or unrecorded work to
+another same-checkout state sync. Once published, a generation is not
+automatically reclaimable by another megalaunch, closing the interval after the
+point-in-time final fetch; a step advance or lifecycle transition that ends or
+parks the session clears it.
 Ordinary `coga launch` remains the explicit recovery path and can resume the
 same generation while writing its blackboard. Megalaunch therefore never
 compensates a refused claim backward to `active`: the unchanged token cannot
