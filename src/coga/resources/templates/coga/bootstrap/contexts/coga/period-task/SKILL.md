@@ -26,9 +26,10 @@ Your parent recurring task lives at
 below the `<!-- coga:blackboard -->` fence) persists across
 every run — but only for *your* state. The period being serviced is recorded
 in the repo-global `coga/log.md`, as a `created|reused <task-ref> for
-<period>` line tagged `recurring/<parent-name>`, where the bucket is
-`YYYY-MM-DD-HH` (hourly), `YYYY-MM-DD` (daily), `YYYY-Www` (weekly), or
-`YYYY-MM` (monthly). Read the newest such line when this run needs to know
+<period>` line tagged `recurring/<parent-name>`, where the period key
+buckets the firing: hourly → `YYYY-MM-DD-HH`, daily → `YYYY-MM-DD`, weekly →
+`YYYY-Www`, monthly → `YYYY-MM`, and schedules outside those four buckets →
+`YYYYMMDDTHHMM`. Read the newest such line when this run needs to know
 which period it is servicing; do not parse the period from your slug.
 
 The ledger is kept out of the parent blackboard on purpose: that region is
@@ -50,8 +51,8 @@ Every period-task run that carries state follows the same shape:
    stopped (and `coga/log.md` for the period being serviced).
 2. Do this period's work.
 3. Before finishing, update that same file with whatever the next run
-   needs. Then finish the current workflow step with `coga bump` (or use
-   `coga mark done` for a workflow-less ticket).
+   needs. Then finish the current workflow step with `coga bump` — or
+   `coga mark done` when your workflow's only step is `direct/body`.
 
 The recurring task's `ticket.md` body names *which* keys it persists
 (e.g. `last_commit`, a cursor section). That's the contract; this
@@ -60,10 +61,10 @@ context covers *where* the state lives.
 If the recurring task declares `state_keys:` in its frontmatter, those
 keys are checked: when you `coga mark done`, any declared key still
 holding the value it had when this period started is flagged (a local
-warning, a Slack FYI, and a `coga validate` issue) — the signal that you
-did the work but forgot to record the new high-water mark, so the next
-firing would redo the same range. Advance the key (the run's record-state
-step) before finishing.
+warning, an important Slack alert, and a `coga validate` issue) — the
+signal that you did the work but forgot to record the new high-water mark,
+so the next firing would redo the same range. Advance the key (the run's
+record-state step) before finishing.
 
 ## Do not write last-run state to your own blackboard
 
