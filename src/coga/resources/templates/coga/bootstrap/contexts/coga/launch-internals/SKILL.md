@@ -295,12 +295,13 @@ pipe still holds it before exec, binding both `launch_generation` and prompt
 inputs at the actual executable boundary. It then appends the audit and repeats
 that held-child proof after the append. Only the second success releases the
 executable. A checkout-local state admission/publication barrier covers the
-append, second proof, and supervisor pipe write; every Coga lifecycle-ticket
-writer and Git publisher waits on the same kernel-released advisory lock. A
-lifecycle change is therefore either visible to the second proof or starts only
-after the executable is released, and no publisher can commit the provisional
-line while refusal is still possible. If the one-byte pipe release fails after
-the callback succeeds, the supervisor invokes its admission-failure hook under
+append, second proof, and supervisor pipe write; every Coga task creator,
+lifecycle-ticket writer, task deleter, and Git publisher waits on the same
+kernel-released advisory lock. A task-file change is therefore either visible
+to the second proof or starts only after the executable is released, and no
+publisher can commit the provisional line while refusal is still possible. If
+the one-byte pipe release fails after the callback succeeds, the supervisor
+invokes its admission-failure hook under
 that same barrier; the hook removes the provisional audit and clears the
 session-started flag before the still-held child is killed. A mismatch or
 unverifiable fetch conditionally removes the owned audit line, refuses the

@@ -15,6 +15,10 @@ the removal to the control branch. `coga run delete-task <task>` is the bare
 working-tree removal with no sync — the spelling to use from inside another
 task's session, where the caller owns when the deletion lands.
 
+Both spellings hold the checkout-local spawn-admission barrier around the
+filesystem removal. A megalaunch child that is still held after its final proof
+therefore cannot be released for a task that this recipe deleted in the gap.
+
 Deletion keys off the resolved ticket path: a `<dir>/ticket.md` means a
 directory-form task, so it removes that one task directory; a `tasks/<slug>.md`
 means a file-form task, so it removes that single file only and never touches
@@ -29,9 +33,9 @@ pointed at an arbitrary directory.
 - Inputs: the task ref, resolved the same way every other Coga command
   resolves one. The ticket path's name discriminates the form (`ticket.md` →
   directory form; `<slug>.md` → file form).
-- May change: deletes exactly the one named task — its directory (directory
-  form) or its single `.md` file (file form). No other file, ref, or lifecycle
-  state, and never a shared parent directory.
+- May change: under the spawn-admission barrier, deletes exactly the one named
+  task — its directory (directory form) or its single `.md` file (file form).
+  No other file, ref, or lifecycle state, and never a shared parent directory.
 - Action: `direct-fix`
 - Idempotency: existence is checked before the single delete; there is no
   partial state to reconcile. The caller (`coga delete`, or a Dream worker) is

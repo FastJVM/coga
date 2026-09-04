@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from coga import git
 from coga.blackboard import render_blackboard
 from coga.bump import AssigneeResolutionError, resolve_other_agent
 from coga.config import Config
@@ -227,7 +228,11 @@ def create_task(
     # One file per task: body + fence + blackboard, no sibling blackboard.md /
     # log.md. The append-only history goes to the repo-global log.
     full_body = join_task_body(ticket_body, render_blackboard(title))
-    Ticket(frontmatter=fm, body=full_body).write(ticket_path)
+    git.write_ticket_under_barrier(
+        cfg,
+        Ticket(frontmatter=fm, body=full_body),
+        ticket_path,
+    )
 
     actor = f"{created_by}:{cfg.current_user}" if created_by == "human" else created_by
     append_log(cfg, created_ref.id_slug, actor, f"created (status={status})")

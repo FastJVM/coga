@@ -47,7 +47,7 @@ def delete(
         )
 
     try:
-        output = run_delete_task(ref)
+        output = run_delete_task(cfg, ref)
     except DeleteTaskError as exc:
         _bail(str(exc))
     if output:

@@ -488,7 +488,10 @@ Remove a task directory from the working tree — ticket, blackboard,
 log, and the directory itself. Recovery is via `git restore`; the
 git history is the audit trail, no Slack broadcast. The removal itself lives
 in `coga.delete_task`, so the command is a thin resolver plus the sync, and
-the same deletion is reachable as `coga run delete-task <slug>`.
+the same deletion is reachable as `coga run delete-task <slug>`. Both spellings
+hold the checkout-local spawn-admission barrier for the filesystem removal, so
+a task disappears wholly before a held child's final validation or only after
+that child is released.
 
 Bootstrap tickets aren't user-deletable — they're package-backed batteries
 managed by the installed Coga package.
