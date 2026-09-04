@@ -130,20 +130,55 @@ coga/
                            exact sibling ticket.py is its deterministic phase
   tasks/<dir>/.../<slug>/ ← tickets in sub-dirs at any depth (ref'd by path)
   skills/<ns>/<name>/    ← project-local process knowledge / overrides
-                           (imported skills land flat: skills/<name>/)
+                           (installer-managed imports land flat: skills/<ref>/)
   contexts/<ns>/<name>/  ← default project-local domain knowledge / overrides
   workflows/<ns>/<name>.md ← step definitions (local-first over bootstrap/workflows/)
   .agent-skills/         ← generated local-plus-bundled skill view for agents
 ```
 
 `<ns>/<name>/` is the convention for skills this repo *authors* — `code/`,
-`coga/`, `browser/`, `direct/`. It is not a requirement, and imported skills do
-not follow it: `coga skill install` lays a Coga-managed skill down flat at
-`coga/skills/<ref>/` under its upstream ref name, so this repo also carries
-seven flat `google-agents-cli-*` directories (declared in
-`src/coga/resources/managed-skills.toml`) alongside `_template/`. Skill
-resolution reads the directory path either way; prefer a namespace for anything
-you write, and expect the flat form for anything you imported.
+`coga/`, `direct/`, and the repo-authored members of `browser/`. It is not a
+requirement, and it is
+not the only shape in the tree. Three shapes coexist under `coga/skills/`:
+
+- **Repo-authored, namespaced** — `code/`, `coga/`, `direct/`, and
+  `browser/dochub`; `_template/` sits beside them as the starter directory to
+  copy. DocHub's Coga ref is `browser/dochub`, derived from that directory
+  path, while its portable Agent Skills metadata deliberately keeps the
+  standards-valid leaf `name: dochub`.
+- **Installer-managed, flat** — `coga skill install` lays a Coga-managed skill
+  down flat at `coga/skills/<ref>/` under its upstream ref name, so this repo
+  also carries seven flat `google-agents-cli-*` directories, each declared in
+  `src/coga/resources/managed-skills.toml`.
+- **Hand-vendored upstream skills, verbatim or adapted** — committed under a
+  namespace and carrying their upstream source, license, and modification /
+  refresh record in `ATTRIBUTION.md` or `NOTICE.txt` plus `LICENSE.txt`.
+  `anthropic/skill-creator/` is a verbatim pinned copy;
+  `browser/playwright/` is an adapted derivative of
+  `microsoft/playwright-cli` with a wrapper and local references. Neither is in
+  `managed-skills.toml`: the installer neither placed nor updates them.
+  Refreshing a verbatim copy means re-copying the reviewed upstream revision;
+  refreshing an adapted copy also means deliberately reapplying and reviewing
+  its recorded local modifications. Preserve a standards-valid leaf `name:`
+  from upstream when applicable; Coga derives the namespaced ref from the
+  directory path, and a slash does not belong in upstream leaf metadata.
+  Nothing installs a hand-vendored skill's dependencies on its behalf unless
+  that directory supplies a supported requirements manifest. A vendored skill
+  with unlisted imports is on its own.
+
+Skill resolution reads the directory path in all three cases. Prefer a
+namespaced directory for anything you write, expect the flat form for anything
+the installer imported, and use a namespaced directory plus attribution,
+license, and modification history for anything you vendor by hand.
+Repo-authored namespaced skills normally use the Coga ref
+(`name: <namespace>/<name>`) established by the authoring template. A skill
+also intended to satisfy the portable Agent Skills metadata grammar may keep a
+standards-valid leaf `name:` while Coga derives its namespaced ref from the
+directory path; DocHub is the checked-in example. Flat installer-managed
+imports retain their upstream metadata. A hand-vendored import follows the
+same portable rule: preserve its standards-valid upstream leaf `name:` when
+applicable even though Coga derives a namespaced ref from its directory path,
+and make adaptations explicit in its notice.
 
 File-form `tasks/<slug>.md` tickets cannot carry attachments and therefore
 cannot be script-backed. In a directory-form ticket, only `ticket.py` is
