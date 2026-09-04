@@ -408,6 +408,36 @@ terminal, rendered as markdown via Rich. Same prefix matching as
 blackboard or log). For grep/pipe use, read the files directly — `show`
 is for human eyes.
 
+## coga usage [--by \<field\>] [--since \<ts\>] [--until \<ts\>] [--task \<slug\>] [--json]
+
+Roll up agent token usage from the repo-global `coga/log.md`. There is no
+separate usage store: when an agent session ends, `coga launch` reads that
+CLI's own transcript and appends the result as an ordinary tagged log line
+whose message is the record's JSON object. `usage` parses those lines back out
+and skips every other line, so the ledger stays the same append-only,
+union-merged file the rest of Coga already reads.
+
+The default output is an `Overall:` line plus one row per group, with columns
+for sessions, unknown, total, input, cache_create, cache_read, and output
+tokens. `unknown` counts sessions whose transcript could not be read or parsed;
+they still count as sessions but contribute zero tokens, so a high unknown
+count means the totals are a floor rather than a measurement.
+
+- `--by task|model|agent|step` — the group key (default `task`). A record with
+  no value for that field groups under `(unknown)`. Any other value exits 2.
+- `--since <ts>` / `--until <ts>` — bound the window by ISO timestamp or bare
+  `YYYY-MM-DD` date; a bare date covers the whole day at both ends. An
+  unparseable value exits 2.
+- `--task <slug>` — one task only. This is an exact slug match, not the prefix
+  matching `launch`/`show`/`bump` accept.
+- `--json` — emit the same rollup as one JSON object instead of the table.
+
+Read-only, like `status`, `show`, and `validate`: it mutates nothing, hits no
+network, and does not trigger the end-of-command `coga/` state sweep. It is the
+after-the-fact counterpart to `coga launch --prompt-report`, which estimates
+the prompt side before a run; `usage` reports what the provider actually
+recorded after one.
+
 ## coga bump \<slug\> [--message "..."] [--force]
 
 Finish the current step of a workflow-bound task. It updates `step:` and
@@ -747,6 +777,41 @@ Once Slack is selected it is fail-loud (see `coga/sync`): commands crash if
 `$SLACK_WEBHOOK_URL` is unset and the user hasn't opted out via
 `[notification.slack].enabled = false`.
 
+## coga digest [--announce-empty | --quiet-empty]
+
+Post one outcome-focused daily digest through the configured notification
+channel, then record what it covered. This is the **consumer** half of the
+digest pipeline: `done`/`canceled` events and recurring scan errors spool
+structured records into `coga/recurring/digest/spool.md` as they happen instead
+of posting live, and once a day the `recurring/digest` task fires and runs the
+registered `digest` recipe. `coga digest` is the hand-run spelling of that same
+pass — reach for it to flush the spool now instead of waiting for the schedule.
+
+One pass reads the unconsumed spool records, fetches the configured control
+branch, renders `Done:` / `Canceled:` / recurring-error sections from those
+records plus an `Also merged (no ticket):` section from commits landed since
+the last recorded high-water mark, posts, then advances both watermarks.
+Coga's own state-sync commits and commits whose PR already appears under
+`Done:` are filtered out, so the digest reports outcomes rather than churn.
+
+The two watermarks live in different files on purpose. The spool is
+*compacted*, not emptied — the consumed prefix is trimmed and the newest record
+stays as an anchor, so a concurrent producer append lands in a disjoint merge
+hunk of that union-merged file. The git high-water mark is single-writer
+consumer state and lives in the digest template's `### Digest State` block in
+`coga/recurring/digest/ticket.md`.
+
+Idempotent and safe to re-run: with no outcome records and no new commits it
+posts nothing, and a failed post leaves the records and the git high-water mark
+intact for the next run. An empty spool alone is not enough to skip — the
+control-branch scan still runs.
+
+- `--announce-empty` / `--quiet-empty` — on an empty pass, print a one-line note
+  or stay silent (default `--quiet-empty`).
+
+Unlike the read-only views, `digest` writes state and posts, so it does trigger
+the end-of-command `coga/` state sweep.
+
 ## coga secret get \<ref>
 
 Resolve one secret **reference** on demand and print its value to stdout — a
@@ -841,8 +906,8 @@ instructions and blackboard residue cannot shadow the new firing. A stuck
 Current period only: it does not chase missed periods. Running `coga
 recurring` once a month for a weekly template produces one run (this
 period's), not a backlog. It does not install or manage system cron —
-nothing runs unless you invoke it. `coga/scripts/cron.sh` is the
-optional entry point if you later wire it into a scheduler yourself.
+nothing runs unless you invoke it. `coga recurring --all <path>` is the
+one entry point to wire into a scheduler if you later want that yourself.
 Dedup — including after Dream deletes a completed run — reads the repo-global
 `coga/log.md`: a `created|reused <task-ref> for <period>` line tagged
 `recurring/<name>` records that the period was serviced, and a period at or
@@ -1078,6 +1143,10 @@ only; they don't accept their own flags.
 - Triage view → `coga status`.
 - Blocked-work queue → `coga status --blocked`.
 - Reading a single task without opening the file → `coga show <slug>`.
+- Accounting for agent token spend after the fact → `coga usage`
+  (`--by model|agent|step` to re-slice, `--json` to pipe).
+- Flushing the pending daily digest now instead of waiting for its
+  schedule → `coga digest`.
 - Surfacing a non-blocker note tied to a step transition → `coga bump --message`.
 - Surfacing a non-blocker note tied to a status transition → `coga mark <state> --message`.
 - Surfacing a non-blocker note that doesn't fit a transition → `coga slack`.
