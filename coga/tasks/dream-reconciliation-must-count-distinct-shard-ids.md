@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -130,3 +130,50 @@ The rule is stated twice on purpose, because it has two different readers:
 
 `test_recurring_create_is_silent` above. Fails on clean `main`; worth its own
 ticket if it is not already tracked.
+
+## Peer review — 2026-09-04
+
+- Ran `codex review --base main` from the recorded feature worktree. No
+  actionable regressions or must-fix findings; the reviewer also ran the 18
+  Dream-template and packaging tests successfully. No implementation edits
+  or additional fix commit were needed.
+- Ran `git fetch origin main`, then `git rebase FETCH_HEAD` unconditionally.
+  Rebase completed without conflicts onto `986e1bd3`; the feature commit is
+  now `0f10468f`. Incoming commits changed only task state and the audit log.
+  Both live/packaged pairs remain byte-identical after the rebase, and
+  `git diff main...HEAD --check` passes.
+- Installed `.[test]` into the isolated Python 3.12 environment
+  `/tmp/coga-dream-review-venv-20260904`. The full suite on the rebased
+  feature worktree finished: **2233 passed, 1 failed**, in 151.32 seconds.
+  The only failure is the pre-existing notification test below; the Dream
+  and packaging tests all pass. Pytest also warned that the sandbox prevented
+  writing its optional cache in the feature worktree.
+- Independently reproduced `test_recurring_create_is_silent` on primary
+  `main` with the same environment: `NotADirectoryError` for
+  `coga/tasks/work.md/ticket.md`. The traceback uses primary-checkout source,
+  confirming this failure is unrelated to the Dream changes.
+- `coga validate --task dream-reconciliation-must-count-distinct-shard-ids --json`
+  passes with one valid task and no issues.
+- `git range-diff 3911ff80..3e49829b 986e1bd3..HEAD` confirms the reviewed
+  patch is unchanged by rebase. The feature branch is clean and one commit
+  ahead of the fetched `main`.
+
+Exact verification commands (first from the feature worktree, second from
+the primary checkout):
+
+```sh
+PYTHONPATH=/home/n/Code/codex/coga-dream-reconcile-distinct-shards/src /tmp/coga-dream-review-venv-20260904/bin/python -m pytest
+PYTHONPATH=/home/n/Code/codex/coga/src /tmp/coga-dream-review-venv-20260904/bin/python -m pytest tests/test_notification_messages.py::test_recurring_create_is_silent -q
+```
+
+## PR
+
+Duplicate shard completion lines could make Dream reconcile early or claim
+full coverage while an assigned shard was missing. Require reconciliation at
+the barrier and match every active leaf id against distinct completing shard ids.
+
+Update the shared scan protocol, both recurring Dream templates, both architecture
+contexts, and the existing contract assertions. Completion records remain valid
+when a finished shard goes idle.
+
+Test plan: `python -m pytest` with Python 3.12 and `.[test]`: 2233 passed; the sole failure, `test_recurring_create_is_silent`, reproduces on `main` with the same `NotADirectoryError`. The reviewer also ran `python -m pytest -q tests/test_dream_worker_templates.py tests/test_packaging.py`: 18 passed.
