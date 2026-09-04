@@ -575,11 +575,17 @@ concurrent audit/digest appends.
 The push to `refs/heads/<control>` is a compare-and-swap: if the control branch
 moved under us (another coga process, a teammate), the
 push is rejected non-fast-forward, and a bounded fetch-rebuild-retry loop
-refetches the new tip and rebuilds. That push *is* the serialization point — no
-lock file is introduced, consistent with `coga/architecture`'s no-mutex model.
-Concurrent local or cross-machine processes each fetch→build→push; exactly one
-fast-forwards per round and the losers retry, so nothing on the control branch
-is clobbered.
+refetches the new tip and rebuilds. That push is the cross-checkout and
+cross-machine serialization point. Within one checkout, all three Coga Git
+publishers (`sync_paths`, `sync_log`, and the catch-all `sync_coga_state`)
+also take the short state-publication barrier described in
+`coga/architecture`. The held-child launch boundary takes the same barrier
+across its provisional audit append, last proof, and pipe release, so a broad
+sweep cannot make a refused launch record durable. This is not task ownership:
+the inert lock file is outside the worktree and the kernel releases the
+advisory lock on process exit. Concurrent cross-checkout or cross-machine
+processes still each fetch→build→push; exactly one fast-forwards per round and
+the losers retry, so nothing on the control branch is clobbered.
 
 Fetch results used by strict assist alignment and publication are isolated too.
 Each requested branch tip is written to a UUID-scoped command-owned ref with

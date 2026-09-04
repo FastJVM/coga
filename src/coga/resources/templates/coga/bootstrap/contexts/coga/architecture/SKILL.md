@@ -783,7 +783,7 @@ returns the assembled prompt verbatim with no defusal step.
 
 ## Status is the signal
 
-There is no filesystem mutex. The ticket's `status` (`draft`, `active`,
+There is no task-ownership mutex. The ticket's `status` (`draft`, `active`,
 `in_progress`, `blocked`, `paused`, `done`, `canceled`) is the signal that
 someone is — or isn't — working on a task. `coga launch` accepts an `active` or
 `in_progress` ticket directly, and treats a launch of `draft` or `paused` as
@@ -798,10 +798,19 @@ because executing user code is already the start of work. Terminal tickets
 (`done` and `canceled`) are
 refused and left untouched; launching one must not restart its workflow. A
 workflow-less or required-extension-incomplete ticket still can't be activated,
-so those launches fail loud with the same remedy `mark active` gives. The failure mode
-of two divergent workers (two blackboard edits, two PR branches) is visible
-and recoverable in git; the cost of a hard mutex (stale lock files, `--force`
-flags, orphan-lock cleanup) is not.
+so those launches fail loud with the same remedy `mark active` gives. The
+failure mode of two divergent workers (two blackboard edits, two PR branches)
+is visible and recoverable in git; the cost of a hard ownership mutex (stale
+lock state, `--force` flags, orphan-lock cleanup) is not.
+
+A much narrower local **state-publication barrier** does exist. It is an
+OS-released advisory lock held only while a Coga command stages/publishes state,
+and while a megalaunch child remains held across its provisional audit append,
+final proof, and pipe release. It never decides who owns a task or whether one
+is launchable. Its inert lock file lives outside the worktree; process exit
+releases the kernel lock, so there is no stale ownership state or cleanup
+protocol. Cross-checkout and cross-machine coordination still comes from exact
+Git compare-and-swap publication.
 
 ## Identity and capability boundaries
 
@@ -881,10 +890,13 @@ including `launch_generation`, must still match. It repeats that proof through
 `validate_after_spawn` after the PTY child exists but while the supervisor
 still holds it before exec. Megalaunch then appends the launch audit and repeats
 the same `validate_after_spawn` proof after that append, immediately before
-release. A changed or unverifiable claim conditionally removes only the owned
-audit line, refuses the child, and retains `in_progress` for safe resume. Thus
-the audit stays out of `log.md` until the PTY child actually exists, while an
-edit during the append cannot release stale preflighted work. An audit failure
+release. The local state-publication barrier spans that append, final proof,
+and pipe write; every Coga Git publisher waits, so it cannot commit the
+provisional line before admission becomes irrevocable. A changed or
+unverifiable claim conditionally removes only the owned audit line, refuses the
+child, and retains `in_progress` for safe resume. Thus the audit stays out of
+`log.md` until the PTY child actually exists, while an edit during the append
+cannot release stale preflighted work or publish a false audit. An audit failure
 likewise kills the held child, so no unrecorded work starts. Once published, a
 generation is not automatically reclaimable by another megalaunch, closing the
 interval after the point-in-time final fetch; a step advance or lifecycle

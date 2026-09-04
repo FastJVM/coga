@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 from textwrap import dedent
 
@@ -3251,9 +3252,9 @@ def test_megalaunch_revalidates_control_claim_at_final_spawn_boundary(
 def test_megalaunch_final_refusal_keeps_audit_out_of_peer_state_commit(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A same-checkout peer cannot publish a pre-spawn launch record."""
+    """A same-checkout publisher waits until the provisional audit is decided."""
     from coga import git as git_module
-    import coga.megalaunch as megalaunch_module
+    from coga.commands import launch as launch_module
 
     cfg = load_config(git_repo.coga_os)
     active = create_task(
@@ -3275,76 +3276,122 @@ def test_megalaunch_final_refusal_keeps_audit_out_of_peer_state_commit(
     monkeypatch.setattr(
         "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
-    real_spawn = megalaunch_module.spawn_agent_session
-    peer_generation = "same-checkout-peer-claim"
-    reached_final_boundary = False
+    peer_mutated = threading.Event()
+    peer_called_sync = threading.Event()
+    peer_entered_sync = threading.Event()
+    peer_published = threading.Event()
+    publisher_errors: list[BaseException] = []
+    publisher_thread: threading.Thread | None = None
+    publication_waited_for_release = False
+    child_released = False
+    outer_generation: str | None = None
 
     def hold_child_for_final_guard(
-        _cmd, _env, *, after_spawn, **_kwargs
+        _cmd,
+        _env,
+        *,
+        after_spawn,
+        spawn_release_guard,
+        **_kwargs,
     ):  # type: ignore[no-untyped-def]
+        nonlocal publication_waited_for_release, child_released
         assert after_spawn is not None
-        after_spawn()
-        raise AssertionError("a changed claim must not release the child")
+        assert spawn_release_guard is not None
+        try:
+            with spawn_release_guard():
+                try:
+                    after_spawn()
+                except BaseException:
+                    assert peer_mutated.is_set()
+                    assert peer_called_sync.is_set()
+                    publication_waited_for_release = not peer_entered_sync.wait(0.1)
+                    raise
+                child_released = True
+                raise AssertionError("a changed claim must not release the child")
+        finally:
+            if publisher_thread is not None:
+                publisher_thread.join(timeout=10)
 
     monkeypatch.setattr(
         "coga.commands.launch.run_with_done_marker", hold_child_for_final_guard
     )
+    real_append_log = launch_module.append_log
+    real_catch_all = git_module._sync_coga_state_without_barrier
 
-    def commit_peer_edit_before_final_proof(
-        cfg_,
-        ref_,
-        claimed: Ticket,
-        agent_,
-        *,
-        validate_before_spawn,
-        validate_after_spawn,
-        **kwargs,
-    ):  # type: ignore[no-untyped-def]
-        assert kwargs["record_launch_on_spawn"] is True
-
-        def publish_peer_then_refuse() -> None:
-            nonlocal reached_final_boundary
-            peer = Ticket.read(ticket_path)
-            assert peer.launch_generation == claimed.launch_generation
-            peer.frontmatter["launch_generation"] = peer_generation
-            peer.body = f"{peer.body.rstrip()}\n\nPeer session is running.\n"
-            peer.write(ticket_path)
-            git_module.sync_task_state(
-                cfg,
-                ref_.path,
-                message="Peer changes claim at final boundary",
-            )
-            reached_final_boundary = True
-            validate_after_spawn()
-
-        return real_spawn(
-            cfg_,
-            ref_,
-            claimed,
-            agent_,
-            validate_before_spawn=validate_before_spawn,
-            validate_after_spawn=publish_peer_then_refuse,
-            **kwargs,
-        )
+    def observe_catch_all_entry(*args, **kwargs):  # type: ignore[no-untyped-def]
+        peer_entered_sync.set()
+        return real_catch_all(*args, **kwargs)
 
     monkeypatch.setattr(
-        "coga.megalaunch.spawn_agent_session",
-        commit_peer_edit_before_final_proof,
+        git_module,
+        "_sync_coga_state_without_barrier",
+        observe_catch_all_entry,
+    )
+
+    def append_then_start_peer_publisher(
+        *args, **kwargs
+    ):  # type: ignore[no-untyped-def]
+        nonlocal outer_generation, publisher_thread
+        appended = real_append_log(*args, **kwargs)
+        if args[2] != "megalaunch" or args[3] != "launched via coga megalaunch":
+            return appended
+
+        claimed_generation = Ticket.read(ticket_path).launch_generation
+        assert claimed_generation is not None
+        outer_generation = claimed_generation
+
+        def publish_peer() -> None:
+            try:
+                peer = Ticket.read(ticket_path)
+                assert peer.launch_generation == claimed_generation
+                peer.body = f"{peer.body.rstrip()}\n\nPeer edited the task.\n"
+                peer.write(ticket_path)
+                peer_mutated.set()
+                # The write is visible to the final claim proof, but this Git
+                # publisher must wait until the held child is released or the
+                # provisional audit append has been rolled back.
+                peer_called_sync.set()
+                git_module.sync_coga_state(
+                    cfg,
+                    message="Peer catch-all after provisional audit",
+                )
+            except BaseException as exc:
+                publisher_errors.append(exc)
+            finally:
+                peer_published.set()
+
+        publisher_thread = threading.Thread(target=publish_peer)
+        publisher_thread.start()
+        assert peer_mutated.wait(timeout=5)
+        assert peer_called_sync.wait(timeout=5)
+        return appended
+
+    monkeypatch.setattr(
+        "coga.commands.launch.append_log",
+        append_then_start_peer_publisher,
     )
 
     run = run_megalaunch(cfg, selection=[active["slug"]])
 
-    assert reached_final_boundary
+    assert publisher_thread is not None
+    assert not publisher_thread.is_alive()
+    assert publisher_errors == []
+    assert publication_waited_for_release
+    assert peer_entered_sync.is_set()
+    assert child_released is False
     assert run.results[0].outcome == "failed"
     assert not run.results[0].launched
     assert "launch claim changed locally before agent spawn" in (
         run.results[0].detail
     )
-    assert Ticket.read(ticket_path).launch_generation == peer_generation
+    assert Ticket.read(ticket_path).status == "in_progress"
+    assert Ticket.read(ticket_path).launch_generation == outer_generation
     remote = Ticket.parse(
         git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
     )
-    assert remote.launch_generation == peer_generation
+    assert remote.status == "in_progress"
+    assert remote.launch_generation == outer_generation
+    assert "Peer edited the task." in remote.body
     assert _log_lines_for(
         cfg, active["slug"], "launched via coga megalaunch"
     ) == []

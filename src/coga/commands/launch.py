@@ -3054,10 +3054,12 @@ def spawn_agent_session(
     pipe still holds that child before exec. ``record_launch_on_spawn`` defers
     the audit append into that same gate. A guarded deferred audit is bracketed
     by two calls to ``validate_after_spawn``: the second exact proof runs after
-    the append and immediately before release. Refusal conditionally removes
-    only this invocation's append. Such an audit cannot also request immediate
-    Git publication, because a published append cannot be transactionally
-    retracted if that final proof refuses.
+    the append and immediately before release. The append, proof, and supervisor
+    pipe release share Git's local state-publication barrier, so another Coga
+    command cannot commit the provisional line while that proof is in flight.
+    Refusal conditionally removes only this invocation's append. Such an audit
+    cannot also request immediate Git publication, because a published append
+    cannot be transactionally retracted if that final proof refuses.
     """
     # A nested launch inherits its parent's process environment. Re-derive the
     # task metadata at this last shared boundary so an agent identifies the
@@ -3269,6 +3271,11 @@ def spawn_agent_session(
             idle_timeout=idle_timeout,
             max_session=max_session,
             after_spawn=admit_spawned_child if gated_spawn_admission else None,
+            spawn_release_guard=(
+                (lambda: git.state_publication_barrier(cfg))
+                if validate_after_spawn is not None and deferred_launch_audit
+                else None
+            ),
         )
         outcome_status = _session_outcome_status(outcome)
         publish_session_log = _completed_publishing_gate(ticket, ref, outcome)

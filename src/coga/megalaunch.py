@@ -1420,6 +1420,13 @@ def _launch_until_stop(
             )
         except (ComposeError, ConfigError, SecretError) as exc:
             return _result(ref, "failed", str(exc), launch_assignee)
+        except git.GitError as exc:
+            return _result(
+                ref,
+                "failed",
+                f"launch admission publication barrier unavailable: {exc}",
+                launch_assignee,
+            )
         except FileNotFoundError:
             return _result(
                 ref,

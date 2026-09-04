@@ -28,6 +28,7 @@ import tempfile
 import termios
 import time
 import tty
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping
@@ -209,6 +210,9 @@ def run_with_done_marker(
     output_fd: int | None = None,
     input_fd: int | None = None,
     after_spawn: Callable[[], None] | None = None,
+    spawn_release_guard: (
+        Callable[[], AbstractContextManager[None]] | None
+    ) = None,
 ) -> ReplOutcome:
     """Spawn `cmd` in a PTY, proxy stdio, SIGTERM the child on done signal.
 
@@ -246,7 +250,24 @@ def run_with_done_marker(
     reaps the held child before propagating; success releases it. Callers can
     therefore durably record an actual spawn without either recording a
     refused pre-spawn attempt or letting unrecorded agent work begin.
+    ``spawn_release_guard`` optionally surrounds both that callback and the
+    gate write, so a caller can keep a short cross-process critical section
+    held until the child is irrevocably released.
     """
+    if spawn_release_guard is not None and after_spawn is None:
+        raise ValueError("spawn_release_guard requires after_spawn")
+
+    def release_gated_child(gate_write_fd: int) -> None:
+        guard = (
+            spawn_release_guard()
+            if spawn_release_guard is not None
+            else nullcontext()
+        )
+        with guard:
+            assert after_spawn is not None
+            after_spawn()
+            os.write(gate_write_fd, b"\0")
+
     if not sys.stdout.isatty():
         import subprocess
 
@@ -286,8 +307,7 @@ def run_with_done_marker(
 
             os.close(gate_read_fd)
             try:
-                after_spawn()
-                os.write(gate_write_fd, b"\0")
+                release_gated_child(gate_write_fd)
             except BaseException:
                 try:
                     os.kill(pid, signal.SIGKILL)
@@ -363,8 +383,7 @@ def run_with_done_marker(
     if after_spawn is not None:
         assert gate_write_fd is not None
         try:
-            after_spawn()
-            os.write(gate_write_fd, b"\0")
+            release_gated_child(gate_write_fd)
         except BaseException:
             # The child is still blocked before exec. Kill it before closing
             # the gate, so EOF cannot release unrecorded agent work.

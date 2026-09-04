@@ -7,6 +7,7 @@ import os
 import signal
 import sys
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -122,6 +123,52 @@ def test_no_tty_after_spawn_callback_releases_held_child(
     )
 
     assert (outcome.exit_code, outcome.kind) == (0, "natural")
+    assert marker.read_text() == "ran"
+
+
+def test_no_tty_spawn_release_guard_covers_callback_and_gate_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The publication barrier stays held until the child is released."""
+    marker = tmp_path / "child-ran"
+    events: list[str] = []
+    guard_held = False
+    real_write = os.write
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+
+    @contextmanager
+    def release_guard():
+        nonlocal guard_held
+        guard_held = True
+        events.append("guard-enter")
+        try:
+            yield
+        finally:
+            events.append("guard-exit")
+            guard_held = False
+
+    def tracked_write(fd: int, data: bytes) -> int:
+        if data == b"\0":
+            assert guard_held
+            events.append("release")
+        return real_write(fd, data)
+
+    def record_spawn() -> None:
+        assert guard_held
+        assert not marker.exists()
+        events.append("callback")
+
+    monkeypatch.setattr("coga.repl_supervisor.os.write", tracked_write)
+    outcome = run_with_done_marker(
+        [sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ran')"],
+        env={},
+        after_spawn=record_spawn,
+        spawn_release_guard=release_guard,
+    )
+
+    assert (outcome.exit_code, outcome.kind) == (0, "natural")
+    assert events == ["guard-enter", "callback", "release", "guard-exit"]
     assert marker.read_text() == "ran"
 
 

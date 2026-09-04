@@ -25,14 +25,17 @@ so it commits `log.md` alone, union-safely.
 A non-fast-forward `origin/<control>` (it moved under us) is absorbed by a
 bounded retry loop on both push paths. On the cross-branch landing path the
 `git push <sha>:refs/heads/<control>` is the atomic compare-and-swap that
-serializes concurrent coga processes (local or cross-machine), so no lock is
-introduced — consistent with coga's no-mutex architecture; it rebuilds the
-overlay tree on the new tip and repushes. On the same-branch path (HEAD *is*
-the control branch) a rejected push triggers a fetch + `rebase --autostash`
-onto the new tip, then a retry — the working tree is already checked out there,
-so integrating the remote move means a rebase, with autostash keeping unrelated
-dirty changes intact. A detached HEAD takes the cross-branch landing path and
-normally skips the local commit (a commit on a detached HEAD would be
+serializes cross-checkout and cross-machine Coga processes; it rebuilds the
+overlay tree on the new tip and repushes. Within one checkout, every Coga
+publisher also takes a short OS-released advisory barrier. That barrier is not
+task ownership: it only prevents Git staging from observing a provisional
+held-child audit before admission is irrevocable. On the same-branch path
+(HEAD *is* the control branch) a rejected push triggers a fetch + `rebase
+--autostash` onto the new tip, then a retry — the working tree is already
+checked out there, so integrating the remote move means a rebase, with
+autostash keeping unrelated dirty changes intact. A detached HEAD normally
+takes the cross-branch landing path and skips the local commit (a commit on a
+detached HEAD would be
 orphaned). A rewind opts into a scoped detached commit so its successfully
 guarded ticket cannot remain dirty and ride a later unguarded sweep. Strict
 lifecycle publishers do the same for their exact generated snapshot, including
@@ -85,6 +88,8 @@ binding, just `subprocess.run` with `check=False` and explicit error handling.
 
 from __future__ import annotations
 
+import fcntl
+import hashlib
 import os
 import re
 import shutil
@@ -95,7 +100,8 @@ import tempfile
 import time
 import tomllib
 from collections import Counter
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -176,6 +182,51 @@ class UncertainFeaturePublicationError(FeaturePublicationError):
     create or deepen a split with a remote ref that accepted the update before
     its acknowledgement or follow-up probe failed.
     """
+
+
+@contextmanager
+def state_publication_barrier(cfg: Config) -> Iterator[None]:
+    """Serialize local Coga publishers with guarded child admission.
+
+    The ticket status remains the task-ownership signal; this is only a short
+    kernel-released advisory barrier around Git staging/publication and the
+    provisional launch-audit window. Its file lives outside the repository
+    worktree, so it cannot enter a state sweep, and a crashed process leaves no
+    held lock or cleanup obligation.
+    """
+    if not cfg.git_enabled:
+        yield
+        return
+    checkout = os.fsencode(cfg.repo_root.resolve())
+    checkout_key = hashlib.sha256(checkout).hexdigest()
+    lock_root = Path(tempfile.gettempdir()) / (
+        f"coga-state-publication-{os.getuid()}"
+    )
+    try:
+        lock_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        fd = os.open(
+            lock_root / f"{checkout_key}.lock",
+            os.O_CREAT | os.O_RDWR,
+            0o600,
+        )
+    except OSError as exc:
+        raise GitError(
+            f"could not open local state-publication barrier: {exc}"
+        ) from exc
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+    except OSError as exc:
+        os.close(fd)
+        raise GitError(
+            f"local state-publication barrier failed: {exc}"
+        ) from exc
+    try:
+        yield
+    finally:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
 
 
 @dataclass(frozen=True)
@@ -822,7 +873,7 @@ class _RefreshCommit:
     oid: str
 
 
-def sync_log(
+def _sync_log_without_barrier(
     cfg: Config,
     *,
     message: str,
@@ -1088,7 +1139,36 @@ def sync_log(
         return False
 
 
-def sync_paths(
+def sync_log(
+    cfg: Config,
+    *,
+    message: str,
+    publish_current_branch: bool = False,
+    publish_if_remote_aligned: bool = False,
+    allow_feature_fast_forward: bool = True,
+    expected_feature_branch: str | None = None,
+    feature_publication_guard: _FeaturePublicationGuard | None = None,
+) -> bool:
+    """Run the narrow log publisher behind the local publication barrier."""
+    try:
+        with state_publication_barrier(cfg):
+            return _sync_log_without_barrier(
+                cfg,
+                message=message,
+                publish_current_branch=publish_current_branch,
+                publish_if_remote_aligned=publish_if_remote_aligned,
+                allow_feature_fast_forward=allow_feature_fast_forward,
+                expected_feature_branch=expected_feature_branch,
+                feature_publication_guard=feature_publication_guard,
+            )
+    except GitError as exc:
+        sys.stderr.write(
+            f"[git] log sync failed: {exc}. Message was: {message}\n"
+        )
+        return False
+
+
+def _sync_paths_without_barrier(
     cfg: Config,
     anchor_path: Path,
     paths: Iterable[Path],
@@ -1304,7 +1384,76 @@ def sync_paths(
         append_log(cfg, ref_tag_for_path(cfg, anchor_path), "git", f"sync failed: {exc}")
 
 
-def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
+def sync_paths(
+    cfg: Config,
+    anchor_path: Path,
+    paths: Iterable[Path],
+    *,
+    message: str,
+    update_local_control_ref: bool = True,
+    land_union_files_to_control: bool = False,
+    commit_detached: bool = False,
+    guard: _StateGuard | None = None,
+    publish_current_branch: bool = False,
+    expected_current_branch: str | None = None,
+    expected_current_branch_oid: str | None = None,
+    expected_remote_branch_oid: str | None = None,
+    strict_feature_publication: bool = False,
+    strict_push_url: str | None = None,
+    feature_publication_guard: _FeaturePublicationGuard | None = None,
+    after_strict_publication: Callable[[], None] | None = None,
+    generated_paths: Mapping[Path, bytes | None] | None = None,
+    raise_state_regression: bool = False,
+    raise_git_error: bool = False,
+) -> None:
+    """Run an explicit-path state publisher behind the local barrier."""
+    try:
+        with state_publication_barrier(cfg):
+            _sync_paths_without_barrier(
+                cfg,
+                anchor_path,
+                paths,
+                message=message,
+                update_local_control_ref=update_local_control_ref,
+                land_union_files_to_control=land_union_files_to_control,
+                commit_detached=commit_detached,
+                guard=guard,
+                publish_current_branch=publish_current_branch,
+                expected_current_branch=expected_current_branch,
+                expected_current_branch_oid=expected_current_branch_oid,
+                expected_remote_branch_oid=expected_remote_branch_oid,
+                strict_feature_publication=strict_feature_publication,
+                strict_push_url=strict_push_url,
+                feature_publication_guard=feature_publication_guard,
+                after_strict_publication=after_strict_publication,
+                generated_paths=generated_paths,
+                raise_state_regression=raise_state_regression,
+                raise_git_error=raise_git_error,
+            )
+    except (FeaturePublicationError, StateRegressionError):
+        # The inner publisher lets these escape only for callers that asked
+        # for transactional refusal semantics; the barrier wrapper must not
+        # turn them back into the ordinary non-fatal sync contract.
+        raise
+    except GitError as exc:
+        if strict_feature_publication:
+            raise FeaturePublicationError(
+                f"strict feature publication failed: {exc}"
+            ) from exc
+        if raise_git_error:
+            raise
+        sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
+        append_log(
+            cfg,
+            ref_tag_for_path(cfg, anchor_path),
+            "git",
+            f"sync failed: {exc}",
+        )
+
+
+def _sync_coga_state_without_barrier(
+    cfg: Config, *, message: str = "Sync coga state"
+) -> None:
     """Commit dirty Coga OS state, including configured contexts, from any branch.
 
     The catch-all sweep behind the always-on sync contract. The per-transition
@@ -1402,6 +1551,21 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
     except GitError as exc:
         sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
         append_log(cfg, ref_tag_for_path(cfg, subtree), "git", f"sync failed: {exc}")
+
+
+def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
+    """Run the catch-all Coga-state publisher behind the local barrier."""
+    try:
+        with state_publication_barrier(cfg):
+            _sync_coga_state_without_barrier(cfg, message=message)
+    except GitError as exc:
+        sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
+        append_log(
+            cfg,
+            ref_tag_for_path(cfg, cfg.repo_root),
+            "git",
+            f"sync failed: {exc}",
+        )
 
 
 def refresh_coga_state_from_control(
@@ -6326,6 +6490,7 @@ __all__ = [
     "guard_ticket_state",
     "is_linked_worktree",
     "refresh_coga_state_from_control",
+    "state_publication_barrier",
     "stale_coga_task_rels",
     "sync_coga_state",
     "sync_log",
