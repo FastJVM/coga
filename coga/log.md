@@ -4133,3 +4133,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-01 11:56 [vendored-skills-carry-no-coga-source-json-so-coga] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-09-01 12:03 [guard-the-browser-dochub-and-playwright-live-vs-pa] [human:nicktoper] created (status=draft)
 2026-09-01 12:04 [validate-that-committed-skill-scripts-with-a-sheba] [human:nicktoper] created (status=draft)
+2026-09-01 14:28 [triage-the-v2-parking-area-empty-descriptions-prem] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
