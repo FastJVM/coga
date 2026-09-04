@@ -27,9 +27,10 @@ bounded retry loop on both push paths. On the cross-branch landing path the
 `git push <sha>:refs/heads/<control>` is the atomic compare-and-swap that
 serializes cross-checkout and cross-machine Coga processes; it rebuilds the
 overlay tree on the new tip and repushes. Within one checkout, every Coga
-publisher also takes a short OS-released advisory barrier. That barrier is not
-task ownership: it only prevents Git staging from observing a provisional
-held-child audit before admission is irrevocable. On the same-branch path
+publisher and lifecycle-ticket writer also takes a short OS-released advisory
+barrier. That barrier is not task ownership: it only keeps lifecycle mutation
+and Git staging on one side or the other of a held child's final proof and
+irrevocable release. It remains active when Git sync is disabled. On the same-branch path
 (HEAD *is* the control branch) a rejected push triggers a fetch + `rebase
 --autostash` onto the new tip, then a retry — the working tree is already
 checked out there, so integrating the remote move means a rebase, with
@@ -186,17 +187,15 @@ class UncertainFeaturePublicationError(FeaturePublicationError):
 
 @contextmanager
 def state_publication_barrier(cfg: Config) -> Iterator[None]:
-    """Serialize local Coga publishers with guarded child admission.
+    """Serialize local Coga writers/publishers with guarded child admission.
 
     The ticket status remains the task-ownership signal; this is only a short
-    kernel-released advisory barrier around Git staging/publication and the
-    provisional launch-audit window. Its file lives outside the repository
-    worktree, so it cannot enter a state sweep, and a crashed process leaves no
-    held lock or cleanup obligation.
+    kernel-released advisory barrier around lifecycle writes, Git publication,
+    and the provisional launch-audit window. It remains active when Git sync is
+    disabled because local ticket bytes still authorize child release. Its file
+    lives outside the repository worktree, so it cannot enter a state sweep,
+    and a crashed process leaves no held lock or cleanup obligation.
     """
-    if not cfg.git_enabled:
-        yield
-        return
     checkout = os.fsencode(cfg.repo_root.resolve())
     checkout_key = hashlib.sha256(checkout).hexdigest()
     lock_root = Path(tempfile.gettempdir()) / (
@@ -227,6 +226,12 @@ def state_publication_barrier(cfg: Config) -> Iterator[None]:
             fcntl.flock(fd, fcntl.LOCK_UN)
         finally:
             os.close(fd)
+
+
+def write_ticket_under_barrier(cfg: Config, ticket: Ticket, path: Path) -> None:
+    """Write lifecycle ticket bytes on one side of guarded child release."""
+    with state_publication_barrier(cfg):
+        ticket.write(path)
 
 
 @dataclass(frozen=True)
@@ -6498,4 +6503,5 @@ __all__ = [
     "sync_task_state",
     "ticket_state_guard",
     "UncertainFeaturePublicationError",
+    "write_ticket_under_barrier",
 ]

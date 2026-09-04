@@ -199,7 +199,7 @@ def mark_done(
     if mutation_snapshot is not None:
         mutation_snapshot.require_unchanged(ref.ticket_path)
     ticket_bytes = ticket.render().encode("utf-8")
-    ticket.write(ref.ticket_path)
+    git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
     if mutation_snapshot is not None:
         mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
     audit_append = append_log(cfg, ref.id_slug, actor, log_message)
@@ -346,7 +346,7 @@ def mark_canceled(
     if mutation_snapshot is not None:
         mutation_snapshot.require_unchanged(ref.ticket_path)
     ticket_bytes = ticket.render().encode("utf-8")
-    ticket.write(ref.ticket_path)
+    git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
     if mutation_snapshot is not None:
         mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
     audit_append = append_log(
@@ -774,7 +774,7 @@ def mark_active(
     if mutation_snapshot is not None:
         mutation_snapshot.require_unchanged(ref.ticket_path)
     ticket_bytes = ticket.render().encode("utf-8")
-    ticket.write(ref.ticket_path)
+    git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
     if mutation_snapshot is not None:
         # Strict callers captured the pre-mutation bytes. Arm immediately after
         # the write so a post-write validation refusal can still restore them.
@@ -831,7 +831,7 @@ def mark_in_progress(
     if mutation_snapshot is not None:
         mutation_snapshot.require_unchanged(ref.ticket_path)
     ticket_bytes = ticket.render().encode("utf-8")
-    ticket.write(ref.ticket_path)
+    git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
     if mutation_snapshot is not None:
         # A validation exception is still a failed generated mutation; make it
         # rollback-safe before validation can raise.
@@ -955,7 +955,7 @@ def mark_blocked(
     if mutation_snapshot is not None:
         mutation_snapshot.require_unchanged(ref.ticket_path)
     ticket_bytes = ticket.render().encode("utf-8")
-    ticket.write(ref.ticket_path)
+    git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
     if mutation_snapshot is not None:
         # Arm before validation so a strict block rejected by validation does
         # not leave an unpublished generated status behind.
@@ -1042,7 +1042,7 @@ def mark_paused(
     if mutation_snapshot is not None:
         mutation_snapshot.require_unchanged(ref.ticket_path)
     ticket_bytes = ticket.render().encode("utf-8")
-    ticket.write(ref.ticket_path)
+    git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
     if mutation_snapshot is not None:
         mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
     assert_task_valid(cfg, ref, action="mark paused")

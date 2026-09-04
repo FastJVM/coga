@@ -109,5 +109,6 @@ add an explicit primitive; do not treat atomic file replacement as a lock.
 - The Slack digest's specific records, grouping, posting, and git scan — see
   `coga/sync`.
 - Producer/consumer locking for the spool — does not exist; this pattern is
-  merge-by-construction. The checkout-local Git publication barrier in
-  `coga/architecture` is separate and does not serialize spool writes.
+  merge-by-construction. The checkout-local state admission/publication
+  barrier in `coga/architecture` is separate and does not serialize spool
+  writes.

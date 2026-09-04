@@ -2492,7 +2492,7 @@ def _reblock_unresolved_resume(
         # result. Fall back to the exact pre-resume ticket so the original ask
         # stays queue-visible, then preserve the child's exit code upstream.
         ref.ticket_path.parent.mkdir(parents=True, exist_ok=True)
-        ticket.write(ref.ticket_path)
+        git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
         restored_fallback = True
     if not blockers:
         return False

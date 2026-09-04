@@ -290,10 +290,12 @@ the `validate_after_spawn` seam after the PTY child exists but while a private
 pipe still holds it before exec, binding both `launch_generation` and prompt
 inputs at the actual executable boundary. It then appends the audit and repeats
 that held-child proof after the append. Only the second success releases the
-executable. A checkout-local state-publication barrier covers the append,
-second proof, and supervisor pipe write; every Coga Git publisher waits on the
-same kernel-released advisory lock, so none can commit the provisional line
-while refusal is still possible. A mismatch or unverifiable fetch
+executable. A checkout-local state admission/publication barrier covers the
+append, second proof, and supervisor pipe write; every Coga lifecycle-ticket
+writer and Git publisher waits on the same kernel-released advisory lock. A
+lifecycle change is therefore either visible to the second proof or starts only
+after the executable is released, and no publisher can commit the provisional
+line while refusal is still possible. A mismatch or unverifiable fetch
 conditionally removes the owned audit line, refuses the child, and retains the
 current `in_progress` state for safe resume; an audit failure likewise kills
 the held child. Thus an edit during the append cannot start stale work or
@@ -304,8 +306,8 @@ from the same generation and changing its blackboard, so that token alone is
 not proof that no session owns the state. Another megalaunch refuses the
 published generation before it can rotate the claim.
 
-Git-disabled repositories retain both exact local rereads without claiming a
-nonexistent control publication.
+Git-disabled repositories retain both exact local rereads and the local
+admission barrier without claiming a nonexistent control publication.
 
 ## Recurring admission generations
 

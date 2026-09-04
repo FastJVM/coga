@@ -2,17 +2,26 @@
 
 from __future__ import annotations
 
+import threading
+from dataclasses import replace
 from pathlib import Path
 from textwrap import dedent
 
 import pytest
 from typer.testing import CliRunner
 
+from coga import git as git_module
 from coga.blackboard import append_blocker, open_blockers
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
-from coga.mark import CancellationError, mark_active, mark_canceled, mark_in_progress
+from coga.mark import (
+    CancellationError,
+    mark_active,
+    mark_canceled,
+    mark_in_progress,
+    mark_paused,
+)
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.tasks import read_ticket, resolve_task
 from coga.ticket import Ticket
@@ -332,6 +341,57 @@ def test_mark_paused_preserves_step(repo: Path) -> None:
     t = Ticket.read(task_path)
     assert t.status == "paused"
     assert t.step == "2 (pr)"
+
+
+def test_lifecycle_write_waits_until_child_release_even_without_git(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A final spawn proof cannot race a local-only lifecycle mutation."""
+    slug, task_path = _make_task(repo, status="in_progress")
+    cfg = replace(load_config(repo), git_enabled=False)
+    ref = resolve_task(cfg, slug)
+    ticket = read_ticket(ref)
+    original = task_path.read_bytes()
+    attempted = threading.Event()
+    gate_written = threading.Event()
+    write_finished = threading.Event()
+    errors: list[BaseException] = []
+    real_write = git_module.write_ticket_under_barrier
+
+    def observed_write(cfg_, ticket_, path_):  # type: ignore[no-untyped-def]
+        attempted.set()
+        real_write(cfg_, ticket_, path_)
+        assert gate_written.is_set()
+        write_finished.set()
+
+    monkeypatch.setattr(git_module, "write_ticket_under_barrier", observed_write)
+
+    def pause_ticket() -> None:
+        try:
+            mark_paused(
+                cfg,
+                ref,
+                ticket,
+                actor="human:marc",
+                log_message="paused during held-child admission",
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    worker = threading.Thread(target=pause_ticket)
+    with git_module.state_publication_barrier(cfg):
+        worker.start()
+        assert attempted.wait(timeout=5)
+        assert not write_finished.wait(timeout=0.1)
+        assert task_path.read_bytes() == original
+        # Models the supervisor's gate-byte write while it still owns the
+        # shared admission/publication barrier.
+        gate_written.set()
+
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert errors == []
+    assert Ticket.read(task_path).status == "paused"
 
 
 def test_bump_clears_finished_megalaunch_claim(repo: Path) -> None:

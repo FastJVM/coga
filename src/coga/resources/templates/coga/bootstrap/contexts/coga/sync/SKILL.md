@@ -577,13 +577,15 @@ moved under us (another coga process, a teammate), the
 push is rejected non-fast-forward, and a bounded fetch-rebuild-retry loop
 refetches the new tip and rebuilds. That push is the cross-checkout and
 cross-machine serialization point. Within one checkout, all three Coga Git
-publishers (`sync_paths`, `sync_log`, and the catch-all `sync_coga_state`)
-also take the short state-publication barrier described in
-`coga/architecture`. The held-child launch boundary takes the same barrier
-across its provisional audit append, last proof, and pipe release, so a broad
-sweep cannot make a refused launch record durable. This is not task ownership:
-the inert lock file is outside the worktree and the kernel releases the
-advisory lock on process exit. Concurrent cross-checkout or cross-machine
+publishers (`sync_paths`, `sync_log`, and the catch-all `sync_coga_state`) and
+all Coga lifecycle ticket/blocker writes take the short state
+admission/publication barrier described in `coga/architecture`. The held-child
+launch boundary takes the same barrier across its provisional audit append,
+last proof, and pipe release, so a lifecycle change cannot invalidate that
+proof before release and a broad sweep cannot make a refused launch record
+durable. Ticket writes take it even when Git sync is disabled. This is not task
+ownership: the inert lock file is outside the worktree and the kernel releases
+the advisory lock on process exit. Concurrent cross-checkout or cross-machine
 processes still each fetch→build→push; exactly one fast-forwards per round and
 the losers retry, so nothing on the control branch is clobbered.
 

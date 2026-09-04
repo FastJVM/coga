@@ -197,21 +197,22 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
         publication_succeeded = True
 
     try:
-        resolve_open_blockers(
-            ref.ticket_path,
-            actor,
-            answer,
-            expected_bytes=(
-                rollback.originals[ref.ticket_path]
-                if rollback is not None
-                else None
-            ),
-            after_write=(
-                (lambda written: rollback.arm({ref.ticket_path: written}))
-                if rollback is not None
-                else None
-            ),
-        )
+        with git.state_publication_barrier(cfg):
+            resolve_open_blockers(
+                ref.ticket_path,
+                actor,
+                answer,
+                expected_bytes=(
+                    rollback.originals[ref.ticket_path]
+                    if rollback is not None
+                    else None
+                ),
+                after_write=(
+                    (lambda written: rollback.arm({ref.ticket_path: written}))
+                    if rollback is not None
+                    else None
+                ),
+            )
         ticket = read_ticket(ref)
 
         if ticket.status == "in_progress":

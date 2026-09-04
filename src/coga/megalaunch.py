@@ -1643,15 +1643,16 @@ def _activate_for_launch(
                 )
             actor, answer = blocker_resolution
             try:
-                resolved = resolve_open_blockers(
-                    ref.ticket_path,
-                    actor=actor,
-                    answer=answer,
-                    expected_bytes=generated[ref.ticket_path],
-                    after_write=lambda written: mutation_snapshot.arm(
-                        {ref.ticket_path: written}
-                    ),
-                )
+                with git.state_publication_barrier(cfg):
+                    resolved = resolve_open_blockers(
+                        ref.ticket_path,
+                        actor=actor,
+                        answer=answer,
+                        expected_bytes=generated[ref.ticket_path],
+                        after_write=lambda written: mutation_snapshot.arm(
+                            {ref.ticket_path: written}
+                        ),
+                    )
             except (OSError, UnicodeError, TaskFileError) as exc:
                 raise git.FeaturePublicationError(
                     f"could not resolve dependency blocker: {exc}"

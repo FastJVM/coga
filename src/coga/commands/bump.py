@@ -151,7 +151,7 @@ def bump(
                     ticket_override=ticket,
                 )
             else:
-                ticket.write(ref.ticket_path)
+                git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
                 assert_task_valid(cfg, ref, action="freeze workflow on bump")
         except TaskValidationError as exc:
             _bail(str(exc))

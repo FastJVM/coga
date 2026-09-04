@@ -110,21 +110,22 @@ def block(
         publication_succeeded = True
 
     try:
-        append_blocker(
-            ref.ticket_path,
-            actor,
-            reason,
-            expected_bytes=(
-                rollback.originals[ref.ticket_path]
-                if rollback is not None
-                else None
-            ),
-            after_write=(
-                (lambda written: rollback.arm({ref.ticket_path: written}))
-                if rollback is not None
-                else None
-            ),
-        )
+        with git.state_publication_barrier(cfg):
+            append_blocker(
+                ref.ticket_path,
+                actor,
+                reason,
+                expected_bytes=(
+                    rollback.originals[ref.ticket_path]
+                    if rollback is not None
+                    else None
+                ),
+                after_write=(
+                    (lambda written: rollback.arm({ref.ticket_path: written}))
+                    if rollback is not None
+                    else None
+                ),
+            )
         ticket = read_ticket(ref)
         mark_blocked(
             cfg,

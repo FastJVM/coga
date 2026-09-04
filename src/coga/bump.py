@@ -184,7 +184,7 @@ def advance_step(
     if mutation_snapshot is not None:
         mutation_snapshot.require_unchanged(ref.ticket_path)
     ticket_bytes = ticket.render().encode("utf-8")
-    ticket.write(ref.ticket_path)
+    git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
     if mutation_snapshot is not None:
         mutation_snapshot.arm({ref.ticket_path: ticket_bytes})
     audit_append = append_log(cfg, ref.id_slug, actor, log_message)
