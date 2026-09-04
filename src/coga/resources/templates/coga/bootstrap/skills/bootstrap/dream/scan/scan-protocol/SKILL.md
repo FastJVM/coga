@@ -33,7 +33,9 @@ shard subagent along with that shard's assignment. It holds four files:
 - `findings.md` — append-only, shared by every shard. This is where findings
   are delivered.
 - `progress.md` — append-only, shared by every shard. Heartbeat and completion
-  lines.
+  lines. Nothing in it is unique: shards interleave their lines, and the same
+  shard's completion line can appear more than once. A line in this file
+  identifies its shard only by the shard id it carries.
 
 Dream initializes all four as empty regular files immediately after creating
 the directory, before it launches any shard. It then writes `index.md` once and
@@ -137,6 +139,10 @@ that writes `shard-03 complete — 0 findings` is how Dream learns the shard ran
 and found nothing. A shard that writes no line at all is treated as a shard that
 never returned, not as a clean one.
 
+Write the line once. If you cannot tell whether your append landed, append it
+again rather than leaving it out — a duplicate is harmless because Dream
+reconciles by shard id, and a missing line is not.
+
 If something prevents you from finishing, append this instead and stop:
 
 ```
@@ -153,7 +159,8 @@ message; do not hold any finding that is not already in `findings.md`.
 ## What Dream does with this
 
 Dream reconciles the active leaf assignments in `manifest.md` against the
-completion lines in `progress.md`. Leaf completion proves corpus coverage; the
+**set of distinct shard ids** that wrote a completion line to `progress.md`.
+Every leaf id must be in that set. Leaf completion proves corpus coverage; the
 phase's finding total comes from the de-duplicated `findings.md` across **all**
 attempts, including durable findings written by a parent before it was
 superseded. Supersession changes coverage expectations, never delivery:
@@ -167,6 +174,31 @@ superseded. Supersession changes coverage expectations, never delivery:
   not satisfy or invalidate its children. If any attempt-2 leaf still does not
   complete, the phase result is `partial` and the unread paths and the scan
   directory path go into the run summary as `human-needed`.
+
+### Two rules that make reconciliation mean what it says
+
+**Count distinct shard ids, never completion lines.** `progress.md` is
+append-only and shared, and a shard can append its completion line more than
+once, so the number of lines in the file is not the number of shards that
+finished. Extract the shard id from each completion line, de-duplicate the ids,
+and compare that set against the leaf ids. With eight leaves, one duplicated
+line makes seven finished shards look like eight. That is how Dream superseded
+a healthy shard on 2026-08-24: `ca-06` wrote its completion line twice, the
+count read 8/8 while `ca-04` was still working, and `ca-04` was mistaken for a
+shard that never returned. The inverse is worse — a duplicate standing in for a
+shard that is genuinely absent reports full corpus coverage, exactly the
+outcome this protocol exists to prevent. Because a duplicate can only inflate
+the count, a line total that merely matches the leaf count is not evidence;
+only the id set is.
+
+**Reconcile at the barrier, never while shards are still reporting.** Wait
+until every shard subagent Dream launched for this attempt has returned, then
+read `progress.md` once. A shard that goes idle after writing its completion
+line has finished, and several normally do; a partial read taken mid-flight
+cannot distinguish that from a shard that has not started writing yet. Do not
+poll `progress.md` and act on an early total — its growth is not a reliable
+signal of progress, and no reading of it before the barrier justifies a
+supersession.
 
 Dream then merges `findings.md` into the Dream task's blackboard `## Findings`
 section, de-duplicating across shards. Because de-duplication now happens over
