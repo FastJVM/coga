@@ -37,3 +37,4 @@ consumed_through: e8dbf814b3f9
 {"id":"e8dbf814b3f9","ts":"2026-09-04T11:50","project":"coga","kind":"done","detail":"claude finished: sweep → done ✅","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
 {"id":"da2b2ed932e1","ts":"2026-09-04T11:50","project":"coga","kind":"done","detail":"claude finished: flush → done ✅","ticket":"recurring/digest","owner":"nicktoper"}
 {"id":"86909c220a4e","ts":"2026-09-04T11:50","project":"coga","kind":"done","detail":"claude finished: remind → done ✅","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
+{"id":"9539e6ee86b6","ts":"2026-09-04T12:45","project":"coga","kind":"canceled","detail":"nicktoper canceled — Absorbed by give-a-ticket-s-superseded-design-one-documented-h.","ticket":"v2/document-design-pivot-in-blackboard-convention","owner":"nicktoper"}
