@@ -17,15 +17,22 @@ secrets: null
 
 ## Description
 
-Write launch post 1 — the "async megalaunch" story — following the
-structure and writing rules in `marketing/plan`: present tense (never
-genesis), the five beats (chained state → it works without me → but I see
-where it's going → what it became → I'm open-sourcing it), real details
-drawn from non-Coga repos first (own the dogfooding openly — the public repo
-is the passive receipt), no numbers as claims, internal-tool envelope. Write
-the prepared comment-section replies (see the plan) before shipping. Publish on the founder's blog;
-distribution per phase 1 of the plan (newsletter, Bookface before HN, HN as
-plain story submission).
+Write and ship launch post 1 — **it declutters your mind** — following the
+five beats and phase-1 runbook in `marketing/plan`. The stable task slug is
+historical: async megalaunch is one concrete example of batching judgment and
+leaving, not the post's thesis.
+
+Use only public, reproducible Coga-on-Coga details as evidence. Own the
+dogfooding and the limit: Coga also runs private work, but private examples are
+not evidence this essay can offer. Fold ownership into the trust beat rather
+than spinning it into a second idea. Do not claim a measured time saving or
+fully managed autonomy.
+
+Write the complete comment-section replies before shipping. Execute the
+channel order in the plan, including the one-time fastjvm.com announcement,
+then hand channel timestamps and initial observations to
+`marketing/phase-1-retro`, which owns the day-14 scorecard and owner
+disposition.
 
 ## Context
 
@@ -33,7 +40,8 @@ plain story submission).
 attached under `skills:`. It reads the two marketing contexts for what to say
 and hands the prose-craft pass to the imported `clarity` skill at
 `coga/skills/clarity/SKILL.md`. Follow its steps rather than re-deriving a
-process from the contexts.
+process from the contexts. The display title is decided during that process;
+the ticket's older bookkeeping name does not constrain it.
 
 <!-- coga:blackboard -->
 

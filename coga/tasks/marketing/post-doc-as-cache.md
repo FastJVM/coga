@@ -17,17 +17,18 @@ secrets: null
 
 ## Description
 
-Write launch post 3 — "documentation as cache" — per phase 3 of
-`marketing/plan`: sessions are stateless, so an undocumented repo makes the
-agent re-buy the same understanding every run; contexts are that
-understanding bought once and composed into every prompt for free. This post
-wants receipts: collect token measurements during phases 1-2 (same task with
-vs without contexts; `--prompt-report`, schema-2 usage records) before
-writing. Attach them to the outline or blackboard as private source evidence:
-use them to test the premise and choose a concrete cached-understanding
-example, but do not put their values, a delta, or a measured faster/fewer-token
-claim into this essay. `marketing/plan`'s claim discipline governs that
-boundary.
+Write and ship launch post 3 — **productivity, by mechanism** — per phase 3 of
+`marketing/plan`. Sessions are stateless, so an undocumented repo makes an
+agent reconstruct the same understanding every run; contexts turn
+documentation into a cache of human judgment.
+
+Do not start until `marketing/token-receipts` holds at least four valid pairs
+from phases 1–2 and one exact cached question is attached here as working
+source support. Use the receipts to test and ground the premise, never as
+publishable results: no values, delta, multiplier, or measured "faster" /
+"fewer tokens" claim belongs in the essay. If the receipts contradict the
+premise, narrow or replace the claim. This ticket remains an idea essay and
+does not become the archived proof post.
 
 ## Context
 

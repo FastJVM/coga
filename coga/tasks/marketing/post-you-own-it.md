@@ -17,12 +17,17 @@ secrets: null
 
 ## Description
 
-Write launch post 2 — "you own it" — per phase 2 of `marketing/plan`:
-ownership/control/simplicity argued by specifics (in your repo, not their
-cloud; everything the system did is readable; vendor-neutral; zero telemetry;
-flat cost), never as humanist slogan (the "keep thinking" space is occupied).
-Include the "just markdown" judo. Timeable: hold for the next autonomy-hype
-cycle and publish as the counter.
+Write and ship launch post 2 — **it amplifies the human** — after the phase-1
+owner gate in `marketing/plan`. The stable task slug is historical: ownership
+is the enabling condition for amplification, not this post's defensive thesis.
+
+Build the essay around one public, checkable correction loop: the agent's
+mistake, the human's edit to the governing context, and changed behavior in a
+later session. Make the offensive claim that one act of judgment becomes
+durable guidance. Do not lead with a generic human-in-the-loop slogan, a list
+of local-first features, or a productivity result. Complete the plan's channel
+sequence and capture its responses/referrers while token-receipt collection
+continues.
 
 ## Context
 
@@ -30,7 +35,8 @@ cycle and publish as the counter.
 attached under `skills:`. It reads the two marketing contexts for what to say
 and hands the prose-craft pass to the imported `clarity` skill at
 `coga/skills/clarity/SKILL.md`. Follow its steps rather than re-deriving a
-process from the contexts.
+process from the contexts. The display title is decided during that process;
+the ticket's older bookkeeping name does not constrain it.
 
 <!-- coga:blackboard -->
 

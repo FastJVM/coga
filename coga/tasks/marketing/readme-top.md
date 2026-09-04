@@ -16,11 +16,13 @@ secrets: null
 
 ## Description
 
-Align the top of the README with the post-1 story (see
-`marketing/plan`): what Coga is, for whom, and the shape of the day (brief in
-the morning, launch the sweep, leave — and see everything it did in your
-repo). Every convinced reader of the post clicks the repo link; the README is
-the landing page. Top only — not a full rewrite.
+Align the top of the README with the revised post-1 story (see
+`marketing/plan`): Coga gets agent work and working state out of your head
+without hiding either from you. The day shape — batch judgment, launch the
+sweep, leave — is supporting evidence; owned, visible repo state is why the
+promise is trustworthy. Say what Coga is and who it is for in the first
+screen. Every convinced reader clicks the repo link; the README is the landing
+page. Top only — not a full rewrite.
 
 ## Context
 

@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -21,7 +21,7 @@ workflow:
     skills: []
     assignee: agent
 secrets: null
-step: 1 (agent-produces)
+step: 2 (human-owns-and-finishes)
 ---
 
 ## Description
@@ -269,4 +269,86 @@ rescoped, or canceled.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## 2026-09-04 — agent-produces
+
+- Owner approved a three-post plan: decluttering first, with ownership/trust
+  folded into that post; human amplification second; productivity-as-mechanism
+  third.
+- Required sequencing gate is not yet satisfied. PR #754
+  (`write-post-skill`) remains open and unmerged; the current `main` copy of
+  `marketing/plan` still contains the procedure that PR removes. Do not edit
+  the overlapping context or advance this step until #754 lands (or the owner
+  explicitly chooses a different integration path).
+
+### Gate resolved
+
+- Owner reported #754 merged; `main` was synced to `origin/main` at
+  `61bf9af3`, with the local launch commit rebased and working changes
+  preserved. The live plan is now thinned and `marketing/write-post` owns the
+  procedure as intended.
+- Draft direction: three posts, all retaining independence/ownership as the
+  causal spine. Post 1 makes async megalaunch an example inside the
+  decluttering claim and folds ownership in as the trust answer. Post 2 makes
+  the correction loop an offensive human-amplification claim. Post 3 keeps
+  documentation-as-cache as the mechanism form of productivity.
+- The only publishable narrative evidence is Coga working on Coga. The plan
+  will treat its public reproducibility as the strength and concede, in one
+  sentence, that private-repo use cannot serve as evidence of generality.
+
+## Draft delivered
+
+- Rewrote `marketing/plan` as a genuinely operational three-phase plan. It
+  now fixes each post's one claim, opponent/title brief, exclusions, bridge,
+  content beats, cumulative preconditions, exact Day-0 / HN / Lobsters /
+  conditional-Reddit order, owners, phase gates, and the post-1 retro.
+- Fixed the phase-1 scorecard at the audit's grounded proposal: HN observed
+  front page + 30 points; Lobsters 15 points / 5 comments; +25 subscribers;
+  community threshold adapted natively for Discord vs Discussions; and one
+  unprompted vocabulary use. Each miss now routes to a specific retry, funnel
+  repair, message repair, channel omission, or owner hold instead of a vague
+  "review performance" step.
+- Receipt collection starts with a one-off `marketing/token-receipts` task at
+  phase-1 entry and ends with 4–6 paired runs recorded on its blackboard.
+  `marketing/phase-1-retro` is a separate planned task for the 24-hour,
+  72-hour, and day-14 checkpoints; this avoids using a writing ticket as a
+  hidden timer.
+- Archived the superseded program and proof apparatus in the unattached
+  `marketing/launch-history` context. It stays durable and is committed by
+  Coga state sync but adds zero composed tokens to live tickets. The proof post
+  remains an owner-reopenable option, not phase 4.
+- Updated all three post-ticket bodies and `marketing/readme-top` to match the
+  new plan. `post-async-megalaunch` and `post-you-own-it` are retained and
+  rescoped; `post-doc-as-cache` is retained and sharpened. Their old
+  frontmatter titles/slugs remain stable bookkeeping, not editorial titles.
+- Updated `marketing/write-post` only where the new plan made its pointers
+  stale: canonical-URL/referrer attribution, the archive location, and the
+  fact that repo-visible receipt notes are working support rather than secret
+  material.
+
+## Human-review weak spots
+
+- Bookface standing and the Reddit joined-subreddit list remain owner-only and
+  unknown. The draft makes Bookface a hard pre-HN decision and makes Reddit
+  optional rather than allowing either unknown to disappear.
+- The +25 subscriber bar was the audit's softest proposed number and still has
+  no baseline. The owner should accept or replace it before post 1; the plan
+  prevents publishing until the baseline exists.
+- Day 0 → HN on day +2/+3 → Lobsters the next day is an operational judgment,
+  not a performance inference; the HN history showed no useful day/hour
+  effect. Its purpose is Bookface feedback and one founder-attended thread at a
+  time.
+- `marketing/token-receipts` and `marketing/phase-1-retro` are deliberate
+  future tickets, not missing current files. Both must exist before post 1.
+- The live plan is 25,542 bytes after adding the operation the old context
+  lacked. The 2,283-byte history context is no longer composed. If prompt cost
+  is judged too high, split the channel/measurement runbook later; do not move
+  message truth back into the writing skill.
+
+## Verification
+
+- `git diff --check` — pass.
+- `coga validate --json` — 169 ok; 29 existing repo-wide issues; zero issues
+  on the touched marketing tickets or the three changed context/skill refs.
+- Confirmed there is no packaged marketing-context twin under
+  `src/coga/resources/templates/coga/contexts/`; live `coga/` copies are the
+  only required edit.

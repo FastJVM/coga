@@ -102,14 +102,15 @@ Apply source requirements only to the post and plan version where they appear;
 a condition attached to one post is not a series-wide default.
 
 For post 3, attach the required token and time-to-first-edit receipts to the
-outline or blackboard as **private source support**. Use them to test whether
-the premise survives and to identify the exact context and repository question
-whose understanding was reused. They are not draft copy: do not outline a
-measured delta or quote a receipt value. The permitted essay form is the
-concrete mechanism — name what the context already answered on a later session
-— without saying it was faster or used fewer tokens. Publishing that measured
-comparison would require the owner to move the ticket into the proof-post
-regime.
+outline or blackboard as **working source support**. The repo and blackboard may
+be public; "source support" means the values are not essay copy, not that they
+are secret. Use them to test whether the premise survives and to identify the
+exact context and repository question whose understanding was reused. Do not
+outline a measured delta or quote a receipt value. The permitted essay form is
+the concrete mechanism — name what the context already answered on a later
+session — without saying it was faster or used fewer tokens. Publishing that
+measured comparison would require the owner to move the ticket into the
+proof-post regime.
 
 **Exit:** Every planned beat or section has real, checkable support attached,
 and any missing structure has been resolved. A section carrying only a
@@ -162,7 +163,7 @@ because the draft "reads fine" is the failure this handoff exists to prevent.
 
 **Do:** Read the publishable post once looking only for figures. For each
 number, ask whether it appears as a *result*. This check applies to the post,
-not to private source attachments on its outline or blackboard.
+not to working source attachments on its outline or blackboard.
 
 **The stop rule:** if any figure appears as a result, **stop** — the post has
 graduated into the proof-post regime (pre-registration, recomputability), which
@@ -181,7 +182,7 @@ tokens". If the receipts undermine the premise, cut or reframe the claim; do
 not make contrary evidence disappear to pass this gate.
 
 **Exit:** Zero figures stated as results in the publishable post, all required
-private receipts remain attached to their source notes, and the post's honest
+working receipts remain attached to their source notes, and the post's honest
 caveat is *in the post* rather than deferred to a FAQ.
 
 **Blocks step 7** while any result-shaped figure survives.
@@ -203,10 +204,11 @@ replies are written. Never improvise one in-thread.
 
 ## Step 8 — Channel sequencing
 
-**Do:** Publish in the order `marketing/plan`'s phase section sets, with
-per-channel URLs into the blog so attribution works without telemetry.
-An optional channel omitted from that phase does not block the post; once it
-is chosen, its stated position in the sequence is binding.
+**Do:** Publish in the order `marketing/plan`'s channel runbook sets. Use the
+canonical blog URL, record each channel's timestamp, and read attribution at
+the referrer level as the plan specifies. An optional channel omitted from
+that phase does not block the post; once it is chosen, its stated position in
+the sequence is binding.
 
 **Two hard orderings, both blocking:**
 
@@ -249,4 +251,5 @@ A post is blocked from moving forward while any of these is true:
 - The pinned fork and the competitive framing: `marketing/positioning`.
 - General prose craft — mode selection, the editing pass, the anti-generic
   safeguards, the prose-stat scripts: `coga/skills/clarity/SKILL.md`.
-- The proof-post regime: shelved in `marketing/plan` under "Later, gated".
+- The proof-post regime: excluded from the live plan and preserved in the
+  unattached `marketing/launch-history` context.
