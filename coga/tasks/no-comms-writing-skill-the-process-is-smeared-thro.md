@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -24,7 +24,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -230,6 +230,10 @@ agent reads anyway. Files being edited are read, not composed.
   `src/coga/resources/templates/coga/contexts/` holds only `browser` and `_template`, so the
   marketing contexts have no packaged twin. Edit the live `coga/` copies only.
 
+## PR
+
+https://github.com/FastJVM/coga/pull/754 — open, mergeable against `main`.
+
 <!-- coga:blackboard -->
 
 ## Dev
@@ -238,6 +242,7 @@ branch: write-post-skill
 worktree: /home/n/Code/claude/coga-write-post-skill
 implementation commit: 794993ab (rebased onto current `main`)
 peer-review commit / branch head: 487a9dc0 (worktree clean)
+pr: https://github.com/FastJVM/coga/pull/754
 
 ## What shipped
 
@@ -337,6 +342,18 @@ The review commit reapplies the ticket-required prune: only source metadata, `LI
 retained imported prose is unchanged. Code review found the `install-url` argv fix and
 its regression assertion consistent with the verified non-interactive `gh skill`
 behavior.
+
+## Open PR
+
+Pushed `write-post-skill` and opened https://github.com/FastJVM/coga/pull/754 against `main`.
+`gh pr view 754 --json mergeable,mergeStateStatus` reports `MERGEABLE` / `CLEAN`, so no rebase
+or conflict resolution was needed and nothing was re-verified at this step.
+
+For the owner review: the diff reads as ~16k deletions, but almost all of that is the clarity
+prune — an unpruned copy of the upstream tree (Astro site, `samples/` PNG, `evals/`,
+`commands/`) is already on `main`, and this branch removes it. The additions worth reading are
+`coga/skills/marketing/write-post/SKILL.md`, the two thinned contexts, the three rewired post
+tickets, and the `src/coga/skill_manager.py` fix flagged under **Scope deviation** above.
 
 ## Notes for follow-up (not folded in)
 
