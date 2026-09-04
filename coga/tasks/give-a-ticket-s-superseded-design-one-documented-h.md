@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -149,3 +149,12 @@ and the same four pre-existing draft-synthesis errors unrelated to this change.
   no further remote changes. Feature checkout is clean, three commits ahead of that base:
   `a8ced8cb`, `4ea82434`, and `4e544d35`.
 - Both review findings are resolved. The `## PR` section above describes the final behavior.
+
+## Open PR
+
+- `coga open-pr` run from the primary control checkout (separate-worktree layout, control on `main`).
+  It reported the branch safe to publish, force-published the rebased branch, and reused the
+  already-open PR #755 — `pr:` was already recorded from the implement step.
+- `origin/docs/superseded-design-home` now points at `4e544d35`, so the PR carries the two
+  peer-review fixes (`4ea82434`, `4e544d35`) that were only local before this step.
+- PR #755 is open and not a draft. No code changes made in this step.
