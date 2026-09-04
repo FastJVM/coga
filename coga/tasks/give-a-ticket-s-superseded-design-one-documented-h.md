@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -81,8 +81,8 @@ would leave the original gap in practice.
 - Kept the ticket body authoritative for current intent. It may contain a pointer to the named
   blackboard section, but not a second copy of the abandoned design.
 - Canceled `v2/document-design-pivot-in-blackboard-convention` as absorbed. Its first git sync
-  attempt could not resolve GitHub from the sandbox; the local lifecycle/log/spool state is
-  pending the next successful Coga state sync.
+  attempt could not resolve GitHub from the sandbox; the later PR-state sync succeeded and the
+  canceled status is now present on `origin/main`.
 
 ## Verification
 
