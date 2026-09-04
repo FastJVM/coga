@@ -750,8 +750,9 @@ without bound. Only the blackboard region (layer 6) carries state forward into
 the prompt.
 The consequence is a hard division of labor: working state that the next run
 must read goes in the blackboard (and is therefore composed, so keep it
-small); durable history goes in the log (never composed, so let it
-accumulate).
+small); lifecycle history goes in the log (never composed, so let it
+accumulate). Superseded ticket designs remain in the blackboard under
+`## Superseded designs`, following `dev/code`.
 Draft activation is also the first-launch readiness gate for the blackboard.
 The stock placeholder counts as empty, but substantive pre-launch notes —
 authoring/evaluator sections such as `## Evaluator review`, `## Ticket
@@ -763,7 +764,9 @@ ticket writer cannot mistake an activation-blocking draft for a valid one.
 The operator must merge durable requirements into `## Description` /
 `## Context` first. If blackboard content is intentionally part of the run,
 put it under `## Production notes`; that marker tells activation to leave
-the blackboard alone. Later `paused→active` reactivations and forced
+the blackboard alone. The `## Superseded designs` section is separately
+excluded from synthesis checks and preserved by draft-authoring cleanup;
+its presence does not exempt unrelated authoring notes. Later `paused→active` reactivations and forced
 recurring reruns do not recheck post-launch blackboard growth.
 
 An interactive launch's PTY supervisor tears down the REPL when the

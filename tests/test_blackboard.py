@@ -90,6 +90,23 @@ def test_prelaunch_blackboard_detects_large_custom_notes() -> None:
     )
 
 
+def test_prelaunch_blackboard_preserves_large_superseded_design() -> None:
+    text = (
+        render_blackboard("Work")
+        + "\n\n## Superseded designs\n\n### 2026-09-04 — Old plan\n\n"
+        + "Superseded by: Current plan\n\nReason: Simpler implementation\n\n"
+        + "#### Prior requirements\n\n"
+        + "Prior design detail. " * 60
+    )
+    assert prelaunch_blackboard_synthesis_reason_text(text) is None
+    for scratch in (
+        "\n## Evaluator review\n\nNeeds synthesis.\n",
+        "\n## Notes\n\n" + "x" * PRELAUNCH_SYNTHESIS_TEXT_CHARS,
+    ):
+        assert prelaunch_blackboard_synthesis_reason_text(text + scratch) is not None
+        assert prelaunch_blackboard_synthesis_reason_text(scratch + text) is not None
+
+
 def test_prelaunch_blackboard_ignores_missing_optional_blackboard(
     tmp_path: Path,
 ) -> None:

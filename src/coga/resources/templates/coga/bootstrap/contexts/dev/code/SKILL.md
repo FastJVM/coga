@@ -194,8 +194,11 @@ PR → ticket; one PR can have many tickets pointing at it.
 ## Design pivots and superseded plans
 
 The ticket body is the contract for current work. When the direction changes,
-rewrite `## Description`, acceptance criteria, proposed shape, and other body
-sections so they describe only what an agent should execute now. Do not mix a
+rewrite the body so it describes only what an agent should execute now. Keep
+live requirements, including acceptance criteria and proposed shape, inside
+`## Description` or `## Context`, using `###` subheadings as needed. Move
+requirements from sibling `##` sections into these composed sections: other
+top-level body sections are omitted from launch prompts. Do not mix a
 dead alternative into the live plan or leave Git history as its only
 explanation.
 
@@ -221,6 +224,12 @@ subheading identifies which plan died; and the two named lines make the
 replacement and rationale explicit. Preserve enough of the old design to
 understand or reconsider it later. Do not scatter the same history under
 headings such as `## Design pivot`, `## Open threads`, or `## Previous plan`.
+
+Keep retained headings at `####` or deeper inside each dated entry, so copied
+design sections cannot escape the archive. Draft-authoring cleanup preserves
+this section, and draft activation excludes only this section from its
+authoring-note checks; unrelated scratch still needs synthesis. Keep the
+archive concise because it is included in launch prompts.
 
 If rewriting the body would otherwise hide context a reviewer needs, the body
 may carry one short pointer such as `> Design history: pivoted on YYYY-MM-DD;

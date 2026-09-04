@@ -156,9 +156,10 @@ def test_mark_active_refuses_authoring_blackboard_before_mutating(
     assert "activated (draft" not in _read_log(repo)
 
 
-def test_mark_active_allows_explicit_production_notes(repo: Path) -> None:
+@pytest.mark.parametrize("heading", ["Production notes", "Superseded designs"])
+def test_mark_active_preserves_intentional_blackboard(repo: Path, heading: str) -> None:
     slug, task_path = _make_task(repo, status="draft")
-    before = "\n## Production notes\n\nUse this context during launch.\n"
+    before = f"\n## {heading}\n\n" + "Retained context. " * 60 + "\n"
     replace_blackboard(task_path, before)
 
     runner = CliRunner()
