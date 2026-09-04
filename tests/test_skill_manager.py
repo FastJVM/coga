@@ -277,6 +277,42 @@ def test_install_url_downloads_local_installs_and_records_coga_metadata(
     )
 
 
+def test_install_url_rejects_non_string_original_name_before_staging(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    commands: list[list[str]] = []
+
+    with pytest.raises(SkillManagerError, match="frontmatter `name` must be a string"):
+        install_url_skill(
+            cfg,
+            "https://example.test/skill.zip",
+            downloader=lambda url: _skill_zip("[tools, example]"),
+            runner=_gh_install_runner(commands),
+        )
+
+    assert commands == [["gh", "skill", "--help"]]
+    assert not (cfg.repo_root / "skills").exists()
+
+
+@pytest.mark.parametrize("name", ["Tools/example", "tools//example", "tools/example_"])
+def test_install_url_rejects_original_name_outside_coga_name_extension(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    commands: list[list[str]] = []
+
+    with pytest.raises(SkillManagerError, match="slash-separated Coga namespace"):
+        install_url_skill(
+            cfg,
+            "https://example.test/skill.zip",
+            downloader=lambda url: _skill_zip(name),
+            runner=_gh_install_runner(commands),
+        )
+
+    assert commands == [["gh", "skill", "--help"]]
+
+
 def test_install_url_refuses_dirty_overwrite_without_force(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -117,12 +117,12 @@ Writing rules for this post (and defaults for the series):
   so the phase-1 retro can't be post-hoc rationalization.
 
 **Phase 1 — post 1, "async megalaunch".**
-Blog is the canonical hub; distinct per-channel URLs. Newsletter day 0.
-Bookface a few days *before* HN (friendly fire hardens the post; YC readers
-arrive in the HN thread already convinced). HN as a plain-titled **story
-submission only** — never Show HN. X optional: one summary thread.
-Reddit deferred (self-promo economics are bad cold; post only where already
-a member, or leave for phase 2+).
+Channel set and order: blog first as the canonical hub, newsletter on day 0,
+then an optional X summary thread, then Bookface, then HN a few days after the
+Bookface read (friendly fire hardens the post; YC readers arrive in the HN
+thread already convinced). Use distinct per-channel URLs. HN is a
+plain-titled **story submission only** — never Show HN. Reddit is not in this
+phase (self-promo economics are bad cold; leave it for phase 2+).
 
 **Phase 2 — post 2, "you own it".**
 Ownership / control / simplicity — **by specifics, never as humanist
@@ -135,7 +135,10 @@ that's exactly why you can trust it; nothing hidden means nothing to rent.
 This post answers the question post 1 raises ("why would I trust my days
 to this?"): you trust nothing — everything is yours and legible.
 Timeable: hold it for the next autonomy-hype cycle and publish as the
-counter.
+counter. Channel set and order once that moment arrives: blog first,
+newsletter on day 0, optional X summary thread, Bookface, then HN a few days
+after the Bookface read. Reddit is optional only where the founder is already
+a member, and comes after HN if used. Use distinct per-channel URLs throughout.
 
 **Phase 3 — post 3, "documentation as cache".**
 The token-reduction/speed pitch: sessions are stateless, so an undocumented
@@ -151,7 +154,10 @@ and find the concrete context and repository question whose understanding was
 reused. Keep their values and any measured comparison on the blackboard. The
 post may explain that mechanism, but may not say — numerically or otherwise —
 that the measured run was faster or used fewer tokens without graduating into
-the proof-post regime.
+the proof-post regime. Channel set and order: blog first, newsletter on day 0,
+optional X summary thread, Bookface, then HN a few days after the Bookface
+read. Reddit is optional only where the founder is already a member, and comes
+after HN if used. Use distinct per-channel URLs throughout.
 
 **Later, gated — the proof post.**
 The 2-week pre-registered experiment ("N merged PRs, the ledger, recompute

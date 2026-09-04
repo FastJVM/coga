@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shlex
 import shutil
 import subprocess
@@ -88,6 +89,7 @@ class SkillUpdateSummary:
 @dataclass(frozen=True)
 class MaterializedSkill:
     path: Path
+    skill_ref: str
     source_digest: str
     source_tree_digest: str
 
@@ -163,7 +165,7 @@ def install_url_skill(
     data = (downloader or download_url)(url)
     with tempfile.TemporaryDirectory(prefix="coga-skill-url-") as tmp:
         materialized = materialize_url_skill(url, data, Path(tmp), selector)
-        skill_ref = _skill_ref_for_dir(materialized.path)
+        skill_ref = materialized.skill_ref
         target = _skill_target(cfg, skill_ref)
         metadata = read_source_metadata(target) if target.is_dir() else None
         installed_digest = (
@@ -855,6 +857,7 @@ def materialize_url_skill(
     skill_dir = _select_skill_dir(extracted, selector)
     return MaterializedSkill(
         path=skill_dir,
+        skill_ref=_validated_url_skill_ref(skill_dir),
         source_digest=source_digest,
         source_tree_digest=hash_skill_tree(skill_dir),
     )
@@ -1230,6 +1233,45 @@ def _skill_ref_for_dir(skill_dir: Path) -> str:
     if not isinstance(name, str) or not name.strip():
         name = skill_dir.name
     return str(_safe_skill_ref(name))
+
+
+_AGENT_SKILL_NAME_PART = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+
+
+def _validated_url_skill_ref(skill_dir: Path) -> str:
+    """Return a downloaded skill's valid Agent Skills/Coga name.
+
+    Coga intentionally extends an Agent Skills name with slash-separated
+    namespaces.  The slash is the only exception: every component still has
+    the Agent Skills spelling and length constraints.  Validate the original
+    value before URL installation replaces it with a gh-safe staging name.
+    """
+    skill_path = skill_dir / "SKILL.md"
+    try:
+        skill = Skill.load(skill_path)
+    except (OSError, UnicodeError, ValueError, yaml.YAMLError) as exc:
+        raise SkillManagerError(
+            f"Invalid downloaded SKILL.md at {skill_path}: {exc}"
+        ) from exc
+
+    name = skill.frontmatter.get("name")
+    if not isinstance(name, str):
+        raise SkillManagerError(
+            f"Invalid downloaded SKILL.md at {skill_path}: frontmatter `name` "
+            "must be a string"
+        )
+    parts = name.split("/")
+    if any(
+        not part
+        or len(part) > 64
+        or _AGENT_SKILL_NAME_PART.fullmatch(part) is None
+        for part in parts
+    ):
+        raise SkillManagerError(
+            f"Invalid downloaded skill name {name!r}: expected an Agent Skills "
+            "name or a slash-separated Coga namespace of those names"
+        )
+    return name
 
 
 def _skill_ref_from_path(root: Path, skill_dir: Path) -> str:

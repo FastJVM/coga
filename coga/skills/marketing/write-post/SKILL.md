@@ -205,6 +205,8 @@ replies are written. Never improvise one in-thread.
 
 **Do:** Publish in the order `marketing/plan`'s phase section sets, with
 per-channel URLs into the blog so attribution works without telemetry.
+An optional channel omitted from that phase does not block the post; once it
+is chosen, its stated position in the sequence is binding.
 
 **Two hard orderings, both blocking:**
 
