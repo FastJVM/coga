@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import shutil
 import subprocess
 import zipfile
@@ -119,6 +120,24 @@ def _gh_install_runner(commands: list[list[str]]):
             source = Path(command[3])
             dest = Path(command[command.index("--dir") + 1])
             skill = Skill.load(source / "SKILL.md")
+            if len(command) > 4 and not command[4].startswith("-"):
+                selector = command[4]
+                valid_name = bool(
+                    len(skill.name) <= 64
+                    and re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", skill.name)
+                )
+                if not valid_name:
+                    return _completed(
+                        command,
+                        returncode=1,
+                        stderr=f'invalid skill name "{skill.name}"',
+                    )
+                if selector != skill.name:
+                    return _completed(
+                        command,
+                        returncode=1,
+                        stderr=f"skill not found: {selector}",
+                    )
             target = dest.joinpath(*skill.name.split("/"))
             if target.exists():
                 if "--force" not in command:
@@ -241,6 +260,7 @@ def test_install_url_downloads_local_installs_and_records_coga_metadata(
     metadata = read_source_metadata(target)
     assert result.status == "installed"
     assert (target / "SKILL.md").is_file()
+    assert Skill.load(target / "SKILL.md").name == "tools/example"
     assert metadata is not None
     assert metadata["source_type"] == "url"
     assert metadata["source_url"] == "https://example.test/skill.zip"
@@ -248,9 +268,13 @@ def test_install_url_downloads_local_installs_and_records_coga_metadata(
     assert metadata["local_adaptation_notes"] == ""
     assert commands[1][:4] == ["gh", "skill", "install", commands[1][3]]
     assert "--from-local" in commands[1]
-    # `gh skill install` only auto-picks interactively, so the skill name has
-    # to be on the command line or every non-interactive install fails.
-    assert commands[1][4] == "tools/example"
+    # `gh skill install` only auto-picks interactively, but Agent Skills names
+    # cannot contain Coga's namespace slash. The source copy and selector use
+    # an isolated valid name; Coga restores the canonical ref after gh copies.
+    assert re.fullmatch(r"coga-url-[a-f0-9]{16}", commands[1][4])
+    assert Path(commands[1][commands[1].index("--dir") + 1]) != (
+        cfg.repo_root / "skills"
+    )
 
 
 def test_install_url_refuses_dirty_overwrite_without_force(

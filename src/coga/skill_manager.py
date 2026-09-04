@@ -18,6 +18,8 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+import yaml
+
 from coga.config import Config
 from coga.github_source import github_owner_repo
 from coga.paths import packaged_template_path
@@ -162,18 +164,6 @@ def install_url_skill(
     with tempfile.TemporaryDirectory(prefix="coga-skill-url-") as tmp:
         materialized = materialize_url_skill(url, data, Path(tmp), selector)
         skill_ref = _skill_ref_for_dir(materialized.path)
-        args = [
-            "install",
-            str(materialized.path),
-            # `gh skill install` only auto-picks a skill in interactive mode,
-            # and gh always runs here with captured output. Name it explicitly.
-            skill_ref,
-            "--from-local",
-            "--dir",
-            str(skills_root(cfg)),
-        ]
-        if force:
-            args.append("--force")
         target = _skill_target(cfg, skill_ref)
         metadata = read_source_metadata(target) if target.is_dir() else None
         installed_digest = (
@@ -188,12 +178,66 @@ def install_url_skill(
             raise SkillManagerError(
                 f"{skill_ref} has local adaptations; rerun with --force to overwrite."
             )
-        run_gh_skill(args, runner=runner, checked=True)
-        if not target.is_dir():
+        if target.exists() and not target.is_dir():
             raise SkillManagerError(
-                "`gh skill install` completed, but the expected Coga skill "
-                f"path is missing: {target}"
+                f"Expected Coga skill path to be a directory: {target}"
             )
+        if target.exists() and not force:
+            raise SkillManagerError(
+                f"{skill_ref} is already installed; rerun with --force to overwrite."
+            )
+
+        # Agent Skills names cannot contain Coga's namespace separator. Give
+        # gh an isolated copy with a valid temporary name, let it perform the
+        # local install, then restore the canonical Coga frontmatter and path.
+        # The source digests above remain those of the unmodified download.
+        gh_name = f"coga-url-{materialized.source_tree_digest[:16]}"
+        gh_source = Path(tmp) / "gh-source"
+        shutil.copytree(materialized.path, gh_source, symlinks=True)
+        try:
+            gh_skill = Skill.load(gh_source / "SKILL.md")
+        except (OSError, ValueError, yaml.YAMLError) as exc:
+            raise SkillManagerError(
+                f"Invalid SKILL.md in downloaded skill {skill_ref}: {exc}"
+            ) from exc
+        gh_frontmatter = dict(gh_skill.frontmatter)
+        gh_frontmatter["name"] = gh_name
+        rendered_frontmatter = yaml.safe_dump(
+            gh_frontmatter,
+            allow_unicode=True,
+            sort_keys=False,
+        ).rstrip()
+        (gh_source / "SKILL.md").write_text(
+            f"---\n{rendered_frontmatter}\n---\n{gh_skill.body}",
+            encoding="utf-8",
+        )
+        gh_install_root = Path(tmp) / "gh-installed"
+        gh_install_root.mkdir()
+        args = [
+            "install",
+            str(gh_source),
+            # `gh skill install` only auto-picks a skill in interactive mode,
+            # and gh always runs here with captured output. Name it explicitly.
+            gh_name,
+            "--from-local",
+            "--dir",
+            str(gh_install_root),
+        ]
+        if force:
+            args.append("--force")
+        run_gh_skill(args, runner=runner, checked=True)
+        gh_target = gh_install_root / gh_name
+        if not gh_target.is_dir():
+            raise SkillManagerError(
+                "`gh skill install` completed, but its staged skill path is "
+                f"missing: {gh_target}"
+            )
+        shutil.copy2(materialized.path / "SKILL.md", gh_target / "SKILL.md")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            _replace_skill_tree(gh_target, target)
+        else:
+            shutil.copytree(gh_target, target, symlinks=True)
         installed_tree_digest = hash_skill_tree(target)
         metadata = _url_metadata(
             url=url,

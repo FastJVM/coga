@@ -101,6 +101,16 @@ real, checkable material the plan requires.
 Apply source requirements only to the post and plan version where they appear;
 a condition attached to one post is not a series-wide default.
 
+For post 3, attach the required token and time-to-first-edit receipts to the
+outline or blackboard as **private source support**. Use them to test whether
+the premise survives and to identify the exact context and repository question
+whose understanding was reused. They are not draft copy: do not outline a
+measured delta or quote a receipt value. The permitted essay form is the
+concrete mechanism — name what the context already answered on a later session
+— without saying it was faster or used fewer tokens. Publishing that measured
+comparison would require the owner to move the ticket into the proof-post
+regime.
+
 **Exit:** Every planned beat or section has real, checkable support attached,
 and any missing structure has been resolved. A section carrying only a
 generalization is not outlined yet.
@@ -150,8 +160,9 @@ because the draft "reads fine" is the failure this handoff exists to prevent.
 
 ## Step 6 — Claim-discipline check
 
-**Do:** Read the post once looking only for figures. For each number, ask
-whether it appears as a *result*.
+**Do:** Read the publishable post once looking only for figures. For each
+number, ask whether it appears as a *result*. This check applies to the post,
+not to private source attachments on its outline or blackboard.
 
 **The stop rule:** if any figure appears as a result, **stop** — the post has
 graduated into the proof-post regime (pre-registration, recomputability), which
@@ -162,8 +173,16 @@ The reasoning behind the rule, and the one ratio Coga does publish and why it
 is exempt, are in `marketing/plan`'s "Claim discipline". Read it there; this
 step is the check, not the argument.
 
-**Exit:** Zero figures stated as results, and the post's honest caveat is *in
-the post* rather than deferred to a FAQ.
+For post 3, keep the required receipts attached as support, including their
+values. In the post itself, use only the non-result form from step 3: the exact
+context and question it cached. Do not publish the values, a delta, or an
+unquantified measured outcome such as "it was faster" or "it used fewer
+tokens". If the receipts undermine the premise, cut or reframe the claim; do
+not make contrary evidence disappear to pass this gate.
+
+**Exit:** Zero figures stated as results in the publishable post, all required
+private receipts remain attached to their source notes, and the post's honest
+caveat is *in the post* rather than deferred to a FAQ.
 
 **Blocks step 7** while any result-shaped figure survives.
 
@@ -215,7 +234,7 @@ A post is blocked from moving forward while any of these is true:
 3. Any planned beat or section lacks real, checkable support. (step 3)
 4. Any `[TK]` remains unresolved. (step 4)
 5. Clarity's review mode has not been run on the draft. (step 5)
-6. A figure appears as a result. (step 6)
+6. A figure appears as a result in the publishable post. (step 6)
 7. The prepared replies are not written. (step 7)
 8. HN would go out before Bookface, or the blog is not live first. (step 8)
 

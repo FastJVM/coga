@@ -145,7 +145,13 @@ documentation stops being hygiene and becomes a cache, and it's why you can
 walk away. This post *benefits from receipts* (same task with vs without
 contexts: tokens, time-to-first-edit; `--prompt-report` + schema-2 usage
 records), which is why it comes after the audience exists — collect the
-measurements during phases 1–2.
+measurements during phases 1–2. Those receipts are required private source
+support, not publishable results for this essay: use them to test the premise
+and find the concrete context and repository question whose understanding was
+reused. Keep their values and any measured comparison on the blackboard. The
+post may explain that mechanism, but may not say — numerically or otherwise —
+that the measured run was faster or used fewer tokens without graduating into
+the proof-post regime.
 
 **Later, gated — the proof post.**
 The 2-week pre-registered experiment ("N merged PRs, the ledger, recompute
@@ -251,11 +257,14 @@ its own idea raises.
   one and keep its framing; `docs/velocity-report.md` holds the same line in
   public ("this report makes no '5x,' '10x,' or percentage productivity
   claim"). The rule bites on *results*, not on the thesis.
-- Essay posts claim *ideas*, not results — so they carry no numbers and
-  need no receipts. The moment a post states a figure as a result, it
-  graduates into the proof-post regime (pre-registration, recomputability)
-  — don't drift there by accident. That is the reasoning; the per-post check
-  that enforces it is step 6 of `marketing/write-post`.
+- Essay posts claim *ideas*, not results — so they publish no result numbers
+  and need no public receipts. Post 3 still keeps its prescribed token/time
+  receipts as private source support: they test the premise and ground the
+  concrete mechanism, but neither their values nor a measured outcome belongs
+  in the post. The moment a post states a figure as a result, it graduates into
+  the proof-post regime (pre-registration, recomputability) — don't drift
+  there by accident. That is the reasoning; the per-post check that enforces
+  it is step 6 of `marketing/write-post`.
 - Misses stay publishable: the "takes time to feel" caveat and honest
   limits (see positioning) go *in* the posts, not in a FAQ.
 
