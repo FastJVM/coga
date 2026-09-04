@@ -313,6 +313,29 @@ def test_install_url_rejects_original_name_outside_coga_name_extension(
     assert commands == [["gh", "skill", "--help"]]
 
 
+def test_install_url_force_preserves_existing_namespace_children(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    nested = cfg.repo_root / "skills" / "tools" / "example" / "SKILL.md"
+    _write(nested, "---\nname: tools/example\n---\nNested skill.\n")
+    before = nested.read_bytes()
+    commands: list[list[str]] = []
+
+    with pytest.raises(SkillManagerError, match="existing skill namespace"):
+        install_url_skill(
+            cfg,
+            "https://example.test/skill.zip",
+            force=True,
+            downloader=lambda url: _skill_zip("tools", body="Flat skill.\n"),
+            runner=_gh_install_runner(commands),
+        )
+
+    assert commands == [["gh", "skill", "--help"]]
+    assert nested.read_bytes() == before
+    assert not (cfg.repo_root / "skills" / "tools" / "SKILL.md").exists()
+
+
 def test_install_url_refuses_dirty_overwrite_without_force(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

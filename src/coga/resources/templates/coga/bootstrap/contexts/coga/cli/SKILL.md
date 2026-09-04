@@ -548,7 +548,9 @@ substrate:
   the underlying `gh skill install`, rewrites `installed_tree_digest` to the
   freshly installed tree, and resets `local_adaptation_notes` to empty — the
   forced overwrite discards the adaptation, so preserving the note would
-  mis-describe the new tree.
+  mis-describe the new tree. Force applies only when the exact target directory
+  contains a `SKILL.md`; a flat ref that collides with an existing namespace
+  directory is refused so its nested skills cannot be deleted.
 - **`conflict` is its own status.** URL-backed update/status checks fetch
   upstream before classifying: locally adapted with upstream unchanged stays
   `skipped-local-adaptation`; locally adapted **and** upstream changed

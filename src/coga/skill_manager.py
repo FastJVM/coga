@@ -184,6 +184,11 @@ def install_url_skill(
             raise SkillManagerError(
                 f"Expected Coga skill path to be a directory: {target}"
             )
+        if target.is_dir() and not (target / "SKILL.md").is_file():
+            raise SkillManagerError(
+                f"Cannot install {skill_ref}: {target} is an existing skill "
+                "namespace, not that exact skill"
+            )
         if target.exists() and not force:
             raise SkillManagerError(
                 f"{skill_ref} is already installed; rerun with --force to overwrite."
