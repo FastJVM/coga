@@ -70,17 +70,30 @@ the branch has neither landed on the control branch nor retained the exact head
 of its recorded merged PR. Remote deletion verifies that exact head again and
 uses a force-with-lease, so a reused branch is never deleted on stale PR state.
 
-Before removal, retire checks tracked, untracked, **and ignored** files. This is
-stricter than Git's ordinary unforced removal, which silently deletes ignored
-files. These survive and are reported for manual disposal:
+Before removal, retire checks tracked, untracked, **and ignored** files. Tracked
+and untracked state always preserves the checkout. So does ignored state — with
+one carve-out: the regenerable tool caches `__pycache__/`, `.pytest_cache/`,
+`.ruff_cache/` and `.mypy_cache/` are derived from files already in the repo and
+reappear on the next tool run, so retire deletes them along with the checkout and
+says how many went. Without that carve-out retire refused on every code ticket,
+because every code ticket runs its tests in the feature worktree. Machine-local
+config — `coga.local.toml`, `.env`, `.venv/`, `.coga/` — is ignored but not
+regenerable, and still preserves the checkout.
+
+These survive and are reported for manual disposal:
 
 - an independent fallback clone (the `/tmp` sandbox path above) — it is a
   separate repository, not a linked worktree;
 - the checkout currently running `coga retire`, a stale path now holding
   another branch, a checkout shared with another live ticket (including one in
   a sibling Coga workspace), or a branch still used by an open PR;
-- a worktree with tracked, untracked, or ignored local state (including caches
-  and machine-local config), or a locked one;
+- a worktree with tracked or untracked local state, or with ignored state
+  outside the regenerable caches above (machine-local config such as
+  `coga.local.toml`, `.env`, `.venv/`, `.coga/`), or a locked one. For the
+  ignored-only case retire prints the explicit opt-in —
+  `git worktree remove --force '<path>'` — and records it in the retro task it
+  creates, so the note outlives the scrollback. It never offers that line over
+  tracked or untracked state, where forcing would destroy real work;
 - a recorded path that is already gone. Retire reports the stale registration
   rather than pruning it; `coga run branch-sweep` prunes repo-wide and reports
   any branch still pinned by a live worktree as `skipped-worktree-pinned`.

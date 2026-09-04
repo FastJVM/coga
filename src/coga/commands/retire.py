@@ -9,7 +9,11 @@ import typer
 
 from coga import git
 from coga.autoclose import parse_branch_name, parse_worktree_path
-from coga.branchcleanup import delete_ticket_branch, remove_ticket_worktree
+from coga.branchcleanup import (
+    WorktreeCleanupResult,
+    delete_ticket_branch,
+    remove_ticket_worktree,
+)
 from coga.config import Config, ConfigError, load_config
 from coga.create import create_task
 from coga.git import GitError
@@ -89,7 +93,7 @@ def retire(
     # `worktree:`/`branch:`/`pr:` lines) still exists — the retro pass below
     # deletes the directory. Best effort: a cleanup failure must never abort the
     # retire run.
-    _cleanup_checkout(cfg, ref)
+    checkout = _cleanup_checkout(cfg, ref)
 
     try:
         assignee = agent or _default_agent(cfg)
@@ -119,7 +123,7 @@ def retire(
             watchers=[],
             status="active",
             slug_override=slug_override,
-            description=_retire_body(ref.id_slug),
+            description=_retire_body(ref.id_slug, checkout),
             created_by="retire",
         )
     except (ConfigError, TaskValidationError, ValueError) as exc:
@@ -147,7 +151,7 @@ def retire(
     )
 
 
-def _cleanup_checkout(cfg: Config, ref: TaskRef) -> None:
+def _cleanup_checkout(cfg: Config, ref: TaskRef) -> WorktreeCleanupResult | None:
     """Remove the retiring ticket's linked worktree and branch, best-effort.
 
     Reads the `## Dev` blackboard section (still present pre-retro) and hands it
@@ -157,13 +161,17 @@ def _cleanup_checkout(cfg: Config, ref: TaskRef) -> None:
     `git`/`gh` missing, a read error, git not enabled — is reported and
     swallowed: checkout hygiene is a courtesy on top of retire, not a
     precondition for it.
+
+    Returns the worktree result when one was attempted, so the caller can
+    carry a *preserved* checkout into the retro task body — see
+    `_checkout_cleanup_section`. Returns `None` whenever cleanup was skipped.
     """
     if not cfg.git_enabled:
-        return
+        return None
     try:
         root = git._toplevel(ref.ticket_path)
         if root is None:
-            return
+            return None
         current_branch = git._current_branch(root)
         if current_branch != cfg.git_control_branch:
             typer.echo(
@@ -171,11 +179,11 @@ def _cleanup_checkout(cfg: Config, ref: TaskRef) -> None:
                 f"(run from {cfg.git_control_branch!r}; current checkout is "
                 f"{current_branch!r})."
             )
-            return
+            return None
         blackboard = read_blackboard(ref.ticket_path, blackboard_required=False)
     except (GitError, OSError, TaskFileError) as exc:
         typer.echo(f"Retire: checkout cleanup skipped ({exc}).")
-        return
+        return None
     try:
         claim = _live_checkout_claim(cfg, ref, root, blackboard)
     except Exception as exc:  # noqa: BLE001 — incomplete proof preserves checkout
@@ -183,18 +191,20 @@ def _cleanup_checkout(cfg: Config, ref: TaskRef) -> None:
             "Retire: checkout cleanup skipped "
             f"(could not verify other live ticket claims: {exc})."
         )
-        return
+        return None
     if claim is not None:
         typer.echo(f"Retire: checkout cleanup skipped ({claim}).")
-        return
+        return None
+    worktree_result: WorktreeCleanupResult | None = None
     try:
-        remove_ticket_worktree(cfg, root, blackboard, echo=typer.echo)
+        worktree_result = remove_ticket_worktree(cfg, root, blackboard, echo=typer.echo)
     except Exception as exc:  # noqa: BLE001 — never let cleanup abort retire
         typer.echo(f"Retire: worktree cleanup failed ({exc}).")
     try:
         delete_ticket_branch(cfg, root, blackboard, echo=typer.echo)
     except Exception as exc:  # noqa: BLE001 — never let cleanup abort retire
         typer.echo(f"Retire: branch cleanup failed ({exc}).")
+    return worktree_result
 
 
 def _live_checkout_claim(
@@ -299,9 +309,42 @@ def _default_agent(cfg: Config) -> str:
     return default.name
 
 
-def _retire_body(target_slug: str) -> str:
+def _retire_body(
+    target_slug: str, checkout: WorktreeCleanupResult | None = None
+) -> str:
     template = read_packaged_resource("retire.md")
-    return template.format(slug=target_slug).strip()
+    body = template.format(slug=target_slug).strip()
+    section = _checkout_cleanup_section(checkout)
+    if section:
+        body = f"{body}\n\n{section}"
+    return body
+
+
+def _checkout_cleanup_section(checkout: WorktreeCleanupResult | None) -> str:
+    """A durable record of a feature checkout retire refused to remove.
+
+    Retire's cleanup notes are echoed to a terminal that immediately scrolls
+    under the retro launch two lines later, which is most of why a preserved
+    checkout goes unnoticed until someone audits by hand. When one survives,
+    carry the reason and the exact manual command into the retro task body so
+    they outlive the scrollback. Nothing to say when the worktree was removed,
+    or when no worktree was recorded.
+    """
+    if (
+        checkout is None
+        or checkout.worktree is None
+        or checkout.removed
+        or checkout.already_gone
+    ):
+        return ""
+    notes = "\n".join(f"- {note}" for note in checkout.notes)
+    return (
+        "### Checkout cleanup\n\n"
+        f"Retire left the feature checkout `{checkout.worktree}` in place, with "
+        "the reason below. This is a note for the human, not a step: do not act "
+        "on it during the retro pass.\n\n"
+        f"{notes}"
+    )
 
 
 def _bail(msg: str) -> None:

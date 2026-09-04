@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -8,6 +9,7 @@ import pytest
 import coga.branchcleanup
 from coga.branchcleanup import (
     BranchCleanupResult,
+    _classify_status_records,
     delete_local_branch,
     delete_ticket_branch,
     remove_ticket_worktree,
@@ -548,7 +550,9 @@ def test_dirty_worktree_left_in_place(repo: Path, tmp_path: Path) -> None:
     assert result.removed is False
     assert feature.is_dir()
     assert (feature / "uncommitted.txt").is_file()
-    assert any("contains tracked, untracked, or ignored" in note for note in notes)
+    assert any("contains tracked or untracked local state" in note for note in notes)
+    # `--force` over untracked work would destroy it — never offered here.
+    assert not any("--force" in note for note in notes)
 
 
 def test_ignored_local_file_left_in_place(repo: Path, tmp_path: Path) -> None:
@@ -570,6 +574,140 @@ def test_ignored_local_file_left_in_place(repo: Path, tmp_path: Path) -> None:
     assert result.removed is False
     assert (feature / "credentials.secret").read_text() == "do not delete"
     assert any("ignored local state" in note for note in notes)
+
+
+def _run_tests_in(worktree: Path) -> None:
+    """Leave exactly the residue a code ticket's `python -m pytest` leaves.
+
+    `.pytest_cache/` is self-ignoring — pytest writes a `.gitignore` holding
+    `*` into it — so it reports as ignored in every repo whatever the repo's
+    own `.gitignore` says.
+    """
+    cache = worktree / ".pytest_cache"
+    cache.mkdir()
+    (cache / ".gitignore").write_text("*\n")
+    (cache / "CACHEDIR.TAG").write_text("Signature: 8a477f597d28d172789f06886806bc55")
+    pycache = worktree / "src" / "__pycache__"
+    pycache.mkdir(parents=True)
+    (pycache / "mod.cpython-312.pyc").write_bytes(b"\x00compiled")
+
+
+def _ignore_pycache(repo: Path) -> None:
+    (repo / ".gitignore").write_text("__pycache__/\n*.secret\n")
+    _git(repo, "add", ".gitignore")
+    _git(repo, "commit", "-m", "ignore caches and local secrets")
+
+
+def test_cache_only_worktree_is_removed(repo: Path, tmp_path: Path) -> None:
+    _ignore_pycache(repo)
+    feature = tmp_path / "feature"
+    _add_worktree(repo, feature, "feat")
+    _run_tests_in(feature)
+
+    notes: list[str] = []
+    result = remove_ticket_worktree(
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", worktree=str(feature)),
+        echo=notes.append,
+    )
+
+    assert result.removed is True
+    assert not feature.exists()
+    assert any(
+        "regenerable cache entries under '.pytest_cache/', '__pycache__/'" in note
+        for note in notes
+    )
+
+
+def test_precious_ignored_file_survives_alongside_cache(
+    repo: Path, tmp_path: Path
+) -> None:
+    _ignore_pycache(repo)
+    feature = tmp_path / "feature"
+    _add_worktree(repo, feature, "feat")
+    _run_tests_in(feature)
+    (feature / "credentials.secret").write_text("do not delete")
+
+    notes: list[str] = []
+    result = remove_ticket_worktree(
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", worktree=str(feature)),
+        echo=notes.append,
+    )
+
+    assert result.removed is False
+    assert (feature / "credentials.secret").read_text() == "do not delete"
+    refusal = next(note for note in notes if "left in place" in note)
+    # The blocking entry is the reason, and the cache noise no longer drowns it.
+    assert "credentials.secret" in refusal
+    assert "__pycache__" not in refusal
+    assert ".pytest_cache" not in refusal
+
+
+def test_ignored_only_refusal_offers_the_force_command(
+    repo: Path, tmp_path: Path
+) -> None:
+    _ignore_pycache(repo)
+    feature = tmp_path / "feature's $cache"
+    _add_worktree(repo, feature, "feat")
+    (feature / "coga.local.toml.secret").write_text("user = 'marc'")
+
+    notes: list[str] = []
+    result = remove_ticket_worktree(
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", worktree=str(feature)),
+        echo=notes.append,
+    )
+
+    assert result.removed is False
+    assert any(
+        f"git worktree remove --force {shlex.quote(str(feature))}" in note
+        for note in notes
+    )
+    assert any("coga run branch-sweep" in note for note in notes)
+
+
+def test_non_ascii_cache_filename_is_still_regenerable(
+    repo: Path, tmp_path: Path
+) -> None:
+    """Without `-z` git C-quotes this path and it misclassifies as blocking."""
+    _ignore_pycache(repo)
+    feature = tmp_path / "feature"
+    _add_worktree(repo, feature, "feat")
+    pycache = feature / "__pycache__"
+    pycache.mkdir()
+    (pycache / "café module.cpython-312.pyc").write_bytes(b"\x00compiled")
+
+    result = remove_ticket_worktree(
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", worktree=str(feature)),
+        echo=lambda _m: None,
+    )
+
+    assert result.removed is True
+    assert not feature.exists()
+
+
+def test_classifier_consumes_rename_source_record() -> None:
+    """A rename's source path is its own `-z` record, not a bare entry."""
+    state = _classify_status_records("R  new.txt\0old.txt\0!! __pycache__/m.pyc\0")
+
+    assert state.blocking == ["R  new.txt"]
+    assert state.regenerable == ["!! __pycache__/m.pyc"]
+    assert state.blocking_all_ignored is False
+
+
+def test_classifier_fails_closed_on_unparsable_record() -> None:
+    state = _classify_status_records("!!\0!! __pycache__/m.pyc\0")
+
+    assert state.blocking == ["!!"]
+    assert state.regenerable == ["!! __pycache__/m.pyc"]
+    # Unidentified state must not invite a `--force`.
+    assert state.blocking_all_ignored is False
 
 
 def test_worktree_holding_another_branch_left_in_place(
@@ -697,6 +835,7 @@ def test_missing_worktree_path_is_reported_not_pruned(
     )
 
     assert result.removed is False
+    assert result.already_gone is True
     assert any("already gone" in note for note in notes)
     # The stale registration is branch sweep's repo-wide job, not retire's.
     assert str(feature) in _git(repo, "worktree", "list").stdout
