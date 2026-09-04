@@ -4385,3 +4385,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-04 11:50 [recurring/blocker-reminders] [system] script exited with code 0
 2026-09-04 11:53 [autofix/stop-the-digest-spool-drain-leaking-a-blank-line-e] [system] created (status=active)
 2026-09-04 12:18 [marketing/build-the-launch-plan] [human:nicktoper] activated (draft → active) — auto on launch
+2026-09-04 12:15 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
