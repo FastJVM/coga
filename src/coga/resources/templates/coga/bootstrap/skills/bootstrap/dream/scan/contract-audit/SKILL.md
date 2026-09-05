@@ -42,16 +42,23 @@ budget:
 - **templates and docs** — `coga/recurring/*/ticket.md`, `README.md`,
   `docs/*.md`, `CLAUDE.md`, `AGENTS.md`.
 - **copy divergence** — one shard over actual counterpart pairs only. In the
-  Coga source repo, read `IDENTICAL_LIVE_PACKAGED_PAIRS` from
-  `tests/test_packaging.py`, confirm both paths in each pair are tracked, and
-  compare each pair with `cmp`. Also check an additional pair only when a
-  living contract explicitly names it as a synchronized twin. Do **not** run a
-  recursive diff between `coga/` and
-  `src/coga/resources/templates/coga/`: most of those roots intentionally have
-  no counterpart and runtime state such as `coga/log.md` intentionally differs.
-  In a downstream repo with no packaged source tree or explicit pair list,
-  omit this group. `coga/.agent-skills/` is a generated, gitignored symlink view
-  of the packaged skills, not a copy to compare.
+  Coga source repo the pairs come from `tests/test_packaging.py`, where
+  `IDENTICAL_LIVE_PACKAGED_PAIRS` is *derived* from the packaged tree at import
+  rather than written out, so print it instead of reading literals:
+  `python -c "import sys; sys.path.insert(0, 'tests'); import test_packaging as
+  t; print('\n'.join(f'{a} {b}' for a, b in t.IDENTICAL_LIVE_PACKAGED_PAIRS))"`.
+  Confirm both paths in each pair are tracked, and compare each pair with
+  `cmp`. Also check an additional pair only when a living contract explicitly
+  names it as a synchronized twin. Do **not** run a recursive diff between
+  `coga/` and `src/coga/resources/templates/coga/`: most of those roots
+  intentionally have no counterpart, and the twins that intentionally differ
+  (runtime state such as `coga/log.md`) are the ones that derivation already
+  excludes via `INTENTIONALLY_DIVERGENT_TWINS`. Because the suite enforces
+  every derived pair, a divergence here is a test failure first — a green
+  suite means this shard has nothing to report, and a finding means the suite
+  was not run. In a downstream repo with no packaged source tree or explicit
+  pair list, omit this group. `coga/.agent-skills/` is a generated, gitignored
+  symlink view of the packaged skills, not a copy to compare.
 
 ## Findings
 

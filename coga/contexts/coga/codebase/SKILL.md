@@ -449,8 +449,18 @@ wrong checkout silently produces wrong results in both directions:
   missed the packaged one — a regression that would have deleted branches
   recorded on canceled tickets. A clean rebase and a green suite both reported
   success. **After any rebase that touched a live/packaged pair, re-diff every
-  pair by hand** and sync packaged from live; `IDENTICAL_LIVE_PACKAGED_PAIRS` in
-  `tests/test_packaging.py` only covers pairs someone remembered to register.
+  pair by hand** and sync packaged from live. `tests/test_packaging.py` now
+  derives the pairs rather than listing them: every packaged file whose live
+  counterpart exists at the mapped path (`templates/coga/<path>` ->
+  `coga/<path>`, and `templates/coga/bootstrap/{contexts,skills,workflows}/
+  <path>` -> `coga/<area>/<path>`) must be byte-identical, so a new twin is
+  covered the moment it exists and there is nothing to register. Discovery
+  excludes local installation directories (`.coga/`, `.venv/`), agent-tooling
+  state (`.agent-skills/`, `.claude/`, `.codex/`), bytecode caches, and
+  `coga.local.toml`; those are not shipped twins. A deliberate difference goes
+  in `INTENTIONALLY_DIVERGENT_TWINS` with its reason, and the
+  suite fails if that entry outlives the divergence. That catches the drift
+  after the fact; it does not catch it during the rebase, so still re-diff.
 
 - **A recorded "rebases clean" has an expiry.** A design step that measured
   drift (`git diff --stat <merge-base>..main` over the branch-touched files, and

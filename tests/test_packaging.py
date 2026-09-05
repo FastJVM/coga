@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import zipfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import tomllib
+
+if TYPE_CHECKING:
+    import pytest
 
 from coga.ticket import Ticket
 
@@ -91,148 +96,201 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
 )
 
 
-# Live/packaged file pairs that must stay byte-identical. Most bootstrap
-# templates are curated copies that intentionally diverge from the live
-# `coga/` tree, so this is an explicit allowlist, not a tree diff.
-IDENTICAL_LIVE_PACKAGED_PAIRS = (
-    (
-        "coga/contexts/.gitignore",
-        "src/coga/resources/templates/coga/contexts/.gitignore",
+# The live/packaged sync rule, enforced instead of remembered.
+#
+# `CLAUDE.md` says a shipped Coga OS context or template has two copies — the
+# live one under `coga/` and the packaged one under
+# `src/coga/resources/templates/coga/` — and that both get edited together.
+# This module derives the pairs instead of keeping a hand-maintained list,
+# because a hand-maintained list only covers the twins someone remembered to
+# register, and an unregistered twin is exactly how a pair silently diverges:
+#
+#   Every packaged file whose live counterpart exists at the mapped path must
+#   be byte-identical to it, unless the pair is named in
+#   `INTENTIONALLY_DIVERGENT_TWINS` with a written reason.
+#
+# Two mappings produce a counterpart path, tried in this order:
+#
+#   templates/coga/<path>                     -> coga/<path>
+#   templates/coga/bootstrap/<area>/<path>    -> coga/<area>/<path>
+#
+# A packaged file with no live counterpart under either mapping is a curated
+# battery the source repo does not install into itself — `bootstrap/orient/`,
+# `bootstrap/skills/bootstrap/**`, the `bootstrap/workflows/` fallbacks,
+# `tasks/coga-build.md`. There is nothing to compare, so it is not a pair; the
+# `EXPECTED_BOOTSTRAP_RESOURCES` checks above are what keep those shipping.
+# Live files with no packaged copy are repo-specific and are likewise not this
+# test's business. Neither direction is a tree diff: only actual twins count.
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+PACKAGED_ROOT = Path("src/coga/resources/templates/coga")
+LIVE_ROOT = Path("coga")
+
+# Packaged areas that ship as *bundled batteries*: the source repo installs
+# them at the top of its own live tree rather than under `coga/bootstrap/`.
+BUNDLED_AREAS = frozenset({"contexts", "skills", "workflows"})
+
+# These are generated local state, not shipped template content. Match the
+# build exclusions in pyproject.toml and the installation/agent state that
+# coga init ignores. Prune the directories before descending into a venv.
+GENERATED_TEMPLATE_DIRS = frozenset(
+    {".coga", ".venv", ".agent-skills", ".claude", ".codex", "__pycache__"}
+)
+
+
+# Twins that are deliberately not identical, each with the reason it is
+# exempt. An entry that stops describing a real divergence fails the suite,
+# so this map prunes itself rather than accumulating stale allowances.
+INTENTIONALLY_DIVERGENT_TWINS = {
+    "coga/.gitignore": (
+        "The live copy carries `coga init`'s `>>> coga-managed >>>` markers; "
+        "the packaged copy is the marker-free body that init writes between "
+        "them."
     ),
-    (
-        "coga/contexts/coga/architecture/SKILL.md",
-        "src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/"
-        "SKILL.md",
+    "coga/coga.toml": (
+        "The live copy is this repo's real config (a set `owner`, live agent "
+        "and notification wiring); the packaged copy is the commented seed a "
+        "fresh repo starts from."
     ),
-    (
-        "coga/contexts/coga/codebase/SKILL.md",
-        "src/coga/resources/templates/coga/bootstrap/contexts/coga/codebase/"
-        "SKILL.md",
+    "coga/log.md": (
+        "The live copy is this repo's append-only audit trail; the packaged "
+        "copy is the empty log a fresh repo starts with."
     ),
-    (
-        "coga/contexts/coga/extension-model/SKILL.md",
-        "src/coga/resources/templates/coga/bootstrap/contexts/coga/"
-        "extension-model/SKILL.md",
+    "coga/recurring/digest/spool.md": (
+        "The live copy holds real spooled events and a `consumed_through` "
+        "cursor; the packaged copy is an empty spool."
     ),
-    (
-        "coga/skills/code/address-pr-comments/SKILL.md",
-        "src/coga/resources/templates/coga/bootstrap/skills/code/"
-        "address-pr-comments/SKILL.md",
+    "coga/recurring/digest/ticket.md": (
+        "The live copy carries this repo's `owner`/`assignee` and its accrued "
+        "Digest State; the packaged copy ships those fields blank."
     ),
-    (
-        "coga/skills/browser/dochub/SKILL.md",
-        "src/coga/resources/templates/coga/bootstrap/skills/browser/dochub/"
-        "SKILL.md",
-    ),
-    (
-        "coga/skills/code/design/SKILL.md",
-        "src/coga/resources/templates/coga/bootstrap/skills/code/design/"
-        "SKILL.md",
-    ),
-    (
-        "coga/skills/code/review-design/SKILL.md",
-        "src/coga/resources/templates/coga/bootstrap/skills/code/"
-        "review-design/SKILL.md",
-    ),
-    (
-        "coga/contexts/coga/sync/SKILL.md",
-        "src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md",
-    ),
-    (
-        "coga/contexts/coga/important/SKILL.md",
-        "src/coga/resources/templates/coga/bootstrap/contexts/coga/important/SKILL.md",
-    ),
-    (
-        "coga/contexts/coga/patterns/SKILL.md",
-        "src/coga/resources/templates/coga/bootstrap/contexts/coga/patterns/SKILL.md",
-    ),
-    (
-        "coga/contexts/coga/recurring/SKILL.md",
-        "src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/"
-        "SKILL.md",
-    ),
-    (
-        "coga/contexts/coga/principles/SKILL.md",
-        "src/coga/resources/templates/coga/bootstrap/contexts/coga/principles/"
-        "SKILL.md",
-    ),
-    (
-        "coga/contexts/coga/architecture/SKILL.md",
-        "src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/"
-        "SKILL.md",
-    ),
-    (
-        "coga/workflows/draft-for-human.md",
-        "src/coga/resources/templates/coga/workflows/draft-for-human.md",
-    ),
-    (
-        "coga/workflows/brief-for-human.md",
-        "src/coga/resources/templates/coga/workflows/brief-for-human.md",
-    ),
-    (
-        "coga/bootstrap/resolve-conflicts/ticket.md",
-        "src/coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md",
-    ),
-    (
-        "coga/recurring/dream/ticket.md",
-        "src/coga/resources/templates/coga/recurring/dream/ticket.md",
-    ),
-    (
-        "coga/workflows/build/onboarding.md",
-        "src/coga/resources/templates/coga/workflows/build/onboarding.md",
-    ),
-    # The five recurring templates and their one-step workflows carry the
-    # `ticket.py` migration in both copies. `digest/post` is the odd one: its
-    # packaged twin is the *bundled* `bootstrap/workflows/` copy, not an init
-    # payload under `templates/coga/workflows/`.
-    (
-        "coga/workflows/digest/post.md",
-        "src/coga/resources/templates/coga/bootstrap/workflows/digest/post.md",
-    ),
-    (
-        "coga/workflows/autoclose-merged/sweep.md",
-        "src/coga/resources/templates/coga/workflows/autoclose-merged/sweep.md",
-    ),
-    (
-        "coga/workflows/blocker-reminders/run.md",
-        "src/coga/resources/templates/coga/workflows/blocker-reminders/run.md",
-    ),
-    (
-        "coga/workflows/branch-sweep/sweep.md",
-        "src/coga/resources/templates/coga/workflows/branch-sweep/sweep.md",
-    ),
-    (
-        "coga/workflows/skill-update/run.md",
-        "src/coga/resources/templates/coga/workflows/skill-update/run.md",
-    ),
-    (
-        "coga/recurring/autoclose-merged/ticket.py",
-        "src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.py",
-    ),
-    (
-        "coga/recurring/blocker-reminders/ticket.py",
-        "src/coga/resources/templates/coga/recurring/blocker-reminders/ticket.py",
-    ),
-    (
-        "coga/recurring/branch-sweep/ticket.py",
-        "src/coga/resources/templates/coga/recurring/branch-sweep/ticket.py",
-    ),
-    (
-        "coga/recurring/digest/ticket.py",
-        "src/coga/resources/templates/coga/recurring/digest/ticket.py",
-    ),
-    (
-        "coga/recurring/skill-update/ticket.py",
-        "src/coga/resources/templates/coga/recurring/skill-update/ticket.py",
-    ),
+}
+
+
+def _live_counterparts(relative: Path) -> tuple[Path, ...]:
+    """Live paths a packaged template file could mirror, best guess first."""
+    candidates = [LIVE_ROOT / relative]
+    parts = relative.parts
+    if len(parts) > 2 and parts[0] == "bootstrap" and parts[1] in BUNDLED_AREAS:
+        candidates.append(LIVE_ROOT.joinpath(*parts[1:]))
+    return tuple(candidates)
+
+
+def _discover_live_packaged_twins() -> tuple[tuple[str, str], ...]:
+    packaged_root = REPO_ROOT / PACKAGED_ROOT
+    twins = []
+    for directory, dirs, files in os.walk(packaged_root):
+        dirs[:] = sorted(name for name in dirs if name not in GENERATED_TEMPLATE_DIRS)
+        for name in sorted(files):
+            if name == "coga.local.toml":
+                continue
+            packaged = Path(directory) / name
+            if not packaged.is_file():
+                continue
+            relative = packaged.relative_to(packaged_root)
+            for live in _live_counterparts(relative):
+                if (REPO_ROOT / live).is_file():
+                    twins.append(
+                        (live.as_posix(), (PACKAGED_ROOT / relative).as_posix())
+                    )
+                    break
+    return tuple(twins)
+
+
+# Every live/packaged twin in the repo, divergent ones included.
+LIVE_PACKAGED_TWINS = _discover_live_packaged_twins()
+
+# The enforced subset: every twin that is not a documented exception. Dream's
+# copy-divergence shard reads this name.
+IDENTICAL_LIVE_PACKAGED_PAIRS = tuple(
+    (live, packaged)
+    for live, packaged in LIVE_PACKAGED_TWINS
+    if live not in INTENTIONALLY_DIVERGENT_TWINS
 )
 
 
 def test_live_and_packaged_copies_stay_identical() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
+    assert IDENTICAL_LIVE_PACKAGED_PAIRS
     for live, packaged in IDENTICAL_LIVE_PACKAGED_PAIRS:
-        assert (repo_root / live).read_bytes() == (repo_root / packaged).read_bytes(), (
-            f"{live} and {packaged} have drifted; edit both copies together"
+        assert (REPO_ROOT / live).read_bytes() == (
+            REPO_ROOT / packaged
+        ).read_bytes(), (
+            f"{live} and {packaged} have drifted; edit both copies together. "
+            "If the difference is deliberate, add the live path to "
+            "INTENTIONALLY_DIVERGENT_TWINS with the reason."
+        )
+
+
+def test_twin_discovery_still_walks_the_packaged_tree() -> None:
+    # The pair list is derived, so a mapping regression would not fail
+    # loudly — it would quietly shrink the tuple and turn the identity test
+    # above into a vacuous pass. This is the floor that catches that. The
+    # count sits near 70; the bound is slack, not a target to update on
+    # every added template.
+    assert len(LIVE_PACKAGED_TWINS) >= 60
+
+    # Both mappings must still resolve, since each covers twins the other
+    # cannot see.
+    live_paths = {live for live, _ in LIVE_PACKAGED_TWINS}
+    assert "coga/workflows/draft-for-human.md" in live_paths
+    assert "coga/skills/code/implement/SKILL.md" in live_paths
+
+
+def test_twin_discovery_ignores_generated_installation_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
+    expected = (
+        (
+            "coga/contexts/_template/SKILL.md",
+            "src/coga/resources/templates/coga/contexts/_template/SKILL.md",
+        ),
+        (
+            "coga/skills/new-skill/attachment.py",
+            "src/coga/resources/templates/coga/bootstrap/skills/new-skill/attachment.py",
+        ),
+    )
+    for pair in expected:
+        for relative in pair:
+            path = tmp_path / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("shipped content\n")
+
+    # Local installations in both roots carry path-specific bytes. They must
+    # neither become twin pairs nor require intentional-divergence entries.
+    for base in (LIVE_ROOT, PACKAGED_ROOT):
+        for relative in (
+            ".coga/.venv/bin/activate",
+            ".coga/bin/coga",
+            ".venv/bin/activate",
+            ".agent-skills/generated/SKILL.md",
+            ".claude/settings.json",
+            ".codex/config.toml",
+            "__pycache__/ticket.cpython-312.pyc",
+            "coga.local.toml",
+        ):
+            path = tmp_path / base / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"local to {base}\n")
+
+    assert set(_discover_live_packaged_twins()) == set(expected)
+
+
+def test_intentional_divergences_stay_real_and_explained() -> None:
+    twins = dict(LIVE_PACKAGED_TWINS)
+    for live, reason in INTENTIONALLY_DIVERGENT_TWINS.items():
+        assert reason.strip(), f"{live} needs a stated reason to be exempt"
+        packaged = twins.get(live)
+        assert packaged is not None, (
+            f"{live} is no longer a live/packaged twin; "
+            "drop its INTENTIONALLY_DIVERGENT_TWINS entry"
+        )
+        assert (REPO_ROOT / live).read_bytes() != (
+            REPO_ROOT / packaged
+        ).read_bytes(), (
+            f"{live} now matches {packaged}; drop its "
+            "INTENTIONALLY_DIVERGENT_TWINS entry so the pair is enforced"
         )
 
 
