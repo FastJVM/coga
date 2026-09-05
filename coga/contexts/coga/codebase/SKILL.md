@@ -454,8 +454,11 @@ wrong checkout silently produces wrong results in both directions:
   counterpart exists at the mapped path (`templates/coga/<path>` ->
   `coga/<path>`, and `templates/coga/bootstrap/{contexts,skills,workflows}/
   <path>` -> `coga/<area>/<path>`) must be byte-identical, so a new twin is
-  covered the moment it exists and there is nothing to register. A deliberate
-  difference goes in `INTENTIONALLY_DIVERGENT_TWINS` with its reason, and the
+  covered the moment it exists and there is nothing to register. Discovery
+  excludes local installation directories (`.coga/`, `.venv/`), agent-tooling
+  state (`.agent-skills/`, `.claude/`, `.codex/`), bytecode caches, and
+  `coga.local.toml`; those are not shipped twins. A deliberate difference goes
+  in `INTENTIONALLY_DIVERGENT_TWINS` with its reason, and the
   suite fails if that entry outlives the divergence. That catches the drift
   after the fact; it does not catch it during the rebase, so still re-diff.
 

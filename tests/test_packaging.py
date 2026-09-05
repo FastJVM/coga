@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import zipfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import tomllib
+
+if TYPE_CHECKING:
+    import pytest
 
 from coga.ticket import Ticket
 
@@ -126,6 +131,13 @@ LIVE_ROOT = Path("coga")
 # them at the top of its own live tree rather than under `coga/bootstrap/`.
 BUNDLED_AREAS = frozenset({"contexts", "skills", "workflows"})
 
+# These are generated local state, not shipped template content. Match the
+# build exclusions in pyproject.toml and the installation/agent state that
+# coga init ignores. Prune the directories before descending into a venv.
+GENERATED_TEMPLATE_DIRS = frozenset(
+    {".coga", ".venv", ".agent-skills", ".claude", ".codex", "__pycache__"}
+)
+
 
 # Twins that are deliberately not identical, each with the reason it is
 # exempt. An entry that stops describing a real divergence fails the suite,
@@ -168,18 +180,21 @@ def _live_counterparts(relative: Path) -> tuple[Path, ...]:
 def _discover_live_packaged_twins() -> tuple[tuple[str, str], ...]:
     packaged_root = REPO_ROOT / PACKAGED_ROOT
     twins = []
-    for packaged in sorted(packaged_root.rglob("*")):
-        if not packaged.is_file():
-            continue
-        relative = packaged.relative_to(packaged_root)
-        if "__pycache__" in relative.parts:
-            continue
-        for live in _live_counterparts(relative):
-            if (REPO_ROOT / live).is_file():
-                twins.append(
-                    (live.as_posix(), (PACKAGED_ROOT / relative).as_posix())
-                )
-                break
+    for directory, dirs, files in os.walk(packaged_root):
+        dirs[:] = sorted(name for name in dirs if name not in GENERATED_TEMPLATE_DIRS)
+        for name in sorted(files):
+            if name == "coga.local.toml":
+                continue
+            packaged = Path(directory) / name
+            if not packaged.is_file():
+                continue
+            relative = packaged.relative_to(packaged_root)
+            for live in _live_counterparts(relative):
+                if (REPO_ROOT / live).is_file():
+                    twins.append(
+                        (live.as_posix(), (PACKAGED_ROOT / relative).as_posix())
+                    )
+                    break
     return tuple(twins)
 
 
@@ -220,6 +235,46 @@ def test_twin_discovery_still_walks_the_packaged_tree() -> None:
     live_paths = {live for live, _ in LIVE_PACKAGED_TWINS}
     assert "coga/workflows/draft-for-human.md" in live_paths
     assert "coga/skills/code/implement/SKILL.md" in live_paths
+
+
+def test_twin_discovery_ignores_generated_installation_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
+    expected = (
+        (
+            "coga/contexts/_template/SKILL.md",
+            "src/coga/resources/templates/coga/contexts/_template/SKILL.md",
+        ),
+        (
+            "coga/skills/new-skill/attachment.py",
+            "src/coga/resources/templates/coga/bootstrap/skills/new-skill/attachment.py",
+        ),
+    )
+    for pair in expected:
+        for relative in pair:
+            path = tmp_path / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("shipped content\n")
+
+    # Local installations in both roots carry path-specific bytes. They must
+    # neither become twin pairs nor require intentional-divergence entries.
+    for base in (LIVE_ROOT, PACKAGED_ROOT):
+        for relative in (
+            ".coga/.venv/bin/activate",
+            ".coga/bin/coga",
+            ".venv/bin/activate",
+            ".agent-skills/generated/SKILL.md",
+            ".claude/settings.json",
+            ".codex/config.toml",
+            "__pycache__/ticket.cpython-312.pyc",
+            "coga.local.toml",
+        ):
+            path = tmp_path / base / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"local to {base}\n")
+
+    assert set(_discover_live_packaged_twins()) == set(expected)
 
 
 def test_intentional_divergences_stay_real_and_explained() -> None:
