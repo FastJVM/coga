@@ -1,0 +1,683 @@
+From fa3880b1c5047d8c3cbb8f3eaab9a551f7bd0ce7 Mon Sep 17 00:00:00 2001
+From: nicktoper <ntoper@manycore.io>
+Date: Fri, 4 Sep 2026 12:38:18 -0700
+Subject: [PATCH 1/2] Write autoclose retire follow-ups to a durable worklist
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+`_report_retire_followups` sent its report to `blackboard_from_env`, i.e.
+whatever `COGA_TASK_BLACKBOARD` names. For the `autoclose-merged` recurring
+template that is the *period* task, which `coga recurring` deletes at the
+start of the next period — so the sweep's one actionable output was written
+to a file scheduled for deletion. `render_retire_report`'s own docstring
+assumed the opposite ("a long-lived recurring task's blackboard"), which is
+how the bug survived review.
+
+A recurring run now records structured, slug-keyed entries in the template's
+durable `retires.md`, a sibling of `ticket.md` that no period boundary
+touches. Re-recording a slug refreshes the checkout it names and keeps the
+first sighting's date, so a template that strands the same ticket on
+consecutive runs accumulates one entry rather than one per run. A malformed
+or foreign worklist fails loudly instead of growing a second section no
+reader would find.
+
+Non-recurring runs are unchanged: the task blackboard when there is one,
+stdout otherwise. The skill, the shipped recurring template, and its
+dogfooded copy now all name the durable path instead of "the task
+blackboard", which was the ambiguity that pointed the write at the period
+task in the first place.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014wHDkfSiWwEjrNuzKT49R5
+---
+ coga/recurring/autoclose-merged/ticket.md     |  17 ++-
+ coga/skills/coga/autoclose/sweep/SKILL.md     |  12 +-
+ src/coga/autoclose.py                         | 136 ++++++++++++++++--
+ .../skills/coga/autoclose/sweep/SKILL.md      |  12 +-
+ .../coga/recurring/autoclose-merged/ticket.md |  17 ++-
+ tests/test_autoclose.py                       | 132 +++++++++++++++++
+ 6 files changed, 298 insertions(+), 28 deletions(-)
+
+diff --git a/coga/recurring/autoclose-merged/ticket.md b/coga/recurring/autoclose-merged/ticket.md
+index 95bc445c..d2501567 100644
+--- a/coga/recurring/autoclose-merged/ticket.md
++++ b/coga/recurring/autoclose-merged/ticket.md
+@@ -23,12 +23,15 @@ which:
+ 3. checks the linked PR state with `gh pr view`,
+ 4. leaves non-final-step tickets alone as suspicious, and
+ 5. marks final-step or workflow-less tickets `done` when the PR is merged, and
+-6. names the `coga retire` follow-up for each ticket it closed that still
+-   records a `branch:` or `worktree:`.
++6. records the `coga retire` follow-up for each ticket it closed that still
++   records a `branch:` or `worktree:`, in the durable sibling `retires.md`.
+ 
+ Autoclose never disposes of a checkout itself — `coga retire` owns those safety
+ proofs. Without step 6 an auto-closed ticket's worktree and branch outlive it
+-silently. Dream preserves checkout-bearing done tickets rather than deleting
++silently. Step 6 writes to `retires.md` beside this template rather than to the
++period task blackboard, because `coga recurring` deletes the period task at the
++start of the next period and would take the worklist with it. Entries are keyed
++by slug, so a template that strands the same ticket twice keeps one entry. Dream preserves checkout-bearing done tickets rather than deleting
+ the `## Dev` evidence the named command needs, so that debt stays actionable
+ until a human retires it.
+ 
+@@ -47,6 +50,8 @@ This blackboard persists across every run of this recurring task. The
+ `autoclose` sweep keeps no durable state here - every run's output
+ is the tickets it marks done and the resulting digest spool records.
+ 
+-The one thing a run appends is a `## Autoclose Sweep: retire follow-ups`
+-section, and only when it closed a ticket that still records a feature
+-checkout. A sweep that stranded nothing writes nothing.
++Stranded retire follow-ups do not live here. A run records them in the
++sibling `retires.md`, and only when it closed a ticket that still records a
++feature checkout. A sweep that stranded nothing writes nothing. That file sits
++beside this template on purpose: the period task under `coga/tasks/recurring/`
++is deleted at the start of the next period.
+diff --git a/coga/skills/coga/autoclose/sweep/SKILL.md b/coga/skills/coga/autoclose/sweep/SKILL.md
+index bc62c190..2c51f037 100644
+--- a/coga/skills/coga/autoclose/sweep/SKILL.md
++++ b/coga/skills/coga/autoclose/sweep/SKILL.md
+@@ -37,8 +37,16 @@ human retires it.
+ Two surfaces, both silent when the sweep stranded nothing:
+ 
+ - a `## Autoclose Sweep: retire follow-ups` section listing the exact
+-  `coga retire <slug>` per ticket — appended to the task blackboard when run
+-  under a task, written to stdout otherwise;
++  `coga retire <slug>` per ticket — recorded in the durable
++  `coga/recurring/autoclose-merged/retires.md`, a sibling of the template
++  `ticket.md`, when run under a task, and written to stdout otherwise. Never
++  leave the sole copy in the period task blackboard under
++  `coga/tasks/recurring/autoclose-merged/`: `coga recurring` deletes that task
++  at the start of the next period and the worklist goes with it. Key entries by
++  slug so re-recording one cannot duplicate it, and drop an entry once
++  `coga retire` — or the weekly branch sweep — has disposed of both its
++  worktree and its branch, so the list stays a worklist rather than a wall of
++  noise;
+ - one trailing Slack line for the whole sweep. The per-ticket `🎉 ... merged`
+   line is left alone: it announces a lifecycle event and normally lands in the
+   daily digest, while a retire hint is an operational to-do.
+diff --git a/src/coga/autoclose.py b/src/coga/autoclose.py
+index cdb4b4fd..710bb5a3 100644
+--- a/src/coga/autoclose.py
++++ b/src/coga/autoclose.py
+@@ -44,6 +44,7 @@ from pathlib import Path
+ from coga.mark import mark_done
+ from coga.config import Config
+ from coga.notification import digest_spool_path, post, preflight_post
++from coga.paths import recurring_dir
+ from coga.task_env import blackboard_from_env
+ from coga.taskfile import (
+     TaskFileError,
+@@ -60,6 +61,26 @@ class GhError(Exception):
+ 
+ 
+ RETIRE_REPORT_HEADING = "## Autoclose Sweep: retire follow-ups"
++RETIRE_LIST_FILENAME = "retires.md"
++RETIRE_LIST_HEADING = "## Follow-ups (open)"
++RETIRE_LIST_ENTRY_RE = re.compile(
++    r"^- `(?P<slug>[^`]+)` — branch `(?P<branch>[^`]*)`, "
++    r"worktree `(?P<worktree>[^`]*)`, recorded `(?P<recorded>[^`]*)`$"
++)
++RETIRE_LIST_HEADER = f"""# Stranded `coga retire` follow-ups
++
++Durable worklist of auto-closed tickets whose feature checkout still exists.
++The sweep records follow-ups here rather than in its period task under
++`coga/tasks/recurring/`, which `coga recurring` deletes at the start of the
++next period.
++
++Every entry means the same thing: run `coga retire <slug>` to dispose of the
++recorded worktree and branch. Autoclose only ever names the follow-up; retire
++owns the safety proofs. Entries are keyed by slug, so a later sweep refreshes
++one rather than duplicating it.
++
++{RETIRE_LIST_HEADING}
++"""
+ 
+ 
+ @dataclass(frozen=True)
+@@ -566,8 +587,10 @@ def render_retire_report(
+     """Render the report naming each closed ticket's `coga retire` command.
+ 
+     Only called with a non-empty `pending`: a sweep that stranded nothing has
+-    nothing to report, and this section is appended to a long-lived recurring
+-    task's blackboard, which a daily no-op line would grow without bound.
++    nothing to report, and a daily no-op line would grow its surface without
++    bound. This renders the *blackboard/stdout* surface, used by one-off and
++    manual runs; a recurring period task records structured entries in the
++    template's durable `retires.md` instead, via `_append_retire_list`.
+     """
+     lines = [RETIRE_REPORT_HEADING, "", f"Generated: {generated_at}"]
+     if task_slug:
+@@ -600,12 +623,96 @@ def render_retire_summary(pending: list[ClosedTicket]) -> str:
+     return f"🧹 {subject} a feature checkout: {commands}"
+ 
+ 
++def durable_retire_list(cfg: Config) -> Path | None:
++    """Return the recurring template's durable retire worklist, if there is one.
++
++    A recurring sweep runs under a *period* task that `coga recurring` deletes
++    at the start of the next period, so that task's blackboard cannot hold a
++    worklist — anything written there is lost at the next period boundary. The
++    template directory the period task was minted from does survive, so the
++    follow-ups belong beside its `ticket.md`.
++
++    Returns `None` for any run that is not a recurring period task, which keeps
++    the ordinary blackboard/stdout surfaces for one-off and manual runs.
++    """
++    slug = os.environ.get("COGA_TASK_SLUG") or ""
++    prefix = "recurring/"
++    if not slug.startswith(prefix):
++        return None
++    template = slug[len(prefix) :]
++    if not template or "/" in template:
++        return None
++    directory = recurring_dir(cfg) / template
++    if not directory.is_dir():
++        return None
++    return directory / RETIRE_LIST_FILENAME
++
++
++def parse_retire_list(text: str) -> tuple[str, list[dict[str, str]]]:
++    """Split a worklist into its header and its parsed entries.
++
++    A file without the heading is a corrupt or foreign worklist. We fail loudly
++    rather than silently appending a second section that no reader would find.
++    """
++    if RETIRE_LIST_HEADING not in text:
++        raise RuntimeError(f"Retire worklist has no '{RETIRE_LIST_HEADING}' section")
++    header, _, body = text.partition(RETIRE_LIST_HEADING + "\n")
++    entries: list[dict[str, str]] = []
++    for line in body.splitlines():
++        if not line.strip():
++            continue
++        match = RETIRE_LIST_ENTRY_RE.match(line)
++        if match is None:
++            raise RuntimeError(f"Unparsable retire worklist line: {line}")
++        entries.append(match.groupdict())
++    return header + RETIRE_LIST_HEADING + "\n", entries
++
++
++def render_retire_entry(entry: dict[str, str]) -> str:
++    return (
++        f"- `{entry['slug']}` — branch `{entry['branch']}`, "
++        f"worktree `{entry['worktree']}`, recorded `{entry['recorded']}`"
++    )
++
++
++def _append_retire_list(path: Path, pending: list[ClosedTicket], recorded: str) -> None:
++    """Merge this sweep's follow-ups into the durable worklist, keyed by slug.
++
++    Re-recording a slug refreshes the checkout it names and keeps the first
++    sighting's date, so a template that strands the same ticket on consecutive
++    runs accumulates one entry rather than one per run.
++    """
++    header, entries = (
++        parse_retire_list(path.read_text(encoding="utf-8"))
++        if path.exists()
++        else (RETIRE_LIST_HEADER, [])
++    )
++    by_slug = {entry["slug"]: entry for entry in entries}
++    for item in pending:
++        existing = by_slug.get(item.slug)
++        by_slug[item.slug] = {
++            "slug": item.slug,
++            "branch": item.branch or "",
++            "worktree": item.worktree or "",
++            "recorded": existing["recorded"] if existing else recorded,
++        }
++    body = "".join(
++        render_retire_entry(by_slug[slug]) + "\n" for slug in sorted(by_slug)
++    )
++    path.write_text(header + "\n" + body, encoding="utf-8")
++
++
+ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> None:
+     """Name the `coga retire` follow-up for the tickets this sweep stranded.
+ 
+     Two surfaces, both silent when the sweep left nothing behind: the run
+-    report (the task blackboard when run under a task, stdout otherwise), and
+-    one trailing Slack line for the whole sweep.
++    report, and one trailing Slack line for the whole sweep.
++
++    The report surface is the recurring template's durable `retires.md` when
++    this is a recurring period task, because that task's own blackboard is
++    deleted at the next period boundary and would take the worklist with it.
++    Other runs keep the ordinary surfaces: the task blackboard when there is
++    one, stdout otherwise.
+ 
+     The per-ticket `🎉 ... merged` line is deliberately left alone. It
+     announces a lifecycle event and normally lands in the daily digest, while a
+@@ -619,18 +726,23 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> None:
+     if not pending:
+         return
+ 
+-    report = render_retire_report(
+-        generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+-        task_slug=os.environ.get("COGA_TASK_SLUG"),
+-        pending=pending,
+-    )
++    now = datetime.now(timezone.utc)
+     # Scoped to the root this sweep actually walked, so an inherited blackboard
+     # from another checkout falls back to stdout.
+     blackboard = blackboard_from_env(cfg.repo_root)
+-    if blackboard:
+-        _append_blackboard_report(blackboard, report)
++    durable = durable_retire_list(cfg)
++    if durable is not None:
++        _append_retire_list(durable, pending, now.date().isoformat())
+     else:
+-        sys.stdout.write(report)
++        report = render_retire_report(
++            generated_at=now.isoformat(timespec="seconds"),
++            task_slug=os.environ.get("COGA_TASK_SLUG"),
++            pending=pending,
++        )
++        if blackboard:
++            _append_blackboard_report(blackboard, report)
++        else:
++            sys.stdout.write(report)
+ 
+     post(
+         cfg,
+diff --git a/src/coga/resources/templates/coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md b/src/coga/resources/templates/coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md
+index bc62c190..2c51f037 100644
+--- a/src/coga/resources/templates/coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md
++++ b/src/coga/resources/templates/coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md
+@@ -37,8 +37,16 @@ human retires it.
+ Two surfaces, both silent when the sweep stranded nothing:
+ 
+ - a `## Autoclose Sweep: retire follow-ups` section listing the exact
+-  `coga retire <slug>` per ticket — appended to the task blackboard when run
+-  under a task, written to stdout otherwise;
++  `coga retire <slug>` per ticket — recorded in the durable
++  `coga/recurring/autoclose-merged/retires.md`, a sibling of the template
++  `ticket.md`, when run under a task, and written to stdout otherwise. Never
++  leave the sole copy in the period task blackboard under
++  `coga/tasks/recurring/autoclose-merged/`: `coga recurring` deletes that task
++  at the start of the next period and the worklist goes with it. Key entries by
++  slug so re-recording one cannot duplicate it, and drop an entry once
++  `coga retire` — or the weekly branch sweep — has disposed of both its
++  worktree and its branch, so the list stays a worklist rather than a wall of
++  noise;
+ - one trailing Slack line for the whole sweep. The per-ticket `🎉 ... merged`
+   line is left alone: it announces a lifecycle event and normally lands in the
+   daily digest, while a retire hint is an operational to-do.
+diff --git a/src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md b/src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md
+index 95bc445c..d2501567 100644
+--- a/src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md
++++ b/src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md
+@@ -23,12 +23,15 @@ which:
+ 3. checks the linked PR state with `gh pr view`,
+ 4. leaves non-final-step tickets alone as suspicious, and
+ 5. marks final-step or workflow-less tickets `done` when the PR is merged, and
+-6. names the `coga retire` follow-up for each ticket it closed that still
+-   records a `branch:` or `worktree:`.
++6. records the `coga retire` follow-up for each ticket it closed that still
++   records a `branch:` or `worktree:`, in the durable sibling `retires.md`.
+ 
+ Autoclose never disposes of a checkout itself — `coga retire` owns those safety
+ proofs. Without step 6 an auto-closed ticket's worktree and branch outlive it
+-silently. Dream preserves checkout-bearing done tickets rather than deleting
++silently. Step 6 writes to `retires.md` beside this template rather than to the
++period task blackboard, because `coga recurring` deletes the period task at the
++start of the next period and would take the worklist with it. Entries are keyed
++by slug, so a template that strands the same ticket twice keeps one entry. Dream preserves checkout-bearing done tickets rather than deleting
+ the `## Dev` evidence the named command needs, so that debt stays actionable
+ until a human retires it.
+ 
+@@ -47,6 +50,8 @@ This blackboard persists across every run of this recurring task. The
+ `autoclose` sweep keeps no durable state here - every run's output
+ is the tickets it marks done and the resulting digest spool records.
+ 
+-The one thing a run appends is a `## Autoclose Sweep: retire follow-ups`
+-section, and only when it closed a ticket that still records a feature
+-checkout. A sweep that stranded nothing writes nothing.
++Stranded retire follow-ups do not live here. A run records them in the
++sibling `retires.md`, and only when it closed a ticket that still records a
++feature checkout. A sweep that stranded nothing writes nothing. That file sits
++beside this template on purpose: the period task under `coga/tasks/recurring/`
++is deleted at the start of the next period.
+diff --git a/tests/test_autoclose.py b/tests/test_autoclose.py
+index 1fe5de69..5491272e 100644
+--- a/tests/test_autoclose.py
++++ b/tests/test_autoclose.py
+@@ -1013,6 +1013,138 @@ def test_failed_summary_delivery_is_logged_against_the_host_task(
+     )
+ 
+ 
++def _make_recurring_sweep(
++    repo: Path, monkeypatch: pytest.MonkeyPatch, *, template: str = "autoclose-merged"
++) -> tuple[str, Path, Path]:
++    """Stage a merged ticket swept by a recurring *period* task.
++
++    Mirrors the real shape: the template directory under `coga/recurring/`
++    survives every period, while the period task under `coga/tasks/recurring/`
++    is deleted at the next boundary.
++    """
++    slug, _ = _make_task(
++        repo,
++        on_final=True,
++        pr_url="https://github.com/o/r/pull/24",
++        branch="feature-x",
++        worktree="/tmp/coga-feature-x",
++    )
++    template_dir = repo / "recurring" / template
++    template_dir.mkdir(parents=True)
++    (template_dir / "ticket.md").write_text("template\n")
++    _, period = _make_task(repo, title="Autoclose merged", status="draft")
++    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(period))
++    monkeypatch.setenv("COGA_TASK_SLUG", f"recurring/{template}")
++    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/24": "MERGED"})
++    _capture_posts(monkeypatch)
++    return slug, period, template_dir / am.RETIRE_LIST_FILENAME
++
++
++def test_recipe_records_the_followup_in_the_durable_recurring_worklist(
++    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
++) -> None:
++    slug, period, worklist = _make_recurring_sweep(repo, monkeypatch)
++
++    assert am.run_autoclose_recipe(load_config(repo), []) == 0
++
++    body = worklist.read_text()
++    assert am.RETIRE_LIST_HEADING in body
++    assert f"- `{slug}` — branch `feature-x`, worktree `/tmp/coga-feature-x`" in body
++    # The period task is deleted at the next boundary, so it must not be the
++    # only place this debt is written.
++    assert am.RETIRE_REPORT_HEADING not in period.read_text()
++    assert am.RETIRE_REPORT_HEADING not in capsys.readouterr().out
++
++
++def test_the_durable_worklist_survives_deleting_the_period_task(
++    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
++) -> None:
++    slug, period, worklist = _make_recurring_sweep(repo, monkeypatch)
++    assert am.run_autoclose_recipe(load_config(repo), []) == 0
++    capsys.readouterr()
++
++    # What `coga recurring` does at the start of the next period.
++    period.unlink()
++
++    assert not period.exists()
++    assert slug in worklist.read_text()
++
++
++def test_a_second_sweep_does_not_duplicate_a_slug_in_the_worklist(
++    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
++) -> None:
++    slug, _, worklist = _make_recurring_sweep(repo, monkeypatch)
++    assert am.run_autoclose_recipe(load_config(repo), []) == 0
++    first = worklist.read_text()
++    capsys.readouterr()
++
++    am._append_retire_list(
++        worklist,
++        [_closed(slug, branch="feature-x", worktree="/tmp/coga-feature-x")],
++        "2026-09-05",
++    )
++
++    body = worklist.read_text()
++    assert body.count(f"`{slug}`") == 1
++    # Keyed by slug: the first sighting's date survives a later sweep.
++    assert body == first
++
++
++def test_re_recording_a_slug_refreshes_the_checkout_it_names(
++    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
++) -> None:
++    slug, _, worklist = _make_recurring_sweep(repo, monkeypatch)
++    assert am.run_autoclose_recipe(load_config(repo), []) == 0
++    capsys.readouterr()
++
++    am._append_retire_list(
++        worklist, [_closed(slug, branch="moved-branch", worktree="")], "2026-09-05"
++    )
++
++    body = worklist.read_text()
++    assert body.count(f"`{slug}`") == 1
++    assert "branch `moved-branch`" in body
++    assert "feature-x" not in body
++
++
++def test_a_non_recurring_run_keeps_the_ordinary_report_surfaces(
++    repo: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    monkeypatch.setenv("COGA_TASK_SLUG", "autoclose-merged")
++    assert am.durable_retire_list(load_config(repo)) is None
++
++
++def test_a_recurring_slug_without_its_template_directory_falls_back(
++    repo: Path, monkeypatch: pytest.MonkeyPatch
++) -> None:
++    monkeypatch.setenv("COGA_TASK_SLUG", "recurring/never-installed")
++    assert am.durable_retire_list(load_config(repo)) is None
++
++
++def test_an_unparsable_worklist_fails_loudly(
++    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
++) -> None:
++    _, _, worklist = _make_recurring_sweep(repo, monkeypatch)
++    worklist.parent.mkdir(parents=True, exist_ok=True)
++    worklist.write_text(f"# Worklist\n\n{am.RETIRE_LIST_HEADING}\n- junk line\n")
++
++    with pytest.raises(RuntimeError, match="Unparsable retire worklist line"):
++        am.run_autoclose_recipe(load_config(repo), [])
++    capsys.readouterr()
++
++
++def test_a_worklist_missing_its_heading_fails_loudly(
++    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
++) -> None:
++    _, _, worklist = _make_recurring_sweep(repo, monkeypatch)
++    worklist.parent.mkdir(parents=True, exist_ok=True)
++    worklist.write_text("# Someone else's file\n")
++
++    with pytest.raises(RuntimeError, match="has no"):
++        am.run_autoclose_recipe(load_config(repo), [])
++    capsys.readouterr()
++
++
+ # --- status stays read-only --------------------------------------------------
+ 
+ 
+-- 
+2.43.0
+
+
+From c5cb1548967406453c52681889c369aa6a8365e7 Mon Sep 17 00:00:00 2001
+From: nicktoper <ntoper@manycore.io>
+Date: Fri, 4 Sep 2026 13:03:39 -0700
+Subject: [PATCH 2/2] self-qa: correct the sweep skill's surfaces and harden
+ worklist parsing
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The skill named two report surfaces keyed on "when run under a task". The
+code has three, keyed on whether the task is *recurring*: a recurring period
+task writes slug-keyed entries to the template's durable `retires.md`, any
+other task appends the report section to its own blackboard, and a run with
+no task writes to stdout. It also hardcoded `autoclose-merged` where
+`durable_retire_list` derives the template from the slug. Reconciled in both
+tracked copies, and rewrapped an over-long line in the recurring template.
+
+`parse_retire_list` guarded on `RETIRE_LIST_HEADING in text` but partitioned
+on the heading *plus its newline*, so a worklist ending exactly at the heading
+put the whole file in `header` and re-appended the heading below it — silently
+doubling it. A stripped trailing newline is a benign thing for an editor to
+do, so normalize it rather than failing the daily sweep over it.
+
+`blackboard_from_env` stays hoisted above the branch that writes the report:
+it looks unused on the durable path, but the Slack summary below scopes its
+`task_path` with it either way. Comment added so the next reader does not
+"simplify" it into an UnboundLocalError, as this pass briefly did.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01VauPhB9RpzARg4wjmhNNM3
+---
+ coga/recurring/autoclose-merged/ticket.md       |  3 ++-
+ coga/skills/coga/autoclose/sweep/SKILL.md       | 17 +++++++++--------
+ src/coga/autoclose.py                           | 17 +++++++++++++----
+ .../skills/coga/autoclose/sweep/SKILL.md        | 17 +++++++++--------
+ .../coga/recurring/autoclose-merged/ticket.md   |  3 ++-
+ tests/test_autoclose.py                         | 16 ++++++++++++++++
+ 6 files changed, 51 insertions(+), 22 deletions(-)
+
+diff --git a/coga/recurring/autoclose-merged/ticket.md b/coga/recurring/autoclose-merged/ticket.md
+index d2501567..2692cf56 100644
+--- a/coga/recurring/autoclose-merged/ticket.md
++++ b/coga/recurring/autoclose-merged/ticket.md
+@@ -31,7 +31,8 @@ proofs. Without step 6 an auto-closed ticket's worktree and branch outlive it
+ silently. Step 6 writes to `retires.md` beside this template rather than to the
+ period task blackboard, because `coga recurring` deletes the period task at the
+ start of the next period and would take the worklist with it. Entries are keyed
+-by slug, so a template that strands the same ticket twice keeps one entry. Dream preserves checkout-bearing done tickets rather than deleting
++by slug, so a template that strands the same ticket twice keeps one entry.
++Dream preserves checkout-bearing done tickets rather than deleting
+ the `## Dev` evidence the named command needs, so that debt stays actionable
+ until a human retires it.
+ 
+diff --git a/coga/skills/coga/autoclose/sweep/SKILL.md b/coga/skills/coga/autoclose/sweep/SKILL.md
+index 2c51f037..786ff752 100644
+--- a/coga/skills/coga/autoclose/sweep/SKILL.md
++++ b/coga/skills/coga/autoclose/sweep/SKILL.md
+@@ -36,14 +36,15 @@ human retires it.
+ 
+ Two surfaces, both silent when the sweep stranded nothing:
+ 
+-- a `## Autoclose Sweep: retire follow-ups` section listing the exact
+-  `coga retire <slug>` per ticket — recorded in the durable
+-  `coga/recurring/autoclose-merged/retires.md`, a sibling of the template
+-  `ticket.md`, when run under a task, and written to stdout otherwise. Never
+-  leave the sole copy in the period task blackboard under
+-  `coga/tasks/recurring/autoclose-merged/`: `coga recurring` deletes that task
+-  at the start of the next period and the worklist goes with it. Key entries by
+-  slug so re-recording one cannot duplicate it, and drop an entry once
++- the exact `coga retire <slug>` per ticket, on whichever report surface
++  survives the run. Under a recurring period task that is the durable
++  `retires.md` beside the template's `ticket.md` under `coga/recurring/`, as
++  slug-keyed entries; under any other task it is a
++  `## Autoclose Sweep: retire follow-ups` section on that task's blackboard;
++  with no task at all it goes to stdout. Never leave the sole copy in a period
++  task blackboard under `coga/tasks/recurring/`: `coga recurring` deletes that
++  task at the start of the next period and the worklist goes with it. Entries
++  are keyed by slug so re-recording one cannot duplicate it; drop one once
+   `coga retire` — or the weekly branch sweep — has disposed of both its
+   worktree and its branch, so the list stays a worklist rather than a wall of
+   noise;
+diff --git a/src/coga/autoclose.py b/src/coga/autoclose.py
+index 710bb5a3..91eefbab 100644
+--- a/src/coga/autoclose.py
++++ b/src/coga/autoclose.py
+@@ -654,9 +654,17 @@ def parse_retire_list(text: str) -> tuple[str, list[dict[str, str]]]:
+     A file without the heading is a corrupt or foreign worklist. We fail loudly
+     rather than silently appending a second section that no reader would find.
+     """
+-    if RETIRE_LIST_HEADING not in text:
++    # The separator carries its newline, so that partitioning on a heading that
++    # ends the file cannot put the whole text in `header` and then re-append the
++    # heading below, silently doubling it. A stripped trailing newline is a
++    # benign thing for an editor to do, so normalize it rather than failing the
++    # sweep over it.
++    if not text.endswith("\n"):
++        text += "\n"
++    separator = RETIRE_LIST_HEADING + "\n"
++    if separator not in text:
+         raise RuntimeError(f"Retire worklist has no '{RETIRE_LIST_HEADING}' section")
+-    header, _, body = text.partition(RETIRE_LIST_HEADING + "\n")
++    header, _, body = text.partition(separator)
+     entries: list[dict[str, str]] = []
+     for line in body.splitlines():
+         if not line.strip():
+@@ -665,7 +673,7 @@ def parse_retire_list(text: str) -> tuple[str, list[dict[str, str]]]:
+         if match is None:
+             raise RuntimeError(f"Unparsable retire worklist line: {line}")
+         entries.append(match.groupdict())
+-    return header + RETIRE_LIST_HEADING + "\n", entries
++    return header + separator, entries
+ 
+ 
+ def render_retire_entry(entry: dict[str, str]) -> str:
+@@ -728,7 +736,8 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> None:
+ 
+     now = datetime.now(timezone.utc)
+     # Scoped to the root this sweep actually walked, so an inherited blackboard
+-    # from another checkout falls back to stdout.
++    # from another checkout falls back to stdout. Needed on both paths: the
++    # Slack summary below scopes itself to this task either way.
+     blackboard = blackboard_from_env(cfg.repo_root)
+     durable = durable_retire_list(cfg)
+     if durable is not None:
+diff --git a/src/coga/resources/templates/coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md b/src/coga/resources/templates/coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md
+index 2c51f037..786ff752 100644
+--- a/src/coga/resources/templates/coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md
++++ b/src/coga/resources/templates/coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md
+@@ -36,14 +36,15 @@ human retires it.
+ 
+ Two surfaces, both silent when the sweep stranded nothing:
+ 
+-- a `## Autoclose Sweep: retire follow-ups` section listing the exact
+-  `coga retire <slug>` per ticket — recorded in the durable
+-  `coga/recurring/autoclose-merged/retires.md`, a sibling of the template
+-  `ticket.md`, when run under a task, and written to stdout otherwise. Never
+-  leave the sole copy in the period task blackboard under
+-  `coga/tasks/recurring/autoclose-merged/`: `coga recurring` deletes that task
+-  at the start of the next period and the worklist goes with it. Key entries by
+-  slug so re-recording one cannot duplicate it, and drop an entry once
++- the exact `coga retire <slug>` per ticket, on whichever report surface
++  survives the run. Under a recurring period task that is the durable
++  `retires.md` beside the template's `ticket.md` under `coga/recurring/`, as
++  slug-keyed entries; under any other task it is a
++  `## Autoclose Sweep: retire follow-ups` section on that task's blackboard;
++  with no task at all it goes to stdout. Never leave the sole copy in a period
++  task blackboard under `coga/tasks/recurring/`: `coga recurring` deletes that
++  task at the start of the next period and the worklist goes with it. Entries
++  are keyed by slug so re-recording one cannot duplicate it; drop one once
+   `coga retire` — or the weekly branch sweep — has disposed of both its
+   worktree and its branch, so the list stays a worklist rather than a wall of
+   noise;
+diff --git a/src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md b/src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md
+index d2501567..2692cf56 100644
+--- a/src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md
++++ b/src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.md
+@@ -31,7 +31,8 @@ proofs. Without step 6 an auto-closed ticket's worktree and branch outlive it
+ silently. Step 6 writes to `retires.md` beside this template rather than to the
+ period task blackboard, because `coga recurring` deletes the period task at the
+ start of the next period and would take the worklist with it. Entries are keyed
+-by slug, so a template that strands the same ticket twice keeps one entry. Dream preserves checkout-bearing done tickets rather than deleting
++by slug, so a template that strands the same ticket twice keeps one entry.
++Dream preserves checkout-bearing done tickets rather than deleting
+ the `## Dev` evidence the named command needs, so that debt stays actionable
+ until a human retires it.
+ 
+diff --git a/tests/test_autoclose.py b/tests/test_autoclose.py
+index 5491272e..5a61dd14 100644
+--- a/tests/test_autoclose.py
++++ b/tests/test_autoclose.py
+@@ -1133,6 +1133,22 @@ def test_an_unparsable_worklist_fails_loudly(
+     capsys.readouterr()
+ 
+ 
++def test_a_heading_ending_the_worklist_is_not_doubled(
++    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
++) -> None:
++    """A stripped trailing newline must normalize, not re-append the heading."""
++    slug, _, worklist = _make_recurring_sweep(repo, monkeypatch)
++    worklist.parent.mkdir(parents=True, exist_ok=True)
++    worklist.write_text(f"# Worklist\n\n{am.RETIRE_LIST_HEADING}")
++
++    assert am.run_autoclose_recipe(load_config(repo), []) == 0
++    capsys.readouterr()
++
++    body = worklist.read_text()
++    assert body.count(am.RETIRE_LIST_HEADING) == 1
++    assert f"`{slug}`" in body
++
++
+ def test_a_worklist_missing_its_heading_fails_loudly(
+     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+ ) -> None:
+-- 
+2.43.0
+

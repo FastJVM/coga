@@ -1,0 +1,524 @@
+diff --git a/coga/.gitattributes b/coga/.gitattributes
+index b44a045..f093497 100644
+--- a/coga/.gitattributes
++++ b/coga/.gitattributes
+@@ -1,2 +1,3 @@
+ **/log.md merge=union
+ **/spool.md merge=union
++**/retires.md merge=union
+diff --git a/coga/recurring/autoclose-merged/retires.md b/coga/recurring/autoclose-merged/retires.md
+new file mode 100644
+index 0000000..22f18ce
+--- /dev/null
++++ b/coga/recurring/autoclose-merged/retires.md
+@@ -0,0 +1,30 @@
++# Stranded `coga retire` follow-ups
++
++Durable worklist of auto-closed tickets whose feature checkout still exists.
++The `autoclose-merged` sweep appends here — **not** to its period task under
++`coga/tasks/recurring/autoclose-merged/`, which the next period deletes.
++
++Every entry means the same thing: run `coga retire <slug>` to dispose of the
++recorded worktree and branch. Autoclose only ever names the follow-up; retire
++owns the safety proofs. Entries are keyed by slug, so re-recording one updates
++it rather than duplicating it, and `prune` drops an entry once both its
++worktree directory and its branch are gone.
++
++Maintained by `scripts/coga-retire-followups.py`.
++
++## Follow-ups (open)
++
++- `add-a-co-design-dialogue-skill-for-design-tickets` — branch `codex/co-design-dialogue-skill`, worktree `/tmp/coga-codesign-dialogue`, recorded `2026-09-04`
++- `add-a-launch-gates-skill-for-ticket-launch-precond` — branch `codex/launch-gates-skill`, worktree `/home/n/Code/codex/coga-launch-gates`, recorded `2026-09-04`
++- `v1/1-base-plugin` — branch `codex/minimal-base-plugin`, worktree `/tmp/coga-minimal-base-plugin`, recorded `2026-09-04`
++- `v1/1b-lifecycle-experiments` — branch `codex/multiply-probe-harness`, worktree `/home/n/Code/claude/multiply-probe-harness`, recorded `2026-09-04`
++- `v1/2b-stop-gated-git-delta-optimization-smoke` — branch `codex/stop-git-delta-smoke`, worktree `/tmp/coga-stop-git-delta-smoke`, recorded `2026-09-04`
++- `v1/add-isolated-codex-test-install` — branch `codex/codex-m-dogfood`, worktree `/tmp/coga-codex-m-dogfood`, recorded `2026-09-04`
++- `v1/clarify-production-and-probe-package-boundary` — branch `docs/v1-package-boundary-context`, worktree `/tmp/coga-feature.oaeRmQ/repo`, recorded `2026-09-04`
++- `v1/codex-m-untouchable` — branch `codex/codex-m-silent-launch`, worktree `/tmp/coga-codex-m-silent-launch`, recorded `2026-09-04`
++- `v1/persistent-codex-m-managed-checkout` — branch `codex-m-persistent-managed`, worktree `/tmp/coga-persistent-codex-m-managed`, recorded `2026-09-04`
++- `v1/telemetry/1-sending-infrastructure` — branch `codex/v1-telemetry-sender`, worktree `/tmp/coga-v1-telemetry-sender`, recorded `2026-09-04`
++- `v1/telemetry/extract-the-multiply-protocol-crate` — branch `codex/multiply-protocol`, worktree `/tmp/coga-v1-multiply-protocol`, recorded `2026-09-04`
++- `v1/telemetry/ram-only-event-sender` — branch `codex/v1-ram-event-sender`, worktree `/tmp/coga-v1-ram-event-sender`, recorded `2026-09-04`
++- `v1/updater/0-hosting-evidence-probes` — branch `hosting-evidence-probes`, worktree `/home/n/Code/coga-hosting-probes`, recorded `2026-09-04`
++- `v1/updater/1-dogfood-updater` — branch `codex/dogfood-updater`, worktree `/tmp/multiply-dogfood-updater`, recorded `2026-09-04`
+diff --git a/coga/recurring/autoclose-merged/ticket.md b/coga/recurring/autoclose-merged/ticket.md
+index a4e0302..203668f 100644
+--- a/coga/recurring/autoclose-merged/ticket.md
++++ b/coga/recurring/autoclose-merged/ticket.md
+@@ -26,12 +26,18 @@ which:
+ 3. checks the linked PR state with `gh pr view`,
+ 4. leaves non-final-step tickets alone as suspicious, and
+ 5. marks final-step or workflow-less tickets `done` when the PR is merged, and
+-6. names the `coga retire` follow-up for each ticket it closed that still
+-   records a `branch:` or `worktree:`.
++6. records the `coga retire` follow-up for each ticket it closed that still
++   records a `branch:` or `worktree:`, in the durable
++   `coga/recurring/autoclose-merged/retires.md`.
+ 
+ Autoclose never disposes of a checkout itself — `coga retire` owns those safety
+ proofs. Without step 6 an auto-closed ticket's worktree and branch outlive it
+-silently. Dream preserves checkout-bearing done tickets rather than deleting
++silently. Step 6 writes to the template-sibling `retires.md` rather than to a
++period task blackboard, because `coga recurring` deletes the period task at the
++start of the next period and would take the worklist with it. Entries are keyed
++by slug and maintained by `scripts/coga-retire-followups.py`, which refuses to
++duplicate a slug and prunes an entry once its worktree and branch are both
++gone. Dream preserves checkout-bearing done tickets rather than deleting
+ the `## Dev` evidence the named command needs, so that debt stays actionable
+ until a human retires it.
+ 
+@@ -50,6 +56,15 @@ This blackboard persists across every run of this recurring task. The
+ `autoclose` recipe keeps no durable state here - every run's output
+ is the tickets it marks done and the resulting digest spool records.
+ 
+-The one thing a run appends is a `## Autoclose Sweep: retire follow-ups`
+-section, and only when it closed a ticket that still records a feature
+-checkout. A sweep that stranded nothing writes nothing.
++Stranded retire follow-ups do not live here either. The sweep step records
++them in the sibling `coga/recurring/autoclose-merged/retires.md`, and only
++when it closed a ticket that still records a feature checkout. A sweep that
++stranded nothing writes nothing. That file is deliberately outside
++`coga/tasks/recurring/autoclose-merged/`, whose period task the next run
++deletes - see step 6 of the description.
++
++`coga.autoclose._report_retire_followups` writes those entries itself for a
++recurring period task, keyed by slug. `scripts/coga-retire-followups.py` is
++the maintenance tool over the same file: `prune` drops an entry once both its
++worktree and its branch are gone, and `add` backfills debt the sweep never saw
++because it only inspects tickets it closes in that run.
+diff --git a/coga/workflows/autoclose-merged/sweep.md b/coga/workflows/autoclose-merged/sweep.md
+index 485e4cd..1ba6fd6 100644
+--- a/coga/workflows/autoclose-merged/sweep.md
++++ b/coga/workflows/autoclose-merged/sweep.md
+@@ -18,3 +18,15 @@ The command exits successfully when there is nothing to close. It then names
+ the `coga retire` follow-up for each closed ticket that still records a
+ `branch:` or `worktree:` — it never removes one itself, and Dream preserves the
+ source ticket until that human-typed retirement happens.
++
++The recipe records each follow-up in the durable
++`coga/recurring/autoclose-merged/retires.md`, keyed by slug, rather than in
++this period task's blackboard — `coga recurring` deletes the period task at
++the start of the next period and would take the worklist with it. Never leave
++the sole copy in the period task.
++
++After the sweep, run `scripts/coga-retire-followups.py prune` to drop entries
++already discharged by `coga retire` or the weekly branch sweep, so the list
++stays a worklist rather than a wall of noise. Use its `add` subcommand only to
++backfill debt the sweep could not see: autoclose inspects just the tickets it
++closed in that run, so a follow-up missed once is never re-detected.
+diff --git a/scripts/coga-retire-followups.py b/scripts/coga-retire-followups.py
+new file mode 100755
+index 0000000..42f87ee
+--- /dev/null
++++ b/scripts/coga-retire-followups.py
+@@ -0,0 +1,217 @@
++#!/usr/bin/env python3
++"""Maintain the durable list of stranded `coga retire` follow-ups.
++
++The autoclose sweep names a `coga retire` follow-up for every ticket it
++closes that still records a feature checkout, but it must never dispose of
++one — `coga retire` owns the worktree and branch safety proofs. This script
++owns the file those names are written to, so the worklist survives the
++period task that the next sweep deletes.
++"""
++
++import argparse
++import datetime
++import re
++import subprocess
++import sys
++from pathlib import Path
++
++
++REPO_ROOT = Path(__file__).resolve().parents[1]
++DEFAULT_LIST = REPO_ROOT / "coga" / "recurring" / "autoclose-merged" / "retires.md"
++OPEN_HEADING = "## Follow-ups (open)"
++ENTRY_PATTERN = re.compile(
++    r"^- `(?P<slug>[^`]+)` — branch `(?P<branch>[^`]*)`, "
++    r"worktree `(?P<worktree>[^`]*)`, recorded `(?P<recorded>[^`]*)`$"
++)
++FILE_HEADER = """# Stranded `coga retire` follow-ups
++
++Durable worklist of auto-closed tickets whose feature checkout still exists.
++The `autoclose-merged` sweep appends here — **not** to its period task under
++`coga/tasks/recurring/autoclose-merged/`, which the next period deletes.
++
++Every entry means the same thing: run `coga retire <slug>` to dispose of the
++recorded worktree and branch. Autoclose only ever names the follow-up; retire
++owns the safety proofs. Entries are keyed by slug, so re-recording one updates
++it rather than duplicating it, and `prune` drops an entry once both its
++worktree directory and its branch are gone.
++
++Maintained by `scripts/coga-retire-followups.py`.
++
++## Follow-ups (open)
++"""
++
++
++class FollowUpError(Exception):
++    """A diagnostic safe to print without a traceback."""
++
++
++def parse_args():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--file", type=Path, default=DEFAULT_LIST)
++    subparsers = parser.add_subparsers(dest="command", required=True)
++
++    adder = subparsers.add_parser("add", help="record a follow-up, keyed by slug")
++    adder.add_argument("--slug", required=True)
++    adder.add_argument("--branch", default="")
++    adder.add_argument("--worktree", default="")
++    adder.add_argument("--recorded", default="")
++
++    pruner = subparsers.add_parser("prune", help="drop discharged follow-ups")
++    pruner.add_argument("--repo", type=Path, default=REPO_ROOT)
++
++    subparsers.add_parser("list", help="print the open follow-ups")
++    return parser.parse_args()
++
++
++def read_entries(path):
++    """Return (header_text, entries) for an existing or absent list file."""
++    if not path.exists():
++        return FILE_HEADER, []
++    text = path.read_text(encoding="utf-8")
++    # The separator carries its newline, so that partitioning on a heading that
++    # ends the file cannot put the whole text in `header` and then re-append
++    # the heading below, silently doubling it. A stripped trailing newline is a
++    # benign thing for an editor to do, so normalize it rather than failing the
++    # sweep over it.
++    if not text.endswith("\n"):
++        text += "\n"
++    separator = OPEN_HEADING + "\n"
++    if separator not in text:
++        raise FollowUpError(f"{path} has no '{OPEN_HEADING}' section")
++    header, _, body = text.partition(separator)
++    entries = []
++    for line in body.splitlines():
++        if not line.strip():
++            continue
++        match = ENTRY_PATTERN.match(line)
++        if match is None:
++            raise FollowUpError(f"{path}: unparsable follow-up line: {line}")
++        entries.append(match.groupdict())
++    return header + separator, collapse_by_slug(entries)
++
++
++def collapse_by_slug(entries):
++    """Collapse repeated slugs, keeping the first sighting's date.
++
++    This file is `merge=union`, so a slug recorded on two branches arrives as
++    two lines. Collapsing on read applies the same rule a re-record does — the
++    later line refreshes the checkout, the first sighting's date survives — so
++    a merge artifact cannot outlive the next write.
++    """
++    by_slug = {}
++    for entry in entries:
++        existing = by_slug.get(entry["slug"])
++        by_slug[entry["slug"]] = {
++            **entry,
++            "recorded": existing["recorded"] if existing else entry["recorded"],
++        }
++    return list(by_slug.values())
++
++
++def write_entries(path, header, entries):
++    lines = [format_entry(entry) for entry in sorted(entries, key=slug_key)]
++    body = "\n".join(lines) + "\n" if lines else ""
++    path.parent.mkdir(parents=True, exist_ok=True)
++    path.write_text(header + "\n" + body, encoding="utf-8")
++
++
++def slug_key(entry):
++    return entry["slug"]
++
++
++def format_entry(entry):
++    return (
++        f"- `{entry['slug']}` — branch `{entry['branch']}`, "
++        f"worktree `{entry['worktree']}`, recorded `{entry['recorded']}`"
++    )
++
++
++def add_follow_up(path, slug, branch, worktree, recorded):
++    header, entries = read_entries(path)
++    recorded = recorded or datetime.date.today().isoformat()
++    incoming = {
++        "slug": slug,
++        "branch": branch,
++        "worktree": worktree,
++        "recorded": recorded,
++    }
++    for index, entry in enumerate(entries):
++        if entry["slug"] != slug:
++            continue
++        # Keyed by slug: refresh the checkout fields, keep the first sighting.
++        incoming["recorded"] = entry["recorded"]
++        if entry == incoming:
++            print(f"unchanged {slug}")
++            return 0
++        entries[index] = incoming
++        write_entries(path, header, entries)
++        print(f"updated {slug}")
++        return 0
++    entries.append(incoming)
++    write_entries(path, header, entries)
++    print(f"added {slug}")
++    return 0
++
++
++def live_branches(repo):
++    """Return `repo`'s local branch names, empty if it is not a usable repo.
++
++    One `for-each-ref` for the whole worklist rather than a `rev-parse` per
++    entry: the sweep prunes every entry on every run, and branch names cannot
++    contain whitespace, so a single listing answers all of them.
++    """
++    result = subprocess.run(
++        ["git", "-C", str(repo), "for-each-ref", "--format=%(refname:short)", "refs/heads/"],
++        capture_output=True,
++        text=True,
++    )
++    if result.returncode != 0:
++        return set()
++    return set(result.stdout.split())
++
++
++def prune_follow_ups(path, repo):
++    header, entries = read_entries(path)
++    branches = live_branches(repo)
++    kept = []
++    dropped = []
++    for entry in entries:
++        worktree = entry["worktree"]
++        live_worktree = bool(worktree) and Path(worktree).is_dir()
++        live_branch = bool(entry["branch"]) and entry["branch"] in branches
++        if live_worktree or live_branch:
++            kept.append(entry)
++        else:
++            dropped.append(entry)
++    if dropped:
++        write_entries(path, header, kept)
++    for entry in dropped:
++        print(f"dropped {entry['slug']}")
++    print(f"{len(kept)} open, {len(dropped)} discharged")
++    return 0
++
++
++def list_follow_ups(path):
++    _, entries = read_entries(path)
++    for entry in sorted(entries, key=slug_key):
++        print(f"coga retire {entry['slug']}")
++    return 0
++
++
++def main():
++    args = parse_args()
++    try:
++        if args.command == "add":
++            return add_follow_up(
++                args.file, args.slug, args.branch, args.worktree, args.recorded
++            )
++        if args.command == "prune":
++            return prune_follow_ups(args.file, args.repo)
++        return list_follow_ups(args.file)
++    except FollowUpError as error:
++        print(f"error: {error}", file=sys.stderr)
++        return 1
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/tests/test_coga_retire_followups.py b/tests/test_coga_retire_followups.py
+new file mode 100644
+index 0000000..e469215
+--- /dev/null
++++ b/tests/test_coga_retire_followups.py
+@@ -0,0 +1,186 @@
++import subprocess
++import tempfile
++import unittest
++from pathlib import Path
++
++
++REPO_ROOT = Path(__file__).resolve().parents[1]
++FOLLOW_UPS_SCRIPT = REPO_ROOT / "scripts" / "coga-retire-followups.py"
++RETIRES_LIST = REPO_ROOT / "coga" / "recurring" / "autoclose-merged" / "retires.md"
++PERIOD_TASK_DIR = REPO_ROOT / "coga" / "tasks" / "recurring" / "autoclose-merged"
++OPEN_HEADING = "## Follow-ups (open)"
++
++
++class RetireFollowUpsTest(unittest.TestCase):
++    def setUp(self):
++        self.temporary_directory = tempfile.TemporaryDirectory(
++            prefix="multiply retire follow ups fixture "
++        )
++        self.root = Path(self.temporary_directory.name)
++        self.coga = self.root / "coga"
++        self.list_file = self.coga / "recurring" / "autoclose-merged" / "retires.md"
++        self.period_task = self.coga / "tasks" / "recurring" / "autoclose-merged"
++        self.period_task.mkdir(parents=True)
++        (self.period_task / "ticket.md").write_text(
++            "period task blackboard\n", encoding="utf-8"
++        )
++        self.worktree = self.root / "live worktree"
++
++    def tearDown(self):
++        self.temporary_directory.cleanup()
++
++    def run_script(self, *arguments):
++        return subprocess.run(
++            [str(FOLLOW_UPS_SCRIPT), "--file", str(self.list_file), *arguments],
++            cwd=REPO_ROOT,
++            stdout=subprocess.PIPE,
++            stderr=subprocess.PIPE,
++            check=False,
++        )
++
++    def add(self, slug, branch="", worktree=""):
++        result = self.run_script(
++            "add",
++            "--slug",
++            slug,
++            "--branch",
++            branch,
++            "--worktree",
++            worktree,
++            "--recorded",
++            "2026-09-04",
++        )
++        self.assertEqual(result.returncode, 0, result.stderr.decode())
++        return result.stdout.decode().strip()
++
++    def make_repo_holding_branch(self, branch):
++        repo = self.root / "repo"
++        repo.mkdir()
++        for command in (
++            ["git", "init", "--quiet"],
++            ["git", "config", "user.email", "test@example.com"],
++            ["git", "config", "user.name", "test"],
++            ["git", "commit", "--quiet", "--allow-empty", "-m", "root"],
++            ["git", "branch", branch],
++        ):
++            subprocess.run(command, cwd=repo, check=True, stdout=subprocess.DEVNULL)
++        return repo
++
++    def test_period_task_deletion_leaves_the_follow_up_list_intact(self):
++        self.add("v1/stranded", "codex/stranded", str(self.worktree))
++        # A period boundary deletes the whole prior-period task directory.
++        for path in sorted(self.period_task.rglob("*"), reverse=True):
++            path.unlink()
++        self.period_task.rmdir()
++
++        self.assertFalse(self.period_task.exists())
++        listed = self.run_script("list")
++        self.assertEqual(listed.returncode, 0, listed.stderr.decode())
++        self.assertEqual(listed.stdout.decode().strip(), "coga retire v1/stranded")
++
++    def test_the_durable_list_lives_outside_the_period_task_tree(self):
++        self.assertTrue(RETIRES_LIST.is_file())
++        self.assertFalse(
++            RETIRES_LIST.is_relative_to(REPO_ROOT / "coga" / "tasks"),
++            "the follow-up list must not live under coga/tasks/",
++        )
++        self.assertNotIn(PERIOD_TASK_DIR, RETIRES_LIST.parents)
++
++    def test_recording_the_same_slug_twice_does_not_duplicate_it(self):
++        self.add("v1/stranded", "codex/stranded", str(self.worktree))
++        self.assertEqual(
++            self.add("v1/stranded", "codex/stranded", str(self.worktree)),
++            "unchanged v1/stranded",
++        )
++
++        body = self.list_file.read_text(encoding="utf-8")
++        self.assertEqual(body.count("`v1/stranded`"), 1)
++
++    def test_re_recording_a_slug_refreshes_the_checkout_it_names(self):
++        self.add("v1/stranded", "codex/old-branch", str(self.worktree))
++        self.assertEqual(
++            self.add("v1/stranded", "codex/new-branch", str(self.worktree)),
++            "updated v1/stranded",
++        )
++
++        body = self.list_file.read_text(encoding="utf-8")
++        self.assertEqual(body.count("`v1/stranded`"), 1)
++        self.assertIn("branch `codex/new-branch`", body)
++        self.assertNotIn("codex/old-branch", body)
++
++    def test_prune_drops_a_follow_up_whose_worktree_and_branch_are_gone(self):
++        self.add("v1/discharged", "codex/gone", str(self.root / "absent worktree"))
++        repo = self.make_repo_holding_branch("codex/unrelated")
++
++        result = self.run_script("prune", "--repo", str(repo))
++        self.assertEqual(result.returncode, 0, result.stderr.decode())
++        self.assertIn("dropped v1/discharged", result.stdout.decode())
++        self.assertNotIn("v1/discharged", self.list_file.read_text(encoding="utf-8"))
++
++    def test_prune_keeps_a_follow_up_whose_branch_still_exists(self):
++        self.add("v1/stranded", "codex/stranded", str(self.root / "absent worktree"))
++        repo = self.make_repo_holding_branch("codex/stranded")
++
++        result = self.run_script("prune", "--repo", str(repo))
++        self.assertEqual(result.returncode, 0, result.stderr.decode())
++        self.assertIn("1 open, 0 discharged", result.stdout.decode())
++        self.assertIn("v1/stranded", self.list_file.read_text(encoding="utf-8"))
++
++    def test_prune_keeps_a_follow_up_whose_worktree_still_exists(self):
++        self.worktree.mkdir()
++        self.add("v1/stranded", "codex/gone", str(self.worktree))
++        repo = self.make_repo_holding_branch("codex/unrelated")
++
++        result = self.run_script("prune", "--repo", str(repo))
++        self.assertEqual(result.returncode, 0, result.stderr.decode())
++        self.assertIn("1 open, 0 discharged", result.stdout.decode())
++        self.assertIn("v1/stranded", self.list_file.read_text(encoding="utf-8"))
++
++    def test_a_heading_without_a_trailing_newline_is_not_doubled(self):
++        # An editor that strips the trailing newline leaves the file ending at
++        # the heading; partitioning on a bare heading would re-append it.
++        self.list_file.parent.mkdir(parents=True, exist_ok=True)
++        self.list_file.write_text(
++            f"# Stranded follow-ups\n\n{OPEN_HEADING}", encoding="utf-8"
++        )
++
++        self.add("v1/stranded", "codex/stranded", str(self.worktree))
++
++        body = self.list_file.read_text(encoding="utf-8")
++        self.assertEqual(body.count(OPEN_HEADING), 1)
++        self.assertIn("`v1/stranded`", body)
++
++    def test_union_merged_duplicate_slugs_collapse_on_the_next_write(self):
++        # `retires.md` is merge=union, so the same slug recorded on two
++        # branches arrives as two lines.
++        self.add("v1/stranded", "codex/old-branch", str(self.worktree))
++        with self.list_file.open("a", encoding="utf-8") as handle:
++            handle.write(
++                "- `v1/stranded` — branch `codex/other-branch`, "
++                f"worktree `{self.worktree}`, recorded `2026-09-05`\n"
++            )
++
++        listed = self.run_script("list")
++        self.assertEqual(listed.returncode, 0, listed.stderr.decode())
++        self.assertEqual(listed.stdout.decode().strip(), "coga retire v1/stranded")
++
++        self.add("v1/stranded", "codex/new-branch", str(self.worktree))
++
++        body = self.list_file.read_text(encoding="utf-8")
++        self.assertEqual(body.count("`v1/stranded`"), 1)
++        self.assertIn("branch `codex/new-branch`", body)
++        # The first sighting's date survives the collapse.
++        self.assertIn("recorded `2026-09-04`", body)
++
++    def test_an_unparsable_entry_fails_loudly(self):
++        self.add("v1/stranded", "codex/stranded", str(self.worktree))
++        with self.list_file.open("a", encoding="utf-8") as handle:
++            handle.write("- not a follow-up line\n")
++
++        result = self.run_script("list")
++        self.assertEqual(result.returncode, 1)
++        self.assertIn("unparsable follow-up line", result.stderr.decode())
++
++
++if __name__ == "__main__":
++    unittest.main()
