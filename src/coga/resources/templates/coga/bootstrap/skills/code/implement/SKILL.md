@@ -76,7 +76,11 @@ later `code/open-pr` step does that, after self-review and fixes.
 4. **Implement in the worktree.** Change into the feature worktree and
    match existing code style. Keep changes scoped to the
    ticket — no opportunistic refactors. If you find a real adjacent bug,
-   write it on the blackboard for a follow-up ticket; don't fix it here.
+   record its symptom, affected code, evidence or reproduction, and any
+   existing follow-up ticket reference on the blackboard; don't fix it here.
+   State what remains unresolved. `retro/done-ticket` owns carrying that
+   finding into a durable context before deleting this ticket, so the
+   blackboard is a handoff, not the bug's final home.
 5. **Test.** Add a regression test before the fix when the ticket is a
    bug. Run `python -m pytest`. If validation behavior changed, run
    `coga validate --json` against the example fixture. **Make new tests

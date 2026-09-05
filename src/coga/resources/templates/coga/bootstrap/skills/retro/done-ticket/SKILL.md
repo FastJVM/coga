@@ -129,6 +129,38 @@ and known failure modes belong in contexts; repeatable instructions for how an
 agent should do work belong in skills. If the process knowledge is already
 covered by an existing skill, do not duplicate it.
 
+### Unresolved adjacent bugs
+
+An unresolved adjacent bug parked on a source ticket's blackboard is durable
+knowledge. `code/implement` records these findings while keeping its own fix
+scoped; Retro owns carrying them out before the source ticket is deleted.
+Read the whole blackboard, including free-form notes without a special heading,
+before deciding that a ticket contains no new durable knowledge. A source
+ticket's `status: done` says nothing about whether its adjacent bugs are fixed.
+
+Preserve each uncovered bug as a known failure mode in the smallest fitting
+context, with:
+
+- the observed symptom, triggering conditions, and affected code or surface;
+- the concrete evidence or reproduction recorded in the ticket and its
+  attachments, with enough detail to investigate after those files are deleted;
+- what remains unresolved, any recorded workaround, and any existing follow-up
+  ticket reference. Keep uncertainty explicit; do not invent a fix or claim one
+  has landed.
+
+A link to the source ticket, its soon-to-be-deleted attachments, or a follow-up
+ticket alone does not preserve the finding. Do not drop it as one-off execution
+noise, as obvious from the code, or because it was outside the finished task's
+scope. Fixing the bug remains follow-up work; Retro preserves the evidence.
+
+An uncovered bug makes its source knowledge-bearing: preserve the finding and
+delete the source in the same reviewable knowledge PR, never by direct delete.
+Deduplicate only when the current context/skill corpus already preserves the
+same actionable finding, or this run's delta does. For a duplicate covered by
+the running delta, keep at least one source carrying the evidence in the PR
+that preserves it; that source must remain on the control branch until the
+knowledge and deletion land together. An in-memory note alone is not durable.
+
 ## Isolation boundary
 
 Run only inside a subagent whose cwd is a dedicated isolated checkout. Use the
@@ -266,7 +298,9 @@ marker for the same source task.
    when present.
    Extract candidate durable knowledge: domain facts, repo conventions, sharp
    gotchas, durable decisions, corrected assumptions, known failure modes, and
-   boundaries future agents should inherit. Read the ticket files themselves —
+   boundaries future agents should inherit. Apply **Unresolved adjacent bugs**
+   above to parked follow-up findings before classifying any ticket as carrying
+   no new durable knowledge. Read the ticket files themselves —
    do not consult git history, prior PRs, or old revisions for any of this.
 
 4. **Maintain the running delta.**
@@ -306,6 +340,7 @@ marker for the same source task.
    | New coherent topic | Create a focused context under `<contexts-dir>/<namespace>/<name>/SKILL.md`. |
    | Duplicate or stale existing context | Merge, rewrite, or delete the obsolete block/file. |
    | Repeatable process knowledge | Update an existing skill, or create a focused skill if none fits. |
+   | Unresolved adjacent bug | Preserve the actionable finding as a known failure mode in a fitting context; delete its source in that knowledge PR. |
    | One-off execution detail | Drop. |
 
    "New and useful" means a future launched agent would make a better decision
@@ -341,6 +376,9 @@ marker for the same source task.
    knowledge.
 
 9. **Delete every processed source task.**
+   Before any deletion, verify that every unresolved adjacent bug is preserved
+   as required above. A source with an uncovered bug cannot take the direct-delete
+   path, even when it contains no other durable knowledge.
    A source task that contributed new durable knowledge is deleted inside the PR
    that records its `## Retro` marker, after recording that marker — in its
    theme's knowledge PR. A source task with no new durable knowledge is deleted
@@ -401,6 +439,7 @@ Knowledge PR — use this shape:
 ## Classification
 - Moved into context: <bullets>
 - Moved into skill: <bullets or "none">
+- Unresolved adjacent bugs: <finding and target context, or "none">
 - Already covered: <bullets or "none">
 - Dropped as one-off: <bullets or "none">
 
