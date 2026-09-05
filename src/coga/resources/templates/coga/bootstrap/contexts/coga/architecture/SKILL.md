@@ -1075,9 +1075,11 @@ carry their classification and partition rules, while the sibling
 `bootstrap/dream/scan/scan-protocol` skill carries their shared bounded-read,
 durable-output, heartbeat, completion, and retry-supersession rules. The Dream
 template body builds the scan index and append-only manifest, delegates each
-phase across bounded shard subagents, reconciles only active leaf assignments,
-and merges their on-disk findings into `## Findings`; a final message is not the
-delivery mechanism. Known limitation: the contract audit's own corpus globs
+phase across bounded shard subagents, reconciles only active leaf assignments —
+at the barrier, and by distinct completing shard id rather than by counting the
+completion lines in the shared append-only `progress.md` — and merges their
+on-disk findings into `## Findings`; a final message is not the delivery
+mechanism. Known limitation: the contract audit's own corpus globs
 (the configured contexts directory, `coga/skills/**`) do not cover package-backed
 `bootstrap/skills/**`, so the bundled Dream skills — the scan skills included
 — sit outside the surface that audit reads.

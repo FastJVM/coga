@@ -109,12 +109,18 @@ nothing is indistinguishable from a clean repo. Run each scan like this:
    skill, passing the scan directory's absolute path, the shard id, and that
    shard's exact paths. Shards append to the shared `findings.md` and
    `progress.md`; they do not report findings back through their final message.
-4. **Reconcile before believing the result.** Compare the active leaf shard rows
-   in `manifest.md` against the completion lines in `progress.md`. Every leaf
-   shard must have written
-   `<shard-id> complete — <N> findings`; `0 findings` is an explicit, valid
-   result, and a shard with no line at all is a shard that never returned. Do
-   not treat a missing line as zero findings.
+4. **Reconcile before believing the result.** Reconcile only at the barrier,
+   once every shard subagent you launched for this attempt has returned; a
+   shard that goes idle after writing its completion line has finished, and a
+   mid-flight read of `progress.md` cannot tell that apart from a shard that
+   has not written yet. Compare the active leaf shard rows in `manifest.md`
+   against the **set of distinct shard ids** that wrote
+   `<shard-id> complete — <N> findings` to `progress.md`. Count distinct shard
+   ids, never completion lines: `progress.md` is append-only and shared, a
+   shard can append its line twice, and a duplicate can make the line total
+   reach the leaf count while a leaf is genuinely missing. `0 findings` is an
+   explicit, valid result, and a shard with no line at all is a shard that
+   never returned. Do not treat a missing line as zero findings.
 5. **Retry once, then report honestly.** For any missing or `incomplete`
    assignment, append a manifest `supersede <parent> -> <children>` row plus
    smaller attempt-2 child rows and retry those leaves once. If an attempt-2

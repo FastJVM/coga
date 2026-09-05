@@ -316,6 +316,15 @@ def test_dream_scans_stream_durable_findings_and_report_completion() -> None:
     assert "leaf assignments" in norm
     assert "reconciliation checks only those leaves" in norm.lower()
     assert "A superseded parent's late completion" in norm
+    # `progress.md` is append-only and shared, so a duplicated completion line
+    # must not inflate coverage; reconciliation is over the id set, and it
+    # happens only once every shard has returned.
+    assert "set of distinct shard ids" in norm
+    assert "Count distinct shard ids, never completion lines" in norm
+    assert "a shard can append its completion line more than once" in norm
+    assert "the number of lines in the file is not the number of shards" in norm
+    assert "Reconcile at the barrier, never while shards are still reporting" in norm
+    assert "A shard that goes idle after writing its completion line has finished" in norm
     assert "phase's finding total comes from the de-duplicated `findings.md`" in norm
     assert "including durable findings written by a parent" in norm
     assert "Supersession changes coverage expectations, never delivery" in norm
@@ -339,6 +348,9 @@ def test_dream_shards_and_reconciles_the_scan_phases() -> None:
     assert "no more than 150 KB across at most 40 distinct files" in norm
     assert "Compare the active leaf shard rows" in norm
     assert "Do not treat a missing line as zero findings" in norm
+    assert "Reconcile only at the barrier" in norm
+    assert "set of distinct shard ids" in norm
+    assert "Count distinct shard ids, never completion lines" in norm
     assert "supersede <parent> -> <children>" in norm
     assert "retry those leaves once" in norm
     assert "de-duplicated findings across all attempts total zero" in norm
@@ -373,4 +385,5 @@ def test_dream_sharding_updates_the_architecture_contract() -> None:
     assert "two sharded subagent scans" in norm
     assert "retry-supersession rules" in norm
     assert "reconciles only active leaf assignments" in norm
+    assert "by distinct completing shard id rather than by counting" in norm
     assert "`no-op`, `reported`, `partial`, `proposed`" in norm
