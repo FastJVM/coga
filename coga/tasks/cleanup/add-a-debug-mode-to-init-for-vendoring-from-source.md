@@ -60,8 +60,8 @@ PyPI-version-not-published problem — that belongs to the sibling tickets
 `cleanup/publish-coga-1-0-to-pypi` and
 `cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f`.
 
-**Done means:** running `coga init --from-source .` from a wheel install
-vendors the named checkout; `docs/development.md`, `docs/reference.md` and
+**Done means:** running `coga init --from-source .` vendors the named
+checkout from a non-editable install (see the uv case below); `docs/development.md`, `docs/reference.md` and
 `docs/releasing.md` each describe the source-vs-release distinction and name
 `COGA_REPO_URL` and `COGA_PYTHON`; `python -m pytest` passes with new
 coverage for the flag; nothing else in the resolution logic changed.
@@ -85,8 +85,25 @@ bad source fails loud and leaves nothing on disk. `resolve_install_source()`
 
 The new flag becomes tier 0. The original audit finding ("no way to init from
 a development checkout by default") is stale for the editable case — tier 2
-already handles it. What it does not cover is a *wheel* install pointed at an
-arbitrary checkout without knowing the env var, which is what the flag is for.
+already handles it. What tier 2 does not cover is the case below, which is
+what the flag is for.
+
+**The concrete failure the flag fixes: a uv tool install from a checkout.**
+Only *editable* installs land the package at `<root>/src/coga/`, so only they
+trip `_running_checkout_root()`. `pip install -e .` (what
+`docs/development.md` documents) and `uv tool install -e .` are fine. But
+`version_skew.py:217` tells contributors to reinstall with `uv tool install
+--force --from . coga` — a non-editable build into uv's tool directory. There
+`coga.__file__` is under site-packages, tier 2 misses, and init falls through
+to `coga==<unreleased version>` on PyPI and fails. A contributor following
+Coga's own printed advice hits this. Cover it with a test, and say so in
+`docs/development.md`.
+
+Note the vendored venv itself is stdlib-only and stays that way: `python -m
+venv` (`update.py:672`), then `<venv>/bin/python -m pip install <spec>`
+(`update.py:693`), plus a second pip pass in `install_skill_requirements`
+(`update.py:752`). uv is how a developer installs the *CLI*, never how init
+builds `.coga/.venv`. Do not introduce uv into that path.
 
 **Doc surfaces, all three.** `docs/development.md` and `docs/releasing.md`
 contain zero mention of `COGA_REPO_URL` or source-vendoring.
