@@ -214,7 +214,11 @@ no in-memory state.
   two registered recipes invoked directly, two sharded subagent scans, a
   delegated Retro pass, and a disposition phase. Its body scans the ticket
   set, runs fixed Coga housekeeping, proposes cleanup, and writes reviewable
-  results to its blackboard.
+  results to its blackboard. Retro owns preserving unresolved adjacent bugs
+  parked on completed tickets' blackboards as durable known failure modes.
+  The evidence and remaining follow-up move into a fitting context in the
+  same reviewable PR that deletes the source ticket; finishing the original
+  task does not resolve its adjacent bugs.
 - **REM** is repo/user-specific recurring maintenance. A REM run is an
   ordinary recurring task whose body defines that repo's operational checks,
   domain skills, output conventions, and review gates.
