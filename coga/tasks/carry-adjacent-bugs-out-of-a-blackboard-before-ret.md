@@ -1,7 +1,7 @@
 ---
 slug: carry-adjacent-bugs-out-of-a-blackboard-before-ret
 title: Carry adjacent bugs out of a blackboard before Retro deletes it
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
