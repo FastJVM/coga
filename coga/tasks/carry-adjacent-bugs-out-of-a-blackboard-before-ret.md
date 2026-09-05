@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -172,6 +172,18 @@ worktree: /tmp/coga-retro-adjacent-bugs
   reviewed commit `f246e6ea`, fresh base `03a4d0a2`, and PR body below. The
   existing approval to proceed with the documented baseline fixture failure
   still applies. No feature push or PR in this step.
+
+## Open PR
+
+- `coga open-pr` ran from the primary control checkout (on `main`) against the
+  separate feature worktree `/tmp/coga-retro-adjacent-bugs`. No borrow was
+  needed; the command reported the base advanced only through non-overlapping
+  Coga task/log state, so the branch was safe to publish.
+- Branch `retro-adjacent-bugs` (commit `f246e6ea`) pushed; PR opened and
+  recorded: https://github.com/FastJVM/coga/pull/757
+- No code changes in this step. The documented pre-existing
+  `test_recurring_create_is_silent` fixture failure is unchanged and remains
+  the unresolved adjacent bug noted above.
 
 ## PR
 
