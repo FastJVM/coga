@@ -2,7 +2,7 @@
 slug: live-and-packaged-twin-pairs-are-edited-together-b
 title: Live and packaged twin pairs are edited together by convention but not enforced
   by any test
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
