@@ -15,10 +15,11 @@ from coga.blackboard import (
     Blocker,
     append_to_section_text,
     parse_blockers_text,
+    update_blackboard_under_barrier,
 )
 from coga.config import Config
 from coga.notification import post
-from coga.taskfile import TaskFileError, read_blackboard, replace_blackboard
+from coga.taskfile import TaskFileError, read_blackboard
 from coga.tasks import TaskRef, list_tasks, read_ticket
 from coga.ticket import TicketError
 
@@ -107,21 +108,33 @@ def reminder_fingerprints(blackboard_text: str) -> set[str]:
     return found
 
 
-def record_reminder(ticket_path: Path, fingerprint: str, *, now: datetime) -> bool:
+def record_reminder(
+    cfg: Config,
+    ticket_path: Path,
+    fingerprint: str,
+    *,
+    now: datetime,
+) -> bool:
     """Record one reminder watermark in the task blackboard.
 
     Returns False when the fingerprint is already present.
     """
-    blackboard = read_blackboard(ticket_path)
-    if fingerprint in reminder_fingerprints(blackboard):
-        return False
     stamp = now.strftime("%Y-%m-%d %H:%M")
     entry = f"- {fingerprint} last_reminded: {stamp}"
-    replace_blackboard(
-        ticket_path,
-        append_to_section_text(blackboard, REMINDERS_HEADING, entry),
+
+    def add_watermark(blackboard: str) -> str | None:
+        if fingerprint in reminder_fingerprints(blackboard):
+            return None
+        return append_to_section_text(blackboard, REMINDERS_HEADING, entry)
+
+    return (
+        update_blackboard_under_barrier(
+            cfg,
+            ticket_path,
+            add_watermark,
+        )
+        is not None
     )
-    return True
 
 
 def remind_blocked_tasks(cfg: Config, *, now: datetime | None = None) -> int:
@@ -143,7 +156,12 @@ def remind_blocked_tasks(cfg: Config, *, now: datetime | None = None) -> int:
             owner=owner,
             watchers=reminder.watchers,
         )
-        if record_reminder(reminder.ticket_path, reminder.fingerprint, now=now):
+        if record_reminder(
+            cfg,
+            reminder.ticket_path,
+            reminder.fingerprint,
+            now=now,
+        ):
             git.sync_task_state(
                 cfg,
                 reminder.task_path,

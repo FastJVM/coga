@@ -15,6 +15,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from coga import git
+from coga.atomicio import atomic_write_text
+from coga.config import Config
 from coga.paths import read_packaged_resource
 from coga.taskfile import (
     TaskFileError,
@@ -33,6 +36,96 @@ PRELAUNCH_AUTHORING_HEADINGS = (
 )
 PRELAUNCH_SYNTHESIS_TEXT_CHARS = 600
 BLOCKER_TS_FORMAT = "%Y-%m-%d %H:%M"
+
+
+def update_blackboard_under_barrier(
+    cfg: Config,
+    ticket_path: Path,
+    transform: Callable[[str], str | None],
+    *,
+    expected_bytes: bytes | None = None,
+    after_write: Callable[[bytes], None] | None = None,
+) -> bytes | None:
+    """Apply one blackboard transform behind spawn admission.
+
+    ``None`` from ``transform`` is a no-op. The live bytes are captured and
+    compared again at replacement, so an editor that does not participate in
+    Coga's barrier still wins loudly instead of being overwritten.
+    """
+    with git.state_publication_barrier(cfg):
+        raw = ticket_path.read_bytes()
+        if expected_bytes is not None and raw != expected_bytes:
+            raise TaskFileError(
+                f"ticket changed before its blackboard update: {ticket_path}"
+            )
+        region = read_blackboard(ticket_path, expected_bytes=raw)
+        replacement = transform(region)
+        if replacement is None:
+            return None
+        written = replace_blackboard(
+            ticket_path,
+            replacement,
+            expected_bytes=raw,
+        )
+        if after_write is not None:
+            after_write(written)
+        return written
+
+
+def append_blackboard_report(
+    cfg: Config,
+    ticket_path: Path,
+    report: str,
+) -> bytes:
+    """Append a report without crossing child release.
+
+    Current task environments point at the fenced ``ticket.md`` itself. The
+    fence-less branch preserves the older standalone report-file contract for
+    callers/tests that still supply a path such as ``blackboard.md``.
+    """
+    if not ticket_path.parent.is_dir():
+        raise RuntimeError(
+            f"Blackboard parent does not exist: {ticket_path.parent}"
+        )
+
+    def append(region: str, *, newline: str) -> str:
+        normalized_report = (
+            report.replace("\r\n", "\n")
+            .replace("\r", "\n")
+            .replace("\n", newline)
+        )
+        if not region or region.endswith(newline * 2):
+            separator = ""
+        elif region.endswith(newline):
+            separator = newline
+        else:
+            separator = newline * 2
+        return region + separator + normalized_report
+
+    with git.state_publication_barrier(cfg):
+        # Never recreate a task that deletion removed while this writer was
+        # waiting to enter the barrier. Report targets are existing task files;
+        # a missing file is a stale launch context, not an empty blackboard.
+        raw = ticket_path.read_bytes()
+        text = raw.decode("utf-8")
+        newline = "\r\n" if b"\r\n" in raw else "\n"
+        if fence_count(text):
+            region = read_blackboard(ticket_path, expected_bytes=raw)
+            return replace_blackboard(
+                ticket_path,
+                append(region, newline=newline),
+                expected_bytes=raw,
+            )
+
+        # Legacy standalone blackboards have no task fence. Keep their whole
+        # file append semantics, but make the write atomic and barrier-held.
+        if ticket_path.read_bytes() != raw:
+            raise TaskFileError(
+                f"ticket changed before its blackboard update: {ticket_path}"
+            )
+        rendered = append(text, newline=newline)
+        atomic_write_text(ticket_path, rendered)
+        return rendered.encode("utf-8")
 
 
 def render_blackboard(task_title: str) -> str:
@@ -408,6 +501,8 @@ __all__ = [
     "PRODUCTION_NOTES_HEADING",
     "PRELAUNCH_AUTHORING_HEADINGS",
     "PRELAUNCH_SYNTHESIS_TEXT_CHARS",
+    "update_blackboard_under_barrier",
+    "append_blackboard_report",
     "render_blackboard",
     "Blocker",
     "append_to_section_text",

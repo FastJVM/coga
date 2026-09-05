@@ -2,17 +2,26 @@
 
 from __future__ import annotations
 
+import threading
+from dataclasses import replace
 from pathlib import Path
 from textwrap import dedent
 
 import pytest
 from typer.testing import CliRunner
 
+from coga import git as git_module
 from coga.blackboard import append_blocker, open_blockers
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
-from coga.mark import CancellationError, mark_active, mark_canceled, mark_in_progress
+from coga.mark import (
+    CancellationError,
+    mark_active,
+    mark_canceled,
+    mark_in_progress,
+    mark_paused,
+)
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.tasks import read_ticket, resolve_task
 from coga.ticket import Ticket
@@ -332,6 +341,214 @@ def test_mark_paused_preserves_step(repo: Path) -> None:
     t = Ticket.read(task_path)
     assert t.status == "paused"
     assert t.step == "2 (pr)"
+
+
+def test_lifecycle_write_waits_until_child_release_even_without_git(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A final spawn proof cannot race a local-only lifecycle mutation."""
+    slug, task_path = _make_task(repo, status="in_progress")
+    cfg = replace(load_config(repo), git_enabled=False)
+    ref = resolve_task(cfg, slug)
+    ticket = read_ticket(ref)
+    original = task_path.read_bytes()
+    attempted = threading.Event()
+    gate_written = threading.Event()
+    write_finished = threading.Event()
+    errors: list[BaseException] = []
+    real_write = git_module.write_ticket_under_barrier
+
+    def observed_write(  # type: ignore[no-untyped-def]
+        cfg_, ticket_, path_, *, mutation_snapshot=None
+    ):
+        attempted.set()
+        real_write(
+            cfg_,
+            ticket_,
+            path_,
+            mutation_snapshot=mutation_snapshot,
+        )
+        assert gate_written.is_set()
+        write_finished.set()
+
+    monkeypatch.setattr(git_module, "write_ticket_under_barrier", observed_write)
+
+    def pause_ticket() -> None:
+        try:
+            mark_paused(
+                cfg,
+                ref,
+                ticket,
+                actor="human:marc",
+                log_message="paused during held-child admission",
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    worker = threading.Thread(target=pause_ticket)
+    with git_module.state_publication_barrier(cfg):
+        worker.start()
+        assert attempted.wait(timeout=5)
+        assert not write_finished.wait(timeout=0.1)
+        assert task_path.read_bytes() == original
+        # Models the supervisor's gate-byte write while it still owns the
+        # shared admission/publication barrier.
+        gate_written.set()
+
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert errors == []
+    assert Ticket.read(task_path).status == "paused"
+
+
+def test_strict_lifecycle_compare_and_write_share_publication_barrier(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A peer write cannot land between a strict byte check and replacement."""
+    _, task_path = _make_task(repo, status="active")
+    cfg = replace(load_config(repo), git_enabled=False)
+    snapshot = git_module.FileMutationRollback.capture((task_path,))
+    stale = Ticket.read(task_path)
+    stale.frontmatter["status"] = "paused"
+    peer = Ticket.read(task_path)
+    peer.frontmatter["status"] = "done"
+    checked = threading.Event()
+    peer_attempted = threading.Event()
+    peer_finished = threading.Event()
+    errors: list[BaseException] = []
+    real_require_unchanged = snapshot.require_unchanged
+
+    def pause_after_compare(path: Path) -> None:
+        real_require_unchanged(path)
+        checked.set()
+        assert peer_attempted.wait(timeout=5)
+        assert not peer_finished.wait(timeout=0.1)
+
+    monkeypatch.setattr(snapshot, "require_unchanged", pause_after_compare)
+
+    def write_stale_state() -> None:
+        try:
+            git_module.write_ticket_under_barrier(
+                cfg,
+                stale,
+                task_path,
+                mutation_snapshot=snapshot,
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    def write_peer_state() -> None:
+        try:
+            peer_attempted.set()
+            git_module.write_ticket_under_barrier(cfg, peer, task_path)
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            peer_finished.set()
+
+    stale_worker = threading.Thread(target=write_stale_state)
+    stale_worker.start()
+    assert checked.wait(timeout=5)
+    peer_worker = threading.Thread(target=write_peer_state)
+    peer_worker.start()
+    stale_worker.join(timeout=5)
+    peer_worker.join(timeout=5)
+
+    assert not stale_worker.is_alive()
+    assert not peer_worker.is_alive()
+    assert errors == []
+    assert snapshot.generated == {task_path: stale.render().encode("utf-8")}
+    assert Ticket.read(task_path).status == "done"
+
+
+def test_strict_lifecycle_compare_and_restore_share_publication_barrier(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed stale transition cannot restore over a peer lifecycle write."""
+    _, task_path = _make_task(repo, status="active")
+    cfg = replace(load_config(repo), git_enabled=False)
+    snapshot = git_module.FileMutationRollback.capture((task_path,))
+    generated = Ticket.read(task_path)
+    generated.frontmatter["status"] = "paused"
+    generated.write(task_path)
+    snapshot.arm({task_path: generated.render().encode("utf-8")})
+    peer = Ticket.read(task_path)
+    peer.frontmatter["status"] = "done"
+    restore_reached = threading.Event()
+    peer_attempted = threading.Event()
+    peer_finished = threading.Event()
+    errors: list[BaseException] = []
+    real_restore_file_bytes = git_module._restore_file_bytes
+
+    def pause_before_restore(path: Path, data: bytes | None) -> None:
+        restore_reached.set()
+        assert peer_attempted.wait(timeout=5)
+        assert not peer_finished.wait(timeout=0.1)
+        real_restore_file_bytes(path, data)
+
+    monkeypatch.setattr(git_module, "_restore_file_bytes", pause_before_restore)
+
+    def restore_generated_state() -> None:
+        try:
+            assert git_module.restore_files_under_barrier(cfg, snapshot) == ()
+        except BaseException as exc:
+            errors.append(exc)
+
+    def write_peer_state() -> None:
+        try:
+            peer_attempted.set()
+            git_module.write_ticket_under_barrier(cfg, peer, task_path)
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            peer_finished.set()
+
+    restore_worker = threading.Thread(target=restore_generated_state)
+    restore_worker.start()
+    assert restore_reached.wait(timeout=5)
+    peer_worker = threading.Thread(target=write_peer_state)
+    peer_worker.start()
+    restore_worker.join(timeout=5)
+    peer_worker.join(timeout=5)
+
+    assert not restore_worker.is_alive()
+    assert not peer_worker.is_alive()
+    assert errors == []
+    assert Ticket.read(task_path).status == "done"
+
+
+def test_bump_clears_finished_megalaunch_claim(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="in_progress")
+    ticket = Ticket.read(task_path)
+    ticket.frontmatter["launch_generation"] = "finished-session"
+    ticket.write(task_path)
+
+    result = CliRunner().invoke(app, ["bump", slug])
+
+    assert result.exit_code == 0, result.output
+    advanced = Ticket.read(task_path)
+    assert advanced.step == "2 (pr)"
+    assert advanced.launch_generation is None
+
+
+@pytest.mark.parametrize("status", ["paused", "done", "canceled"])
+def test_mark_session_end_clears_megalaunch_claim(
+    repo: Path, status: str
+) -> None:
+    slug, task_path = _make_task(repo, status="active")
+    ticket = Ticket.read(task_path)
+    ticket.frontmatter["launch_generation"] = "finished-session"
+    ticket.write(task_path)
+    command = ["mark", status, slug]
+    if status == "canceled":
+        command.extend(["--message", "No longer needed"])
+
+    result = CliRunner().invoke(app, command)
+
+    assert result.exit_code == 0, result.output
+    ended = Ticket.read(task_path)
+    assert ended.status == status
+    assert ended.launch_generation is None
 
 
 def test_mark_paused_from_draft_errors(repo: Path) -> None:

@@ -22,6 +22,7 @@ import shutil
 import sys
 from pathlib import Path
 
+from coga import git
 from coga.config import Config
 from coga.tasks import TaskNotFoundError, TaskRef, resolve_task
 
@@ -30,10 +31,11 @@ class DeleteTaskError(RuntimeError):
     """Task deletion refused to remove its target, or could not complete it."""
 
 
-def run_delete_task(ref: TaskRef) -> str:
+def run_delete_task(cfg: Config, ref: TaskRef) -> str:
     """Delete one resolved task and return the report line.
 
-    Callers own synchronization. `coga delete` lands the removal immediately;
+    The filesystem removal owns the checkout-local spawn-admission barrier.
+    Callers own Git publication: `coga delete` lands the removal immediately;
     recurring replacement recreates the task at the same path and syncs that
     replacement as one state transition.
 
@@ -45,19 +47,25 @@ def run_delete_task(ref: TaskRef) -> str:
     read-only file or a held handle must not abort them with a traceback.
     """
     ticket = ref.ticket_path
-    if not ticket.is_file():
-        raise DeleteTaskError(f"{ticket} is not a file — refusing to delete")
-
     try:
-        if ticket.name == "ticket.md":
-            # Directory form: remove the whole task directory (ticket + siblings).
-            shutil.rmtree(ticket.parent)
-            target: Path = ticket.parent
-        else:
-            # File form: remove just the single-file ticket; leave the parent
-            # (a shared tasks/ subtree) untouched.
-            ticket.unlink()
-            target = ticket
+        with git.state_publication_barrier(cfg):
+            if not ticket.is_file():
+                raise DeleteTaskError(
+                    f"{ticket} is not a file — refusing to delete"
+                )
+            if ticket.name == "ticket.md":
+                # Directory form: remove the whole task directory (ticket + siblings).
+                shutil.rmtree(ticket.parent)
+                target: Path = ticket.parent
+            else:
+                # File form: remove just the single-file ticket; leave the parent
+                # (a shared tasks/ subtree) untouched.
+                ticket.unlink()
+                target = ticket
+    except git.GitError as exc:
+        raise DeleteTaskError(
+            f"could not serialize deletion of {ticket}: {exc}"
+        ) from exc
     except OSError as exc:
         raise DeleteTaskError(f"could not delete {ticket}: {exc}") from exc
 
@@ -83,7 +91,7 @@ def run_delete_task_recipe(cfg: Config, argv: list[str]) -> int:
         return 2
 
     try:
-        report = run_delete_task(ref)
+        report = run_delete_task(cfg, ref)
     except DeleteTaskError as exc:
         sys.stderr.write(f"delete-task: {exc}\n")
         return 2

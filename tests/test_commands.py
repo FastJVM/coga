@@ -1,22 +1,27 @@
 from __future__ import annotations
 
+import threading
+from contextlib import contextmanager
+from dataclasses import replace
 from pathlib import Path
 from textwrap import dedent
 
 import pytest
 from typer.testing import CliRunner
 
+from coga import git as git_module
 from coga.blackboard import append_blocker
 from coga.bump import AssigneeResolutionError, resolve_other_agent
 from coga.commands import delete as delete_cmd
 from coga.cli import app
 from coga.create import create_task
 from coga.config import load_config
+from coga.delete_task import run_delete_task
 from coga.logfile import task_log_lines
 from coga.paths import log_path
 from coga.repl_supervisor import EXPECTED_STEP_ENV, EXPECTED_TASK_ENV, SENTINEL_ENV
 from coga.taskfile import join_task_body, read_blackboard, replace_blackboard
-from coga.tasks import list_tasks
+from coga.tasks import list_tasks, resolve_task
 from coga.ticket import Ticket
 
 
@@ -859,6 +864,9 @@ def test_bump_gate_fails_loud_on_non_string_requires(repo: Path) -> None:
 
 def test_block_writes_blocker_and_status(repo: Path) -> None:
     slug, task_path = _make_task(repo)
+    claimed = Ticket.read(task_path)
+    claimed.frontmatter["launch_generation"] = "finished-session"
+    claimed.write(task_path)
     runner = CliRunner()
     result = runner.invoke(app, ["block", "--task", slug, "--reason", "unclear ceiling for 429 backoff"])
     assert result.exit_code == 0, result.output
@@ -868,6 +876,7 @@ def test_block_writes_blocker_and_status(repo: Path) -> None:
     ticket = Ticket.read(task_path)
     assert ticket.status == "blocked"
     assert ticket.step == "1 (implement)"
+    assert ticket.launch_generation is None
     assert "blocked:" in _log_text(repo, slug)
 
 
@@ -1035,6 +1044,96 @@ def test_delete_task_recipe_removes_the_task(repo: Path) -> None:
     assert result.exit_code == 0, result.output
     assert not task_path.exists()
     assert result.stdout == f"{slug}: deleted {task_path}\n"
+
+
+def test_task_deletion_waits_until_held_child_release(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Removing a ticket cannot land between final validation and release."""
+    slug, task_path = _make_task(repo, force_directory=True)
+    cfg = replace(load_config(repo), git_enabled=False)
+    ref = resolve_task(cfg, slug)
+    attempted = threading.Event()
+    finished = threading.Event()
+    errors: list[BaseException] = []
+    real_barrier = git_module.state_publication_barrier
+
+    @contextmanager
+    def observed_barrier(cfg_):  # type: ignore[no-untyped-def]
+        attempted.set()
+        with real_barrier(cfg_):
+            yield
+
+    monkeypatch.setattr(git_module, "state_publication_barrier", observed_barrier)
+
+    def delete_task() -> None:
+        try:
+            run_delete_task(cfg, ref)
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            finished.set()
+
+    worker = threading.Thread(target=delete_task)
+    with real_barrier(cfg):
+        worker.start()
+        assert attempted.wait(timeout=5)
+        assert not finished.wait(timeout=0.1)
+        assert task_path.is_dir()
+
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert errors == []
+    assert not task_path.exists()
+
+
+def test_task_creation_waits_until_held_child_release(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A replacement ticket cannot appear after final validation but pre-exec."""
+    cfg = replace(load_config(repo), git_enabled=False)
+    ticket_path = repo / "tasks" / "guarded-creation.md"
+    attempted = threading.Event()
+    finished = threading.Event()
+    errors: list[BaseException] = []
+    real_barrier = git_module.state_publication_barrier
+
+    @contextmanager
+    def observed_barrier(cfg_):  # type: ignore[no-untyped-def]
+        attempted.set()
+        with real_barrier(cfg_):
+            yield
+
+    monkeypatch.setattr(git_module, "state_publication_barrier", observed_barrier)
+
+    def create_guarded_task() -> None:
+        try:
+            create_task(
+                cfg=cfg,
+                title="Guarded creation",
+                workflow_name="code",
+                contexts=[],
+                owner="marc",
+                assignee="claude",
+                watchers=[],
+                status="active",
+            )
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            finished.set()
+
+    worker = threading.Thread(target=create_guarded_task)
+    with real_barrier(cfg):
+        worker.start()
+        assert attempted.wait(timeout=5)
+        assert not finished.wait(timeout=0.1)
+        assert not ticket_path.exists()
+
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert errors == []
+    assert Ticket.read(ticket_path).status == "active"
 
 
 def test_delete_task_recipe_unknown_task_exits_nonzero(repo: Path) -> None:

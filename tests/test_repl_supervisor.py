@@ -7,6 +7,8 @@ import os
 import signal
 import sys
 import time
+from contextlib import contextmanager
+from pathlib import Path
 
 import pytest
 
@@ -103,11 +105,223 @@ def test_no_tty_missing_binary_raises_agent_cli_not_found(
     assert isinstance(excinfo.value, FileNotFoundError)
 
 
+def test_no_tty_after_spawn_callback_releases_held_child(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    marker = tmp_path / "child-ran"
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+
+    def record_spawn() -> None:
+        time.sleep(0.05)
+        assert not marker.exists()
+
+    outcome = run_with_done_marker(
+        [sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ran')"],
+        env={},
+        after_spawn=record_spawn,
+    )
+
+    assert (outcome.exit_code, outcome.kind) == (0, "natural")
+    assert marker.read_text() == "ran"
+
+
+def test_no_tty_spawn_release_guard_covers_callbacks_and_gate_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The publication barrier stays held until the child is released."""
+    marker = tmp_path / "child-ran"
+    events: list[str] = []
+    guard_held = False
+    real_write = os.write
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+
+    @contextmanager
+    def release_guard():
+        nonlocal guard_held
+        guard_held = True
+        events.append("guard-enter")
+        try:
+            yield
+        finally:
+            events.append("guard-exit")
+            guard_held = False
+
+    def tracked_write(fd: int, data: bytes) -> int:
+        if data == b"\0":
+            assert guard_held
+            events.append("release")
+        return real_write(fd, data)
+
+    def record_spawn() -> None:
+        assert guard_held
+        assert not marker.exists()
+        events.append("callback")
+
+    def record_release() -> None:
+        assert guard_held
+        events.append("after-release")
+
+    monkeypatch.setattr("coga.repl_supervisor.os.write", tracked_write)
+    outcome = run_with_done_marker(
+        [sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ran')"],
+        env={},
+        after_spawn=record_spawn,
+        spawn_release_guard=release_guard,
+        after_spawn_release=record_release,
+    )
+
+    assert (outcome.exit_code, outcome.kind) == (0, "natural")
+    assert events == [
+        "guard-enter",
+        "callback",
+        "release",
+        "after-release",
+        "guard-exit",
+    ]
+    assert marker.read_text() == "ran"
+
+
+def test_no_tty_release_failure_compensates_before_reaping_held_child(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed gate write retracts callback effects under the release guard."""
+    marker = tmp_path / "child-ran"
+    events: list[str] = []
+    guard_held = False
+    real_write = os.write
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+
+    @contextmanager
+    def release_guard():
+        nonlocal guard_held
+        guard_held = True
+        events.append("guard-enter")
+        try:
+            yield
+        finally:
+            events.append("guard-exit")
+            guard_held = False
+
+    def fail_gate_write(fd: int, data: bytes) -> int:
+        if data == b"\0":
+            assert guard_held
+            events.append("release-failed")
+            raise OSError("held-child gate write failed")
+        return real_write(fd, data)
+
+    def record_spawn() -> None:
+        assert guard_held
+        assert not marker.exists()
+        events.append("callback")
+
+    def compensate_spawn() -> None:
+        assert guard_held
+        assert not marker.exists()
+        events.append("compensate")
+
+    monkeypatch.setattr("coga.repl_supervisor.os.write", fail_gate_write)
+    with pytest.raises(OSError, match="held-child gate write failed"):
+        run_with_done_marker(
+            [sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ran')"],
+            env={},
+            after_spawn=record_spawn,
+            spawn_release_guard=release_guard,
+            on_spawn_admission_failure=compensate_spawn,
+        )
+
+    assert events == [
+        "guard-enter",
+        "callback",
+        "release-failed",
+        "compensate",
+        "guard-exit",
+    ]
+    assert not marker.exists()
+
+
+def test_no_tty_interrupt_after_gate_delivery_retains_admission(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A deferred interrupt cannot turn a released child into a false refusal."""
+    marker = tmp_path / "child-ran"
+    events: list[str] = []
+    guard_held = False
+    real_write = os.write
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False)
+
+    @contextmanager
+    def release_guard():
+        nonlocal guard_held
+        guard_held = True
+        events.append("guard-enter")
+        try:
+            yield
+        finally:
+            events.append("guard-exit")
+            guard_held = False
+
+    def deferred_interrupt_mask(how, signals):  # type: ignore[no-untyped-def]
+        if how == signal.SIG_BLOCK:
+            assert signals == {signal.SIGINT, signal.SIGTERM}
+            events.append("interrupts-blocked")
+            return {signal.SIGUSR1}
+        assert how == signal.SIG_SETMASK
+        assert signals == {signal.SIGUSR1}
+        events.append("interrupt-delivered")
+        raise KeyboardInterrupt
+
+    def release_then_interrupt(fd: int, data: bytes) -> int:
+        if data == b"\0":
+            assert guard_held
+            events.append("release-delivered")
+        return real_write(fd, data)
+
+    def record_spawn() -> None:
+        assert guard_held
+        assert not marker.exists()
+        events.append("callback")
+
+    def compensate_spawn() -> None:
+        events.append("compensate")
+
+    monkeypatch.setattr(
+        "coga.repl_supervisor.signal.pthread_sigmask",
+        deferred_interrupt_mask,
+    )
+    monkeypatch.setattr(
+        "coga.repl_supervisor.os.write",
+        release_then_interrupt,
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        run_with_done_marker(
+            [sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ran')"],
+            env={},
+            after_spawn=record_spawn,
+            spawn_release_guard=release_guard,
+            on_spawn_admission_failure=compensate_spawn,
+        )
+
+    assert events == [
+        "guard-enter",
+        "callback",
+        "interrupts-blocked",
+        "release-delivered",
+        "interrupt-delivered",
+        "guard-exit",
+    ]
+
+
 def _run_through_pty(
     monkeypatch: pytest.MonkeyPatch,
     cmd: list[str],
     *,
     session_id: str | None = None,
+    after_spawn=None,  # type: ignore[no-untyped-def]
 ) -> ReplOutcome:
     """Force the PTY path with /dev/null fds for output and input."""
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
@@ -120,6 +334,7 @@ def _run_through_pty(
             session_id=session_id,
             output_fd=devnull_out,
             input_fd=devnull_in,
+            after_spawn=after_spawn,
         )
     finally:
         os.close(devnull_out)
@@ -133,6 +348,51 @@ def test_natural_exit_passes_through_exit_code(
     forwarded."""
     outcome = _run_through_pty(monkeypatch, ["bash", "-c", "exit 7"])
     assert (outcome.exit_code, outcome.kind) == (7, "natural")
+
+
+def test_after_spawn_callback_releases_held_pty_child(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    marker = tmp_path / "child-ran"
+    events: list[str] = []
+
+    def record_spawn() -> None:
+        # Give an ungated child ample time to create the marker. The callback
+        # must observe it held before exec instead.
+        time.sleep(0.05)
+        assert not marker.exists()
+        events.append("spawned")
+
+    outcome = _run_through_pty(
+        monkeypatch,
+        [sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ran')"],
+        after_spawn=record_spawn,
+    )
+
+    assert outcome.exit_code == 0
+    assert events == ["spawned"]
+    assert marker.read_text() == "ran"
+
+
+def test_after_spawn_failure_reaps_pty_child(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    marker = tmp_path / "child-ran"
+
+    def refuse_record() -> None:
+        time.sleep(0.05)
+        assert not marker.exists()
+        raise RuntimeError("audit unavailable")
+
+    with pytest.raises(RuntimeError, match="audit unavailable"):
+        _run_through_pty(
+            monkeypatch,
+            [sys.executable, "-c", f"open({str(marker)!r}, 'w').write('ran')"],
+            after_spawn=refuse_record,
+        )
+    assert not marker.exists()
 
 
 def _run_through_pty_idle(

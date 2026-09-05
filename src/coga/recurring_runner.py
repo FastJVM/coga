@@ -1412,9 +1412,12 @@ def _period_mutation_snapshot(
 
 
 def _restore_refused_period_mutation(
-    rollback: git.FileMutationRollback, *, action: str
+    cfg: Config,
+    rollback: git.FileMutationRollback,
+    *,
+    action: str,
 ) -> None:
-    refused = rollback.restore()
+    refused = git.restore_files_under_barrier(cfg, rollback)
     if refused:
         names = ", ".join(str(path) for path in refused)
         raise RecurringError(
@@ -1682,7 +1685,9 @@ def _run_delegated_task(
             except git.GitError as exc:
                 if rollback is not None and not publication_succeeded:
                     _restore_refused_period_mutation(
-                        rollback, action="delegated start"
+                        start_cfg,
+                        rollback,
+                        action="delegated start",
                     )
                 raise RecurringError(
                     f"cannot start delegated period {ref.id_slug}: {exc}"
@@ -1690,7 +1695,9 @@ def _run_delegated_task(
             except BaseException:
                 if rollback is not None and not publication_succeeded:
                     _restore_refused_period_mutation(
-                        rollback, action="delegated start"
+                        start_cfg,
+                        rollback,
+                        action="delegated start",
                     )
                 raise
         elif current.status != "in_progress":
@@ -1915,7 +1922,11 @@ def _run_delegated_task(
         return DelegatedRunResult(2, "refused")
     except git.GitError as exc:
         if rollback is not None and not publication_succeeded:
-            _restore_refused_period_mutation(rollback, action="delegated completion")
+            _restore_refused_period_mutation(
+                cfg,
+                rollback,
+                action="delegated completion",
+            )
         typer.secho(
             f"cannot complete delegated period {ref.id_slug}: {exc}",
             fg=typer.colors.RED,
@@ -1934,7 +1945,11 @@ def _run_delegated_task(
         return DelegatedRunResult(2, "done")
     except TaskValidationError as exc:
         if rollback is not None and not publication_succeeded:
-            _restore_refused_period_mutation(rollback, action="delegated completion")
+            _restore_refused_period_mutation(
+                cfg,
+                rollback,
+                action="delegated completion",
+            )
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return DelegatedRunResult(2, "done")
     return DelegatedRunResult(0, "done")
@@ -3468,7 +3483,9 @@ def _stop_if_unfinished_after_launch(
         except git.GitError as exc:
             if rollback is not None and not publication_succeeded:
                 _restore_refused_period_mutation(
-                    rollback, action="delegated timeout"
+                    cfg,
+                    rollback,
+                    action="delegated timeout",
                 )
             raise RecurringError(
                 f"cannot pause recurring period {ref.id_slug}: {exc}"
@@ -3476,7 +3493,9 @@ def _stop_if_unfinished_after_launch(
         except TaskValidationError as exc:
             if rollback is not None and not publication_succeeded:
                 _restore_refused_period_mutation(
-                    rollback, action="delegated timeout"
+                    cfg,
+                    rollback,
+                    action="delegated timeout",
                 )
             typer.secho(str(exc), fg=typer.colors.RED, err=True)
             sys.exit(2)
@@ -3532,7 +3551,9 @@ def _stop_if_unfinished_after_launch(
     except git.GitError as exc:
         if rollback is not None and not publication_succeeded:
             _restore_refused_period_mutation(
-                rollback, action="unfinished recurring launch"
+                cfg,
+                rollback,
+                action="unfinished recurring launch",
             )
         raise RecurringError(
             f"cannot pause recurring period {ref.id_slug}: {exc}"
@@ -3540,7 +3561,9 @@ def _stop_if_unfinished_after_launch(
     except TaskValidationError as exc:
         if rollback is not None and not publication_succeeded:
             _restore_refused_period_mutation(
-                rollback, action="unfinished recurring launch"
+                cfg,
+                rollback,
+                action="unfinished recurring launch",
             )
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)

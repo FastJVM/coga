@@ -157,6 +157,7 @@ def paused(
         )
     except git.FeaturePublicationError as exc:
         _bail_strict_transition(
+            cfg,
             ref,
             "paused",
             exc,
@@ -166,6 +167,7 @@ def paused(
     except TaskValidationError as exc:
         if rollback is not None:
             _bail_strict_transition(
+                cfg,
                 ref,
                 "paused",
                 exc,
@@ -177,6 +179,7 @@ def paused(
         if rollback is None:
             raise
         _bail_strict_transition(
+            cfg,
             ref,
             "paused",
             exc,
@@ -257,6 +260,7 @@ def done(
         )
     except git.FeaturePublicationError as exc:
         _bail_strict_transition(
+            cfg,
             ref,
             "done",
             exc,
@@ -266,6 +270,7 @@ def done(
     except StrandedProductCode as exc:
         if rollback is not None:
             _bail_strict_transition(
+                cfg,
                 ref,
                 "done",
                 exc,
@@ -286,6 +291,7 @@ def done(
     except TaskValidationError as exc:
         if rollback is not None:
             _bail_strict_transition(
+                cfg,
                 ref,
                 "done",
                 exc,
@@ -297,6 +303,7 @@ def done(
         if rollback is None:
             raise
         _bail_strict_transition(
+            cfg,
             ref,
             "done",
             exc,
@@ -371,6 +378,7 @@ def canceled(
         )
     except git.FeaturePublicationError as exc:
         _bail_strict_transition(
+            cfg,
             ref,
             "canceled",
             exc,
@@ -380,6 +388,7 @@ def canceled(
     except (CancellationError, TaskValidationError) as exc:
         if rollback is not None:
             _bail_strict_transition(
+                cfg,
                 ref,
                 "canceled",
                 exc,
@@ -391,6 +400,7 @@ def canceled(
         if rollback is None:
             raise
         _bail_strict_transition(
+            cfg,
             ref,
             "canceled",
             exc,
@@ -506,6 +516,7 @@ def _preflight_assist_outcome(
 
 
 def _bail_strict_transition(
+    cfg: Config,
     ref: TaskRef,
     transition: str,
     exc: BaseException,
@@ -520,7 +531,7 @@ def _bail_strict_transition(
             "or could not be determined"
         )
     elif rollback is not None and rollback.generated is not None:
-        refused = rollback.restore()
+        refused = git.restore_files_under_barrier(cfg, rollback)
         if refused:
             names = ", ".join(str(path) for path in refused)
             rollback_note = (

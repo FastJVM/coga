@@ -373,6 +373,338 @@ def test_spawn_agent_session_appends_kickoff_for_codex(
     assert calls == [["codex", "-c", "developer_instructions=# Coga task\nbody", "Begin"]]
 
 
+def test_spawn_agent_session_uses_precomposed_prompt_without_rederiving_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = TaskRef(slug="checked-ticket", path=tmp_path / "checked-ticket")
+    ref.path.mkdir()
+    calls: list[list[str]] = []
+
+    class _Result:
+        returncode = 0
+
+    def fail_compose(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("a precomposed prompt must not be recomposed")
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return _Result()
+
+    monkeypatch.setattr("coga.commands.launch.compose_prompt", fail_compose)
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+
+    spawn_agent_session(
+        SimpleNamespace(repo_root=tmp_path),
+        ref,
+        _ticket(),
+        AgentType(
+            name="claude",
+            cli="claude",
+            file="CLAUDE.md",
+            mode="local",
+            discussion="--append-system-prompt {prompt}",
+        ),
+        env={},
+        actor="human:marc",
+        log_message="launched",
+        discussion=True,
+        composed_prompt="# Materialized\nchecked once",
+    )
+
+    assert calls == [
+        ["claude", "--append-system-prompt", "# Materialized\nchecked once"]
+    ]
+
+
+def test_spawn_agent_session_can_record_audit_only_after_child_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A guarded caller exposes no launch line until the supervisor spawns."""
+    ref = TaskRef(slug="guarded-ticket", path=tmp_path / "guarded-ticket")
+    ref.path.mkdir()
+    log_file = tmp_path / "log.md"
+    events: list[str] = []
+
+    def fake_supervisor(
+        _cmd, _env, *, after_spawn, **_kwargs
+    ):  # type: ignore[no-untyped-def]
+        assert not log_file.exists()
+        events.append("spawn")
+        after_spawn()
+        assert "launched after spawn" in log_file.read_text()
+        events.append("audit")
+        return ReplOutcome(0, "natural")
+
+    validation_count = 0
+
+    def final_guard() -> None:
+        nonlocal validation_count
+        validation_count += 1
+        if validation_count == 1:
+            assert not log_file.exists()
+            events.append("validate-before-audit")
+        else:
+            assert "launched after spawn" in log_file.read_text()
+            events.append("validate-after-audit")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", fake_supervisor
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    spawn_agent_session(
+        SimpleNamespace(repo_root=tmp_path),
+        ref,
+        _ticket(),
+        AgentType(
+            name="claude",
+            cli="claude",
+            file="CLAUDE.md",
+            mode="local",
+        ),
+        env={},
+        actor="megalaunch",
+        log_message="launched after spawn",
+        composed_prompt="# Materialized\nchecked once",
+        validate_after_spawn=final_guard,
+        record_launch_on_spawn=True,
+    )
+
+    assert events == [
+        "spawn",
+        "validate-before-audit",
+        "validate-after-audit",
+        "audit",
+    ]
+
+
+def test_spawn_agent_session_removes_deferred_audit_when_post_append_guard_refuses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A claim change during the audit append leaves no false launch line."""
+    ref = TaskRef(slug="guarded-ticket", path=tmp_path / "guarded-ticket")
+    ref.path.mkdir()
+    log_file = tmp_path / "log.md"
+    events: list[str] = []
+    claim_changed = False
+    released = False
+
+    def fake_supervisor(
+        _cmd, _env, *, after_spawn, **_kwargs
+    ):  # type: ignore[no-untyped-def]
+        nonlocal released
+        events.append("spawn")
+        after_spawn()
+        released = True
+        return ReplOutcome(0, "natural")
+
+    def final_guard() -> None:
+        events.append("validate")
+        if claim_changed:
+            raise RuntimeError("claim changed during audit")
+
+    real_append_log = launch_module.append_log
+
+    def append_then_change_claim(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal claim_changed
+        appended = real_append_log(*args, **kwargs)
+        events.append("append")
+        claim_changed = True
+        return appended
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", fake_supervisor
+    )
+    monkeypatch.setattr("coga.commands.launch.append_log", append_then_change_claim)
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: None,
+    )
+
+    with pytest.raises(RuntimeError, match="claim changed during audit"):
+        spawn_agent_session(
+            SimpleNamespace(repo_root=tmp_path),
+            ref,
+            _ticket(),
+            AgentType(
+                name="claude",
+                cli="claude",
+                file="CLAUDE.md",
+                mode="local",
+            ),
+            env={},
+            actor="megalaunch",
+            log_message="launched after spawn",
+            composed_prompt="# Materialized\nchecked once",
+            validate_after_spawn=final_guard,
+            record_launch_on_spawn=True,
+        )
+
+    assert events == ["spawn", "validate", "append", "validate"]
+    assert released is False
+    assert not log_file.exists()
+
+
+def test_spawn_agent_session_retracts_audit_when_child_release_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A callback success is not a launch until the held child is released."""
+    ref = TaskRef(slug="guarded-ticket", path=tmp_path / "guarded-ticket")
+    ref.path.mkdir()
+    log_file = tmp_path / "log.md"
+    usage_calls: list[dict] = []
+
+    def fail_release(
+        _cmd,
+        _env,
+        *,
+        after_spawn,
+        spawn_release_guard,
+        on_spawn_admission_failure,
+        **_kwargs,
+    ):  # type: ignore[no-untyped-def]
+        assert after_spawn is not None
+        assert spawn_release_guard is not None
+        assert on_spawn_admission_failure is not None
+        with spawn_release_guard():
+            after_spawn()
+            assert "launched before failed release" in log_file.read_text()
+            on_spawn_admission_failure()
+            assert not log_file.exists()
+        raise OSError("held-child release failed")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        fail_release,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: usage_calls.append(kwargs),
+    )
+
+    with pytest.raises(OSError, match="held-child release failed"):
+        spawn_agent_session(
+            SimpleNamespace(repo_root=tmp_path),
+            ref,
+            _ticket(),
+            AgentType(
+                name="claude",
+                cli="claude",
+                file="CLAUDE.md",
+                mode="local",
+            ),
+            env={},
+            actor="megalaunch",
+            log_message="launched before failed release",
+            composed_prompt="# Materialized\nchecked once",
+            validate_after_spawn=lambda: None,
+            record_launch_on_spawn=True,
+        )
+
+    assert not log_file.exists()
+    assert usage_calls == []
+
+
+def test_spawn_agent_session_retains_audit_after_released_child_interrupt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An interrupt after gate delivery remains an interrupted launch."""
+    ref = TaskRef(slug="guarded-ticket", path=tmp_path / "guarded-ticket")
+    ref.path.mkdir()
+    log_file = tmp_path / "log.md"
+    usage_calls: list[dict] = []
+
+    def interrupt_after_release(
+        _cmd,
+        _env,
+        *,
+        after_spawn,
+        spawn_release_guard,
+        **_kwargs,
+    ):  # type: ignore[no-untyped-def]
+        assert after_spawn is not None
+        assert spawn_release_guard is not None
+        with spawn_release_guard():
+            after_spawn()
+            assert "launched before interrupt" in log_file.read_text()
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        interrupt_after_release,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session",
+        lambda **kwargs: usage_calls.append(kwargs),
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        spawn_agent_session(
+            SimpleNamespace(repo_root=tmp_path),
+            ref,
+            _ticket(),
+            AgentType(
+                name="claude",
+                cli="claude",
+                file="CLAUDE.md",
+                mode="local",
+            ),
+            env={},
+            actor="megalaunch",
+            log_message="launched before interrupt",
+            composed_prompt="# Materialized\nchecked once",
+            validate_after_spawn=lambda: None,
+            record_launch_on_spawn=True,
+        )
+
+    assert "launched before interrupt" in log_file.read_text()
+    assert len(usage_calls) == 1
+    assert usage_calls[0]["outcome_status"] == "interrupted"
+
+
+def test_spawn_agent_session_rejects_publishing_a_guarded_deferred_audit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pre-release audit must remain retractable until its last proof."""
+    ref = TaskRef(slug="guarded-ticket", path=tmp_path / "guarded-ticket")
+    ref.path.mkdir()
+
+    def fail_supervisor(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("an invalid admission contract must not spawn")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", fail_supervisor
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="guarded spawn-time launch audit cannot be published",
+    ):
+        spawn_agent_session(
+            SimpleNamespace(repo_root=tmp_path),
+            ref,
+            _ticket(),
+            AgentType(
+                name="claude",
+                cli="claude",
+                file="CLAUDE.md",
+                mode="local",
+            ),
+            env={},
+            actor="megalaunch",
+            log_message="launched after spawn",
+            composed_prompt="# Materialized\nchecked once",
+            validate_after_spawn=lambda: None,
+            record_launch_on_spawn=True,
+            commit_log=True,
+        )
+
+    assert not (tmp_path / "log.md").exists()
+
+
 def test_spawn_agent_session_rederives_nested_recurring_task_env(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -3148,6 +3480,125 @@ def test_launch_refuses_canceled_ticket(
     assert "terminal status" in combined
     assert calls == []
     assert ticket_md.read_text() == before
+
+
+def test_launch_refuses_a_pending_megalaunch_admission(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only the held-child supervisor may turn a pending claim executable."""
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    ticket_md = Path(ref["path"])
+    ticket = Ticket.read(ticket_md)
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.frontmatter["launch_generation"] = "pending:held-generation"
+    ticket.write(ticket_md)
+    before = ticket_md.read_bytes()
+
+    calls = _launch_single_spawn(monkeypatch)
+    result = CliRunner().invoke(app, ["launch", slug])
+
+    assert result.exit_code == 2
+    combined = result.output + (result.stderr or "")
+    assert "megalaunch admission 'pending:held-generation' is still pending" in (
+        combined
+    )
+    assert "held child must be released" in combined
+    assert calls == []
+    assert ticket_md.read_bytes() == before
+
+
+def test_launch_reconciles_a_released_megalaunch_admission_before_spawn(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The supported recovery path durably admits release before execution."""
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    ticket_md = Path(ref["path"])
+    ticket = Ticket.read(ticket_md)
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.frontmatter["launch_generation"] = "released:held-generation"
+    ticket.write(ticket_md)
+    reconciled: list[bytes] = []
+
+    def reconcile(_cfg, path, *, expected_ticket_bytes):  # type: ignore[no-untyped-def]
+        assert path == ticket_md
+        assert Ticket.parse(expected_ticket_bytes.decode()).launch_generation == (
+            "released:held-generation"
+        )
+        admitted = Ticket.parse(expected_ticket_bytes.decode())
+        admitted.frontmatter["launch_generation"] = "held-generation"
+        admitted.write(path)
+        admitted_bytes = path.read_bytes()
+        reconciled.append(admitted_bytes)
+        return admitted_bytes
+
+    monkeypatch.setattr(
+        launch_module, "_reconcile_released_launch_admission", reconcile
+    )
+    calls = _launch_single_spawn(monkeypatch)
+
+    result = CliRunner().invoke(app, ["launch", slug])
+
+    assert result.exit_code == 0, result.output
+    assert "Reconciled released megalaunch admission" in result.output
+    assert len(reconciled) == 1
+    assert len(calls) == 1
+    assert Ticket.read(ticket_md).launch_generation == "held-generation"
+
+
+@pytest.mark.parametrize(
+    "control_generation",
+    ["pending:held-generation", "held-generation"],
+)
+def test_released_launch_admission_reconciles_control_ticket(
+    git_repo, control_generation: str,
+) -> None:
+    """Recovery accepts only the matching pending/already-admitted remote."""
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title="Reconcile released admission",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ref = next(item for item in list_tasks(cfg) if item.id_slug == created["slug"])
+    coga_git.sync_task_state(
+        cfg, ref.path, message="Seed released-admission reconciliation"
+    )
+    control = Ticket.read(ref.ticket_path)
+    control.frontmatter["status"] = "in_progress"
+    control.frontmatter["launch_generation"] = control_generation
+    control.write(ref.ticket_path)
+    ticket_rel = str(ref.ticket_path.relative_to(git_repo.root))
+    git_repo.git("add", ticket_rel)
+    git_repo.git("commit", "-m", "Publish launch admission state")
+    git_repo.git("push", "origin", "main")
+
+    released = Ticket.read(ref.ticket_path)
+    released.frontmatter["launch_generation"] = "released:held-generation"
+    released_bytes = released.render().encode()
+    released.write(ref.ticket_path)
+
+    admitted_bytes = launch_module._reconcile_released_launch_admission(
+        cfg,
+        ref.ticket_path,
+        expected_ticket_bytes=released_bytes,
+    )
+
+    assert Ticket.parse(admitted_bytes.decode()).launch_generation == (
+        "held-generation"
+    )
+    assert Ticket.read(ref.ticket_path).launch_generation == "held-generation"
+    remote = Ticket.parse(
+        git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
+    )
+    assert remote.launch_generation == "held-generation"
+    assert git_repo.git("status", "--porcelain") == ""
 
 
 def test_launch_auto_activate_bails_without_workflow(

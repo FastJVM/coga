@@ -194,6 +194,7 @@ def test_recipe_hands_back_the_results_it_already_holds(
 ) -> None:
     blackboard = repo / "tasks" / "skill-update" / "blackboard.md"
     blackboard.parent.mkdir(parents=True)
+    blackboard.write_text("")
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
     monkeypatch.setenv("COGA_TASK_SLUG", "skill-update")
 
@@ -236,6 +237,7 @@ def test_recipe_result_is_populated_on_the_followup_exit(
     # survive it.
     blackboard = repo / "tasks" / "skill-update" / "blackboard.md"
     blackboard.parent.mkdir(parents=True)
+    blackboard.write_text("")
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
     monkeypatch.setenv("COGA_TASK_SLUG", "skill-update")
 
@@ -304,6 +306,7 @@ def test_recipe_writes_a_failure_report_to_the_blackboard_on_the_hard_exit(
     # blackboard like every other outcome.
     blackboard = repo / "tasks" / "skill-update" / "blackboard.md"
     blackboard.parent.mkdir(parents=True)
+    blackboard.write_text("")
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
     monkeypatch.setenv("COGA_TASK_SLUG", "skill-update")
 
@@ -410,16 +413,17 @@ def test_recipe_survives_a_permission_error_on_the_hard_exit(
     # write itself raises PermissionError on a read-only checkout or full disk.
     blackboard = repo / "tasks" / "skill-update" / "blackboard.md"
     blackboard.parent.mkdir(parents=True)
+    blackboard.write_text("")
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
 
     def boom(*, cwd: Path | None, pr: bool, pr_title: str):
         raise RuntimeError("coga skill update failed")
 
-    def unwritable(self, *args, **kwargs):
+    def unwritable(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise PermissionError(13, "Permission denied")
 
     monkeypatch.setattr(skill_update, "run_update_json", boom)
-    monkeypatch.setattr(Path, "write_text", unwritable)
+    monkeypatch.setattr(skill_update, "append_blackboard_report", unwritable)
 
     assert skill_update.run_skill_update_recipe(load_config(repo), []) == 2
 
@@ -572,6 +576,7 @@ def test_skill_update_followup_without_pr_exits_nonzero_and_keeps_report(
 ) -> None:
     blackboard = repo / "tasks" / "skill-update" / "blackboard.md"
     blackboard.parent.mkdir(parents=True)
+    blackboard.write_text("")
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
     monkeypatch.setenv("COGA_TASK_SLUG", "skill-update")
 

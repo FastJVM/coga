@@ -556,10 +556,12 @@ without ever checking out `main`: it builds the control branch's tree in a
 *temporary index* (`GIT_INDEX_FILE`), overlays the working-tree task dir,
 `commit-tree`s onto the fetched control tip, and pushes that commit straight to
 `refs/heads/<control>`. The feature working tree — staged and unstaged code
-alike — is never touched, stashed, or reset. A detached HEAD takes the same
-cross-branch path but skips the local commit (it would be orphaned); any dirty
-`merge=union` files that would otherwise have ridden that local commit are
-union-merged directly into the control-branch commit.
+alike — is never touched, stashed, or reset. A detached HEAD normally takes the
+same cross-branch path without a local commit; any dirty `merge=union` files
+that would otherwise have ridden that local commit are union-merged directly
+into the control-branch commit. Narrow strict-state publishers are the
+exception described below: they seal their exact generated paths in a scoped
+detached commit so later broad sync cannot replay already-published bytes.
 
 Cancellation is the deliberate feature-branch exception for union files. A
 canceled ticket's branch may never merge by definition, so `mark_canceled`
@@ -573,11 +575,23 @@ concurrent audit/digest appends.
 The push to `refs/heads/<control>` is a compare-and-swap: if the control branch
 moved under us (another coga process, a teammate), the
 push is rejected non-fast-forward, and a bounded fetch-rebuild-retry loop
-refetches the new tip and rebuilds. That push *is* the serialization point — no
-lock file is introduced, consistent with `coga/architecture`'s no-mutex model.
-Concurrent local or cross-machine processes each fetch→build→push; exactly one
-fast-forwards per round and the losers retry, so nothing on the control branch
-is clobbered.
+refetches the new tip and rebuilds. That push is the cross-checkout and
+cross-machine serialization point. Within one checkout, all three Coga Git
+publishers (`sync_paths`, `sync_log`, and the catch-all `sync_coga_state`) and
+all Coga lifecycle ticket/blocker writes take the short state
+admission/publication barrier described in `coga/architecture`. The held-child
+launch boundary takes the same barrier across its provisional audit append,
+last proof, pipe release, and post-release admission publication, so a local
+lifecycle change cannot invalidate that proof and a broad sweep cannot make a
+refused launch record durable. The published `pending:<uuid>` claim is the
+cross-checkout half of the boundary: every task publisher refuses to replace
+that exact control ticket until megalaunch strictly removes only the prefix
+after gate delivery. Ticket writes take the local barrier even when Git sync is
+disabled. This is not task ownership: the inert lock file is outside the
+worktree and the kernel releases the advisory lock on process exit. Concurrent
+cross-checkout or cross-machine processes still each fetch→build→push; exactly
+one fast-forwards per round and the losers retry, so nothing on the control
+branch is clobbered.
 
 Fetch results used by strict assist alignment and publication are isolated too.
 Each requested branch tip is written to a UUID-scoped command-owned ref with
@@ -656,6 +670,40 @@ a fetched tip, because a sibling worktree in the same clone can bury newer state
 on the shared local control branch without any remote (see the no-remote
 soft-skip under the failure model below).
 
+`launch_generation` has a stronger, system-owned rule. The catch-all sweep may
+never add, clear, or replace that claim, including by creating, deleting, or
+making one side of the ticket unreadable. A scoped ticket-state publisher may
+acquire it only under an exact whole-ticket lease. A Git-backed megalaunch
+acquires `pending:<uuid>` while its child is held. While that form exists on
+control, the explicit-path publisher itself refuses every changed ticket —
+even for a caller with no command-specific lifecycle guard — so authoring,
+deletion, blocker, report, and status paths all share the same cross-checkout
+seal. The sole allowance is the internal post-gate transition whose working
+bytes exactly equal the committed ticket with only `pending:` removed and whose
+guard binds the whole pending revision. Ordinary launch refuses pending rather
+than bypassing that admission protocol. If that post-gate publication fails,
+the launcher retains `released:<uuid>` only as a local recovery witness. No
+ordinary or catch-all publisher may land that form. An explicit `coga launch`
+must first fetch control and strictly normalize the exact matching pending or
+already-admitted whole ticket to the plain UUID; a mismatch or Git failure
+retains the released witness and refuses recovery.
+
+Once the plain UUID is admitted, a scoped publisher may clear it only while
+ending or advancing the claimed session. Acquisition's exact lease directly
+proves the whole unclaimed control ticket, even when detached `HEAD` predates
+the same bytes this checkout already published through an ordinary detached
+sync. Every later edit involving the admitted claim must also prove against a
+freshly fetched candidate control tip that the ticket blob at checkout `HEAD`
+exactly matched the control copy before Coga made its local state commit. That
+baseline is sampled before the commit and retained across publication.
+Current-claim blackboard work therefore remains publishable even when the local
+control ref is stale, while a stale checkout cannot erase a peer's claim or
+overwrite newer prose merely because it copied the same generation token. On
+detached HEAD, each accepted claim-bearing edit advances that baseline with an
+exact-leaf commit before landing; a following unblock, bump, or terminal
+transition therefore compares against the state the prior command actually
+published.
+
 Two kinds of caller supply it. The catch-all sweep guards whatever it found
 dirty (`_guard_coga_state_regressions`); every publisher of a *specific*
 ticket's state knows which file it is about to overlay and binds
@@ -671,8 +719,9 @@ cancellation:
   blackboard without a status flip. Its `blocked → active` branch delegates to
   `mark_active` and is guarded there.
 
-Callers that are not publishing a ticket's state (authoring, deletes, recurring
-child writes) pass no guard.
+Callers without a command-specific lifecycle transition (authoring, deletes,
+recurring child writes) pass no ticket-state guard. They still pass through the
+explicit-path publisher's automatic pending-admission seal.
 
 **The one deliberate backward move is a human rewind.** It is an exceptional
 debug/recovery operation, not normal lifecycle progression. `coga bump
@@ -731,6 +780,20 @@ post-sync log change and union-publishes only `coga/log.md` (with the same
 scoped detached-commit behavior), never the ticket again. Moving the ticket
 write behind a fetch instead would put the network on the hot path of every
 status transition, which the always-on sync contract does not accept.
+
+Strict lifecycle publication uses the same scoped-commit invariant on detached
+HEAD even when the caller did not request the rewind option. It builds the
+commit from the caller's armed byte snapshot with a compare-and-swap on
+detached `HEAD`, then overlays only those armed leaves on control; newer sibling
+attachments survive. Success leaves the exact published ticket clean and makes
+it the baseline for later same-generation blackboard edits. Those later
+accepted claim-bearing edits use the same exact-leaf detached commit so each
+success advances the baseline again. A proven refusal or transport failure
+unwinds only the generated leaves, preserving unrelated staged files, and
+leaves the generated bytes dirty; an ambiguous accepted push retains the commit
+for reconciliation. In particular, a final launch-claim refusal followed by
+the CLI's broad sweep cannot replay stale claim bytes over a peer edit: the
+successfully published claim is no longer a dirty sweep candidate.
 
 ### The catch-all subtree sweep — `sync_coga_state`
 

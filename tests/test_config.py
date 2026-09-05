@@ -15,6 +15,7 @@ from coga.config import (
     parse_inline_secrets,
     select_launch_secrets,
 )
+from coga.ticket import CANONICAL_TICKET_KEYS
 
 
 def _write(path: Path, text: str) -> None:
@@ -1087,10 +1088,11 @@ def test_ticket_fields_full_shape(repo: Path) -> None:
     assert field.required is True
 
 
-def test_ticket_fields_reject_reserved_name(repo: Path) -> None:
+@pytest.mark.parametrize("name", sorted(CANONICAL_TICKET_KEYS))
+def test_ticket_fields_reject_reserved_name(repo: Path, name: str) -> None:
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text()
-        + '\n[ticket.fields.status]\ndescription = "x"\n'
+        + f'\n[ticket.fields.{name}]\ndescription = "x"\n'
     )
     with pytest.raises(ConfigError, match="canonical ticket frontmatter key"):
         load_config(repo)

@@ -27,7 +27,10 @@ Two write paths share one file without clobbering each other:
 - **Blackboard writers** (`append_to_section`, the spool, recurring
   high-water) call `replace_blackboard`, which byte-splices only the region
   after the fence and leaves the frontmatter + body bytes above it untouched —
-  so a blackboard write never reformats the frontmatter.
+  so a blackboard write never reformats the frontmatter. The primitive remains
+  config-free; shipped command/recipe writers wrap their read-transform-write
+  in `blackboard.update_blackboard_under_barrier` (or an explicit equivalent)
+  so the mutation cannot cross held-child admission.
 
 Bootstrap tickets (package `bootstrap/<name>/ticket.md` resources) are
 stateless launch targets with no blackboard; they legitimately have no fence.

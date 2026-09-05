@@ -9,7 +9,7 @@ import typer
 from coga import git
 from coga import pr_assist
 from coga.blackboard import append_blocker
-from coga.config import ConfigError, load_config
+from coga.config import Config, ConfigError, load_config
 from coga.logfile import log_path
 from coga.mark import mark_blocked
 from coga.notification import preflight_post
@@ -110,21 +110,22 @@ def block(
         publication_succeeded = True
 
     try:
-        append_blocker(
-            ref.ticket_path,
-            actor,
-            reason,
-            expected_bytes=(
-                rollback.originals[ref.ticket_path]
-                if rollback is not None
-                else None
-            ),
-            after_write=(
-                (lambda written: rollback.arm({ref.ticket_path: written}))
-                if rollback is not None
-                else None
-            ),
-        )
+        with git.state_publication_barrier(cfg):
+            append_blocker(
+                ref.ticket_path,
+                actor,
+                reason,
+                expected_bytes=(
+                    rollback.originals[ref.ticket_path]
+                    if rollback is not None
+                    else None
+                ),
+                after_write=(
+                    (lambda written: rollback.arm({ref.ticket_path: written}))
+                    if rollback is not None
+                    else None
+                ),
+            )
         ticket = read_ticket(ref)
         mark_blocked(
             cfg,
@@ -154,7 +155,7 @@ def block(
                 "or could not be determined"
             )
         elif rollback is not None:
-            rollback_note = _rollback_note(rollback)
+            rollback_note = _rollback_note(cfg, rollback)
         _bail(
             f"Could not publish {ref.id_slug}'s blocked state to the recorded "
             f"assist branch: {exc}{rollback_note}",
@@ -167,7 +168,7 @@ def block(
     except TaskValidationError as exc:
         rollback_note = ""
         if rollback is not None:
-            rollback_note = _rollback_note(rollback)
+            rollback_note = _rollback_note(cfg, rollback)
         _bail(
             f"{exc}{rollback_note}",
             exit_code=(
@@ -185,7 +186,7 @@ def block(
                 "publication already succeeded"
             )
         else:
-            rollback_note = _rollback_note(rollback)
+            rollback_note = _rollback_note(cfg, rollback)
         detail = str(exc).strip() or type(exc).__name__
         _bail(
             f"Could not complete {ref.id_slug}'s strict blocked transition "
@@ -199,8 +200,8 @@ def block(
     emit_done_marker(session_id=ref.id_slug)
 
 
-def _rollback_note(rollback: git.FileMutationRollback) -> str:
-    refused = rollback.restore()
+def _rollback_note(cfg: Config, rollback: git.FileMutationRollback) -> str:
+    refused = git.restore_files_under_barrier(cfg, rollback)
     if not refused:
         return ""
     names = ", ".join(str(path) for path in refused)

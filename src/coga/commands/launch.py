@@ -97,7 +97,14 @@ from coga.tasks import (
     read_ticket,
     resolve_target,
 )
-from coga.ticket import Ticket, TicketError
+from coga.ticket import (
+    PENDING_LAUNCH_GENERATION_PREFIX,
+    Ticket,
+    TicketError,
+    admitted_launch_generation,
+    pending_launch_generation,
+    released_launch_generation,
+)
 from coga.validate import TaskValidationError
 from coga.version_skew import warn_if_installed_predates_source
 from coga.workflow import WorkflowError
@@ -489,6 +496,147 @@ def launch_with_before_spawn(
             record_launch=False,
             recurring_authorized=False,
         )
+
+
+def _reconcile_released_launch_admission(
+    cfg: Config,
+    ticket_path: Path,
+    *,
+    expected_ticket_bytes: bytes,
+) -> bytes:
+    """Turn one local ``released:`` witness into a durable admitted claim.
+
+    A post-gate admission failure cannot restore ``pending:``: the child was
+    already able to execute, even though the supervisor then terminated it.
+    Megalaunch therefore retains ``released:<uuid>`` only in its checkout.
+    An explicit ordinary launch calls this boundary before recovery. It accepts
+    control only when the whole remote ticket is either the matching pending
+    revision (publication definitely failed) or the matching plain revision
+    (an ambiguous push actually landed), then strictly publishes/normalizes the
+    plain UUID. Every failure restores the local ``released:`` witness so a
+    later retry remains recognizable, and no broad state sweep can admit it.
+    """
+    with git.state_publication_barrier(cfg):
+        try:
+            current_bytes = ticket_path.read_bytes()
+        except OSError as exc:
+            raise git.FeaturePublicationError(
+                f"could not read released launch admission: {exc}"
+            ) from exc
+        if current_bytes != expected_ticket_bytes:
+            raise git.StateRegressionError(
+                "released launch admission changed before reconciliation"
+            )
+        try:
+            released_ticket = Ticket.parse(current_bytes.decode("utf-8"))
+        except (UnicodeDecodeError, TicketError) as exc:
+            raise git.FeaturePublicationError(
+                f"released launch admission is unreadable: {exc}"
+            ) from exc
+        generation = released_ticket.launch_generation
+        if not released_launch_generation(generation):
+            raise git.StateRegressionError(
+                "launch admission is no longer awaiting released-state "
+                "reconciliation"
+            )
+        assert generation is not None
+        if not cfg.git_enabled:
+            raise git.FeaturePublicationError(
+                "released launch admission requires Git sync to reconcile its "
+                "pending control revision"
+            )
+
+        root = git._toplevel(ticket_path)
+        if root is None:
+            raise git.FeaturePublicationError(
+                "released launch admission requires a Git checkout"
+            )
+        if not git._remote_configured(root, cfg.git_remote):
+            raise git.FeaturePublicationError(
+                f"remote {cfg.git_remote!r} is unavailable for released "
+                "launch-admission reconciliation"
+            )
+        if not git._control_branch_present(
+            root, cfg.git_control_branch, cfg.git_remote
+        ):
+            raise git.FeaturePublicationError(
+                git._control_branch_mismatch_message(cfg, root)
+            )
+
+        admitted_ticket = Ticket(
+            frontmatter=dict(released_ticket.frontmatter),
+            body=released_ticket.body,
+        )
+        admitted_ticket.frontmatter["launch_generation"] = (
+            admitted_launch_generation(generation)
+        )
+        admitted_bytes = admitted_ticket.render().encode("utf-8")
+        pending_ticket = Ticket(
+            frontmatter=dict(released_ticket.frontmatter),
+            body=released_ticket.body,
+        )
+        pending_ticket.frontmatter["launch_generation"] = (
+            f"{PENDING_LAUNCH_GENERATION_PREFIX}"
+            f"{admitted_launch_generation(generation)}"
+        )
+        pending_bytes = pending_ticket.render().encode("utf-8")
+
+        base = git._control_base_for_attempt(
+            root,
+            cfg.git_remote,
+            cfg.git_control_branch,
+            1,
+        )
+        rel = git._relative_to_root(root, ticket_path)
+        control_bytes = git._tree_bytes(root, base, rel)
+        if control_bytes not in {pending_bytes, admitted_bytes}:
+            raise git.StateRegressionError(
+                f"{rel}: control ticket changed before released "
+                "launch-admission reconciliation"
+            )
+
+        mutation = git.FileMutationRollback.capture((ticket_path,))
+        mutation.require_unchanged(ticket_path)
+        admit_pending = control_bytes == pending_bytes
+        try:
+            admitted_ticket.write(ticket_path)
+            mutation.arm({ticket_path: admitted_bytes})
+            # This helper already owns the non-reentrant publication barrier.
+            git._sync_paths_without_barrier(
+                cfg,
+                ticket_path,
+                (ticket_path,),
+                message="Ticket: reconcile released launch admission",
+                guard=git.ticket_state_guard(
+                    cfg,
+                    ticket_path,
+                    expected_ticket_bytes=control_bytes,
+                    allow_launch_claim_admission=admit_pending,
+                ),
+                generated_paths=mutation.generated,
+                raise_state_regression=True,
+                raise_git_error=True,
+                allow_launch_claim_admission=admit_pending,
+            )
+        except git.GitError as exc:
+            refused = mutation.restore()
+            if refused:
+                paths = ", ".join(str(path) for path in refused)
+                raise git.UncertainFeaturePublicationError(
+                    f"{exc}; released admission witness could not be restored "
+                    f"from {paths}"
+                ) from exc
+            raise
+        except OSError as exc:
+            refused = mutation.restore()
+            detail = ""
+            if refused:
+                paths = ", ".join(str(path) for path in refused)
+                detail = f"; released witness could not be restored from {paths}"
+            raise git.FeaturePublicationError(
+                f"could not record reconciled launch admission: {exc}{detail}"
+            ) from exc
+        return admitted_bytes
 
 
 def _launch(
@@ -894,6 +1042,41 @@ def _launch(
         return
 
     ticket = post_alignment_setup_call(lambda: _read(ref))
+
+    if (
+        isinstance(ref, TaskRef)
+        and released_launch_generation(ticket.launch_generation)
+    ):
+        try:
+            released_bytes = ref.ticket_path.read_bytes()
+            admitted_bytes = _reconcile_released_launch_admission(
+                cfg,
+                ref.ticket_path,
+                expected_ticket_bytes=released_bytes,
+            )
+            ticket = Ticket.parse(admitted_bytes.decode("utf-8"))
+        except (OSError, UnicodeError, TicketError, git.GitError) as exc:
+            _bail(
+                f"Cannot launch {ref.id_slug}: its released megalaunch "
+                "admission could not be reconciled with control. The "
+                f"recoverable local witness was retained; fix Git and retry: "
+                f"{exc}",
+                exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
+            )
+        typer.echo(
+            f"Reconciled released megalaunch admission for {ref.id_slug}."
+        )
+
+    if (
+        isinstance(ref, TaskRef)
+        and pending_launch_generation(ticket.launch_generation)
+    ):
+        setup_bail(
+            f"Cannot launch {ref.id_slug}: megalaunch admission "
+            f"{ticket.launch_generation!r} is still pending. Its held child "
+            "must be released or the pending claim reconciled before another "
+            "session can start."
+        )
 
     post_alignment_setup_call(
         lambda: typer.echo(
@@ -2230,7 +2413,7 @@ def _publish_assist_lifecycle_before_spawn(
                 "state was retained for explicit reconciliation; no agent was "
                 f"started: {exc}"
             ) from exc
-        rollback_note = _restore_assist_state(snapshot)
+        rollback_note = _restore_assist_state(cfg, snapshot)
         if isinstance(
             exc,
             (
@@ -2302,9 +2485,12 @@ def _snapshot_assist_state(
     )
 
 
-def _restore_assist_state(snapshot: git.FileMutationRollback) -> str:
+def _restore_assist_state(
+    cfg: Config,
+    snapshot: git.FileMutationRollback,
+) -> str:
     """Conditionally restore refused assist state; report retained peer edits."""
-    refused = snapshot.restore()
+    refused = git.restore_files_under_barrier(cfg, snapshot)
     if not refused:
         return ""
     names = ", ".join(str(path) for path in refused)
@@ -2492,7 +2678,7 @@ def _reblock_unresolved_resume(
         # result. Fall back to the exact pre-resume ticket so the original ask
         # stays queue-visible, then preserve the child's exit code upstream.
         ref.ticket_path.parent.mkdir(parents=True, exist_ok=True)
-        ticket.write(ref.ticket_path)
+        git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
         restored_fallback = True
     if not blockers:
         return False
@@ -2583,7 +2769,7 @@ def _reblock_unresolved_resume(
                 "or could not be determined"
             )
         elif rollback is not None:
-            rollback_note = _restore_assist_state(rollback)
+            rollback_note = _restore_assist_state(cfg, rollback)
         message = (
             f"Could not publish {ref.id_slug}'s unresolved blocked state to "
             f"the recorded assist branch: {exc}{rollback_note}"
@@ -2597,7 +2783,7 @@ def _reblock_unresolved_resume(
     except TaskValidationError as exc:
         rollback_note = ""
         if rollback is not None:
-            rollback_note = _restore_assist_state(rollback)
+            rollback_note = _restore_assist_state(cfg, rollback)
         if feature_branch is not None:
             raise _AssistPublicationRefused(
                 f"{exc}{rollback_note}",
@@ -2613,7 +2799,7 @@ def _reblock_unresolved_resume(
                 "publication already succeeded"
             )
         else:
-            rollback_note = _restore_assist_state(rollback)
+            rollback_note = _restore_assist_state(cfg, rollback)
         detail = str(exc).strip() or type(exc).__name__
         raise _AssistPublicationRefused(
             f"Could not complete {ref.id_slug}'s automatic unresolved re-block "
@@ -2947,11 +3133,12 @@ class AgentSessionResult(NamedTuple):
 def missing_launch_file_message(exc: FileNotFoundError) -> str:
     """Report a pre-spawn `FileNotFoundError` as the missing file it is.
 
-    `spawn_agent_session` composes the prompt, writes it to disk, and appends
-    the log *before* it spawns anything, so a `FileNotFoundError` escaping it
-    is far more often a missing prompt layer than a missing agent CLI — and
-    blaming the CLI sends the operator to debug a PATH that is fine. Name the
-    path instead; `AgentCliNotFound` carries the genuine CLI case.
+    `spawn_agent_session` composes the prompt and writes it to disk before its
+    executable boundary (ordinary launches also append their audit there), so
+    a `FileNotFoundError` escaping it is far more often a missing prompt layer
+    than a missing agent CLI — and blaming the CLI sends the operator to debug
+    a PATH that is fine. Name the path instead; `AgentCliNotFound` carries the
+    genuine CLI case.
     """
     missing = exc.filename or "a file it needed"
     detail = exc.strerror or str(exc)
@@ -2986,11 +3173,16 @@ def spawn_agent_session(
     assist_agent: str | None = None,
     feature_publication_guard: Callable[[str], None] | None = None,
     before_recompose: Callable[[], None] | None = None,
+    validate_before_spawn: Callable[[], None] | None = None,
     before_spawn: Callable[[], None] | None = None,
+    validate_after_spawn: Callable[[], None] | None = None,
+    after_spawn_release: Callable[[], None] | None = None,
     record_launch: bool = True,
+    record_launch_on_spawn: bool = False,
     secrets_are_scoped: bool = True,
     stateless_identity: tuple[str, str] | None = None,
     include_blocker_preamble: bool = True,
+    composed_prompt: str | None = None,
 ) -> AgentSessionResult:
     """Spawn one agent process once.
 
@@ -3013,6 +3205,9 @@ def spawn_agent_session(
     `include_blocker_preamble` is disabled only for guided authoring: the
     resolve-or-re-block directive belongs to task execution, while an authoring
     session must leave a blocked ticket and its open asks intact.
+    `composed_prompt` carries a prompt a caller already materialized at its
+    own preflight boundary. The spawn uses those exact bytes instead of
+    recomposing after intervening lifecycle publication.
     The launch supervisor loop and step chaining deliberately stay outside.
 
     `commit_log` immediately commits the `log.md` launch append (via
@@ -3037,9 +3232,26 @@ def spawn_agent_session(
     publication. Once it returns, this preflight pass exits through a private
     signal so the caller can reload and re-compose from state those publications
     may have moved. The recomposed pass sets ``record_launch=False`` because the
-    first pass already made that audit durable. ``before_spawn`` is the final
-    boundary immediately before the PTY supervisor: human assists publish
-    lifecycle there, while recurring delegation revalidates its period lease.
+    first pass already made that audit durable. ``validate_before_spawn`` is a
+    guard-only boundary before the launch audit. ``before_spawn`` remains the
+    final publication boundary immediately before the PTY supervisor: human
+    assists publish lifecycle there, while recurring delegation revalidates its
+    period lease. ``validate_after_spawn`` is the narrower executable-admission
+    guard: it runs after the supervisor creates its child but while a private
+    pipe still holds that child before exec. ``record_launch_on_spawn`` defers
+    the audit append into that same gate. A guarded deferred audit is bracketed
+    by two calls to ``validate_after_spawn``: the second exact proof runs after
+    the append and immediately before release. The append, proof, and supervisor
+    pipe release share Git's local state-publication barrier, so another Coga
+    command cannot commit the provisional line while that proof is in flight.
+    ``after_spawn_release`` runs after that pipe release but before the same
+    barrier is dropped. A Git-backed megalaunch uses it to admit its visible
+    pending claim only after the held child can execute.
+    Refusal conditionally removes only this invocation's append. A pipe-release
+    failure invokes the same compensation inside the barrier and clears the
+    session-started flag before the held child is killed. Such an audit cannot
+    also request immediate Git publication, because a published append cannot
+    be transactionally retracted if that final proof or release refuses.
     """
     # A nested launch inherits its parent's process environment. Re-derive the
     # task metadata at this last shared boundary so an agent identifies the
@@ -3076,14 +3288,18 @@ def spawn_agent_session(
         if warning:
             typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
 
-    typer.echo(f"{label}: composing prompt")
-    prompt = compose_prompt(
-        cfg,
-        ref,
-        ticket,
-        include_blocker_preamble=include_blocker_preamble,
-        launch_context=launch_context,
-    )
+    if composed_prompt is None:
+        typer.echo(f"{label}: composing prompt")
+        prompt = compose_prompt(
+            cfg,
+            ref,
+            ticket,
+            include_blocker_preamble=include_blocker_preamble,
+            launch_context=launch_context,
+        )
+    else:
+        typer.echo(f"{label}: using preflighted prompt")
+        prompt = composed_prompt
     if prompt_suffix:
         prompt = f"{prompt}{prompt_suffix}"
     prompt_file = write_prompt_file(prompt, ref)
@@ -3113,11 +3329,21 @@ def spawn_agent_session(
     usage_cwd = Path.cwd().resolve()
     usage_window_start = datetime.now(timezone.utc)
     spawn_started = False
+    provisional_audit_rollback: git.FileMutationRollback | None = None
     publish_session_log = False
     assist_log_refusal: str | None = None
     outcome_status: usage_tracking.OutcomeStatus = "unknown"
 
     try:
+        if (
+            record_launch
+            and record_launch_on_spawn
+            and commit_log
+        ):
+            raise ValueError(
+                "a guarded spawn-time launch audit cannot be published before "
+                "its post-append validation"
+            )
         cmd = build_agent_command(
             agent,
             prompt_arg,
@@ -3132,32 +3358,46 @@ def spawn_agent_session(
             f"{_format_agent_command_for_console(cmd, prompt)}"
         )
 
-        if record_launch:
-            append_log(cfg, ref.id_slug, actor, log_message)
-        if record_launch and commit_log:
-            # Commit the launch line before spawning. A bootstrap target has no
-            # later task-state sync to carry it; a human-step assist may share
-            # the PR checkout whose clean-tree gate the agent is about to run.
-            # Non-fatal on any git failure.
-            log_synced = git.sync_log(
-                cfg,
-                message=f"Log: {ref.id_slug}",
-                publish_if_remote_aligned=publish_aligned_branch is not None,
-                expected_feature_branch=publish_aligned_branch,
-                # A recorded assist was aligned before ticket/config/prompt
-                # derivation. If its remote moves now, refuse to spawn instead
-                # of fast-forwarding underneath already-composed state.
-                allow_feature_fast_forward=publish_aligned_branch is None,
-                feature_publication_guard=feature_publication_guard,
-            )
-            if publish_aligned_branch is not None and not log_synced:
-                raise _AssistPublicationRefused(
-                    "The recorded PR branch moved or could not be verified "
-                    "after launch composition. No agent was started; retry "
-                    "the launch so its prompt is composed from the new tip. "
-                    "The launch audit append remains dirty and the catch-all "
-                    "state sweep has been suppressed."
+        if validate_before_spawn is not None:
+            validate_before_spawn()
+
+        deferred_launch_audit = record_launch and record_launch_on_spawn
+
+        def record_and_publish_launch_audit() -> bytes:
+            audit_append = append_log(cfg, ref.id_slug, actor, log_message)
+            if commit_log:
+                # A bootstrap target has no later task-state sync to carry its
+                # launch line; a human-step assist may share the PR checkout
+                # whose clean-tree gate the agent is about to run. When audit
+                # recording is spawn-gated, this publication remains inside
+                # that gate too.
+                log_synced = git.sync_log(
+                    cfg,
+                    message=f"Log: {ref.id_slug}",
+                    publish_if_remote_aligned=(
+                        publish_aligned_branch is not None
+                    ),
+                    expected_feature_branch=publish_aligned_branch,
+                    # A recorded assist was aligned before ticket/config/prompt
+                    # derivation. If its remote moves now, refuse to spawn
+                    # instead of fast-forwarding underneath composed state.
+                    allow_feature_fast_forward=(
+                        publish_aligned_branch is None
+                    ),
+                    feature_publication_guard=feature_publication_guard,
                 )
+                if publish_aligned_branch is not None and not log_synced:
+                    raise _AssistPublicationRefused(
+                        "The recorded PR branch moved or could not be verified "
+                        "after launch composition. No agent was started; retry "
+                        "the launch so its prompt is composed from the new tip. "
+                        "The launch audit append remains dirty and the catch-all "
+                        "state sweep has been suppressed."
+                    )
+            return audit_append
+
+        if record_launch and not deferred_launch_audit:
+            record_and_publish_launch_audit()
 
         if before_recompose is not None:
             before_recompose()
@@ -3169,7 +3409,64 @@ def spawn_agent_session(
 
         if before_spawn is not None:
             before_spawn()
-        spawn_started = True
+
+        gated_spawn_admission = (
+            validate_after_spawn is not None
+            or deferred_launch_audit
+            or after_spawn_release is not None
+        )
+        if not gated_spawn_admission:
+            spawn_started = True
+
+        def admit_spawned_child() -> None:
+            nonlocal provisional_audit_rollback, spawn_started
+            if validate_after_spawn is not None:
+                validate_after_spawn()
+            if deferred_launch_audit:
+                audit_path = log_path(cfg)
+                audit_rollback = git.FileMutationRollback.capture(
+                    (audit_path,),
+                    union_paths=(audit_path,),
+                )
+                audit_append = record_and_publish_launch_audit()
+                audit_rollback.arm_append(audit_path, audit_append)
+                provisional_audit_rollback = audit_rollback
+                if validate_after_spawn is not None:
+                    try:
+                        # The append is visible to same-checkout editors and
+                        # publishers, so the proof that authorizes exec must
+                        # follow it rather than merely precede it.
+                        validate_after_spawn()
+                    except BaseException as exc:
+                        # ``after_spawn`` runs inside ``spawn_release_guard``'s
+                        # publication barrier. Reacquiring the non-reentrant
+                        # lock here would deadlock the refused child.
+                        refused = audit_rollback.restore()
+                        provisional_audit_rollback = None
+                        if refused:
+                            paths = ", ".join(str(path) for path in refused)
+                            raise RuntimeError(
+                                f"{exc}; could not remove refused launch audit "
+                                f"from {paths}"
+                            ) from exc
+                        raise
+            spawn_started = True
+
+        def rollback_spawn_admission() -> None:
+            """Retract callback effects when the held child was not released."""
+            nonlocal provisional_audit_rollback, spawn_started
+            spawn_started = False
+            if provisional_audit_rollback is None:
+                return
+            refused = provisional_audit_rollback.restore()
+            provisional_audit_rollback = None
+            if refused:
+                paths = ", ".join(str(path) for path in refused)
+                raise RuntimeError(
+                    "could not remove unreleased launch audit from "
+                    f"{paths}"
+                )
+
         # Agent CLIs (`claude`, `codex`) don't exit on their own. Run through a
         # PTY watcher so an agent that writes the session-done sentinel after
         # `coga bump` / `coga mark done` / `coga mark canceled` / `coga block`
@@ -3187,6 +3484,16 @@ def spawn_agent_session(
             session_id=ref.id_slug,
             idle_timeout=idle_timeout,
             max_session=max_session,
+            after_spawn=admit_spawned_child if gated_spawn_admission else None,
+            spawn_release_guard=(
+                (lambda: git.state_publication_barrier(cfg))
+                if deferred_launch_audit or after_spawn_release is not None
+                else None
+            ),
+            after_spawn_release=after_spawn_release,
+            on_spawn_admission_failure=(
+                rollback_spawn_admission if gated_spawn_admission else None
+            ),
         )
         outcome_status = _session_outcome_status(outcome)
         publish_session_log = _completed_publishing_gate(ticket, ref, outcome)

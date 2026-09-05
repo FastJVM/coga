@@ -76,7 +76,7 @@ remaining argv passes through unchanged.
 | `create` / `draft` | built-in | No | Scaffolds a raw `draft` ticket and validates it; raw creation is intentionally Slack-silent. |
 | `ticket` | thin built-in head + `coga.authoring` finalize; package home provisional | Not as a fixed alias | Drafts-on-fly, launches the authoring interview, then calls extracted validate/git-sync finalization; TTY guard. Those hooks require coordinating logic, but no co-versioning invariant has yet been ratified. |
 | `launch` | built-in | No | Prompt composition, supervisor loop, status flip. |
-| `megalaunch` | built-in | No | Sweep / `--pick` / `--relaunch` over one engine: launchability filtering, a TTY picker, staged prepare→activate→launch, fixed-point dependency drain. The `pick` default alias is sugar for `megalaunch --pick`, not a replacement. |
+| `megalaunch` | built-in | No | Sweep / `--pick` / `--relaunch` over one engine: launchability filtering, a TTY picker, staged prepare→check→per-ticket activation and launch, fixed-point dependency drain. The `pick` default alias is sugar for `megalaunch --pick`, not a replacement. |
 | `status` | built-in | No | Reads tree + renders tables. Logic, not a passthrough to another command. |
 | `show` | built-in | No | Reads + Rich-renders ticket/blackboard/log. |
 | `bump` | built-in | No | Advances `step:`, appends `log.md`, post-write validate. |

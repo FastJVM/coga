@@ -14,7 +14,7 @@ from coga.bump import (
     resolve_step_assignee,
     rewind_status_error,
 )
-from coga.config import ConfigError, load_config
+from coga.config import Config, ConfigError, load_config
 from coga.logfile import log_path
 from coga.mark import StrandedProductCode, mark_done
 from coga.notification import digest_spool_target_path, preflight_post
@@ -151,7 +151,7 @@ def bump(
                     ticket_override=ticket,
                 )
             else:
-                ticket.write(ref.ticket_path)
+                git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
                 assert_task_valid(cfg, ref, action="freeze workflow on bump")
         except TaskValidationError as exc:
             _bail(str(exc))
@@ -308,6 +308,7 @@ def bump(
             )
         except git.FeaturePublicationError as exc:
             _bail_strict_transition(
+                cfg,
                 ref,
                 "done",
                 exc,
@@ -317,6 +318,7 @@ def bump(
         except StrandedProductCode as exc:
             if rollback is not None:
                 _bail_strict_transition(
+                    cfg,
                     ref,
                     "done",
                     exc,
@@ -338,6 +340,7 @@ def bump(
         except TaskValidationError as exc:
             if rollback is not None:
                 _bail_strict_transition(
+                    cfg,
                     ref,
                     "done",
                     exc,
@@ -349,6 +352,7 @@ def bump(
             if rollback is None:
                 raise
             _bail_strict_transition(
+                cfg,
                 ref,
                 "done",
                 exc,
@@ -449,6 +453,7 @@ def bump(
         )
     except git.FeaturePublicationError as exc:
         _bail_strict_transition(
+            cfg,
             ref,
             f"step {next_step} ({new_step_name})",
             exc,
@@ -468,6 +473,7 @@ def bump(
     except TaskValidationError as exc:
         if rollback is not None:
             _bail_strict_transition(
+                cfg,
                 ref,
                 f"step {next_step} ({new_step_name})",
                 exc,
@@ -479,6 +485,7 @@ def bump(
         if rollback is None:
             raise
         _bail_strict_transition(
+            cfg,
             ref,
             f"step {next_step} ({new_step_name})",
             exc,
@@ -527,6 +534,7 @@ def bump(
 
 
 def _bail_strict_transition(
+    cfg: Config,
     ref: TaskRef,
     transition: str,
     exc: BaseException,
@@ -541,7 +549,7 @@ def _bail_strict_transition(
             "or could not be determined"
         )
     elif rollback is not None and rollback.generated is not None:
-        refused = rollback.restore()
+        refused = git.restore_files_under_barrier(cfg, rollback)
         if refused:
             names = ", ".join(str(path) for path in refused)
             rollback_note = (

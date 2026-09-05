@@ -15,8 +15,10 @@ any non-terminal status — by staging the run in three phases so every
 human-in-the-loop step lands before the first launch: **prepare** (when the
 operator accepts the CLI's batch prompt, each picked `draft` runs the guided
 `coga ticket` authoring interview so a not-ready ticket becomes launchable),
-**activate** (every draft/paused/blocked → `active`), then **launch** (each
-activated ticket runs). A picked `blocked`
+**check** (every draft/paused/blocked is validated against the `active` view it
+would get, and the ones that still can't launch are reported), then **launch**
+(each remaining ticket is activated and run, in that order, as its own turn
+comes). A picked `blocked`
 ticket resumes interactively with the resolve-or-re-block preamble, returning
 to `blocked` if the session exits with the ask still open. A selected ticket
 that still can't launch (terminal, or a draft the interview left with no workflow)
@@ -53,10 +55,19 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
+from uuid import uuid4
 
-from coga.blackboard import Blocker, open_blockers, resolve_open_blockers
+from coga import git
+from coga.blackboard import (
+    Blocker,
+    open_blockers,
+    parse_blockers_text,
+    resolve_open_blockers,
+    update_blackboard_under_barrier,
+)
 from coga.commands.launch import (
     _interactive_stdio_has_tty,
+    missing_launch_file_message,
     spawn_agent_session,
 )
 from coga.recurring_runner import (
@@ -64,7 +75,14 @@ from coga.recurring_runner import (
     _recurring_max_session,
 )
 from coga.compose import ComposeError, compose_prompt
-from coga.config import Config, ConfigError, SecretError, build_launch_env, load_config
+from coga.config import (
+    AgentType,
+    Config,
+    ConfigError,
+    SecretError,
+    build_launch_env,
+    load_config,
+)
 from coga.dependencies import agent_cli_missing_message
 from coga.github_preflight import check_git_auth, check_git_remote
 from coga.logfile import first_activity_map
@@ -76,10 +94,16 @@ from coga.mark import (
     mark_active,
     mark_blocked,
     mark_in_progress,
+    prepare_active,
 )
+from coga.paths import log_path
 from coga.repl_supervisor import build_supervised_step_env
 from coga.workflow import WorkflowError
-from coga.taskfile import read_blackboard, replace_blackboard
+from coga.taskfile import (
+    TaskFileError,
+    read_blackboard,
+    split_body,
+)
 from coga.service_order import service_order
 from coga.tasks import (
     TaskNotFoundError,
@@ -90,13 +114,26 @@ from coga.tasks import (
     read_ticket,
     resolve_bootstrap,
 )
-from coga.ticket import Ticket, TicketError, TicketNotFoundError
+from coga.ticket import (
+    PENDING_LAUNCH_GENERATION_PREFIX,
+    Ticket,
+    TicketError,
+    TicketNotFoundError,
+    admitted_launch_generation,
+    pending_launch_generation,
+    released_generation_from_pending,
+    released_launch_generation,
+)
 from coga.validate import TaskValidationError
 from coga.views import last_updated_map
 
 
 class MegalaunchError(Exception):
     """Megalaunch cannot run at all — e.g. no TTY for the interactive REPLs."""
+
+
+class _LaunchClaimRefused(Exception):
+    """The published megalaunch claim stopped matching before PTY spawn."""
 
 
 MegalaunchOutcome = Literal[
@@ -118,6 +155,17 @@ class MegalaunchResult:
     agent: str | None = None
     launched: bool = False
     drained: bool = False
+
+
+@dataclass(frozen=True)
+class _PreparedAgentLaunch:
+    """Fallible launch inputs materialized before lifecycle writes."""
+
+    ticket: Ticket
+    source_ticket_bytes: bytes
+    agent: AgentType
+    env: dict[str, str]
+    prompt: str
 
 
 @dataclass(frozen=True)
@@ -175,12 +223,13 @@ def run_megalaunch(
     step happens before the first launch — **prepare** (when `author_drafts`,
     each picked `draft` runs the guided `coga ticket` authoring interview so a
     not-ready ticket becomes launchable; the human can end the interview at
-    once if it is already fine), then **activate** (every draft/paused/blocked
-    → `active`), then **launch** (each activated ticket runs). A picked
-    `blocked` ticket resumes interactively (re-blocked if the session exits
-    with the ask still open); a named task that still can't launch — done, or
-    a draft with no workflow to activate — is reported as
-    `skipped-unlaunchable` instead of dropped. A selection slug matching no
+    once if it is already fine), then **check** (validate the prospective
+    `active` view without writing it), then **launch** (re-read each pick,
+    preflight its current prospective view, and activate it only as its own
+    launch starts). A picked `blocked` ticket resumes interactively (re-blocked
+    if the session exits with the ask still open); a named task that still
+    can't launch — done, or a draft with no workflow to activate — is reported
+    as `skipped-unlaunchable` instead of dropped. A selection slug matching no
     task raises `MegalaunchError`.
 
     `author_drafts` gates the prepare phase: the CLI sets it from a one-shot
@@ -304,18 +353,22 @@ def _run_sweep(
             results.append(candidate)
             continue
 
-        attempted += 1
-        results.append(
-            _launch_until_stop(
-                cfg,
-                ref,
-                ticket,
-                agent_override=agent_override,
-                max_steps_per_task=max_steps_per_task,
-                idle_timeout=idle_timeout,
-                max_session=max_session,
-            )
+        result = _launch_until_stop(
+            cfg,
+            ref,
+            ticket,
+            agent_override=agent_override,
+            max_steps_per_task=max_steps_per_task,
+            idle_timeout=idle_timeout,
+            max_session=max_session,
         )
+        # A peer can move a queued candidate behind a sweep gate before the
+        # exact reread. Such a reclassification was never a launch attempt and
+        # must not consume the shared max-tasks budget. A task that launched
+        # before later chaining into a gate still counts.
+        if result.launched or not result.outcome.startswith("skipped-"):
+            attempted += 1
+        results.append(result)
     return _drain_satisfied_blockers(
         cfg,
         results,
@@ -350,12 +403,12 @@ def _drain_satisfied_blockers(
     a finished task may legitimately be retired and removed before its
     dependent reaches this drain.
 
-    Each task is drained at most once per run. A drained task is activated
-    first and only has its asks resolved once that succeeded, so a ticket that
-    cannot be activated keeps its open ask; resolving before launch makes the
-    normal path compose no blocker-resolution preamble; the explicit per-run
-    set also prevents a newly-created blocker from relaunching the same task
-    forever.
+    Each task is drained at most once per run. Its prospective activation is
+    validated first, then activation and blocker resolution publish from one
+    exact ticket snapshot. A ticket that cannot activate keeps its open ask;
+    the combined write also makes the resolved bytes the next launch claim's
+    control revision. The explicit per-run set prevents a newly-created
+    blocker from relaunching the same task forever.
     """
     # `filter_tasks_under` accepts a human-friendly leading/trailing slash and
     # normalizes it for the main queue. Apply the same normalization to the
@@ -412,16 +465,102 @@ def _drain_satisfied_blockers(
             if max_tasks is not None and attempted >= max_tasks:
                 return results
 
-            drained_slugs.add(ref.id_slug)
+            # Re-acquire the ticket and its blockers as one exact revision.
+            # The earlier read established that this task is worth considering;
+            # this snapshot is the source lease for the actual activation plus
+            # resolution publication, so a peer edit cannot be overlaid.
+            audit_path = log_path(cfg)
+            activation_snapshot = git.FileMutationRollback.capture(
+                (ref.ticket_path, audit_path),
+                union_paths=(audit_path,),
+            )
+            captured = activation_snapshot.originals[ref.ticket_path]
+            if captured is None:
+                drained_slugs.add(ref.id_slug)
+                _replace_result(
+                    results,
+                    _as_drained(
+                        _result(
+                            ref,
+                            "failed",
+                            "ticket disappeared before dependency activation",
+                        ),
+                        dependency,
+                    ),
+                )
+                continue
+            try:
+                ticket = Ticket.parse(captured.decode("utf-8"))
+                blocker_text = read_blackboard(
+                    ref.ticket_path,
+                    expected_bytes=captured,
+                )
+            except (
+                OSError,
+                UnicodeDecodeError,
+                TicketError,
+                TaskFileError,
+            ) as exc:
+                drained_slugs.add(ref.id_slug)
+                _replace_result(
+                    results,
+                    _as_drained(
+                        _result(
+                            ref,
+                            "failed",
+                            f"unreadable ticket before dependency activation: {exc}",
+                        ),
+                        dependency,
+                    ),
+                )
+                continue
+            if ticket.owner != cfg.current_user or ticket.status != "blocked":
+                _replace_result(
+                    results,
+                    _result(
+                        ref,
+                        "failed",
+                        "ticket changed before dependency activation; retry",
+                        ticket.assignee,
+                    ),
+                )
+                continue
+            blockers = [
+                blocker
+                for blocker in parse_blockers_text(blocker_text)
+                if not blocker.resolved
+            ]
+            dependency = _finished_blocker_dependency(blockers, known)
+            if dependency is None:
+                detail = (
+                    "; ".join(blocker.reason for blocker in blockers)
+                    or "status is blocked"
+                )
+                _replace_result(
+                    results,
+                    _result(
+                        ref,
+                        "skipped-unresolved-blocker",
+                        detail,
+                        ticket.assignee,
+                    ),
+                )
+                continue
 
-            # Activate first, resolve second. Activation can refuse a ticket
-            # that is otherwise ready to drain (no workflow, a `workflow:` ref
-            # that will not freeze, an empty required extension field) and
-            # those refusals leave the ticket `blocked`. Resolving the asks
-            # first would strand it blocked with nothing open — a state
-            # `coga launch` and `coga unblock` both refuse and blocker
-            # reminders no longer report — so the owner would lose the ask
-            # instead of repairing it and retrying.
+            drained_slugs.add(ref.id_slug)
+            answer = (
+                "Coga megalaunch automatically resolved this blocker after "
+                f"dependency {dependency} finished."
+            )
+
+            # Validate the prospective activation before either local write.
+            # The durable helper then publishes activation and this answer as
+            # one exact transaction; a refused activation leaves the blocked
+            # ticket and its actionable ask untouched.
+            prepared = _prepare_for_launch(cfg, ref, ticket)
+            if isinstance(prepared, MegalaunchResult):
+                _replace_result(results, _as_drained(prepared, dependency))
+                continue
             failure = _activate_for_launch(
                 cfg,
                 ref,
@@ -430,25 +569,18 @@ def _drain_satisfied_blockers(
                     "activated (blocked → active) — coga megalaunch "
                     f"resolved finished dependency {dependency}"
                 ),
+                prepared=prepared,
+                mutation_snapshot=activation_snapshot,
+                blocker_resolution=("system", answer),
             )
             if failure is not None:
                 _replace_result(results, _as_drained(failure, dependency))
                 continue
 
-            answer = (
-                "Coga megalaunch automatically resolved this blocker after "
-                f"dependency {dependency} finished."
-            )
-            resolve_open_blockers(
-                ref.ticket_path,
-                actor="system",
-                answer=answer,
-            )
-
             try:
-                # The blackboard write above changed the ticket body. Re-read
-                # before launching so writing frontmatter cannot restore the
-                # stale, still-open blocker text.
+                # The combined write changed both frontmatter and blackboard.
+                # Re-read before launch so the strict start claim binds to the
+                # exact resolved control revision just published.
                 ticket = read_ticket(ref)
             except TicketNotFoundError:
                 _replace_result(
@@ -478,7 +610,6 @@ def _drain_satisfied_blockers(
                 _replace_result(results, _as_drained(candidate, dependency))
                 continue
 
-            attempted += 1
             result = _launch_until_stop(
                 cfg,
                 ref,
@@ -488,6 +619,11 @@ def _drain_satisfied_blockers(
                 idle_timeout=idle_timeout,
                 max_session=max_session,
             )
+            # The exact launch reread can reclassify a dependency activation
+            # just like a main-sweep candidate. Only real attempts share the
+            # budget; a late gate skip leaves room for the next dependency.
+            if result.launched or not result.outcome.startswith("skipped-"):
+                attempted += 1
             _replace_result(results, _as_drained(result, dependency))
             if result.launched:
                 launched_in_pass = True
@@ -569,12 +705,16 @@ def _run_selection(
 ) -> list[MegalaunchResult]:
     """The explicit picker path, staged so all human-in-the-loop prep lands
     before the first launch: **prepare** (author picked drafts, when the
-    operator opted in), then **activate** (draft/paused/blocked → active),
-    then **launch** (run each).
+    operator opted in), then **check** (validate every draft/paused/blocked
+    against the `active` view it would get), then **launch** (activate and run
+    each).
 
     Batching the phases means the operator answers every authoring interview
-    and every activation up front, then the working launches proceed without
-    further gating them on a not-yet-ready ticket further down the list.
+    and sees every unlaunchable pick up front, then the working launches
+    proceed without further gating them on a not-yet-ready ticket further down
+    the list. Activation itself is *not* batched: it is durable state saying
+    work began, so each pick is flipped inside its own launch, after the
+    preflights that can still refuse it.
     """
     results: list[MegalaunchResult] = []
 
@@ -599,11 +739,13 @@ def _run_selection(
                     agent_override=agent_override,
                 )
 
-    # Phase 2 — Activate. Bring every picked draft/paused/blocked to `active`
-    # (a blocked ticket keeps its open asks for the launch-time preamble), and
-    # report the ones that still can't launch. What survives is the launch
-    # plan, each entry remembering whether it was a blocked resume.
-    launch_plan: list[tuple[TaskRef, bool]] = []
+    # Phase 2 — Check. Validate every picked draft/paused/blocked against the
+    # `active` view it would get, and report the ones that still can't launch.
+    # Nothing is written: the durable flip happens in phase 3, inside each
+    # ticket's own launch. Only refs survive into the launch plan: every
+    # lifecycle-dependent decision is re-derived from the fresh phase-3 read,
+    # after any earlier picked ticket has finished running.
+    launch_plan: list[TaskRef] = []
     for ref in queue:
         try:
             ticket = read_ticket(ref)
@@ -629,15 +771,18 @@ def _run_selection(
         if candidate is not None:
             results.append(candidate)
             continue
-        was_blocked = ticket.status == "blocked"
-        if ticket.status in {"draft", "paused", "blocked"}:
-            failure = _activate_for_launch(cfg, ref, ticket)
-            if failure is not None:
-                results.append(failure)
+        needs_activation = ticket.status in {"draft", "paused", "blocked"}
+        if needs_activation:
+            # Prepare only — a blocked ticket also keeps its open asks here for
+            # the launch-time preamble. A refusal reads exactly as the durable
+            # flip used to report it, with nothing written to disk.
+            prepared = _prepare_for_launch(cfg, ref, ticket)
+            if isinstance(prepared, MegalaunchResult):
+                results.append(prepared)
                 continue
-            # Activation froze the workflow and seeded step 1. A ticket with
-            # no resulting step cannot be launched.
-            if ticket.current_step() is None:
+            # Activation will freeze the workflow and seed step 1. A ticket
+            # with no resulting step cannot be launched.
+            if prepared.current_step() is None:
                 results.append(
                     _result(
                         ref,
@@ -647,13 +792,18 @@ def _run_selection(
                     )
                 )
                 continue
-        launch_plan.append((ref, was_blocked))
+        launch_plan.append(ref)
 
-    # Phase 3 — Launch. Every entry is now an activated ticket; run them one at
-    # a time, honouring `--max-tasks` over the launches.
+    # Phase 3 — Launch. Activate and run the plan one entry at a time,
+    # honouring `--max-tasks` over the launches.
     attempted = 0
-    for ref, blocked_resume in launch_plan:
+    for ref in launch_plan:
         if max_tasks is not None and attempted >= max_tasks:
+            # `--max-tasks` stops the run here and activation is deferred into
+            # each launch, so a pick the run never reaches keeps its
+            # draft/paused/blocked status untouched. That is deliberate: an
+            # `active` ticket on disk means a session started, and this one
+            # never did. Re-pick it to run it.
             break
         try:
             ticket = read_ticket(ref)
@@ -665,19 +815,112 @@ def _run_selection(
         except TicketError as exc:
             results.append(_result(ref, "failed", f"unreadable ticket: {exc}"))
             continue
-        attempted += 1
-        results.append(
-            _launch_until_stop(
+        # Deferring activation widens the window between the check phase and
+        # the launch. Reclassify the fresh ticket instead of carrying phase-2
+        # status decisions across earlier agent sessions: a concurrent start
+        # must not be reactivated, and a newly blocked pick must retain the
+        # resume/re-block contract.
+        if ticket.status in TERMINAL_STATUSES:
+            results.append(
+                _result(
+                    ref,
+                    "skipped-unlaunchable",
+                    f"status is {ticket.status}",
+                    ticket.assignee,
+                )
+            )
+            continue
+        candidate = _candidate_result(cfg, ref, ticket, explicit=True)
+        if candidate is not None:
+            results.append(candidate)
+            continue
+        blocked_resume = ticket.status == "blocked"
+        needs_activation = ticket.status in {"draft", "paused", "blocked"}
+        activation_snapshot: git.FileMutationRollback | None = None
+        if needs_activation:
+            # Bind preparation, every launch preflight, and the eventual write
+            # to one exact ticket revision. Reading the parsed ticket back from
+            # the snapshot closes the read/capture gap; mark_active consumes
+            # the same snapshot immediately before its write.
+            audit_path = log_path(cfg)
+            activation_snapshot = git.FileMutationRollback.capture(
+                (ref.ticket_path, audit_path),
+                union_paths=(audit_path,),
+            )
+            captured = activation_snapshot.originals[ref.ticket_path]
+            if captured is None:
+                results.append(
+                    _result(ref, "failed", "ticket disappeared before launch")
+                )
+                continue
+            try:
+                ticket = Ticket.parse(captured.decode("utf-8"))
+                _body, captured_blackboard = split_body(ticket.body)
+                assert captured_blackboard is not None
+                captured_blockers = [
+                    blocker
+                    for blocker in parse_blockers_text(captured_blackboard)
+                    if not blocker.resolved
+                ]
+            except (UnicodeDecodeError, TicketError, TaskFileError) as exc:
+                results.append(
+                    _result(ref, "failed", f"unreadable ticket: {exc}")
+                )
+                continue
+            if ticket.status in TERMINAL_STATUSES:
+                results.append(
+                    _result(
+                        ref,
+                        "skipped-unlaunchable",
+                        f"status is {ticket.status}",
+                        ticket.assignee,
+                    )
+                )
+                continue
+            captured_candidate = _candidate_result(
                 cfg,
                 ref,
                 ticket,
-                agent_override=agent_override,
-                max_steps_per_task=max_steps_per_task,
-                idle_timeout=idle_timeout,
-                max_session=max_session,
-                blocked_resume=blocked_resume,
+                explicit=True,
+                blockers=captured_blockers,
             )
+            if captured_candidate is not None:
+                results.append(captured_candidate)
+                continue
+            blocked_resume = ticket.status == "blocked"
+            needs_activation = ticket.status in {"draft", "paused", "blocked"}
+            if not needs_activation:
+                # A peer moved the task between the phase-3 read and the exact
+                # capture. Refuse this stale selection rather than treating a
+                # newly started or closed task as the draft we meant to flip.
+                results.append(
+                    _result(
+                        ref,
+                        "failed",
+                        "ticket changed before deferred activation; retry",
+                        ticket.assignee,
+                    )
+                )
+                continue
+        result = _launch_until_stop(
+            cfg,
+            ref,
+            ticket,
+            agent_override=agent_override,
+            max_steps_per_task=max_steps_per_task,
+            idle_timeout=idle_timeout,
+            max_session=max_session,
+            blocked_resume=blocked_resume,
+            activate=needs_activation,
+            activation_snapshot=activation_snapshot,
+            explicit=True,
         )
+        # A selected candidate can cross a current-step, assignee, or terminal
+        # gate at the exact reread just like a sweep candidate.  Only a real
+        # attempt consumes the shared limit.
+        if result.launched or not result.outcome.startswith("skipped-"):
+            attempted += 1
+        results.append(result)
     return results
 
 
@@ -833,8 +1076,10 @@ def _candidate_result(
     ticket: Ticket,
     *,
     explicit: bool = False,
+    blockers: list[Blocker] | None = None,
 ) -> MegalaunchResult | None:
-    blockers = open_blockers(ref.ticket_path)
+    if blockers is None:
+        blockers = open_blockers(ref.ticket_path)
     if ticket.status == "blocked":
         # The initial unattended pass does not resume a blocked ticket. Its
         # terminal dependency drain may later resolve and activate one whose
@@ -891,10 +1136,14 @@ def _launch_until_stop(
     idle_timeout: float | None = None,
     max_session: float | None = None,
     blocked_resume: bool = False,
+    activate: bool = False,
+    activation_snapshot: git.FileMutationRollback | None = None,
+    explicit: bool = False,
 ) -> MegalaunchResult:
-    # `ticket` is already `active` / `in_progress` — the sweep only reaches
-    # here for ready work, and the selection path activates draft/paused/
-    # blocked in its own phase before launching. `blocked_resume` marks a
+    # `ticket` is `active` / `in_progress` unless `activate` is set — the sweep
+    # only reaches here for ready work, while the selection path hands over a
+    # still-unactivated draft/paused/blocked pick and lets the first step below
+    # flip it, after the preflights. `blocked_resume` marks a
     # ticket that was blocked when picked: the composed prompt carries the
     # resolve-or-re-block preamble off the blackboard's still-open asks, and an
     # exit that leaves an ask open returns it to `blocked` below.
@@ -913,6 +1162,82 @@ def _launch_until_stop(
                 launched=launched,
             )
 
+        # Active/resumed work has no earlier selection snapshot. Re-read it
+        # from exact bytes before deriving routing or inputs, then retain those
+        # raw bytes as the compare-and-swap source revision. This accepts
+        # harmless non-canonical YAML formatting without weakening the guard.
+        preflight_source_bytes: bytes | None = None
+        if not activate:
+            try:
+                preflight_source_bytes = ref.ticket_path.read_bytes()
+                ticket = Ticket.parse(preflight_source_bytes.decode("utf-8"))
+                _body, exact_blackboard = split_body(ticket.body)
+                assert exact_blackboard is not None
+                exact_blockers = [
+                    blocker
+                    for blocker in parse_blockers_text(exact_blackboard)
+                    if not blocker.resolved
+                ]
+            except FileNotFoundError:
+                return _result(
+                    ref,
+                    "failed",
+                    "ticket disappeared before launch",
+                    ticket.assignee,
+                    launched=launched,
+                )
+            except (UnicodeDecodeError, TicketError, TaskFileError) as exc:
+                return _result(
+                    ref,
+                    "failed",
+                    f"unreadable ticket: {exc}",
+                    ticket.assignee,
+                    launched=launched,
+                )
+
+            # The outer queue scan is only a candidate hint. A peer may change
+            # owner, status, blockers, or the current workflow step before this
+            # exact reread, so reapply every sweep gate to these same bytes
+            # before deriving a prompt or lifecycle mutation from them.
+            if not explicit and ticket.owner != cfg.current_user:
+                return _result(
+                    ref,
+                    "skipped-human-gate",
+                    f"owner {ticket.owner or 'unassigned'} is not current "
+                    f"operator {cfg.current_user}",
+                    ticket.assignee,
+                    launched=launched,
+                )
+            if not explicit and ticket.status not in {
+                "active",
+                "in_progress",
+                "blocked",
+            }:
+                return _result(
+                    ref,
+                    "skipped-unlaunchable",
+                    f"status is {ticket.status}",
+                    ticket.assignee,
+                    launched=launched,
+                )
+            if ticket.status in TERMINAL_STATUSES:
+                return _result(
+                    ref,
+                    "skipped-unlaunchable",
+                    f"status is {ticket.status}",
+                    ticket.assignee,
+                    launched=launched,
+                )
+            exact_candidate = _candidate_result(
+                cfg,
+                ref,
+                ticket,
+                explicit=explicit,
+                blockers=exact_blockers,
+            )
+            if exact_candidate is not None:
+                return replace(exact_candidate, launched=launched)
+
         if ticket.assignee not in cfg.agents:
             return _result(
                 ref,
@@ -929,37 +1254,154 @@ def _launch_until_stop(
         )
         first_step = False
 
-        preflight = _preflight_agent_launch(cfg, ref, ticket, launch_assignee)
-        if preflight is not None:
+        # A deferred activation belongs to the first step only. Preflight the
+        # prospective `active` view, materializing the exact `in_progress`
+        # prompt, environment, and agent this launch will use. Commit the flip
+        # only once every refusal below has passed, so a ticket whose session
+        # never starts is never left claiming it did.
+        preflight_view = ticket
+        prepared_activation: Ticket | None = None
+        if activate:
+            prepared = _prepare_for_launch(cfg, ref, ticket)
+            if isinstance(prepared, MegalaunchResult):
+                return prepared
+            preflight_view = prepared
+            prepared_activation = prepared
+
+        prepared_launch = _preflight_agent_launch(
+            cfg,
+            ref,
+            preflight_view,
+            launch_assignee,
+            source_ticket_bytes=preflight_source_bytes,
+        )
+        if isinstance(prepared_launch, str):
             return _result(
                 ref,
                 "failed",
-                preflight,
+                prepared_launch,
                 launch_assignee,
                 launched=launched,
             )
 
-        if ticket.status == "active":
-            try:
-                mark_in_progress(
-                    cfg,
-                    ref,
-                    ticket,
-                    actor="megalaunch",
-                    log_message="started (active → in_progress) via coga megalaunch",
-                    echo=None,
-                )
-            except TaskValidationError as exc:
-                return _result(ref, "failed", str(exc), ticket.assignee)
-
-        before = read_ticket(ref)
-        try:
-            agent = cfg.agent_type(launch_assignee or "")
-            env = build_supervised_step_env(
-                build_launch_env(cfg, before.secrets),
-                task_path=ref.path,
-                step=before.step,
+        if activate:
+            activate = False
+            failure = _activate_for_launch(
+                cfg,
+                ref,
+                ticket,
+                prepared=prepared_activation,
+                mutation_snapshot=activation_snapshot,
             )
+            if failure is not None:
+                return failure
+
+        # Activation sync can spend long enough fetching/publishing for a peer
+        # to edit or complete the ticket. Bind the following start write to the
+        # exact active bytes that the preflight saw; never overlay that peer
+        # revision with this loop's stale in-memory ticket. The same guard also
+        # closes the preflight window for an already-active sweep candidate.
+        prior_start_status = ticket.status
+        audit_path = log_path(cfg)
+        start_snapshot = git.FileMutationRollback.capture(
+            (ref.ticket_path, audit_path),
+            union_paths=(audit_path,),
+        )
+        if (
+            start_snapshot.originals[ref.ticket_path]
+            != prepared_launch.source_ticket_bytes
+        ):
+            return _result(
+                ref,
+                "failed",
+                "ticket changed after launch preflight; retry",
+                launch_assignee,
+                launched=launched,
+            )
+        try:
+            mark_in_progress(
+                cfg,
+                ref,
+                prepared_launch.ticket,
+                actor="megalaunch",
+                log_message=(
+                    "started (active → in_progress) via coga megalaunch"
+                    if prior_start_status == "active"
+                    else "claimed in_progress resume via coga megalaunch"
+                ),
+                echo=None,
+                mutation_snapshot=start_snapshot,
+                state_guard=(
+                    git.ticket_state_guard(
+                        cfg,
+                        ref.ticket_path,
+                        expected_ticket_bytes=(
+                            prepared_launch.source_ticket_bytes
+                        ),
+                        allow_launch_claim_acquisition=True,
+                    )
+                    if cfg.git_enabled
+                    else None
+                ),
+                strict_state_guard=cfg.git_enabled,
+                strict_state_sync=cfg.git_enabled,
+            )
+        except TaskValidationError as exc:
+            git.restore_files_under_barrier(cfg, start_snapshot)
+            return _result(ref, "failed", str(exc), ticket.assignee)
+        except git.UncertainFeaturePublicationError as exc:
+            return _result(
+                ref,
+                "failed",
+                "launch claim publication outcome is uncertain; generated "
+                f"local state retained for reconciliation — {exc}",
+                ticket.assignee,
+            )
+        except git.GitError as exc:
+            git.restore_files_under_barrier(cfg, start_snapshot)
+            return _result(
+                ref,
+                "failed",
+                f"launch claim publication refused: {exc}; retry",
+                ticket.assignee,
+            )
+        # `mark_in_progress` includes synchronous Git publication. A peer can
+        # replace, complete, or claim the ticket while that network boundary
+        # is in flight, after our pre-write CAS has already succeeded. Spawn
+        # only if the live file is still the exact claimed revision whose
+        # prompt, environment, and agent were materialized above.
+        try:
+            post_start_ticket_bytes = ref.ticket_path.read_bytes()
+        except FileNotFoundError:
+            post_start_ticket_bytes = None
+        expected_started_bytes = prepared_launch.ticket.render().encode("utf-8")
+        if post_start_ticket_bytes != expected_started_bytes:
+            return _result(
+                ref,
+                "failed",
+                "ticket changed during start publication; current state "
+                "retained for safe resume; retry",
+                launch_assignee,
+                launched=launched,
+            )
+
+        def revalidate_launch_claim() -> None:
+            _revalidate_launch_claim_before_spawn(
+                cfg,
+                ref,
+                expected_started_bytes=expected_started_bytes,
+            )
+
+        def admit_released_launch_claim() -> None:
+            _admit_launch_claim_after_release(
+                cfg,
+                ref,
+                expected_started_bytes=expected_started_bytes,
+            )
+
+        before = prepared_launch.ticket
+        try:
+            agent = prepared_launch.agent
             # A normal interactive launch: the REPL streams to the console
             # under the PTY watcher, and the done-sentinel (`coga bump` /
             # `mark done` / `mark canceled` / `block`) releases it — never
@@ -970,7 +1412,7 @@ def _launch_until_stop(
                 ref,
                 before,
                 agent,
-                env=env,
+                env=prepared_launch.env,
                 actor="megalaunch",
                 log_message="launched via coga megalaunch",
                 name=before.title or "",
@@ -979,9 +1421,31 @@ def _launch_until_stop(
                 launch_context="megalaunch",
                 label="Megalaunch",
                 warn_blackboard=True,
+                composed_prompt=prepared_launch.prompt,
+                validate_before_spawn=revalidate_launch_claim,
+                validate_after_spawn=revalidate_launch_claim,
+                after_spawn_release=(
+                    admit_released_launch_claim if cfg.git_enabled else None
+                ),
+                record_launch_on_spawn=True,
+            )
+        except _LaunchClaimRefused as exc:
+            return _result(
+                ref,
+                "failed",
+                f"{exc}; current state retained for safe resume; retry",
+                launch_assignee,
+                launched=launched,
             )
         except (ComposeError, ConfigError, SecretError) as exc:
             return _result(ref, "failed", str(exc), launch_assignee)
+        except git.GitError as exc:
+            return _result(
+                ref,
+                "failed",
+                f"launch admission publication barrier unavailable: {exc}",
+                launch_assignee,
+            )
         except FileNotFoundError:
             return _result(
                 ref,
@@ -1041,21 +1505,140 @@ def _launch_until_stop(
         ticket = after
 
 
+# The refusals `prepare_active` raises before `mark_active` writes anything.
+# `TaskValidationError` is deliberately not one of them: it comes from the
+# post-write `assert_task_valid`, so it belongs to the commit half alone.
+_PREPARE_ACTIVE_ERRORS = (
+    WorkflowMissing,
+    WorkflowError,
+    RequiredExtensionMissing,
+    BlackboardNeedsSynthesis,
+)
+
+
+def _activation_refusal(
+    ref: TaskRef,
+    ticket: Ticket,
+    prior: str,
+    exc: Exception,
+) -> MegalaunchResult:
+    """Map a refused activation to the loud result the sweep reports.
+
+    Shared by the prepare and commit halves so a refusal reads identically
+    whichever side of the durable write raised it.
+    """
+    if isinstance(exc, WorkflowMissing):
+        return _result(
+            ref,
+            "skipped-unlaunchable",
+            f"{prior} with no workflow — set `workflow:` in ticket.md or run "
+            f"`coga ticket {ref.id_slug}`",
+            ticket.assignee,
+        )
+    if isinstance(exc, WorkflowError):
+        return _result(
+            ref,
+            "skipped-unlaunchable",
+            f"`workflow:` ref could not be frozen — {exc}",
+            ticket.assignee,
+        )
+    if isinstance(exc, RequiredExtensionMissing):
+        names = ", ".join(repr(f) for f in exc.fields)
+        return _result(
+            ref,
+            "skipped-unlaunchable",
+            f"required extension field(s) empty: {names}",
+            ticket.assignee,
+        )
+    if isinstance(exc, BlackboardNeedsSynthesis):
+        return _result(
+            ref,
+            "skipped-unlaunchable",
+            f"blackboard needs synthesis before first launch: {exc.reason}",
+            ticket.assignee,
+        )
+    return _result(ref, "failed", str(exc), ticket.assignee)
+
+
+def _prepare_for_launch(
+    cfg: Config,
+    ref: TaskRef,
+    ticket: Ticket,
+) -> Ticket | MegalaunchResult:
+    """The `active` view a picked ticket *would* get, without writing it.
+
+    The prepare half of the activation: `prepare_active` on a throwaway copy,
+    so every refusal it can raise — and every preflight run against the view it
+    returns — happens before anything durable exists. Returns the prospective
+    ticket, or the refusal result to report instead.
+
+    Callers must re-run this after any re-read of the ticket rather than
+    carrying the prepared view across one: it is an uncommitted mutation, and a
+    fresh `read_ticket` discards it.
+    """
+    prospective = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
+    prior = ticket.status
+    try:
+        prepare_active(cfg, ref, prospective)
+    except _PREPARE_ACTIVE_ERRORS as exc:
+        return _activation_refusal(ref, ticket, prior, exc)
+    return prospective
+
+
 def _activate_for_launch(
     cfg: Config,
     ref: TaskRef,
     ticket: Ticket,
     *,
     log_message: str | None = None,
+    prepared: Ticket | None = None,
+    mutation_snapshot: git.FileMutationRollback | None = None,
+    blocker_resolution: tuple[str, str] | None = None,
 ) -> MegalaunchResult | None:
-    """Bring a picked or dependency-drained ticket to `active`.
+    """Commit a picked or dependency-drained ticket to `active`.
 
     Mirrors `coga launch`'s inline auto-activation, but returns a loud result
     instead of exiting the process — one bad task must not kill the sweep.
     `mark_active` mutates `ticket` in place (status, frozen workflow, seeded
     step), so the caller's launch loop continues off the same object.
+
+    The durable half. A deferred picker launch supplies the exact prospective
+    ticket its preflight saw plus a mutation snapshot of the source revision.
+    `mark_active` therefore sees an already-prepared `active` ticket (so it
+    cannot freeze a changed workflow definition) and refuses immediately
+    before writing if a peer changed the ticket. A dependency drain also
+    supplies an actor/answer pair: after activation validates and writes, its
+    blocker update joins the same snapshot and exact control publication. Thus
+    the next launch claim leases resolved bytes rather than a local-only edit.
     """
     prior = ticket.status
+    strict_source_bytes: bytes | None = None
+    strict_activation = (
+        cfg.git_enabled
+        and prepared is not None
+        and mutation_snapshot is not None
+    )
+    if blocker_resolution is not None and (
+        prepared is None or mutation_snapshot is None
+    ):
+        return _result(
+            ref,
+            "failed",
+            "dependency resolution requires an exact activation snapshot",
+            ticket.assignee,
+        )
+    if strict_activation:
+        strict_source_bytes = mutation_snapshot.originals.get(ref.ticket_path)
+        if strict_source_bytes is None:
+            return _result(
+                ref,
+                "failed",
+                "ticket disappeared before deferred activation",
+                ticket.assignee,
+            )
+    if prepared is not None:
+        ticket.frontmatter = dict(prepared.frontmatter)
+        ticket.body = prepared.body
     try:
         mark_active(
             cfg,
@@ -1067,40 +1650,264 @@ def _activate_for_launch(
                 or f"activated ({prior} → active) — explicit megalaunch pick"
             ),
             echo=None,
+            sync_state=not strict_activation and blocker_resolution is None,
+            mutation_snapshot=mutation_snapshot,
         )
-    except WorkflowMissing:
-        return _result(
+        if blocker_resolution is not None:
+            assert mutation_snapshot is not None
+            generated = mutation_snapshot.generated
+            if generated is None or generated.get(ref.ticket_path) is None:
+                raise git.FeaturePublicationError(
+                    "activation did not arm dependency-resolution ticket bytes"
+                )
+            actor, answer = blocker_resolution
+            try:
+                with git.state_publication_barrier(cfg):
+                    resolved = resolve_open_blockers(
+                        ref.ticket_path,
+                        actor=actor,
+                        answer=answer,
+                        expected_bytes=generated[ref.ticket_path],
+                        after_write=lambda written: mutation_snapshot.arm(
+                            {ref.ticket_path: written}
+                        ),
+                    )
+            except (OSError, UnicodeError, TaskFileError) as exc:
+                raise git.FeaturePublicationError(
+                    f"could not resolve dependency blocker: {exc}"
+                ) from exc
+            if not resolved:
+                raise git.FeaturePublicationError(
+                    "dependency blocker changed before its guarded resolution"
+                )
+        if strict_activation:
+            assert mutation_snapshot is not None
+            assert strict_source_bytes is not None
+            git.sync_task_state(
+                cfg,
+                ref.path,
+                message=f"Ticket: {ref.id_slug} — active",
+                guard=git.ticket_state_guard(
+                    cfg,
+                    ref.ticket_path,
+                    expected_ticket_bytes=strict_source_bytes,
+                ),
+                generated_paths=mutation_snapshot.generated,
+                raise_state_regression=True,
+                raise_git_error=True,
+            )
+    except git.UncertainFeaturePublicationError as exc:
+        return _activation_refusal(
             ref,
-            "skipped-unlaunchable",
-            f"{prior} with no workflow — set `workflow:` in ticket.md or run "
-            f"`coga ticket {ref.id_slug}`",
-            ticket.assignee,
+            ticket,
+            prior,
+            git.FeaturePublicationError(
+                "activation publication outcome is uncertain; generated "
+                f"local state retained for reconciliation — {exc}"
+            ),
         )
-    except WorkflowError as exc:
-        return _result(
-            ref,
-            "skipped-unlaunchable",
-            f"`workflow:` ref could not be frozen — {exc}",
-            ticket.assignee,
-        )
-    except RequiredExtensionMissing as exc:
-        names = ", ".join(repr(f) for f in exc.fields)
-        return _result(
-            ref,
-            "skipped-unlaunchable",
-            f"required extension field(s) empty: {names}",
-            ticket.assignee,
-        )
-    except BlackboardNeedsSynthesis as exc:
-        return _result(
-            ref,
-            "skipped-unlaunchable",
-            f"blackboard needs synthesis before first launch: {exc.reason}",
-            ticket.assignee,
-        )
-    except TaskValidationError as exc:
-        return _result(ref, "failed", str(exc), ticket.assignee)
+    except (
+        *_PREPARE_ACTIVE_ERRORS,
+        TaskValidationError,
+        git.GitError,
+    ) as exc:
+        if (
+            isinstance(exc, (TaskValidationError, git.GitError))
+            and mutation_snapshot is not None
+        ):
+            git.restore_files_under_barrier(cfg, mutation_snapshot)
+        return _activation_refusal(ref, ticket, prior, exc)
     return None
+
+
+def _revalidate_launch_claim_before_spawn(
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    expected_started_bytes: bytes,
+) -> None:
+    """Re-prove one exact local/control claim at the actual PTY boundary.
+
+    Strict claim publication closes the race between preflight and the first
+    control push, and a published generation is not automatically reclaimable
+    by another megalaunch. Still reread the local ticket and every effective
+    control push destination from a private fetch immediately before
+    ``run_with_done_marker`` so arbitrary peer edits after publication cannot
+    reach spawn. Exact ticket bytes bind the proof to the preflighted prompt as
+    well as the generation.
+
+    Refusal deliberately leaves the pending ``in_progress`` claim untouched.
+    Ordinary ``coga launch`` refuses that visible held-child state; only the
+    post-release admission callback turns it into a plain generation that can
+    be recovered explicitly.
+    """
+    def require_local_claim() -> None:
+        try:
+            local_bytes = ref.ticket_path.read_bytes()
+        except OSError as exc:
+            raise _LaunchClaimRefused(
+                f"launch claim could not be read before agent spawn: {exc}"
+            ) from exc
+        if local_bytes != expected_started_bytes:
+            raise _LaunchClaimRefused(
+                "launch claim changed locally before agent spawn"
+            )
+
+    require_local_claim()
+    if not cfg.git_enabled:
+        return
+
+    try:
+        root = git._toplevel(ref.path)
+        if root is None:
+            raise git.GitError(
+                "strict launch-claim verification requires a Git checkout"
+            )
+        guard = git.ticket_state_guard(
+            cfg,
+            ref.ticket_path,
+            expected_ticket_bytes=expected_started_bytes,
+        )
+        for push_url in git._remote_push_urls(root, cfg.git_remote):
+            control_tip = git._fetch_branch_oid(
+                root,
+                push_url,
+                cfg.git_control_branch,
+            )
+            guard(control_tip)
+    except git.StateRegressionError as exc:
+        raise _LaunchClaimRefused(
+            f"launch claim changed on control before agent spawn: {exc}"
+        ) from exc
+    except git.GitError as exc:
+        raise _LaunchClaimRefused(
+            f"launch claim could not be verified before agent spawn: {exc}"
+        ) from exc
+    # Fetching control may take long enough for a local ordinary launch to
+    # update the blackboard. Keep the last filesystem action before returning
+    # to the PTY call an exact local reread too.
+    require_local_claim()
+
+
+def _admit_launch_claim_after_release(
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    expected_started_bytes: bytes,
+) -> None:
+    """Publish pending-to-admitted only after the held child is released.
+
+    The supervisor calls this while retaining the same-checkout publication
+    barrier that covered the final remote proof and gate write. Cross-checkout
+    publishers see the visible ``pending:`` claim and refuse every replacement;
+    this exact one-field transition is the sole exception. Once it lands, the
+    child can already execute, so ordinary lifecycle changes may proceed.
+    """
+    if not cfg.git_enabled:
+        return
+    try:
+        current_bytes = ref.ticket_path.read_bytes()
+    except OSError as exc:
+        raise _LaunchClaimRefused(
+            f"pending launch claim could not be read after child release: {exc}"
+        ) from exc
+    if current_bytes != expected_started_bytes:
+        raise _LaunchClaimRefused(
+            "pending launch claim changed locally during child release"
+        )
+    try:
+        ticket = Ticket.parse(current_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, TicketError) as exc:
+        raise _LaunchClaimRefused(
+            f"pending launch claim became unreadable after child release: {exc}"
+        ) from exc
+    generation = ticket.launch_generation
+    if not pending_launch_generation(generation):
+        raise _LaunchClaimRefused(
+            "launch claim was not pending after child release"
+        )
+    assert generation is not None
+
+    admitted_generation = admitted_launch_generation(generation)
+    released_ticket = Ticket(
+        frontmatter=dict(ticket.frontmatter),
+        body=ticket.body,
+    )
+    released_ticket.frontmatter["launch_generation"] = (
+        released_generation_from_pending(generation)
+    )
+    try:
+        # Record release before attempting its remote publication. If that
+        # publication fails, this local-only form is the durable capability
+        # that lets an explicit ordinary launch safely reconcile and recover.
+        released_ticket.write(ref.ticket_path)
+    except OSError as exc:
+        raise _LaunchClaimRefused(
+            "released launch admission could not be recorded locally; "
+            f"manual reconciliation is required: {exc}"
+        ) from exc
+
+    audit_path = log_path(cfg)
+    mutation = git.FileMutationRollback.capture(
+        (ref.ticket_path, audit_path),
+        union_paths=(audit_path,),
+    )
+    try:
+        mutation.require_unchanged(ref.ticket_path)
+        ticket.frontmatter["launch_generation"] = admitted_generation
+        admitted_bytes = ticket.render().encode("utf-8")
+        ticket.write(ref.ticket_path)
+        mutation.arm({ref.ticket_path: admitted_bytes})
+        # The supervisor already holds ``state_publication_barrier`` through
+        # this callback. Re-entering it would deadlock, so use the shared
+        # publisher's narrow no-barrier form for this exact transition.
+        git._sync_paths_without_barrier(
+            cfg,
+            ref.path,
+            (ref.ticket_path,),
+            message=f"Ticket: {ref.id_slug} — launch admitted",
+            guard=git.ticket_state_guard(
+                cfg,
+                ref.ticket_path,
+                expected_ticket_bytes=current_bytes,
+                allow_launch_claim_admission=True,
+            ),
+            generated_paths=mutation.generated,
+            raise_state_regression=True,
+            raise_git_error=True,
+            allow_launch_claim_admission=True,
+        )
+    except git.UncertainFeaturePublicationError as exc:
+        refused = mutation.restore()
+        detail = ""
+        if refused:
+            paths = ", ".join(str(path) for path in refused)
+            detail = f"; released witness could not be restored from {paths}"
+        raise _LaunchClaimRefused(
+            "launch-admission publication outcome is uncertain; admitted "
+            "child was terminated and released local state was retained for "
+            f"`coga launch {ref.id_slug}` reconciliation — {exc}{detail}"
+        ) from exc
+    except git.GitError as exc:
+        refused = mutation.restore()
+        detail = ""
+        if refused:
+            paths = ", ".join(str(path) for path in refused)
+            detail = f"; generated bytes could not be restored from {paths}"
+        raise _LaunchClaimRefused(
+            "launch admission could not be published; admitted child was "
+            "terminated and released local state was retained for "
+            f"`coga launch {ref.id_slug}` reconciliation: {exc}{detail}"
+        ) from exc
+    except (OSError, ValueError) as exc:
+        refused = mutation.restore()
+        detail = ""
+        if refused:
+            paths = ", ".join(str(path) for path in refused)
+            detail = f"; generated bytes could not be restored from {paths}"
+        raise _LaunchClaimRefused(
+            f"launch admission could not be recorded: {exc}{detail}"
+        ) from exc
 
 
 def _reblock_unresolved(
@@ -1187,26 +1994,79 @@ def _chain_stop_result(
 
 
 def _preflight_agent_launch(
-    cfg: Config, ref: TaskRef, ticket: Ticket, launch_assignee: str | None
-) -> str | None:
+    cfg: Config,
+    ref: TaskRef,
+    ticket: Ticket,
+    launch_assignee: str | None,
+    *,
+    source_ticket_bytes: bytes | None = None,
+) -> _PreparedAgentLaunch | str:
     try:
         agent = cfg.agent_type(launch_assignee or "")
     except ConfigError as exc:
         return str(exc)
+    # A not-yet-activated pick arrives as its prospective `active` view. Keep
+    # the launch boundary strict so malformed or concurrently changed states
+    # cannot reach the agent spawn path.
     if ticket.status not in {"active", "in_progress"}:
         return f"status is {ticket.status}; expected active or in_progress"
+    if ticket.status == "in_progress" and ticket.launch_generation is not None:
+        if pending_launch_generation(ticket.launch_generation):
+            return (
+                "ticket already carries a pending megalaunch admission; its "
+                "held child must be released or the claim reconciled before "
+                "another session can start"
+            )
+        if released_launch_generation(ticket.launch_generation):
+            return (
+                "ticket carries a released megalaunch admission awaiting "
+                f"reconciliation — run `coga launch {ref.id_slug}` to recover"
+            )
+        return (
+            "ticket already carries a published megalaunch claim; refusing "
+            "an automatic concurrent resume — use `coga launch "
+            f"{ref.id_slug}` to recover it explicitly"
+        )
     if shutil.which(agent.cli) is None:
         return agent_cli_missing_message(agent.cli)
+    expected_source_bytes = (
+        ticket.render().encode("utf-8")
+        if source_ticket_bytes is None
+        else source_ticket_bytes
+    )
+    launch_ticket = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
+    if launch_ticket.status == "active":
+        launch_ticket.frontmatter["status"] = "in_progress"
+    generation = str(uuid4())
+    launch_ticket.frontmatter["launch_generation"] = (
+        f"{PENDING_LAUNCH_GENERATION_PREFIX}{generation}"
+        if cfg.git_enabled
+        else generation
+    )
     try:
-        compose_prompt(cfg, ref, ticket, launch_context="megalaunch")
-        build_launch_env(cfg, ticket.secrets)
+        prompt = compose_prompt(
+            cfg, ref, launch_ticket, launch_context="megalaunch"
+        )
+        env = build_supervised_step_env(
+            build_launch_env(cfg, launch_ticket.secrets),
+            task_path=ref.path,
+            step=launch_ticket.step,
+        )
+    except FileNotFoundError as exc:
+        return missing_launch_file_message(exc)
     except (ConfigError, ComposeError, SecretError) as exc:
         return str(exc)
     if cfg.git_enabled and check_git_remote(cfg.git_remote).ok:
         auth = check_git_auth(cfg.git_remote)
         if not auth.ok:
             return f"git push access unavailable: {auth.detail}"
-    return None
+    return _PreparedAgentLaunch(
+        ticket=launch_ticket,
+        source_ticket_bytes=expected_source_bytes,
+        agent=agent,
+        env=env,
+        prompt=prompt,
+    )
 
 
 def _result(
@@ -1279,12 +2139,19 @@ def trim_megalaunch_blackboard_text(text: str, summary: str) -> str:
     return f"{base}\n\n{heading}\n\n{summary.rstrip()}\n"
 
 
-def write_run_summary(blackboard_path: Path, run: MegalaunchRun) -> None:
+def write_run_summary(
+    cfg: Config,
+    blackboard_path: Path,
+    run: MegalaunchRun,
+) -> None:
     """Write the latest run summary while trimming old megalaunch noise."""
-    region = read_blackboard(blackboard_path)
-    replace_blackboard(
+    update_blackboard_under_barrier(
+        cfg,
         blackboard_path,
-        trim_megalaunch_blackboard_text(region, render_run_summary(run)),
+        lambda region: trim_megalaunch_blackboard_text(
+            region,
+            render_run_summary(run),
+        ),
     )
 
 

@@ -9,8 +9,8 @@ Three ways in, one engine:
   (any owner, any status except done/canceled — no launchability pre-filter),
   nothing pre-checked;
   the confirmed set runs staged — prepare (a batch prompt offers to author
-  picked drafts) → activate → launch — as an explicit selection (and is saved
-  for `--relaunch`).
+  picked drafts) → check → launch, each pick activated as its own launch
+  starts — as an explicit selection (and is saved for `--relaunch`).
 - `coga megalaunch --relaunch` — replay the last confirmed selection.
 """
 
@@ -64,7 +64,8 @@ def megalaunch(
             "task (any owner, any status except done/canceled), "
             "nothing pre-checked; the confirmed set is prepared (a batch "
             "prompt offers to run the authoring interview on picked drafts), "
-            "activated, then launched, and is saved for --relaunch."
+            "checked, then launched — each pick is activated as its own launch "
+            "starts — and is saved for --relaunch."
             " Selection filters the service-ordered queue; the order tasks "
             "are picked does not set their run order."
         ),

@@ -722,7 +722,7 @@ def _restore_invalid_script_result(
     except git.FeaturePublicationError:
         refused = tuple(sorted(paths, key=str))
     else:
-        refused = recovery.restore()
+        refused = git.restore_files_under_barrier(cfg, recovery)
     if not refused:
         return ""
     names = ", ".join(str(path) for path in refused)

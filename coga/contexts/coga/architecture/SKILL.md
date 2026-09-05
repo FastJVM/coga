@@ -193,17 +193,12 @@ reserved — no extension or alias may collide with them:
 
 `slug`, `title`, `status`, `owner`, `human`, `agent`,
 `assignee`, `watchers`, `workflow`, `step`, `contexts`, `skills`, `delegate`,
-`period_generation`, `secrets`.
+`period_generation`, `launch_generation`, `secrets`.
 
-That is `ticket.CANONICAL_TICKET_KEYS`, and it is the set
-`validate.REQUIRED_TASK_KEYS` plus `OPTIONAL_TASK_KEYS` admits. The collision
-check that points readers here — `config._RESERVED_TICKET_FIELD_NAMES` — is
-currently narrower at both ends: it omits `period_generation` and `slug`, so
-`[ticket.fields.period_generation]` and `[ticket.fields.slug]` load without
-error even though the runner writes `period_generation:` onto every
-materialized recurring period task and `slug:` is required on every ticket. The
-list above is the reserved set regardless; the gap in that check is a known
-defect, not permission to take those two names.
+That is `ticket.CANONICAL_TICKET_KEYS`, which
+`config._RESERVED_TICKET_FIELD_NAMES` reuses to reject extension collisions;
+it is also the set `validate.REQUIRED_TASK_KEYS` plus `OPTIONAL_TASK_KEYS`
+admits.
 
 `slug` is the task's path-qualified reference, recorded on the ticket for
 legibility (the path under `tasks/` stays the addressing source of truth).
@@ -218,6 +213,19 @@ value. Ordinary tasks may not declare it.
 task under `tasks/recurring/`. The creator stamps it once per stable-path
 generation and the runner's start lease reads it back as a bounded witness;
 templates and ordinary tasks that declare it are rejected. See `coga/recurring`.
+
+`launch_generation` is megalaunch's transient,
+durable session-claim token. A Git-backed start or resume first publishes it as
+`pending:<uuid>` while the spawned child is held before exec. Every Coga task
+publisher seals that exact pending control revision, and ordinary `coga launch`
+refuses it. Only after the supervisor delivers the child gate does megalaunch
+remove the prefix and strictly publish the same UUID; the plain token means the
+session was admitted and is available to ordinary explicit recovery. Another
+megalaunch may not rotate either form. Advancing the workflow or marking the
+admitted session blocked, paused, done, or canceled clears it, as does
+activation. Git-disabled launches use the plain token behind the local release
+barrier. Both generation fields are system-owned optional fields, never
+repository extensions.
 
 `secrets` is nullable and declared **inline** — there is no central
 `[secrets]` catalog. Absent / `null` / `[]` inject nothing; otherwise it is a
@@ -580,19 +588,23 @@ current operator in the same directory scope and looks for exact
 path-qualified task slugs in their open blocker text. A named dependency is
 satisfied when its ticket is `done` or when a task ref seen earlier in the run
 has disappeared (finished work may retire and delete its ticket). Megalaunch
-then activates the ticket and, only once that succeeds, records an automatic
-blocker answer naming that dependency, resolves all open asks, and launches it
-through the normal path. The resolution happens before prompt composition, so
-an unattended retry never inherits the interactive blocker-resolution preamble.
-A drained ticket that refuses to activate (no workflow, an unfreezable
-`workflow:` ref, an empty required extension field) keeps its open ask and
-stays `blocked`, so `coga unblock` and the blocker reminders can still act on
-it.
+first validates the prospective activation, then records that activation and
+an automatic blocker answer naming the dependency as one exact mutation. With
+Git enabled, both changes reach control through one whole-ticket
+compare-and-set; only then does the normal launch claim lease the resolved
+`active` revision. The resolution therefore exists before prompt composition,
+so an unattended retry never inherits the interactive blocker-resolution
+preamble. A drained ticket that refuses to activate (no workflow, an
+unfreezable `workflow:` ref, an empty required extension field) keeps its open
+ask and stays `blocked`, so `coga unblock` and the blocker reminders can still
+act on it. An ordinary lost publication restores the same blocked revision;
+an ambiguous accepted push retains its generated evidence for reconciliation.
 
 The drain is a fixed-point walk: after each actual launch it restarts from the
 oldest blocked ticket, and a complete pass with no launch ends the run. A task
-is drained at most once per run, every retry attempt shares `--max-tasks` with
-the main sweep, and the summary keeps one result row per task with a separate
+is drained at most once per run, every real retry attempt shares `--max-tasks`
+with the main sweep, and a late exact-gate reclassification consumes no budget
+in either path. The summary keeps one result row per task with a separate
 `drained` count. Explicit `--pick` and `--relaunch` selections do not run this
 drain, because completing a selection must not expand into unpicked work.
 
@@ -776,7 +788,7 @@ returns the assembled prompt verbatim with no defusal step.
 
 ## Status is the signal
 
-There is no filesystem mutex. The ticket's `status` (`draft`, `active`,
+There is no task-ownership mutex. The ticket's `status` (`draft`, `active`,
 `in_progress`, `blocked`, `paused`, `done`, `canceled`) is the signal that
 someone is — or isn't — working on a task. `coga launch` accepts an `active` or
 `in_progress` ticket directly, and treats a launch of `draft` or `paused` as
@@ -791,10 +803,33 @@ because executing user code is already the start of work. Terminal tickets
 (`done` and `canceled`) are
 refused and left untouched; launching one must not restart its workflow. A
 workflow-less or required-extension-incomplete ticket still can't be activated,
-so those launches fail loud with the same remedy `mark active` gives. The failure mode
-of two divergent workers (two blackboard edits, two PR branches) is visible
-and recoverable in git; the cost of a hard mutex (stale lock files, `--force`
-flags, orphan-lock cleanup) is not.
+so those launches fail loud with the same remedy `mark active` gives. The
+failure mode of two divergent workers (two blackboard edits, two PR branches)
+is visible and recoverable in git; the cost of a hard ownership mutex (stale
+lock state, `--force` flags, orphan-lock cleanup) is not.
+
+A much narrower local **state admission/publication barrier** does exist. It is
+an OS-released advisory lock held while a Coga command creates, replaces, or
+removes a task ticket or writes blocker state, while a Coga command
+stages/publishes state, and while a megalaunch child remains held across its
+provisional audit append, final proof, and pipe release. A task-file mutation
+therefore becomes visible either before the final proof or after the child is
+irrevocably released, including when Git sync is disabled. For strict lifecycle
+mutations, the captured-byte comparison, ticket replacement, and rollback
+arming are one barrier-held operation. A failed strict lifecycle mutation also
+compares and conditionally restores its
+generated bytes while holding the barrier. Shipped blackboard writers use the
+same read/transform/compare/write boundary, including blocker and reminder
+updates, PR records, task-scoped recurring reports, run summaries, and
+validation safe fixes. The low-level task-file splice remains config-free;
+command and recipe callers own admission. The barrier never decides who owns a
+task or whether one is launchable. Its inert lock file lives outside the
+worktree; process exit releases the kernel lock, so there is no stale ownership
+state or cleanup protocol. The supervisor masks SIGINT and SIGTERM across the
+one-byte release and its local released-state update. A pre-delivery failure
+retracts the provisional audit; an interrupt observed after delivery retains
+the audit and treats the child as launched. Cross-checkout and cross-machine
+coordination still comes from exact Git compare-and-swap publication.
 
 ## Identity and capability boundaries
 
@@ -846,8 +881,65 @@ account state committed to git.
 
 Every command that triggers an agent routes through a single single-shot entry
 point — `spawn_agent_session(...)` in `commands/launch.py`, "spawn one agent
-once": compose → write the prompt file → build the agent command → spawn under
-the PTY watcher → log → cleanup. `coga launch`'s `while True:` supervisor chain
+once": compose (or accept an already preflighted `composed_prompt`) → write the
+prompt file → build the agent command → spawn under the PTY watcher → log →
+cleanup. Megalaunch supplies that preflighted prompt together with its already
+resolved environment and agent, binding the inputs checked before lifecycle
+writes to the eventual spawn. Its pre-write compare-and-swap prevents a stale
+local write; when Git sync is enabled, deferred activation and every start also
+compare-and-swap against the exact whole-ticket control revision and require
+strict control publication before spawn. Two checkouts starting from the same
+revision therefore cannot both acquire a launch claim. The unattended sweep
+also reapplies its owner, status, blocker, and current-step gates to the exact
+preflight reread rather than trusting its earlier queue classification; a
+gate-only reclassification does not consume `--max-tasks`. An exact local
+reread after synchronous `in_progress` publication prevents a peer change
+during that sync from reaching spawn. On detached HEAD, strict publication
+seals the exact generated claim bytes in a scoped detached commit and overlays
+only those leaves on control, so concurrent sibling attachments survive and a
+later broad state sweep cannot replay retained claim state over a peer edit.
+The shared state guard treats that generation as system-owned and requires the
+checkout's committed ticket baseline to match freshly fetched control before
+any same-generation blackboard or session-ending edit lands. Each accepted
+detached edit advances that baseline with another exact-leaf commit.
+At the shared pre-audit
+`validate_before_spawn` seam, megalaunch rereads those exact local bytes and
+freshly fetches every effective control destination; the whole control ticket,
+including the pending `launch_generation`, must still match. It repeats that
+proof through `validate_after_spawn` after the PTY child exists but while the
+supervisor still holds it before exec. Megalaunch then appends the launch audit
+and repeats the same proof after that append, immediately before release. The
+local state admission/publication barrier spans that append, final proof, pipe
+write, and post-release admission callback; every same-checkout Coga lifecycle
+writer and Git publisher waits. Across checkouts, every task publisher refuses
+to replace a control ticket carrying `pending:<uuid>`. A lifecycle transition
+that begins after the last fetch therefore cannot overtake the gate: it is
+refused while pending, or observes the plain admitted UUID only after the child
+can execute.
+
+After successful gate delivery, but before dropping the local barrier, the
+callback strips only `pending:` and strictly publishes that exact one-field
+transition under the original whole-ticket lease. If the pipe write itself
+fails, the supervisor runs admission compensation first: it removes the
+provisional audit and keeps the session out of usage teardown before killing
+the still-held child. A changed or unverifiable pre-release claim conditionally
+removes only the owned audit line, refuses the child, and retains the pending
+`in_progress` state for explicit reconciliation. A post-release admission
+failure kills the child but retains its audit and a local `released:<uuid>`
+witness, whether the publication definitely failed or its result is uncertain.
+Thus the audit stays out of `log.md` until the PTY child actually exists, while
+an edit during the append cannot release stale preflighted work or publish a
+false audit. An audit failure likewise kills the held child, so no unrecorded
+work starts. Another megalaunch never reclaims any claim form. Ordinary
+`coga launch` refuses pending claims; for a released witness it first fetches
+control, verifies the whole ticket is the matching pending or admitted
+revision, and strictly publishes the plain UUID before starting the explicit
+recovery session. A step advance or lifecycle transition that ends or parks
+that admitted session clears it. Megalaunch never compensates a refused claim
+backward to `active`: retained claim state is the human-legible reconciliation
+evidence.
+`coga launch`'s
+`while True:` supervisor chain
 (per-step CLI re-resolution, claude↔codex rotation, `COGA_SUPERVISED`, the
 done-sentinel, respawn) **wraps** that call per step; the chain stays
 launch-only and is *not* pushed into the shared unit. `coga ticket` authoring

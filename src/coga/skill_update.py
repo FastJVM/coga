@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from coga.blackboard import append_blackboard_report
 from coga.config import Config
 from coga.task_env import blackboard_from_env, discover_coga_os_root
 
@@ -302,23 +303,14 @@ def has_followups(results: list[SkillUpdate]) -> bool:
     return any(classify_status(result.status) == GROUP_FOLLOWUP for result in results)
 
 
-def append_report(blackboard: Path, report: str) -> None:
-    if not blackboard.parent.is_dir():
-        raise RuntimeError(f"Blackboard parent does not exist: {blackboard.parent}")
-    existing = blackboard.read_text() if blackboard.is_file() else ""
-    if not existing or existing.endswith("\n\n"):
-        separator = ""
-    elif existing.endswith("\n"):
-        separator = "\n"
-    else:
-        separator = "\n\n"
-    blackboard.write_text(existing + separator + report)
+def append_report(cfg: Config, blackboard: Path, report: str) -> None:
+    append_blackboard_report(cfg, blackboard, report)
 
 
-def _emit_report(blackboard: Path | None, report: str) -> None:
+def _emit_report(cfg: Config, blackboard: Path | None, report: str) -> None:
     """Send a rendered report to the blackboard, or to stdout when there is none."""
     if blackboard:
-        append_report(blackboard, report)
+        append_report(cfg, blackboard, report)
     else:
         sys.stdout.write(report)
 
@@ -348,7 +340,6 @@ def run_skill_update_recipe(
     exit non-zero to stderr alone. It belongs in the recipe layer rather than
     here; do not paste a seventh copy, generalize it instead.
     """
-    del cfg
     report_out = result if result is not None else SkillUpdateReport()
     parser = argparse.ArgumentParser(description="Run the skill-update maintenance skill.")
     parser.add_argument(
@@ -397,7 +388,7 @@ def run_skill_update_recipe(
         )
         report_out.report = failure
         try:
-            _emit_report(blackboard, failure)
+            _emit_report(cfg, blackboard, failure)
         except (RuntimeError, OSError) as write_exc:
             # `OSError` as well as `RuntimeError`: `append_report` only converts
             # a missing parent directory into the latter, while the write itself
@@ -421,7 +412,7 @@ def run_skill_update_recipe(
     report_out.results = results
     report_out.pr_url = pr_url
     report_out.report = report
-    _emit_report(blackboard, report)
+    _emit_report(cfg, blackboard, report)
     if pr and pr_url is None and has_followups(results):
         sys.stderr.write(
             "Skill update needs human follow-up and no PR was opened; "

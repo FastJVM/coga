@@ -46,10 +46,65 @@ CANONICAL_TICKET_KEYS: frozenset[str] = frozenset({
     "skills",
     "delegate",
     "period_generation",
+    "launch_generation",
     "secrets",
 })
 
 EXTENSION_MARKER = "# --- extensions ---"
+
+# A Git-backed megalaunch publishes this visible prefix while its child is
+# still held before exec. Other Coga publishers treat that revision as sealed;
+# the launcher removes only the prefix, preserving the UUID, after delivering
+# the gate byte. A plain generation therefore means the child was admitted.
+PENDING_LAUNCH_GENERATION_PREFIX = "pending:"
+
+# If post-gate publication cannot be confirmed, the launcher keeps this local
+# form instead of restoring ``pending:``.  It proves the child was released
+# (and then terminated) while remaining impossible to publish through an
+# ordinary state sweep.  ``coga launch`` reconciles it against control before
+# allowing an explicit recovery session.
+RELEASED_LAUNCH_GENERATION_PREFIX = "released:"
+
+
+def pending_launch_generation(generation: str | None) -> bool:
+    """Whether ``generation`` still guards a held megalaunch child."""
+    return bool(
+        generation
+        and generation.startswith(PENDING_LAUNCH_GENERATION_PREFIX)
+        and generation.removeprefix(PENDING_LAUNCH_GENERATION_PREFIX)
+    )
+
+
+def released_launch_generation(generation: str | None) -> bool:
+    """Whether ``generation`` is a local post-release recovery witness."""
+    return bool(
+        generation
+        and generation.startswith(RELEASED_LAUNCH_GENERATION_PREFIX)
+        and generation.removeprefix(RELEASED_LAUNCH_GENERATION_PREFIX)
+    )
+
+
+def admitted_launch_generation(generation: str) -> str:
+    """Return the stable session generation after release/reconciliation."""
+    if pending_launch_generation(generation):
+        return generation.removeprefix(PENDING_LAUNCH_GENERATION_PREFIX)
+    if released_launch_generation(generation):
+        return generation.removeprefix(RELEASED_LAUNCH_GENERATION_PREFIX)
+    raise ValueError(
+        f"launch generation is not awaiting admission: {generation!r}"
+    )
+
+
+def released_generation_from_pending(generation: str) -> str:
+    """Return the local recovery witness for one released pending claim."""
+    if not pending_launch_generation(generation):
+        raise ValueError(
+            f"launch generation is not pending admission: {generation!r}"
+        )
+    return (
+        f"{RELEASED_LAUNCH_GENERATION_PREFIX}"
+        f"{generation.removeprefix(PENDING_LAUNCH_GENERATION_PREFIX)}"
+    )
 
 
 @dataclass
@@ -189,6 +244,14 @@ class Ticket:
         return value.strip()
 
     @property
+    def launch_generation(self) -> str | None:
+        """Visible identity of the most recent megalaunch session claim."""
+        value = self.frontmatter.get("launch_generation")
+        if not isinstance(value, str) or not value.strip():
+            return None
+        return value.strip()
+
+    @property
     def secrets(self) -> Any:
         """Raw `secrets:` frontmatter value, three-way semantics preserved.
 
@@ -232,4 +295,15 @@ class Ticket:
         return None
 
 
-__all__ = ["Ticket", "TicketError", "TicketNotFoundError"]
+__all__ = [
+    "admitted_launch_generation",
+    "CANONICAL_TICKET_KEYS",
+    "PENDING_LAUNCH_GENERATION_PREFIX",
+    "pending_launch_generation",
+    "RELEASED_LAUNCH_GENERATION_PREFIX",
+    "released_generation_from_pending",
+    "released_launch_generation",
+    "Ticket",
+    "TicketError",
+    "TicketNotFoundError",
+]

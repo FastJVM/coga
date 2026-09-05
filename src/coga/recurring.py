@@ -648,7 +648,7 @@ def create_template(
                 )
             replaced_done_ticket_bytes = existing.ticket_path.read_bytes()
             try:
-                run_delete_task(existing)
+                run_delete_task(cfg, existing)
             except DeleteTaskError as exc:
                 raise RecurringError(
                     f"could not delete stale done task {target_slug}: {exc}"
@@ -990,10 +990,12 @@ def promote_task(
         shutil.rmtree(dest, ignore_errors=True)
         raise
 
-    if ref.file_form:
-        ref.path.unlink()
-    else:
-        shutil.rmtree(ref.path)
+    try:
+        run_delete_task(cfg, ref)
+    except DeleteTaskError as exc:
+        raise RecurringError(
+            f"could not remove promoted task {ref.id_slug}: {exc}"
+        ) from exc
 
     append_log(
         cfg,

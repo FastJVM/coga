@@ -41,6 +41,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from coga.blackboard import append_blackboard_report
 from coga.mark import mark_done
 from coga.config import Config
 from coga.notification import digest_spool_path, post, preflight_post
@@ -48,7 +49,6 @@ from coga.task_env import blackboard_from_env
 from coga.taskfile import (
     TaskFileError,
     read_blackboard,
-    replace_blackboard,
 )
 from coga.tasks import TaskRef, list_tasks, read_ticket
 from coga.ticket import Ticket, TicketError
@@ -518,32 +518,18 @@ def sweep_merged(
     return result
 
 
-def _append_blackboard_report(blackboard: Path, report: str) -> None:
+def _append_blackboard_report(
+    cfg: Config,
+    blackboard: Path,
+    report: str,
+) -> None:
     """Atomically append one report within a task's blackboard region.
 
     Read/replace uses the ticket primitive's byte compare-and-swap so a
     concurrent frontmatter or blackboard writer wins loudly instead of being
     overwritten. The ticket's existing newline convention is retained.
     """
-    if not blackboard.parent.is_dir():
-        raise RuntimeError(f"Blackboard parent does not exist: {blackboard.parent}")
-    raw = blackboard.read_bytes()
-    existing = read_blackboard(blackboard, expected_bytes=raw)
-    newline = "\r\n" if b"\r\n" in raw else "\n"
-    normalized_report = (
-        report.replace("\r\n", "\n").replace("\r", "\n").replace("\n", newline)
-    )
-    if not existing or existing.endswith(newline * 2):
-        separator = ""
-    elif existing.endswith(newline):
-        separator = newline
-    else:
-        separator = newline * 2
-    replace_blackboard(
-        blackboard,
-        existing + separator + normalized_report,
-        expected_bytes=raw,
-    )
+    append_blackboard_report(cfg, blackboard, report)
 
 
 def _preflight_recipe_notifications(cfg: Config, closed: ClosedTicket) -> None:
@@ -628,7 +614,7 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> None:
     # from another checkout falls back to stdout.
     blackboard = blackboard_from_env(cfg.repo_root)
     if blackboard:
-        _append_blackboard_report(blackboard, report)
+        _append_blackboard_report(cfg, blackboard, report)
     else:
         sys.stdout.write(report)
 
