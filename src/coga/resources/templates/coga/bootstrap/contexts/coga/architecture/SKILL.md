@@ -121,8 +121,10 @@ no in-memory state.
   Every created task uses the same ticket, workflow, lifecycle, and blackboard
   machinery as any other task.
   `coga recurring --all <path>` is a parent dispatcher: it discovers Coga
-  repos below the path while pruning dependency/tool-state and `_`-prefixed
-  directory trees. Workspaces rejected by Coga's intentional config guards —
+  repos below the path while pruning dependency/tool-state, `_`-prefixed
+  directory trees, and Coga temporary-control parents proven by their stable
+  prefix plus owner marker. That exclusion applies even when the scan root
+  contains the system temp directory. Workspaces rejected by Coga's intentional config guards —
   including a missing local `user` or a stale-key migration error — are not
   scheduler targets: the parent reports one unconfigured-repo count, does not
   dispatch them, and does not fail because of them. It groups the remaining
@@ -133,10 +135,45 @@ no in-memory state.
   and skipped, while distinct Coga workspaces in one monorepo still run. One
   scheduler entry therefore cannot race one control branch through multiple
   worktrees. Each dispatched child must fetch/rebase its checked-out control
-  branch successfully before scanning; TOML parse errors and operational
+  branch successfully before scanning. A child whose checkout is not on the
+  control branch at all no longer fails the repo: the branch is free by
+  definition, so the child checks it out in a temporary linked worktree under
+  the system temp dir. If the local branch itself is missing, Coga seeds it
+  from an exact command-scoped fetch rather than requiring a remote-tracking
+  ref, so narrow clones work without trusting shared `FETCH_HEAD`. The child
+  re-dispatches from the mirrored Coga workspace itself — the checkout
+  directory for a root layout, or the nested Coga directory in a monorepo —
+  and normally removes the worktree afterwards.
+  The operator's branch, tracked and untracked project files, and stash are
+  untouched; the machine-local run transcript is copied into that workspace's
+  gitignored `.coga/recurring-runs/`. Every ordinary sync, ledger, and push
+  path applies unmodified because the run really is on the control branch.
+  Only deterministic `ticket.py` phases run that way — agent templates are
+  named and skipped with that reason, not the misleading "requires a TTY";
+  existing periods are admitted from their frozen materialized `ticket.py`,
+  not the mutable template. Because that script may be one half of a hybrid
+  period, its presence is not permission to spawn an agent: the inner run
+  carries a hard refusal through shared launch, keeps completed script output,
+  and pauses the exact period if agent work remains. The inner scan owns a
+  separate process session; once its handle is known, cancellation signals the
+  whole process group and reaps its leader before removing the checkout. If an
+  interruption lands after a possible fork but before that handle and process
+  group can be published, the current cleanup retains the registered checkout
+  for manual reconciliation. A versioned SIGKILL-survivor marker carries the
+  repo, branch, workspace, wrapper PID, and inner spawn state/process-group ID.
+  A later run removes that exact Coga worktree only after both known processes
+  are dead; it also retains the ambiguous spawn window. For every known-safe
+  state, normal and stale cleanup first copy machine-local run records into the
+  durable checkout, retaining the worktree if that transfer fails.
+  `git worktree add`
+  doubles as the concurrency lock, since git refuses to check one branch out
+  twice: a second sweep, or an unrelated worktree already holding the branch,
+  keeps the loud refusal. A *diverged* control checkout still fails loud; only
+  a human can reconcile those commits. TOML parse errors and operational
   failures still fail that repo, and the parent keeps sweeping before returning
-  the aggregate result. `--force` is the explicit schedule/status bypass and
-  composes with the parent sweep.
+  the aggregate result, listing temp-worktree services separately from ordinary
+  sweeps. `--force` is the explicit schedule/status bypass and composes with
+  the parent sweep.
 - **Bootstrap tickets** are stateless launch targets. With only `ticket.md`
   they compose an agent prompt; with the exact sibling `ticket.py` they run
   deterministically with no task lifecycle or blackboard. No status, no

@@ -910,7 +910,9 @@ channel.
 `--all <path>` is the multi-repo scheduler entry point. It may run from outside
 a Coga repo: it recursively finds `coga/` directories containing `coga.toml`
 below the explicit path, skips dependency/tool and `_`-prefixed directory trees,
-and stops descending once it finds a workspace. Checkouts rejected by Coga's
+and prunes Coga temporary-control parents identified by both their stable prefix
+and owner marker. The latter remains true when the path includes `/tmp` or `/`.
+Discovery stops descending once it finds a workspace. Checkouts rejected by Coga's
 intentional config guards (including a missing local `user` or stale-key
 migration error) are summarized once as unconfigured, omitted from dispatch,
 and do not make the parent fail. Git-enabled configured checkouts are grouped by
@@ -920,15 +922,59 @@ first locally configured checkout already on its control branch), and every
 duplicate is named and skipped. Distinct Coga workspaces inside one monorepo
 remain separate scheduler targets. Each selected repo runs its ordinary
 recurring command in a fresh CLI process, sequentially, with a strict entry
-gate: `[git]` must be enabled, the configured control branch must be checked
-out, and its pre-scan fetch/rebase must succeed before period state is read or
-written. TOML parse errors and operational failures remain loud; one selected
+gate: `[git]` must be enabled, and the configured control branch's pre-scan
+fetch/rebase must succeed before period state is read or written.
+
+A repo whose checkout is parked *off* the control branch — a feature branch, a
+detached HEAD — is serviced rather than failed. Nothing holds the control
+branch, so the child checks it out in a temporary linked worktree under the
+system temp dir. A missing local control ref is seeded from a private,
+command-scoped fetch, so single-branch and narrow-refspec clones do not require
+`origin/<control>` or rely on shared `FETCH_HEAD`. The child runs its scan from
+the mirrored Coga workspace itself — `checkout` for a root layout or the Coga
+directory for a deeply nested monorepo workspace — and normally removes it
+when the run ends
+(on success, on a recipe's non-zero exit, on an exception, and on
+SIGINT/SIGTERM). Once the inner scan's process handle is known, cancellation
+signals its whole process group and reaps its leader, so a recipe descendant
+cannot continue mutating a removed checkout. If interruption lands after a
+possible fork but before the handle and process group can be published, cleanup
+retains the registered checkout for manual reconciliation. A versioned
+SIGKILL-survivor marker records the wrapper PID and the inner spawn
+state/process-group ID; a later run removes that exact worktree only when both
+known processes are dead, while it also retains an ambiguous spawn window,
+live sweep, and user worktree. Before known-safe normal or stale cleanup,
+machine-local run records are copied into the matching durable workspace; a
+failed transfer retains the worktree. The operator's
+branch, tracked and untracked project files, and stash are untouched — there is
+deliberately no stash/switch/restore — apart from that gitignored transcript,
+and the run publishes period
+tasks and the `coga/log.md` serviced-period ledger to the control branch
+exactly as an ordinary sweep does. Only deterministic `ticket.py` phases run
+in that mode; each agent-only template is named and skipped with that reason.
+Existing periods are admitted from the `ticket.py` frozen in the materialized
+task, including statuses surfaced by `--force`, rather than from a mutable
+template. A script may still be one half of a hybrid period, so the inner run
+carries a hard no-agent boundary through shared launch: completed script output
+is kept, but a remaining agent handoff is refused before setup and that exact
+period is paused for a durable checkout.
+`git worktree add` is the concurrency lock: a second sweep, or any other worktree already
+holding the control branch, keeps the loud refusal, which names the holder and
+the manual `git -C <root> checkout <control>` remedy. A *diverged* control
+checkout — checked out here but unable to integrate the fetched tip — still
+fails loud, because stepping around commits a human has to reconcile is the
+opposite of what that error is for.
+
+TOML parse errors and operational failures remain loud; one selected
 repo's failure does not starve later repos, but the parent exits non-zero after
 reporting the aggregate, naming each failed repo in the summary. A gate
 refusal (a diverged control checkout) is reported once, distilled to the
 conflict lines plus the exact resolve command — no rebase progress spew, no
 follow-up refresh/sync attempts re-failing against the same divergence, and no
-new local commits deepening it. This keeps schedules, task state, config, Slack, and
+new local commits deepening it. Repos serviced from a temporary control
+worktree are listed in their own summary section, separate from ordinary
+sweeps, so an operator can see whose agent templates did not run. This keeps
+schedules, task state, config, Slack, and
 git sync owned by each repo while allowing one cron entry such as `coga
 recurring --all ~/Code` without racing two checkouts of one remote workspace.
 
@@ -1057,7 +1103,8 @@ the sweep's exit code. Operator knobs: `COGA_AUTOFIX=0` disables the loop,
 analysis over a recorded run by hand. `coga recurring launch <name>` closes
 the same loop, so the `coga dream` / `coga autoclose` / `coga skill-update`
 aliases analyze their run too. The mechanism, the run record's contents, and
-the auth fallback are in `coga/recurring`.
+the auth fallback are in `coga/recurring`. Temporary-control scans copy their
+record back to the durable workspace before removing the worktree.
 
 Dream, REM, and other recurring maintenance loops all use this surface.
 

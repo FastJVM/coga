@@ -94,12 +94,19 @@ the example under "Extend recurring with a task-specific workflow").
   the real period task for every template, reactivating `done` and `paused`
   runs. A `canceled` task remains terminal: the runner reports a controlled
   refusal for it, continues through later templates, and exits non-zero after
-  the sweep. Deleting that canceled period task is the explicit prerequisite
-  for a fresh run.
+  the sweep. This status refusal takes precedence over agent admission: a
+  headless or temporary-control-worktree scan retains an already materialized
+  canceled agent period so the force runner can report the refusal instead of
+  silently filtering it as unavailable. No agent is admitted by doing so.
+  Deleting that canceled period task is the explicit prerequisite for a fresh
+  run.
 - `coga recurring --all <path>` — discovers every Coga repo below an explicit
-  parent directory, pruning dependency/tool-state and `_`-prefixed directory
-  trees, and runs the ordinary due sweep in each configured target,
-  sequentially. A missing local `user` or another intentional Coga config guard
+  parent directory, pruning dependency/tool-state, `_`-prefixed directory
+  trees, and the prefix-plus-owner-marker parents of Coga's temporary control
+  worktrees. That last exclusion still applies when `<path>` contains the
+  system temp directory (including `/tmp` or `/`). It runs the ordinary due
+  sweep in each configured target, sequentially. A missing local `user` or
+  another intentional Coga config guard
   makes a scratch checkout an unconfigured non-target: these are omitted from
   dispatch, summarized once by count, and do not make the parent fail. Each
   selected repo runs in a fresh CLI process so its config, launch supervision,
@@ -254,11 +261,102 @@ ticket-plus-generation control lease instead, and any transport failure while
 confirming or publishing that lease refuses the child. The
 unattended `coga recurring --all <path>` child keeps its stricter existing
 precondition: it must also fetch and integrate the latest remote control tip
-before scanning. Repos with `[git].enabled = false` and workspaces outside a
+before scanning. That child is the one place where being off the control branch
+is *not* a refusal — see "An `--all` child services an off-branch checkout from
+a temporary worktree" below. Repos with `[git].enabled = false` and workspaces outside a
 git checkout have no Coga-managed control checkout, so the branch-only gate
 does not apply to them. Only a confirmed non-git workspace self-skips: a Git
 inspection failure refuses rather than silently treating the checkout as
 unmanaged.
+
+## An `--all` child services an off-branch checkout from a temporary worktree
+
+The branch gate above is right — the scan reads working-tree templates and
+period tasks and writes period state, so running it from a stale feature branch
+could re-fire runs the control branch already serviced. What was wrong was the
+only recovery: a human noticing cron output and running `git checkout` by hand,
+while every sweep failed the repo in the meantime.
+
+So when an `--all` child's catch-up fails *only* because the control branch is
+not checked out here, the child does not give up. Nothing holds that branch, so
+it checks it out in a temporary linked worktree under the system temp dir,
+creating a missing local control ref from an exact command-scoped fetch. That
+seed does not depend on `<remote>/<control>` existing, so a single-branch or
+narrow-refspec clone is serviceable without trusting checkout-wide
+`FETCH_HEAD`. It then seeds the gitignored `coga.local.toml` into it (without
+that file there is no `user` and `load_config` raises), and re-dispatches from
+the mirrored Coga workspace itself — the checkout directory in a root layout,
+or the nested Coga directory in a monorepo. Before removing
+the worktree, it copies every machine-local `.coga/recurring-runs/*.md`
+transcript into the matching workspace in the operator's durable checkout;
+same-name, different-content records are kept side by side. If that transfer
+fails, the registered temp worktree is retained rather than destroying the
+only copy. The inner scan starts in its own process session. Once its process
+handle is known, cancellation signals the entire process group and waits for
+its leader to exit, so a `ticket.py` descendant cannot continue against a
+checkout that has already been removed. Known-safe cleanup then runs in a
+`finally` — on success, on a recipe's non-zero exit, on an exception, and on
+SIGINT/SIGTERM. If an asynchronous interruption lands after the child may have
+forked but before its handle and process-group ID can be published, cleanup
+instead retains the registered worktree without reading its possibly-live run
+records; the operator must verify no process still uses it before removal.
+
+Each temp parent carries a versioned repo/branch/workspace ownership marker
+with the wrapper PID and the isolated child's spawn state. It publishes
+`starting` before spawn and the process-group ID immediately afterwards. If
+SIGKILL bypasses cleanup, the next run removes that exact Coga-owned checkout
+only when the wrapper is dead and either no child had started or the published
+process group is also dead. Immediate cleanup and later stale recovery both
+retain an ambiguous `starting` window; a live wrapper or group, an old/invalid
+marker, and every unrelated user worktree remain protected by the ordinary
+branch-lock refusal. Stale recovery also transfers the saved run records before
+removal and retains the checkout if it cannot.
+
+Three properties make this shape the right one:
+
+- **The operator's project state is never moved.** No stash, no switch, no
+  restore. Their branch, tracked and untracked project files (dirty or not),
+  and stash list are unchanged; the one deliberate local write is the
+  gitignored run transcript copied into `.coga/recurring-runs/`. A
+  stash-and-switch would hold their work hostage for the whole
+  sweep, conflict on `stash pop` against the scan's own writes to
+  `coga/tasks/**` and `coga/log.md`, race Coga's own concurrent sessions, and
+  strand the work outright on a cron timeout.
+- **The branch is genuinely checked out, so nothing downstream changes.**
+  `git.sync_log` and `_sync_recurring_create_paths` both refuse to publish from
+  a detached HEAD, and the serviced-period ledger line is what stops the next
+  sweep re-firing the period once Dream reaps the task. A worktree detached at
+  the remote tip would land the period task without its ledger line; checking
+  the branch out gets the whole publication path for free.
+- **`git worktree add` is the concurrency lock.** Git refuses to check one
+  branch out twice, so a second sweep — or any unrelated worktree already
+  holding the control branch — loses the race there and falls back to the loud
+  refusal, which names the holder and the manual remedy.
+
+Only deterministic `ticket.py` phases run in this mode, whether or not a TTY
+exists: a throwaway worktree is the wrong place to spawn an agent REPL that
+composes prompts, edits files, and opens PRs. Existing periods are admitted
+from the frozen `ticket.py` in their materialized task, not from a template
+that may have changed since creation, including every status surfaced by
+`--force`. File presence admits the script; it does **not** assert that the
+script completes the period, because ordinary tickets may combine deterministic
+and agent phases. The inner runner therefore carries a hard no-agent reason
+through shared launch. If a script leaves its current or next agent-owned step
+open, launch returns before agent-only setup, keeps the deterministic output,
+and the runner pauses that exact period for a later launch from a durable
+checkout. Each skipped agent template or refused hybrid handoff is reported by
+name with the temporary-worktree reason rather than the (here false) "an agent
+run requires a TTY". The `--all` summary lists these repos separately from
+ordinary sweeps.
+
+The *diverged* control checkout — on the control branch, but unable to rebase
+onto the fetched tip — is deliberately out of scope and still fails loud.
+Servicing it from a worktree at the remote tip would silently step around
+commits a human has to reconcile.
+
+Single-repo runs are unchanged: bare `coga recurring`, `coga recurring launch
+<name>`, and `--interactive` still refuse off the control branch, because they
+scan the working tree they are in.
 
 The control-landing path for recurring state still handles a create made on a
 feature branch. Normal recurring commands no longer reach that case, but the
@@ -681,7 +779,9 @@ Operating it:
   stretch the wait a sweep signed up for.
 - Every run record is also written machine-locally to
   `.coga/recurring-runs/<stamp>.md` (gitignored — one operator's sweep
-  transcript is not team state), whether or not it gets ticketed.
+  transcript is not team state), whether or not it gets ticketed. A scan in a
+  temporary control worktree copies that record back to the matching durable
+  workspace before cleanup; a transfer failure retains the temp worktree.
 - `coga run autofix-analyze [<run-log.md>] [--dry-run]` re-runs the analysis
   over a recorded run by hand; with no path it takes the most recent one.
 - The argv for the one-shot call is built in for `claude` and `codex`. Another

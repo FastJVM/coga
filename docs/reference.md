@@ -203,8 +203,11 @@ would let an uncommitted machine-local setting override a committed policy.
 - `--interactive` — launch due agent tasks as a human-stepped run, leaving REPL
   liveness backstops unarmed; ticket files aren't modified.
 - `--all <PATH>` — discover every Coga repo below `PATH` and run each repo's due
-  sweep once (one scheduler entry can serve several repos). Combines with
-  `--force`.
+  sweep once (one scheduler entry can serve several repos). Coga-owned
+  temporary control worktrees are excluded by their prefix plus owner marker,
+  even when `PATH` includes the system temp directory. An off-control narrow
+  clone with no local control ref is seeded from an exact private fetch rather
+  than requiring `origin/<control>`. Combines with `--force`.
 - `--force` — force a full run of **every** template, bypassing the schedule and
   the already-serviced/done/paused filter. A canceled period task is not
   reactivated: its refusal is reported, later templates still run, and the
@@ -230,7 +233,10 @@ nothing more.
   `claude auth status` probe, and the subscription retry below all draw on the
   same deadline, so the fallback cannot double what the sweep waits for.
 - Every run record is also written to `.coga/recurring-runs/<stamp>.md`
-  (gitignored), whether or not it is ticketed.
+  (gitignored), whether or not it is ticketed. Temporary-control scans copy
+  that record into the matching durable workspace before cleanup; if the copy
+  fails, Coga retains the temporary worktree rather than deleting the only
+  record.
 - `coga run autofix-analyze [RUN_LOG] [--dry-run] [--agent TYPE]` re-runs the
   analysis over a recorded run by hand; with no path it reads the most recent
   one.

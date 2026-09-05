@@ -1679,7 +1679,9 @@ def test_direct_recurring_launch_refuses_an_unverified_control_catch_up(
     monkeypatch.setattr(
         recurring_cmd,
         "_sync_control_checkout_ahead",
-        lambda *args, **kwargs: (False, "simulated rebase conflict"),
+        lambda *args, **kwargs: recurring_cmd._ControlCatchup(
+            fresh=False, reason="simulated rebase conflict"
+        ),
     )
     monkeypatch.setattr(
         launch_module,
@@ -1736,10 +1738,16 @@ def test_internal_recurring_launch_seam_leases_a_deterministic_child_generation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A ticket.py child keeps its refreshed lease without an agent callback."""
-    seen: list[tuple[str, bool]] = []
+    seen: list[tuple[str, bool, str | None]] = []
 
     def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
-        seen.append((task, kwargs["recurring_authorized"]))
+        seen.append(
+            (
+                task,
+                kwargs["recurring_authorized"],
+                kwargs["agent_spawn_refusal"],
+            )
+        )
         return "script"
 
     monkeypatch.setattr(
@@ -1771,12 +1779,96 @@ def test_internal_recurring_launch_seam_leases_a_deterministic_child_generation(
         return_timeout=True,
         script_failure_important=True,
         launch_context="recurring",
+        agent_spawn_refusal="temporary worktree forbids agent sessions",
     )
 
     assert result.kind == "script"
     assert result.period_lease == expected_period_lease
     assert result.require_period_publication is True
-    assert seen == [("recurring/delegate-check", True)]
+    assert seen == [
+        (
+            "recurring/delegate-check",
+            True,
+            "temporary worktree forbids agent sessions",
+        )
+    ]
+
+
+def test_internal_recurring_launch_stops_hybrid_before_agent_setup(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A hard runner boundary retains script work but never starts its agent."""
+    cfg = load_config(active_task)
+    created = create_task(
+        cfg=cfg,
+        title="Hybrid recurring period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        slug_override="recurring/hybrid-check",
+        force_directory=True,
+    )
+    ref = next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+    assert ref.task_dir is not None
+    _write(
+        ref.task_dir / "ticket.py",
+        "import os\n"
+        "from pathlib import Path\n\n"
+        'Path(os.environ["COGA_TASK_DIR"], "deterministic.txt").write_text(\n'
+        '    "script ran\\n"\n'
+        ")\n",
+    )
+    expected_period_lease = local_period_lease(cfg, ref)
+    monkeypatch.setattr(
+        launch_module,
+        "_refresh_recurring_period_before_launch",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_exact_recurring_period_for_launch",
+        lambda *args, **kwargs: (cfg, ref),
+    )
+    monkeypatch.setattr(
+        launch_module, "_preflight_push_auth", lambda *args, **kwargs: False
+    )
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        launch_module,
+        "_refresh_agent_skills_for_launch",
+        lambda *_args, **_kwargs: pytest.fail(
+            "an unavailable hybrid agent must not reach agent-only setup"
+        ),
+    )
+
+    result = launch_module.launch_recurring_period(
+        ref.id_slug,
+        expected_period_lease=expected_period_lease,
+        control_remote_expected=False,
+        agent_override=None,
+        prompt_report=False,
+        idle_timeout=900.0,
+        max_session=None,
+        return_timeout=True,
+        script_failure_important=True,
+        launch_context="recurring",
+        agent_spawn_refusal="temporary worktree forbids agent sessions.",
+    )
+
+    assert result.kind == "script"
+    assert (ref.task_dir / "deterministic.txt").read_text() == "script ran\n"
+    # Shared launch leaves the honest open-step state for its recurring caller;
+    # the runner then parks that exact period as paused.
+    assert Ticket.read(ref.ticket_path).status == "in_progress"
+    output = capsys.readouterr()
+    assert "ticket.py left" in output.err
+    assert "temporary worktree forbids agent sessions" in output.err
+    assert "no agent was started" in output.err
 
 
 def test_internal_recurring_launch_refuses_replacement_before_agent_spawn(

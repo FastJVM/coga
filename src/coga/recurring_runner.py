@@ -7,9 +7,11 @@ import json
 import math
 import os
 import re
-import subprocess
 import shutil
+import signal
+import subprocess
 import sys
+import tempfile
 import tomllib
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
@@ -34,6 +36,7 @@ from coga.logfile import append_log, ref_tag_for_path, task_log_lines
 from coga.paths import log_path
 from coga.taskfile import TaskFileError, read_blackboard, split_body
 from coga.recurring import (
+    _AGENT_NEEDS_TTY,
     DueTask,
     DueScan,
     PeriodLease as _PeriodLease,
@@ -84,7 +87,11 @@ from coga.tasks import TaskRef, read_ticket
 from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
 from coga.workflow import WorkflowError
-from coga.workspace_discovery import discover_coga_repos
+from coga.workspace_discovery import (
+    CONTROL_WORKTREE_DIR_PREFIX as _CONTROL_WORKTREE_PREFIX,
+    CONTROL_WORKTREE_OWNER_FILE as _CONTROL_WORKTREE_OWNER_FILE,
+    discover_coga_repos,
+)
 
 # Default idle-timeout backstop (seconds) the sweep arms on the interactive
 # REPLs it spawns: one that stalls or crashes before signalling done would
@@ -338,6 +345,11 @@ def run_recurring_all_repos(
     config guards are summarized as unconfigured instead of dispatched.
     Failures from dispatched repos are isolated: the sweep continues through
     later repos and returns non-zero after reporting the aggregate.
+
+    A repo whose checkout is parked off the control branch is no longer one of
+    those failures: its child services deterministic phases from a temporary
+    control worktree instead. Those repos are reported separately from ordinary
+    sweeps because no agent phase may run there.
     """
     root = scan_root.expanduser().resolve()
     if not root.is_dir():
@@ -378,6 +390,7 @@ def run_recurring_all_repos(
     duplicate_of = _duplicate_remote_checkouts(serviceable)
     failed: list[str] = []
     skipped_duplicates: list[str] = []
+    serviced_from_worktree: list[str] = []
     for index, coga_os in enumerate(serviceable, 1):
         label = _repo_label(coga_os, root)
         typer.secho(
@@ -396,6 +409,11 @@ def run_recurring_all_repos(
                 err=True,
             )
             continue
+        # Observed before dispatch, because the child may put the control
+        # branch back within its own run. A repo that was off-control here and
+        # still exited 0 can only have been serviced through the temporary
+        # control worktree — every other outcome of that state is non-zero.
+        off_control = _off_control_branch(coga_os)
         process_started = True
         try:
             code = _run_repo_recurring(
@@ -408,6 +426,12 @@ def run_recurring_all_repos(
             process_started = False
             code = 1
             typer.secho(f"  ✗ {label} — {exc}", fg=typer.colors.RED, err=True)
+        if not code and off_control:
+            serviced_from_worktree.append(label)
+            typer.secho(
+                f"  ✓ {label} — serviced from a temporary control worktree",
+                fg=typer.colors.GREEN,
+            )
         if code:
             failed.append(label)
             if process_started:
@@ -464,6 +488,19 @@ def run_recurring_all_repos(
             fg=typer.colors.YELLOW,
             err=True,
         )
+    if serviced_from_worktree:
+        count = len(serviced_from_worktree)
+        repo_word = "repo" if count == 1 else "repos"
+        # Named, not just counted: only deterministic phases run in this mode,
+        # so an operator needs to know which repos to put back on the control
+        # branch to run skipped templates or parked hybrid agent handoffs.
+        listed = "\n".join(f"  {entry}" for entry in serviced_from_worktree)
+        typer.secho(
+            f"Serviced {count} {repo_word} from a temporary control worktree "
+            "(checkout is on another branch; deterministic phases only, "
+            f"agent handoffs parked):\n{listed}",
+            fg=typer.colors.YELLOW,
+        )
     if failed:
         typer.secho(
             f"{len(failed)} repo(s) failed: {', '.join(failed)} — see each "
@@ -473,6 +510,28 @@ def run_recurring_all_repos(
         )
         return 1
     return 0
+
+
+def _off_control_branch(coga_os: Path) -> bool:
+    """Whether this workspace's checkout is on something other than control.
+
+    Best-effort and deliberately conservative: every inspection failure reports
+    False. The child process is the authoritative gate, and an unverified guess
+    must not let the summary claim a repo took the temp-worktree path.
+    """
+    try:
+        cfg = load_config(coga_os, require_user=False)
+    except Exception:
+        return False
+    if not cfg.git_enabled:
+        return False
+    try:
+        root = _git_toplevel(coga_os)
+        if root is None:
+            return False
+        return _current_branch(root) != cfg.git_control_branch
+    except (git.GitError, OSError):
+        return False
 
 
 def _repo_label(coga_os: Path, root: Path) -> str:
@@ -648,8 +707,18 @@ def _run_repo_recurring(
     force: bool,
     interactive: bool,
     agent_override: str | None,
+    control_worktree: bool = False,
+    control_worktree_host: str = "",
+    control_worktree_parent: Path | None = None,
+    cwd: Path | None = None,
 ) -> int:
-    """Dispatch the registered recurring recipe from ``coga_os``'s host."""
+    """Dispatch the registered recurring recipe from its Coga workspace.
+
+    `cwd` overrides the directory the child runs from. The parent sweep leaves
+    it unset and runs from `coga_os` itself;
+    `_service_from_control_worktree` names the mirrored Coga workspace itself
+    so config discovery works for both root and deeply nested layouts.
+    """
     command = [
         sys.executable,
         "-m",
@@ -664,14 +733,734 @@ def _run_repo_recurring(
         command.append("--interactive")
     if agent_override:
         command.extend(("--agent", agent_override))
+    if control_worktree:
+        command.append("--control-worktree")
+        if control_worktree_host:
+            command.extend(("--control-worktree-host", control_worktree_host))
+
+    child_cwd = cwd if cwd is not None else coga_os
+    child_env = os.environ.copy()
+    if control_worktree:
+        if control_worktree_parent is None:
+            raise ValueError(
+                "a control-worktree dispatch requires its owner-marker parent"
+            )
+        # `starting` closes the unsafe half of the spawn window. If this
+        # wrapper is SIGKILLed before it can publish the child's process-group
+        # identity, a later sweep retains the checkout rather than guessing
+        # that no descendant exists.
+        _transition_control_worktree_inner(
+            control_worktree_parent,
+            expected="not-started",
+            state="starting",
+        )
+        try:
+            process = _start_repo_recurring_process(
+                command, child_cwd, child_env
+            )
+        except Exception:
+            # A normal Popen refusal returns no child. Mark that known-safe
+            # outcome so the caller may clean up; BaseException is deliberately
+            # excluded because an asynchronous signal can land after fork but
+            # before the process handle is assigned.
+            try:
+                _transition_control_worktree_inner(
+                    control_worktree_parent,
+                    expected="starting",
+                    state="not-started",
+                )
+            except OSError:
+                # An unverifiable marker makes the outer cleanup retain the
+                # checkout. Preserve the original process-start diagnosis.
+                pass
+            raise
+        try:
+            _transition_control_worktree_inner(
+                control_worktree_parent,
+                expected="starting",
+                state="running",
+                pgid=process.pid,
+            )
+            return process.wait()
+        except BaseException:
+            # From the moment a handle exists, every interruption is
+            # actionable: terminate the isolated group before the caller's
+            # `finally` considers removing its checkout. One try spans marker
+            # publication and wait so there is no uncovered signal window
+            # between them.
+            _terminate_repo_recurring_process(process)
+            try:
+                # If publication never reached `running`, termination makes
+                # the ambiguous window known-safe again. A completed atomic
+                # write already says `running` and intentionally fails this
+                # CAS; cleanup verifies that published group is gone.
+                _transition_control_worktree_inner(
+                    control_worktree_parent,
+                    expected="starting",
+                    state="not-started",
+                )
+            except OSError:
+                pass
+            raise
 
     result = subprocess.run(
         command,
-        cwd=coga_os.parent,
-        env=os.environ.copy(),
+        cwd=child_cwd,
+        env=child_env,
         check=False,
     )
     return result.returncode
+
+
+_CONTROL_WORKTREE_STOP_TIMEOUT = 10.0
+
+
+def _start_repo_recurring_process(
+    command: list[str], cwd: Path, env: dict[str, str]
+) -> subprocess.Popen[bytes]:
+    """Start the inner scan in a session whose whole process tree we own."""
+    return subprocess.Popen(command, cwd=cwd, env=env, start_new_session=True)
+
+
+def _signal_repo_recurring_process_group(
+    process: subprocess.Popen[bytes], signum: int
+) -> None:
+    """Signal the isolated inner scan and every recipe descendant."""
+    os.killpg(process.pid, signum)
+
+
+def _repo_recurring_process_group_exists(
+    process: subprocess.Popen[bytes],
+) -> bool:
+    """Whether any descendant still occupies the isolated process group."""
+    return _process_group_is_running(process.pid)
+
+
+def _process_group_is_running(pgid: int) -> bool:
+    """Conservatively report whether a process group may still be alive."""
+    if pgid <= 0:
+        return True
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+    return True
+
+
+def _terminate_repo_recurring_process(
+    process: subprocess.Popen[bytes],
+) -> None:
+    """Terminate and reap an interrupted inner scan before checkout cleanup."""
+    if process.poll() is not None:
+        return
+    try:
+        _signal_repo_recurring_process_group(process, signal.SIGTERM)
+    except ProcessLookupError:
+        process.wait()
+        return
+    try:
+        process.wait(timeout=_CONTROL_WORKTREE_STOP_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        _signal_repo_recurring_process_group(process, signal.SIGKILL)
+        process.wait()
+        return
+    # The leader can obey SIGTERM before a recipe descendant does. Once it is
+    # reaped, kill any process still occupying the isolated group so no user
+    # code can outlive the checkout this wrapper is about to remove.
+    if _repo_recurring_process_group_exists(process):
+        try:
+            _signal_repo_recurring_process_group(process, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
+# The shared discovery layer owns the prefix/marker pair and prunes any parent
+# carrying both, even when an explicit scan root contains the system temp dir.
+# The remaining state is the private marker protocol used by stale recovery.
+_CONTROL_WORKTREE_INNER_STATES = {"not-started", "starting", "running"}
+
+
+@dataclass(frozen=True)
+class _ControlWorktreeOwner:
+    pid: int
+    workspace_rel: Path
+    inner_state: str
+    inner_pgid: int | None
+
+
+def _is_positive_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _safe_control_worktree_workspace(
+    root: Path, workspace: str | Path
+) -> Path | None:
+    """Return a workspace relative to ``root``, or None for an escape."""
+    workspace_rel = Path(workspace)
+    resolved_root = root.resolve()
+    if (
+        workspace_rel.is_absolute()
+        or ".." in workspace_rel.parts
+        or not (resolved_root / workspace_rel)
+        .resolve()
+        .is_relative_to(resolved_root)
+    ):
+        return None
+    return workspace_rel
+
+
+def _atomic_write_control_worktree_owner(
+    marker: Path, payload: Mapping[str, object]
+) -> None:
+    """Replace an ownership marker without exposing a partial state."""
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=marker.parent,
+            prefix=f".{marker.name}.",
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+            handle.write(json.dumps(payload, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        temporary.chmod(0o600)
+        os.replace(temporary, marker)
+        temporary = None
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def _write_control_worktree_owner(
+    parent: Path,
+    root: Path,
+    control: str,
+    workspace_rel: Path,
+    *,
+    pid: int | None = None,
+    inner_state: str = "not-started",
+    inner_pgid: int | None = None,
+) -> None:
+    """Mark a temp directory as this process's narrowly owned checkout."""
+    owner_pid = os.getpid() if pid is None else pid
+    if not _is_positive_int(owner_pid):
+        raise ValueError(f"invalid control-worktree owner pid: {owner_pid}")
+    requested_workspace = workspace_rel
+    workspace_rel = _safe_control_worktree_workspace(root, requested_workspace)
+    if workspace_rel is None:
+        raise ValueError(
+            f"unsafe control-worktree workspace: {requested_workspace}"
+        )
+    resolved_root = root.resolve()
+    if inner_state not in _CONTROL_WORKTREE_INNER_STATES:
+        raise ValueError(f"unknown control-worktree inner state: {inner_state}")
+    if inner_state == "running":
+        if not _is_positive_int(inner_pgid):
+            raise ValueError("a running control worktree requires an inner pgid")
+    elif inner_pgid is not None:
+        raise ValueError(f"{inner_state} cannot carry an inner pgid")
+
+    marker = parent / _CONTROL_WORKTREE_OWNER_FILE
+    _atomic_write_control_worktree_owner(
+        marker,
+        {
+            "version": 2,
+            "pid": owner_pid,
+            "root": str(resolved_root),
+            "control": control,
+            "workspace": workspace_rel.as_posix(),
+            "inner_state": inner_state,
+            "inner_pgid": inner_pgid,
+        },
+    )
+
+
+def _transition_control_worktree_inner(
+    parent: Path,
+    *,
+    expected: str,
+    state: str,
+    pgid: int | None = None,
+) -> None:
+    """Durably advance the marker around the isolated child spawn."""
+    marker = parent / _CONTROL_WORKTREE_OWNER_FILE
+    try:
+        payload = json.loads(marker.read_text())
+    except (OSError, TypeError, ValueError, UnicodeError) as exc:
+        raise OSError(
+            f"could not read control-worktree owner marker: {exc}"
+        ) from exc
+    if (
+        not isinstance(payload, dict)
+        or payload.get("version") != 2
+        or payload.get("pid") != os.getpid()
+        or payload.get("inner_state") != expected
+        or state not in _CONTROL_WORKTREE_INNER_STATES
+        or (state == "running" and not _is_positive_int(pgid))
+        or (state != "running" and pgid is not None)
+    ):
+        raise OSError("control-worktree owner marker changed unexpectedly")
+    payload["inner_state"] = state
+    payload["inner_pgid"] = pgid
+    _atomic_write_control_worktree_owner(marker, payload)
+
+
+def _process_is_running(pid: int) -> bool:
+    """Conservatively report whether an owner PID may still be alive."""
+    if pid <= 0:
+        return True
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+    return True
+
+
+def _read_control_worktree_owner(
+    root: Path, control: str, checkout: Path
+) -> _ControlWorktreeOwner | None:
+    """Read a marker only for this repo's exact Coga-owned temp checkout."""
+    try:
+        temp_root = Path(tempfile.gettempdir()).resolve()
+        checkout = checkout.resolve()
+        parent = checkout.parent
+        if (
+            checkout.name != "checkout"
+            or parent.parent != temp_root
+            or not parent.name.startswith(
+                f"{_CONTROL_WORKTREE_PREFIX}{root.name}-"
+            )
+        ):
+            return None
+        payload = json.loads(
+            (parent / _CONTROL_WORKTREE_OWNER_FILE).read_text()
+        )
+        if not isinstance(payload, dict):
+            return None
+        pid = payload.get("pid")
+        workspace = payload.get("workspace")
+        inner_state = payload.get("inner_state")
+        inner_pgid = payload.get("inner_pgid")
+        if (
+            payload.get("version") != 2
+            or payload.get("root") != str(root.resolve())
+            or payload.get("control") != control
+            or not _is_positive_int(pid)
+            or not isinstance(workspace, str)
+            or not workspace
+            or not isinstance(inner_state, str)
+            or inner_state not in _CONTROL_WORKTREE_INNER_STATES
+            or (
+                inner_state == "running"
+                and not _is_positive_int(inner_pgid)
+            )
+            or (inner_state != "running" and inner_pgid is not None)
+        ):
+            return None
+        workspace_rel = _safe_control_worktree_workspace(root, workspace)
+        if workspace_rel is None:
+            return None
+    except (OSError, ValueError, TypeError, UnicodeError):
+        return None
+    return _ControlWorktreeOwner(
+        pid=pid,
+        workspace_rel=workspace_rel,
+        inner_state=inner_state,
+        inner_pgid=inner_pgid,
+    )
+
+
+def _stale_owned_control_worktree(
+    root: Path, control: str, checkout: Path
+) -> _ControlWorktreeOwner | None:
+    """Return ownership only when wrapper and any known child are both dead."""
+    owner = _read_control_worktree_owner(root, control, checkout)
+    if owner is None or _process_is_running(owner.pid):
+        return None
+    if owner.inner_state == "not-started":
+        return owner
+    if (
+        owner.inner_state == "running"
+        and owner.inner_pgid is not None
+        and not _process_group_is_running(owner.inner_pgid)
+    ):
+        return owner
+    # `starting` means the wrapper died inside the one window where a child
+    # may exist but its pgid was not yet publishable. Retain the checkout and
+    # force a human to establish that it is safe.
+    return None
+
+
+def _copy_control_worktree_run_log(source: Path, destination_dir: Path) -> Path:
+    """Copy one run record without replacing any durable local record."""
+    data = source.read_bytes()
+    collision = 0
+    while True:
+        destination = (
+            destination_dir / source.name
+            if collision == 0
+            else destination_dir
+            / f"{source.stem}.worktree-{collision:03d}{source.suffix}"
+        )
+        try:
+            descriptor = os.open(
+                destination,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                0o600,
+            )
+        except FileExistsError:
+            if (
+                not destination.is_symlink()
+                and destination.is_file()
+                and destination.read_bytes() == data
+            ):
+                return destination
+            collision += 1
+            continue
+        try:
+            with os.fdopen(descriptor, "wb") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+        except BaseException:
+            destination.unlink(missing_ok=True)
+            raise
+        return destination
+
+
+def _persist_control_worktree_run_logs(
+    source_coga_os: Path, destination_coga_os: Path
+) -> None:
+    """Move temp-checkout run records into the operator's durable checkout."""
+    source_runs = source_coga_os / ".coga" / "recurring-runs"
+    if not source_runs.exists():
+        return
+    source_root = source_coga_os.resolve()
+    if (
+        source_runs.parent.is_symlink()
+        or source_runs.is_symlink()
+        or not source_runs.is_dir()
+        or not source_runs.resolve().is_relative_to(source_root)
+    ):
+        raise OSError(f"unsafe temporary recurring-run directory: {source_runs}")
+
+    if not destination_coga_os.is_dir():
+        raise OSError(
+            f"durable Coga workspace is unavailable: {destination_coga_os}"
+        )
+    destination_root = destination_coga_os.resolve()
+    destination_state = destination_coga_os / ".coga"
+    destination_runs = destination_state / "recurring-runs"
+    if destination_state.is_symlink() or destination_runs.is_symlink():
+        raise OSError(
+            f"unsafe durable recurring-run directory: {destination_runs}"
+        )
+    destination_runs.mkdir(parents=True, exist_ok=True)
+    if not destination_runs.resolve().is_relative_to(destination_root):
+        raise OSError(
+            f"durable recurring-run directory escapes its workspace: "
+            f"{destination_runs}"
+        )
+
+    for source in sorted(source_runs.glob("*.md")):
+        if source.is_symlink() or not source.is_file():
+            continue
+        _copy_control_worktree_run_log(source, destination_runs)
+
+
+def _reap_stale_control_worktree(root: Path, control: str) -> None:
+    """Remove a dead, marker-proven Coga holder without touching live/user trees."""
+    holder = git._worktree_holding_branch(root, control)
+    if holder is None or holder == git._WORKTREES_UNKNOWN:
+        return
+    owner = _stale_owned_control_worktree(root, control, holder)
+    if owner is None:
+        return
+    try:
+        _persist_control_worktree_run_logs(
+            holder / owner.workspace_rel,
+            root / owner.workspace_rel,
+        )
+    except OSError as exc:
+        typer.secho(
+            "Recurring control-worktree recovery retained "
+            f"{holder}: could not preserve its run logs in "
+            f"{root / owner.workspace_rel}: {exc}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return
+    git._run_git(root, "worktree", "remove", "--force", str(holder))
+    shutil.rmtree(holder.parent, ignore_errors=True)
+
+
+def _cleanup_control_worktree(
+    root: Path,
+    control: str,
+    checkout: Path,
+    workspace_rel: Path,
+    durable_coga_os: Path,
+) -> None:
+    """Remove a completed temp checkout, retaining every ambiguous one."""
+    owner = _read_control_worktree_owner(root, control, checkout)
+    if owner is None:
+        typer.secho(
+            "Recurring control worktree retained at "
+            f"{checkout}: its ownership marker could not be verified during "
+            "cleanup.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return
+    if owner.inner_state == "starting":
+        # Popen may have forked immediately before an asynchronous signal
+        # interrupted assignment of its handle. With no trustworthy PGID, the
+        # only safe cleanup is to leave the registered checkout in place.
+        typer.secho(
+            "Recurring control worktree retained at "
+            f"{checkout}: child startup was interrupted before its process "
+            "group could be published; verify no process still uses it "
+            "before removing it.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return
+    if (
+        owner.inner_state == "running"
+        and owner.inner_pgid is not None
+        and _process_group_is_running(owner.inner_pgid)
+    ):
+        # A second signal or an OS error can interrupt group termination. The
+        # published PGID lets this path fail closed instead of unlinking a
+        # checkout beneath a child that still has it open.
+        typer.secho(
+            "Recurring control worktree retained at "
+            f"{checkout}: child process group {owner.inner_pgid} may still "
+            "be running; retry after it exits.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return
+
+    try:
+        _persist_control_worktree_run_logs(
+            checkout / workspace_rel,
+            durable_coga_os,
+        )
+    except OSError as exc:
+        # The temp checkout is now the only durable copy. Keep both its
+        # directory and Git registration so the next sweep can retry the
+        # marker-proven transfer before reaping it.
+        typer.secho(
+            "Recurring control worktree retained at "
+            f"{checkout}: could not preserve its run logs in "
+            f"{durable_coga_os}: {exc}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        return
+
+    try:
+        git._run_git(root, "worktree", "remove", "--force", str(checkout))
+    except git.GitError:
+        # The directory removal below plus `prune` still clears it.
+        pass
+    shutil.rmtree(checkout.parent, ignore_errors=True)
+    try:
+        git._run_git(root, "worktree", "prune")
+    except git.GitError:
+        pass
+
+
+def _control_worktree_agent_refusal(cfg: Config, host: str) -> str:
+    """Why every agent phase is refused in a control-worktree run."""
+    where = host or "the host checkout"
+    return (
+        "serviced from a temporary control worktree because "
+        f"{where} does not have {cfg.git_control_branch!r} checked out; "
+        "agent phases need a durable checkout on the control branch."
+    )
+
+
+def _service_from_control_worktree(
+    cfg: Config,
+    *,
+    force: bool,
+    interactive: bool,
+    agent_override: str | None,
+) -> tuple[int, None] | tuple[None, str]:
+    """Run this repo's deterministic phases from a temp control worktree.
+
+    Hybrid scripts may run, but their agent handoff is refused and parked.
+    Returns `(exit_code, None)`, or `(None, why_unavailable)`.
+
+    The caller reaches this only when the control branch is *not* checked out
+    anywhere in this repo, which is what makes the shape safe: the temporary
+    worktree checks the branch out, so the inner scan is an ordinary
+    on-control run from a different directory and every existing sync, ledger,
+    and push path applies unmodified. A detached worktree at the remote tip
+    would not — `git.sync_log` refuses to commit from a detached HEAD, so the
+    serviced-period ledger would never reach control and the next sweep would
+    re-fire the period.
+
+    `git worktree add` is also the concurrency lock: git refuses to check one
+    branch out twice, so a second sweep (or an unrelated worktree already
+    holding the branch) fails here and the caller keeps today's loud refusal.
+
+    The operator's checkout is never touched — no stash, no switch, no
+    restore. The one shared thing that moves is the local control ref, which
+    advances exactly as it does in any on-control sweep.
+    """
+    if not cfg.git_enabled:
+        return None, "[git].enabled = false"
+    root = _git_toplevel(cfg.repo_root)
+    if root is None:
+        return None, "workspace is not inside a git checkout"
+    try:
+        workspace_rel = cfg.repo_root.resolve().relative_to(root.resolve())
+    except (OSError, ValueError):
+        return None, f"{cfg.repo_root} is not inside the git checkout at {root}"
+
+    control = cfg.git_control_branch
+    try:
+        host_branch = _current_branch(root)
+    except git.GitError as exc:
+        return None, f"could not read the current branch of {root}: {exc}"
+
+    try:
+        # Prune missing checkouts, then explicitly reap a still-present
+        # checkout only when its repo/branch marker identifies this feature
+        # and its owning process is gone. A live concurrent sweep and every
+        # unrelated user worktree remain the branch-lock refusal below.
+        git._run_git(root, "worktree", "prune")
+        _reap_stale_control_worktree(root, control)
+        git._run_git(root, "worktree", "prune")
+        control_ref_exists = _local_branch_exists(root, control)
+        control_seed: str | None = None
+        if not control_ref_exists:
+            # A command-line `git fetch <remote> <branch>` need only populate
+            # checkout-wide FETCH_HEAD in a single-branch/narrow-refspec clone;
+            # `<remote>/<branch>` can remain absent. Fetch into the shared
+            # Git layer's command-owned ref and retain its exact OID instead.
+            control_seed = git._fetch_branch_oid(
+                root, cfg.git_remote, control
+            )
+    except git.GitError as exc:
+        return None, str(exc)
+
+    parent = Path(
+        tempfile.mkdtemp(prefix=f"{_CONTROL_WORKTREE_PREFIX}{root.name}-")
+    )
+    _write_control_worktree_owner(parent, root, control, workspace_rel)
+    # `git worktree add` refuses a directory that already exists with content,
+    # so the checkout is a fresh subpath of the temp parent, not the parent.
+    checkout = parent / "checkout"
+    # A repo that has never checked the control branch out locally has no
+    # `refs/heads/<control>` to add a worktree for, so the ref is created from
+    # the exact command-owned fetched OID. This does not depend on a
+    # remote-tracking ref that a narrow clone may not have. Where the local ref
+    # does exist it is used as-is: the inner scan runs its own catch-up against
+    # origin, which is where that integration belongs.
+    if control_ref_exists:
+        add_args = [str(checkout), control]
+    else:
+        assert control_seed is not None
+        add_args = ["-b", control, str(checkout), control_seed]
+    try:
+        git._run_git(root, "worktree", "add", *add_args)
+    except git.GitError as exc:
+        shutil.rmtree(parent, ignore_errors=True)
+        holder = git._worktree_holding_branch(root, control)
+        blocker = (
+            f"{control!r} is already checked out at {holder}"
+            if holder is not None and holder != git._WORKTREES_UNKNOWN
+            else str(exc)
+        )
+        return None, (
+            f"could not check {control!r} out at {checkout}: {blocker}. "
+            f"Free that branch, or check it out in {root} yourself, "
+            "then re-run."
+        )
+
+    previous_sigterm: object = None
+    installed_sigterm = False
+    try:
+        # SIGINT already unwinds through this `finally` as KeyboardInterrupt.
+        # A cron kill arrives as SIGTERM, whose default action would skip the
+        # cleanup entirely and strand a worktree registration.
+        previous_sigterm = signal.signal(signal.SIGTERM, _raise_on_sigterm)
+        installed_sigterm = True
+    except (OSError, ValueError):
+        # Not the main thread, or a platform without SIGTERM. The next run's
+        # `git worktree prune` is the backstop.
+        installed_sigterm = False
+
+    try:
+        mirrored_coga_os = checkout / workspace_rel
+        local_config = cfg.repo_root / "coga.local.toml"
+        if local_config.is_file():
+            # Required, not a nicety: `coga.local.toml` is gitignored, so a
+            # fresh worktree has no `user` and `load_config` raises before the
+            # scan starts. It carries secret *references*, never values, and
+            # the copy is mode 0600 in a directory only this run knows.
+            mirrored = mirrored_coga_os / local_config.name
+            mirrored.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(local_config, mirrored)
+            mirrored.chmod(0o600)
+
+        where = (
+            "a detached HEAD"
+            if host_branch == "HEAD"
+            else f"branch {host_branch!r}"
+        )
+        typer.secho(
+            f"{root} is on {where}; servicing deterministic phases from a "
+            f"temporary {control!r} worktree at {checkout}.",
+            fg=typer.colors.CYAN,
+        )
+        return (
+            _run_repo_recurring(
+                mirrored_coga_os,
+                force=force,
+                interactive=interactive,
+                agent_override=agent_override,
+                control_worktree=True,
+                control_worktree_host=str(root),
+                control_worktree_parent=parent,
+                cwd=mirrored_coga_os,
+            ),
+            None,
+        )
+    finally:
+        if installed_sigterm:
+            signal.signal(signal.SIGTERM, previous_sigterm)
+        _cleanup_control_worktree(
+            root,
+            control,
+            checkout,
+            workspace_rel,
+            cfg.repo_root,
+        )
+
+
+def _raise_on_sigterm(signum: int, _frame: object) -> None:
+    """Turn a scheduler's SIGTERM into an exception so `finally` blocks run."""
+    raise KeyboardInterrupt(f"terminated by signal {signum}")
+
+
+def _local_branch_exists(root: Path, branch: str) -> bool:
+    try:
+        git._run_git(root, "rev-parse", "--verify", f"refs/heads/{branch}")
+    except git.GitError:
+        return False
+    return True
 
 
 def run_recurring_scan(
@@ -681,6 +1470,8 @@ def run_recurring_scan(
     interactive: bool = False,
     agent_override: str | None = None,
     require_fresh_control: bool = False,
+    control_worktree: bool = False,
+    control_worktree_host: str = "",
 ) -> int:
     """Scan every recurring template and launch any due tasks, sequentially.
 
@@ -717,6 +1508,20 @@ def run_recurring_scan(
     control tip returns non-zero before `scan_due` can mutate period state.
     Bare single-repo sweeps retain the established best-effort catch-up.
 
+    When that gate fails only because the control branch is not checked out
+    here, the run does not give up: the branch is free by definition, so
+    `_service_from_control_worktree` checks it out in a temporary linked
+    worktree and re-dispatches this scan there, leaving the operator's tree and
+    branch untouched. `control_worktree` marks that inner run. It stops the
+    recursion and restricts execution to deterministic `ticket.py` phases — a
+    throwaway worktree is the wrong place to spawn an agent REPL that composes
+    prompts, edits files, and opens PRs — with `control_worktree_host` naming
+    the operator's checkout so each skipped or refused agent phase says why.
+    Because a `ticket.py` can be one half of a hybrid period, the same refusal
+    is carried through shared launch: if the script leaves agent work open, its
+    output is kept, the exact period is parked, and no agent setup or spawn is
+    attempted.
+
     `coga recurring launch <name>` force-runs one named template now.
 
     A repo with a committed `owner` refuses this for every other operator —
@@ -730,14 +1535,33 @@ def run_recurring_scan(
         return 2
 
     control_remote_expected = _control_remote_present_at_admission(cfg)
-    fresh, freshness_error = _sync_control_checkout_ahead(
+    catchup = _sync_control_checkout_ahead(
         cfg, announce_failure=not require_fresh_control
     )
+    fresh = catchup.fresh
     if require_fresh_control and not fresh:
+        if catchup.off_control_branch and not control_worktree:
+            # The control branch is free — nothing holds it here. Service the
+            # repo from a temporary worktree that checks it out instead of
+            # failing the whole repo until a human runs `git checkout`.
+            serviced, unavailable = _service_from_control_worktree(
+                cfg,
+                force=force,
+                interactive=interactive,
+                agent_override=agent_override,
+            )
+            if serviced is not None:
+                return serviced
+            typer.secho(
+                "Could not service this repo from a temporary control "
+                f"worktree: {unavailable}",
+                fg=typer.colors.YELLOW,
+                err=True,
+            )
         typer.secho(
             "Recurring scan skipped: could not confirm this checkout includes "
             f"the latest {cfg.git_remote}/{cfg.git_control_branch}: "
-            f"{freshness_error}",
+            f"{catchup.reason}",
             fg=typer.colors.RED,
             err=True,
         )
@@ -750,8 +1574,19 @@ def run_recurring_scan(
         return 2
     if not _valid_agent_override(cfg, agent_override):
         return 2
+    if control_worktree:
+        agent_spawn_refusal = _control_worktree_agent_refusal(
+            cfg, control_worktree_host
+        )
+    elif not _interactive_stdio_has_tty():
+        agent_spawn_refusal = _AGENT_NEEDS_TTY
+    else:
+        agent_spawn_refusal = None
     scan = scan_due(
-        cfg, allow_interactive=_interactive_stdio_has_tty(), force=force
+        cfg,
+        allow_interactive=agent_spawn_refusal is None,
+        force=force,
+        agent_unavailable_reason=agent_spawn_refusal,
     )
     _broadcast_scan(
         cfg,
@@ -803,6 +1638,7 @@ def run_recurring_scan(
             interactive=interactive,
             agent_override=agent_override,
             control_remote_expected=control_remote_expected,
+            agent_spawn_refusal=agent_spawn_refusal,
         )
     finally:
         run_autofix(cfg, record, agent_override=agent_override)
@@ -817,6 +1653,7 @@ def _launch_due_tasks(
     interactive: bool,
     agent_override: str | None,
     control_remote_expected: bool,
+    agent_spawn_refusal: str | None = None,
 ) -> int:
     """Run each due period task in order, recording what each one did.
 
@@ -933,6 +1770,24 @@ def _launch_due_tasks(
         # this sweep holding a second copy of that rule.
         #
         if task.delegate:
+            if agent_spawn_refusal is not None:
+                detail = (
+                    f"{task.ref.id_slug} needs its delegated agent after "
+                    f"reconciliation, but {agent_spawn_refusal} No agent was "
+                    "started."
+                )
+                typer.secho(detail, fg=typer.colors.YELLOW, err=True)
+                _record_outcome(
+                    record,
+                    TaskOutcome(
+                        template=task.template,
+                        slug=task.ref.id_slug,
+                        result="refused",
+                        final_status=current_ticket.status,
+                        detail=detail,
+                    ),
+                )
+                continue
             # A delegating template's period task never runs its own agent
             # session: the sweep launches the declared bootstrap target
             # directly — in this operator's terminal, under the same liveness
@@ -978,11 +1833,13 @@ def _launch_due_tasks(
                 return delegated.exit_code
             continue
         # Sequential by design: each launch blocks until the session exits
-        # before the next begins. `scan_due` filters out templates that cannot
-        # run in the current stdio context (an agent run with no TTY), and the
-        # liveness backstops release any that launch but then stall. `launch`
-        # returns "timeout" when a backstop fired so we record the wedge
-        # honestly below instead of pausing it as a human would.
+        # before the next begins. `scan_due` filters periods with no executable
+        # phase in the current context. A ticket.py may still be hybrid, so the
+        # same admission refusal is passed into shared launch and enforced
+        # before agent-only setup. For admitted agents, liveness backstops
+        # release any that launch but then stall. `launch` returns "timeout"
+        # when a backstop fired so we record the wedge honestly below instead
+        # of pausing it as a human would.
         try:
             raw_launch_result = launch_cmd(
                 task.ref.id_slug,
@@ -1000,6 +1857,7 @@ def _launch_due_tasks(
                 # `--interactive` is a human stepping through by hand, so it
                 # selects the attended contract instead.
                 launch_context=launch_context,
+                agent_spawn_refusal=agent_spawn_refusal,
             )
             if not isinstance(raw_launch_result, RecurringPeriodLaunchResult):
                 raise RecurringError(
@@ -1201,6 +2059,9 @@ def _task_outcome(
             detail = (
                 "the deterministic `ticket.py` phase stopped before the step closed"
             )
+        elif kind == "agent-refused":
+            result = "unfinished"
+            detail = "the sweep refused the period's agent phase before spawn"
         else:
             result = "unfinished"
             detail = (
@@ -1253,6 +2114,10 @@ def run_recurring_scan_recipe(cfg: Config, argv: list[str]) -> int:
     parser.add_argument("--interactive", action="store_true")
     parser.add_argument("--agent")
     parser.add_argument("--require-fresh-control", action="store_true")
+    # Internal dispatch flags. `_service_from_control_worktree` sets them on the
+    # scan it re-dispatches into the temporary checkout; nothing else does.
+    parser.add_argument("--control-worktree", action="store_true")
+    parser.add_argument("--control-worktree-host", default="")
     args = parser.parse_args(argv)
     return run_recurring_scan(
         cfg,
@@ -1260,6 +2125,8 @@ def run_recurring_scan_recipe(cfg: Config, argv: list[str]) -> int:
         interactive=args.interactive,
         agent_override=args.agent,
         require_fresh_control=args.require_fresh_control,
+        control_worktree=args.control_worktree,
+        control_worktree_host=args.control_worktree_host,
     )
 
 
@@ -1977,7 +2844,7 @@ def run_recurring_named(
     if _refuse_non_control_branch(cfg):
         return 2
     control_remote_expected = _control_remote_present_at_admission(cfg)
-    fresh, _reason = _sync_control_checkout_ahead(cfg)
+    fresh = _sync_control_checkout_ahead(cfg).fresh
     if _refuse_non_owner(cfg):
         return 2
     if not _valid_agent_override(cfg, agent_override):
@@ -2078,9 +2945,27 @@ def run_recurring_named(
             run_autofix(cfg, record, agent_override=agent_override)
 
 
+@dataclass(frozen=True)
+class _ControlCatchup:
+    """Outcome of the pre-scan control-branch catch-up.
+
+    `fresh` and `reason` are what every caller has always needed. The third
+    field exists because "not fresh" collapsed two very different situations:
+    the control branch is not checked out here at all (recoverable — the branch
+    is free, so this run can check it out somewhere else), and the control
+    branch is checked out but its tip could not be integrated (a human has to
+    reconcile it). Only the first is a candidate for the temporary control
+    worktree, so the distinction has to survive the return.
+    """
+
+    fresh: bool
+    reason: str
+    off_control_branch: bool = False
+
+
 def _sync_control_checkout_ahead(
     cfg: Config, *, announce_failure: bool = True
-) -> tuple[bool, str]:
+) -> _ControlCatchup:
     """Catch the checked-out control branch up to origin before scanning.
 
     The scan decides what is due from working-tree templates and period tasks;
@@ -2088,7 +2973,9 @@ def _sync_control_checkout_ahead(
     already serviced, instead of relying solely on the per-create FETCH_HEAD
     checks. Runs while the tree is still clean of scan writes, so the rebase
     is normally a plain fast-forward. Only applies when this checkout holds
-    the control branch. Returns a confirmation flag and an actionable reason.
+    the control branch. Returns a `_ControlCatchup`: a confirmation flag, an
+    actionable reason, and whether the refusal was merely "the control branch
+    is not checked out here".
     Bare and named sweeps keep misses best-effort because each create still
     reconciles against FETCH_HEAD; the `--all` child treats a false result as
     an entry-gate failure before scanning.
@@ -2099,18 +2986,26 @@ def _sync_control_checkout_ahead(
     print the same conflict twice.
     """
     if not cfg.git_enabled:
-        return False, "[git].enabled = false"
+        return _ControlCatchup(fresh=False, reason="[git].enabled = false")
     root = _git_toplevel(cfg.repo_root)
     if root is None:
-        return False, "workspace is not inside a git checkout"
+        return _ControlCatchup(
+            fresh=False, reason="workspace is not inside a git checkout"
+        )
     fetched = False
     try:
         current = _current_branch(root)
         if current != cfg.git_control_branch:
             where = "detached HEAD" if current == "HEAD" else f"branch {current!r}"
-            return False, (
-                f"configured control branch {cfg.git_control_branch!r} is not "
-                f"checked out ({where})"
+            return _ControlCatchup(
+                fresh=False,
+                reason=(
+                    f"configured control branch {cfg.git_control_branch!r} is "
+                    f"not checked out ({where})."
+                    f"\nCheck that branch out — `git -C {root} checkout "
+                    f"{cfg.git_control_branch}` — then re-run."
+                ),
+                off_control_branch=True,
             )
         _fetch_control_branch(cfg, root)
         fetched = True
@@ -2129,8 +3024,8 @@ def _sync_control_checkout_ahead(
             )
         if announce_failure:
             sys.stderr.write(f"[git] note: pre-scan catch-up skipped: {exc}\n")
-        return False, reason
-    return True, ""
+        return _ControlCatchup(fresh=False, reason=reason)
+    return _ControlCatchup(fresh=True, reason="")
 
 
 def _launch_created(
