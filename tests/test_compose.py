@@ -356,6 +356,84 @@ def test_bundled_code_review_step_composes_address_pr_comments_skill(
     assert "Do not run `coga bump`" in prompt
 
 
+def test_design_workflow_routes_a_cold_peer_review_before_owner_approval(
+    repo: Path,
+) -> None:
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Design a retry policy",
+        workflow_name="code/design-then-implement",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    ticket = read_ticket(ref)
+    steps = ticket.workflow["steps"]
+
+    assert [step["name"] for step in steps[:3]] == [
+        "design",
+        "evaluate-design",
+        "review-design",
+    ]
+    assert steps[1]["assignee"] == "other-agent"
+    assert steps[1]["skills"] == ["code/review-design"]
+    assert steps[2]["assignee"] == "owner"
+
+    ticket.frontmatter["step"] = "2 (evaluate-design)"
+    ticket.frontmatter["assignee"] = "codex"
+    ticket.write(ref.ticket_path)
+    prompt = compose_prompt(cfg, ref, read_ticket(ref))
+
+    assert "Current step: evaluate-design (skill: code/review-design)" in prompt
+    assert "Review the design cold" in prompt
+    assert "## Evaluator review" in prompt
+    assert "The next `review-design` step is the owner gate" in prompt
+
+
+def test_design_prompts_remain_accurate_for_pre_evaluator_snapshots(
+    repo: Path,
+) -> None:
+    """Skills and inline step prose stay live after workflow steps freeze."""
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Legacy design snapshot",
+        workflow_name="code/design-then-implement",
+        contexts=[],
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    ticket = read_ticket(ref)
+    ticket.frontmatter["workflow"]["steps"] = [
+        step
+        for step in ticket.workflow["steps"]
+        if step["name"] != "evaluate-design"
+    ]
+    ticket.write(ref.ticket_path)
+
+    design_prompt = compose_prompt(cfg, ref, read_ticket(ref))
+    assert "advances the workflow to its next frozen step" in design_prompt
+    assert "advances the workflow to `evaluate-design`" not in design_prompt
+
+    ticket = read_ticket(ref)
+    ticket.frontmatter["step"] = "2 (review-design)"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ref.ticket_path)
+    owner_prompt = " ".join(
+        compose_prompt(cfg, ref, read_ticket(ref)).split()
+    )
+
+    assert "If an `## Evaluator review` section is present" in owner_prompt
+    assert "the cold peer's `## Evaluator review`" not in owner_prompt
+
+
 @pytest.mark.parametrize(
     ("workflow_name", "step", "heading", "legacy_direction"),
     [

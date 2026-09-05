@@ -5,7 +5,7 @@ description: What we're building right now in coga. Recent decisions, open ticke
 
 # Coga — current direction
 
-Last updated: 2026-08-31.
+Last updated: 2026-09-02.
 
 ## Current redesign (recurring lifecycle and identity)
 
@@ -73,15 +73,26 @@ Last updated: 2026-08-31.
 ## Recent decisions (design-then-implement workflow)
 
 - **A thin ticket gets designed before it gets built.** The
-  `code/design-then-implement` workflow adds two steps in front of the
+  `code/design-then-implement` workflow adds three steps in front of the
   normal `implement → open-pr → review` flow: an agent `design` step
   (skill `code/design`) that writes Description, Acceptance Criteria,
-  Proposed Shape, and Out of Scope into the ticket, and an owner
-  `review-design` gate to approve that spec before any code is written.
+  Proposed Shape, and Out of Scope into the ticket; an `other-agent`
+  `evaluate-design` step (skill `code/review-design`) that reads the result
+  cold and records evidenced findings; and an owner `review-design` gate that
+  resolves those findings and approves the spec before any code is written.
   Use it when a ticket arrives as one or two sentences; use
   `code/with-review` when the spec is already clear. The design step
   writes no code — its only output is the fleshed-out ticket plus open
-  questions on the blackboard.
+  questions on the blackboard. Workflow snapshots keep their original step
+  list, so the evaluator is added to newly frozen tickets, not retrofitted into
+  tickets already in flight.
+- **A workflow evaluator note is live working state, not draft authoring
+  residue.** `evaluate-design` runs only after launch and writes `## Evaluator
+  review` for the immediately following owner gate. The identically named
+  section on a `draft` remains subject to the first-launch synthesis check:
+  `bootstrap/ticket` requires its durable findings folded into the ticket body
+  and the authoring section removed. Formalizing the live ritual does not make
+  unfinished draft authoring launch-ready.
 
 ## Recent decisions (missing-skill detection)
 

@@ -1,11 +1,15 @@
 ---
 name: code/design-then-implement
-description: A thin ticket is designed into a spec by an agent, the owner reviews the spec, then an agent implements it and opens a PR for the owner to review and merge.
+description: A thin ticket is designed into a spec, cold-reviewed by another agent, approved by the owner, then implemented and opened as a PR for final owner review.
 steps:
   - name: design
     assignee: agent
     skills:
       - code/design
+  - name: evaluate-design
+    assignee: other-agent
+    skills:
+      - code/review-design
   - name: review-design
     assignee: owner
   - name: implement
@@ -35,11 +39,13 @@ compose their section, so those bodies are load-bearing.
 ## review-design
 
 Owner reviews the spec the `design` step wrote into `ticket.md` —
-Description, Acceptance Criteria, Proposed Shape, Out of Scope — and
-answers anything under `## Open Questions` on the blackboard. Edit the
-ticket directly to correct scope or approach. When the spec is right,
-run `coga bump` to hand off to `implement`. If the design is wrong
-enough to redo, relaunch the `design` step instead of bumping.
+Description, Acceptance Criteria, Proposed Shape, Out of Scope — and answers
+anything under `## Open Questions` on the blackboard. If an
+`## Evaluator review` section is present, resolve every must-fix finding; record
+a disposition when one is intentionally rejected. Edit the ticket directly to
+correct scope or approach. When the spec is right, run `coga bump` to hand off
+to `implement`. If the design is wrong enough to redo, relaunch the `design`
+step instead of bumping.
 
 ## implement
 

@@ -45,14 +45,15 @@ build, and it should not have to re-derive intent.
 4. **Record open questions on the blackboard.** Anything you could not
    resolve from the codebase — a genuine product or design choice —
    goes under an `## Open Questions` section in the ticket's blackboard region. The
-   `review-design` step exists for the owner to answer them.
+   owner answers them in `review-design`; when the frozen workflow includes an
+   independent evaluator, that evaluator first tests whether they are complete.
 5. **Split the ticket if it is too big.** If the honest Proposed Shape
    is more than one PR's worth of work, say so on the blackboard and
    recommend a split rather than writing a spec you know is oversized.
 6. **Bump — this is what ends the step.** Run `coga bump <slug>`. It
-   advances the workflow to `review-design` and is the only thing that
-   does so — there is no autobump. If you stop without running it the
-   workflow stalls here and the owner is never asked to review.
+   advances the workflow to its next frozen step and is the only thing that
+   does so — there is no autobump. If you stop without running it, the
+   workflow stalls here and the spec never reaches its next reviewer.
 
 ## Acceptance for this step
 
@@ -69,7 +70,8 @@ build, and it should not have to re-derive intent.
 
 - Write or commit code, create a branch, or open a PR — that is
   `code/implement` and `code/open-pr`.
-- Approve its own spec. The owner does that in `review-design`.
+- Review or approve its own spec. A later evaluator may review it; the owner
+  decides in `review-design`.
 - Invent answers to genuine product decisions — surface them as open
   questions instead.
 
