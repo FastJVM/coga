@@ -212,6 +212,13 @@ def prelaunch_blackboard_synthesis_reason_text(text: str) -> str | None:
     """
     if _has_section(text, PRODUCTION_NOTES_HEADING):
         return None
+    # Archived designs are intentional history. Exclude only their section;
+    # unrelated authoring notes must still pass the readiness gate.
+    sections = list(_SECTION_RE.finditer(text))
+    for i, section in reversed(list(enumerate(sections))):
+        if section.group(1).strip() == "## Superseded designs":
+            end = sections[i + 1].start() if i + 1 < len(sections) else len(text)
+            text = text[:section.start()] + text[end:]
     if _is_stock_blackboard(text):
         return None
 

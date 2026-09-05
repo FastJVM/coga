@@ -1,6 +1,6 @@
 ---
 name: dev/code
-description: Conventions for code-style tickets — how to record the git branch and PR on the ticket so the link is explicit and machine-readable. Attach this context on any ticket whose workflow produces a branch and PR.
+description: Conventions for code-style tickets — how to record explicit branch and PR linkage, and how to keep superseded designs out of the live ticket plan. Attach this context on any ticket whose workflow produces a branch and PR.
 ---
 
 # Code-task conventions
@@ -168,10 +168,10 @@ When to write each:
   refuses to advance until `pr:` is recorded. In a hand-run flow, write `pr:`
   yourself as soon as `gh pr create` returns the URL.
 
-Update in place, don't append. If you rebase onto a renamed branch
-or create a fresh worktree or PR, overwrite the existing line. The
-blackboard records *current* state, not history (that's the global `coga/log.md`'s
-job).
+Update these fields in place, don't append. If you rebase onto a renamed branch
+or create a fresh worktree or PR, overwrite the existing line. `## Dev` records
+*current* linkage, not its history; lifecycle history belongs in the global
+`coga/log.md`, and superseded design belongs in the section below.
 
 ## Why a section, not frontmatter
 
@@ -191,6 +191,51 @@ In that case, every covered ticket records the same `branch:` and
 `pr:` lines on its own blackboard. The link goes ticket → PR, not
 PR → ticket; one PR can have many tickets pointing at it.
 
+## Design pivots and superseded plans
+
+The ticket body is the contract for current work. When the direction changes,
+rewrite the body so it describes only what an agent should execute now. Keep
+live requirements, including acceptance criteria and proposed shape, inside
+`## Description` or `## Context`, using `###` subheadings as needed. Move
+requirements from sibling `##` sections into these composed sections: other
+top-level body sections are omitted from launch prompts. Do not mix a
+dead alternative into the live plan or leave Git history as its only
+explanation.
+
+Move the abandoned direction below the blackboard fence into exactly one
+`## Superseded designs` section. Reuse that section for every later pivot and
+append entries oldest to newest in this shape:
+
+```markdown
+## Superseded designs
+
+### YYYY-MM-DD — <short name of the abandoned direction>
+
+Superseded by: <the current direction or decision>
+
+Reason: <why the ticket pivoted>
+
+<the prior description, proposed shape, acceptance details, and evidence worth
+retaining>
+```
+
+The fixed heading separates dead plans from live working notes; the dated
+subheading identifies which plan died; and the two named lines make the
+replacement and rationale explicit. Preserve enough of the old design to
+understand or reconsider it later. Do not scatter the same history under
+headings such as `## Design pivot`, `## Open threads`, or `## Previous plan`.
+
+Keep retained headings at `####` or deeper inside each dated entry, so copied
+design sections cannot escape the archive. Draft-authoring cleanup preserves
+this section, and draft activation excludes only this section from its
+authoring-note checks; unrelated scratch still needs synthesis. Keep the
+archive concise because it is included in launch prompts.
+
+If rewriting the body would otherwise hide context a reviewer needs, the body
+may carry one short pointer such as `> Design history: pivoted on YYYY-MM-DD;
+see ## Superseded designs below.` That pointer is an index only: keep the
+superseded design itself in the blackboard section.
+
 ## What this context does not cover
 
 - **Commit message style.** Use the repo's existing convention
@@ -201,6 +246,6 @@ PR → ticket; one PR can have many tickets pointing at it.
 - **PR description shape.** That belongs to the workflow step's
   skill, not to this context.
 
-This context is narrow on purpose: just the link from ticket to
-branch to PR. Extend in a separate context if more dev-task
-conventions need a home.
+This context is narrow on purpose: explicit code-task linkage and the boundary
+between a live implementation plan and the designs it superseded. Extend in a
+separate context if broader blackboard conventions need a home.

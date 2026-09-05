@@ -129,6 +129,7 @@ def _make_task(
     assignee: str | None = "claude",
     on_final: bool = False,
     pr_url: str | None = None,
+    force_directory: bool = False,
 ) -> tuple[str, Path]:
     cfg = load_config(repo)
     if workflow is None and status != "draft":
@@ -143,6 +144,7 @@ def _make_task(
             cfg=cfg, title="Work", workflow_name=workflow,
             contexts=[], owner="marc", assignee=assignee,
             watchers=[], status=status,
+            force_directory=force_directory,
         )
     path = ref["path"]
     # `create_task` yields a file-form task (`tasks/<slug>.md`), while the
@@ -379,7 +381,9 @@ def test_recurring_create_is_silent(
     from coga.recurring import DueScan, DueTask
     from coga.tasks import TaskRef
 
-    slug, path = _make_task(repo, status="active")
+    # Recurring period tasks are always directory-form because they may carry
+    # deterministic and state-snapshot siblings.
+    slug, path = _make_task(repo, status="active", force_directory=True)
     posts = _capture(monkeypatch)
     cfg = load_config(repo)
 
