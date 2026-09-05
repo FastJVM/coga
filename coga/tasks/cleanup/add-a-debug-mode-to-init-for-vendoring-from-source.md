@@ -9,20 +9,16 @@ assignee: claude
 contexts: []
 skills: []
 workflow:
-  name: code/design-then-implement
+  name: code/with-review
   steps:
-  - name: design
-    skills:
-    - code/design
-    assignee: agent
-  - name: review-design
-    skills: []
-    assignee: owner
   - name: implement
     skills:
     - code/implement
     assignee: agent
     requires: branch
+  - name: peer-review
+    skills: []
+    assignee: other-agent
   - name: open-pr
     skills:
     - code/open-pr
@@ -33,46 +29,75 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (design)
+step: 1 (implement)
 ---
 
 ## Description
 
-Give `coga init` an explicit debug mode that vendors the CLI from a local
-source checkout instead of downloading a release from PyPI. Today the only
-lever is the undocumented `COGA_REPO_URL` environment variable, so a
-contributor working on an unreleased version cannot run `coga init` at all
-without knowing that trick.
+Give `coga init` an explicit, documented way to vendor the CLI from a local
+source checkout instead of a PyPI release. Coga already *does* this — it
+auto-detects an editable/in-tree run and accepts a `COGA_REPO_URL` override —
+but neither behaviour is documented anywhere, and there is no explicit flag,
+so a contributor still has to be told the trick or read `update.py` to know
+the mode exists. Add the surface and write the docs.
 
 ## Context
 
-**The problem.** `coga init` builds a self-contained venv under
-`coga/.coga/.venv` and pip-installs the *running* version into it. For a
-wheel install that is `coga==<running version>` from PyPI. On an unreleased
-version (this repo is `0.3.1`, PyPI serves `0.2.0`) the install fails and init
-rolls back cleanly, so there is no way to init from a development checkout by
-default. The audit's quickstart run had to set
-`COGA_REPO_URL=/home/n/Code/coga` to get past it.
+**What already exists (read this before designing anything).** Commit
+`a96c3e1e` ("Vendor CLI from installed package not git clone", #590) landed
+the resolution logic. It lives in `src/coga/commands/update.py`, not
+`init.py` — `init.py:827` only calls `resolve_install_source()`, before any
+writes, so a bad source fails loud and leaves nothing on disk.
+`resolve_install_source()` (`update.py:66`) picks a source in this order:
 
-**What the owner asked for (2026-09-03).** A debug mode that makes the
-build-from-source versus install-from-release distinction explicit and
-documented, rather than a hidden env var contributors have to be told about.
+1. `COGA_REPO_URL` — a local checkout path, or a git URL pip can install
+   from. Credential-redacted for display.
+2. The source checkout the running package is imported from, detected by
+   `_running_checkout_root()` (`update.py:113`): package at `<root>/src/coga/`
+   under a root whose `pyproject.toml` declares project name `coga`. A
+   wheel install in site-packages never has that shape.
+3. Otherwise `coga==<running version>` from PyPI.
 
-**Design questions for the design step.** What is the surface: a flag
-(`coga init --from-source [PATH]`), a documented env var, or auto-detection
-when init runs from inside an editable/source install? How does the mode
-appear afterwards (does `.coga/COGA_PIN` record that this repo was vendored
-from source, so `coga --version` says so)? Does it interact with
-`coga skill` installs, which also reach the network? Keep it small: this is
-a contributor convenience, not a new packaging system.
+So running `coga init` from an editable checkout of this repo already vendors
+that checkout — the original audit finding ("no way to init from a development
+checkout by default") is stale. Do not re-litigate auto-detection; it works.
 
-**Related.** `docs/development.md` and `docs/releasing.md` are the docs that
-should describe it. The existing `COGA_REPO_URL` handling in
-`src/coga/commands/init.py` is the code path to build on.
+**What is actually missing.**
+
+1. **No explicit surface.** `coga init` has exactly one option, `--user`
+   (`init.py:430`). There is no `--from-source [PATH]`, so the mode can only
+   be entered implicitly (be running from a checkout) or via an env var no
+   doc mentions. Decide whether to add the flag, bless the env var in docs,
+   or both — and whether the flag should just set the same override path
+   `COGA_REPO_URL` already takes.
+2. **Zero documentation.** Neither `docs/development.md` nor
+   `docs/releasing.md` mentions `COGA_REPO_URL`, source-vendoring, or the
+   auto-detection. `docs/development.md` is the natural home for the
+   contributor-facing explanation; `docs/releasing.md` should say how the
+   release path differs. The packaged context
+   `src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md:31`
+   already mentions `COGA_REPO_URL` in passing — keep it consistent.
+3. **Provenance is only half-recorded.** `write_pin()` (`update.py:213`)
+   writes `InstallSource.display` to `.coga/COGA_PIN`. For a checkout that is
+   the bare path (`_checkout_install_source`, `update.py:147`); for a release
+   it is `coga==<version> (PyPI)`. A reader can tell source from release, but
+   the pin does not distinguish an explicit override from auto-detection — the
+   `origin` string ("running source checkout" / "`COGA_REPO_URL` override")
+   is used only in error text. Decide whether that distinction is worth
+   recording, or whether path-vs-PyPI is enough.
+4. **`coga skill` installs also reach the network** and were never considered
+   here. Decide in-scope or explicitly out-of-scope, and say so.
+
+**Scope.** This is a contributor convenience, not a new packaging system.
+Keep the change small: a flag and/or a documented env var plus docs, reusing
+`resolve_install_source()` rather than adding a second resolution path. Tests
+for the existing behaviour are in `tests/test_init.py:323-404`; extend those
+rather than starting a new file.
 
 Source: `marketing/phase-0-audit` step 1 (2026-09-02), triaged by the owner
-in step 2 (2026-09-03). This directory holds the work the owner wants done
-before the marketing materials ship.
+in step 2 (2026-09-03), re-scoped 2026-09-05 against the post-#590 code. This
+directory holds the work the owner wants done before the marketing materials
+ship.
 
 <!-- coga:blackboard -->
 
