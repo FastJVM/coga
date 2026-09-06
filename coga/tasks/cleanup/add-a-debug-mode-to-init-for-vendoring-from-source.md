@@ -1,7 +1,7 @@
 ---
 slug: cleanup/add-a-debug-mode-to-init-for-vendoring-from-source
 title: Vendor the init venv from PyPI only, dropping source-install paths
-status: active
+status: in_progress
 owner: nicktoper
 human: nick
 agent: claude
