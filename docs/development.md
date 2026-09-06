@@ -33,6 +33,33 @@ python -m coga.cli --help    # equivalent, without the console script
 Coga requires **Python 3.11+** (it uses the standard-library `tomllib`). Running
 under an older interpreter fails loud with the version it found.
 
+## `coga init` vendors a published release
+
+`coga init` builds a self-contained venv at `<repo>/coga/.coga/.venv` and
+installs the CLI into it. That install is **always `pip install
+coga==<running version>` from PyPI** — the version of the coga you ran `init`
+with. A repo vendors a published release; there is no source-install path, no
+git-URL path, and no environment override.
+
+The consequence for development: **`coga init` from an unreleased checkout
+fails.** An editable install of `main` reports a version that isn't on PyPI
+yet, pip can't resolve it, and init rolls back with a message naming the
+version it tried. That's intended, not a bug — a vendored venv is a user's-repo
+artifact, and vendoring your working tree would put unreviewed bytes in it.
+
+To exercise init while developing, run it with a coga installed from PyPI
+(a separate `pipx`/`uv tool` install, or a throwaway virtualenv) rather than
+your editable checkout. The full published path is covered by the [clean
+first-install gate](releasing.md#clean-first-install-gate).
+
+`COGA_PYTHON` selects the interpreter that venv is built with — set it to a
+path or a name on `PATH` (`COGA_PYTHON=python3.11 coga init …`). Unset, init
+uses the interpreter running the CLI. Either way the choice is validated
+against coga's `requires-python` *before* the venv is built, so an unusable
+interpreter fails with remediation instead of half-way through. An explicit
+`COGA_PYTHON` is an interpreter-identity choice: if an existing venv's
+`pyvenv.cfg` records a different executable, the venv is rebuilt.
+
 ## Source layout
 
 Core code lives in `src/coga/`:

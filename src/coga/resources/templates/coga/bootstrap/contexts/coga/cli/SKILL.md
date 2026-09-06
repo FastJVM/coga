@@ -25,11 +25,13 @@ Scaffold `coga/` in `PATH` (default `.`).
 
 It copies the package's coga templates, builds the self-contained venv the
 vendored CLI runs out of, writes a starter `coga.local.toml`, and commits the
-new `coga/`. The venv's coga is pip-installed from the *running*
-distribution — `coga==<running version>` from PyPI for wheel installs, the
-source checkout itself for editable installs — never from a fresh upstream
-clone, so the vendored copy is exactly the CLI that ran init. `COGA_REPO_URL`
-overrides the source explicitly (a local checkout path or a git URL).
+new `coga/`. The venv's coga is always `pip install coga==<running version>`
+from PyPI — a repo vendors a *published release*, never a source tree and never
+a fresh upstream clone, so the vendored copy is exactly the release that ran
+init. There is no source-install path and no override. Running `coga init` from
+an unreleased build (a source checkout ahead of the last tag) therefore fails,
+naming the version it tried; init vendors releases only.
+`COGA_PYTHON` selects the interpreter the venv is built with.
 There is no in-place refresh command: bootstrap tickets, bundled skills,
 bundled contexts, and bundled reusable workflows resolve directly from the
 installed package, so picking up a new release uses the installer that owns the

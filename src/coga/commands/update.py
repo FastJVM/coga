@@ -1,10 +1,10 @@
 """Bootstrap helpers used by `coga init`.
 
 Copies coga templates from the installed package resources and stands up the
-self-contained venv the vendored CLI runs out of. The venv's coga comes from
-the running distribution — the release version for wheel installs, the source
-checkout for editable installs — never from a fresh upstream clone, so the
-vendored copy is exactly the CLI that ran init. No Typer commands live here.
+self-contained venv the vendored CLI runs out of. The venv's coga is always
+`coga==<running version>` from PyPI: a repo vendors a published release, never
+a source tree and never a fresh upstream clone, so the vendored copy is exactly
+the release that ran init. No Typer commands live here.
 """
 
 from __future__ import annotations
@@ -22,17 +22,12 @@ import re
 import shutil
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
 
 import typer
 
-import coga
-from coga.github_source import pip_git_source, redacted_git_source
-
 
 COGA_REPO_URL = "https://github.com/FastJVM/coga"
-COGA_REPO_URL_ENV = "COGA_REPO_URL"
 TEMPLATE_RESOURCE_PACKAGE = "coga.resources"
 TEMPLATE_RESOURCE_PATH = ("templates", "coga")
 
@@ -51,44 +46,26 @@ class InstallSource:
     """Where `install_venv` gets the coga package it puts in the vendored venv.
 
     `pip_spec` is the literal requirement handed to `pip install`. `display`
-    is the redacted, human-readable provenance recorded in COGA_PIN and echoed
-    to the operator (never credential-bearing). `requires_python` is the
-    source's requires-python spec when it is knowable before installing;
-    None skips the pre-install interpreter check and leaves it to pip.
+    is the human-readable provenance recorded in COGA_PIN and echoed to the
+    operator. `requires_python` is the source's requires-python spec when it
+    is knowable before installing; None skips the pre-install interpreter
+    check and leaves it to pip.
     """
 
-    kind: str  # "release" | "checkout" | "url"
     pip_spec: str
     display: str
     requires_python: str | None = None
 
 
 def resolve_install_source() -> InstallSource:
-    """Decide where the vendored venv's coga comes from.
+    """Decide where the vendored venv's coga comes from: PyPI, and only PyPI.
 
-    In order: the `COGA_REPO_URL` override — a local checkout path (the
-    sanctioned source-install path) or a git URL pip can install from; the
-    source checkout the running package is imported from (editable installs);
-    else the running package's own release from PyPI (`pip install
-    coga==<running version>`). The vendored copy is therefore always the CLI
-    that ran init — never upstream main. Exits loud when the override doesn't
-    name a usable source or the running version can't be determined.
+    A repo always vendors a published release — `pip install
+    coga==<running version>` — so the vendored copy is exactly the release
+    that ran init. There is no source-checkout or git-URL path: an implicit
+    one silently vendored whichever checkout the running package happened to
+    be imported from. Exits loud when the running version can't be determined.
     """
-    override = os.environ.get(COGA_REPO_URL_ENV, "").strip()
-    if override:
-        path = Path(override).expanduser()
-        if path.is_dir():
-            return _checkout_install_source(
-                path.resolve(), origin=f"{COGA_REPO_URL_ENV} override"
-            )
-        return InstallSource(
-            kind="url",
-            pip_spec=pip_git_source(override),
-            display=redacted_git_source(override),
-        )
-    checkout = _running_checkout_root()
-    if checkout is not None:
-        return _checkout_install_source(checkout, origin="running source checkout")
     try:
         version = _pkg_version("coga")
     except PackageNotFoundError:
@@ -96,67 +73,18 @@ def resolve_install_source() -> InstallSource:
     if not version:
         typer.secho(
             "Cannot determine which coga to vendor: no installed `coga` "
-            "distribution and not running from a source checkout.\n"
-            f"Set {COGA_REPO_URL_ENV} to a coga checkout path or git URL and "
-            "re-run.",
+            "distribution reports a version.\n"
+            "`coga init` vendors a published release, so it needs the running "
+            "CLI's own version. Install coga from PyPI and re-run.",
             fg=typer.colors.RED,
             err=True,
         )
         sys.exit(2)
     return InstallSource(
-        kind="release",
         pip_spec=f"coga=={version}",
         display=f"coga=={version} (PyPI)",
         requires_python=_running_requires_python(),
     )
-
-
-def _running_checkout_root() -> Path | None:
-    """Root of the source checkout the running coga is imported from, or None.
-
-    An editable / in-tree run imports the package straight from a checkout's
-    `src/coga/`, under a root whose `pyproject.toml` declares the `coga`
-    project. A wheel install (site-packages) never has that shape.
-    """
-    location = getattr(coga, "__file__", None)
-    if not location:
-        return None
-    pkg_dir = Path(location).resolve().parent
-    if pkg_dir.name != "coga" or pkg_dir.parent.name != "src":
-        return None
-    root = pkg_dir.parents[1]
-    if _pyproject_project_name(root / "pyproject.toml") != "coga":
-        return None
-    return root
-
-
-def _checkout_install_source(root: Path, *, origin: str) -> InstallSource:
-    """An InstallSource for a coga source checkout at `root`. Exits if it isn't one."""
-    pyproject = root / "pyproject.toml"
-    if _pyproject_project_name(pyproject) != "coga":
-        typer.secho(
-            f"{root} ({origin}) is not a coga source checkout — {pyproject} "
-            "is missing or doesn't declare project name `coga`.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        sys.exit(2)
-    return InstallSource(
-        kind="checkout",
-        pip_spec=str(root),
-        display=str(root),
-        requires_python=_requires_python_spec(pyproject),
-    )
-
-
-def _pyproject_project_name(pyproject: Path) -> str | None:
-    """`project.name` from a pyproject.toml, or None if absent/unreadable."""
-    try:
-        data = tomllib.loads(pyproject.read_text())
-    except (OSError, tomllib.TOMLDecodeError):
-        return None
-    name = data.get("project", {}).get("name")
-    return name if isinstance(name, str) and name.strip() else None
 
 
 def _running_requires_python() -> str | None:
@@ -489,18 +417,6 @@ def _python_executable(python: str) -> Path | None:
     return Path(executable).resolve()
 
 
-def _requires_python_spec(pyproject: Path) -> str | None:
-    """`project.requires-python` from a pyproject.toml, or None if absent/unreadable."""
-    try:
-        data = tomllib.loads(pyproject.read_text())
-    except (OSError, tomllib.TOMLDecodeError):
-        return None
-    spec = data.get("project", {}).get("requires-python")
-    if isinstance(spec, str) and spec.strip():
-        return spec.strip()
-    return None
-
-
 _SPEC_CLAUSE_RE = re.compile(r"^(>=|<=|==|!=|~=|>|<)\s*([0-9]+(?:\.[0-9]+)*(?:\.\*)?)$")
 
 
@@ -584,12 +500,39 @@ def hash_checking_hint(stderr: str) -> str:
     )
 
 
+_NO_DISTRIBUTION_MARKERS = (
+    "no matching distribution found",
+    "could not find a version that satisfies",
+)
+
+
+def unpublished_release_hint(stderr: str, pip_spec: str) -> str:
+    """Remediation to append when pip couldn't resolve the release init vendors.
+
+    `coga init` vendors published releases only — it installs the running
+    CLI's own version from PyPI — so running an unreleased build (a source
+    checkout ahead of the last tag) fails with a pip resolution error that
+    never names the cause. An unreachable index produces the same marker, so
+    the text names both possibilities rather than asserting one. Returns ""
+    when stderr doesn't look like that failure.
+    """
+    lowered = stderr.lower()
+    if not any(marker in lowered for marker in _NO_DISTRIBUTION_MARKERS):
+        return ""
+    return (
+        f"\n`coga init` vendors published releases only: it installs the "
+        f"running CLI's own version, {pip_spec}, from PyPI. That version "
+        "isn't installable here — most likely it is unreleased (a source "
+        "checkout ahead of the last tag), or this machine can't reach PyPI.\n"
+        "Install a released coga and re-run, or publish the release first."
+    )
+
+
 def install_venv(coga_os: Path, source: InstallSource | None = None) -> Path:
     """Create `.coga/.venv/` and `pip install` coga into it from `source`.
 
-    `source` defaults to `resolve_install_source()` — the running release for
-    wheel installs, the running source checkout for editable installs, or the
-    `COGA_REPO_URL` override.
+    `source` defaults to `resolve_install_source()` — always
+    `coga==<running version>` from PyPI.
 
     The venv's interpreter comes from `resolve_venv_python()` ($COGA_PYTHON,
     else the Python running this CLI) and is validated against the source's
@@ -698,11 +641,11 @@ def install_venv(coga_os: Path, source: InstallSource | None = None) -> Path:
         text=True,
     )
     if result.returncode != 0:
-        # A `url` source's pip spec may carry credentials — never echo it raw.
-        stderr = result.stderr.replace(source.pip_spec, source.display)
+        stderr = result.stderr
         typer.secho(
             f"pip install failed:\n{stderr}"
-            f"{hash_checking_hint(stderr)}",
+            f"{hash_checking_hint(stderr)}"
+            f"{unpublished_release_hint(stderr, source.pip_spec)}",
             fg=typer.colors.RED,
             err=True,
         )

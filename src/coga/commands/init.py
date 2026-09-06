@@ -821,9 +821,8 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     nested = not (target / ".git").exists()
     is_empty = _repo_is_empty(target) and not nested
 
-    # Resolve where the vendored CLI installs from (the running release,
-    # source checkout, or COGA_REPO_URL override) before any writes, so a bad
-    # override fails loud and leaves nothing on disk.
+    # Resolve the release the vendored CLI installs from before any writes, so
+    # an unresolvable version fails loud and leaves nothing on disk.
     source = resolve_install_source()
     template_root = packaged_template_root()
     try:

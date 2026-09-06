@@ -48,16 +48,6 @@ def is_ssh_git_source(source: str) -> bool:
     return urlparse(value).scheme == "ssh"
 
 
-def pip_git_source(source: str) -> str:
-    """Return a pip-compatible git requirement source for ``source``."""
-    value = source.strip()
-    if value.startswith("git+"):
-        return value
-    if value.startswith("git@github.com:"):
-        return "git+ssh://git@github.com/" + value[len("git@github.com:") :]
-    return "git+" + value
-
-
 def git_clone_source(source: str) -> str:
     """Return a source string suitable for `git clone`."""
     value = source.strip()

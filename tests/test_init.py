@@ -246,7 +246,6 @@ def _fake_install_source(
     requires_python: str | None = None,
 ) -> update_cmd.InstallSource:
     return update_cmd.InstallSource(
-        kind="release",
         pip_spec=f"coga=={FAKE_VERSION}",
         display=f"coga=={FAKE_VERSION} (PyPI)",
         requires_python=requires_python,
@@ -308,116 +307,70 @@ def fake_managed_skill_sync(monkeypatch: pytest.MonkeyPatch):
     return state
 
 
-def _make_fake_checkout(root: Path, requires_python: str = ">=3.11") -> Path:
-    """A directory shaped like a coga source checkout (pyproject naming coga)."""
-    root.mkdir(parents=True, exist_ok=True)
-    (root / "pyproject.toml").write_text(
-        f"[project]\nname = 'coga'\nrequires-python = \"{requires_python}\"\n"
-    )
-    return root
-
-
-def test_resolve_install_source_env_override_checkout_path(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """COGA_REPO_URL pointing at a local checkout installs from that path."""
-    checkout = _make_fake_checkout(tmp_path / "checkout")
-    monkeypatch.setenv("COGA_REPO_URL", str(checkout))
-
-    source = update_cmd.resolve_install_source()
-
-    assert source.kind == "checkout"
-    assert source.pip_spec == str(checkout)
-    assert source.display == str(checkout)
-    assert source.requires_python == ">=3.11"
-
-
-def test_resolve_install_source_env_override_rejects_non_coga_dir(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A directory override that isn't a coga checkout fails loud, never installs."""
-    monkeypatch.setenv("COGA_REPO_URL", str(tmp_path))
-
-    with pytest.raises(SystemExit) as exc:
-        update_cmd.resolve_install_source()
-
-    assert exc.value.code == 2
-    assert "not a coga source checkout" in capsys.readouterr().err
-
-
-def test_resolve_install_source_env_override_git_url(
+def test_resolve_install_source_pins_running_release(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A URL override becomes a pip git requirement (git+ prefix added)."""
-    monkeypatch.setenv("COGA_REPO_URL", "https://github.com/FastJVM/coga")
-
-    source = update_cmd.resolve_install_source()
-
-    assert source.kind == "url"
-    assert source.pip_spec == "git+https://github.com/FastJVM/coga"
-    # No requires-python is knowable pre-install; pip enforces it instead.
-    assert source.requires_python is None
-
-
-def test_resolve_install_source_env_override_keeps_pip_git_prefix(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("COGA_REPO_URL", "git+ssh://git@github.com/FastJVM/coga.git")
-
-    source = update_cmd.resolve_install_source()
-
-    assert source.pip_spec == "git+ssh://git@github.com/FastJVM/coga.git"
-
-
-def test_resolve_install_source_redacts_credentialed_url_in_display(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv(
-        "COGA_REPO_URL", "https://coga:TOKEN@github.com/FastJVM/coga.git"
-    )
-
-    source = update_cmd.resolve_install_source()
-
-    assert source.display == "https://github.com/FastJVM/coga.git"
-    assert "TOKEN" in source.pip_spec  # pip still gets the credentials
-    assert "TOKEN" not in source.display
-
-
-def test_resolve_install_source_prefers_running_checkout(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """An editable/in-tree run vendors from its own source checkout."""
-    checkout = _make_fake_checkout(tmp_path / "checkout")
-    monkeypatch.delenv("COGA_REPO_URL", raising=False)
-    monkeypatch.setattr(update_cmd, "_running_checkout_root", lambda: checkout)
-
-    source = update_cmd.resolve_install_source()
-
-    assert source.kind == "checkout"
-    assert source.pip_spec == str(checkout)
-
-
-def test_resolve_install_source_wheel_install_pins_running_release(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A wheel install vendors `coga==<running version>` — never upstream main."""
-    monkeypatch.delenv("COGA_REPO_URL", raising=False)
-    monkeypatch.setattr(update_cmd, "_running_checkout_root", lambda: None)
+    """Init vendors `coga==<running version>` from PyPI — the only source."""
     monkeypatch.setattr(update_cmd, "_pkg_version", lambda name: "1.2.3")
     monkeypatch.setattr(update_cmd, "_running_requires_python", lambda: ">=3.11")
 
     source = update_cmd.resolve_install_source()
 
-    assert source.kind == "release"
     assert source.pip_spec == "coga==1.2.3"
     assert source.display == "coga==1.2.3 (PyPI)"
     assert source.requires_python == ">=3.11"
 
 
-def test_running_checkout_root_finds_this_checkout() -> None:
-    """The dev-suite run imports coga from this repo's src/coga — detect it."""
-    root = update_cmd._running_checkout_root()
-    assert root == Path(__file__).resolve().parents[1]
+def test_resolve_install_source_env_override_is_gone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """COGA_REPO_URL no longer redirects the vendored install anywhere."""
+    monkeypatch.setenv("COGA_REPO_URL", str(tmp_path))
+    monkeypatch.setattr(update_cmd, "_pkg_version", lambda name: "1.2.3")
+    monkeypatch.setattr(update_cmd, "_running_requires_python", lambda: None)
+
+    source = update_cmd.resolve_install_source()
+
+    assert source.pip_spec == "coga==1.2.3"
+
+
+def test_resolve_install_source_without_installed_dist_fails_loud(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """No installed distribution means no version to vendor — exit, never guess."""
+    def missing(name: str) -> str:
+        raise update_cmd.PackageNotFoundError(name)
+
+    monkeypatch.setattr(update_cmd, "_pkg_version", missing)
+
+    with pytest.raises(SystemExit) as exc:
+        update_cmd.resolve_install_source()
+
+    assert exc.value.code == 2
+    assert "vendors a published release" in capsys.readouterr().err
+
+
+def test_unpublished_release_hint_names_the_version_it_tried() -> None:
+    """An unreleased running version gets an explanation, not just pip's error."""
+    stderr = (
+        "ERROR: Could not find a version that satisfies the requirement "
+        "coga==0.3.1 (from versions: 0.1.0, 0.2.0)\n"
+        "ERROR: No matching distribution found for coga==0.3.1\n"
+    )
+
+    hint = update_cmd.unpublished_release_hint(stderr, "coga==0.3.1")
+
+    assert "vendors published releases only" in hint
+    assert "coga==0.3.1" in hint
+
+
+def test_unpublished_release_hint_silent_on_other_failures() -> None:
+    hint = update_cmd.unpublished_release_hint(
+        "ERROR: Permission denied: '/usr/lib/python3.11/site-packages'\n",
+        "coga==0.3.1",
+    )
+
+    assert hint == ""
 
 
 def test_write_pin_records_source_and_version(tmp_path: Path) -> None:
@@ -2588,18 +2541,6 @@ def test_resolve_venv_python_exits_on_dangling_override(
         update_cmd.resolve_venv_python()
     assert exc.value.code == 2
     assert update_cmd.COGA_PYTHON_ENV in capsys.readouterr().err
-
-
-def test_requires_python_spec_reads_pyproject(tmp_path: Path) -> None:
-    pyproject = tmp_path / "pyproject.toml"
-    pyproject.write_text("[project]\nname = 'coga'\nrequires-python = \">=3.11\"\n")
-    assert update_cmd._requires_python_spec(pyproject) == ">=3.11"
-
-
-def test_requires_python_spec_none_when_absent(tmp_path: Path) -> None:
-    pyproject = tmp_path / "pyproject.toml"
-    pyproject.write_text("[project]\nname = 'coga'\n")
-    assert update_cmd._requires_python_spec(pyproject) is None
 
 
 @pytest.mark.parametrize(

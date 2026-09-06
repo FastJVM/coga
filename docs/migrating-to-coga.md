@@ -11,7 +11,6 @@ command, on-disk dirs, and config file all change:
 | `src/relay/` | `src/coga/` |
 | `contexts/relay/*`, `skills/relay/*` | `contexts/coga/*`, `skills/coga/*` |
 | `<!-- relay:blackboard -->` fence | `<!-- coga:blackboard -->` |
-| `RELAY_REPO_URL` | `COGA_REPO_URL` |
 | `github.com/FastJVM/relay` | `github.com/FastJVM/coga` |
 
 There are **two independent migrations**: cut the **CLI** over on each machine,
