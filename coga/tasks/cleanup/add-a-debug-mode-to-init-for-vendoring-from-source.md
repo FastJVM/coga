@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nick
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -137,3 +137,99 @@ ship.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: vendor-pypi-only
+worktree: /home/n/Code/codex/coga-vendor-pypi-only
+
+## Plan (2026-09-05)
+
+Implementing the scrub exactly as specified. Three calls the ticket left open,
+decided this session:
+
+1. **Item 2 detection is a pip-stderr hint, not a network pre-check.** Nothing
+   can know a version is absent from PyPI without hitting the network, so a
+   pre-flight PyPI query would put a network call in `resolve_install_source()`
+   on every init. Instead `unpublished_release_hint()` sits beside the existing
+   `hash_checking_hint()` and fires on pip's "no matching distribution" markers.
+   Owner confirmed: keep pip's raw stderr *and* append the explanation, because
+   an offline machine produces the same marker — replacing the message would
+   misdiagnose no-network as unreleased. The hint's wording names both causes.
+2. **`InstallSource.kind` deleted, not kept at one value.** With `checkout` and
+   `url` gone the field has a single possible value and no reader in `src/`.
+3. **`_requires_python_spec()` deleted too** — collateral dead code, its only
+   caller was `_checkout_install_source()`. Its two direct unit tests go with
+   it. `_running_requires_python()` (metadata-based) is what the release path
+   uses and stays.
+
+Keeping the `COGA_REPO_URL` *constant* (the upstream repo URL) — `uninstall.py`
+imports it. Only `COGA_REPO_URL_ENV`, the override, goes.
+
+## Implemented (2026-09-05)
+
+Commit `07088bb9` on `vendor-pypi-only`, rebased onto latest `origin/main`,
+working tree clean. All five checklist items landed.
+
+**1. Resolution collapsed.** `resolve_install_source()` is now only
+`coga==<running version>` from PyPI. Deleted: `COGA_REPO_URL_ENV`,
+`_running_checkout_root()`, `_checkout_install_source()`,
+`_pyproject_project_name()`, `pip_git_source()` (github_source.py), plus the
+two collateral dead pieces from the Plan above. Kept: the `COGA_REPO_URL`
+*constant* (uninstall.py:32 imports it — it is the upstream repo URL, not the
+override) and `redacted_git_source()` (7 remaining callers in pr_assist.py and
+git.py). Its import in update.py went, since the url branch was its only use
+there.
+
+**2. New failure path.** `unpublished_release_hint(stderr, pip_spec)` beside
+`hash_checking_hint()`, fired from `install_venv`'s pip-failure branch. Also
+dropped `stderr.replace(source.pip_spec, source.display)` — that redaction
+existed only because a `url` source's spec could carry credentials; a
+`coga==X` spec never can.
+
+Verified live from this checkout's editable install:
+`resolve_install_source()` → `InstallSource(pip_spec='coga==0.3.1',
+display='coga==0.3.1 (PyPI)', requires_python='>=3.11')`. Before this change it
+returned a checkout path — the bug in the ticket's Context.
+
+**3–5.** Packaged `cli/SKILL.md` paragraph rewritten (no live twin, per the
+ticket's twin-rule exception — confirmed `coga/contexts/coga/cli/` absent).
+`docs/development.md` gains a "`coga init` vendors a published release"
+section covering the dev consequence and `COGA_PYTHON`; `docs/releasing.md`
+gains a Notes bullet and its gate paragraph is simplified rather than
+contradicted; `docs/migrating-to-coga.md` loses the `RELAY_REPO_URL` row.
+`docs/reference.md:14-19` checked — describes only init's arguments, nothing
+stale, no new flag to add.
+
+**Tests.** Ten dropped (the seven dead resolution tests, the
+`_running_checkout_root` detection test, and the two `_requires_python_spec`
+unit tests); five added: release pinning, `COGA_REPO_URL` proven inert, the
+no-installed-distribution exit, and both hint branches.
+
+## Verification
+
+Ambient `python3` here is 3.9, which coga refuses. Built a throwaway 3.12
+venv with `pip install -e ".[test]"` (in the scratchpad, not the repo) for an
+authoritative run.
+
+- Full suite in that venv: **1 failed, 2364 passed**. The one failure,
+  `test_notification_messages.py::test_recurring_create_is_silent`, is
+  **pre-existing**: stashing the whole diff and re-running it reproduces the
+  identical `IsADirectoryError` on unmodified main.
+- Cross-check with a bare `python3.12 -m pytest` (no editable test-extra
+  install): unmodified main fails 27, this branch fails the same set. Neither
+  side has a single `test_init` / update / github_source failure. Those 27 are
+  an artifact of the missing editable install, not of this change.
+- `coga validate --json` on `example/`: clean (needs `env -u
+  SLACK_WEBHOOK_URL` — a stray var in this shell trips the bare-webhook
+  check). On the repo itself: four pre-existing `unsynthesized-draft-blackboard`
+  errors, all on unrelated `v2/*` tickets.
+- No `example/` fixture change needed: nothing here touches task layout,
+  prompt composition, or workflow semantics.
+
+**Adjacent, not fixed here (follow-up candidates).** The repo's four
+`unsynthesized-draft-blackboard` validate errors on `v2/*` tickets, and the
+`test_recurring_create_is_silent` failure, both predate this ticket and are
+out of its scope.
+
+**Not done, by design:** no push and no PR — that is the `code/open-pr` step.
