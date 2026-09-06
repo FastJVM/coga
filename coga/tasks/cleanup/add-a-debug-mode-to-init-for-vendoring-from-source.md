@@ -68,9 +68,9 @@ complexity serving a workflow nobody uses.
    exactly the same way.
 
 **The design step's remit is narrow**, because the decision above is made. It
-owes the owner: the sequencing call (see the blocker below), the exact wording
-and exit behaviour of the new failure, and confirmation that nothing outside
-`init.py:827` / `install_venv()` depends on the removed tiers.
+owes the owner: the exact wording and exit behaviour of the new failure, and
+confirmation that nothing outside `init.py:827` / `install_venv()` depends on
+the removed tiers.
 
 **Out of scope.** Do not remove or redesign the vendored venv itself. Do not
 touch managed-skill installs. Do not change the `COGA_PIN` format. Do not
@@ -78,14 +78,19 @@ publish to PyPI.
 
 ## Context
 
-**Blocker: this cannot land before 1.0 is on PyPI.** This repo is `0.3.1` and
-PyPI serves `0.2.0`. Once the source tiers are gone, `coga init` run from
-either coga checkout resolves `coga==0.3.1`, which does not exist, and fails.
-The implement step must wait for `cleanup/publish-coga-1-0-to-pypi` (and
-`cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f`). The
-`review-design` gate is the checkpoint for that: design now, implement after
-1.0 ships. Note the same failure recurs for anyone running unreleased main
-afterwards — that is accepted, which is why item 2 above exists.
+**This does not need to wait for the 1.0 publish.** Checked 2026-09-05:
+users installed from PyPI are running a released version, so
+`coga==<that version>` resolves and nothing changes for them. The test suite
+never reaches the network — `resolve_install_source` and `vendored_cli_version`
+are monkeypatched (`tests/test_init.py:270`) and `install_venv` tests use
+`_fake_install_source()`. The only real `coga init` in tooling is
+`scripts/verify-clean-install-container.sh:32`, the release gate, which
+installs from PyPI by design and runs a released version.
+
+The one consequence is that a coga developer on unreleased main (this repo is
+`0.3.1`; PyPI serves `0.2.0`) running `coga init` gets the new failure from
+item 2. That is the intended behaviour, not breakage: init vendors releases,
+and the message says so. Land whenever.
 
 **Why the source tiers aren't needed (verified 2026-09-05).** Neither coga
 development checkout has a vendored venv at all — no `coga/.coga/.venv`, no
