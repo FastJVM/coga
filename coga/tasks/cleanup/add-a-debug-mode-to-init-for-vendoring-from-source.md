@@ -1,7 +1,7 @@
 ---
 slug: cleanup/add-a-debug-mode-to-init-for-vendoring-from-source
 title: Vendor the init venv from PyPI only, dropping source-install paths
-status: draft
+status: active
 owner: nicktoper
 human: nick
 agent: claude
@@ -9,20 +9,16 @@ assignee: claude
 contexts: []
 skills: []
 workflow:
-  name: code/design-then-implement
+  name: code/with-review
   steps:
-  - name: design
-    skills:
-    - code/design
-    assignee: agent
-  - name: review-design
-    skills: []
-    assignee: owner
   - name: implement
     skills:
     - code/implement
     assignee: agent
     requires: branch
+  - name: peer-review
+    skills: []
+    assignee: other-agent
   - name: open-pr
     skills:
     - code/open-pr
@@ -33,7 +29,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (design)
+step: 1 (implement)
 ---
 
 ## Description
@@ -45,7 +41,7 @@ from, then `coga==<running version>` from PyPI. Collapse that to the last one.
 A user's repo should always vendor a release; the two source paths are
 complexity serving a workflow nobody uses.
 
-**Scrub, in the implement step:**
+**The scrub. Build exactly this — the decision is made, do not reopen it:**
 
 1. Delete the `COGA_REPO_URL` override and `_running_checkout_root()` from the
    resolution path, leaving `resolve_install_source()` as
@@ -66,11 +62,6 @@ complexity serving a workflow nobody uses.
    `docs/releasing.md`, which say nothing about it today. Consider documenting
    `COGA_PYTHON` (`update.py:420`) in the same pass — it is undocumented in
    exactly the same way.
-
-**The design step's remit is narrow**, because the decision above is made. It
-owes the owner: the exact wording and exit behaviour of the new failure, and
-confirmation that nothing outside `init.py:827` / `install_venv()` depends on
-the removed tiers.
 
 **Out of scope.** Do not remove or redesign the vendored venv itself. Do not
 touch managed-skill installs. Do not change the `COGA_PIN` format. Do not
@@ -137,7 +128,7 @@ for one.
 `.coga/.venv`. Leave that alone.
 
 Source: `marketing/phase-0-audit` step 1 (2026-09-02), triaged by the owner in
-step 2 (2026-09-03) with `code/design-then-implement`; re-scoped 2026-09-05
+step 2 (2026-09-03); re-scoped 2026-09-05
 from "add a debug mode" through "simplify the tiers" to "delete the source
 tiers", after confirming no development checkout uses a vendored venv. This
 directory holds the work the owner wants done before the marketing materials
