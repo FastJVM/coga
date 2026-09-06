@@ -1,6 +1,6 @@
 ---
 slug: cleanup/add-a-debug-mode-to-init-for-vendoring-from-source
-title: Document and surface vendoring init from a source checkout
+title: Simplify how coga init picks the CLI it vendors
 status: draft
 owner: nicktoper
 human: nick
@@ -9,16 +9,20 @@ assignee: claude
 contexts: []
 skills: []
 workflow:
-  name: code/with-review
+  name: code/design-then-implement
   steps:
+  - name: design
+    skills:
+    - code/design
+    assignee: agent
+  - name: review-design
+    skills: []
+    assignee: owner
   - name: implement
     skills:
     - code/implement
     assignee: agent
     requires: branch
-  - name: peer-review
-    skills: []
-    assignee: other-agent
   - name: open-pr
     skills:
     - code/open-pr
@@ -29,130 +33,127 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 1 (design)
 ---
 
 ## Description
 
-`coga init` can already vendor the CLI from a local source checkout instead of
-a PyPI release — it auto-detects an editable/in-tree run, and honours a
-`COGA_REPO_URL` override — but no contributor-facing doc says so, and the mode
-has no explicit command-line surface. Add `coga init --from-source [PATH]` as
-that surface, and document both it and the existing env vars.
+`coga init` decides where the vendored CLI comes from in
+`resolve_install_source()` (`src/coga/commands/update.py:66`). Its middle tier
+— implicitly using whatever source checkout the running package is imported
+from — silently picks the wrong checkout when a developer has more than one,
+with no output saying which it chose. The owner wants that implicit path gone
+and the whole resolution simplified.
 
-The design decisions were closed when this ticket was scoped (2026-09-05); do
-not reopen them. **Build exactly this:**
+**Design this, then implement it.** The decision the design step owes the
+owner is the shape of the tiers, in particular:
 
-1. Add `--from-source [PATH]` to `coga init`. It feeds the *existing*
-   `resolve_install_source()` override path — the same code `COGA_REPO_URL`
-   already uses — with the flag taking precedence over the env var. Do not add
-   a second resolution path.
-2. Document source-vendoring in `docs/development.md` (contributor
-   explanation), `docs/reference.md` (the new flag, in the `coga init` option
-   list), and `docs/releasing.md` (how the release path differs). Include
-   `COGA_PYTHON` in the same env-var table — it is undocumented in exactly the
-   same way and costs almost nothing to add here.
-3. Extend the existing tests in `tests/test_init.py:320-412`.
+1. **Implicit detection goes — how far?** Delete `_running_checkout_root()`
+   outright, or keep it purely as a *diagnostic* that refuses with a useful
+   remediation naming the detected path when no explicit source was given?
+   Deleting it outright means a developer on an unreleased version gets a raw
+   `pip` failure instead of an explanation.
+2. **Does explicit source-vendoring earn its keep at all?** The minimal end
+   state is one tier: always `coga==<running version>` from PyPI, with no
+   source path. See the sequencing constraint below before proposing it.
+3. **If an explicit path stays,** is it `COGA_REPO_URL` (already exists),
+   a `--from-source PATH` flag, or both — and which wins?
 
-**Out of scope, deliberately.** Do not change the `.coga/COGA_PIN` format
-(reasoning below). Do not touch managed-skill installs. Do not fix the
-PyPI-version-not-published problem — that belongs to the sibling tickets
-`cleanup/publish-coga-1-0-to-pypi` and
-`cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f`.
+Then document whatever survives. The resolution logic is currently
+undocumented in every contributor-facing doc; that gap is in scope regardless
+of which shape wins.
 
-**Done means:** running `coga init --from-source .` vendors the named
-checkout from a non-editable install (see the uv case below); `docs/development.md`, `docs/reference.md` and
-`docs/releasing.md` each describe the source-vs-release distinction and name
-`COGA_REPO_URL` and `COGA_PYTHON`; `python -m pytest` passes with new
-coverage for the flag; nothing else in the resolution logic changed.
+**Out of scope.** Do not remove or redesign the vendored venv itself. Do not
+touch managed-skill installs. Do not publish anything to PyPI.
 
 ## Context
 
-**What already exists — read before writing code.** Commit `a96c3e1e`
-("Vendor CLI from installed package not git clone", #590) landed the
-resolution logic. It lives in `src/coga/commands/update.py`, not `init.py`:
-`init.py:827` only calls `resolve_install_source()`, before any writes, so a
-bad source fails loud and leaves nothing on disk. `resolve_install_source()`
-(`update.py:66`) picks a source in this order:
+**The bug that triggered this, reproduced live (2026-09-05).** The owner's
+`coga` is a uv tool install that is *editable*, linked to a different checkout
+than the one being worked in:
 
-1. `COGA_REPO_URL` — a local checkout path, or a git URL pip can install
-   from. Credential-redacted for display.
-2. The source checkout the running package is imported from, via
-   `_running_checkout_root()` (`update.py:114`): package at `<root>/src/coga/`
-   under a root whose `pyproject.toml` declares project name `coga`. A wheel
-   install in site-packages never has that shape.
-3. Otherwise `coga==<running version>` from PyPI.
+```
+/home/n/.local/bin/coga → ~/.local/share/uv/tools/coga/bin/coga
+direct_url.json: {"url":"file:///home/n/Code/claude/coga","dir_info":{"editable":true}}
+imports from:    /home/n/Code/claude/coga/src/coga/__init__.py
+```
 
-The new flag becomes tier 0. The original audit finding ("no way to init from
-a development checkout by default") is stale for the editable case — tier 2
-already handles it. What tier 2 does not cover is the case below, which is
-what the flag is for.
+Running `coga init` from `/home/n/Code/codex/coga` therefore vendors the
+`claude` checkout. Tier 2 fires, succeeds, and prints nothing about which
+source it chose. Wrong bytes, no error — this is the whole reason the ticket
+exists.
 
-**The concrete failure the flag fixes: a uv tool install from a checkout.**
-Only *editable* installs land the package at `<root>/src/coga/`, so only they
-trip `_running_checkout_root()`. `pip install -e .` (what
-`docs/development.md` documents) and `uv tool install -e .` are fine. But
-`version_skew.py:217` tells contributors to reinstall with `uv tool install
---force --from . coga` — a non-editable build into uv's tool directory. There
-`coga.__file__` is under site-packages, tier 2 misses, and init falls through
-to `coga==<unreleased version>` on PyPI and fails. A contributor following
-Coga's own printed advice hits this. Cover it with a test, and say so in
-`docs/development.md`.
+**Current shape.** `resolve_install_source()` (`update.py:66`) picks, in
+order: `COGA_REPO_URL` (a checkout path or a pip-installable git URL,
+credential-redacted); the running package's own checkout via
+`_running_checkout_root()` (`update.py:114` — package at `<root>/src/coga/`
+under a root whose `pyproject.toml` declares `coga`, so only *editable*
+installs match); else `coga==<running version>` from PyPI.
 
-Note the vendored venv itself is stdlib-only and stays that way: `python -m
-venv` (`update.py:672`), then `<venv>/bin/python -m pip install <spec>`
-(`update.py:693`), plus a second pip pass in `install_skill_requirements`
-(`update.py:752`). uv is how a developer installs the *CLI*, never how init
-builds `.coga/.venv`. Do not introduce uv into that path.
+**Blast radius is small.** One real caller: `init.py:827`, which resolves
+before any writes so a bad source fails loud leaving nothing on disk (plus
+`install_venv()`'s default argument, `update.py:609`). Tests are
+`tests/test_init.py:320-412`, seven of them; `test_running_checkout_root_finds_this_checkout`
+(`:417`) and `test_resolve_install_source_prefers_running_checkout` (`:386`)
+are the two that encode the behaviour under question.
 
-**Doc surfaces, all three.** `docs/development.md` and `docs/releasing.md`
-contain zero mention of `COGA_REPO_URL` or source-vendoring.
-`docs/reference.md:14-19` is where `coga init`'s `PATH` argument and `--user`
-option are enumerated — the new flag must land there. `docs/README.md`
-advertises reference.md as "generated from the CLI's own help", but there is
-no generator; it is hand-maintained.
+**Sequencing constraint on "just always use PyPI".** That is the simplest
+possible end state, and it is not free today: this repo is `0.3.1` and PyPI
+serves `0.2.0`, so `pip install coga==0.3.1` fails and init cannot run at all
+from this checkout. That is precisely the original audit finding. It becomes
+safe only after `cleanup/publish-coga-1-0-to-pypi` and
+`cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f` land — and even
+then it re-breaks for anyone working on unreleased main. If the design
+proposes this, it must say what a contributor on unreleased main does instead.
 
-Two existing mentions to stay consistent with, rather than duplicate:
-`docs/migrating-to-coga.md:14` lists `COGA_REPO_URL` in the Relay→Coga rename
-table (a name mapping, not an explanation), and the packaged context
-`src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md:31`
-describes it in passing.
+**Constraint: the vendored venv stays.** `coga/.coga/.venv` plus
+`.coga/COGA_PIN` is the per-repo pinning guarantee — each repo runs the CLI
+that initialized it, which `COGA_PIN`, version-skew detection and
+`coga uninstall` all depend on. A global `uv tool install` gives one shared
+CLI, which is a different property, not a replacement. Do not propose
+deleting the venv; that is an architecture change needing its own ticket.
+`COGA_PIN` format is likewise fixed: `read_pin_source()` and `read_pin()`
+parse it positionally.
 
-**A collision to amend, not contradict.** `docs/releasing.md:87` ("Clean
-first-install gate") states the harness "deliberately installs Coga only from
-PyPI." That is deliberate and should stay true of the release gate; word the
-new section so it explains the contributor path *alongside* that stance.
+**Docs to update once the shape is settled.** `docs/development.md` and
+`docs/releasing.md` contain zero mention of `COGA_REPO_URL` or
+source-vendoring. `docs/reference.md:14-19` enumerates `coga init`'s
+arguments (`PATH`, `--user`) and is where any new flag must land — despite
+`docs/README.md` calling it "generated from the CLI's own help", it is
+hand-maintained. Two existing mentions to keep consistent rather than
+duplicate: `docs/migrating-to-coga.md:14` (Relay→Coga rename table) and the
+packaged context
+`src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md:27-38`,
+which documents the current three-tier behaviour and will need rewriting.
+`docs/releasing.md:87` states the install gate "deliberately installs Coga
+only from PyPI" — that stance stays true; word around it rather than
+contradicting it.
+
+Consider documenting `COGA_PYTHON` (`update.py:420`, the vendored-venv
+interpreter override) in the same pass — it is undocumented in exactly the
+same way for near-zero extra cost.
 
 **Twin-rule exception.** CLAUDE.md requires live and packaged copies of
 shipped contexts to be edited together, but the packaged
-`bootstrap/contexts/coga/cli/SKILL.md` has **no live twin** — `coga/contexts/
-coga/cli/` does not exist in this repo. `cli` is packaged-only. Do not go
-hunting for a live copy to sync.
+`bootstrap/contexts/coga/cli/SKILL.md` has no live twin —
+`coga/contexts/coga/cli/` does not exist. `cli` is packaged-only. Do not hunt
+for one.
 
-**Why COGA_PIN stays as-is.** `write_pin()` (`update.py:204`) records
-`InstallSource.display` — for a checkout the bare path
-(`_checkout_install_source`, `update.py:133`), for a release
-`coga==<version> (PyPI)`. A reader can already tell source from release. It
-cannot distinguish an explicit override from auto-detection, because the
-`origin` string is only used in error text — but the file is parsed
-positionally by `read_pin_source()` and `read_pin()`, so changing its format
-is a persisted-format change well outside "contributor convenience". Leave it.
-
-**Why managed skills are out of scope.** Init's other network reach is
-`install_managed_skills` (`init.py:897` → `src/coga/managed_skills.py`), which
-shells out to `gh skill` per install. There is no local coga checkout
-containing those skills, so vendoring from source cannot help them; it is a
-different subsystem with a different failure mode.
-
-**Closest prior art** for an operator env var on the init/vendoring path:
+**Prior art** for an operator env var on this path:
 `coga/contexts/coga/codebase/SKILL.md:229-240`, on `install_skill_requirements`
-and on `COGA_PYTHON` as the vendored-venv interpreter override. Cited rather
-than attached — that context is ~27 KB and would triple this prompt.
+and `COGA_PYTHON`. Cited rather than attached — that context is ~27 KB.
+
+**Note on the vendored venv's own tooling:** it is stdlib `python -m venv`
+(`update.py:672`) plus `<venv>/bin/python -m pip install <spec>`
+(`update.py:693`), with a second pip pass in `install_skill_requirements`
+(`update.py:752`). uv is how a developer installs the *CLI*; it is not used to
+build `.coga/.venv`, and this ticket does not change that.
 
 Source: `marketing/phase-0-audit` step 1 (2026-09-02), triaged by the owner in
-step 2 (2026-09-03), re-scoped and decisions closed 2026-09-05 against the
-post-#590 code. This directory holds the work the owner wants done before the
-marketing materials ship.
+step 2 (2026-09-03) with `code/design-then-implement`; re-scoped 2026-09-05
+from "add a debug mode" to "simplify the resolution" after the silent
+wrong-checkout behaviour was reproduced. This directory holds the work the
+owner wants done before the marketing materials ship.
 
 <!-- coga:blackboard -->
 
