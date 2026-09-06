@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nick
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -233,3 +233,47 @@ authoritative run.
 out of its scope.
 
 **Not done, by design:** no push and no PR — that is the `code/open-pr` step.
+
+## Peer review (2026-09-05)
+
+- Ran `git fetch origin main` and `git rebase FETCH_HEAD` in the recorded
+  worktree. Rebase completed without conflicts onto `e023d244`; the feature
+  commit is now `895f6c0d` and the branch is clean, one commit ahead.
+- `codex review --base origin/main` completed with **no actionable
+  regressions**. Its 211 targeted tests passed; no review-fix commit is needed.
+- Full post-rebase `python -m pytest`: **2364 passed, 1 failed** in 150.99s.
+  Used the implementation's Python 3.12 test venv, whose editable install was
+  verified to point at this feature worktree, with its `bin` first on `PATH`
+  and `PYTHONPATH=/home/n/Code/codex/coga-vendor-pypi-only/src`.
+  Output: `/tmp/coga-vendor-peer-review-pytest.log`.
+- The sole failure remains
+  `tests/test_notification_messages.py::test_recurring_create_is_silent`.
+  Re-ran `python -m pytest -q
+  tests/test_notification_messages.py::test_recurring_create_is_silent` in
+  the primary checkout with `PYTHONPATH=/home/n/Code/codex/coga/src`:
+  identical `IsADirectoryError` on current `main` (`e023d244`). This confirms
+  the implementation's baseline finding; no unrelated test repair is included.
+- `git diff --check origin/main...HEAD` passes. Confirmed removed helpers
+  have no remaining callers; the upstream URL constant and Git URL redaction
+  remain available to their other consumers.
+- `python -m coga.cli --help` passes. Validation passes with no issues:
+  `python -m coga.cli validate --task
+  cleanup/add-a-debug-mode-to-init-for-vendoring-from-source --json` in the
+  primary checkout, and `env -u SLACK_WEBHOOK_URL python -m coga.cli validate
+  --json` in the feature worktree's `example/` (using the respective absolute
+  `PYTHONPATH` and the same test venv).
+- Review is complete. Feature branch remains clean and committed; the
+  `open-pr` step can publish `vendor-pypi-only` using the PR body below.
+
+## PR
+
+`coga init` now vendors `coga==<running version>` from PyPI for every install,
+including editable CLI runs. Remove checkout and `COGA_REPO_URL` source
+selection and the unused helpers. Pip resolution failures retain their error
+details and add a release-only explanation naming the requested version and
+the possibility that PyPI is unreachable.
+
+Update the bundled CLI context, development and release docs (including
+`COGA_PYTHON`), migration table, and source-resolution/error-message tests.
+
+Test plan: Python 3.12 `python -m pytest` — 2364 passed, one pre-existing failure in `tests/test_notification_messages.py::test_recurring_create_is_silent`, independently reproduced on `main`; `python -m coga.cli validate --task cleanup/add-a-debug-mode-to-init-for-vendoring-from-source --json`, `env -u SLACK_WEBHOOK_URL python -m coga.cli validate --json` in `example/`, `python -m coga.cli --help`, and `git diff --check origin/main...HEAD` pass.
