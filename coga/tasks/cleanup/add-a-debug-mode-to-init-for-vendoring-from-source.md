@@ -140,6 +140,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/759
 branch: vendor-pypi-only
 worktree: /home/n/Code/codex/coga-vendor-pypi-only
 
