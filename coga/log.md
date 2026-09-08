@@ -4547,3 +4547,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-08 16:49 [live-and-packaged-twin-pairs-are-edited-together-b] [human:nicktoper] auto-bumped on merge of PR #758 → done
 2026-09-08 16:49 [megalaunch-activates-picks-before-preflight] [human:nicktoper] auto-bumped on merge of PR #747 → done
 2026-09-08 16:49 [no-comms-writing-skill-the-process-is-smeared-thro] [human:nicktoper] auto-bumped on merge of PR #754 → done
+2026-09-08 16:49 [no-skill-exists-for-the-cold-evaluator-review-of-a] [human:nicktoper] auto-bumped on merge of PR #752 → done
