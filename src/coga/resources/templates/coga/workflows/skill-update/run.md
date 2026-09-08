@@ -17,9 +17,13 @@ GitHub- or URL-backed update lands in one draft PR on the dedicated
 skipped statuses bucketed raw — is appended to the task blackboard under
 `## Skill Update`. Local-backed and hand-vendored skills are unmanaged by this
 run and currently emit no row. When no remotely managed skill changed, no PR
-is opened. `ticket.py` exits non-zero in two different cases, and both write
-the `## Skill Update` report first so the period task is not silently marked
-done: exit 1 when a run has human-needed follow-up and no PR artifact to carry
-it, and exit 2 when `coga skill update` itself failed or emitted output that
-was not valid JSON — that report carries a `### Failed` block with the command
-and its stderr in place of the per-skill buckets.
+is opened. `ticket.py` exits 1 when a run has human-needed follow-up and no PR
+artifact to carry it, and 2 when `coga skill update` itself failed or emitted
+output that was not valid JSON — the exit-2 report carries a `### Failed` block
+with the attempted command and its failing output (stderr, or stdout, or the
+JSON decode error) in place of the per-skill buckets. Both paths write the
+`## Skill Update` report first, best-effort, so the period task is not silently
+marked done. `ticket.py` also returns `coga bump`'s exit code once the update
+succeeds, and that is 2 on most of its own refusals: an exit 2 carrying
+per-skill buckets and no `### Failed` block is a failed bump, not a failed
+update.
