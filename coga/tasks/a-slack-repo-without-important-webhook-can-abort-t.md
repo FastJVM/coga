@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -189,7 +189,7 @@ Both fail on `main` at 4271813a, untouched by this change:
 - The feature worktree is clean and its reviewed commit is one commit ahead
   of `origin/main`.
 
-## Open PR preparation — 2026-09-08
+## Open PR — 2026-09-08
 
 - The first `coga open-pr` attempt refused the branch because `main` had
   advanced since peer review. Rebased the recorded feature worktree onto
@@ -204,6 +204,11 @@ Both fail on `main` at 4271813a, untouched by this change:
   reports one valid task and no issues. `git diff --check main...HEAD` and
   `cmp coga/contexts/coga/sync/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md`
   pass in the feature worktree.
+- `coga open-pr a-slack-repo-without-important-webhook-can-abort-t` succeeded
+  on retry and recorded https://github.com/FastJVM/coga/pull/761 under `## Dev`.
+  `gh pr view 761` confirms it is open, ready for review, and mergeable, with
+  `main` as base and `db42f80d` as head. The published description includes
+  the refreshed test result; both checkouts were clean after publication.
 
 ## PR
 
@@ -220,5 +225,5 @@ Test plan: `/tmp/coga-scan-alert-peer-review-venv/bin/python -m pytest` — 2323
 
 ## Next
 
-The refreshed branch is ready for `coga open-pr` from the primary checkout.
-Once the PR is recorded, bump once to hand off to owner review.
+Owner review of PR #761 is next. The known test fixture failure is documented
+above and in the PR; the fix and its regression coverage are ready for review.
