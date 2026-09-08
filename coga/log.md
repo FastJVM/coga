@@ -4550,3 +4550,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-08 16:49 [no-skill-exists-for-the-cold-evaluator-review-of-a] [human:nicktoper] auto-bumped on merge of PR #752 → done
 2026-09-08 16:50 [packaged-repos-ship-recurring-templates-without-th] [human:nicktoper] auto-bumped on merge of PR #750 → done
 2026-09-08 16:50 [retire-never-removes-a-worktree-that-ran-the-tests] [human:nicktoper] auto-bumped on merge of PR #751 → done
+2026-09-08 16:50 [service-recurring-from-a-temp-control-worktree-ins] [human:nicktoper] auto-bumped on merge of PR #749 → done

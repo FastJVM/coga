@@ -1,7 +1,7 @@
 ---
 slug: service-recurring-from-a-temp-control-worktree-ins
 title: Service recurring from a temp control worktree instead of failing the repo
-status: in_progress
+status: done
 owner: nicktoper
 human: nick
 agent: claude
@@ -34,7 +34,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 5 (review)
 ---
 
 ## Description
