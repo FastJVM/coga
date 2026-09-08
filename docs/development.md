@@ -37,18 +37,9 @@ under an older interpreter fails loud with the version it found.
 
 `coga init` builds a self-contained venv at `<repo>/coga/.coga/.venv` and
 installs the CLI into it. That install is **always `pip install
-coga==<running version>`** — the version of the coga you ran `init` with. A
-repo vendors a published release; there is no source-install path, no git-URL
-path, and no environment override.
-
-What init pins is the *version*, not the index. pip resolves that requirement
-through the operator's own configuration — `PIP_INDEX_URL`,
-`PIP_EXTRA_INDEX_URL`, find-links — so init asks pip where it actually got the
-distribution (`pip install --report`) and records that artifact URL in
-`.coga/COGA_PIN`, which is what `coga --version` prints. A machine pointed at a
-mirror gets a pin naming the mirror's artifact, not a "from PyPI" claim Coga
-never verified. When pip reports no download — re-running against an
-already-current venv installs nothing — the pin falls back to the requirement.
+coga==<running version>` from PyPI** — the version of the coga you ran `init`
+with. A repo vendors a published release; there is no source-install path, no
+git-URL path, and no environment override.
 
 The consequence for development: **`coga init` from an unreleased checkout
 fails.** An editable install of `main` reports a version that isn't on PyPI

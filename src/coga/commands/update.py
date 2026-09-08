@@ -1,13 +1,10 @@
 """Bootstrap helpers used by `coga init`.
 
 Copies coga templates from the installed package resources and stands up the
-self-contained venv the vendored CLI runs out of. The venv's coga is always the
-published release `coga==<running version>`: a repo vendors a release, never a
-source tree and never a fresh upstream clone, so the vendored copy is exactly
-the release that ran init. pip resolves that requirement through the operator's
-own index configuration, so `COGA_PIN` records the artifact pip reported
-resolving rather than asserting an index Coga never checked. No Typer commands
-live here.
+self-contained venv the vendored CLI runs out of. The venv's coga is always
+`coga==<running version>` from PyPI: a repo vendors a published release, never
+a source tree and never a fresh upstream clone, so the vendored copy is exactly
+the release that ran init. No Typer commands live here.
 """
 
 from __future__ import annotations
@@ -20,13 +17,11 @@ from importlib.metadata import (
 )
 from importlib.resources import files
 from importlib.resources.abc import Traversable
-import json
 import os
 import re
 import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 import typer
@@ -50,46 +45,26 @@ _LEGACY_COGA_GITIGNORE_ENTRIES: set[str] = {
 class InstallSource:
     """Where `install_venv` gets the coga package it puts in the vendored venv.
 
-    `pip_spec` is the literal requirement handed to `pip install`, and is all
-    that is known *before* installing: pip resolves it through the operator's
-    own index configuration, so the requirement names a version, never a
-    source. Real provenance is `VendoredInstall.origin`, read back from pip's
-    own install report. `requires_python` is the source's requires-python spec
-    when it is knowable before installing; None skips the pre-install
-    interpreter check and leaves it to pip.
+    `pip_spec` is the literal requirement handed to `pip install`. `display`
+    is the human-readable provenance recorded in COGA_PIN and echoed to the
+    operator. `requires_python` is the source's requires-python spec when it
+    is knowable before installing; None skips the pre-install interpreter
+    check and leaves it to pip.
     """
 
     pip_spec: str
+    display: str
     requires_python: str | None = None
 
 
-@dataclass(frozen=True)
-class VendoredInstall:
-    """What `install_venv` actually put in the vendored venv.
-
-    `venv_dir` is the venv it built or upgraded. `origin` is the URL pip
-    reported resolving the coga distribution from — the provenance recorded in
-    COGA_PIN. It is None when pip installed nothing (an already-current venv)
-    or reported no download, and the pin then records the requirement alone,
-    which is all that is actually known.
-    """
-
-    venv_dir: Path
-    origin: str | None = None
-
-
 def resolve_install_source() -> InstallSource:
-    """Decide which coga the vendored venv gets: the running release, only.
+    """Decide where the vendored venv's coga comes from: PyPI, and only PyPI.
 
     A repo always vendors a published release — `pip install
     coga==<running version>` — so the vendored copy is exactly the release
     that ran init. There is no source-checkout or git-URL path: an implicit
     one silently vendored whichever checkout the running package happened to
     be imported from. Exits loud when the running version can't be determined.
-
-    This pins a *version*, not an index. Where pip resolves it from is the
-    operator's own pip configuration, and `install_venv` reads the answer back
-    rather than letting this function assert one.
     """
     try:
         version = _pkg_version("coga")
@@ -107,6 +82,7 @@ def resolve_install_source() -> InstallSource:
         sys.exit(2)
     return InstallSource(
         pip_spec=f"coga=={version}",
+        display=f"coga=={version} (PyPI)",
         requires_python=_running_requires_python(),
     )
 
@@ -157,22 +133,14 @@ def write_pin(
     coga_os: Path,
     source: InstallSource,
     version: str,
-    origin: str | None = None,
 ) -> Path:
     """Record what `coga/.coga/` was vendored from: install source + version.
-
-    `origin` is the artifact URL pip reported resolving, and is what the pin
-    records when pip reported one. The requirement alone cannot stand in for
-    it: `PIP_INDEX_URL`, `PIP_EXTRA_INDEX_URL`, and find-links all redirect
-    where `coga==<version>` resolves from, so recording a fixed index would be
-    a claim Coga never checked. Without a reported origin the pin falls back to
-    the requirement, which is then all that is known.
 
     Returns the pin path on success.
     """
     pin = coga_os / ".coga" / "COGA_PIN"
     pin.parent.mkdir(parents=True, exist_ok=True)
-    pin.write_text(f"{origin or source.pip_spec}\n{version}\n")
+    pin.write_text(f"{source.display}\n{version}\n")
     return pin
 
 
@@ -542,11 +510,10 @@ def unpublished_release_hint(stderr: str, pip_spec: str) -> str:
     """Remediation to append when pip couldn't resolve the release init vendors.
 
     `coga init` vendors published releases only — it installs the running
-    CLI's own version — so running an unreleased build (a source checkout
-    ahead of the last tag) fails with a pip resolution error that never names
-    the cause. An unreachable index produces the same marker, so the text
-    names both possibilities rather than asserting one, and it says "your
-    configured index" because pip's index is the operator's to set. Returns ""
+    CLI's own version from PyPI — so running an unreleased build (a source
+    checkout ahead of the last tag) fails with a pip resolution error that
+    never names the cause. An unreachable index produces the same marker, so
+    the text names both possibilities rather than asserting one. Returns ""
     when stderr doesn't look like that failure.
     """
     lowered = stderr.lower()
@@ -554,21 +521,18 @@ def unpublished_release_hint(stderr: str, pip_spec: str) -> str:
         return ""
     return (
         f"\n`coga init` vendors published releases only: it installs the "
-        f"running CLI's own version, {pip_spec}, from your configured package "
-        "index (PyPI unless pip is pointed elsewhere). That version isn't "
-        "installable here — most likely it is unreleased (a source checkout "
-        "ahead of the last tag), or this machine can't reach that index.\n"
+        f"running CLI's own version, {pip_spec}, from PyPI. That version "
+        "isn't installable here — most likely it is unreleased (a source "
+        "checkout ahead of the last tag), or this machine can't reach PyPI.\n"
         "Install a released coga and re-run, or publish the release first."
     )
 
 
-def install_venv(
-    coga_os: Path, source: InstallSource | None = None
-) -> VendoredInstall:
+def install_venv(coga_os: Path, source: InstallSource | None = None) -> Path:
     """Create `.coga/.venv/` and `pip install` coga into it from `source`.
 
-    `source` defaults to `resolve_install_source()` — always the published
-    release `coga==<running version>`.
+    `source` defaults to `resolve_install_source()` — always
+    `coga==<running version>` from PyPI.
 
     The venv's interpreter comes from `resolve_venv_python()` ($COGA_PYTHON,
     else the Python running this CLI) and is validated against the source's
@@ -581,9 +545,7 @@ def install_venv(
     to a different base executable, it gets rebuilt from scratch (pip-installed
     packages from another interpreter aren't portable, and a host Python upgrade
     can leave a broken interpreter symlink).
-    Returns the venv path plus the artifact URL pip reported resolving, so the
-    caller can pin real provenance instead of a guessed index. Exits with a
-    clear error if Python venv/pip aren't usable.
+    Returns the venv path. Exits with a clear error if Python venv/pip aren't usable.
     """
     venv_dir = coga_os / ".coga" / ".venv"
     if source is None:
@@ -667,65 +629,29 @@ def install_venv(
             typer.secho(message, fg=typer.colors.RED, err=True)
             sys.exit(2)
 
-    typer.echo(f"Installing vendored CLI into venv (pip install {source.pip_spec})…")
-    with tempfile.TemporaryDirectory() as report_dir:
-        report_path = Path(report_dir) / "install-report.json"
-        result = subprocess.run(
-            [
-                str(venv_dir / "bin" / "python"),
-                "-m", "pip", "install",
-                "--quiet", "--upgrade",
-                "--report", str(report_path),
-                source.pip_spec,
-            ],
-            capture_output=True,
-            text=True,
+    typer.echo(f"Installing vendored CLI into venv (pip install {source.display})…")
+    result = subprocess.run(
+        [
+            str(venv_dir / "bin" / "python"),
+            "-m", "pip", "install",
+            "--quiet", "--upgrade",
+            source.pip_spec,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        stderr = result.stderr
+        typer.secho(
+            f"pip install failed:\n{stderr}"
+            f"{hash_checking_hint(stderr)}"
+            f"{unpublished_release_hint(stderr, source.pip_spec)}",
+            fg=typer.colors.RED,
+            err=True,
         )
-        if result.returncode != 0:
-            stderr = result.stderr
-            typer.secho(
-                f"pip install failed:\n{stderr}"
-                f"{hash_checking_hint(stderr)}"
-                f"{unpublished_release_hint(stderr, source.pip_spec)}",
-                fg=typer.colors.RED,
-                err=True,
-            )
-            sys.exit(2)
-        origin = _reported_origin(report_path)
+        sys.exit(2)
     install_skill_requirements(coga_os, venv_dir)
-    return VendoredInstall(venv_dir=venv_dir, origin=origin)
-
-
-def _reported_origin(report_path: Path) -> str | None:
-    """The URL pip reported resolving the coga distribution from, or None.
-
-    Reads `pip install --report`, whose `install` entries carry the resolved
-    `download_info.url` for everything pip actually installed. None when pip
-    installed nothing (the venv was already current), when it reported no
-    download, or when the report is unreadable — provenance we don't have is
-    left unrecorded rather than guessed.
-
-    `--report` needs pip 22.2+. Coga's floor is Python 3.11, whose bundled
-    ensurepip installs pip 22.3 into every venv it creates, so the flag is
-    always understood by the pip `install_venv` just built.
-    """
-    try:
-        report = json.loads(report_path.read_text())
-    except (OSError, ValueError):
-        return None
-    if not isinstance(report, dict):
-        return None
-    for item in report.get("install") or []:
-        if not isinstance(item, dict):
-            continue
-        metadata = item.get("metadata") or {}
-        name = metadata.get("name", "") if isinstance(metadata, dict) else ""
-        if re.sub(r"[-_.]+", "-", name).lower() != "coga":
-            continue
-        download_info = item.get("download_info") or {}
-        url = download_info.get("url") if isinstance(download_info, dict) else None
-        return url or None
-    return None
+    return venv_dir
 
 
 def install_skill_requirements(coga_os: Path, venv_dir: Path) -> list[Path]:

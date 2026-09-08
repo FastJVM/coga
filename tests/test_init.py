@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-import json
 import os
 import shutil
 import subprocess
@@ -248,17 +247,12 @@ def _fake_install_source(
 ) -> update_cmd.InstallSource:
     return update_cmd.InstallSource(
         pip_spec=f"coga=={FAKE_VERSION}",
+        display=f"coga=={FAKE_VERSION} (PyPI)",
         requires_python=requires_python,
     )
 
 
 FAKE_SOURCE = _fake_install_source()
-# The artifact URL pip reports resolving — the provenance init pins, in place
-# of a fixed index Coga never checked.
-FAKE_ORIGIN = (
-    "https://files.pythonhosted.org/packages/ab/cd/"
-    f"coga-{FAKE_VERSION}-py3-none-any.whl"
-)
 
 
 @pytest.fixture
@@ -284,7 +278,7 @@ def fake_venv(monkeypatch: pytest.MonkeyPatch):
 
     def fake_install(
         coga_os: Path, source: update_cmd.InstallSource | None = None
-    ) -> update_cmd.VendoredInstall:
+    ) -> Path:
         calls.append(coga_os)
         venv_bin = coga_os / ".coga" / ".venv" / "bin"
         venv_bin.mkdir(parents=True, exist_ok=True)
@@ -292,9 +286,7 @@ def fake_venv(monkeypatch: pytest.MonkeyPatch):
         coga_script = venv_bin / "coga"
         coga_script.write_text("#!/bin/sh\necho fake venv coga\n")
         coga_script.chmod(0o755)
-        return update_cmd.VendoredInstall(
-            venv_dir=coga_script.parent.parent, origin=FAKE_ORIGIN
-        )
+        return coga_script.parent.parent
 
     monkeypatch.setattr(init_cmd, "install_venv", fake_install)
     return calls
@@ -318,13 +310,14 @@ def fake_managed_skill_sync(monkeypatch: pytest.MonkeyPatch):
 def test_resolve_install_source_pins_running_release(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Init vendors the published `coga==<running version>` — the only source."""
+    """Init vendors `coga==<running version>` from PyPI — the only source."""
     monkeypatch.setattr(update_cmd, "_pkg_version", lambda name: "1.2.3")
     monkeypatch.setattr(update_cmd, "_running_requires_python", lambda: ">=3.11")
 
     source = update_cmd.resolve_install_source()
 
     assert source.pip_spec == "coga==1.2.3"
+    assert source.display == "coga==1.2.3 (PyPI)"
     assert source.requires_python == ">=3.11"
 
 
@@ -380,37 +373,17 @@ def test_unpublished_release_hint_silent_on_other_failures() -> None:
     assert hint == ""
 
 
-def test_write_pin_records_reported_origin_and_version(tmp_path: Path) -> None:
-    """The pin records where pip actually got the distribution."""
-    coga_os = tmp_path / "coga"
-
-    update_cmd.write_pin(coga_os, FAKE_SOURCE, FAKE_VERSION, FAKE_ORIGIN)
-
-    assert (coga_os / ".coga" / "COGA_PIN").read_text().splitlines() == [
-        FAKE_ORIGIN,
-        FAKE_VERSION,
-    ]
-    assert update_cmd.read_pin(coga_os) == FAKE_VERSION
-    assert update_cmd.read_pin_source(coga_os) == FAKE_ORIGIN
-
-
-def test_write_pin_without_origin_records_the_requirement(tmp_path: Path) -> None:
-    """No reported origin means the requirement is all that is known.
-
-    pip resolves `coga==<version>` through the operator's own index
-    configuration, so the pin must not upgrade "we asked for this version"
-    into "this came from PyPI".
-    """
+def test_write_pin_records_source_and_version(tmp_path: Path) -> None:
     coga_os = tmp_path / "coga"
 
     update_cmd.write_pin(coga_os, FAKE_SOURCE, FAKE_VERSION)
 
     assert (coga_os / ".coga" / "COGA_PIN").read_text().splitlines() == [
-        FAKE_SOURCE.pip_spec,
+        FAKE_SOURCE.display,
         FAKE_VERSION,
     ]
-    assert update_cmd.read_pin_source(coga_os) == FAKE_SOURCE.pip_spec
-    assert "PyPI" not in (coga_os / ".coga" / "COGA_PIN").read_text()
+    assert update_cmd.read_pin(coga_os) == FAKE_VERSION
+    assert update_cmd.read_pin_source(coga_os) == FAKE_SOURCE.display
 
 
 def test_vendored_cli_version_reads_venv(tmp_path: Path) -> None:
@@ -2274,9 +2247,9 @@ def test_init_writes_pin_file(
     pin = target / "coga" / ".coga" / "COGA_PIN"
     assert pin.is_file()
     lines = pin.read_text().splitlines()
-    assert lines[0] == FAKE_ORIGIN
+    assert lines[0] == FAKE_SOURCE.display
     assert lines[1] == FAKE_VERSION
-    assert f"Vendored CLI coga {FAKE_VERSION} from {FAKE_ORIGIN}" in result.output
+    assert f"Vendored CLI coga {FAKE_VERSION} from {FAKE_SOURCE.display}" in result.output
 
 
 def test_version_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2302,13 +2275,13 @@ def test_version_flag_includes_pin_when_in_repo(
     (coga_os / ".coga").mkdir(parents=True)
     (coga_os / "coga.toml").write_text("version = 1\n")
     (coga_os / ".coga" / "COGA_PIN").write_text(
-        f"{FAKE_ORIGIN}\n{FAKE_VERSION}\n"
+        f"{FAKE_SOURCE.display}\n{FAKE_VERSION}\n"
     )
     monkeypatch.chdir(coga_os)
 
     result = CliRunner().invoke(app, ["--version"])
     assert result.exit_code == 0, result.output
-    assert f"vendored CLI {FAKE_VERSION} (from {FAKE_ORIGIN})" in result.output
+    assert f"vendored CLI {FAKE_VERSION} (from {FAKE_SOURCE.display})" in result.output
 
 
 # --- gitignore management ----------------------------------------------------
@@ -2537,145 +2510,6 @@ def test_install_venv_keeps_matching_venv(
 
     assert venv_calls == []  # no recreate
     assert sentinel.read_text() == "preserve me"
-
-
-# --- vendored install provenance ----------------------------------------------
-
-
-def _venv_with_pip(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    report: object | None,
-) -> tuple[Path, list[list[str]]]:
-    """A coga_os whose pip writes `report` to the path after `--report`.
-
-    Returns the coga_os plus the recorded pip argv, so a test can assert both
-    what Coga asked pip for and what it did with the answer.
-    """
-    coga_os = tmp_path / "coga"
-    venv_dir = coga_os / ".coga" / ".venv"
-    (venv_dir / "bin").mkdir(parents=True)
-    (venv_dir / "bin" / "python").write_text("#!/bin/sh\n")
-    (venv_dir / "bin" / "python").chmod(0o755)
-    (venv_dir / "pyvenv.cfg").write_text(
-        f"version = {sys.version_info.major}.{sys.version_info.minor}.7\n"
-    )
-
-    pip_calls: list[list[str]] = []
-    real_run = subprocess.run
-
-    def fake_run(cmd, **kwargs):
-        if "pip" in cmd:
-            pip_calls.append(list(cmd))
-            if report is not None and "--report" in cmd:
-                Path(cmd[cmd.index("--report") + 1]).write_text(json.dumps(report))
-            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        return real_run(cmd, **kwargs)
-
-    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
-    return coga_os, pip_calls
-
-
-def test_install_venv_records_the_origin_pip_reports(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Provenance is read back from pip, not asserted ahead of the install.
-
-    `PIP_INDEX_URL`, `PIP_EXTRA_INDEX_URL`, and find-links all redirect where
-    `coga==<version>` resolves from, so the requirement cannot prove the
-    distribution came from PyPI. Ask pip and pin its answer.
-    """
-    coga_os, pip_calls = _venv_with_pip(
-        tmp_path,
-        monkeypatch,
-        {
-            "version": "1",
-            "install": [
-                {
-                    "metadata": {"name": "coga", "version": FAKE_VERSION},
-                    "download_info": {"url": FAKE_ORIGIN},
-                }
-            ],
-        },
-    )
-
-    vendored = update_cmd.install_venv(coga_os, _fake_install_source())
-
-    assert vendored.origin == FAKE_ORIGIN
-    install_argv = next(c for c in pip_calls if "install" in c)
-    assert "--report" in install_argv
-
-
-def test_install_venv_origin_matches_coga_not_a_dependency(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The pin names coga's own artifact, matched by canonicalized name."""
-    coga_os, _ = _venv_with_pip(
-        tmp_path,
-        monkeypatch,
-        {
-            "version": "1",
-            "install": [
-                {
-                    "metadata": {"name": "typer"},
-                    "download_info": {"url": "https://example.test/typer.whl"},
-                },
-                {
-                    "metadata": {"name": "Coga"},
-                    "download_info": {"url": FAKE_ORIGIN},
-                },
-            ],
-        },
-    )
-
-    assert update_cmd.install_venv(coga_os, _fake_install_source()).origin == (
-        FAKE_ORIGIN
-    )
-
-
-@pytest.mark.parametrize(
-    "report",
-    [
-        pytest.param({"version": "1", "install": []}, id="nothing-installed"),
-        pytest.param(
-            {
-                "version": "1",
-                "install": [{"metadata": {"name": "coga"}, "download_info": {}}],
-            },
-            id="no-download-url",
-        ),
-        pytest.param(None, id="no-report-written"),
-    ],
-)
-def test_install_venv_leaves_unknown_origin_unrecorded(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, report: object | None,
-) -> None:
-    """Provenance Coga doesn't have is left blank, never guessed.
-
-    An already-current venv installs nothing, so pip reports no download —
-    the pin then falls back to the requirement rather than inventing an index.
-    """
-    coga_os, _ = _venv_with_pip(tmp_path, monkeypatch, report)
-
-    vendored = update_cmd.install_venv(coga_os, _fake_install_source())
-
-    assert vendored.origin is None
-
-    update_cmd.write_pin(coga_os, FAKE_SOURCE, FAKE_VERSION, vendored.origin)
-    assert update_cmd.read_pin_source(coga_os) == FAKE_SOURCE.pip_spec
-
-
-def test_reported_origin_survives_a_malformed_report(tmp_path: Path) -> None:
-    """A report Coga can't parse is missing provenance, not a failed install."""
-    report = tmp_path / "install-report.json"
-
-    assert update_cmd._reported_origin(report) is None  # never written
-
-    report.write_text("not json")
-    assert update_cmd._reported_origin(report) is None
-
-    report.write_text(json.dumps(["unexpected", "shape"]))
-    assert update_cmd._reported_origin(report) is None
 
 
 # --- venv interpreter selection ------------------------------------------------
