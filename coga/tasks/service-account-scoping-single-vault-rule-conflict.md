@@ -44,9 +44,60 @@ From the same section:
 Trust-tiered vaults imply a repo will eventually hold refs in more than one of
 them. A service account scoped to a single vault cannot resolve those refs.
 
+**Settled 2026-09-08** — the owner's answer is recorded under `## Context`: one
+service account with one automation vault, plus a separate follow-up for
+scrubbing the token before spawn. What remains is the doc edit.
+
 ## Context
 
-**Why two service accounts is not the escape hatch.** `OP_SERVICE_ACCOUNT_TOKEN`
+### Decision (2026-09-08, owner)
+
+Both open calls are settled. Neither matches the agent memo's recommendation
+verbatim; the memo's option-1 proposal is superseded and archived on the
+blackboard.
+
+**1. Vault shape — one service account, one vault.** There will be exactly one
+Coga repo backed by 1Password and exactly one read-only service account, and
+that account is granted **one** automation vault. The other trust-named vaults
+exist for human password/access management; the SA is never granted them, and
+never the root-level vault that holds its own token.
+
+So the single-vault sentence **stands** for the service account — the stated
+security property is preserved and no vault-to-token routing is needed. What
+was actually wrong is the adjacent implication that trust tiering describes the
+*automation's* grant. It does not: here the tiers are a human-access taxonomy,
+and the SA's blast radius is exactly its one vault. A ticket must not declare
+`op://` refs outside that automation vault, because nothing will resolve them.
+
+**2. Worker capability — scrub the token.** Coga should use
+`OP_SERVICE_ACCOUNT_TOKEN` to resolve a ticket's declared refs and then remove
+it before spawning the agent or recipe, so the child sees only the resolved
+destination aliases. That makes `secrets:` a real capability bound rather than
+an injection convenience. It is a code change to `config.build_launch_env()`
+and belongs in its own ticket — **out of scope here**. Until it lands, durable
+docs must keep saying plainly that a launched worker inherits the token and can
+read the whole vault regardless of what its ticket declared.
+
+### What the doc step has to write
+
+- `coga/contexts/coga/secrets/SKILL.md` is **repo-local only** — there is no
+  packaged twin under `src/coga/resources/templates/`, so it is a single edit.
+  `coga/contexts/coga/architecture/SKILL.md` does have a packaged twin and must
+  be kept in sync if its "declaration, not a sandbox" wording is touched.
+- Replace the open-decision block ("Open decision — do not read a
+  recommendation into the above") with the settled model: one SA, one
+  automation vault, never the root-level vault; trust-named vaults are human
+  access boundaries, not a partition of the SA's grant.
+- Keep the single-vault security claim, now true as stated, and keep the
+  existing honest text about the token surviving into the child environment —
+  the scrub is a future ticket, not current behavior.
+- Fix the "Adding a headless secret" recipe, which currently names
+  `coga-low-trust` as the vault in its example ref and verification command:
+  with one automation vault the tier-named example is misleading.
+
+### Background: why two service accounts is not the escape hatch
+
+`OP_SERVICE_ACCOUNT_TOKEN`
 is one environment variable, and `coga launch` resolves a ticket's `op://` refs
 by shelling out to `op`, which reads that variable. Coga has no vault → token
 mapping. So with two SAs:
@@ -84,9 +135,11 @@ names would otherwise imply a containment they do not provide:
 > separate *human* access grants, and independent rotation — not containment
 > for the automation itself.
 
-## The question
+## The question — answered 2026-09-08
 
-Which model does coga endorse?
+Which model does coga endorse? **Option 3, in the narrow form recorded under
+`## Context`: one service account, one automation vault.** Options 1 and 2 are
+kept below as the reasoning that was considered.
 
 1. **One SA per repo, spanning tiers** (what admin does). Tiers become
    classification and human-access boundaries, not blast-radius boundaries for
@@ -99,8 +152,10 @@ Which model does coga endorse?
    current sentence — but it drops the trust-level naming the same section
    recommends.
 
-Option 2 is the only one that preserves the stated security property, and it is
-the only one that needs code.
+Option 2 was the only one that preserved the stated security property *while
+keeping tiered automation vaults*, and the only one needing code. The owner
+removed that premise instead: the automation only ever needs one vault, so
+option 3 preserves the same property for free.
 
 ## Notes
 
@@ -115,24 +170,57 @@ the only one that needs code.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Agent draft — decision memo (2026-08-15)
+## Current state (2026-09-08)
 
-### Proposed decision
+Step 2 (`human-owns-and-finishes`) has its answer. Both decisions are recorded
+under `## Context` in the ticket body; read that, not the memo below.
 
-Endorse **option 1 for v1**, stated as **one read-only service account per Coga
-repo / automation purpose, scoped to all and only the non-root vaults that
-repo's headless work needs**.
+- **Vault shape:** one service account, one automation vault. Other
+  trust-named vaults are human password/access only and are never granted to
+  the SA. The single-vault security claim survives intact.
+- **Worker capability:** scrub `OP_SERVICE_ACCOUNT_TOKEN` before spawn — agreed
+  in principle, deferred to its own code ticket. Not this ticket's scope.
 
-Keep trust-tiered vaults, but name their boundary honestly: they classify
-sensitivity and provide separate human grants, audit surfaces, and rotation
-units. They do **not** contain compromise of the repo service-account token.
-The root-level vault that stores the SA token remains human-only and must never
-be readable by that SA.
+Remaining work for step 3 (`report-to-coga`): edit
+`coga/contexts/coga/secrets/SKILL.md` per the checklist in `## Context`. No
+packaged twin exists for that context, so it is a single-file edit; verify with
+`coga validate --json`.
 
-Do not add vault-to-token routing yet. Treat stronger per-tier isolation as a
-separate execution-isolation design, not as a small extension of secret lookup.
+## Durable findings that survive the decision
 
-### Why this is the v1 recommendation
+**`build_launch_env()` does not scrub the SA token.**
+`src/coga/config.py:build_launch_env()` starts from the full parent environment
+and removes only variables named by ticket `env:` references. Nothing at the
+launch, megalaunch, or recurring-recipe call sites removes
+`OP_SERVICE_ACCOUNT_TOKEN` afterwards. A spawned agent or recipe can therefore
+run `op` directly and read the whole automation vault even when its ticket
+declares one secret. This is the basis of the deferred scrub ticket, and until
+that lands the docs must not imply `secrets:` bounds a worker.
+
+**1Password facts confirmed against current docs.** A service account may be
+granted multiple vaults; its access and permissions are immutable after
+creation; 1Password recommends one service account per purpose holding only the
+vaults that purpose needs.
+
+- <https://www.1password.dev/service-accounts/get-started>
+- <https://www.1password.dev/get-started/secure-developers>
+
+## Superseded designs
+
+### 2026-08-15 — agent memo recommending option 1 (one SA spanning tiers)
+
+Superseded 2026-09-08. The memo recommended endorsing option 1: one read-only
+SA per Coga repo scoped to all and only the non-root vaults that repo's
+headless work needs, with tiers demoted to classification-only and the honest
+caveat that they do not contain a leaked SA token. Its reasoning was sound
+given its premise — that the automation would need refs in more than one tier —
+but the owner removed that premise: there is one Coga repo on 1Password, one
+SA, and one automation vault, with the trust-named vaults reserved for human
+access. Option 3 therefore preserves the original security property at no cost,
+and the candidate wording the memo drafted ("A leaked token can read every
+vault granted to that account") is not the wording to ship.
+
+The memo's comparison table, which remains useful if the premise ever returns:
 
 | Model | Works with today's one-token launch | SA-token blast radius | Operational/code cost | Future vault cost |
 | --- | --- | --- | --- | --- |
@@ -140,79 +228,9 @@ separate execution-isolation design, not as a small extension of secret lookup.
 | 2. One SA per vault | No | One vault **only if** credentials and child environments are also isolated | Token mapping, per-ref selection, source-token scrubbing, config/docs/tests | Add one SA and mapping without rotating unrelated tiers |
 | 3. One vault per repo | Yes | The repo vault | Simplest | Loses useful human-access and rotation separation |
 
-Option 1 matches the concrete operating need and Coga's current execution
-boundary: one repo launcher with one ambient `OP_SERVICE_ACCOUNT_TOKEN`. It
-also follows the current project-stage rule against adding a credential router
-for a hypothetical boundary. Option 3 is simpler only by discarding benefits
-the worked example already uses. Option 2 is defensible if cross-tier token
-containment is a hard requirement, but then the current runtime model—not just
-the wording—must change.
-
-Current 1Password documentation supports the factual premises: a service
-account may be granted selected **multiple** vaults, its access and permissions
-are immutable after creation, and 1Password recommends one service account per
-purpose with only the vaults that purpose needs:
-
-- <https://www.1password.dev/service-accounts/get-started>
-- <https://www.1password.dev/get-started/secure-developers>
-
-### Important weak spot outside the stated three-way choice
-
-`src/coga/config.py:build_launch_env()` starts from the full parent environment
-and scrubs only variables named by ticket `env:` references. It does not scrub
-`OP_SERVICE_ACCOUNT_TOKEN`. No later removal was found at the launch,
-megalaunch, or recurring-recipe call sites. Consequently, a spawned agent or
-recipe can invoke `op` directly with the repo SA and read any vault that SA can
-read, even when the ticket declares only one secret.
-
-That conflicts with `coga/architecture`'s statement that the ticket-level
-`secrets:` list defines task capability. Before durable docs imply that
-declared refs contain a worker, Coga should make one of these explicit:
-
-1. **Recommended invariant:** Coga may use the SA token while resolving
-   declared refs, but removes it before spawning the agent/recipe. The child
-   receives only resolved aliases. This needs a focused follow-up code ticket,
-   including an answer for nested Coga commands that may need notification
-   credentials.
-2. **Weaker documented model:** every worker inherits repo-wide 1Password
-   authority, and `secrets:` controls convenience/injection rather than
-   capability. This is consistent with current behavior but materially widens
-   the trust boundary.
-
-Vault-to-token mapping would not fix this by itself. If all tier tokens are
-delivered into one parent environment and inherited by the child, mapping can
-increase the number of exposed root credentials while providing no worker
-containment. A correct option-2 design would need at least per-reference token
-selection, scrubbing of every token source before spawn, explicit behavior for
-cross-tier tickets, and tests proving a low-tier worker cannot use a high-tier
-credential.
-
-### Candidate durable wording if the human accepts option 1
-
-> **Service account** — the headless 1Password identity. Authenticates via
-> `OP_SERVICE_ACCOUNT_TOKEN` and is read-only. Use one service account per Coga
-> repo / automation purpose by default, granting it only the vaults that
-> purpose's headless work needs and never the root-level vault that stores its
-> token. A leaked token can read every vault granted to that account.
->
-> **Vaults** — containers named by trust level. For the repo service account,
-> tiers classify secrets; they do not contain a leaked SA token. They still
-> provide legible sensitivity, separate human access grants, audit boundaries,
-> and independent secret rotation.
-
-### Human judgment requested
-
-Confirm or revise two decisions independently:
-
-1. v1 identity model: option 1 (recommended) versus accepting the option-2
-   implementation cost for genuine per-tier token containment.
-2. worker capability model: scrub the raw SA token after resolution
-   (recommended) versus explicitly granting every worker repo-wide vault
-   access.
-
-### Verification
-
-- `git diff --check` passed.
-- `coga validate --json` found no issue for this task. The repo-wide command
-  still exits 1 on unrelated pre-existing `v2/` ticket errors (`missing-step`
-  and `unsynthesized-draft-blackboard`); its other findings are warnings.
+A correct option-2 design would have needed per-reference token selection,
+scrubbing of every token source before spawn, explicit behavior for cross-tier
+tickets, and tests proving a low-tier worker cannot use a high-tier credential.
+Vault-to-token mapping alone would not have helped: delivering every tier token
+into one parent environment increases exposed credentials without containing
+the worker.
