@@ -104,7 +104,12 @@ Outcome digest surface — spooled into the daily digest (live fallback below):
 Both recurring-error producers append one delivery-neutral record when the
 digest is installed, and the daily aggregate stays in flow. With no digest,
 their `notify(..., important=True)` fallback posts live to important. There is
-never both a spool record and a live post for one event.
+never both a spool record and a live post for one event. The scan-error summary
+sends that fallback `fatal=False`: it runs in `_broadcast_scan`, before the
+launch loop, and every skipped template it names has already been printed to
+stderr and to the scan table, so neither an undeliverable post nor an
+unresolved `important_webhook` may abort a sweep whose period tasks have not
+run yet.
 
 Silent lifecycle surface — no notification post, no spool record:
 
@@ -195,8 +200,17 @@ as `timed_out` — an agent sandbox with restricted network is enough to trigger
 it. This is the bargain git sync already makes for the same reason: the
 markdown on disk is the source of truth, so a failed *announcement* of it must
 not decide whether a session ends, and "fail loud" means surface the miss, not
-crash. Misconfiguration (an unresolved webhook) still crashes on both paths —
-a rerun reproduces it identically, so the crash is the fix.
+crash.
+
+Misconfiguration (an unresolved webhook for the requested route) rides the same
+carve-out: it crashes on the default `fatal=True` path — a rerun reproduces it
+identically, so the crash is the fix — and under `fatal=False` it is reported on
+stderr and returned, exactly like a delivery miss. What `fatal=False` never buys
+is a *reroute*: an important post with no `important_webhook` is dropped, never
+sent to flow. The fail-fast configuration gate is `preflight_post(cfg)`, which
+the `commands/*` module runs *before* the mutation; by the time a `fatal=False`
+post runs, crashing can only skip work that the already-committed write still
+needs done.
 
 The strict single-checkout assist path has one narrower exception after it has
 published lifecycle state under an exact feature lease: a live delivery failure
@@ -296,9 +310,9 @@ new string:
   enabled + no webhook → crash; enabled + webhook → POST, then on failure
   report (stderr + `log.md`) and either crash (`fatal=True`, the default) or
   return (`fatal=False`, for a post that follows a committed transition). The
-  channel raises `NotificationDeliveryError` for a delivery miss; `post` is
-  where that becomes `typer.Exit(1)` or a return. Configuration failures skip
-  that boundary and crash from the channel itself.
+  channel raises `NotificationDeliveryError` for a delivery miss and
+  `typer.Exit(1)` for a configuration refusal; `post` is the single boundary
+  where *both* become a crash or a return, per `fatal`.
 - `src/coga/notification/slack.py::SlackChannel` — the Slack backend. It owns
   Slack text rendering (project/owner prefix, watcher cc, image attachment),
   mention rendering, and the webhook POST.
@@ -333,11 +347,13 @@ new string:
   `config._resolve_notification_slack_important_webhook` with the same `env:`
   indirection and local-overrides-shared rule. Unset resolves to None and
   `SlackChannel.webhook_for`
-  crashes an `--important` post (exit 1, stderr note) rather than rerouting it
+  refuses an `--important` post (exit 1, stderr note) rather than rerouting it
   to `webhook`: delivering a human-action alert to the wrong channel while
   reporting success is worse than crashing, and the crash is what gets the
-  config fixed. Each downstream repo carries its own `coga.toml`, so the
-  unconfigured case is live.
+  config fixed. The refusal is absolute; whether it *aborts the caller* is
+  `post`'s `fatal` decision, so a `fatal=False` producer drops the alert loudly
+  instead of taking its command down. Each downstream repo carries its own
+  `coga.toml`, so the unconfigured case is live.
 - Important posts carry no dedicated recipient key: `coga slack --important` @'s
   the task owner through the ordinary `[project] [owner]` prefix that
   `SlackChannel.render_text` (via `mention`) puts on every post. Whoever owns the
@@ -372,7 +388,8 @@ new string:
   finished string down to `mark.py` / `bump.py`, so grep for an actual `post(`
   call before listing a module here. Outcome producers (`notify`):
   `mark.mark_done` (including the autoclose sweep), `mark.mark_canceled`, the
-  recurring scan-error summary, and `mark.mark_paused` only when the recurring
+  recurring scan-error summary (`recurring_runner._broadcast_scan`, important,
+  `fatal=False`), and `mark.mark_paused` only when the recurring
   watchdog supplies `slack_text`. Both paths pass
   `task_path=ref.path` (when a task exists) so a live-post failure trace lands
   in the repo-global `coga/log.md`, tagged with the task ref.

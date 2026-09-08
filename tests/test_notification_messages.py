@@ -421,6 +421,38 @@ def test_recurring_scan_error_uses_important_live_fallback(
     assert "recurring scan skipped 1 template" in posts[0]
 
 
+def test_recurring_scan_error_without_important_webhook_does_not_abort(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A repo with no resolved important webhook must still finish its sweep.
+
+    Regression: `_broadcast_scan` sent the skipped-template summary with an
+    unwrapped `important=True`, so the channel's configuration refusal
+    propagated out of the scan phase — which runs before the launch loop — and
+    took the whole sweep down over a report already on stderr and in the scan
+    table. Unexporting the referenced var is the same unresolved `None` as
+    omitting the key.
+    """
+    from coga.recurring import DueScan
+    from coga.recurring_runner import _broadcast_scan
+
+    monkeypatch.delenv("COGA_IMPORTANT_WEBHOOK_URL")
+    urls: list[str] = []
+    posts = _capture(monkeypatch, urls=urls)
+    _broadcast_scan(
+        load_config(repo),
+        DueScan(tasks=[], errors=[("bad", "invalid schedule")]),
+    )
+
+    # The alert is dropped, never rerouted to the flow webhook, and the remedy
+    # is loud on stderr.
+    assert posts == []
+    assert urls == []
+    assert "important_webhook" in capsys.readouterr().err
+
+
 def test_recurring_scan_error_spools_once_without_live_post(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

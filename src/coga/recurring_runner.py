@@ -4749,12 +4749,18 @@ def _broadcast_scan(
         plural = "" if n == 1 else "s"
         bullets = "\n".join(f"• {name}: {msg}" for name, msg in scan.errors)
         inline = "; ".join(f"{name} ({msg})" for name, msg in scan.errors)
+        # `fatal=False`: every skipped template above is already on stderr and
+        # in the scan table, so this alert is a second channel for a report
+        # that has already landed. It runs before the launch loop, so letting a
+        # repo with no resolved `important_webhook` crash here took down the
+        # whole sweep — no period task ran — over a notification sink.
         notify(
             cfg,
             f"⚠️ recurring scan skipped {n} template{plural}\n{bullets}",
             kind="recurring-error",
             detail=f"⚠️ recurring scan skipped {n} template{plural}: {inline}",
             important=True,
+            fatal=False,
         )
 
 
