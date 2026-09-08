@@ -74,7 +74,9 @@ and the SA's blast radius is exactly its one vault. A ticket must not declare
 it before spawning the agent or recipe, so the child sees only the resolved
 destination aliases. That makes `secrets:` a real capability bound rather than
 an injection convenience. It is a code change to `config.build_launch_env()`
-and belongs in its own ticket — **out of scope here**. Until it lands, durable
+and belongs in its own ticket — **out of scope here**. That ticket now exists:
+`scrub-the-service-account-token-from-the-launch-ch` (draft, `code/with-review`).
+Until it lands, durable
 docs must keep saying plainly that a launched worker inherits the token and can
 read the whole vault regardless of what its ticket declared.
 
@@ -84,16 +86,21 @@ read the whole vault regardless of what its ticket declared.
   packaged twin under `src/coga/resources/templates/`, so it is a single edit.
   `coga/contexts/coga/architecture/SKILL.md` does have a packaged twin and must
   be kept in sync if its "declaration, not a sandbox" wording is touched.
-- Replace the open-decision block ("Open decision — do not read a
-  recommendation into the above") with the settled model: one SA, one
-  automation vault, never the root-level vault; trust-named vaults are human
-  access boundaries, not a partition of the SA's grant.
+- Under `## The service account and its vault`, replace the block-quoted
+  "Open decision — do not read a recommendation into the above" paragraph with
+  the settled model: one SA, one automation vault, never the root-level vault.
+- In the same section, the **Vault** bullet currently ends "Whether they also
+  bound the *automation's* blast radius depends on how many vaults one account
+  is granted." That hedge is now answered: they do not bound it because they
+  are not granted to the SA at all. Trust-named vaults are a human access
+  taxonomy; the SA's blast radius is its one automation vault.
 - Keep the single-vault security claim, now true as stated, and keep the
   existing honest text about the token surviving into the child environment —
   the scrub is a future ticket, not current behavior.
-- Fix the "Adding a headless secret" recipe, which currently names
-  `coga-low-trust` as the vault in its example ref and verification command:
-  with one automation vault the tier-named example is misleading.
+- Fix the "Adding a headless secret" recipe, whose step 2 example ref and
+  step 3 `coga secret get` verification both hardcode `op://coga-low-trust/...`.
+  With one automation vault a tier-named example is misleading; its step 1
+  ("Create the item in a vault based on the trust level") needs the same fix.
 
 ### Background: why two service accounts is not the escape hatch
 
