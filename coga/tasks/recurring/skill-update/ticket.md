@@ -1,7 +1,7 @@
 ---
 slug: recurring/skill-update
 title: Skill update
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -18,7 +18,6 @@ workflow:
     - bootstrap/skill-update
     assignee: agent
 secrets: null
-step: 1 (update)
 ---
 
 ## Description
@@ -91,6 +90,37 @@ PR: none opened — no clean skill updates to commit.
 ### Needs follow-up
 
 - `clarity`: `conflict` (url) - local files differ from recorded installed digest and upstream changed; manual resolution required
+
+### Skipped
+
+- `bootstrap/delete-task`: `skipped-bundled` (bundled) - bundled skill updates come from the coga package; run `pip install --upgrade coga`
+- `bootstrap/dream/scan/contract-audit`: `skipped-bundled` (bundled) - bundled skill updates come from the coga package; run `pip install --upgrade coga`
+- `bootstrap/dream/scan/knowledge-scan`: `skipped-bundled` (bundled) - bundled skill updates come from the coga package; run `pip install --upgrade coga`
+- `bootstrap/dream/scan/scan-protocol`: `skipped-bundled` (bundled) - bundled skill updates come from the coga package; run `pip install --upgrade coga`
+- `bootstrap/dream/tasks/cleanup-orphan-markers`: `skipped-bundled` (bundled) - bundled skill updates come from the coga package; run `pip install --upgrade coga`
+- `bootstrap/dream/tasks/validate-drift`: `skipped-bundled` (bundled) - bundled skill updates come from the coga package; run `pip install --upgrade coga`
+- `bootstrap/import`: `skipped-bundled` (bundled) - bundled skill updates come from the coga package; run `pip install --upgrade coga`
+- `bootstrap/skill-update`: `skipped-bundled` (bundled) - bundled skill updates come from the coga package; run `pip install --upgrade coga`
+- `bootstrap/ticket`: `skipped-bundled` (bundled) - bundled skill updates come from the coga package; run `pip install --upgrade coga`
+- `browser/build-automation`: `skipped-bundled` (bundled) - bundled skill updates come from the coga package; run `pip install --upgrade coga`
+- `coga/calendar-reminder`: `skipped-bundled` (bundled) - bundled skill updates come from the coga package; run `pip install --upgrade coga`
+- `coga/gmail`: `skipped-bundled` (bundled) - bundled skill updates come from the coga package; run `pip install --upgrade coga`
+- `coga/google-calendar`: `skipped-bundled` (bundled) - bundled skill updates come from the coga package; run `pip install --upgrade coga`
+- `retro/done-ticket`: `skipped-bundled` (bundled) - bundled skill updates come from the coga package; run `pip install --upgrade coga`
+
+## Skill Update
+
+Generated: 2026-09-08T23:49:13+00:00
+Command: `/home/n/.local/share/uv/tools/coga/bin/python3 -m coga.cli skill update --all --json --pr --pr-title 'Update Coga-managed skills'`
+Task: `recurring/skill-update`
+
+Result: 16 skill(s): 2 updated, 0 need follow-up, 14 skipped.
+PR: https://github.com/FastJVM/coga/pull/762
+
+### Updated
+
+- `gh-managed`: `delegated` (github) - delegated GitHub-backed skill updates to gh skill
+- `clarity`: `updated` (url) - updated from URL source
 
 ### Skipped
 
