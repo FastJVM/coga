@@ -1,7 +1,7 @@
 ---
 slug: redo-documentation-dir-and-merge-it-with-context-b
 title: redo documentation dir and merge it with context blocks
-status: active
+status: in_progress
 owner: nicktoper
 human: nick
 agent: claude
