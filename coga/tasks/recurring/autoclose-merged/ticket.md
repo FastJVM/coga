@@ -1,7 +1,7 @@
 ---
 slug: recurring/autoclose-merged
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -18,7 +18,6 @@ workflow:
     - coga/autoclose/sweep
     assignee: agent
 secrets: null
-step: 1 (sweep)
 ---
 
 ## Description
@@ -59,3 +58,24 @@ no merged final-step tickets exits successfully and changes nothing.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-09-08T23:50:09+00:00
+Task: `recurring/autoclose-merged`
+
+13 auto-closed ticket(s) still have a recorded feature checkout. Autoclose never removes one — `coga retire` owns the worktree and branch safety proofs:
+
+- `carry-adjacent-bugs-out-of-a-blackboard-before-ret` "Carry adjacent bugs out of a blackboard before Retro deletes it": worktree `/tmp/coga-retro-adjacent-bugs`, branch `retro-adjacent-bugs` — `coga retire carry-adjacent-bugs-out-of-a-blackboard-before-ret`
+- `cleanup/add-a-debug-mode-to-init-for-vendoring-from-source` "Vendor the init venv from PyPI only, dropping source-install paths": worktree `/home/n/Code/codex/coga-vendor-pypi-only`, branch `vendor-pypi-only` — `coga retire cleanup/add-a-debug-mode-to-init-for-vendoring-from-source`
+- `cleanup/detect-the-current-git-branch-instead-of-hard-codi` "Detect the current git branch instead of hard-coding control branch main": worktree `/home/n/Code/coga-init-control-branch`, branch `init-control-branch` — `coga retire cleanup/detect-the-current-git-branch-instead-of-hard-codi`
+- `dream-reconciliation-must-count-distinct-shard-ids` "Dream reconciliation must count distinct shard ids, not completion lines": worktree `/home/n/Code/codex/coga-dream-reconcile-distinct-shards`, branch `dream-reconcile-distinct-shards` — `coga retire dream-reconciliation-must-count-distinct-shard-ids`
+- `give-a-ticket-s-superseded-design-one-documented-h` "Give a ticket's superseded design one documented home": worktree `/home/n/Code/codex/coga-superseded-design-doc`, branch `docs/superseded-design-home` — `coga retire give-a-ticket-s-superseded-design-one-documented-h`
+- `launch-activates-before-preflight` "Launch activates a draft before its preflight checks refuse it": worktree `/home/n/Code/claude/coga-defer-launch-activation`, branch `defer-launch-activation` — `coga retire launch-activates-before-preflight`
+- `live-and-packaged-twin-pairs-are-edited-together-b` "Live and packaged twin pairs are edited together by convention but not enforced by any test": worktree `/home/n/Code/codex/coga-derive-twin-sync`, branch `derive-twin-sync` — `coga retire live-and-packaged-twin-pairs-are-edited-together-b`
+- `megalaunch-activates-picks-before-preflight` "Megalaunch activates picked tickets before its preflight checks refuse them": worktree `/home/n/Code/claude/coga-megalaunch-defer-activation`, branch `megalaunch-defer-activation` — `coga retire megalaunch-activates-picks-before-preflight`
+- `no-comms-writing-skill-the-process-is-smeared-thro` "No comms-writing skill; the process is smeared through marketing plan": worktree `/home/n/Code/claude/coga-write-post-skill`, branch `write-post-skill` — `coga retire no-comms-writing-skill-the-process-is-smeared-thro`
+- `no-skill-exists-for-the-cold-evaluator-review-of-a` "No skill exists for the cold evaluator review of a design spec": worktree `/tmp/coga-cold-design-review`, branch `cold-design-review` — `coga retire no-skill-exists-for-the-cold-evaluator-review-of-a`
+- `packaged-repos-ship-recurring-templates-without-th` "Packaged repos ship recurring templates without the coga recurring context": worktree `/home/n/Code/claude/coga-package-recurring-context`, branch `package-recurring-context` — `coga retire packaged-repos-ship-recurring-templates-without-th`
+- `retire-never-removes-a-worktree-that-ran-the-tests` "Retire never removes a worktree that ran the tests": worktree `/home/n/Code/claude/coga-retire-cache-worktrees`, branch `retire-cache-worktrees` — `coga retire retire-never-removes-a-worktree-that-ran-the-tests`
+- `service-recurring-from-a-temp-control-worktree-ins` "Service recurring from a temp control worktree instead of failing the repo": worktree `/home/n/Code/claude/coga-recurring-control-worktree`, branch `recurring-control-worktree` — `coga retire service-recurring-from-a-temp-control-worktree-ins`
