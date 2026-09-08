@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nick
 agent: claude
-assignee: codex
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -37,7 +37,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (evaluate-design)
+step: 3 (review-design)
 ---
 
 ## Description
@@ -694,3 +694,128 @@ For independent evaluation and the following owner `review-design` gate:
    adoption, or supply a smaller implementation scope. Confirm the owner will
    make the exact shared-config edit in the prepared migration checkout and
    coordinate the final publication/cutover sequence.
+
+## Evaluator review
+
+Cold review on 2026-09-08 against `44e62a7d`; the authored-source audit revision
+`e742d929` still describes the inspected implementation. Read the ticket body
+as the contract before consulting the handoff. No contexts are attached to this
+ticket; relevant repo contexts, source, tests, and the package-backed
+`code/design-then-implement` workflow were inspected directly.
+
+**Verdict: return to the owner gate with one must-fix distribution finding.**
+The relocation approach is supported by the existing implementation and fits
+the markdown/filesystem boundary. The existing pitch, cuts, distribution and
+split questions still require owner decisions. This is not approval to begin
+the corpus rewrite: the gate must give this ticket a concrete scope and name
+its prerequisites before handing it to `implement`.
+
+### Must resolve before implementation
+
+1. **P2 — Inventory and preserve the init-seeded context distribution path.**
+   The corpus table labels both browser contexts local-only, and the proposed
+   pairing changes cover bootstrap contexts plus context scaffolds. However,
+   `src/coga/resources/templates/coga/contexts/browser/api-first/SKILL.md` and
+   `src/coga/resources/templates/coga/contexts/browser/dom-backed/SKILL.md`
+   also exist and are byte-identical to their live counterparts.
+   `commands/update.py::copy_fresh_templates` copies this ordinary template
+   tree into new repos; only `bootstrap` is excluded. There are therefore
+   12 bootstrap fallback topics **plus two init-seeded topics**, not only
+   12 distributed topics. This does not change the unique-knowledge byte sum.
+
+   The resolver distinction matters: `paths.resolve_context_path` checks the
+   configured local root and `bootstrap/contexts`, not `templates/coga/contexts`.
+   A temporary probe using this checkout's package resources returned no
+   `browser/api-first` without local overrides, then resolved
+   `contexts/browser/api-first/SKILL.md` after `copy_fresh_templates`.
+   The missing-bootstrap-fallback finding is valid; the claim that the context
+   is absent from package contexts overlooks the seeded source copies. The current
+   `tests/test_compose.py::test_compose_browser_automation_bootstrap_uses_bundled_router_skill`
+   supplies the context locally and does not prove fallback availability.
+
+   Following the scaffold-only relocation mapping would leave these two
+   maintained copies outside the new canonical/package comparison:
+   `tests/test_packaging.py::_live_counterparts` would still look under
+   `coga/contexts/browser`, and `_discover_live_packaged_twins` would silently
+   drop the pairs after the move. Keeping them would contradict the proposed
+   local-only classification; removing them would change template-seeded setup
+   behavior without an explicit disposition.
+
+   **Resolution needed:** distinguish init-seeded, bootstrap-fallback and
+   local-only distribution in the ledger/policy; map every retained
+   `templates/coga/contexts/**` file to the configured canonical root, not only
+   scaffolds; and explicitly decide the browser copies' retention or migration.
+   Keep fresh-init closure and no-local-overrides fallback closure as separate
+   checks. A focused browser fallback repair can remain separate, but its
+   treatment must not erase existing seeded delivery or silently weaken pairing.
+
+### Optional recommendations
+
+1. **Assign the final overview reductions across the prerequisite PRs.**
+   Prerequisite 2 owns the CLI index, while prerequisites 3 and 4 own many of
+   its destinations. The current bundled `coga/cli` sections for launch,
+   megalaunch, recurring, digest, secrets and usage still contain substantive
+   contracts; `service-recurring-from-a-temp-control-worktree-ins` currently
+   attaches only architecture and CLI. The spec's rule to remove only replaced
+   explanations is sound. Make its intermediate application explicit: retain
+   unmigrated sections and their necessary attachments until the owning topic
+   PR replaces them, and assign who finishes shortening shared overviews.
+   Apply the final overview budgets after those dependent topics have landed.
+
+2. **Make the already-requested required-topic floor concrete.**
+   Forward and reverse correspondence both pass if a shipped topic is deleted
+   from both trees. Bind the required-ref check to the owner-approved topic set
+   and exercise a both-copies-deleted case, alongside the proposed missing-one-
+   counterpart test. `tests/test_packaging.py::EXPECTED_BOOTSTRAP_RESOURCES`
+   currently names only some contexts, and
+   `test_twin_discovery_still_walks_the_packaged_tree` has a broad count floor;
+   neither alone protects every newly split contract.
+
+3. **Reconcile the starter template with the approved size policy.**
+   `coga/contexts/_template/SKILL.md` and its packaged twin currently justify
+   contexts of tens of KB and explicitly say length is not the test. The
+   migration introduces size-triggered review and owner-approved exceptions.
+   Have the knowledge-policy prerequisite reconcile this authoring guidance,
+   preserving metadata and ignore conventions, so newly authored topics inherit
+   the same policy as the migrated library.
+
+### Verified claims and review receipts
+
+- `config.Config.contexts_root` / `_parse_layout`,
+  `paths.resolve_context_path`, `authoring.authoring_sync_roots`,
+  `git._coga_state_pathspecs` / `_removed_paths_from_previous_contexts_root`,
+  and the init/uninstall implementations support the proposed root and
+  ownership boundary. Inspected the corresponding relocation, init and
+  uninstall tests. Shared `[layout]` is currently unset; the loaded root is
+  `/home/n/Code/claude/coga/coga/contexts`.
+- `compose.compose_prompt_report` reads only `ticket.contexts`, includes the
+  selected files' frontmatter, and does not follow Markdown links.
+  `recurring._create_at_slug` still adds the small `coga/period-task` ref.
+  The reported orientation-guide errors and publish-only release CI match
+  `commands/init.py::AGENT_GUIDE_TEMPLATE`, `bootstrap/orient/ticket.md` and
+  `.github/workflows/release.yml`.
+- Read-only probes used `/home/n/.local/share/uv/tools/coga/bin/python3` with
+  this checkout's source. `load_config`, `resolve_target`, `read_ticket` and
+  `compose_prompt_report` reproduced all seven context/total baselines in the
+  spec exactly: use `launch_context="attended"` for the first six samples and
+  `launch_context="recurring"` for Dream. Dream under attended conduct is
+  8,319 total tokens instead of 8,525; preserve the conduct selection in the
+  frozen comparison. No task, Dream script or agent was executed.
+- The tracked package inventory and byte comparisons confirm all 11 existing
+  bootstrap/live topic pairs, the two additional seeded browser pairs, and the
+  formerly package-only CLI topic. Scanning shipped YAML context attachments
+  found only `bootstrap/browser-automation/ticket.md`'s `browser/api-first`
+  attachment missing from the bootstrap fallback tree.
+- `_should_sweep_coga_state(['coga', 'launch', 'sample', '--prompt-report'])`
+  returned `True`; the report handler refreshes the generated skill view.
+  The spec's use of the composer API for in-place checks is warranted.
+- `coga validate --json`: exit 1, 175 OK, 40 warnings and the same four
+  `unsynthesized-draft-blackboard` errors recorded above. No unrelated repair.
+  `coga validate --task redo-documentation-dir-and-merge-it-with-context-b --json`:
+  exit 0, one OK, no issues.
+- This review changes only this blackboard section. The pre-existing dirty
+  `coga/log.md` was left to the CLI. No ticket-body/config/source edits,
+  branch, manual commit, PR, pytest run or wheel build were performed.
+- `git diff --check`: passed. Byte comparison with the pre-review ticket
+  confirms unchanged frontmatter/body and all prior blackboard content, one
+  blackboard fence, and exactly one `## Evaluator review` section.
