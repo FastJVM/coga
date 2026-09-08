@@ -4466,3 +4466,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-08 10:26 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-09-08 10:22 [service-account-scoping-single-vault-rule-conflict] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-09-08 10:30 [scrub-the-service-account-token-from-the-launch-ch] [human:nicktoper] created (status=draft)
+2026-09-08 10:33 [service-account-scoping-single-vault-rule-conflict] [agent:nicktoper] advanced to step 3 (report-to-coga) → assigned to claude — Owner settled both calls: one SA with one automation vault (single-vault rule stands; trust tiers are human-access only), and token-scrub split out to scrub-the-service-account-token-from-the-launch-ch. Step 3 = the coga/secrets doc edit, checklist in ## Context.

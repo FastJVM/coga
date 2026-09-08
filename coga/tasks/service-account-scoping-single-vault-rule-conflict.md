@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: nicktoper
+assignee: claude
 contexts:
 - coga/secrets
 - coga/architecture
@@ -23,7 +23,7 @@ workflow:
     skills: []
     assignee: agent
 secrets: null
-step: 2 (human-owns-and-finishes)
+step: 3 (report-to-coga)
 ---
 
 ## Description
