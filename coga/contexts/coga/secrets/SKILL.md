@@ -16,22 +16,27 @@ as OP_SERVICE_ACCOUNT_TOKEN at run time.
 ## The service account and its vault
 
 - **Service account** — the headless 1Password identity.
-  Authenticates via `OP_SERVICE_ACCOUNT_TOKEN`, read-only. Never grant it the
-  root-level vault holding its own token. A leaked token reads every vault that
-  account was granted, so the blast radius is exactly the grant.
-- **Vault** — the container the SA reads. Secrets will accrue in vaults named by their trust level.
-  The tiers **classify**: they buy legible sensitivity, separate *human* access
-  grants, and independent rotation. Whether they also bound the *automation's*
-  blast radius depends on how many vaults one account is granted.
+  Authenticates via `OP_SERVICE_ACCOUNT_TOKEN`, read-only, **scoped to a single
+  automation vault**. Never grant it the root-level vault holding its own token.
+  A leaked token reads that one vault and nothing else.
+- **Vault** — the container the SA reads. Secrets accrue in vaults named by
+  their trust level, but those tiers are a **human** access taxonomy: they buy
+  legible sensitivity, separate *human* access grants, and independent
+  rotation. They do **not** bound the automation's blast radius, because they
+  are not granted to the service account at all. The SA holds exactly one
+  automation vault, and that vault is its blast radius.
 
-> **Open decision — do not read a recommendation into the above.** How SA
-> grants map to trust tiers (one account per repo spanning tiers, one account
-> per vault, or a single untiered vault) is an unsettled, human-owned choice
-> tracked in `coga/tasks/service-account-scoping-single-vault-rule-conflict`.
-> It sets the blast radius of a leaked token and the per-vault option needs
-> code Coga does not have. Until that ticket's human step closes, describe
-> current behavior and leave the model to the operator; do not publish one
-> option as the contract.
+**The model: one service account, one automation vault.** There is one Coga
+repo backed by 1Password and one read-only service account, granted a single
+automation vault. Every other trust-named vault is human password/access
+management the SA is never granted, and neither is the root-level vault holding
+its own token. A ticket therefore must not declare `op://` refs outside the
+automation vault — nothing will resolve them.
+
+Treat that scope as close to irreversible. 1Password fixes a service account's
+vault access **at creation**; there is no way to add a vault later. Widening
+scope means a new account, a rotated token, and re-delivery to every machine and
+cron environment, so a second vault is a migration, not a config change.
 
 **Scoping bounds the grant, not the process.** Everything above describes how
 1Password grants bound what a leaked token reads. It does not describe a
@@ -40,8 +45,8 @@ sandbox around a launched task, and the two are easy to conflate.
 a declaration, not a sandbox": `config.build_launch_env()` starts from the full
 parent environment and scrubs only the source variables an `env:VAR` ref names.
 It does not special-case `OP_SERVICE_ACCOUNT_TOKEN`, so the token normally
-survives and a launched agent can run `op read` against every vault that service
-account can reach, regardless of what its ticket declared. Secret construction
+survives and a launched agent can run `op read` against the whole automation
+vault, regardless of which single item its ticket declared. Secret construction
 first removes every named `env:VAR` source, then writes each resolved value
 under its declared destination alias. The final alias set therefore matters as
 much as the sources: `TASK_OP_TOKEN: env:OP_SERVICE_ACCOUNT_TOKEN` removes the
@@ -77,17 +82,19 @@ not understood in config at all, in those two fields or any other.
 
 ## Adding a headless secret
 
-1. Create the item in a vault based on the trust level.
+1. Create the item in the **automation vault** — the one vault the service
+   account is granted. An item filed in a trust-named human vault is
+   unreadable to the SA, so its ref will never resolve at launch.
 2. On the ticket that *consumes* it, declare the inline ref. The ref lives
    where its subject lives, not where the credential lives.
 
    ```yaml
    secrets:
-     - NAME: op://coga-low-trust/<item>/<field>
+     - NAME: op://<automation-vault>/<item>/<field>
    ```
 
    A value the operator already exports locally can use the same shape with an
    `env:VAR` ref instead — no vault, no `op` involved.
-3. Verify with `coga secret get op://coga-low-trust/<item>/<field>` in a clean
-   env where `OP_SERVICE_ACCOUNT_TOKEN` is the only credential. A personal `op`
-   login reads everything and gives a false pass on SA scoping.
+3. Verify with `coga secret get op://<automation-vault>/<item>/<field>` in a
+   clean env where `OP_SERVICE_ACCOUNT_TOKEN` is the only credential. A personal
+   `op` login reads everything and gives a false pass on SA scoping.
