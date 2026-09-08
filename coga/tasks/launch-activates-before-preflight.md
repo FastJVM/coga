@@ -1,7 +1,7 @@
 ---
 slug: launch-activates-before-preflight
 title: Launch activates a draft before its preflight checks refuse it
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -34,7 +34,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 5 (review)
 ---
 
 ## Description
