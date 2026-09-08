@@ -1,7 +1,7 @@
 ---
 slug: service-account-scoping-single-vault-rule-conflict
 title: 'Service account scoping: single-vault rule conflicts with trust-tiered vaults'
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -23,7 +23,6 @@ workflow:
     skills: []
     assignee: agent
 secrets: null
-step: 3 (report-to-coga)
 ---
 
 ## Description
@@ -177,21 +176,67 @@ option 3 preserves the same property for free.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Current state (2026-09-08)
+## Current state (2026-09-08) — step 3 complete
 
-Step 2 (`human-owns-and-finishes`) has its answer. Both decisions are recorded
-under `## Context` in the ticket body; read that, not the memo below.
+Step 2 (`human-owns-and-finishes`) produced the decision; both calls are
+recorded under `## Context` in the ticket body. Step 3 (`report-to-coga`) has
+now landed the doc edit those decisions called for.
 
 - **Vault shape:** one service account, one automation vault. Other
   trust-named vaults are human password/access only and are never granted to
   the SA. The single-vault security claim survives intact.
 - **Worker capability:** scrub `OP_SERVICE_ACCOUNT_TOKEN` before spawn — agreed
-  in principle, deferred to its own code ticket. Not this ticket's scope.
+  in principle, deferred to its own code ticket
+  (`scrub-the-service-account-token-from-the-launch-ch`). Not this ticket's
+  scope, and the doc still says plainly that a launched worker inherits the
+  token.
 
-Remaining work for step 3 (`report-to-coga`): edit
-`coga/contexts/coga/secrets/SKILL.md` per the checklist in `## Context`. No
-packaged twin exists for that context, so it is a single-file edit; verify with
-`coga validate --json`.
+## Step 3 report — what shipped
+
+**Artifact:** `coga/contexts/coga/secrets/SKILL.md`, one file, repo-local only.
+Confirmed by search that no packaged twin exists under
+`src/coga/resources/templates/`, so no sync edit was needed.
+`coga/contexts/coga/architecture/SKILL.md` was **not** touched — its
+"declaration, not a sandbox" wording is still accurate under the settled model,
+so its packaged twin needed no sync either.
+
+Four changes, all inside `## The service account and its vault` and
+`## Adding a headless secret`:
+
+1. **Service account bullet** — restored the explicit security claim, now true
+   as stated: read-only, *scoped to a single automation vault*; "a leaked token
+   reads that one vault and nothing else."
+2. **Vault bullet** — replaced the hedge ("Whether they also bound the
+   automation's blast radius depends on how many vaults one account is
+   granted") with the answer: trust tiers are a **human** access taxonomy and do
+   not bound the automation's blast radius, because they are never granted to
+   the SA at all.
+3. **Open-decision block quote** — deleted, replaced by two paragraphs stating
+   the settled model (one repo, one read-only SA, one automation vault, never
+   the root-level vault; a ticket must not declare `op://` refs outside that
+   vault because nothing resolves them) plus the irreversibility warning
+   (1Password fixes vault access at creation, so a second vault is a migration
+   — new account, rotated token, re-delivery to every machine and cron env).
+4. **"Adding a headless secret" recipe** — step 1 now says to create the item in
+   the automation vault and warns that an item filed in a human trust-named
+   vault is unreadable to the SA; steps 2 and 3 replaced the misleading
+   hardcoded `op://coga-low-trust/...` with `op://<automation-vault>/...`. No
+   concrete vault name is recorded anywhere in the repo, so the placeholder
+   matches the file's existing `<item>/<field>` style.
+
+One wording tightening outside the checklist: the "Scoping bounds the grant,
+not the process" paragraph said an inherited token lets an agent read "every
+vault that service account can reach." Under the settled model that phrasing
+implies a plurality that no longer exists, so it now reads "the whole
+automation vault, regardless of which single item its ticket declared." The
+honest inheritance claim itself is unchanged — the scrub is still a future
+ticket, not current behavior.
+
+**Verification:** `coga validate --json` — 45 issues, 4 errors, all four
+pre-existing `unsynthesized-draft-blackboard` errors on unrelated `v2/` drafts.
+No issue references the secrets context or this task. Also grepped the repo for
+`coga-low-trust` and "Open decision": no remaining hits outside `coga/log.md`
+history and an unrelated ticket's own section heading.
 
 ## Durable findings that survive the decision
 
