@@ -4507,3 +4507,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-08 11:24 [recurring/resolve-conflicts] [system] completed (delegated bootstrap/resolve-conflicts run finished) via coga recurring
 2026-09-08 11:24 [recurring/skill-update] [system] started (active → in_progress) via coga launch
 2026-09-08 11:24 [recurring/skill-update] [system] launched as a script (ticket.py)
+2026-09-08 11:24 [recurring/skill-update] [system] script exited with code 1
+2026-09-08 11:25 [autofix/stop-one-failing-ticket-py-from-starving-the-rest] [system] created (status=active)
