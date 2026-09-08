@@ -96,8 +96,9 @@ paragraph):
 
 - `coga/contexts/coga/architecture/SKILL.md` — the "This is a declaration, not
   a sandbox" paragraph under *Identity and capability boundaries*. Its packaged
-  twin is `src/coga/resources/templates/coga/**bootstrap**/contexts/coga/architecture/SKILL.md`
-  (note the `bootstrap/` segment) and must stay in sync.
+  twin is at
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md`
+  — note the `bootstrap/` segment, which is easy to drop — and must stay in sync.
 - `coga/contexts/coga/secrets/SKILL.md` — repo-local, **no** packaged twin. Its
   "Scoping bounds the grant, not the process" section states the current
   inherit-the-token behavior explicitly and has to change with the code.
