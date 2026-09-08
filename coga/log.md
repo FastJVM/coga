@@ -4538,3 +4538,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-08 16:49 [recurring/skill-update] [system] script exited with code 0
 2026-09-08 16:49 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
 2026-09-08 16:49 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
+2026-09-08 16:49 [carry-adjacent-bugs-out-of-a-blackboard-before-ret] [human:nicktoper] auto-bumped on merge of PR #757 → done
