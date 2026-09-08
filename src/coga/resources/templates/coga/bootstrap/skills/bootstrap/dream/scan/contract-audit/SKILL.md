@@ -44,9 +44,13 @@ budget:
 - **copy divergence** — one shard over actual counterpart pairs only. In the
   Coga source repo the pairs come from `tests/test_packaging.py`, where
   `IDENTICAL_LIVE_PACKAGED_PAIRS` is *derived* from the packaged tree at import
-  rather than written out, so print it instead of reading literals:
-  `python -c "import sys; sys.path.insert(0, 'tests'); import test_packaging as
-  t; print('\n'.join(f'{a} {b}' for a, b in t.IDENTICAL_LIVE_PACKAGED_PAIRS))"`.
+  rather than written out, so print it instead of reading literals. Run this
+  from the repo root, keeping the `-c` program on a single line:
+
+  ```sh
+  python -c "import sys; sys.path.insert(0, 'tests'); import test_packaging as t; print('\n'.join(f'{a} {b}' for a, b in t.IDENTICAL_LIVE_PACKAGED_PAIRS))"
+  ```
+
   Confirm both paths in each pair are tracked, and compare each pair with
   `cmp`. Also check an additional pair only when a living contract explicitly
   names it as a synchronized twin. Do **not** run a recursive diff between
