@@ -39,8 +39,9 @@ One-time service-account setup lives in the `coga/google-calendar`
 SKILL.md — read it. In short: create a Google service account + JSON
 key, enable the Calendar API, **share the reminders calendar with the
 service account's email** (grant "Make changes to events"), and point
-`[calendar].service_account_file` in `coga.local.toml` at the key. The
-Google client libs install into `.coga/.venv` automatically on `coga init`.
+`[calendar].service_account_file` in `coga.local.toml` at the key. Install the
+Google client libs yourself: `python -m pip install -r requirements.txt` from
+the `coga/google-calendar` skill's dir.
 
 ### Calendar target — NOT `primary`
 

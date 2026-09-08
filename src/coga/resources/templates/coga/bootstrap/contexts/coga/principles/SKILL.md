@@ -134,7 +134,8 @@ operator's machine.
 makes a network call you didn't initiate. `claude` ↔ `codex` interchangeable
 (`[agents.*]` shared in `coga.toml` and layered locally per machine,
 `other-agent` rotation across workflow steps).
-`coga init` vendors the CLI into your repo. SKILL.md is an open standard.
+`coga init` writes only markdown into your repo — no venv, no second CLI,
+nothing to un-rent. SKILL.md is an open standard.
 
 > Considered and rejected (2026-06): an opt-out anonymous install ping (3
 > fields, no PII) to gauge product-market fit. Even with loud disclosure and a

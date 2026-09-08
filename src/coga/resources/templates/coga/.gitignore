@@ -1,7 +1,7 @@
 # Machine-local config — paths and secrets. Never commit.
 coga.local.toml
 
-# Vendored CLI — written by `coga init` from upstream.
+# Machine-local Coga state — run records, megalaunch selection.
 .coga/
 
 # Generated merged skill view for agent CLIs. Rebuilt by `coga init`

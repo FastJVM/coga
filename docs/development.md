@@ -33,6 +33,19 @@ python -m coga.cli --help    # equivalent, without the console script
 Coga requires **Python 3.11+** (it uses the standard-library `tomllib`). Running
 under an older interpreter fails loud with the version it found.
 
+## `coga init` installs no software
+
+`coga init` scaffolds the markdown OS into a repo — templates, contexts,
+`coga.local.toml`, agent skill symlinks, the `.gitignore` blocks — and commits
+it. That is all it does. It builds no virtualenv, installs no package, and
+writes no `PATH` shim: the `coga` you run is the one you installed
+(`uv tool install coga`, pipx, or pip), in every repo.
+
+The consequence for development is that init is cheap and offline: an editable
+checkout can `coga init` a scratch repo without publishing anything, because
+nothing resolves a release. The full published path is covered by the [clean
+first-install gate](releasing.md#clean-first-install-gate).
+
 ## Source layout
 
 Core code lives in `src/coga/`:

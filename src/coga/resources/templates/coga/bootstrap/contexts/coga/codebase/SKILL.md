@@ -162,9 +162,10 @@ not the only shape in the tree. Three shapes coexist under `coga/skills/`:
   its recorded local modifications. Preserve a standards-valid leaf `name:`
   from upstream when applicable; Coga derives the namespaced ref from the
   directory path, and a slash does not belong in upstream leaf metadata.
-  Nothing installs a hand-vendored skill's dependencies on its behalf unless
-  that directory supplies a supported requirements manifest. A vendored skill
-  with unlisted imports is on its own.
+  Nothing installs a skill's dependencies on its behalf — Coga builds no
+  environment to install them into. A skill declares them in a
+  `requirements.txt` beside its `SKILL.md`, and the operator installs them
+  into the Python that runs the script.
 
 Skill resolution reads the directory path in all three cases. Prefer a
 namespaced directory for anything you write, expect the flat form for anything
@@ -225,21 +226,11 @@ Two sharp gotchas live here:
   The line is intent — new/overriding behavior you own, never a copy standing
   in for a broken package.
 - **Skill Python deps via `requirements.txt`.** A skill declares its
-  dependencies in a `requirements.txt` beside its `SKILL.md`.
-  `install_skill_requirements` (the tail of `install_venv` in
-  `src/coga/commands/update.py`) pip-installs every project-local
-  `coga/skills/**/requirements.txt` and package-backed
-  `bootstrap/skills/**/requirements.txt` into `.coga/.venv` on `coga init`,
-  after managed optional skills have had a chance
-  to install into `coga/skills/`. That ordering is what makes a bundled or
-  managed skill's deps land.
-- **Vendored venv interpreter.** `install_venv` uses `COGA_PYTHON` when set,
-  otherwise the interpreter running Coga, and validates that choice against
-  the install source's `requires-python` before touching the venv. An explicit override
-  is an interpreter-identity choice, not just an X.Y choice: if `pyvenv.cfg`
-  records another executable, the venv is rebuilt. Missing `venv`/`ensurepip`
-  errors name the matching Debian/Ubuntu `pythonX.Y-venv` package.
-
+  dependencies in a `requirements.txt` beside its `SKILL.md`, and the operator
+  installs them into whatever Python runs that skill's script. Coga does not
+  install them: it builds no environment to install them into, and a skill
+  script's `#!/usr/bin/env python3` resolves through the operator's own PATH.
+  A skill whose import fails says which `requirements.txt` to install.
 ## Wheel packaging: force-include vs the package walk
 
 `[tool.hatch.build.targets.wheel]` ships pure-data skill/context dirs (no
@@ -299,7 +290,7 @@ when you only need to run the suite, the proven workaround is to bypass the
 broken `.pth` with an explicit `PYTHONPATH`:
 
 ```
-PYTHONPATH=$PWD/src <repo>/.coga/.venv/bin/python -m pytest
+PYTHONPATH=$PWD/src python3.12 -m pytest
 ```
 
 Two non-obvious requirements:
@@ -310,8 +301,7 @@ Two non-obvious requirements:
   coga needs `tomllib`, stdlib only on 3.11+, but the ambient `python3` on
   these machines is often 3.9. Name a new-enough interpreter directly, e.g.
   `PYTHONPATH=$PWD/src python3.12 -m pytest`, rather than relying on `python3`
-  or a stale/absent `.coga/.venv` (which may itself be 3.9 or missing on a
-  fresh checkout).
+  (which is often 3.9 on these machines).
 
 ## Installed-versus-source skew warning
 

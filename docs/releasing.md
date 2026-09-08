@@ -87,11 +87,11 @@ no-cost way to catch a packaging problem before it's permanent.
 ## Clean first-install gate
 
 After publishing the intended version, run the public install and first-task
-path in a disposable Linux container. The harness deliberately installs Coga
-only from PyPI, initializes an ordinary existing Git repository, compares the
-repo-local CLI with the installed release, checks bundled batteries, launches
-a minimal task with a real authenticated agent CLI, validates the resulting
-repository, and saves a transcript plus the relevant markdown and Git evidence.
+path in a disposable Linux container. The harness installs Coga from PyPI,
+initializes an ordinary existing Git repository, checks bundled batteries,
+launches a minimal task with a real authenticated agent CLI, validates the
+resulting repository, and saves a transcript plus the relevant markdown and
+Git evidence.
 
 Supply the command that installs your chosen agent CLI inside the container.
 Pass any credential mounts or environment variables after `--`; they go

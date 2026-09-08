@@ -239,58 +239,17 @@ def _seed_fake_templates(templates: Path) -> None:
     )
 
 
-FAKE_VERSION = "9.9.9"
-
-
-def _fake_install_source(
-    requires_python: str | None = None,
-) -> update_cmd.InstallSource:
-    return update_cmd.InstallSource(
-        kind="release",
-        pip_spec=f"coga=={FAKE_VERSION}",
-        display=f"coga=={FAKE_VERSION} (PyPI)",
-        requires_python=requires_python,
-    )
-
-
-FAKE_SOURCE = _fake_install_source()
-
-
 @pytest.fixture
 def fake_vendor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
-    """Fake the packaged templates and the vendor source/version resolution.
+    """Fake the packaged template tree `coga init` copies from.
 
-    Resolving the install source and reading the installed version back from
-    the venv both depend on the environment (installed dist, venv python);
-    init tests pin them to `FAKE_SOURCE` / `FAKE_VERSION` instead.
+    Init installs no software, so the templates are the only environment
+    dependency left to pin.
     """
     package_templates = tmp_path / "package" / "templates" / "coga"
     _seed_fake_templates(package_templates)
     monkeypatch.setattr(update_cmd, "packaged_template_root", lambda: package_templates)
-    monkeypatch.setattr(init_cmd, "resolve_install_source", lambda: FAKE_SOURCE)
-    monkeypatch.setattr(init_cmd, "vendored_cli_version", lambda venv_dir: FAKE_VERSION)
     return package_templates
-
-
-@pytest.fixture
-def fake_venv(monkeypatch: pytest.MonkeyPatch):
-    """Stub out `install_venv` — actual pip-install is too slow + needs network for tests."""
-    calls: list[Path] = []
-
-    def fake_install(
-        coga_os: Path, source: update_cmd.InstallSource | None = None
-    ) -> Path:
-        calls.append(coga_os)
-        venv_bin = coga_os / ".coga" / ".venv" / "bin"
-        venv_bin.mkdir(parents=True, exist_ok=True)
-        # Stand in for the pip-generated console script the wrapper symlinks to.
-        coga_script = venv_bin / "coga"
-        coga_script.write_text("#!/bin/sh\necho fake venv coga\n")
-        coga_script.chmod(0o755)
-        return coga_script.parent.parent
-
-    monkeypatch.setattr(init_cmd, "install_venv", fake_install)
-    return calls
 
 
 @pytest.fixture(autouse=True)
@@ -308,172 +267,11 @@ def fake_managed_skill_sync(monkeypatch: pytest.MonkeyPatch):
     return state
 
 
-def _make_fake_checkout(root: Path, requires_python: str = ">=3.11") -> Path:
-    """A directory shaped like a coga source checkout (pyproject naming coga)."""
-    root.mkdir(parents=True, exist_ok=True)
-    (root / "pyproject.toml").write_text(
-        f"[project]\nname = 'coga'\nrequires-python = \"{requires_python}\"\n"
-    )
-    return root
-
-
-def test_resolve_install_source_env_override_checkout_path(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """COGA_REPO_URL pointing at a local checkout installs from that path."""
-    checkout = _make_fake_checkout(tmp_path / "checkout")
-    monkeypatch.setenv("COGA_REPO_URL", str(checkout))
-
-    source = update_cmd.resolve_install_source()
-
-    assert source.kind == "checkout"
-    assert source.pip_spec == str(checkout)
-    assert source.display == str(checkout)
-    assert source.requires_python == ">=3.11"
-
-
-def test_resolve_install_source_env_override_rejects_non_coga_dir(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A directory override that isn't a coga checkout fails loud, never installs."""
-    monkeypatch.setenv("COGA_REPO_URL", str(tmp_path))
-
-    with pytest.raises(SystemExit) as exc:
-        update_cmd.resolve_install_source()
-
-    assert exc.value.code == 2
-    assert "not a coga source checkout" in capsys.readouterr().err
-
-
-def test_resolve_install_source_env_override_git_url(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A URL override becomes a pip git requirement (git+ prefix added)."""
-    monkeypatch.setenv("COGA_REPO_URL", "https://github.com/FastJVM/coga")
-
-    source = update_cmd.resolve_install_source()
-
-    assert source.kind == "url"
-    assert source.pip_spec == "git+https://github.com/FastJVM/coga"
-    # No requires-python is knowable pre-install; pip enforces it instead.
-    assert source.requires_python is None
-
-
-def test_resolve_install_source_env_override_keeps_pip_git_prefix(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("COGA_REPO_URL", "git+ssh://git@github.com/FastJVM/coga.git")
-
-    source = update_cmd.resolve_install_source()
-
-    assert source.pip_spec == "git+ssh://git@github.com/FastJVM/coga.git"
-
-
-def test_resolve_install_source_redacts_credentialed_url_in_display(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv(
-        "COGA_REPO_URL", "https://coga:TOKEN@github.com/FastJVM/coga.git"
-    )
-
-    source = update_cmd.resolve_install_source()
-
-    assert source.display == "https://github.com/FastJVM/coga.git"
-    assert "TOKEN" in source.pip_spec  # pip still gets the credentials
-    assert "TOKEN" not in source.display
-
-
-def test_resolve_install_source_prefers_running_checkout(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """An editable/in-tree run vendors from its own source checkout."""
-    checkout = _make_fake_checkout(tmp_path / "checkout")
-    monkeypatch.delenv("COGA_REPO_URL", raising=False)
-    monkeypatch.setattr(update_cmd, "_running_checkout_root", lambda: checkout)
-
-    source = update_cmd.resolve_install_source()
-
-    assert source.kind == "checkout"
-    assert source.pip_spec == str(checkout)
-
-
-def test_resolve_install_source_wheel_install_pins_running_release(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A wheel install vendors `coga==<running version>` — never upstream main."""
-    monkeypatch.delenv("COGA_REPO_URL", raising=False)
-    monkeypatch.setattr(update_cmd, "_running_checkout_root", lambda: None)
-    monkeypatch.setattr(update_cmd, "_pkg_version", lambda name: "1.2.3")
-    monkeypatch.setattr(update_cmd, "_running_requires_python", lambda: ">=3.11")
-
-    source = update_cmd.resolve_install_source()
-
-    assert source.kind == "release"
-    assert source.pip_spec == "coga==1.2.3"
-    assert source.display == "coga==1.2.3 (PyPI)"
-    assert source.requires_python == ">=3.11"
-
-
-def test_running_checkout_root_finds_this_checkout() -> None:
-    """The dev-suite run imports coga from this repo's src/coga — detect it."""
-    root = update_cmd._running_checkout_root()
-    assert root == Path(__file__).resolve().parents[1]
-
-
-def test_write_pin_records_source_and_version(tmp_path: Path) -> None:
-    coga_os = tmp_path / "coga"
-
-    update_cmd.write_pin(coga_os, FAKE_SOURCE, FAKE_VERSION)
-
-    assert (coga_os / ".coga" / "COGA_PIN").read_text().splitlines() == [
-        FAKE_SOURCE.display,
-        FAKE_VERSION,
-    ]
-    assert update_cmd.read_pin(coga_os) == FAKE_VERSION
-    assert update_cmd.read_pin_source(coga_os) == FAKE_SOURCE.display
-
-
-def test_vendored_cli_version_reads_venv(tmp_path: Path) -> None:
-    venv_dir = tmp_path / ".venv"
-    (venv_dir / "bin").mkdir(parents=True)
-    fake_python = venv_dir / "bin" / "python"
-    fake_python.write_text("#!/bin/sh\necho 1.2.3\n")
-    fake_python.chmod(0o755)
-
-    assert update_cmd.vendored_cli_version(venv_dir) == "1.2.3"
-
-
-def test_vendored_cli_version_fails_loud_without_venv_python(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    with pytest.raises(SystemExit) as exc:
-        update_cmd.vendored_cli_version(tmp_path / ".venv")
-
-    assert exc.value.code == 2
-    assert "Cannot determine the coga version installed" in capsys.readouterr().err
-
-
-def test_vendored_cli_version_fails_loud_when_probe_fails(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    venv_dir = tmp_path / ".venv"
-    (venv_dir / "bin").mkdir(parents=True)
-    fake_python = venv_dir / "bin" / "python"
-    fake_python.write_text("#!/bin/sh\necho broken metadata >&2\nexit 1\n")
-    fake_python.chmod(0o755)
-
-    with pytest.raises(SystemExit) as exc:
-        update_cmd.vendored_cli_version(venv_dir)
-
-    assert exc.value.code == 2
-    assert "broken metadata" in capsys.readouterr().err
-
-
 # --- fresh init ---------------------------------------------------------------
 
 
 def test_init_into_empty_dir(
-    tmp_path: Path, fake_vendor, fake_venv, fake_managed_skill_sync
+    tmp_path: Path, fake_vendor, fake_managed_skill_sync
 ) -> None:
     target = _make_git_repo(tmp_path / "company")
 
@@ -501,7 +299,6 @@ def test_init_into_empty_dir(
 def test_init_materializes_configured_contexts_at_checkout_root(
     tmp_path: Path,
     fake_vendor: Path,
-    fake_venv,
     fake_managed_skill_sync,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -555,7 +352,6 @@ def test_init_materializes_configured_contexts_at_checkout_root(
 def test_init_relocates_contexts_before_empty_repo_onboarding_log(
     tmp_path: Path,
     fake_vendor: Path,
-    fake_venv,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The first config load must see the scaffolded destination already."""
@@ -587,7 +383,6 @@ def test_init_relocates_contexts_before_empty_repo_onboarding_log(
 def test_init_rejects_ignored_configured_contexts_before_writing(
     tmp_path: Path,
     fake_vendor: Path,
-    fake_venv,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     checkout = tmp_path / "company"
@@ -627,20 +422,20 @@ def test_failed_init_rolls_back_partial_coga_os(
     """A first init that dies after coga/ is created must leave nothing
     behind — for a normal error and a Ctrl-C alike (hence `except BaseException`)
     — so re-running isn't wedged behind an "already exists" refusal sitting on
-    a half-built venv / missing user.
+    a half-built tree / missing user.
 
     Ticket: install/init-does-not-persist-user-then-blocks-on-reinit.
     """
     target = _make_git_repo(tmp_path / "company")
     coga_os = target / "coga"
 
-    def boom(_coga_os: Path, _source=None):
+    def boom(_coga_os: Path):
         # copy_fresh_templates has already created coga/ by now — that's the
         # half-built state the old code stranded.
         assert coga_os.exists(), "coga/ should exist before the failing step"
         raise exc
 
-    monkeypatch.setattr(init_cmd, "install_venv", boom)
+    monkeypatch.setattr(init_cmd, "_install_managed_skills_or_exit", boom)
 
     with pytest.raises(type(exc)):
         init_cmd._do_init(target, user="tester")
@@ -686,7 +481,6 @@ def test_packaged_log_has_no_baked_history() -> None:
 def test_init_reports_installed_managed_skills(
     tmp_path: Path,
     fake_vendor,
-    fake_venv,
     fake_managed_skill_sync,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -725,7 +519,6 @@ def test_init_reports_installed_managed_skills(
 def test_init_prints_one_compact_warning_for_old_gh_skips(
     tmp_path: Path,
     fake_vendor,
-    fake_venv,
     fake_managed_skill_sync,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -762,7 +555,6 @@ def test_init_prints_one_compact_warning_for_old_gh_skips(
 def test_init_notes_skipped_no_access_managed_skills(
     tmp_path: Path,
     fake_vendor,
-    fake_venv,
     fake_managed_skill_sync,
 ) -> None:
     target = _make_git_repo(tmp_path / "company")
@@ -803,7 +595,6 @@ def test_init_notes_skipped_no_access_managed_skills(
 def test_init_notes_rate_limited_managed_skills(
     tmp_path: Path,
     fake_vendor,
-    fake_venv,
     fake_managed_skill_sync,
 ) -> None:
     target = _make_git_repo(tmp_path / "company")
@@ -846,7 +637,6 @@ def test_init_notes_rate_limited_managed_skills(
 def test_init_tells_user_to_install_missing_gh_for_managed_skills(
     tmp_path: Path,
     fake_vendor,
-    fake_venv,
     fake_managed_skill_sync,
 ) -> None:
     target = _make_git_repo(tmp_path / "company")
@@ -875,7 +665,7 @@ def test_init_tells_user_to_install_missing_gh_for_managed_skills(
 
 
 def test_init_fails_loud_when_required_managed_skill_fails(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = _make_git_repo(tmp_path / "company")
 
@@ -893,34 +683,8 @@ def test_init_fails_loud_when_required_managed_skill_fails(
     assert "Remediation: coga skill install example/repo coga/core" in result.output
 
 
-def test_init_vendors_cli_and_links_wrapper_to_venv(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    target = _make_git_repo(tmp_path / "company")
-    monkeypatch.setenv("PATH", "")
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-
-    assert fake_venv == [target / "coga"]  # install_venv called once
-    # The CLI installs into the venv from the running distribution — no source
-    # copy is vendored into `.coga/` anymore.
-    assert not (target / "coga" / ".coga" / "src").exists()
-    assert not (target / "coga" / ".coga" / "pyproject.toml").exists()
-
-    wrapper = target / "coga" / ".coga" / "bin" / "coga"
-    venv_coga = target / "coga" / ".coga" / ".venv" / "bin" / "coga"
-    assert wrapper.is_symlink()
-    # Relative symlink so the repo is portable.
-    assert Path(wrapper.readlink()) == Path("..") / ".venv" / "bin" / "coga"
-    assert wrapper.resolve() == venv_coga.resolve()
-
-    assert "Add the bin dir to your PATH" in result.output
-
-
 def test_init_writes_captured_user_name_to_local_toml(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = _make_git_repo(tmp_path / "company")
     monkeypatch.setenv("PATH", "")
@@ -941,7 +705,7 @@ def test_init_writes_captured_user_name_to_local_toml(
 
 
 def test_init_without_user_fails_loud(
-    tmp_path: Path, fake_vendor, fake_venv
+    tmp_path: Path, fake_vendor
 ) -> None:
     """A fresh `coga init` with no `--user` fails loud rather than guessing a
     name — coga never derives the operator's name. Nothing is written."""
@@ -954,7 +718,7 @@ def test_init_without_user_fails_loud(
     assert not (target / "coga").exists()
 
 
-def test_init_rejects_invalid_user(tmp_path: Path, fake_vendor, fake_venv) -> None:
+def test_init_rejects_invalid_user(tmp_path: Path, fake_vendor) -> None:
     """An invalid `--user` (a quote or backslash, which would break the `user`
     line in coga.local.toml) is rejected up front, before anything is
     written."""
@@ -967,52 +731,7 @@ def test_init_rejects_invalid_user(tmp_path: Path, fake_vendor, fake_venv) -> No
     assert not (target / "coga").exists()
 
 
-def test_init_installs_shim_when_local_bin_on_path(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    fake_home = tmp_path / "home"
-    local_bin = fake_home / ".local" / "bin"
-    local_bin.mkdir(parents=True)
-    monkeypatch.setenv("HOME", str(fake_home))
-    monkeypatch.setenv("PATH", f"{local_bin}:/usr/bin")
-
-    target = _make_git_repo(tmp_path / "company")
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-
-    shim = local_bin / "coga"
-    assert shim.is_symlink()
-    expected = (target / "coga" / ".coga" / ".venv" / "bin" / "coga").resolve()
-    assert shim.resolve() == expected
-    assert "is on your PATH via" in result.output
-    assert "Add the bin dir to your PATH" not in result.output
-
-
-def test_init_skips_shim_when_target_exists(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    fake_home = tmp_path / "home"
-    local_bin = fake_home / ".local" / "bin"
-    local_bin.mkdir(parents=True)
-    pre_existing = local_bin / "coga"
-    pre_existing.write_text("#!/bin/sh\n# pre-existing\n")
-    pre_existing.chmod(0o755)
-    monkeypatch.setenv("HOME", str(fake_home))
-    monkeypatch.setenv("PATH", f"{local_bin}:/usr/bin")
-
-    target = _make_git_repo(tmp_path / "company")
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-
-    # Pre-existing file untouched and we don't nag the user about PATH —
-    # `shutil.which` finds their existing `coga`, so init confirms that
-    # instead of telling them to munge PATH.
-    assert pre_existing.read_text() == "#!/bin/sh\n# pre-existing\n"
-    assert "Add the bin dir to your PATH" not in result.output
-    assert "is already on your PATH at" in result.output
-
-
-def test_init_into_non_empty_dir_is_fine(tmp_path: Path, fake_vendor, fake_venv) -> None:
+def test_init_into_non_empty_dir_is_fine(tmp_path: Path, fake_vendor) -> None:
     target = _make_git_repo(tmp_path / "existing-repo")
     (target / "README.md").write_text("hi")
     (target / "src").mkdir()
@@ -1023,7 +742,7 @@ def test_init_into_non_empty_dir_is_fine(tmp_path: Path, fake_vendor, fake_venv)
     assert (target / "README.md").read_text() == "hi"
 
 
-def test_init_refuses_existing_coga_os(tmp_path: Path, fake_vendor, fake_venv) -> None:
+def test_init_refuses_existing_coga_os(tmp_path: Path, fake_vendor) -> None:
     """The refusal names the actual remedies — `--update` is gone, so the
     message must say what re-running init was probably reaching for: upgrade
     the CLI with its owning installer, recover a broken coga/ by fixing/removing
@@ -1044,7 +763,7 @@ def test_init_refuses_existing_coga_os(tmp_path: Path, fake_vendor, fake_venv) -
 
 
 def test_init_does_not_misidentify_unrelated_coga_path(
-    tmp_path: Path, fake_vendor, fake_venv
+    tmp_path: Path, fake_vendor
 ) -> None:
     target = tmp_path / "occupied"
     target.mkdir()
@@ -1062,7 +781,7 @@ def test_init_does_not_misidentify_unrelated_coga_path(
 
 
 def test_init_into_missing_dir_errors_not_git_repo(
-    tmp_path: Path, fake_vendor, fake_venv
+    tmp_path: Path, fake_vendor
 ) -> None:
     """A target that doesn't exist and has no git repo above it fails loud
     instead of auto-creating the dir and silently skipping the commit. Nothing
@@ -1082,7 +801,7 @@ def test_init_into_missing_dir_errors_not_git_repo(
 
 
 def test_init_ships_build_ticket_template(
-    tmp_path: Path, fake_vendor, fake_venv
+    tmp_path: Path, fake_vendor
 ) -> None:
     """The coga-build task is a static packaged template: fresh init copies
     it verbatim — no prompts, no creating code — and the onboarding chat happens
@@ -1128,7 +847,6 @@ def test_init_ships_build_ticket_template(
 def test_init_records_onboarding_creation_at_runtime(
     tmp_path: Path,
     fake_vendor,
-    fake_venv,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The seeded task's audit event records this init, not a template date."""
@@ -1151,7 +869,7 @@ def test_init_records_onboarding_creation_at_runtime(
 
 
 def test_init_stamps_new_user_out_of_every_delivered_ticket(
-    tmp_path: Path, fake_vendor, fake_venv
+    tmp_path: Path, fake_vendor
 ) -> None:
     """No delivered ticket carries the `new-user` placeholder after a fresh
     init — the `--user` name is stamped over it everywhere."""
@@ -1168,7 +886,7 @@ def test_init_stamps_new_user_out_of_every_delivered_ticket(
 
 
 def test_init_empty_repo_seeds_onboarding_and_points_at_build(
-    tmp_path: Path, fake_vendor, fake_venv
+    tmp_path: Path, fake_vendor
 ) -> None:
     """An empty repo keeps the onboarding ticket and the next-steps coax
     points the user at the onboarding command without inventing browser work."""
@@ -1203,7 +921,7 @@ def test_init_empty_repo_seeds_onboarding_and_points_at_build(
 
 
 def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
-    tmp_path: Path, fake_vendor, fake_venv
+    tmp_path: Path, fake_vendor
 ) -> None:
     """A filled repo (any pre-existing user file) drops the onboarding ticket
     and the next-steps coax points the user at `coga ticket` without seeding a
@@ -1231,7 +949,7 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
 
 
 def test_init_next_steps_name_the_agent_cli_prerequisite(
-    tmp_path: Path, fake_vendor, fake_venv
+    tmp_path: Path, fake_vendor
 ) -> None:
     """Init's next steps name the agent-CLI prerequisite with install URLs —
     the `coga build` coax otherwise sends a fresh user into a flow whose
@@ -1249,7 +967,7 @@ def test_init_next_steps_name_the_agent_cli_prerequisite(
 
 
 def test_init_filled_repo_ignores_coga_managed_files(
-    tmp_path: Path, fake_vendor, fake_venv
+    tmp_path: Path, fake_vendor
 ) -> None:
     """Pre-existing `.git`/`.DS_Store` and coga-managed names (CLAUDE.md etc.)
     don't count as a filled repo — onboarding is still seeded."""
@@ -1420,7 +1138,7 @@ def _seed_local_coga_os(root: Path) -> Path:
 
 
 def test_init_commits_coga_os_when_target_is_git_repo(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = tmp_path / "company"
     target.mkdir()
@@ -1454,7 +1172,7 @@ def test_init_commits_coga_os_when_target_is_git_repo(
 
 
 def test_init_fails_loud_when_target_is_not_git_repo(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """coga is git-backed: a target outside any git work tree is a hard error
     (not a silent skip), and nothing is written to disk — the user runs
@@ -1505,7 +1223,7 @@ def _force_missing_git_identity(
 
 
 def test_init_fails_loud_when_git_has_no_identity(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A truly fresh machine has no `user.email`/`user.name`: init probes git
     identity up front and fails loud with the remedy, before writing anything."""
@@ -1523,7 +1241,7 @@ def test_init_fails_loud_when_git_has_no_identity(
 
 
 def test_init_fails_up_front_when_only_committer_identity_exists(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Git requires author and committer identities independently; a CI-style
     committer-only environment must fail before init writes anything."""
@@ -1569,7 +1287,7 @@ def test_identity_check_probes_nearest_ancestor_for_missing_target(
 
 
 def test_init_warns_loud_when_commit_fails(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The backstop for commit failures the identity check can't see (here a
     failing pre-commit hook): init still succeeds — coga/ is written and
@@ -1608,7 +1326,7 @@ def test_init_warns_loud_when_commit_fails(
 
 
 def test_init_add_failure_warns_without_claiming_files_are_staged(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A failed `git add` gets an honest warning plus safely quoted, complete
     stage-and-commit recovery commands."""
@@ -1654,7 +1372,7 @@ def test_init_add_failure_warns_without_claiming_files_are_staged(
 
 
 def test_init_into_subdir_of_git_repo(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """`coga init tools/ops` inside a monorepo scaffolds a nested coga/ and
     commits it into the host repo — the target doesn't have to be the git
@@ -1696,7 +1414,7 @@ def test_init_into_subdir_of_git_repo(
 
 
 def test_init_refuses_target_inside_existing_coga_repo(
-    tmp_path: Path, fake_vendor, fake_venv
+    tmp_path: Path, fake_vendor
 ) -> None:
     """A coga/ nested inside an existing coga OS tree can't work — discovery
     walks up and resolves the enclosing repo — so init refuses before writing
@@ -1715,7 +1433,7 @@ def test_init_refuses_target_inside_existing_coga_repo(
 
 
 def test_init_refuses_sibling_subdir_of_root_level_coga(
-    tmp_path: Path, fake_vendor, fake_venv
+    tmp_path: Path, fake_vendor
 ) -> None:
     """The common layout — a git repo whose coga lives at `<repo>/coga/` —
     governs every subdir via `find_repo_root`'s sibling-`coga/` descent. So
@@ -1735,7 +1453,7 @@ def test_init_refuses_sibling_subdir_of_root_level_coga(
 
 
 def test_init_refuses_target_gitignored_by_host_repo(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """If the host repo gitignores the target subtree, `git add` would refuse
     coga/ and the commit would be silently skipped. Init fails loud up front
@@ -1759,7 +1477,7 @@ def test_init_refuses_target_gitignored_by_host_repo(
 
 
 def test_init_into_subdir_leaves_unrelated_staged_files_alone(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A nested init commits only coga/ (and its host files), never the user's
     pre-existing staged changes in the live host repo."""
@@ -1818,7 +1536,7 @@ def test_is_git_repo_fast_path_on_git_marker(tmp_path: Path) -> None:
 
 
 def test_init_links_skills_into_agent_dirs(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = _make_git_repo(tmp_path / "company")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
@@ -1836,7 +1554,7 @@ def test_init_links_skills_into_agent_dirs(
 
 
 def test_init_skips_skill_link_when_agent_marker_is_a_file(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = _make_git_repo(tmp_path / "company")
     sentinel = target / ".codex"
@@ -1932,7 +1650,7 @@ def test_link_skills_for_agents_replaces_old_raw_skills_link(tmp_path: Path) -> 
 
 
 def test_init_writes_agent_guides(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = _make_git_repo(tmp_path / "company")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
@@ -1955,7 +1673,7 @@ def test_init_writes_agent_guides(
 
 
 def test_init_preserves_existing_agent_guides(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = _make_git_repo(tmp_path / "company")
     (target / "CLAUDE.md").write_text("# my hand-written guide\n")
@@ -1972,7 +1690,7 @@ def test_init_preserves_existing_agent_guides(
 
 
 def test_init_commits_agent_guides_in_git_repo(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = tmp_path / "company"
     target.mkdir()
@@ -2006,7 +1724,7 @@ def _make_real_git_repo(target: Path, branch: str) -> Path:
 
 
 def test_init_records_current_branch_when_control_branch_is_absent(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """On a repo whose `git init` made `master`, init records that branch
     rather than scaffolding the `main` default it would then nag about."""
@@ -2025,7 +1743,7 @@ def test_init_records_current_branch_when_control_branch_is_absent(
 
 
 def test_init_keeps_unborn_configured_branch_implicit(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """An unborn `main` HEAD becomes a real `main` on init's first commit;
     init must not claim it is absent or write a redundant `[git]` table."""
@@ -2043,7 +1761,7 @@ def test_init_keeps_unborn_configured_branch_implicit(
 
 
 def test_init_keeps_default_when_control_branch_exists(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Running init from a feature branch of a `main` repo must not pin the
     feature branch — the configured default is already correct there."""
@@ -2067,7 +1785,7 @@ def test_init_keeps_default_when_control_branch_exists(
 
 
 def test_init_uses_confirmed_remote_default_in_established_repo(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """An established master-based repo initialized from a feature branch
     records the cached remote default, never the disposable current branch."""
@@ -2116,7 +1834,7 @@ def test_init_uses_confirmed_remote_default_in_established_repo(
 
 
 def test_init_warns_instead_of_pinning_ambiguous_established_branch(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Without a remote default, an established feature HEAD is ambiguous and
     must not become the shared control branch merely because `main` is absent."""
@@ -2144,7 +1862,7 @@ def test_init_warns_instead_of_pinning_ambiguous_established_branch(
 
 
 def test_init_warns_when_no_branch_can_be_detected(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A detached HEAD with no `main` leaves nothing safe to record, so init
     succeeds but prints the exact one-line coga.toml fix."""
@@ -2237,7 +1955,7 @@ def test_detect_control_branch_never_probes_the_remote(
 
 
 def test_init_leaves_a_scaffold_that_declares_its_own_git_table(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A scaffold shipping a real `[git]` table stated its own choice. Init
     reports the mismatch instead of writing a second table into it (which
@@ -2281,24 +1999,6 @@ def test_packaged_config_carries_the_control_branch_anchor() -> None:
     assert init_cmd._GIT_TABLE_ANCHOR in _PACKAGED_COGA_TOML.read_text()
 
 
-def test_init_writes_pin_file(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    target = _make_git_repo(tmp_path / "company")
-    monkeypatch.setenv("PATH", "")
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-
-    pin = target / "coga" / ".coga" / "COGA_PIN"
-    assert pin.is_file()
-    lines = pin.read_text().splitlines()
-    assert lines[0] == FAKE_SOURCE.display
-    assert lines[1] == FAKE_VERSION
-    assert f"Vendored CLI coga {FAKE_VERSION} from {FAKE_SOURCE.display}" in result.output
-
-
 def test_version_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """`coga --version` prints the package version and (when present) the pin."""
     # chdir somewhere with no coga/ so `find_repo_root` returns nothing.
@@ -2309,33 +2009,17 @@ def test_version_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "vendored CLI" not in result.output
 
 
-def test_version_flag_help_describes_vendored_cli() -> None:
+def test_version_flag_help_describes_version() -> None:
     result = CliRunner().invoke(app, ["--help"])
     assert result.exit_code == 0, result.output
-    assert "Print the coga package and vendored CLI versions." in result.output
-
-
-def test_version_flag_includes_pin_when_in_repo(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    coga_os = tmp_path / "coga"
-    (coga_os / ".coga").mkdir(parents=True)
-    (coga_os / "coga.toml").write_text("version = 1\n")
-    (coga_os / ".coga" / "COGA_PIN").write_text(
-        f"{FAKE_SOURCE.display}\n{FAKE_VERSION}\n"
-    )
-    monkeypatch.chdir(coga_os)
-
-    result = CliRunner().invoke(app, ["--version"])
-    assert result.exit_code == 0, result.output
-    assert f"vendored CLI {FAKE_VERSION} (from {FAKE_SOURCE.display})" in result.output
+    assert "Print the coga version." in result.output
 
 
 # --- gitignore management ----------------------------------------------------
 
 
 def test_init_writes_host_gitignore_block_in_git_repo(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = tmp_path / "company"
     target.mkdir()
@@ -2363,7 +2047,7 @@ def test_init_writes_host_gitignore_block_in_git_repo(
 
 
 def test_init_appends_to_existing_host_gitignore(
-    tmp_path: Path, fake_vendor, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = tmp_path / "company"
     target.mkdir()
@@ -2450,311 +2134,7 @@ def test_refresh_coga_gitignore_replaces_existing_block(tmp_path: Path) -> None:
 # --- venv recreation ----------------------------------------------------------
 
 
-def test_venv_python_version_parses_pyvenv_cfg(tmp_path: Path) -> None:
-    venv = tmp_path / ".venv"
-    venv.mkdir()
-    (venv / "pyvenv.cfg").write_text("home = /usr/bin\nversion = 3.11.4\n")
-    assert update_cmd._venv_python_version(venv) == (3, 11)
-
-
-def test_venv_python_version_returns_none_when_missing(tmp_path: Path) -> None:
-    assert update_cmd._venv_python_version(tmp_path / ".venv") is None
-
-
-def test_venv_python_version_handles_malformed_cfg(tmp_path: Path) -> None:
-    venv = tmp_path / ".venv"
-    venv.mkdir()
-    (venv / "pyvenv.cfg").write_text("garbage without an equals\nversion = not.a.version\n")
-    assert update_cmd._venv_python_version(venv) is None
-
-
-def test_venv_python_executable_parses_pyvenv_cfg(tmp_path: Path) -> None:
-    venv = tmp_path / ".venv"
-    venv.mkdir()
-    base_python = tmp_path / "python3.11"
-    (venv / "pyvenv.cfg").write_text(f"executable = {base_python}\n")
-    assert update_cmd._venv_python_executable(venv) == base_python.resolve()
-
-
-def test_install_venv_recreates_on_python_version_mismatch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A venv built against a different Python X.Y gets blown away and rebuilt."""
-    coga_os = tmp_path / "coga"
-    dst_coga = coga_os / ".coga"
-    dst_coga.mkdir(parents=True)
-
-    # Stand up a fake "old" venv tagged as Python 1.0 so it can never match.
-    venv_dir = dst_coga / ".venv"
-    (venv_dir / "bin").mkdir(parents=True)
-    venv_python = venv_dir / "bin" / "python"
-    venv_python.write_text("#!/bin/sh\n")
-    venv_python.chmod(0o755)
-    (venv_dir / "pyvenv.cfg").write_text("home = /old\nversion = 1.0.0\n")
-    sentinel = venv_dir / "lib" / "python1.0" / "leftover.txt"
-    sentinel.parent.mkdir(parents=True)
-    sentinel.write_text("stale")
-
-    real_run = subprocess.run
-
-    def fake_run(cmd, **kwargs):
-        if len(cmd) >= 3 and cmd[0] == sys.executable and cmd[1:3] == ["-m", "venv"]:
-            new_venv = Path(cmd[3])
-            (new_venv / "bin").mkdir(parents=True, exist_ok=True)
-            (new_venv / "bin" / "python").write_text("#!/bin/sh\n")
-            (new_venv / "bin" / "python").chmod(0o755)
-            (new_venv / "bin" / "coga").write_text("#!/bin/sh\n")
-            (new_venv / "bin" / "coga").chmod(0o755)
-            (new_venv / "pyvenv.cfg").write_text(
-                f"version = {sys.version_info.major}.{sys.version_info.minor}.0\n"
-            )
-            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        if "pip" in cmd:
-            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        return real_run(cmd, **kwargs)
-
-    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
-
-    update_cmd.install_venv(coga_os, _fake_install_source())
-
-    # Stale lib dir wiped, new venv tagged with the running Python version.
-    assert not sentinel.exists()
-    assert update_cmd._venv_python_version(venv_dir) == sys.version_info[:2]
-
-
-def test_install_venv_keeps_matching_venv(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A venv that already matches the running Python isn't recreated."""
-    coga_os = tmp_path / "coga"
-    dst_coga = coga_os / ".coga"
-    dst_coga.mkdir(parents=True)
-
-    venv_dir = dst_coga / ".venv"
-    (venv_dir / "bin").mkdir(parents=True)
-    (venv_dir / "bin" / "python").write_text("#!/bin/sh\n")
-    (venv_dir / "bin" / "python").chmod(0o755)
-    (venv_dir / "pyvenv.cfg").write_text(
-        f"version = {sys.version_info.major}.{sys.version_info.minor}.7\n"
-    )
-    sentinel = venv_dir / "marker.txt"
-    sentinel.write_text("preserve me")
-
-    venv_calls: list[list[str]] = []
-    real_run = subprocess.run
-
-    def fake_run(cmd, **kwargs):
-        if len(cmd) >= 3 and cmd[0] == sys.executable and cmd[1:3] == ["-m", "venv"]:
-            venv_calls.append(list(cmd))
-            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        if "pip" in cmd:
-            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        return real_run(cmd, **kwargs)
-
-    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
-
-    update_cmd.install_venv(coga_os, _fake_install_source())
-
-    assert venv_calls == []  # no recreate
-    assert sentinel.read_text() == "preserve me"
-
-
 # --- venv interpreter selection ------------------------------------------------
-
-
-def test_resolve_venv_python_defaults_to_sys_executable(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv(update_cmd.COGA_PYTHON_ENV, raising=False)
-    assert update_cmd.resolve_venv_python() == sys.executable
-
-
-def test_resolve_venv_python_honors_coga_python(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    stub = tmp_path / "python3.11"
-    stub.write_text("#!/bin/sh\n")
-    stub.chmod(0o755)
-    monkeypatch.setenv(update_cmd.COGA_PYTHON_ENV, str(stub))
-    assert update_cmd.resolve_venv_python() == str(stub)
-
-
-def test_resolve_venv_python_exits_on_dangling_override(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys,
-) -> None:
-    """An explicit COGA_PYTHON that doesn't exist fails loud, never falls back."""
-    monkeypatch.setenv(update_cmd.COGA_PYTHON_ENV, str(tmp_path / "no-such-python"))
-    with pytest.raises(SystemExit) as exc:
-        update_cmd.resolve_venv_python()
-    assert exc.value.code == 2
-    assert update_cmd.COGA_PYTHON_ENV in capsys.readouterr().err
-
-
-def test_requires_python_spec_reads_pyproject(tmp_path: Path) -> None:
-    pyproject = tmp_path / "pyproject.toml"
-    pyproject.write_text("[project]\nname = 'coga'\nrequires-python = \">=3.11\"\n")
-    assert update_cmd._requires_python_spec(pyproject) == ">=3.11"
-
-
-def test_requires_python_spec_none_when_absent(tmp_path: Path) -> None:
-    pyproject = tmp_path / "pyproject.toml"
-    pyproject.write_text("[project]\nname = 'coga'\n")
-    assert update_cmd._requires_python_spec(pyproject) is None
-
-
-@pytest.mark.parametrize(
-    ("version", "spec", "expected"),
-    [
-        ((3, 11, 4), ">=3.11", True),
-        ((3, 10, 9), ">=3.11", False),
-        ((3, 12, 0), ">=3.11,<3.12", False),
-        ((3, 11, 9), ">=3.11,<3.12", True),
-        ((4, 0, 0), "<4", False),
-        ((3, 12, 1), "!=3.12.*", False),
-        ((3, 13, 0), "!=3.12.*", True),
-        ((3, 11, 2), "~=3.11", True),
-        ((4, 0, 0), "~=3.11", False),
-        ((3, 11, 0), "==3.11", True),
-        # Unparseable clauses count as satisfied — never brick the bootstrap.
-        ((3, 11, 0), ">=3.11, unparseable-nonsense", True),
-    ],
-)
-def test_version_satisfies_spec(
-    version: tuple[int, int, int], spec: str, expected: bool,
-) -> None:
-    assert update_cmd._version_satisfies(version, spec) is expected
-
-
-def test_install_venv_rejects_python_outside_requires_python(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys,
-) -> None:
-    """The requires-python check runs before any venv is built."""
-    monkeypatch.delenv(update_cmd.COGA_PYTHON_ENV, raising=False)
-    coga_os = tmp_path / "coga"
-
-    with pytest.raises(SystemExit) as exc:
-        update_cmd.install_venv(coga_os, _fake_install_source(">=99.0"))
-
-    assert exc.value.code == 2
-    err = capsys.readouterr().err
-    assert ">=99.0" in err
-    assert update_cmd.COGA_PYTHON_ENV in err
-    assert not (coga_os / ".coga" / ".venv").exists()
-
-
-def test_install_venv_builds_with_coga_python_override(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """COGA_PYTHON picks the interpreter the venv is created with."""
-    override = tmp_path / "python3.11"
-    override.write_text("#!/bin/sh\n")
-    override.chmod(0o755)
-    monkeypatch.setenv(update_cmd.COGA_PYTHON_ENV, str(override))
-    coga_os = tmp_path / "coga"
-
-    venv_calls: list[list[str]] = []
-
-    def fake_run(cmd, **kwargs):
-        if cmd[1] == "-c":  # version probe of the override interpreter
-            return subprocess.CompletedProcess(cmd, 0, stdout="3.11.9\n", stderr="")
-        if cmd[1:3] == ["-m", "venv"]:
-            venv_calls.append(list(cmd))
-            new_venv = Path(cmd[3])
-            (new_venv / "bin").mkdir(parents=True)
-            (new_venv / "bin" / "python").write_text("#!/bin/sh\n")
-            (new_venv / "bin" / "python").chmod(0o755)
-            (new_venv / "pyvenv.cfg").write_text("version = 3.11.9\n")
-            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        if "pip" in cmd:
-            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        raise AssertionError(f"unexpected subprocess call: {cmd}")
-
-    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
-
-    update_cmd.install_venv(coga_os, _fake_install_source(">=3.11"))
-
-    assert [cmd[0] for cmd in venv_calls] == [str(override)]
-
-
-def test_install_venv_recreates_when_override_changes_same_minor_interpreter(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """COGA_PYTHON replaces a same-X.Y venv built by another interpreter."""
-    override = tmp_path / "new" / "python3.11"
-    override.parent.mkdir()
-    override.write_text("#!/bin/sh\n")
-    override.chmod(0o755)
-    monkeypatch.setenv(update_cmd.COGA_PYTHON_ENV, str(override))
-    coga_os = tmp_path / "coga"
-
-    venv_dir = coga_os / ".coga" / ".venv"
-    (venv_dir / "bin").mkdir(parents=True)
-    (venv_dir / "bin" / "python").write_text("#!/bin/sh\n")
-    (venv_dir / "bin" / "python").chmod(0o755)
-    old_python = tmp_path / "old" / "python3.11"
-    (venv_dir / "pyvenv.cfg").write_text(
-        f"version = 3.11.8\nexecutable = {old_python}\n"
-    )
-    sentinel = venv_dir / "old-interpreter.txt"
-    sentinel.write_text("stale")
-
-    venv_calls: list[list[str]] = []
-
-    def fake_run(cmd, **kwargs):
-        if cmd[1] == "-c" and "sys.executable" in cmd[2]:
-            return subprocess.CompletedProcess(
-                cmd, 0, stdout=f"{override}\n", stderr=""
-            )
-        if cmd[1] == "-c":
-            return subprocess.CompletedProcess(cmd, 0, stdout="3.11.9\n", stderr="")
-        if cmd[1:3] == ["-m", "venv"]:
-            venv_calls.append(list(cmd))
-            new_venv = Path(cmd[3])
-            (new_venv / "bin").mkdir(parents=True)
-            (new_venv / "bin" / "python").write_text("#!/bin/sh\n")
-            (new_venv / "bin" / "python").chmod(0o755)
-            (new_venv / "pyvenv.cfg").write_text(
-                f"version = 3.11.9\nexecutable = {override}\n"
-            )
-            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        if "pip" in cmd:
-            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        raise AssertionError(f"unexpected subprocess call: {cmd}")
-
-    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
-
-    update_cmd.install_venv(coga_os, _fake_install_source(">=3.11"))
-
-    assert not sentinel.exists()
-    assert [cmd[0] for cmd in venv_calls] == [str(override)]
-    assert update_cmd._venv_python_executable(venv_dir) == override.resolve()
-
-
-def test_install_venv_missing_ensurepip_prints_remediation(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys,
-) -> None:
-    """A Debian-style venv failure names the python3.X-venv package to install."""
-    monkeypatch.delenv(update_cmd.COGA_PYTHON_ENV, raising=False)
-    coga_os = tmp_path / "coga"
-
-    def fake_run(cmd, **kwargs):
-        if cmd[1:3] == ["-m", "venv"]:
-            return subprocess.CompletedProcess(
-                cmd, 1, stdout="",
-                stderr="Error: ensurepip is not available.\n",
-            )
-        raise AssertionError(f"unexpected subprocess call: {cmd}")
-
-    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
-
-    with pytest.raises(SystemExit) as exc:
-        update_cmd.install_venv(coga_os, _fake_install_source())
-
-    assert exc.value.code == 2
-    err = capsys.readouterr().err
-    major, minor = sys.version_info[:2]
-    assert f"apt install python{major}.{minor}-venv" in err
-    assert update_cmd.COGA_PYTHON_ENV in err
 
 
 # --- running_cli_location / upgrade_global_cli --------------------------------
@@ -2769,19 +2149,6 @@ def _stub_executable_in(venv: Path) -> Path:
     return py
 
 
-def test_running_cli_location_detects_vendored(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    coga_os = tmp_path / "coga"
-    venv = coga_os / ".coga" / ".venv"
-    py = _stub_executable_in(venv)
-    monkeypatch.setattr(update_cmd.sys, "executable", str(py))
-
-    kind, where = update_cmd.running_cli_location(coga_os)
-    assert kind == "vendored"
-    assert where == venv.absolute()
-
-
 def test_running_cli_location_detects_pipx(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2792,7 +2159,7 @@ def test_running_cli_location_detects_pipx(
     (pipx_venv / "pipx_metadata.json").write_text("{}\n")
     monkeypatch.setattr(update_cmd.sys, "executable", str(py))
 
-    kind, where = update_cmd.running_cli_location(coga_os)
+    kind, where = update_cmd.running_cli_location()
     assert kind == "pipx"
     assert where == pipx_venv.absolute()
 
@@ -2806,7 +2173,7 @@ def test_running_cli_location_falls_through_to_other(
     py = _stub_executable_in(other_venv)
     monkeypatch.setattr(update_cmd.sys, "executable", str(py))
 
-    kind, where = update_cmd.running_cli_location(coga_os)
+    kind, where = update_cmd.running_cli_location()
     assert kind == "other"
     assert where == other_venv.absolute()
 
@@ -2838,7 +2205,7 @@ def test_running_cli_location_detects_pipx_when_python_is_a_symlink(
     pipx_python.symlink_to(host_py)
     monkeypatch.setattr(update_cmd.sys, "executable", str(pipx_python))
 
-    kind, where = update_cmd.running_cli_location(coga_os)
+    kind, where = update_cmd.running_cli_location()
     assert kind == "pipx", (
         "symlink resolution would land in homebrew Cellar; detection must "
         "stay on the unresolved venv path so pipx_metadata.json is found"

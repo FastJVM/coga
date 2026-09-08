@@ -12,7 +12,9 @@ def test_clean_install_gate_covers_public_first_install_contract() -> None:
 
     assert 'uv tool install "coga==$COGA_GATE_VERSION"' in container
     assert "coga init --user gate" in container
-    assert "coga/.coga/bin/coga --version" in container
+    # Init installs no software: the gate proves no second CLI appears.
+    assert "test ! -e coga/.coga/.venv" in container
+    assert "test ! -e coga/.coga/bin" in container
     assert 'files("coga.resources").joinpath("templates/coga/bootstrap")' in container
     assert 'root.joinpath("workflows/code/with-review.md").is_file()' in container
     assert 'root.joinpath("skills/code/implement/SKILL.md").is_file()' in container

@@ -71,7 +71,7 @@ remaining argv passes through unchanged.
 
 | Verb | Mechanism | Alias-able? | Why |
 |------|-----------|-------------|-----|
-| `init` | built-in | No | Scaffolds `coga/`, vendors the running CLI into `.coga/.venv`, installs venv deps. Heavy side effects. |
+| `init` | built-in | No | Scaffolds `coga/` from packaged templates and commits it. Installs no software. |
 | `uninstall` | built-in | No | Symmetric inverse of `init`: removes the repo-local footprint plus the machine-global shim, with a confirmation prompt. Heavy side effects. |
 | `create` / `draft` | built-in | No | Scaffolds a raw `draft` ticket and validates it; raw creation is intentionally Slack-silent. |
 | `ticket` | thin built-in head + `coga.authoring` finalize; package home provisional | Not as a fixed alias | Drafts-on-fly, launches the authoring interview, then calls extracted validate/git-sync finalization; TTY guard. Those hooks require coordinating logic, but no co-versioning invariant has yet been ratified. |

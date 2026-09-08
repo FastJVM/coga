@@ -23,13 +23,12 @@ Scaffold `coga/` in `PATH` (default `.`).
   existing coga repo is refused, as is a target the host repo gitignores
   (init must be able to commit `coga/`).
 
-It copies the package's coga templates, builds the self-contained venv the
-vendored CLI runs out of, writes a starter `coga.local.toml`, and commits the
-new `coga/`. The venv's coga is pip-installed from the *running*
-distribution — `coga==<running version>` from PyPI for wheel installs, the
-source checkout itself for editable installs — never from a fresh upstream
-clone, so the vendored copy is exactly the CLI that ran init. `COGA_REPO_URL`
-overrides the source explicitly (a local checkout path or a git URL).
+It copies the package's coga templates, writes a starter `coga.local.toml`,
+and commits the new `coga/`. **Init installs no software.** It builds no
+virtualenv, installs no package, and writes no `PATH` shim: the `coga` you run
+is the one you installed (`uv tool install coga`, pipx, or pip), and it is the
+same CLI in every repo. Init is therefore offline and cheap — nothing resolves
+a release, so a repo can be scaffolded from an unpublished build.
 There is no in-place refresh command: bootstrap tickets, bundled skills,
 bundled contexts, and bundled reusable workflows resolve directly from the
 installed package, so picking up a new release uses the installer that owns the
@@ -50,16 +49,13 @@ resolves them directly from the installed package after checking project-local
 Remove the Coga footprint from the current repo: `coga/`, the configured
 contexts directory when it lives outside `coga/`, the agent skill symlinks in
 `.claude/` and `.codex/`, unmodified Coga orientation guides (`CLAUDE.md` /
-`AGENTS.md`), the coga-managed `.gitignore` block, and the `~/.local/bin/coga`
-shim if it points back into this repo.
+`AGENTS.md`), and the coga-managed `.gitignore` block.
 
 It prints the plan and asks for confirmation; `--yes` skips the prompt for
 scripted runs. Edited `CLAUDE.md` / `AGENTS.md` files are renamed to
 `<name>.coga-bak` rather than deleted. Without `--purge`, the global
 `coga` package is left installed and the command prints the exact pipx/pip
-uninstall commands. With `--purge`, it also uninstalls the global package; if
-the running CLI is this repo's vendored copy, there is no separate global
-package to remove.
+uninstall commands. With `--purge`, it also uninstalls the global package.
 
 ## coga build
 
@@ -1162,9 +1158,8 @@ error row instead of crashing the view.
 
 ## coga --version
 
-Package version + the version and install source `.coga/` was vendored from
-(recorded in `.coga/COGA_PIN` at init). Useful for "is this fixed in your
-copy?" questions.
+The installed `coga` package version. One CLI runs every repo, so there is no
+second per-repo version to report.
 
 ## Aliases
 
