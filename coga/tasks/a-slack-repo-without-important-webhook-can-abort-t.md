@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -105,7 +105,7 @@ written to stderr by `_broadcast_scan`, `_print_table` renders them, and
   spool installed (so `notify` falls back to a live `post`) **and** slack in
   `[notification].channels` **and** `enabled` **and** no resolved
   `important_webhook`.
-- `preflight_post` is called with `important=False` at all six of its sites, so
+- `preflight_post` is called with `important=False` at all of its sites, so
   it never preflighted the important route. Left as is — widening it is the
   fail-fast option the human did not pick.
 
@@ -115,8 +115,9 @@ written to stderr by `_broadcast_scan`, `_print_table` renders them, and
 unresolved webhook instead of crashing after their write: `bump.py:259`,
 `mark.py:225,375,915,995,1091`, `autoclose.py:633`, `launch_script.py:431`.
 That is the intended generalization — each announces a transition already
-committed to disk, and each is fronted by a `commands/*` `preflight_post(cfg)`
-that still crashes *before* the mutation.
+committed to disk. Existing `preflight_post(cfg)` gates still crash before
+the mutation where enforced; several command gates are conditional on a
+strict publication/assist path, rather than unconditional for every call.
 
 ## Changed
 
@@ -156,14 +157,51 @@ Both fail on `main` at 4271813a, untouched by this change:
 
 - `tests/test_notification_messages.py::test_recurring_create_is_silent` —
   `IsADirectoryError` on `coga/tasks/work`. `_make_task(force_directory=True)`
-  returns the task *directory*, and something downstream opens that path as a
-  file. No follow-up ticket found.
+  returns the task directory, but the fixture constructs its `TaskRef` with
+  `file_form=True`; `local_period_lease` consequently reads the directory as
+  the ticket file. The peer review reproduced this on the fork-point commit;
+  the affected code and test are unchanged between that base and `3092d296`.
 - `tests/test_packaging.py::test_wheel_includes_bootstrap_batteries` — the test
   shells out to `sys.executable -m pip`, and the repo venv has no `pip`
   installed. Environmental, but the test could build with `build`/`uv` or skip
   when pip is absent.
 
+## Peer review — 2026-09-08
+
+- `codex review --base main`: no actionable regressions. The reviewer ran
+  799 passing relevant tests and reproduced the existing
+  `test_recurring_create_is_silent` failure on the fork-point commit.
+- Fetched `origin/main` and rebased onto `3092d296` without conflicts.
+  The reviewed commit is now `fe9f06ac`; `git range-diff` confirms its patch
+  is unchanged. No must-fix finding required a new code commit.
+- Live and packaged sync contexts remain byte-identical; branch diff passes
+  `git diff --check main...HEAD`.
+- `coga validate --task a-slack-repo-without-important-webhook-can-abort-t --json`:
+  one valid task, no issues.
+- Full post-rebase command:
+  `/tmp/coga-scan-alert-peer-review-venv/bin/python -m pytest` — **2372 passed,
+  1 failed** in 166.91s. The sole failure is the pre-existing directory/file
+  fixture mismatch described above; all changed regression tests pass.
+- This Python 3.12 environment was installed editable using
+  `/tmp/coga-scan-alert-peer-review-venv/bin/python -m pip install -e '.[test]'`.
+  Both pip and hatchling are available, and the wheel packaging test passes.
+- The feature worktree is clean and its reviewed commit is one commit ahead
+  of `origin/main`.
+
+## PR
+
+Keep a recurring sweep running when its scan-error alert cannot resolve the
+configured Slack `important_webhook`. `post(fatal=False)` now reports
+configuration refusals on stderr alongside delivery failures, and the scan
+summary opts into that behavior. Strict posts retain exit 1; important alerts
+are never redirected to the ordinary webhook.
+
+Update the live and packaged sync contexts together, with regression coverage
+for missing ordinary/important webhooks and the recurring scan fallback.
+
+Test plan: `/tmp/coga-scan-alert-peer-review-venv/bin/python -m pytest` — 2372 passed, 1 pre-existing failure (`test_recurring_create_is_silent`, reproduced on base); `coga validate --task a-slack-repo-without-important-webhook-can-abort-t --json`, `git diff --check main...HEAD`, and `cmp coga/contexts/coga/sync/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md` pass.
+
 ## Next
 
-`coga bump` from the primary checkout → `peer-review`. No push, no PR (that is
-`code/open-pr`, two steps out).
+Peer review is complete. `coga bump` from the primary checkout hands off to
+`open-pr`; use the recorded branch/worktree and the PR body above.
