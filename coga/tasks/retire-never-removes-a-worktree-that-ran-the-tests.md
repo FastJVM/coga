@@ -1,7 +1,7 @@
 ---
 slug: retire-never-removes-a-worktree-that-ran-the-tests
 title: Retire never removes a worktree that ran the tests
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -32,7 +32,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 5 (review)
 ---
 
 ## Description
