@@ -41,3 +41,4 @@ consumed_through: e8dbf814b3f9
 {"id":"20bd1c30530f","ts":"2026-09-08T10:40","project":"coga","kind":"done","detail":"claude finished: report-to-coga → done ✅ — Settled model landed in coga/contexts/coga/secrets: one SA, one automation vault; tiers are human-access only; token-inheritance caveat kept pending the scrub ticket.","ticket":"service-account-scoping-single-vault-rule-conflict","owner":"nicktoper"}
 {"id":"15b1eae27857","ts":"2026-09-08T11:22","project":"coga","kind":"done","detail":"claude finished: sweep → done ✅","ticket":"recurring/branch-sweep","owner":"nicktoper"}
 {"id":"b81f29449248","ts":"2026-09-08T11:24","project":"coga","kind":"done","detail":"→ done (delegate: bootstrap/resolve-conflicts)","ticket":"recurring/resolve-conflicts","owner":"nicktoper"}
+{"id":"110ccda0a181","ts":"2026-09-08T16:49","project":"coga","kind":"done","detail":"claude finished: update → done ✅","ticket":"recurring/skill-update","owner":"nicktoper"}
