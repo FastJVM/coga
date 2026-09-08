@@ -1,17 +1,16 @@
 """`coga uninstall` — the symmetric inverse of `coga init`.
 
-`coga init` writes a self-contained coga footprint into a host repo: the
-`coga/` tree (with its own vendored venv), the configured contexts directory,
-agent skill symlinks, root-level `CLAUDE.md`/`AGENTS.md` orientation guides, a
-coga-managed `.gitignore` block, a `~/.local/bin/coga` shim, and the global
-`coga` pip/pipx package.
-`coga uninstall` removes that footprint so trying Coga is a reversible
-decision.
+`coga init` writes a coga footprint into a host repo: the `coga/` tree, the
+configured contexts directory, agent skill symlinks, root-level
+`CLAUDE.md`/`AGENTS.md` orientation guides, and a coga-managed `.gitignore`
+block. The `coga` CLI itself is the operator's own global install, which init
+never touches. `coga uninstall` removes that footprint so trying Coga is a
+reversible decision.
 
-By default it removes everything *local to this repo* (plus the machine-global
-shim that points back at it) and prints the one command to drop the global pip
-package. `--purge` also runs that package uninstall. Destructive, so it prints
-the plan and asks for confirmation unless `--yes` is passed.
+By default it removes everything *local to this repo* and prints the one
+command to drop the global pip package. `--purge` also runs that package
+uninstall. Destructive, so it prints the plan and asks for confirmation unless
+`--yes` is passed.
 """
 
 from __future__ import annotations
@@ -56,7 +55,6 @@ class _Plan:
     skill_links: list[Path] = field(default_factory=list)
     guides_remove: list[Path] = field(default_factory=list)
     guides_backup: list[Path] = field(default_factory=list)
-    shim: Path | None = None
     gitignore: bool = False
 
     def is_empty(self) -> bool:
@@ -66,7 +64,6 @@ class _Plan:
             or self.skill_links
             or self.guides_remove
             or self.guides_backup
-            or self.shim
             or self.gitignore
         )
 
@@ -155,10 +152,6 @@ def _build_plan(target: Path, coga_os: Path) -> _Plan:
         else:
             plan.guides_remove.append(path)
 
-    shim = _coga_shim(coga_os)
-    if shim is not None:
-        plan.shim = shim
-
     plan.gitignore = _has_managed_gitignore(target)
     return plan
 
@@ -191,7 +184,7 @@ def _print_plan(target: Path, coga_os: Path, plan: _Plan, purge: bool) -> None:
 
     typer.echo(f"Uninstalling Coga from {target}:")
     if plan.coga_os:
-        typer.echo(f"  - remove {rel(plan.coga_os)}/ (the whole Coga tree + vendored venv)")
+        typer.echo(f"  - remove {rel(plan.coga_os)}/ (the whole Coga tree)")
     if plan.contexts_root:
         typer.echo(
             f"  - remove {rel(plan.contexts_root)}/ "
@@ -210,18 +203,9 @@ def _print_plan(target: Path, coga_os: Path, plan: _Plan, purge: bool) -> None:
         )
     if plan.gitignore:
         typer.echo(f"  - strip the coga-managed block from {rel(target / '.gitignore')}")
-    if plan.shim:
-        typer.echo(f"  - remove the `coga` shim at {plan.shim}")
 
     if purge:
-        kind, _ = running_cli_location(coga_os)
-        if kind == "vendored":
-            typer.echo(
-                "  - (--purge) the running `coga` is this repo's vendored copy, "
-                "removed with coga/ — nothing else to uninstall"
-            )
-        else:
-            typer.echo(f"  - (--purge) uninstall the global `{COGA_PIPX_PACKAGE}` package")
+        typer.echo(f"  - (--purge) uninstall the global `{COGA_PIPX_PACKAGE}` package")
 
 
 def _execute_plan(plan: _Plan) -> None:
@@ -270,13 +254,6 @@ def _execute_plan(plan: _Plan) -> None:
     if plan.gitignore and remove_host_gitignore(plan.target):
         typer.echo("Stripped the coga-managed block from .gitignore")
 
-    if plan.shim:
-        try:
-            plan.shim.unlink()
-            typer.echo(f"Removed shim {plan.shim}")
-        except OSError:
-            pass
-
 
 def _remove_skill_link(link: Path) -> None:
     """Unlink an agent skill symlink and prune the now-empty `skills/` and
@@ -309,14 +286,7 @@ def _handle_package(purge: bool, coga_os: Path) -> None:
         typer.echo("(or re-run `coga uninstall --purge` from another Coga repo).")
         return
 
-    kind, _ = running_cli_location(coga_os)
-    if kind == "vendored":
-        typer.echo(
-            "Running `coga` is this repo's vendored copy; "
-            "no global package to uninstall."
-        )
-        return
-
+    kind, _ = running_cli_location()
     if kind == "pipx":
         pipx = shutil.which("pipx")
         if pipx is None:
@@ -373,22 +343,6 @@ def _has_managed_gitignore(target: Path) -> bool:
         return HOST_GITIGNORE_BEGIN in gi.read_text()
     except OSError:
         return False
-
-
-def _coga_shim(coga_os: Path) -> Path | None:
-    """The `~/.local/bin/coga` shim iff it's a symlink pointing back into this
-    repo's `.coga/` (so we never remove an unrelated `coga` on PATH)."""
-    shim = Path.home() / ".local" / "bin" / "coga"
-    if not shim.is_symlink():
-        return None
-    dot_coga = (coga_os / ".coga").resolve()
-    try:
-        resolved = shim.resolve(strict=False)
-    except OSError:
-        return None
-    if resolved == dot_coga or dot_coga in resolved.parents:
-        return shim
-    return None
 
 
 def _bail(msg: str) -> None:

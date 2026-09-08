@@ -34,6 +34,36 @@ step: 2 (peer-review)
 
 ## Description
 
+**Scope superseded 2026-09-08 (owner): delete the vendored venv outright.**
+The original task below collapsed the three install-source tiers to one. PR
+review made the better question visible: the vendored venv is not load-bearing
+at all, so the tiers are not worth simplifying — they are worth deleting.
+
+`coga init` scaffolds the markdown OS and nothing else. Remove the vendored
+venv, the repo-local CLI it backed, and everything that existed only to feed
+them: `resolve_install_source` / `InstallSource`, `install_venv`,
+`vendored_cli_version`, `write_pin` / `read_pin` / `COGA_PIN`,
+`write_bin_wrapper`, the `~/.local/bin/coga` shim, `COGA_PYTHON`, the
+requires-python and pip-hint helpers, and `install_skill_requirements`. The
+`coga` an operator runs is their own global install, in every repo.
+
+**Why it isn't load-bearing.** The documented install path is `uv tool install
+coga` then `coga init`, and `_try_install_shim` skips when `~/.local/bin/coga`
+is already claimed — which it always is after a global install. So the vendored
+CLI is never the one that runs. `install_skill_requirements` was called only
+from `install_venv`, so a skill installed later never got deps at all, and
+nothing put `.coga/.venv/bin` on a launched agent's `PATH`, so the deps it did
+install were invisible to the documented `python .../gmail.py` invocation.
+`COGA_PIN`'s only reader was `coga --version`. Skill dependencies become the
+operator's to install, which is what the skills' own error messages now say.
+
+**Retained from the original task:** `.coga/` itself stays — it still holds
+machine-local run records and the megalaunch selection.
+
+---
+
+*Original task, kept for the record:*
+
 `coga init` currently resolves the CLI it vendors through three tiers in
 `resolve_install_source()` (`src/coga/commands/update.py:66`): a
 `COGA_REPO_URL` override, the source checkout the running package is imported
@@ -63,9 +93,12 @@ complexity serving a workflow nobody uses.
    `COGA_PYTHON` (`update.py:420`) in the same pass — it is undocumented in
    exactly the same way.
 
-**Out of scope.** Do not remove or redesign the vendored venv itself. Do not
-touch managed-skill installs. Do not change the `COGA_PIN` format. Do not
-publish to PyPI.
+**Out of scope.** Do not touch managed-skill installs (`coga skill install`
+and the managed-skill manifest are unaffected). Do not publish to PyPI. Keep
+`.coga/` as the machine-local state directory.
+
+*(The original out-of-scope line reserved the vendored venv and the `COGA_PIN`
+format; the superseding scope above removes both deliberately.)*
 
 ## Context
 

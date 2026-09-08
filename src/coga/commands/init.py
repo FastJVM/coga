@@ -27,14 +27,9 @@ from coga.commands.update import (
     _refresh_coga_gitignore,
     copy_fresh_templates,
     ensure_host_gitignore,
-    install_venv,
     is_git_repo,
     nearest_existing_dir,
     packaged_template_root,
-    resolve_install_source,
-    vendored_cli_version,
-    write_bin_wrapper,
-    write_pin,
 )
 from coga.config import (
     ConfigError,
@@ -821,9 +816,6 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     nested = not (target / ".git").exists()
     is_empty = _repo_is_empty(target) and not nested
 
-    # Resolve the release the vendored CLI installs from before any writes, so
-    # an unresolvable version fails loud and leaves nothing on disk.
-    source = resolve_install_source()
     template_root = packaged_template_root()
     try:
         contexts_destination = _template_contexts_destination(
@@ -894,10 +886,6 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         _stamp_user_into_delivered_tickets(coga_os, name)
 
         managed_skills = _install_managed_skills_or_exit(coga_os)
-        install_venv(coga_os, source)
-        write_bin_wrapper(coga_os / ".coga" / "bin")
-        vendored_version = vendored_cli_version(coga_os / ".coga" / ".venv")
-        write_pin(coga_os, source, vendored_version)
 
         local_toml = coga_os / "coga.local.toml"
         local_toml.write_text(render_local_toml(name))
@@ -934,8 +922,6 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
                 "created (mode=interactive, status=active)",
             )
 
-        bin_dir = coga_os / ".coga" / "bin"
-        shim = _try_install_shim(bin_dir / "coga")
         wired_agents, blocked_agents = _link_skills_for_agents(target, coga_os)
         host_gitignore_changed = ensure_host_gitignore(target)
         written_guides = _write_agent_guides(target)
@@ -982,7 +968,6 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             "Skipped the onboarding ticket (this dir already has a project) — "
             "create tasks with `coga ticket` when you're ready."
         )
-    typer.echo(f"Vendored CLI coga {vendored_version} from {source.display}.")
     if wired_agents:
         names = ", ".join(wired_agents)
         typer.echo(f"Wired skill discovery for {names} (symlinked into their skill dirs).")
@@ -1059,16 +1044,15 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     # `shutil.which` honors the executable bit, so a stale non-executable
     # file at `~/.local/bin/coga` won't fool us.
     existing = shutil.which("coga")
-    if shim is not None:
-        typer.echo(f"`coga` is on your PATH via {shim}.")
-    elif existing:
+    if existing:
         typer.echo(f"`coga` is already on your PATH at {existing}.")
 
     steps: list[str] = []
-    if shim is None and not existing:
+    if not existing:
         steps.append(
-            "Add the bin dir to your PATH so `coga` runs:\n"
-            f"       export PATH=\"{bin_dir}:$PATH\""
+            "Put `coga` on your PATH — init scaffolds this repo but installs no "
+            "software, so the CLI you run is your own:\n"
+            "       uv tool install coga"
         )
     steps.append(
         f"Edit {coga_os}/coga.toml — set your agents, notification channels, "
@@ -1309,26 +1293,6 @@ def _link_skills_for_agents(
             continue
         wired.append(label)
     return wired, blocked
-
-
-def _try_install_shim(wrapper: Path) -> Path | None:
-    """Symlink `~/.local/bin/coga` -> wrapper if that dir is on PATH and unclaimed.
-
-    Returns the symlink path on success, None if we skipped (dir not on PATH,
-    target already exists, or symlink failed).
-    """
-    target_dir = Path.home() / ".local" / "bin"
-    if not _on_path(target_dir):
-        return None
-    target = target_dir / "coga"
-    if target.exists() or target.is_symlink():
-        return None
-    try:
-        target_dir.mkdir(parents=True, exist_ok=True)
-        target.symlink_to(wrapper)
-    except OSError:
-        return None
-    return target
 
 
 _AGENT_GUIDE_FILES: tuple[str, ...] = ("CLAUDE.md", "AGENTS.md")

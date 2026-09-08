@@ -19,8 +19,6 @@ from coga.commands.update import ensure_host_gitignore
 def _seed_footprint(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    *,
-    with_shim: bool = True,
 ) -> Path:
     """Build the on-disk footprint `coga init` leaves behind, and return the
     host repo root (with cwd + HOME pointed at it)."""
@@ -28,10 +26,6 @@ def _seed_footprint(
     coga_os = target / "coga"
     coga_os.mkdir(parents=True)
     (coga_os / "coga.toml").write_text("version = 1\n")
-    # Vendored CLI the shim points back into.
-    bin_dir = coga_os / ".coga" / "bin"
-    bin_dir.mkdir(parents=True)
-    (bin_dir / "coga").write_text("#!/bin/sh\n")
     (coga_os / ".agent-skills").mkdir()
 
     # Agent skill discovery symlinks.
@@ -52,8 +46,6 @@ def _seed_footprint(
     fake_home = tmp_path / "home"
     local_bin = fake_home / ".local" / "bin"
     local_bin.mkdir(parents=True)
-    if with_shim:
-        (local_bin / "coga").symlink_to(bin_dir / "coga")
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.chdir(target)
     return target
@@ -152,11 +144,12 @@ def test_uninstall_backs_up_modified_guide(
     assert not (target / "AGENTS.md.coga-bak").exists()
 
 
-def test_uninstall_leaves_unrelated_shim(
+def test_uninstall_never_touches_the_operators_cli(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    target = _seed_footprint(tmp_path, monkeypatch, with_shim=False)
-    # A `coga` on PATH that points somewhere else entirely.
+    """Init installs no CLI, so uninstall removes none — including a `coga`
+    on PATH that a previous Coga version's shim would have claimed."""
+    _seed_footprint(tmp_path, monkeypatch)
     local_bin = tmp_path / "home" / ".local" / "bin"
     other = tmp_path / "other-coga"
     other.write_text("#!/bin/sh\n")
@@ -192,7 +185,7 @@ def test_uninstall_purge_runs_pipx_for_pipx_install(
     monkeypatch.setattr(uninstall_cmd.shutil, "which", lambda name: "/usr/bin/pipx")
     monkeypatch.setattr(uninstall_cmd.subprocess, "run", fake_run)
     monkeypatch.setattr(
-        uninstall_cmd, "running_cli_location", lambda coga_os: ("pipx", Path("/x"))
+        uninstall_cmd, "running_cli_location", lambda: ("pipx", Path("/x"))
     )
 
     result = CliRunner().invoke(app, ["uninstall", "--yes", "--purge"])
@@ -215,7 +208,7 @@ def test_uninstall_purge_runs_pip_for_other_install(
     monkeypatch.setattr(uninstall_cmd.sys, "executable", "/venv/bin/python")
     monkeypatch.setattr(uninstall_cmd.subprocess, "run", fake_run)
     monkeypatch.setattr(
-        uninstall_cmd, "running_cli_location", lambda coga_os: ("other", Path("/x"))
+        uninstall_cmd, "running_cli_location", lambda: ("other", Path("/x"))
     )
 
     result = CliRunner().invoke(app, ["uninstall", "--yes", "--purge"])
@@ -224,28 +217,6 @@ def test_uninstall_purge_runs_pip_for_other_install(
         ["/venv/bin/python", "-m", "pip", "uninstall", "-y", "coga"]
     ]
     assert "Uninstalled `coga` via pip" in result.output
-
-
-def test_uninstall_purge_skips_global_package_when_running_vendored(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _seed_footprint(tmp_path, monkeypatch)
-
-    calls: list[str] = []
-
-    def fake_which(name: str) -> str:
-        calls.append(name)
-        return "/usr/bin/pipx"
-
-    monkeypatch.setattr(uninstall_cmd.shutil, "which", fake_which)
-    monkeypatch.setattr(
-        uninstall_cmd, "running_cli_location", lambda coga_os: ("vendored", Path("/x"))
-    )
-
-    result = CliRunner().invoke(app, ["uninstall", "--yes", "--purge"])
-    assert result.exit_code == 0, result.output
-    assert calls == []
-    assert "no global package to uninstall" in result.output
 
 
 def test_uninstall_errors_if_coga_os_remains(

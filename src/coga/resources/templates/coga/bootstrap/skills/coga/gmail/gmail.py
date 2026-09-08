@@ -32,8 +32,8 @@ Auth — OAuth user credentials
   credentials once with `authorize`.
 
 Dependencies (google-api-python-client, google-auth, google-auth-oauthlib) are
-declared in this skill's requirements.txt and installed into `.coga/.venv` at
-bootstrap by coga's per-skill install pass.
+declared in this skill's requirements.txt. Coga installs nothing for a skill —
+install them into the Python this script runs under.
 """
 
 from __future__ import annotations
@@ -117,8 +117,8 @@ def build_service(config: dict[str, str]) -> Any:
         _bail(
             "google-api-python-client / google-auth not installed: "
             f"{exc}. They are declared in this skill's requirements.txt; run "
-            "`.coga/.venv/bin/pip install -r requirements.txt` from this skill's "
-            "dir to install skill deps (a fresh `coga init` does this automatically)."
+            "`python -m pip install -r requirements.txt` from this skill's dir, "
+            "using the same Python that runs this script."
         )
     creds = Credentials(
         token=None,
@@ -297,8 +297,8 @@ def op_authorize(client_secret_file: Path) -> dict[str, Any]:
         _bail(
             "google-auth-oauthlib not installed: "
             f"{exc}. Declared in this skill's requirements.txt; run "
-            "`.coga/.venv/bin/pip install -r requirements.txt` from this skill's "
-            "dir to install skill deps (a fresh `coga init` does this automatically)."
+            "`python -m pip install -r requirements.txt` from this skill's dir, "
+            "using the same Python that runs this script."
         )
     if not client_secret_file.is_file():
         _bail(

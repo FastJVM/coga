@@ -50,5 +50,6 @@ mailbox to read) and paste the printed `[gmail]` block into `coga.local.toml`.
 ## Dependencies
 
 `google-api-python-client`, `google-auth`, `google-auth-oauthlib` (in
-`requirements.txt`), installed into `.coga/.venv` by coga's per-skill install
-pass at `coga init`.
+`requirements.txt`). Coga installs nothing for a skill — run
+`python -m pip install -r requirements.txt` from this skill's dir, using the
+same Python that runs `gmail.py`.

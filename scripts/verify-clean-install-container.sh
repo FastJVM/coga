@@ -31,10 +31,10 @@ run git -C /work commit -m "Initial commit"
 cd /work
 run coga init --user gate
 test ! -d coga/.git
-test -x coga/.coga/bin/coga
-local_version=$(coga/.coga/bin/coga --version)
-test "$installed_version" = "$local_version"
-run coga/.coga/.venv/bin/python -c '
+# init installs no software: no vendored venv, no PATH shim, no second CLI.
+test ! -e coga/.coga/.venv
+test ! -e coga/.coga/bin
+run python -c '
 from importlib.resources import files
 
 root = files("coga.resources").joinpath("templates/coga/bootstrap")
