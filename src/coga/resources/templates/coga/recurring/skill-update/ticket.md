@@ -52,9 +52,20 @@ Bundled (package-backed) skills are not touched here — they refresh when the
 coga package is upgraded.
 
 A week with no upstream changes is a quiet no-op: nothing is committed and no
-PR is opened. A week with only follow-up statuses is intentionally loud: after
-writing the `## Skill Update` report, `ticket.py` exits non-zero so this period
-task remains visible until a human resolves or parks it.
+PR is opened. Two different non-zero exits keep a run visible, and reading
+either as the other misjudges a stuck task:
+
+- **Exit 1 — follow-ups to resolve.** The update ran and classified every
+  skill, but the only results needing action are follow-ups and no PR was
+  opened to carry them. `ticket.py` exits 1 after writing a complete
+  `## Skill Update` report, so this period task remains visible until a human
+  resolves or parks it. This is the intentionally loud path: the design
+  working, not a breakage.
+- **Exit 2 — the update itself failed.** `coga skill update` exited non-zero,
+  or emitted output that was not valid JSON, so nothing was classified. The
+  report carries the attempted command and the failing output under a
+  `### Failed` heading in place of the per-skill buckets. This is a real
+  breakage to diagnose, not a queue of follow-ups waiting on a decision.
 
 <!-- coga:blackboard -->
 
