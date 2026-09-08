@@ -67,6 +67,7 @@ the rejected one.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/761
 branch: scan-alert-nonfatal
 worktree: /home/n/Code/claude/coga-scan-alert-nonfatal
 
@@ -188,6 +189,22 @@ Both fail on `main` at 4271813a, untouched by this change:
 - The feature worktree is clean and its reviewed commit is one commit ahead
   of `origin/main`.
 
+## Open PR preparation — 2026-09-08
+
+- The first `coga open-pr` attempt refused the branch because `main` had
+  advanced since peer review. Rebased the recorded feature worktree onto
+  `main` at `387dc3a6` without conflicts; the feature commit is now `db42f80d`.
+- `git range-diff fe9f06ac^..fe9f06ac main..scan-alert-nonfatal` confirms the
+  reviewed patch is unchanged. The feature worktree remains clean.
+- Re-ran `/tmp/coga-scan-alert-peer-review-venv/bin/python -m pytest`:
+  **2323 passed, 1 failed** in 168.24s. The sole failure is the same
+  pre-existing `test_recurring_create_is_silent` directory/file fixture
+  mismatch. All changed regression tests and packaging tests pass.
+- `coga validate --task a-slack-repo-without-important-webhook-can-abort-t --json`
+  reports one valid task and no issues. `git diff --check main...HEAD` and
+  `cmp coga/contexts/coga/sync/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md`
+  pass in the feature worktree.
+
 ## PR
 
 Keep a recurring sweep running when its scan-error alert cannot resolve the
@@ -199,9 +216,9 @@ are never redirected to the ordinary webhook.
 Update the live and packaged sync contexts together, with regression coverage
 for missing ordinary/important webhooks and the recurring scan fallback.
 
-Test plan: `/tmp/coga-scan-alert-peer-review-venv/bin/python -m pytest` — 2372 passed, 1 pre-existing failure (`test_recurring_create_is_silent`, reproduced on base); `coga validate --task a-slack-repo-without-important-webhook-can-abort-t --json`, `git diff --check main...HEAD`, and `cmp coga/contexts/coga/sync/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md` pass.
+Test plan: `/tmp/coga-scan-alert-peer-review-venv/bin/python -m pytest` — 2323 passed, 1 pre-existing failure (`test_recurring_create_is_silent`, reproduced on base); `coga validate --task a-slack-repo-without-important-webhook-can-abort-t --json`, `git diff --check main...HEAD`, and `cmp coga/contexts/coga/sync/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md` pass.
 
 ## Next
 
-Peer review is complete. `coga bump` from the primary checkout hands off to
-`open-pr`; use the recorded branch/worktree and the PR body above.
+The refreshed branch is ready for `coga open-pr` from the primary checkout.
+Once the PR is recorded, bump once to hand off to owner review.
