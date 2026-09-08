@@ -4541,3 +4541,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-08 16:49 [carry-adjacent-bugs-out-of-a-blackboard-before-ret] [human:nicktoper] auto-bumped on merge of PR #757 → done
 2026-09-08 16:49 [cleanup/add-a-debug-mode-to-init-for-vendoring-from-source] [human:nicktoper] auto-bumped on merge of PR #759 → done
 2026-09-08 16:49 [cleanup/detect-the-current-git-branch-instead-of-hard-codi] [human:nicktoper] auto-bumped on merge of PR #753 → done
+2026-09-08 16:49 [dream-reconciliation-must-count-distinct-shard-ids] [human:nicktoper] auto-bumped on merge of PR #756 → done
