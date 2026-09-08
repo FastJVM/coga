@@ -894,10 +894,10 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         _stamp_user_into_delivered_tickets(coga_os, name)
 
         managed_skills = _install_managed_skills_or_exit(coga_os)
-        install_venv(coga_os, source)
+        vendored = install_venv(coga_os, source)
         write_bin_wrapper(coga_os / ".coga" / "bin")
         vendored_version = vendored_cli_version(coga_os / ".coga" / ".venv")
-        write_pin(coga_os, source, vendored_version)
+        write_pin(coga_os, source, vendored_version, vendored.origin)
 
         local_toml = coga_os / "coga.local.toml"
         local_toml.write_text(render_local_toml(name))
@@ -982,7 +982,10 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             "Skipped the onboarding ticket (this dir already has a project) — "
             "create tasks with `coga ticket` when you're ready."
         )
-    typer.echo(f"Vendored CLI coga {vendored_version} from {source.display}.")
+    typer.echo(
+        f"Vendored CLI coga {vendored_version} from "
+        f"{vendored.origin or source.pip_spec}."
+    )
     if wired_agents:
         names = ", ".join(wired_agents)
         typer.echo(f"Wired skill discovery for {names} (symlinked into their skill dirs).")

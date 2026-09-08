@@ -84,16 +84,19 @@ no-cost way to catch a packaging problem before it's permanent.
 - A bad release can be **yanked** (hidden from new installs) but not deleted —
   which is exactly why we dry-run on TestPyPI first.
 - **`coga init` can only vendor a version that is on the index.** Init installs
-  `coga==<running version>` from PyPI into the repo's `.coga/.venv`, so a
-  version must be published before `coga init` run from that version works.
-  Init from an unreleased build fails, naming the version it tried — see
-  [development](development.md#coga-init-vendors-a-published-release).
+  `coga==<running version>` into the repo's `.coga/.venv`, so a version must be
+  published before `coga init` run from that version works. Init from an
+  unreleased build fails, naming the version it tried — see
+  [development](development.md#coga-init-vendors-a-published-release). Init
+  pins the version, not the index: pip resolves the requirement through the
+  operator's own pip configuration, and `.coga/COGA_PIN` records whichever
+  artifact pip reported resolving.
 
 ## Clean first-install gate
 
 After publishing the intended version, run the public install and first-task
-path in a disposable Linux container. The harness installs Coga from PyPI —
-the only source init vendors from — initializes an ordinary existing Git
+path in a disposable Linux container. The harness installs Coga from PyPI with
+no index overrides configured, initializes an ordinary existing Git
 repository, compares the repo-local CLI with the installed release, checks
 bundled batteries, launches a minimal task with a real authenticated agent CLI,
 validates the resulting repository, and saves a transcript plus the relevant
