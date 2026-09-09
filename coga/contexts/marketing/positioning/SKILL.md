@@ -130,16 +130,26 @@ Comms must stay credible. State plainly where Coga is outclassed:
   relative, unverifiable machine-output numbers. Computing it requires a
   legible, self-recording substrate, so spreading the metric spreads the
   practice — but that is an argument for the regime that can carry it, not
-  a license to publish now. **Naming it in comms belongs to the shelved
-  proof-post regime**, whose pre-registration and recomputability are what
-  make a measured human-time number honest; that apparatus is archived in
-  `marketing/launch-history` and may not be spent on posts 1–3 of the live
-  plan. Through the essay series the metric stays internal working
+  a license to publish now.
+
+  The line to hold is between the metric and a *number* for it. **Publishing a
+  measured human-minutes figure belongs to the shelved proof-post regime**,
+  whose pre-registration and recomputability are what make a human-time number
+  honest; that apparatus is archived in `marketing/launch-history` and may not
+  be spent on posts 1–3 of the live plan. Reopening it as a claim is an owner
+  decision taken with that regime, not inside a post ticket.
+
+  Naming the metric as *defined and deliberately unmeasured* is the opposite
+  act and stays allowed — it is the disclosure that keeps the absent number
+  honest. `README.md` and `docs/velocity-report.md` both do exactly that today
+  ("defined there but deliberately unmeasured", "until that run finishes"), and
+  a comms ticket must not treat them as violations to be scrubbed. What is
+  forbidden is quoting a figure, implying one exists, or resting a claim on it.
+
+  Through the essay series the metric otherwise stays internal working
   language — the one ratio those posts publish is the
   two-person/output-of-ten bet from `docs/vision.md` (`marketing/plan`,
-  "Claim discipline", enforced at `marketing/write-post` step 6). Reopening
-  it by name is an owner decision taken with that regime, not inside a post
-  ticket.
+  "Claim discipline", enforced at `marketing/write-post` step 6).
 
 ## The strategic fork (decided)
 
