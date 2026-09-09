@@ -52,9 +52,23 @@ Bundled (package-backed) skills are not touched here — they refresh when the
 coga package is upgraded.
 
 A week with no upstream changes is a quiet no-op: nothing is committed and no
-PR is opened. A week with only follow-up statuses is intentionally loud: after
-writing the `## Skill Update` report, `ticket.py` exits non-zero so this period
-task remains visible until a human resolves or parks it.
+PR is opened. Two non-zero exit codes keep a run visible. Each writes the
+`## Skill Update` report before exiting, but that write is best-effort — an
+unwritable blackboard leaves the exit code as the only signal:
+
+- **Exit 1 — follow-ups to resolve.** Every skill was classified, but some
+  need human follow-up and no PR was opened to carry them, so the period task
+  stays visible until a human resolves or parks it. `--pr` mode only: under
+  `--no-pr`, a run full of follow-ups still exits 0.
+- **Exit 2 — the update failed.** `coga skill update` exited non-zero, or
+  emitted output that was not valid JSON, so nothing was classified. The report
+  carries the attempted command and the failing output under a `### Failed`
+  heading in place of the per-skill buckets.
+
+Exit 2 has a second source: `ticket.py` passes through `coga bump`'s exit code
+once the update succeeds, and `coga bump` exits 2 on most of its own refusals.
+An exit 2 whose report has the per-skill buckets and no `### Failed` block is a
+failed bump, not a failed update.
 
 <!-- coga:blackboard -->
 
