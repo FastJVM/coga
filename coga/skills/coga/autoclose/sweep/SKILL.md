@@ -32,13 +32,24 @@ Autoclose stays non-destructive and only *names* that follow-up, because
 implicit destruction cuts against the principle that destructive behavior is
 never implicit. Dream likewise leaves a checkout-bearing done ticket in place,
 so the named command and the `## Dev` evidence it consumes remain valid until a
-human retires it.
+human retires it — the *evidence* is durable; the reported list of follow-ups
+is not (see below).
 
 Two surfaces, both silent when the sweep stranded nothing:
 
 - a `## Autoclose Sweep: retire follow-ups` section listing the exact
   `coga retire <slug>` per ticket — appended to the task blackboard when run
-  under a task, written to stdout otherwise;
+  under a task, written to stdout otherwise. **That blackboard surface is
+  per-run, not a durable worklist.** Autoclose's only recurring caller is
+  `recurring/autoclose-merged`, and the `coga/recurring` context is explicit
+  that a period task's blackboard is scratch space for one firing, deleted with
+  the task the next period. The sweep only rediscovers tickets it closes in the
+  *current* run, so a stranded checkout is never re-listed: a follow-up nobody
+  acted on before the next firing is gone from every surface while the checkout
+  is still there. A recurring follow-up needs a home outside the period task;
+  the open ticket `persist-autoclose-retire-follow-ups` proposes a `retires.md`
+  beside the recurring template. Until that lands, read both surfaces as a
+  notification, not a backlog;
 - one trailing Slack line for the whole sweep. The per-ticket `🎉 ... merged`
   line is left alone: it announces a lifecycle event and normally lands in the
   daily digest, while a retire hint is an operational to-do.
