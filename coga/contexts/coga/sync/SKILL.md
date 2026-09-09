@@ -115,9 +115,15 @@ Silent lifecycle surface — no notification post, no spool record:
 - Successful `coga recurring` creates.
 - `coga retire` creating.
 - `recurring/branch-sweep` — the weekly stale-branch prune. `branchsweep.py`
-  makes no notification call at all; the run reports to the period task's
-  blackboard, and deleting a branch whose work already landed is not something
-  a human has to act on.
+  makes no notification call at all, and deleting a branch whose work already
+  landed is not something a human has to act on. Note where its report does
+  *not* go: `run_branch_sweep_recipe` emits its deletion and skip notes through
+  stdout/stderr only, `coga/recurring/branch-sweep/ticket.py` just calls that
+  recipe and then `coga bump`, and `run_script_phase` runs the child with no
+  `capture_output`. The report is therefore **console-only** — after an
+  unattended run nothing about which branches were deleted or skipped survives
+  on the period task's blackboard. Read the run transcript under
+  `.coga/recurring-runs/` to reconstruct one.
 - `recurring/skill-update` — the weekly managed-skill refresh. `skill_update.py`
   likewise never notifies: the run's entire output is a reviewable PR, so the
   PR *is* the notification and a post would duplicate it.
@@ -129,9 +135,18 @@ Silent lifecycle surface — no notification post, no spool record:
 
 Those three complete the enumeration: `coga/recurring/` ships seven templates —
 `autoclose-merged`, `blocker-reminders`, `branch-sweep`, `digest`, `dream`,
-`resolve-conflicts`, `skill-update` — and every one of them now appears on
-exactly one of the three surfaces above. A new template that appears on none of
-them is an unreviewed cadence decision, not a neutral default.
+`resolve-conflicts`, `skill-update` — and every one of them is now accounted
+for above. A new template accounted for on none of the three surfaces is an
+unreviewed cadence decision, not a neutral default.
+
+**This is an accounting of events, not a partition of templates.** A template
+may legitimately span surfaces, and two already do: `autoclose-merged` posts
+its retire-pending summary live *and* spools its `done` outcomes to the digest,
+and `resolve-conflicts` is silent as a period template while the
+`bootstrap/resolve-conflicts` delegate it runs posts its roll-up through the
+live `coga slack` escape hatch. A cadence audit should ask whether each *event
+kind* a template emits has a reviewed surface, not whether the template name
+appears exactly once.
 
 The digest is **opt-in by installing the `recurring/digest/` ticket**. When
 that ticket is absent, `notification.notify` degrades to a live `post` for the
@@ -212,8 +227,21 @@ announcement must not be allowed to overturn:
   the authoritative answer the wrapper reports upward. Outside strict assist
   the miss is still recorded and a configuration `typer.Exit` still propagates.
 
-Both are exceptions to the *fail-loud* half only; the miss is still surfaced on
-stderr and in `coga/log.md` exactly as everywhere else.
+Both are exceptions to the *fail-loud* half; the miss is always surfaced on
+stderr, but it does **not** always reach `coga/log.md`. Two gaps:
+
+- `record_failure=False` — the strict-assist script-failure call above passes
+  it, and `SlackChannel.send`'s `fail()` appends to the log only
+  `if task_path is not None and record_failure`. Under strict assist the miss
+  is stderr-only by construction, which is the point: the deterministic exit
+  code is already durable and must stay the authoritative answer.
+- an unresolved webhook — `require_webhook` writes its configuration remedy to
+  stderr and raises *before* `fail()` is reached, in every mode. A
+  configuration miss is therefore never logged, best-effort or not.
+
+So the ordinary delivery-failure path does record to `coga/log.md`; these two
+do not. Do not read the best-effort carve-outs as promising the same audit
+trail.
 
 **One carve-out: a broadcast that announces an already-committed state
 change.** The lifecycle transitions — `bump`, `mark done` / `canceled` /
