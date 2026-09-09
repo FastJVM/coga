@@ -51,6 +51,40 @@ have the same unmanaged update posture.
 Bundled (package-backed) skills are not touched here — they refresh when the
 coga package is upgraded.
 
+A URL install that was pruned after download is a distinct shape, and the
+protection above does not cover it. `install_url_skill` copies the whole
+materialized tree; nothing in `src/coga/` reads an `include` allowlist, and
+`_url_metadata` writes a fixed key set with no such field, so a hand-added
+`include` list in `.coga-source.json` is inert documentation — the first
+successful update rebuilds the metadata without it, while
+`_local_adaptation_notes` carries the prose describing it forward. Pruning is
+always a hand adaptation, and what the weekly run does with it depends entirely
+on which digests were recorded. `_update_url_skill_dir` compares exactly two
+things: the freshly downloaded `materialized.source_tree_digest` against the
+recorded `source_tree_digest`, and `hash_skill_tree(skill_dir)` against the
+recorded `installed_tree_digest`. Record the pruned tree's digest as
+`installed_tree_digest` and the run reads the skill as unmodified; record it as
+`source_tree_digest` as well and the upstream comparison can never match, so the
+run takes the `_replace_skill_tree` branch, restores every pruned path, drops
+the `include` key, and reports `updated` — the un-pruning lands in the draft PR
+as an ordinary upstream refresh, under the report's updated heading with no
+follow-up line. Record the digests honestly instead — both taken from the
+download — and the pruned copy reads as locally adapted forever:
+`skipped-local-adaptation` while upstream is quiet, `conflict` when it moves,
+parked under the follow-up heading on every run. `coga/skills/clarity` is the
+live instance of the first case: its recorded `source_tree_digest` is the digest
+of the pruned tree on disk, not of any upstream tree.
+
+Neither shape is a steady state — the follow-up heading is for exceptions a
+human resolves, and the updated heading is for changes a human reviewed. Two
+resolutions are real. Implement the `include` allowlist in the URL install and
+update path so the pruning is re-applied from each fetched archive, keeping
+`source_tree_digest` the true upstream digest and re-recording
+`installed_tree_digest` from the pruned result; that is a code change and needs
+its own ticket. Or drop the allowlist and the claim in
+`local_adaptation_notes`, record the pruning as the hand adaptation it is, and
+accept a standing follow-up line as the price of keeping the local edit.
+
 A week with no upstream changes is a quiet no-op: nothing is committed and no
 PR is opened. A week with only follow-up statuses is intentionally loud: after
 writing the `## Skill Update` report, `ticket.py` exits non-zero so this period
