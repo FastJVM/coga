@@ -4633,3 +4633,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-09 12:06 [verify-the-pr-review-comment-loop-once-the-review] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-09-09 12:06 [verify-the-pr-review-comment-loop-once-the-review] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-09 12:06 [verify-the-pr-review-comment-loop-once-the-review] [megalaunch] launched via coga megalaunch
+2026-09-09 12:07 [verify-the-pr-review-comment-loop-once-the-review] [human:nicktoper] unblocked (asks resolved, still in_progress): Resolved: all three named tickets are now status done and off the review queue — fix-the-autofix-analyst (PR 724 merged), reconcile-recurring-wrapper-tty-admission-guidance (PR 723 merged), and rewrite-coga-base-prompt-and-agent-mode-block (PR 726 merged). The autoclose/bump transitions the ask was waiting on have all landed.
