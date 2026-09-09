@@ -93,10 +93,21 @@ publication stay deferred through prompt composition, prompt-file and argv
 construction, and the pre-session audit commit. Two deterministic paths invert
 that order on purpose and are not instances of the bug this ordering fixed. A
 `ticket.py` phase resolves declared secrets through `build_launch_env` and then
-`_auto_activate`s the ticket *before* every agent-only preflight, because a
+activates the ticket *before* every agent-only preflight, because a
 deterministic phase genuinely is work starting; CLI lookup, skill refresh,
 prompt composition, and the remaining agent preflights stay deferred until
-`ticket.py` actually leaves agent work open. A forced recurring run's
+`ticket.py` actually leaves agent work open.
+
+Which writer performs that activation depends on the path, and the two are an
+`if`/`elif` in `commands/launch.py` — only one ever runs. The ordinary
+(non-assist) `ticket.py` phase calls `_auto_activate`. A **strict human assist**
+(`single_checkout_assist_branch is not None`) never reaches it: it builds the
+environment, takes `_prospective_assist_ticket`, runs the notification and
+push-auth preflights, captures the exact ticket bytes, and activates through
+`_publish_assist_lifecycle_before_spawn` under the publication lease. So a
+change to `_auto_activate` does not carry to the assist path and cannot be
+assumed to preserve its behavior; a change to the deferral *order* has to be
+made in both. A forced recurring run's
 `recurring_runner._prepare_forced_launch` durably `mark_active`s the period
 ticket ahead of launch's own preflights — logged `activated (<prior> → active)
 for forced recurring run` — so a later preflight failure at least leaves the
