@@ -19,6 +19,7 @@ import typer
 
 from coga import git
 from coga.blackboard import prelaunch_blackboard_synthesis_reason
+from coga.bump import AssigneeResolutionError, resolve_first_step_assignee
 from coga.config import Config
 from coga.lifecycle import CANCELABLE_STATUSES
 from coga.logfile import append_log
@@ -33,7 +34,7 @@ from coga.notification import digest_spool_path, notify, post
 from coga.tasks import TaskRef
 from coga.ticket import Ticket
 from coga.validate import assert_task_valid
-from coga.workflow import Workflow
+from coga.workflow import Workflow, WorkflowError
 
 # Workflows with no push/PR step: finishing one with committed product code
 # strands that code off the control branch. Kept as a set so the guard can grow
@@ -676,9 +677,15 @@ def _freeze_workflow_ref(cfg: Config, ticket: Ticket) -> None:
     plain workflow name. Activation is when that becomes real: we freeze the
     snapshot. We also seed `step: 1` whenever the ticket has no current step,
     so a fresh draft is launch-ready — `coga launch` composes the current
-    step's skill from the frozen workflow. It is a no-op for the workflow dict
-    of an `active`/`paused` ticket that already carries a step. Raises
-    `WorkflowError` if a string ref names no known workflow.
+    step's skill from the frozen workflow. Seeding step 1 resolves that step's
+    `assignee:` role token through the same `resolve_first_step_assignee` that
+    `create_task` uses, so a draft that arrives here lands on an agent-owned
+    step wearing an agent rather than the human `assignee:` creation defaulted
+    to — which `coga launch` would otherwise read as a human handoff its own
+    frozen step contradicts. It is a no-op for the workflow dict of an
+    `active`/`paused` ticket that already carries a step. Raises
+    `WorkflowError` if a string ref names no known workflow, or if step 1's
+    role token cannot resolve — every activation caller already renders that.
 
     Precondition: `_has_workflow(ticket)` is true, so `ticket.workflow` is a
     non-empty string or dict by the time we read its steps.
@@ -688,9 +695,25 @@ def _freeze_workflow_ref(cfg: Config, ticket: Ticket) -> None:
         wf_def = Workflow.load(resolve_workflow_path(cfg, wf))
         ticket.frontmatter["workflow"] = wf_def.freeze()
     if not ticket.step:
-        steps = (ticket.workflow or {}).get("steps") or []
+        frozen = ticket.workflow or {}
+        steps = frozen.get("steps") or []
         if steps:
+            role = steps[0].get("assignee")
+            assignee: str | None = None
+            if role:
+                try:
+                    assignee = resolve_first_step_assignee(
+                        cfg,
+                        role,
+                        workflow_name=frozen.get("name"),
+                        roles=ticket.frontmatter,
+                        agent=ticket.agent,
+                    )
+                except AssigneeResolutionError as exc:
+                    raise WorkflowError(str(exc)) from exc
             ticket.frontmatter["step"] = f"1 ({steps[0]['name']})"
+            if assignee is not None:
+                ticket.frontmatter["assignee"] = assignee
 
 
 def _missing_required_extensions(cfg: Config, ticket: Ticket) -> list[str]:

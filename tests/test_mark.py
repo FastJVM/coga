@@ -244,6 +244,114 @@ def test_mark_active_freezes_string_workflow(repo: Path) -> None:
     assert t.step == "1 (implement)"
 
 
+def test_mark_active_resolves_step_one_assignee(repo: Path) -> None:
+    """Activation resolves step 1's `assignee:` role token the way creation
+    does, so a hand-authored draft lands on an agent-owned step wearing the
+    agent rather than the human `assignee:` it was created with."""
+    _write(
+        repo / "workflows" / "review.md",
+        """
+        ---
+        name: review
+        steps:
+          - name: implement
+            assignee: agent
+          - name: review
+            assignee: owner
+        ---
+
+        ## implement
+        Write the code.
+
+        ## review
+        Review the code.
+        """,
+    )
+    slug, task_path = _make_task(repo, workflow=None, status="draft")
+    t = Ticket.read(task_path)
+    t.frontmatter["workflow"] = "review"
+    t.frontmatter["assignee"] = "marc"
+    t.write(task_path)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["mark", "active", slug])
+    assert result.exit_code == 0, result.output
+
+    t = Ticket.read(task_path)
+    assert t.step == "1 (implement)"
+    assert t.assignee == "claude"
+
+
+def test_mark_active_refuses_unresolvable_step_one_assignee(repo: Path) -> None:
+    """A step-1 role token that can't resolve fails loud at activation rather
+    than deferring a contradictory refusal to launch."""
+    _write(
+        repo / "workflows" / "peer.md",
+        """
+        ---
+        name: peer
+        steps:
+          - name: implement
+            assignee: other-agent
+        ---
+
+        ## implement
+        Write the code.
+        """,
+    )
+    slug, task_path = _make_task(repo, workflow=None, status="draft")
+    t = Ticket.read(task_path)
+    t.frontmatter["workflow"] = "peer"
+    t.write(task_path)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["mark", "active", slug])
+    assert result.exit_code == 2
+    assert "step 1 assignee='other-agent'" in result.output
+
+    t = Ticket.read(task_path)
+    assert t.status == "draft"
+    assert t.workflow == "peer"
+    assert t.step is None
+
+
+def test_mark_active_leaves_an_existing_step_assignee_alone(repo: Path) -> None:
+    """Nothing re-freezes a ticket that already carries a step — its
+    `assignee:` is left exactly as it stands."""
+    _write(
+        repo / "workflows" / "review.md",
+        """
+        ---
+        name: review
+        steps:
+          - name: implement
+            assignee: agent
+        ---
+
+        ## implement
+        Write the code.
+        """,
+    )
+    slug, task_path = _make_task(repo, status="paused")
+    t = Ticket.read(task_path)
+    t.frontmatter["workflow"] = {
+        "name": "review",
+        "steps": [{"name": "implement", "skills": [], "assignee": "agent"}],
+    }
+    t.frontmatter["step"] = "1 (implement)"
+    t.frontmatter["assignee"] = "marc"
+    t.write(task_path)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["mark", "active", slug])
+    assert result.exit_code == 0, result.output
+
+    t = Ticket.read(task_path)
+    assert t.status == "active"
+    assert t.step == "1 (implement)"
+    assert t.assignee == "marc"
+
+
 def test_mark_active_refuses_unknown_string_workflow(repo: Path) -> None:
     """A bare-string `workflow:` ref that names no known workflow is refused
     at activation, when the freeze fails."""
