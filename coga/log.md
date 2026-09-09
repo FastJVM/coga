@@ -4578,3 +4578,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-08 17:23 [the-v2-parking-area-premise-check-has-four-holes] [human:nicktoper] created (status=draft)
 2026-09-08 17:23 [the-autofix-analyst-ticket-closed-without-shipping] [human:nicktoper] created (status=draft)
 2026-09-08 17:23 [test-recurring-create-is-silent-fixture-fix-is-hal] [human:nicktoper] created (status=draft)
+2026-09-08 17:23 [adjudicate-parked-and-active-tickets-whose-premise] [human:nicktoper] created (status=draft)
