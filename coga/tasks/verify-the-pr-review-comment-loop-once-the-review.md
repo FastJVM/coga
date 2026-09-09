@@ -1,7 +1,7 @@
 ---
 slug: verify-the-pr-review-comment-loop-once-the-review
 title: Verify the PR review-comment loop once the review queue drains
-status: blocked
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
