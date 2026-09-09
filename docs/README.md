@@ -18,7 +18,7 @@ If you're new, read these in order:
 Then, as you need them:
 
 - **[Operations](operations.md)** — running Coga day to day: notifications,
-  aliases, recurring maintenance (Dream and REM), the digest, and secrets.
+  recurring maintenance (Dream and REM), the digest, and secrets.
 - **[Development](development.md)** — working on Coga itself: source layout,
   running from a checkout, tests, and the repo↔package sync rule.
 

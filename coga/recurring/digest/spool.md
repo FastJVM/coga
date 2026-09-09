@@ -34,7 +34,8 @@ context. The git high-water mark lives separately in the digest ticket's
 
 
 
-consumed_through: f5339d021849
-{"id":"f5339d021849","ts":"2026-09-08T16:50","project":"coga","kind":"done","detail":"claude finished: sweep → done ✅","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
-{"id":"32fb0bde78b8","ts":"2026-09-08T16:50","project":"coga","kind":"done","detail":"claude finished: flush → done ✅","ticket":"recurring/digest","owner":"nicktoper"}
-{"id":"1bc90357c816","ts":"2026-09-08T16:50","project":"coga","kind":"done","detail":"claude finished: remind → done ✅","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
+
+consumed_through: 2c04ba02765b
+{"id":"2c04ba02765b","ts":"2026-09-09T10:30","project":"coga","kind":"done","detail":"claude finished: sweep → done ✅","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
+{"id":"28cbde2305fc","ts":"2026-09-09T10:31","project":"coga","kind":"done","detail":"claude finished: flush → done ✅","ticket":"recurring/digest","owner":"nicktoper"}
+{"id":"58966bd52011","ts":"2026-09-09T10:31","project":"coga","kind":"done","detail":"claude finished: remind → done ✅","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
