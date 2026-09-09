@@ -72,7 +72,17 @@ with whichever review tool you natively speak:
 From the feature worktree on the recorded branch, apply must-fix
 findings, skip nits, re-run `python -m pytest`, commit (e.g.
 `peer-review: apply review findings`), then `coga bump <slug>` from the
-primary checkout. If findings imply a design rethink, write to the
+primary checkout.
+
+**Wait for the review to return before you bump.** A review that has been
+*started* is not a review that has returned. This step owns that wait: the
+`open-pr` step which follows is mechanical, and the workflow auto-chains a
+fresh agent the moment you bump, so nothing downstream can hold an in-flight
+review open. Record the outcome under `## Peer review` on the blackboard —
+which tool ran, that it **returned**, and what it found — because a fresh
+session cannot otherwise distinguish a returned review from one still running,
+and that note is the only evidence that crosses the session boundary. If you
+cannot wait, escalate per your launch mode rather than bumping. If findings imply a design rethink, write to the
 blackboard and escalate per your launch mode — ask the attending human,
 or `coga block` in a queue run. Escalate the same way if your review tool
 isn't on PATH.

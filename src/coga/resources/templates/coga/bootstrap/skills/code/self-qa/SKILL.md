@@ -60,16 +60,36 @@ this step just makes sure the diff they see is already clean.
    apply /code-review and /simplify findings`. If `/simplify` already
    committed on its own, leave its commits as-is and add one more for
    the residual `/code-review` fixes (if any).
-7. **Bump from the primary checkout.** Return to the primary checkout
-   and run `coga bump <slug>` to advance to `pr`.
+7. **Wait for the review to return, then bump from the primary
+   checkout.** A review that has been *started* is not a review that has
+   returned. If `/code-review` or `codex review --base main` is still running,
+   wait for its findings and apply them (steps 4-6) before you bump. This is
+   the step that owns that wait: the `pr` step which follows is mechanical, and
+   by the time its agent is composed this session has already exited, so
+   nothing downstream can hold the review open for you. Bumping past an
+   in-flight review is how PR #723 merged with six unaddressed regressions in
+   it — `code/open-pr` carries the matching refusal, but only this step can
+   actually wait.
+
+   Then record the outcome in the `## Self-QA` note as durable evidence: which
+   review form ran, that it **returned**, and what it found. A fresh session
+   cannot otherwise tell a returned review from one still in flight, and the
+   note is the only thing that crosses the session boundary. If you cannot wait,
+   escalate per your launch mode — ask the attending human, or `coga block` in a
+   queue run — rather than bumping. Finally, return to the primary checkout and
+   run `coga bump <slug>` to advance to `pr`.
 
 ## Acceptance for this step
 
 - `/code-review` and `/simplify` have both run against the branch.
 - Findings worth acting on are applied, committed, and tested.
 - Working tree is clean; tests pass.
+- Every review this step started has **returned** — none is still in
+  flight at the bump.
 - A short `## Self-QA` section on the blackboard notes what was
-  changed (or "no findings" if both passes came back clean).
+  changed (or "no findings" if both passes came back clean), and states
+  explicitly that the review returned. The `pr` step reads that line as its
+  evidence, so an absent or ambiguous note reads as "still running".
 
 ## What this skill does NOT do
 

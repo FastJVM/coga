@@ -19,10 +19,40 @@ link reads it directly.
 
 ## Checkout boundary
 
-Treat the primary repo checkout as the Coga control-plane checkout.
-Keep it on `main` when possible. Do code changes in a feature worktree
-outside the primary checkout, then return to the primary checkout for
-blackboard updates, `coga bump`, `coga slack`, and `coga block`.
+Two checkout layouts are first-class. Choose one deliberately when the branch is
+created and record it in `worktree:`; every later step reads that line to decide
+where it runs.
+
+**Separate feature checkout.** Treat the primary repo checkout as the Coga
+control-plane checkout and keep it on `main` when possible. Do code changes in a
+feature worktree outside the primary checkout, then return to the primary
+checkout for blackboard updates, `coga bump`, `coga slack`, and `coga block`.
+`## Dev` is written in the primary checkout — the ticket copy `coga bump` reads
+— and `coga open-pr` also runs there, on the control branch; it pushes the
+recorded feature branch by name and never enters the feature checkout. This
+keeps task-state edits (`ticket.md`, plus the repo-global `coga/log.md`) from
+mixing with source changes on a feature branch. If task-state changes need to be
+committed, commit them separately from the code PR. `code/open-pr` calls this
+the legacy layout — legacy in the sense of "the older of two supported shapes",
+not deprecated.
+
+**Single checkout.** `worktree:` names the primary checkout itself and the agent
+stays in that one checkout, on the recorded feature branch, for code and
+control-plane work alike. There is no second copy to diverge from, so the
+feature-branch ticket *is* the live task-state copy: write `## Dev` there, and
+run `coga bump` and `coga open-pr` from that same checkout on that same branch —
+do not switch back to the control branch first. `coga open-pr` recognizes the
+layout in `_checkout_mode` (the recorded worktree resolves to this same Git
+checkout, this checkout is not itself a linked worktree, and `COGA_EXPECTED_TASK`
+proves the running session owns this exact ticket) and then: commits the
+launcher's pending generated `coga/log.md` append before its clean-tree gate;
+requires at least one committed *non-generated* path, because in this layout
+generated task/log commits are not implementation work
+(`_single_checkout_publishable_paths`), so a ticket that only moved task state
+will not open a PR; and syncs its own generated `pr:` write to the feature branch
+*and* the control branch, so both tips keep identical ticket bytes for the next
+run's freshness gate. The `coga/sync` and `coga/launch-internals` contexts carry
+the publishing rules in full.
 
 When an agent sandbox mounts the primary checkout's `.git` metadata read-only,
 `git worktree add` cannot create its branch lock. In that case an independent
@@ -30,11 +60,10 @@ When an agent sandbox mounts the primary checkout's `.git` metadata read-only,
 freshened from the control branch, is the accepted feature checkout. Record its
 repo path in `worktree:` exactly like a linked worktree. This keeps source and
 Git metadata writable without broadening the sandbox or moving control-plane
-ticket writes onto the feature branch.
-
-This keeps task-state edits (`ticket.md`, plus the repo-global `coga/log.md`)
-from mixing with source changes on a feature branch. If task-state
-changes need to be committed, commit them separately from the code PR.
+ticket writes onto the feature branch. It is a variant of the separate-checkout
+layout, not the single-checkout one: `_checkout_mode` cannot prove live-ticket
+ownership from a foreign repository, so control-plane writes, `coga bump`, and
+`coga open-pr` still happen in the primary checkout.
 
 ### Keep the feature checkout durable
 
@@ -137,20 +166,26 @@ When to write each:
 - **`branch:`** — the moment you create the branch. Don't wait until
   the PR is open. If you crash or hand off mid-step, the next agent
   needs to know which branch your work is on.
-- **`worktree:`** — the moment you create the feature worktree. Use a
-  path outside the primary checkout so it does not appear as an
-  untracked directory in the control-plane checkout.
+- **`worktree:`** — the moment you create the feature checkout. In the
+  separate-checkout layout use a path outside the primary checkout so it does
+  not appear as an untracked directory in the control-plane checkout; in the
+  single-checkout layout record the primary checkout's own path, which is what
+  `_checkout_mode` matches against.
 
   Both `branch:` and `worktree:` must be written into the ticket copy of the
   checkout `coga bump` will run from. In the workflows above the implement step
   declares `requires: branch`, so `coga bump` refuses to advance until it reads
-  both lines in *that* copy. Writing `## Dev` from inside the feature checkout
-  and then bumping from the primary checkout strands the write on the feature
-  branch: bump syncs a ticket that never saw it, and `coga open-pr` fails a step
-  later with "No usable `branch:` recorded" even though implement did record it.
-  Either write the lines in the checkout you bump from, or run `coga bump` from
-  the checkout that has the write. The gate checks presence, not freshness — on
-  a retried implement, confirm the recorded lines describe the current attempt.
+  both lines in *that* copy. In the separate-checkout layout that copy lives on
+  the control branch in the primary checkout: writing `## Dev` from inside the
+  feature checkout and then bumping from the primary checkout strands the write
+  on the feature branch, so bump syncs a ticket that never saw it and
+  `coga open-pr` fails a step later with "No usable `branch:` recorded" even
+  though implement did record it. Either write the lines in the checkout you
+  bump from, or run `coga bump` from the checkout that has the write. In the
+  single-checkout layout there is only one copy — the one on the feature branch
+  you are standing on — so the same rule resolves to writing and bumping in
+  place. The gate checks presence, not freshness — on a retried implement,
+  confirm the recorded lines describe the current attempt.
 - **`pr:`** — the full PR URL, one line. A trailing annotation after the URL
   is fine (`pr: <url> (no CI configured on the repo)`) — and unlike the two
   fields above, `pr:` needs no backticks around the value to make one safe,
@@ -159,8 +194,10 @@ When to write each:
   other link reads as no PR at all. In workflows whose PR step uses
   `code/open-pr` (e.g. `code/with-review`, `code/with-self-review`,
   `code/design-then-implement`), you do **not** write this line by hand: the
-  `code/open-pr` agent step runs `coga open-pr <slug>` from the primary control
-  checkout; the command reads `branch:` / `worktree:`, pushes the recorded
+  `code/open-pr` agent step runs `coga open-pr <slug>` from the checkout that
+  owns the live ticket — the primary control checkout in the separate-checkout
+  layout, the primary checkout on the feature branch in the single-checkout
+  one; the command reads `branch:` / `worktree:`, pushes the recorded
   feature branch by name, opens the PR, and writes `pr:` back itself. Your job in
   the preceding steps is to make sure `branch:` and `worktree:` are recorded and
   the branch is committed — `coga open-pr` fails loud if they are missing or
