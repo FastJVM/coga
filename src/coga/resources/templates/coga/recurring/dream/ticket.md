@@ -33,8 +33,9 @@ command or file path being
 acted on and the result count when available. For the sharded scan phases, say
 how many shards were launched and how many wrote a completion line. If a phase
 is skipped, say why.
-The blackboard remains the durable record; console progress is for the human
-watching the run.
+The blackboard is this run's record of what happened; console progress is for
+the human watching it happen. Neither is durable — that word belongs to the
+PRs, draft tickets, and markers a finding has to end in.
 
 ### Run order
 

@@ -35,7 +35,11 @@ replacement for reading the named evidence.
 ## Shard partition
 
 Dream partitions this scan **by area, with both sides of the comparison in each
-shard**. Do not create disjoint ticket-only and knowledge-only shard groups.
+shard**. Do not create disjoint ticket-only and knowledge-only shard groups: a
+shard that owns no ticket path cannot reach `extract` or `gap` at all, since
+both classes are defined by a ticket-to-knowledge comparison, and it silently
+degrades to a knowledge-only consistency check that can only ever report
+`stale`. A shard with one empty side is a mis-partition, not a shard kind.
 Derive an area's first routing key from ticket context/skill/workflow refs and
 from knowledge namespaces, then use task paths and titles for tickets with no
 refs.
@@ -45,14 +49,39 @@ refs.
 - **Knowledge evidence** — every `SKILL.md` under the repo's configured
   contexts directory (`coga/contexts/` unless `[layout] contexts` in
   `coga.toml` moves it — resolve that checkout-root-relative key before
-  globbing), every Markdown file under `coga/skills/**`, and
+  globbing), every repo-authored Markdown file under `coga/skills/**`, and
   `coga/workflows/**`.
+
+Installer-managed skills are **outside the corpus**. `coga/skills/` mixes
+repo-authored skills with upstream trees that `coga skill install` and
+`coga skill update` place and refresh wholesale, declared in
+`src/coga/resources/managed-skills.toml` — equivalently, any skill whose
+recorded metadata names a non-local source. Exclude those trees before
+globbing. Today they are the seven `google-agents-cli-*` trees: 286,169 bytes
+across 34 Markdown files, about 61% of all Markdown under `coga/skills/` and
+roughly two full shard budgets. The content is upstream GCP/ADK documentation
+carrying no Coga repo reality, and Coga cannot durably edit it — a `stale`
+finding against it is reverted by the next refresh, and no `extract` can ever
+target it. Spend the budget on knowledge this repo authored.
 
 Each corpus file has one owning shard, but a relevant knowledge or ticket file
 may be duplicated as evidence in another area's assignment. Keep a task
-directory's Markdown files together and do not split a single file. The owned
-and evidence paths together must stay inside the shared protocol's byte and
-file limits.
+directory's Markdown files together. The owned and evidence paths together must
+stay inside the shared protocol's byte and file limits.
+
+A few contexts are large enough that pricing them at full length costs a shard
+on its own — `coga/contexts/coga/architecture/SKILL.md` is ~74 KB,
+`coga/contexts/coga/sync/SKILL.md` ~67 KB, and
+`coga/contexts/coga/recurring/SKILL.md` ~54 KB against a 150 KB budget — and
+that is what forces the knowledge-only shards this partition forbids. The
+protocol already refuses to read a file over 60 KB whole, so sizing one whole
+charges a shard for bytes it will never read. **Own an oversized context as a
+ranged path**: pair it with its area's ticket set, size it against the budget
+by the range allowance the shard will actually spend rather than by its full
+length, and record that allowance in its manifest row. The shard covers it by
+grepping and range-reading the sections its tickets touch, counting the bytes
+it reads. An oversized context is the only file a shard may own in parts;
+every other file is owned whole or not owned.
 
 Before classifying an `extract` or `gap`, compare the ticket evidence with the
 matching context, skill, and workflow evidence in that area. For a possible
