@@ -23,20 +23,33 @@ act on, not so often it becomes noise.
 
 ## Context
 
-Deliberately thin: this is the vision, not the design. The engineering path —
-how usage becomes a plan-utilization number, where the report lands, exact
-cadence — is the `design` step's call.
+Deliberately thin: this is the vision, not the design. The engineering path is
+the `design` step's call — including the first question, which is that plan
+utilization has **no defined denominator today**. Subscription plans are metered
+by rate-limit windows, not a cumulative token allowance, so "a quarter of the
+$200 plan" needs a proxy to be invented (API-equivalent cost via the price table
+`coga/usage` defers, or something else). Deciding that is design work, not a
+given.
 
-`coga usage` already reads the token records out of `coga/log.md`; the attached
-`coga/usage` context describes that primitive and explicitly defers a price
-table as a follow-up. `coga/recurring/digest/` is the closest existing model
-for a scheduled report that posts to Slack (attach `coga/recurring` at design
-time if that shape is chosen — it's 54KB, too heavy to carry by default).
+Prior art and pointers:
 
-Two gaps the design should confront rather than inherit: usage records carry no
-`user` field (`src/coga/usage.py:66-74`), so per-person numbers aren't derivable
-today; and only Coga-launched sessions are recorded, so totals understate real
-usage — which biases exactly toward over-eager downgrade advice.
+- `coga usage` reads token records from `coga/log.md`; the attached `coga/usage`
+  context describes that primitive and its deferred price table.
+- `coga/recurring/digest/` is the closest model for a scheduled Slack report.
+  Attach `coga/recurring` at design time if that shape is chosen — it's 54KB,
+  too heavy to carry by default.
+- `src/coga/recurring_autofix.py` (`_CLAUDE_SUBSCRIPTION_TYPES`, ~L105/L458) is
+  the only place in the repo that knows which plan someone is on.
+
+Two known gaps to caveat around, both **out of scope** here — fixing either is
+its own ticket, so recommend a split rather than absorbing it:
+
+- Usage records carry no `user` field. Attribution today is an approximate join
+  through the record's `slug` to that ticket's `human:`/`owner:`; no schema
+  change is needed or wanted for a first report.
+- Only Coga-launched sessions are recorded, and only for this repo, so totals
+  understate real usage — the direction of error that biases toward over-eager
+  downgrade advice.
 
 <!-- coga:blackboard -->
 
