@@ -4625,3 +4625,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-09 11:50 [coga] [git] sync failed: `git fetch --no-write-fetch-head https://github.com/FastJVM/coga refs/heads/main:refs/coga/fetch/3f57d2a94ef04fbc9a120a4f1f4223d0` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com
 2026-09-09 11:50 [coga] [git] sync failed: `git fetch --no-write-fetch-head https://github.com/FastJVM/coga refs/heads/main:refs/coga/fetch/c277249ae6a644e2a6dccd1588b78831` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com
 2026-09-09 11:51 [implement-the-include-allowlist-that-url-skill-upd] [human:nicktoper] created (status=draft)
+2026-09-09 12:03 [run-recurring-agent-templates-off-the-control-bran] [human:nicktoper] activated (draft → active)
