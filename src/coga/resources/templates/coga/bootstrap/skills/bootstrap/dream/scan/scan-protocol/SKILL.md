@@ -23,9 +23,11 @@ shard subagent along with that shard's assignment. It holds four files:
 
 - `manifest.md` — a Dream-written, append-only assignment log. A shard row
   records its id, attempt number, exact owned paths, any duplicated evidence
-  paths, and their total bytes. A supersession row records that a failed parent
-  was replaced by one or more retry children. Dream owns this file; shards read
-  it and never write to it.
+  paths, and their total bytes. An owned path may carry a **range allowance**
+  (see "Ranged ownership" below), in which case the row's byte total counts
+  that allowance rather than the file's full length. A supersession row records
+  that a failed parent was replaced by one or more retry children. Dream owns
+  this file; shards read it and never write to it.
 - `index.md` — Dream-written, the full corpus index for the phase: every
   candidate path, its size and kind, plus compact routing metadata when the
   phase skill requires it. The index is a discovery map, not permission to read
@@ -53,6 +55,13 @@ shard <id> attempt=<1 | 2> bytes=<N> owns: <paths>; evidence: <paths or none>
 supersede <parent-id> -> <child-id>[, <child-id> ...]
 ```
 
+An owned path is either a bare path (owned whole) or `<path>@<allowance>`, a
+ranged path whose allowance is the bytes the shard is budgeted to read from it:
+
+```
+shard k3 attempt=1 bytes=112400 owns: coga/tasks/recurring/**, coga/contexts/coga/architecture/SKILL.md@20000; evidence: none
+```
+
 The active manifest is its **leaf assignments**: shard rows whose ids have not
 appeared on the left of a `supersede` row. Reconciliation checks only those
 leaves. This keeps the log append-only without requiring a failed parent to
@@ -62,7 +71,9 @@ later produce an impossible completion line.
 
 A shard's owned and evidence paths together are at most **150 KB of Markdown
 across at most 40 distinct files**. Evidence may appear in more than one shard,
-but every corpus file has exactly one owning shard. Dream sizes files portably
+but every corpus file has exactly one owning shard — a ranged path is no
+exception: it is owned by exactly one shard, which reads part of it rather than
+all of it. A file is never split across two owners. Dream sizes files portably
 before launching anything; for example:
 
 ```
@@ -72,8 +83,9 @@ find <paths> -type f -name '*.md' -exec wc -c {} \;
 Do not use GNU-only `find -printf`; Dream must run with the default BSD tools on
 macOS too.
 
-A shard fully reads its owned paths and may read the evidence paths named in
-its assignment. When a concrete comparison needs another indexed file, use a
+A shard fully reads its owned paths — except a ranged path, which it covers to
+its declared allowance (see "Ranged ownership") — and may read the evidence
+paths named in its assignment. When a concrete comparison needs another indexed file, use a
 targeted grep or range read rather than reading that file whole, and count the
 bytes actually read against the same budget. If the comparison cannot fit,
 write an `incomplete` line naming the needed evidence so Dream can include it in
@@ -89,6 +101,33 @@ Two reading rules keep a shard inside its budget:
 If your assignment turns out to exceed the budget once you size it, do not read
 past the budget. Process what fits, then write an `incomplete` line naming the
 paths you did not reach so Dream can re-shard them.
+
+## Ranged ownership
+
+The 60 KB rule and whole-file ownership pull against each other: a file the
+protocol forbids reading whole would, priced at full length, charge a shard for
+bytes it is never allowed to spend. Sizing `coga/contexts/coga/architecture/SKILL.md`
+(~74 KB) at full length costs half a shard's budget and forces single-file
+shards. Ranged ownership resolves that, and is the **only** departure from
+whole-file ownership.
+
+- **When.** A phase skill may declare ranged ownership for a file over the
+  60 KB whole-read limit. Nothing else is ever owned in parts.
+- **Sizing.** Dream prices a ranged path at its allowance, not its length, and
+  that allowance is what enters the row's `bytes=` total. Pick an allowance
+  that covers the sections the shard's other paths actually touch.
+- **Coverage.** The shard grep-and-range-reads the file for the claims its
+  assignment concerns, counting bytes actually read against the allowance. It
+  does not read the file whole, and it does not read past the allowance.
+- **Completion.** A ranged path is covered when the shard has spent its
+  allowance or exhausted the sections its assignment concerns, whichever comes
+  first — a completion line therefore asserts coverage of the *declared range*,
+  not of the whole file. This is the one case where a clean phase does not prove
+  every corpus byte was read; it proves every corpus file was covered to its
+  manifest allowance. If the shard needs more of the file than its allowance to
+  settle a candidate, it finishes no finding from that candidate and writes an
+  `incomplete` line naming the file and the extra range, exactly as it would for
+  any other missing evidence.
 
 ## Append findings as you decide them
 

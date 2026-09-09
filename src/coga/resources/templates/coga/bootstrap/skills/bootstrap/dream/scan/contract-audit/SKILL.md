@@ -21,10 +21,10 @@ Read that skill first; this one only adds what is specific to the audit.
 
 The living contract surface is every `SKILL.md` under the repo's configured
 contexts directory (`coga/contexts/` unless `[layout] contexts` in `coga.toml`
-moves it — resolve that key before globbing) and `coga/skills/**/SKILL.md`, the
-`coga/recurring/<name>/ticket.md` templates (recurring tasks are ticket-format
-directories), `README.md`, `docs/*.md`, and the agent instruction files
-`CLAUDE.md` and `AGENTS.md`.
+moves it — resolve that key before globbing) and every repo-authored
+`coga/skills/**/SKILL.md`, the `coga/recurring/<name>/ticket.md` templates
+(recurring tasks are ticket-format directories), `README.md`, `docs/*.md`, and
+the agent instruction files `CLAUDE.md` and `AGENTS.md`.
 
 Frozen task artifacts under `coga/tasks/` are historical records, not
 contracts — a stale reference inside a retired ticket is not a finding. Audit
@@ -32,13 +32,26 @@ only the living contract surface. `coga/log.md` is history too, and is larger
 than any shard budget: grep it for an exact term when a claim needs a date or a
 slug, never read it whole.
 
+Installer-managed skills are not contract surface either. The upstream trees
+that `coga skill install` and `coga skill update` place and refresh wholesale —
+those whose `ref` appears in `src/coga/resources/managed-skills.toml`, and only
+those — are not Coga's explanation of itself, and Coga cannot durably edit them:
+a `drift` finding against one is reverted by the next refresh. A skill that
+merely records an upstream source in `.coga-source.json` is **not** in this
+class: a `coga skill install-url` skill such as `coga/skills/clarity/` is
+absent from the manifest, is locally adapted, and stays in the audit surface. Today they are the seven `google-agents-cli-*`
+trees, 286,169 bytes across 34 Markdown files, about 61% of all Markdown under
+`coga/skills/` and roughly two full shard budgets. Exclude them before globbing
+so the budget goes to prose this repo authored.
+
 ## Shard partition
 
 Dream partitions the surface into groups and chunks each to the protocol's
 budget:
 
 - **contexts** — every `SKILL.md` under the configured contexts directory.
-- **skills** — `coga/skills/**/SKILL.md`.
+- **skills** — `coga/skills/**/SKILL.md`, excluding the installer-managed
+  trees named above.
 - **templates and docs** — `coga/recurring/*/ticket.md`, `README.md`,
   `docs/*.md`, `CLAUDE.md`, `AGENTS.md`.
 - **copy divergence** — one shard over actual counterpart pairs only. In the
