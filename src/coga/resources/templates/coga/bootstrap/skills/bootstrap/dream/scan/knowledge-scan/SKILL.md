@@ -54,10 +54,18 @@ refs.
 
 Installer-managed skills are **outside the corpus**. `coga/skills/` mixes
 repo-authored skills with upstream trees that `coga skill install` and
-`coga skill update` place and refresh wholesale, declared in
-`src/coga/resources/managed-skills.toml` — equivalently, any skill whose
-recorded metadata names a non-local source. Exclude those trees before
-globbing. Today they are the seven `google-agents-cli-*` trees: 286,169 bytes
+`coga skill update` place and refresh wholesale. **The manifest's `ref` list in
+`src/coga/resources/managed-skills.toml` is the whole test.** Exclude those
+trees before globbing.
+
+Do *not* widen that to "any skill whose recorded metadata names a non-local
+source". Provenance is not management: a skill installed with
+`coga skill install-url` also carries a `.coga-source.json` naming an upstream
+source, but it is an ordinary project-local skill that the repo adapts and that
+Coga can durably edit. `coga/skills/clarity/` is the live case — `source_type:
+url`, absent from the manifest, and carrying real `local_adaptation_notes`.
+Excluding it would drop repo-specific knowledge from the corpus for no reason
+beyond it having once been downloaded. Today they are the seven `google-agents-cli-*` trees: 286,169 bytes
 across 34 Markdown files, about 61% of all Markdown under `coga/skills/` and
 roughly two full shard budgets. The content is upstream GCP/ADK documentation
 carrying no Coga repo reality, and Coga cannot durably edit it — a `stale`
@@ -76,12 +84,13 @@ on its own — `coga/contexts/coga/architecture/SKILL.md` is ~74 KB,
 that is what forces the knowledge-only shards this partition forbids. The
 protocol already refuses to read a file over 60 KB whole, so sizing one whole
 charges a shard for bytes it will never read. **Own an oversized context as a
-ranged path**: pair it with its area's ticket set, size it against the budget
-by the range allowance the shard will actually spend rather than by its full
-length, and record that allowance in its manifest row. The shard covers it by
-grepping and range-reading the sections its tickets touch, counting the bytes
-it reads. An oversized context is the only file a shard may own in parts;
-every other file is owned whole or not owned.
+ranged path**, using the shared protocol's "Ranged ownership" rules: pair it
+with its area's ticket set and record it in the manifest as
+`<path>@<allowance>`, so it is priced at the bytes the shard will actually
+spend rather than at its full length. The shard covers it by grepping and
+range-reading the sections its tickets touch. A context over the whole-read
+limit is the only file this phase may own that way; every other file is owned
+whole or not owned, and a ranged file still has exactly one owning shard.
 
 Before classifying an `extract` or `gap`, compare the ticket evidence with the
 matching context, skill, and workflow evidence in that area. For a possible

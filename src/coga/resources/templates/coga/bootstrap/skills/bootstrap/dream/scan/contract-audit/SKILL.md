@@ -34,10 +34,12 @@ slug, never read it whole.
 
 Installer-managed skills are not contract surface either. The upstream trees
 that `coga skill install` and `coga skill update` place and refresh wholesale —
-declared in `src/coga/resources/managed-skills.toml`, equivalently any skill
-whose recorded metadata names a non-local source — are not Coga's explanation of
-itself, and Coga cannot durably edit them: a `drift` finding against one is
-reverted by the next refresh. Today they are the seven `google-agents-cli-*`
+those whose `ref` appears in `src/coga/resources/managed-skills.toml`, and only
+those — are not Coga's explanation of itself, and Coga cannot durably edit them:
+a `drift` finding against one is reverted by the next refresh. A skill that
+merely records an upstream source in `.coga-source.json` is **not** in this
+class: a `coga skill install-url` skill such as `coga/skills/clarity/` is
+absent from the manifest, is locally adapted, and stays in the audit surface. Today they are the seven `google-agents-cli-*`
 trees, 286,169 bytes across 34 Markdown files, about 61% of all Markdown under
 `coga/skills/` and roughly two full shard budgets. Exclude them before globbing
 so the budget goes to prose this repo authored.
