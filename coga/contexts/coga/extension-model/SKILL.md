@@ -80,11 +80,20 @@ common case, not its whole extent. Python logic only proves that a verb is not
 an alias. Operands, validation, Coga-file access, or an implementation already
 living in `src/coga/` do not distinguish a kernel command from a command ticket
 or independently versioned external CLI. A verb whose whole body starts a
-launch is still an alias however it is spelled. `coga digest`
-(`commands/digest.py`) and `coga megalaunch` (`megalaunch.py`) are current
-in-package implementations, not ratified examples of this exception: the
-active command-cleanup design ticket must either record the required
-co-versioning proof or migrate each command where its shape allows.
+launch is still an alias however it is spelled. `coga digest` is no longer an
+open case under this second exception, because the *first* one now places it:
+it is a registered recipe, `"digest": run_digest_recipe` in `runner.RECIPES`,
+implemented at `commands/digest.py`. What remains unresolved for digest is only
+its CLI spelling — it is still `app.command("digest")` in `src/coga/cli.py`,
+whereas `open-pr` and `delete-task` carry no Typer command at all and are
+reached solely as `coga run <name>`. `coga megalaunch` (`megalaunch.py`) has no
+`RECIPES` entry and is the one genuinely unclassified in-package
+implementation. Both questions sit with a **parked** design rather than an
+active ticket: `coga/tasks/v2/cleanup-core-commands/` is one paused ticket plus
+five drafts, and `coga/tasks/v2/README.md` defines that directory's contents as
+real work deliberately off the current execution path. Until it is pulled
+forward, both commands stay in the kernel and this is settled status, not work
+in flight.
 
 What that closure contains, and why each is there:
 
@@ -241,18 +250,22 @@ actively fights the capability boundary.
 
 | Home | Members |
 | --- | --- |
-| **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · fresh `init` · fixed `coga run` recipes · commands proven to require co-versioning with a named package-private invariant · *(hooks)* secret-inject, skill-verify-at-compose |
+| **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · `block` / `unblock` · fresh `init` · fixed `coga run` recipes · commands proven to require co-versioning with a named package-private invariant · *(hooks)* secret-inject, skill-verify-at-compose |
 | **Stateful tickets** | reviewable work with its own lifecycle; may run `ticket.py`, an agent, or both |
 | **Stateless command tickets** | package/repo bootstrap targets such as `resolve-conflicts`; agent-backed or no-operand `ticket.py`, launched in place |
 | **External tools** | existing CLIs such as `git`, `gh`, and `op` |
 | **Alias (sugar)** | fixed rewrites to launch/bootstrap or other real command targets |
 
 The table names home criteria and settled primitives; it does not ratify every
-current `src/coga/` verb as a permanent kernel member. Several live verbs are
-still under classification — including `digest` and `megalaunch` — and may
-move when their reviewed shape permits it. `docs/cli-extension-audit.md` holds
-the current verb-by-verb inventory; an active migration ticket remains
-authoritative about decisions it was created to settle.
+current `src/coga/` verb as a permanent kernel member. `block` and `unblock`
+are listed above because they are core blocked-state transitions — registered in
+`src/coga/cli.py` and named as state-machine commands by `coga/architecture` —
+not because the table is exhaustive. The one live verb still genuinely under
+classification is `megalaunch`; `digest`'s implementation is already placed by
+the recipe registry and only its Typer spelling is open (above). Both are
+deferred to the parked `cleanup-core-commands` design, so no migration ticket is
+currently authoritative about them. `docs/cli-extension-audit.md` holds the
+verb-by-verb inventory.
 
 ## Migration rule, not a redesign
 
