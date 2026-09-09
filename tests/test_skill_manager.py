@@ -24,11 +24,13 @@ from coga.skill_manager import (
     SkillManagerError,
     SkillResult,
     SkillUpdateSummary,
+    apply_include_allowlist,
     hash_skill_tree,
     install_github_skill,
     install_local_skill,
     install_url_skill,
     open_or_update_pr,
+    parse_include_allowlist,
     read_source_metadata,
     remove_skill,
     render_update_pr_body,
@@ -1580,3 +1582,179 @@ def test_pr_body_lists_conflicts() -> None:
     assert "## Conflicts" in body
     assert "`tools/example`: manual resolution required" in body
     assert "recorded=old-tree, upstream=new-tree" in body
+
+
+def _prune_to_skill_only(skill_dir: Path) -> None:
+    """Record an `include` allowlist and prune the tree to match it."""
+    metadata = read_source_metadata(skill_dir)
+    assert metadata is not None
+    metadata["include"] = ["SKILL.md"]
+    write_source_metadata(skill_dir, metadata)
+    apply_include_allowlist(skill_dir, ["SKILL.md"])
+    metadata["installed_tree_digest"] = hash_skill_tree(skill_dir)
+    write_source_metadata(skill_dir, metadata)
+
+
+def test_include_allowlist_prunes_and_always_keeps_skill_md(tmp_path: Path) -> None:
+    tree = tmp_path / "tree"
+    (tree / "scripts").mkdir(parents=True)
+    (tree / "references").mkdir()
+    (tree / "site").mkdir()
+    (tree / "SKILL.md").write_text("---\nname: x\n---\nbody\n")
+    (tree / "scripts" / "run.sh").write_text("echo ok\n")
+    (tree / "references" / "a.md").write_text("ref\n")
+    (tree / "site" / "index.html").write_text("<html></html>")
+
+    # SKILL.md is appended even though the caller did not list it.
+    apply_include_allowlist(tree, parse_include_allowlist({"include": ["references"]}))
+
+    assert (tree / "SKILL.md").is_file()
+    # The recorded list stays as the operator wrote it.
+    assert parse_include_allowlist({"include": ["references"]}) == ["references"]
+    assert (tree / "references" / "a.md").is_file()
+    assert not (tree / "site").exists()
+    assert not (tree / "scripts").exists()
+
+
+@pytest.mark.parametrize("entry", ["/abs/path", "../escape", "a/../../b", ""])
+def test_include_allowlist_rejects_paths_outside_the_skill(entry: str) -> None:
+    with pytest.raises(SkillManagerError):
+        parse_include_allowlist({"include": [entry]})
+
+
+def test_include_allowlist_rejects_non_list_metadata() -> None:
+    with pytest.raises(SkillManagerError, match="must be a list of strings"):
+        parse_include_allowlist({"include": "SKILL.md"})
+
+
+def test_parse_include_allowlist_absent_is_none() -> None:
+    assert parse_include_allowlist({}) is None
+
+
+def test_url_update_reapplies_include_allowlist_instead_of_restoring_pruned_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pruned install stays pruned across an upstream change.
+
+    Before the allowlist was honored, this update took `_replace_skill_tree`
+    with the complete upstream tree and silently restored `scripts/run.sh`.
+    """
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+        runner=_gh_install_runner([]),
+        now=lambda: "2026-05-13T12:00:00Z",
+    )
+    skill_dir = cfg.repo_root / "skills" / "tools" / "example"
+    assert (skill_dir / "scripts" / "run.sh").is_file()
+    _prune_to_skill_only(skill_dir)
+
+    summary = update_skills(
+        cfg,
+        "tools/example",
+        downloader=lambda url: _skill_zip("tools/example", body="new\n"),
+    )
+
+    result = summary.results[0]
+    assert result.status == "updated"
+    assert "new" in (skill_dir / "SKILL.md").read_text()
+    # The pruning survived the update rather than being restored.
+    assert not (skill_dir / "scripts").exists()
+    metadata = read_source_metadata(skill_dir)
+    assert metadata is not None
+    assert metadata["include"] == ["SKILL.md"]
+    # Upstream detection still keys off the unpruned download...
+    assert metadata["source_tree_digest"] != metadata["installed_tree_digest"]
+    # ...while the installed digest describes the pruned tree on disk, so the
+    # next run reads it as unmodified rather than as a local adaptation.
+    assert metadata["installed_tree_digest"] == hash_skill_tree(skill_dir)
+
+
+def test_url_update_of_pruned_skill_is_unchanged_not_a_standing_conflict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The regression that stalled `recurring/skill-update` every week."""
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+        runner=_gh_install_runner([]),
+        now=lambda: "2026-05-13T12:00:00Z",
+    )
+    skill_dir = cfg.repo_root / "skills" / "tools" / "example"
+    _prune_to_skill_only(skill_dir)
+
+    summary = update_skills(
+        cfg,
+        "tools/example",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+    )
+
+    assert summary.results[0].status == "unchanged"
+
+
+def test_url_update_self_heals_a_digest_recorded_before_pruning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A legacy record whose installed digest came from the unpruned download.
+
+    Without the self-heal this deadlocks: the digest mismatch reports
+    `skipped-local-adaptation` forever and the allowlist is never applied.
+    """
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+        runner=_gh_install_runner([]),
+        now=lambda: "2026-05-13T12:00:00Z",
+    )
+    skill_dir = cfg.repo_root / "skills" / "tools" / "example"
+    unpruned_digest = hash_skill_tree(skill_dir)
+    metadata = read_source_metadata(skill_dir)
+    assert metadata is not None
+    metadata["include"] = ["SKILL.md"]
+    write_source_metadata(skill_dir, metadata)
+    apply_include_allowlist(skill_dir, ["SKILL.md"])
+    # Digest left describing the unpruned tree — the legacy shape.
+    assert read_source_metadata(skill_dir)["installed_tree_digest"] == unpruned_digest
+
+    summary = update_skills(
+        cfg,
+        "tools/example",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+    )
+
+    assert summary.results[0].status == "unchanged"
+    healed = read_source_metadata(skill_dir)
+    assert healed is not None
+    assert healed["installed_tree_digest"] == hash_skill_tree(skill_dir)
+
+
+def test_url_update_still_reports_conflict_for_edits_beyond_the_allowlist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The allowlist reproduces pruning; it does not suppress real adaptation."""
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+        runner=_gh_install_runner([]),
+        now=lambda: "2026-05-13T12:00:00Z",
+    )
+    skill_dir = cfg.repo_root / "skills" / "tools" / "example"
+    _prune_to_skill_only(skill_dir)
+    (skill_dir / "SKILL.md").write_text("---\nname: tools/example\n---\nlocal edit\n")
+
+    summary = update_skills(
+        cfg,
+        "tools/example",
+        downloader=lambda url: _skill_zip("tools/example", body="new\n"),
+    )
+
+    assert summary.results[0].status == "conflict"
+    assert "local edit" in (skill_dir / "SKILL.md").read_text()
