@@ -4564,3 +4564,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-08 16:50 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-08 16:50 [recurring/dream] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-09-08 17:22 [ticket-relationships-and-ownership-have-no-mechani] [human:nicktoper] created (status=draft)
+2026-09-08 17:22 [document-when-to-attach-a-large-context-versus-cit] [human:nicktoper] created (status=draft)
