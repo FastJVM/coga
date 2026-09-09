@@ -382,7 +382,10 @@ def test_recurring_create_is_silent(
     from coga.tasks import TaskRef
 
     # Recurring period tasks are always directory-form because they may carry
-    # deterministic and state-snapshot siblings.
+    # deterministic and state-snapshot siblings. The `TaskRef` below must agree:
+    # with `file_form=True`, `ticket_path` returns the directory itself and
+    # `_broadcast_scan`'s period-lease read raises IsADirectoryError before the
+    # notification assertion is ever reached.
     slug, path = _make_task(repo, status="active", force_directory=True)
     posts = _capture(monkeypatch)
     cfg = load_config(repo)
@@ -391,7 +394,7 @@ def test_recurring_create_is_silent(
         tasks=[
             DueTask(
                 template="weekly",
-                ref=TaskRef(slug=slug, path=path, file_form=True),
+                ref=TaskRef(slug=slug, path=path, file_form=False),
                 last_fire=datetime(2026, 6, 9),
                 period_key="2026-W24",
                 created=True,
@@ -419,6 +422,38 @@ def test_recurring_scan_error_uses_important_live_fallback(
 
     assert urls == [IMPORTANT_WEBHOOK]
     assert "recurring scan skipped 1 template" in posts[0]
+
+
+def test_recurring_scan_error_without_important_webhook_does_not_abort(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A repo with no resolved important webhook must still finish its sweep.
+
+    Regression: `_broadcast_scan` sent the skipped-template summary with an
+    unwrapped `important=True`, so the channel's configuration refusal
+    propagated out of the scan phase — which runs before the launch loop — and
+    took the whole sweep down over a report already on stderr and in the scan
+    table. Unexporting the referenced var is the same unresolved `None` as
+    omitting the key.
+    """
+    from coga.recurring import DueScan
+    from coga.recurring_runner import _broadcast_scan
+
+    monkeypatch.delenv("COGA_IMPORTANT_WEBHOOK_URL")
+    urls: list[str] = []
+    posts = _capture(monkeypatch, urls=urls)
+    _broadcast_scan(
+        load_config(repo),
+        DueScan(tasks=[], errors=[("bad", "invalid schedule")]),
+    )
+
+    # The alert is dropped, never rerouted to the flow webhook, and the remedy
+    # is loud on stderr.
+    assert posts == []
+    assert urls == []
+    assert "important_webhook" in capsys.readouterr().err
 
 
 def test_recurring_scan_error_spools_once_without_live_post(

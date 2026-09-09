@@ -4,7 +4,7 @@ Every public `coga` command, grouped by what you use it for. This mirrors the
 CLI's own `--help` — run `coga <command> --help` for the authoritative, current
 detail; the help output is the source of truth if anything here drifts.
 
-`coga --version` prints the Coga package and vendored CLI versions.
+`coga --version` prints the Coga package version.
 
 Throughout, a `<task>` argument accepts a task's slug or id-slug (and, where
 noted, a `bootstrap/<name>` target).

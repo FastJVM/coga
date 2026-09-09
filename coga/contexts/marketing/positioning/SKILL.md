@@ -1,6 +1,6 @@
 ---
 name: marketing/positioning
-description: Marketing-mode context for Coga launch/comms work. Loads Coga's positioning, audience, voice, proof points, and honest limits so an agent writing launch material stays on-message. Attach to any marketing/comms ticket. Source of truth is docs/market-thesis.md and docs/vision.md — when this drifts from them, they win.
+description: Marketing-mode context for Coga launch/comms work. Loads Coga's positioning, audience, voice, proof points, and honest limits so an agent writing launch material stays on-message. Attach to any marketing/comms ticket. Product purpose comes from docs/vision.md and strategy from docs/market-thesis.md; dated owner message decisions are recorded here.
 ---
 
 # Coga marketing positioning
@@ -9,8 +9,31 @@ Domain facts for writing Coga's outward comms — launch posts, landing
 copy, READMEs, talks, social. This is *what's true about Coga's market
 position and voice*; it is not a writing process — that is
 `marketing/write-post`.
-Distilled from `docs/market-thesis.md` and `docs/vision.md` — read those
-for the full argument. When they conflict with this file, they win.
+Product purpose comes from `docs/vision.md`; strategic reasoning comes from
+`docs/market-thesis.md`. This file owns the current message direction and voice.
+Resolve discrepancies by subject and dated owner decision; do not silently
+promote older strategic prose above a newer message correction.
+
+## Pitch direction — owner correction, 2026-09-08
+
+Lead with Coga as a way to work with AI by managing what it works from: the
+intent, instructions, relevant knowledge, and current working state. The human
+and agent can shape those inputs together; readable files carry them into a
+later session, and Coga composes the selected material into that session's
+prompt. The interface includes conversation, planning, execution and correction.
+
+Make the interaction concrete before introducing the company-OS category or
+the parallel work queue. Ownership is present from the beginning: the material
+being selected and corrected is visible and editable in the user's repo.
+Explain one real task from rough intent through execution and a correction
+that is available to later work.
+
+Source: the owner correction and managed-prompt clarification in
+[coga/tasks/redo-documentation-dir-and-merge-it-with-context-b.md](../../../tasks/redo-documentation-dir-and-merge-it-with-context-b.md).
+The correction settles the direction, not final copy or historical uniqueness.
+`marketing/plan/write-the-pitch-and-narrative` owns the reusable pitch and
+narrative from the story/example decision ticket. Its owner review must
+reconcile the message with the retained three-post briefs in `marketing/plan`.
 
 ## The spine: independence / ownership
 
@@ -19,10 +42,11 @@ depend on vendors less, the substrate is yours.** This is the *only*
 taste an incumbent can't credibly voice — Anthropic already says "amplify
 not replace / you're in control," but a business whose revenue scales
 with your dependence can't mean "depend on us less" all the way down.
-So do **not** lead with "human-in-the-loop" or "amplify your thinking" —
-those slogans are commoditized now. Lead with ownership/independence.
+Make ownership concrete inside the opening interaction: the reader can inspect
+and change the material the agent works from. "Human-in-the-loop" and
+"amplify your thinking" need that mechanism to carry the claim.
 
-- One-liner (vision.md): *"A company OS for small teams in the agentic
+- Supporting category line (vision.md): *"A company OS for small teams in the agentic
   era. Humanist tech for people who still want to understand their own
   machines."*
 - The bet, in three words: **don't don't think.** The tool sharpens your
@@ -55,8 +79,8 @@ Coga is **classical in a romantic stampede**: every competitor sells
   feature-listers. Sell the worldview, not a spec sheet.
 - **But keep it sayable without the reading list.** The thesis leans on
   Pirsig / GEB / Lisp / homoiconicity; that's genuine taste but
-  high-brow and may not travel. For launch comms, lead with the legible
-  version: *a frontier agent is brilliant but blank — it needs your
+  high-brow and may not travel. After the concrete opening interaction, use
+  the explanation: *a frontier agent is brilliant but blank — it needs your
   grounding, and an ungrounded smart agent acts confidently wrong.*
   Coga is the apparatus that feeds it (contexts = facts, skills =
   procedures, blackboard = state), kept correct by a human-gated loop.
@@ -69,9 +93,9 @@ Coga is **classical in a romantic stampede**: every competitor sells
 Coga owns no UI (it borrows the terminal, your editor, Slack), so don't
 claim Linear-style pixel polish. The felt moments to dramatize instead:
 
-- **The 2-minute correction loop**: catch the agent doing something
-  wrong → open the context → fix one line → re-run → it does the right
-  thing. This is the sensory moment; show it.
+- **The correction loop**: show the agent's mistake, the exact governing
+  edit, and the later behavior the public record actually supports. Use the
+  source's details without adding a duration or promising that a rerun works.
 - **Steered-agent behavior**: the agent reliably does the right thing
   *because* the substrate directed it.
 - **Calm Slack feed** over many parallel agents — ambient control.
@@ -117,7 +141,7 @@ Comms must stay credible. State plainly where Coga is outclassed:
   against exactly this failure. Quote the claim *genre* ("fully
   autonomous," "+500%") in comms; never name-and-attack the brand.
 
-## Slogan and metric (headline-level rules)
+## Headlines and evidence
 
 - **"Agents do. Humans think." collides with Anthropic's "Keep
   thinking."** They own the megaphone, so in a feed *we* read as the
@@ -125,16 +149,17 @@ Comms must stay credible. State plainly where Coga is outclassed:
   with the note Anthropic can't sing — ownership/independence ("on a
   machine you own", "in your repo, not their cloud"). The humans-think
   note must never stand alone as the positioning.
-- **The metric Coga owns: human-minutes per shipped task.** Absolute,
-  human-scaled, recomputable from public timestamps — vs the field's
-  relative, unverifiable machine-output numbers. Use it by name across
-  comms; spreading the metric spreads the practice, because computing it
-  requires a legible, self-recording substrate.
+- **Ground the message in public examples.** Human-minutes per shipped task
+  remains an unmeasured historical proposal, not a headline requirement.
+  The owner dropped the marketing token experiment on 2026-09-09. Use the
+  specific public work, correction and later reuse that a source supports;
+  no measured efficiency or productivity outcome is claimed by this series.
 
 ## The strategic fork (decided)
 
 **Fork A is pinned** for the launch series — owner decision of 2026-08-19,
-recorded in `marketing/plan`'s status block. Write to fork A; do not reopen
+preserved here and in `marketing/plan`'s retained campaign. Write to fork A;
+do not reopen
 the question inside a marketing/comms ticket. Changing the fork is an owner
 decision. `marketing/write-post` cites this paragraph at its entry condition
 rather than restating the fork.
@@ -150,7 +175,8 @@ launch is a field report. They read very differently.
 
 ## What this context does NOT cover
 
-- How to write / the comms process, channel mechanics — `marketing/write-post`
+- Channel/account facts and audience scoring — `marketing/distribution`.
+- How to write / the comms process and publication checks — `marketing/write-post`
   (the order of work and the gates), which hands the prose-craft pass to the
   imported `clarity` skill. What each post *says* and when it ships —
   `marketing/plan`.

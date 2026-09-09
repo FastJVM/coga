@@ -51,26 +51,52 @@ work changes the knowledge organization and its maintained consumers, not the
 context primitive.
 
 This is the proposed migration contract for independent evaluation and the
-owner's `review-design` gate. The pitch, cuts, distribution decisions, and work
-split below are recommendations, not owner-approved deletions or product
-changes. Contexts are the preferred starting evidence for behavior, checked
-against source/tests; they are not automatically correct because they are
-contexts.
+owner's `review-design` gate. The owner's pitch direction is recorded below;
+the opening copy, cuts, distribution decisions, and work split remain
+recommendations, not owner-approved deletions or product changes. Contexts are
+the preferred starting evidence for behavior, checked against source/tests;
+they are not automatically correct because they are contexts.
 
-### Proposed pitch and authority
+### Owner's pitch direction and proposed authority
 
-Proposed opening:
+Owner correction at the review gate (2026-09-08): Coga is a new way to
+interface with AI, somewhere between a chat, a ticket, and a plan. Lead with
+that interaction. The previous choice between a company-OS opening and a
+work-queue opening did not capture the owner's meaning.
 
-> Coga is a company OS for small technical teams that run work with agents.
-> Tickets, knowledge, and working state live in your Git repo. Agents and
-> scripts do the work; humans direct it, review the result, and turn corrections
-> into guidance the next session can use.
+The owner further clarified that the organizing interface is not the chat:
+the prompt is something to manage explicitly. The reusable inputs, their
+selection, the current intent, and the working state are part of the user's
+working surface. Conversation can help shape them, while durable files carry
+the work into subsequent sessions. Explain that difference directly rather
+than reducing the pitch to a shared document or a queue of agent tasks.
 
-Lead with owned, correctable operations. Use the work queue and parallel agent
-sessions as the concrete example, preserving the current README's useful
-entry point. This keeps the company-OS scope and the pinned internal-OSS /
-field-report posture, at the cost of a broader opening than a coding-queue
-pitch. The owner may choose the narrower opening at the gate.
+Working interpretation and proposed opening, not yet approved wording:
+
+> Coga is a new way to work with AI by managing what it works from. You and
+> the AI maintain the intent, instructions, relevant knowledge, and working
+> state. Coga assembles that material into the prompt for the next session.
+> As you learn, you can change both the work and the guidance that directs it.
+
+Explain the interaction through one concrete piece of work: start with an
+incomplete idea, clarify it together, direct execution, inspect and correct
+the result, and carry the updated understanding into the next session.
+Conversation, planning, and execution are parts of that experience. Tickets,
+markdown, Git, contexts and workflows explain how the interface works; the
+company operation and parallel queue illustrate uses of it. Keep the existing
+field-report posture and evidence limits pending any further owner change.
+The tradeoff is that this framing needs a concrete interaction example to
+make the unfamiliar category understandable. It does not authorize a new
+primitive, persistent chat-history mechanism, or runtime behavior change.
+
+The owner's proposed novelty claim received a bounded source check below.
+Treat a radical departure from the chat abstraction as an interpretation of
+the interaction model. Do not claim historical priority, exclusive prompt
+management, or measured benefits: non-chat prompt interfaces, file-based
+instructions, and spec-driven agents have close precedents. The distinguishing
+thesis to demonstrate is making explicit prompt/context composition the
+operator's everyday interface to ongoing work, with inspectable files and a
+human-directed correction loop. Its uniqueness remains unproven.
 
 README should have the opening, one concrete correction example, a short
 install/start path, honest audience/limits, and links into the library. It is
@@ -121,16 +147,19 @@ files:
   recurring templates, package resources, and fixtures. Old broad attachments
   are replaced by the particular contracts the task needs, not by every child
   page. No maintained consumer silently falls through to an old bundled essay.
-- [ ] The shipped context set has enforced canonical/package correspondence
-  with completeness checks, not merely byte checks over whichever pairs still
-  exist. Local-only topics have explicit reasons. Keep unrelated template twin
-  checks and their existing intentional-divergence rules intact.
+- [ ] Both bootstrap-fallback and init-seeded contexts have enforced
+  canonical/package correspondence and explicit required-ref checks, including
+  a regression that removes both copies. Preserve the two seeded browser
+  topics under the proposed distribution policy below. Local-only topics have
+  explicit reasons. Keep unrelated template twin checks and their existing
+  intentional-divergence rules intact.
 - [ ] File-size and representative composition checks below pass. Report
   resolved paths, included and excluded content, context-token subtotals, and
   total prompt sizes; do not claim measured task-performance improvements.
 - [ ] Validation, relative links/anchors, context refs, relevant package/fixture
-  tests, and a built-wheel fallback check have been run. Record exact commands,
-  counts, existing failures, and any remaining gaps in the handoff.
+  tests, and separate built-wheel fresh-init and no-local-overrides fallback
+  checks have been run. Record exact commands, counts, existing failures, and
+  any remaining gaps in the handoff.
 
 ### Proposed shape: final documentation tree
 
@@ -174,8 +203,8 @@ docs/
     dev/{code,checkouts,dev-record,design-history}/SKILL.md
     browser/{api-first,dom-backed}/SKILL.md
     docs/gdrive-mcp/SKILL.md
-    marketing/{positioning,strategy,plan,post-declutter,post-amplify,
-          post-doc-cache,channels,scorecard,token-receipts}/SKILL.md
+    marketing/{map,positioning,strategy,plan,post-declutter,post-amplify,
+          post-doc-cache,distribution,scorecard}/SKILL.md
 ```
 
 The many leaves replace a few manuals with selectable topics; the index should
@@ -195,10 +224,13 @@ No short agent rendition beside a longer human rendition.
 
 Audit snapshot: checkout `e742d929`, 2026-09-08. Sizes are bytes, not rendered
 page lengths. README + docs + live topics + the unique package-only CLI topic
-sum to 696,224 bytes before counting scaffold files. The other 11 bundled
-contexts are byte-identical copies, not additional knowledge. `S` means a
-current bundled twin; `L` means currently local-only. Final refs in the right
-column live under `docs/contexts/` unless an explicit `docs/...md` path is given.
+sum to 696,224 bytes before counting scaffold files. Distribution has two
+paths: 12 bootstrap-fallback topics (11 live twins plus package-only CLI),
+and two init-seeded browser topics. All 13 live/package pairs are
+byte-identical copies, not additional knowledge. `S` means a current
+bootstrap-fallback twin; `I` means a current init-seeded twin; `L` means
+currently local-only. Final refs in the right column live under
+`docs/contexts/` unless an explicit `docs/...md` path is given.
 
 | Current document | Bytes | Proposed disposition and canonical home |
 | --- | ---: | --- |
@@ -220,6 +252,11 @@ column live under `docs/contexts/` unless an explicit `docs/...md` path is given
 Live paths in the following table are `coga/contexts/<ref>/SKILL.md`.
 Each `S` row also inventories
 `src/coga/resources/templates/coga/bootstrap/contexts/<ref>/SKILL.md`.
+Each `I` row also inventories
+`src/coga/resources/templates/coga/contexts/<ref>/SKILL.md`, which
+`commands/update.py::copy_fresh_templates` copies into new repos. This second
+tree is a setup source, not a runtime fallback root: `resolve_context_path`
+only checks the configured local root and `bootstrap/contexts`.
 The final row accounts for the package-only entry explicitly.
 
 | Current ref | Bytes / distribution | Proposed disposition and final topic homes |
@@ -240,11 +277,11 @@ The final row accounts for the package-only entry explicitly.
 | `coga/secrets` | 5,878 / L | Merge with architecture's capability boundary and operations' ref syntax at same ref; distinguish repo vault policy from the CLI's actual environment behavior. |
 | `coga/usage` | 9,302 / L | Split read/ledger contract at same ref from `coga/internals/activity-capture` (schema, provider matching, bounded/redacted content). |
 | `dev/code` | 13,097 / S | Split: same-ref convention overview, `dev/checkouts`, `dev/dev-record`, `dev/design-history`; preserve review/retirement and superseded-plan rules. |
-| `browser/api-first` | 1,855 / L | Retain policy at same ref. Bundled browser target's missing fallback is a separate distribution defect, recorded below. |
-| `browser/dom-backed` | 6,136 / L | Retain runner/DOM constraints at same ref; leave actual execution process in browser skills. |
+| `browser/api-first` | 1,855 / I | Retain policy at same ref and preserve its init-seeded package copy. The bundled browser target's missing bootstrap fallback remains a separate distribution defect, recorded below. |
+| `browser/dom-backed` | 6,136 / I | Retain runner/DOM constraints at same ref and preserve its init-seeded package copy; leave actual execution process in browser skills. |
 | `docs/gdrive-mcp` | 2,363 / L | Retain only as an explicitly dated contract for the identified MCP, pending capability re-verification; never present its 2026-06 limitations as universal Google Docs facts. |
 | `marketing/positioning` | 8,480 / L | Rewrite around approved voice/ownership/limits and pinned fork A; merge repeated strategy into strategy page. |
-| `marketing/plan` | 25,542 / L | Split live phase gates/ownership at same ref from three post briefs, channels, scorecard, and token-receipts; process stays in `marketing/write-post`. |
+| `marketing/plan` | 25,542 / L (pre-extraction baseline) | Retain live phase gates/ownership and coordinate any further brief split with the marketing tickets. The 2026-09-09 extraction adds `marketing/map` and `marketing/distribution`; preserve these refs and their content at migration. Process stays in `marketing/write-post`; the owner dropped the marketing token experiment. |
 | `marketing/launch-history` | 2,283 / L | Move to `docs/archive/launch-programs.md`; retire the attachable ref and update the writing skill's historical pointer. Keep no automatic live attachment. |
 | Bundled-only `coga/cli` | 77,252 / package only | Bring its useful contracts into the canonical doc tree and topic homes; keep same ref as a short command index, mirrored into the package. No giant fallback left behind. |
 
@@ -252,6 +289,12 @@ Scaffolds are also in scope: live `coga/contexts/.gitignore` (101 bytes) and
 `_template/SKILL.md` (1,664 bytes), with their packaged scaffold counterparts
 under `templates/coga/contexts/`, move with the live root. Preserve the
 `**/_template/` and `**/_template.md` ignores and metadata conventions.
+Prerequisite 1 revises both starter-template copies to teach the approved
+topic-size review policy; remove the conflicting blanket guidance that tens
+of KB are acceptable and length is not a test. The final relocation carries
+that reviewed scaffold unchanged. All retained files under the packaged
+`templates/coga/contexts/**` tree, including both browser topics, map to the
+configured canonical root; this mapping is not limited to scaffolds.
 Do not migrate `.coga`, `.agent-skills`, `.claude`, `.codex`, `.venv`, caches,
 or local TOML files as documentation.
 
@@ -279,7 +322,7 @@ sources before deleting them.
 | Digest/spool: sync digest/concurrency sections, patterns, CLI digest | `coga/digest`, `coga/patterns`, `coga/internals/spool-merge` | Outcome kinds, git high-water state, post-before-drain, anchor watermark, union merges, crash-safe replacement is not a lock, no hidden queue. |
 | Git state: sync durable sync/regression/sweep/pull-back sections, codebase checkout warnings, CLI state-command prose | `coga/sync`, `coga/internals/git-regressions`, `coga/internals/git-refresh`, `coga/internals/state-publication` | Control/feature publication, best-effort versus strict paths, union-file handling, stale-generation refusal, dirty state sweep and relocated root, deletion handling, pre-review publication hazard, refresh/stranding rules. |
 | Developer surface: codebase/development/dev-code, extension model and audits, CLI run/skill/open-pr | `coga/codebase`, `coga/testing`, `coga/packaging`, `coga/extension-model`, `coga/skill-management`, `dev/*`, `coga/releasing` | Shared-infra/command proof, closed recipes, no executable skill plugins, imported/hand-vendored skills, package-only resolution, portable fixtures, launch-env isolation, wheel test dependencies, exact test receipts and publish-only CI. |
-| Usage/evidence: usage, CLI usage, velocity, marketing token protocol | `coga/usage`, `coga/internals/activity-capture`, `docs/evidence/velocity.md`, `marketing/token-receipts` | Read API versus capture schema, Claude deltas/Codex cumulative counts, ambiguity => unknown, bounded secret-redacted content, elapsed time is not active human time, observed workstreams are not simultaneous processes or a multiplier. |
+| Usage/evidence: usage, CLI usage, velocity | `coga/usage`, `coga/internals/activity-capture`, `docs/evidence/velocity.md` | Read API versus capture schema, Claude deltas/Codex cumulative counts, ambiguity => unknown, bounded secret-redacted content, elapsed time is not active human time, observed workstreams are not simultaneous processes or a multiplier. The marketing token protocol is retired history in `marketing/launch-history`, not a new live context. |
 
 The CLI index maps each installed public command/alias to the owning topic
 above. In particular: init/build/install -> setup pages; create/ticket/show ->
@@ -343,40 +386,74 @@ The docs are the authored source in this repo; these resources are reviewed,
 byte-identical distribution copies. No symlink, runtime generator, docs loader,
 new metadata key, or package-install dependency on a source checkout.
 
-Proposed final distribution: generic Coga operator/developer topics and their
-split internals, including CLI-derived secrets/usage and `dev/*`, ship. Repo
-posture (`current-direction`, `project-stage`, `roadmap`), product/marketing
-material and the browser/Drive domain contracts stay local unless separately
-approved for bundling. Every bundled context should now have a canonical doc,
-including formerly package-only `coga/cli`. This adds focused package resources
-without changing the unset `[layout]` default in other repos.
+Proposed final distribution distinguishes delivery mechanisms explicitly:
+
+- **Bootstrap fallback:** generic Coga operator/developer topics and their
+  split internals, including CLI-derived secrets/usage and `dev/*`, ship under
+  `templates/coga/bootstrap/contexts/`. Every topic has a canonical doc,
+  including formerly package-only `coga/cli`.
+- **Init-seeded:** retain `browser/api-first` and `browser/dom-backed` at
+  `templates/coga/contexts/<ref>/SKILL.md`, mirrored from the canonical docs.
+  Fresh init keeps copying them to its default or configured local root.
+  Neither seed is deleted or moved to bootstrap by this migration. They are
+  distributed topics, not local-only exceptions. A separately approved
+  browser fallback repair may add bootstrap delivery; recheck its landed
+  disposition before cutover and preserve seeded delivery unless that repair
+  explicitly changes it.
+- **Local-only:** repo posture (`current-direction`, `project-stage`,
+  `roadmap`), product/marketing material and `docs/gdrive-mcp` stay local
+  unless separately approved for distribution, with explicit reasons.
+
+This adds focused package resources without changing the unset `[layout]`
+default in other repos. Keeping the browser seeds preserves current setup
+behavior while leaving the independently tracked no-overrides fallback gap
+visible; fresh-init success is not proof of fallback completeness.
 
 Strengthen existing packaging tests as part of adoption:
 
 1. Resolve this repo's canonical contexts location from committed shared TOML
    using `tomllib`, with the existing default while preparatory PRs still use
    it. Do not load machine-local configuration to discover test pairs.
-2. For every packaged bootstrap context, require the canonical counterpart to
-   exist and compare bytes. For packaged context scaffolds, map to the same
-   configured root. Keep the existing mappings for all other template areas.
-3. In the reverse direction, classify every canonical topic as shipped or in a
-   small explicit local-only exception set with reasons. Assert exceptions
-   still exist. This prevents deleting both halves or forgetting to distribute
-   a new split contract without review; required topic/consumer checks provide
-   the additional floor against both-side deletion.
-4. Exercise discovery with a relocated temporary tree and with a missing
-   canonical counterpart so missing files cannot silently shrink coverage.
-   Retain the generated-artifact exclusions and intentional-divergence checks;
-   do not solve relocation by weakening the existing count floor.
-5. Check maintained shipped attachments against bundled resources alone, and
-   compose from a built wheel with no local overrides. Track the known
-   browser/api-first gap separately until its focused repair lands.
+2. For every file under packaged `bootstrap/contexts/**` and
+   `contexts/**`, require the counterpart under the configured canonical root
+   and compare bytes. The latter includes both seeded browser topics and
+   scaffolds. Keep the existing mappings for all other template areas.
+3. In the reverse direction, classify each canonical topic as
+   bootstrap-fallback, init-seeded, or in a small explicit local-only exception
+   set with reasons. A topic deliberately delivered by both package paths
+   must appear in both distribution sets and have both copies compared.
+   Assert local-only exceptions still exist. Correspondence detects a missing
+   counterpart, but cannot detect deleting both copies.
+4. Define explicit `REQUIRED_BOOTSTRAP_CONTEXT_REFS` and
+   `REQUIRED_INIT_CONTEXT_REFS` in `tests/test_packaging.py` from the
+   owner-approved topic/ref map. The init set initially contains exactly
+   `browser/api-first` and `browser/dom-backed`; the bootstrap set enumerates
+   every approved generic topic and split internal in the final tree. These
+   are reviewed test expectations, never inferred from the surviving files.
+   Preparatory PRs add their new required refs when their topics land;
+   adoption verifies the complete approved set. Keep the local-only inventory
+   explicit too, so it is not a catch-all for omitted distribution.
+5. Exercise discovery with a relocated temporary tree, a missing canonical
+   counterpart, and deletion of both canonical and packaged copies of a
+   required topic. Cover both distribution roots; each deletion must fail the
+   relevant completeness check. Retain generated-artifact exclusions,
+   intentional-divergence checks and the existing count floor.
+6. From the built wheel, check fresh-init attachment/link closure with the
+   seeded local contexts under both default and relocated layouts. Separately
+   check maintained shipped attachments and compose approved fallback refs
+   with no local overrides. Report the known `browser/api-first` fallback
+   failure separately until its focused repair lands; do not supply a local
+   seed in this second fixture or claim complete fallback closure while the
+   gap remains. No fresh-init probe runs against the live repository.
 
-Use relative links between canonical topics so the mirrored subtree has the
-same link topology. A bundled relative link must resolve within bundled
-resources. For source code, this repo's archives, or local-only posture, use a
-repository source pointer/link rather than an invalid path outside the wheel.
-No link is an implicit dependency loader.
+Use relative links between canonical topics when the mirrored subtree has
+the same link topology. Verify bootstrap links inside bootstrap resources,
+and seeded links both inside their packaged tree and after fresh init.
+Cross-delivery links cannot assume the other tree was copied locally. For
+source code, this repo's archives, local-only posture, or a topic unavailable
+at the same relative location in a delivery tree, use a repository source
+pointer/link rather than an invalid relative path. No link is an implicit
+dependency loader.
 
 ### Proposed shape: publication and owner config cutover
 
@@ -446,8 +523,8 @@ corpus in the next step or create/activate these follow-ups during design.
 
 | Proposed prerequisite | Work and review boundary |
 | --- | --- |
-| 1. Pitch, knowledge policy, marketing and historical cuts | Owner-approved pitch, principles/knowledge rule, marketing splits and historical disposition; update README/evidence/navigation for pages actually present. |
-| 2. Model, configuration and contributor documentation | Tickets/workflows/blackboard/composition/setup/config; codebase/testing/packaging/dev contracts; CLI topic index; keep unrelated command-cleanup proposals separate. |
+| 1. Pitch, knowledge policy, marketing and historical cuts | Owner-approved pitch, principles/knowledge rule and both starter-template copies' size guidance, marketing splits and historical disposition; update README/evidence/navigation for pages actually present. |
+| 2. Model, configuration and contributor documentation | Tickets/workflows/blackboard/composition/setup/config; codebase/testing/packaging/dev contracts; establish the CLI topic index while retaining sections owned by later prerequisites; preserve and inventory the browser seeds; keep unrelated command-cleanup proposals separate. |
 | 3. Launch and recurring documentation | Launch/publication internals, scheduling/delegation/autofix/Dream, their bundled counterparts and targeted consumers. |
 | 4. Notifications, Git state, secrets and usage documentation | Delivery/digest/spool, state-publication/regression/refresh, environment/capture details and targeted consumers. |
 | This ticket after prerequisites: relocate and adopt | Byte-preserving final relocation of reviewed topics, pairing completeness, remaining path consumers, owner config edit, final coverage/prompt/wheel checks and cutover record. |
@@ -458,6 +535,22 @@ If a prerequisite still exceeds a reviewable topic change, split it before
 implementation. The owner must reconcile this decomposition with the existing
 frozen workflow at the design gate; no workflow/status fields are edited by the
 design agent.
+
+Assign shared-overview reductions across those PRs explicitly. Prerequisite 2
+replaces only model/configuration/developer sections in architecture and CLI;
+launch, megalaunch, recurring, digest, secrets and usage contracts remain in
+their current overviews until the corresponding topic PR lands. Keep each
+consumer's necessary broad attachment during that interval. Prerequisite 3
+removes the replaced launch/recurring sections and finishes the recurring
+overview; launch-internals retains any state-publication sections awaiting
+prerequisite 4. Prerequisite 4 removes the remaining notification, Git, secrets
+and usage sections, finishes sync and launch-internals, and owns the final
+architecture/CLI reduction and cross-topic coverage check. It may remove a
+section only after confirming its destination has landed. Apply each final
+overview budget when its last owning topic lands; intermediate PRs record
+remaining sections and sizes without claiming those budgets pass. This ticket
+verifies the resulting overviews during adoption rather than taking on
+unfinished topic rewrites.
 
 ### Verification plan and selective-reading budgets
 
@@ -485,7 +578,7 @@ changes cannot be credited to documentation work.
 | `service-recurring-from-a-temp-control-worktree-ins` | 37,718 / 46,200 | recurring overview + recurring-control + recurring-temp-worktrees + recurring-admission + script-tickets; <=8,000 context tokens. Include workspace identity, fresh control, hybrid refusal, cancellation and recovery, not the whole CLI. |
 | `stop-syncing-task-state-onto-the-feature-branch` | 26,424 / 29,690 | sync + state-publication + git-regressions + dev/checkouts; <=6,000 context tokens. Include control/feature paths, dirty sweep and union/CAS rules; exclude Slack setup and release instructions. |
 | `launch-activates-before-preflight` | 7,275 / 17,232 | launch + relevant human-assist/assist-publication/claim pages after rereading scope; <=5,000 context tokens. Preserve no-mutation preflight and exact publication obligations; no blanket launch-internals inclusion. |
-| `marketing/post-doc-as-cache` | 8,474 / 13,772 | positioning + post-doc-cache + token-receipts + only required plan gates; <=4,000 context tokens. Preserve evidence and claim restrictions; exclude other post briefs and historical competitor matrix. |
+| `marketing/post-doc-as-cache` | 8,474 / 13,772 (pre-extraction baseline) | positioning + proposed post-doc-cache + only required plan gates; read distribution for channel work. <=4,000 context tokens. Preserve the public context/question/later-use example and claim restrictions; exclude other post briefs and historical competitor matrix. No marketing token experiment or receipt quota. |
 | `recurring/dream` | 976 / 8,525 | Keep automatic period-task alone unless its body needs an additional specific fact; <=1,100 context tokens. Parent state versus per-run scratch/ledger must remain present. Do not execute Dream for this check. |
 
 For every sample, record each layer's path/ref/bytes/token estimate, inspect the
@@ -542,6 +635,51 @@ No branch, code changes, manual commits, PR, config edits, or actual rewrite in 
 
 ## Context
 
+### Marketing extraction — owner decision, 2026-09-09
+
+The owner approved extracting the audit into `marketing/map` and
+`marketing/distribution`, preparing writing tickets under `marketing/plan/`,
+and dropping the marketing token experiment. The current context root stays
+unchanged. Treat these new contexts as maintained consumers and migrate their
+authored content once this ticket's own cutover is approved. Any further
+marketing split must build on those homes; do not recreate a token-receipts
+context or restore its launch prerequisite. Source: `marketing/phase-0-audit`.
+
+### Prompt-as-interface claim check (2026-09-08)
+
+The owner asked to check whether explicitly managing the prompt, instead of
+organizing work around chat, supports describing Coga as radically new.
+This is a focused comparison of the stated interface claim, not a refresh
+of the historical market matrix or an exhaustive prior-art review.
+
+**Implementation evidence:** `compose.compose_prompt_report` reads the
+current repo context, explicitly attached contexts, selected skills/step,
+Description, inline Context, and blackboard, with the base/conduct layers.
+`PromptComposition` exposes the assembled text and layer metadata. The
+composer does not reconstruct those inputs from a chat transcript. Thus the
+prompt's editable source and composition are real maintained surfaces in
+Coga. The agent still has its own session history, tools and provider
+instructions; this is not a claim that Coga exposes or controls every token
+of the agent's eventual context. Durable corrections must reach the relevant
+files to affect a later launch.
+
+Primary-source comparisons inspected on the date above:
+
+| Source | Relevant overlap and claim limit |
+| --- | --- |
+| [PromptChainer, CHI 2022](https://arxiv.org/abs/2203.06566) | A visual interface for authoring and debugging chains of LLM prompts. Non-chat prompt interfaces predate Coga; this paper does not establish equivalence to Coga's operating loop. |
+| [GitHub Spec Kit's introduction, 2025-09-02](https://github.blog/ai-and-ml/generative-ai/spec-driven-development-with-ai-get-started-with-a-new-open-source-toolkit/) and [current project docs](https://github.com/github/spec-kit/blob/main/docs/index.md) | Specifications guide implementation and are revised as understanding changes; Markdown outputs provide context for later phases. Current docs also describe custom processes beyond software and support for different agents. These are close overlaps; broad work scope or agent choice alone cannot establish uniqueness. |
+| [Kiro specs](https://kiro.dev/docs/specs/) | Requirements, design and task files support planning and execution with progress tracked in the artifacts. This is another concrete overlap with work organized around maintained documents. |
+| [OpenAI prompting guidance](https://developers.openai.com/api/docs/guides/prompting) | Advises managing prompts in versioned application code and reviewing changes through Git/PRs. Prompt management itself is established; an operator interface for ongoing work is a more specific thesis than developer prompt tooling. |
+| [Anthropic context engineering, 2025-09-29](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) and [Claude Code memory](https://code.claude.com/docs/en/memory) | Discuss maintained context, external notes, and persistent editable instructions across sessions. Continuity outside a transcript is not exclusive to Coga. |
+
+**Assessment:** the contrast with chat is supported as a design explanation;
+"first", "unprecedented", or "only Coga" is not supported. Coga's proposed
+position is the explicit combination of managed prompt composition, ongoing
+work/state, operator-owned files, and correction across sessions. Present that
+as the product thesis and demonstrate the interaction. These sources do not
+prove Coga's full combination unique or establish better task performance.
+
 ### Source and test anchors
 
 Use symbols and paths, not the line numbers of this audit:
@@ -593,7 +731,7 @@ Use symbols and paths, not the line numbers of this audit:
 | Reference's authority description and content disagree with the current CLI. | Docs index calls it generated; reference says version prints vendored CLI versions; current CLI prints `coga 0.3.1`. Bundled CLI duplicates long concurrency/recurring prose. Treat installed help as syntax evidence and consolidate semantics by topic. |
 | Release CI exists but does not run tests. | Source workflow inspected: release/manual build + twine metadata check + publish. Record in testing/releasing; adding CI is separate work. |
 | Diagnostic publication defect. | `_should_sweep_coga_state(['coga','launch','sample','--prompt-report'])` evaluated true; report handler returns through the sweeping CLI wrapper. Propose a separate fix making report mode read-only, with a dirty-state regression test. Use composer API for this design. |
-| Missing bundled context masked by local knowledge. | `bootstrap/browser-automation/ticket.md` attaches `browser/api-first`, absent from package contexts. Propose a focused battery/clean-install repair; do not expand this ticket into browser feature work or hide this baseline in green closure claims. |
+| Missing bootstrap fallback masked by seeded/local knowledge. | `bootstrap/browser-automation/ticket.md` attaches `browser/api-first`, absent from `bootstrap/contexts` but present in the package's ordinary `contexts` seed tree. Both browser topics have byte-identical init-seeded copies. Preserve these copies and their pairing coverage; propose a focused fallback/clean-install repair separately, and report fresh-init closure independently from no-local-overrides closure. |
 | Historical operational proposals appear beside live contracts. | verify-at-compose is explicitly unbuilt; workflow-to-playbook and command-cleanup work are in v2. Current-direction's historical assignee/watchers/scheduler decisions must not override shipped source. Keep proposal ownership and status visible. |
 | Some factual generalizations need qualification. | patterns says no external cron while cadence is only serviced by an operator invocation/scheduler; secrets declaration is not process isolation; usage is local/git-backed and synced, not literally never off-machine. Preserve the precise contract rather than the absolute slogan. |
 | External capability/market claims are dated evidence. | Drive context records a particular 2026-06 MCP, and market-thesis competitor matrices were checked mid-2026. This audit does not reverify external services; date/scope or archive these claims, and require fresh evidence before reusing them in current public claims. |
@@ -677,9 +815,12 @@ Use symbols and paths, not the line numbers of this audit:
 
 For independent evaluation and the following owner `review-design` gate:
 
-1. Approve the owned-company-operations pitch with queue as the example, or
-   lead with the narrower work-queue pitch. Confirm the field-report posture
-   and which founding/philosophical material remains in the default reading path.
+1. Refine the wording and concrete interaction example for the owner's
+   direction: a new way to interface with AI through explicit management of
+   the prompt and its source material, between chat, ticket and plan. Use the
+   novelty check's qualified claims; the company-OS-versus-work-queue choice
+   is superseded. Confirm which founding/philosophical material remains in
+   the default reading path; field-report posture and evidence limits apply.
 2. Approve `docs/contexts/<ref>/SKILL.md`, the subject/ref map, and the explicit
    sync/uninstall ownership boundary. Accept that links to removed docs paths
    must be updated; no permanent duplicate manuals or implicit ref expansion.
@@ -687,9 +828,11 @@ For independent evaluation and the following owner `review-design` gate:
    matrix off the default path, concise founding/decision history, Relay
    migration archived, shelved launch apparatus retained as history. Nothing
    here preauthorizes deletion of useful content without accounting for it.
-4. Approve the shipped/local policy and pairing completeness checks; decide
-   sequencing for the separate missing browser battery and report-mode sync
-   defects. Neither defect is repaired by this design.
+4. Approve bootstrap-fallback, init-seeded and local-only distribution plus
+   pairing/required-ref completeness checks. The corrected recommendation
+   retains both existing browser seeds and maps every packaged context file,
+   not just scaffolds. Decide sequencing for the separate browser fallback
+   and report-mode sync defects; neither is repaired by this design.
 5. Approve/create the four prerequisite scopes and retain this ticket for final
    adoption, or supply a smaller implementation scope. Confirm the owner will
    make the exact shared-config edit in the prepared migration checkout and
@@ -819,3 +962,62 @@ its prerequisites before handing it to `implement`.
 - `git diff --check`: passed. Byte comparison with the pre-review ticket
   confirms unchanged frontmatter/body and all prior blackboard content, one
   blackboard fence, and exactly one `## Evaluator review` section.
+
+## Owner-review preparation (2026-09-08)
+
+- Rechecked the evaluator's P2 at `2e0f69d8`: 12 bootstrap-fallback topics
+  (11 identical live twins, CLI package-only) and two identical init-seeded
+  browser twins. The earlier handoff's 11-pair count covers bootstrap only;
+  the complete current topic-pair count is 13. Inspected
+  `copy_fresh_templates`, `resolve_context_path` and packaging discovery.
+- P2 accepted as a factual correction and incorporated into the proposed
+  contract. Recommend retaining both browser seeds, mapping all files in
+  both package context roots, and checking fresh init separately from
+  fallback without local overrides. The browser fallback repair remains
+  separate. This recommendation still needs the owner's distribution decision.
+- Incorporated all three optional review recommendations: explicit ownership
+  of intermediate/final overview reductions; required-ref inventories and a
+  both-copies-deleted regression; starter-template size-policy reconciliation
+  in prerequisite 1. Unreplaced contracts retain their existing sections and
+  necessary attachments until their owning topic PR lands.
+- Verification: `coga validate --task
+  redo-documentation-dir-and-merge-it-with-context-b --json` exited 0 (one OK,
+  no issues); `git diff --check` passed. Read-only byte comparisons confirmed
+  unchanged frontmatter/frozen workflow, evaluator review and pre-existing
+  `coga/log.md`, plus one blackboard fence. No Python suite or wheel build was
+  needed for this ticket-only spec correction; prior corpus-wide receipts
+  remain historical and were not rerun.
+- Owner decisions remain open: pitch, topic tree and ownership boundary,
+  cuts/history, corrected distribution and defect sequencing, prerequisite
+  scopes and final cutover. Recommend the existing company-OS opening with
+  queue example, four topic prerequisites, then adoption on this ticket.
+  No follow-up tasks were created and no implementation/config change or
+  workflow transition was performed. Hold at `review-design` pending the
+  owner's answer; do not infer approval from this preparation.
+
+## Owner pitch correction (2026-09-08)
+
+- The owner rejected the company-OS/work-queue framing: Coga is a new way to
+  interface with AI, somewhere between a chat, a ticket, and a plan. This
+  supersedes the earlier pitch recommendation and the corresponding open
+  choice, not the historical record of that recommendation.
+- Updated the body to lead with this direction. The suggested explanation
+  is an evolving piece of work that holds intent, context and working state
+  while the person and AI clarify, act, inspect and redirect. This explanation
+  and the draft opening are interpretations for discussion, not approved copy.
+- No approval of the remaining tree, cuts, distribution, prerequisite creation
+  or workflow advancement was given. Keep this session at `review-design`.
+
+## Managed-prompt clarification and claim check (2026-09-08)
+
+- The owner sharpened the direction: the interface is not the chat, and the
+  prompt is explicitly managed. Updated the pitch to make maintained prompt
+  inputs/composition central, beyond the earlier shared-work explanation.
+- Checked source composition and original external sources. The body Context
+  now records citations and the assessment: the interaction differs from the
+  chat abstraction, but non-chat interfaces, prompt management and durable
+  agent instructions have precedents. Spec Kit and Kiro have close overlaps.
+  Historical priority or exclusivity is not established; no performance claim.
+- Exact opening copy and the remaining design decisions are still open.
+  No prerequisite creation, runtime/config edit, or workflow advance is
+  authorized by this clarification.

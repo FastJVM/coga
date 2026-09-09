@@ -59,8 +59,8 @@ maintenance contract above rather than masquerading as a reported no-op.
   limitation, not proof that it was checked or unchanged.
 - Stop and ask: a URL-backed conflict or skipped local adaptation, or a failure
   from either updater, needs a human — the skill reports it and does not force
-  the URL update. If those follow-ups are the only result and no PR is opened,
-  `ticket.py` exits non-zero after writing the report so the period task
+  the URL update. If follow-ups need action and no PR is opened,
+  `ticket.py` exits 1 after writing the report so the period task
   remains visible. Do not keep local adaptations in GitHub-backed directories:
   the draft PR can review a resulting overwrite but cannot recover it. Maintain
   local-backed installs by reviewing their source and reinstalling explicitly;
@@ -69,7 +69,8 @@ maintenance contract above rather than masquerading as a reported no-op.
   result emitted by the GitHub, URL, and bundled paths and linking the PR when
   one was opened. Local-backed and hand-vendored directories currently produce
   no result line. A run that fails before it classifies anything appends the
-  same section carrying a `### Failed` block with the command and its stderr,
+  same section carrying a `### Failed` block with the command and its failing
+  output,
   so a hard failure is as legible in the run record as a follow-up — the
   recurring sweep discards a task's stderr, so a diagnostic written only there
   is lost.
@@ -91,9 +92,10 @@ into a packaged `bootstrap/<name>/ticket.md`.
 The skill runs `coga skill update --all --pr --json`, then groups the results
 by their raw update status so each status (e.g. `updated`, URL-backed
 `skipped-local-adaptation` / `conflict`, or `failed`) is reported in its own
-bucket. It exits non-zero when the `coga skill update` command itself failed,
-or when a run needs human follow-up but opened no PR to carry that follow-up
-forward. This is not a complete installed-skill inventory: local-backed and
+bucket. It exits 2 when the `coga skill update` command itself failed, and 1
+when a run needs human follow-up but opened no PR to carry that follow-up
+forward; it also passes through `coga bump`'s exit code, which is 2 on most of its
+own refusals. This is not a complete installed-skill inventory: local-backed and
 hand-vendored directories do not produce an update result. Use `coga skill
 status` plus the local source itself when auditing those pinned installs.
 

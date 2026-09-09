@@ -92,20 +92,32 @@ recurring follow-up: re-record the digests to match the tree actually on disk,
 or reinstall the skill unpruned.
 
 A week with no upstream changes is a quiet no-op: nothing is committed and no
-PR is opened.
+PR is opened. Two non-zero exit codes keep a run visible. Each writes the
+`## Skill Update` report before exiting, but that write is best-effort — an
+unwritable blackboard leaves the exit code as the only signal:
 
-**A week with only follow-up statuses stops the sweep**, and that cost is much
-larger than one persistent report line. When a follow-up is the only outcome
-and no PR was opened, `run_skill_update_recipe` returns 1
-(`skill_update.py`), so `ticket.py` exits before it reaches `coga bump`. The
-recurring runner treats a non-zero `ticket.py` as a sweep-ending failure — it
-records the outcome and returns that code rather than continuing
-(`recurring_runner.py`, the `except SystemExit` branch: "the sweep stops where
-the old recipe dispatch stopped ... the task is deliberately left unfinished,
-not paused"). So `recurring/skill-update` stays unfinished **and every template
-ordered after it does not run at all that period**. A permanently unresolved
-follow-up therefore silently disables the rest of the recurring schedule, week
-after week. Resolve it, or park the template, rather than living with it.
+- **Exit 1 — follow-ups to resolve.** Every skill was classified, but some
+  need human follow-up and no PR was opened to carry them, so the period task
+  stays visible until a human resolves or parks it. `--pr` mode only: under
+  `--no-pr`, a run full of follow-ups still exits 0.
+- **Exit 2 — the update failed.** `coga skill update` exited non-zero, or
+  emitted output that was not valid JSON, so nothing was classified. The report
+  carries the attempted command and the failing output under a `### Failed`
+  heading in place of the per-skill buckets.
+
+Exit 2 has a second source: `ticket.py` passes through `coga bump`'s exit code
+once the update succeeds, and `coga bump` exits 2 on most of its own refusals.
+An exit 2 whose report has the per-skill buckets and no `### Failed` block is a
+failed bump, not a failed update.
+
+**Do not treat a standing exit 1 as a steady state.** `ticket.py` exits before
+it reaches `coga bump`, so the period task is left unfinished — and until the
+tracked fix lands, the recurring runner treats a non-zero `ticket.py` as a
+sweep-ending failure, returning that code instead of continuing. Every template
+ordered after `skill-update` is then skipped for that period, so a permanently
+unresolved follow-up silently disables the rest of the recurring schedule week
+after week. Resolve it or park the template rather than living with it, even
+once the sweep stops being starved.
 
 <!-- coga:blackboard -->
 

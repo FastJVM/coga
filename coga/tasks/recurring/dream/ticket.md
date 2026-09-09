@@ -1,7 +1,7 @@
 ---
 slug: recurring/dream
 title: Dream
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -18,7 +18,6 @@ workflow:
     - direct/body
     assignee: agent
 secrets: null
-step: 1 (execute)
 ---
 
 ## Description
@@ -583,3 +582,164 @@ Generated: 2026-09-09T00:16:37+00:00
 Task: `recurring/dream`
 
 Result: no-op. No cleanup-eligible processed done tickets still have task directories.
+
+### Corrections to the findings above
+
+The Phase 6 PR authors re-verified every finding against the tree before
+writing, and six of the scan's claims were wrong or overstated. The PRs carry
+the corrected text; these entries are corrected here so the index does not
+outlive the truth.
+
+- **S18 was wrong in its second half, and the reality is worse.** `clarity` is
+  not parked in a permanent conflict. The recorded `installed_tree_digest`
+  currently *equals* the on-disk tree digest, so `locally_adapted` is false and
+  no follow-up guard fires at all; meanwhile `source_tree_digest` records the
+  digest of the *pruned* tree rather than any upstream tree, so the
+  "upstream unchanged" test can never be true and the next run falls into
+  `_replace_skill_tree` — a silent un-prune that restores `commands/`, `evals/`,
+  `samples/`, `site/` and drops the `include` key, landing under the weekly PR's
+  *updated* heading with no follow-up line. The permanent-conflict shape belongs
+  to the metadata as it stood before commit `274e264c`, which is what this run's
+  own sweep report (`clarity: conflict (url)`) reflects. PR #775 documents both
+  states.
+- **D7 was overstated.** `_pause_unfinished` in `recurring_runner.py` returns
+  early when the block was *script-recorded*, so a `ticket.py` phase that calls
+  `coga block` leaves the period `blocked` and is scanned normally. The gap is
+  real but scoped to **agent** period tasks. The evidence dates are 2026-08-13/14,
+  not 08-19, and the escape hatch was an explicit `coga megalaunch` pick, not a
+  status filter flipped to `paused`.
+- **S13's stated exception was wrong.** The region below the blackboard fence
+  *is* composed — as its own `blackboard` layer. The real exception is that
+  `_extract_section` lifts only `## Description` and `## Context`, so any other
+  `##` heading above the fence is dropped.
+- **S2/S3 mischaracterized the precedent.** `open-pr` and `delete-task` did not
+  receive an `[aliases]` rewrite; `coga/coga.toml`'s `[aliases]` holds only
+  `chat`, `build`, `pick`, `claude`, `codex`. They have no Typer command and no
+  alias — they are reachable only as `coga run <name>`. That is the shape
+  `digest` has not yet been given.
+- **E9's megalaunch constraint was imprecise.** Megalaunch does not re-read the
+  ticket between activation and launch; it prepares on a throwaway copy
+  (`_prepare_for_launch` → `prepare_active`), preflights off that prospective
+  view, commits only after every refusal passes, then recaptures the ticket
+  bytes and refuses if they moved. The intended invariant survives: a
+  prepared-but-uncommitted `Ticket` never becomes the durable revision.
+- **E10's framing needed one narrowing.** `coga validate` does *not* fire the
+  dispatch-boundary sweep — it is on the read-only exclusion list. The
+  conclusion still holds, because the mutation stays dirty and rides along on
+  the next mutating command, possibly a scheduled sweep or another terminal.
+
+Two findings were also strengthened by verification rather than corrected: the
+architecture PR found **four** prospective-validate call sites, not two, and the
+branch-sweep PR established that the ancestry check runs *first* in
+`delete_local_branch` (so `pr_merged` is never read on that path) and that
+ancestry never authorizes a *remote* delete.
+
+## Dream Run Summary
+
+Generated: 2026-09-09 (period `2026-09-08`, task `recurring/dream`).
+
+| # | Phase | Result | Detail |
+|---|---|---|---|
+| 1 | validate-drift | `reported` | 32 issues: 0 direct-fix, 5 PR-proposal, 27 human-needed. No repairs applied. |
+| 2 | knowledge scan | `reported` | 23/23 leaf shards complete, 0 incomplete. 101 raw blocks → 72 merged entries (17 extract, 25 stale, 22 drift, 23 gap). |
+| 3 | contract audit | `reported` | 10/10 leaf shards complete. 5 findings: 3 re-derived Phase 2 findings from contract-side evidence, 2 new. Copy divergence clean — zero diverged twin pairs. |
+| 4 | retro/done-ticket | `direct-fixed` | 7 eligible tickets, all direct-deleted on the control branch. 0 knowledge PRs — none carried durable knowledge. |
+| 5 | cleanup-orphan-markers | `no-op` | No processed Retro marker survives on a still-present task directory. |
+| 6 | disposition | `pr-opened` + `proposed` | 13 proposal PRs opened, 18 tracked draft tickets created. |
+
+### Phase 4 detail
+
+Of 41 done tickets on disk, **34 carry a recorded feature checkout** and are
+therefore retirement debt, not Retro input — left untouched so the human-typed
+`coga retire <slug>` stays valid. The 7 eligible were the six `recurring/*`
+period tickets from this sweep plus
+`service-account-scoping-single-vault-rule-conflict`, whose knowledge had
+already shipped into `coga/contexts/coga/secrets/SKILL.md` with its one deferred
+item carried by an existing ticket. All seven were direct-deleted with
+`coga delete --keep-control-checkout` from an isolated linked worktree; the
+diff against the pre-Phase-4 tip is exactly those 7 artifacts (12 files) and
+nothing else. Worktree, temporary branch, copied `coga.local.toml` and the
+evidence snapshot were all removed and verified gone.
+
+### PRs opened (all `pr-required` — none auto-merged)
+
+| PR | Scope | Findings |
+|---|---|---|
+| #763 | `docs/reference.md`, `docs/README.md` | C1, C2 |
+| #764 | `coga/launch-internals` + twin | S1/ca-01, E11 |
+| #765 | `marketing/positioning` | S5 |
+| #766 | branch-sweep skill + recurring template (2 twin pairs) | S17 |
+| #767 | `coga/sync` + twin | S7, S8, S9, E10 |
+| #768 | skill `_template` + ticket `_template` (2 twin pairs) | S12/ca-06, S13 |
+| #769 | `coga/architecture` + twin | E1, E2, E3, E4, D1 |
+| #770 | Dream scan skills + Dream template twin | D2, D3, D4 |
+| #771 | `dev/code`, `code/implement`, `code/open-pr` (3 twin pairs) | S10, E16 |
+| #772 | `bootstrap/import`, `bootstrap/ticket` (packaged-only) | E14, E15 |
+| #773 | `coga/codebase`, `coga/extension-model`, `CLAUDE.md`, `AGENTS.md` | S2, S3, S4/ca-02, S6, S19, E5, E6, E7, E8, E9, D5, D8 |
+| #774 | `coga/recurring`, autoclose sweep skill, blocker-reminders template (3 twin pairs) | S14, S15, S16, E12, D6, D7 |
+| #775 | `coga/recurring/skill-update` template + twin | S18 |
+
+### Draft tickets created (18, all `code/with-review`)
+
+Gaps and lifecycle decisions that need human design judgment. Each carries a
+written `## Description` and `## Context` — a title-only ticket is the exact
+defect one of these findings names.
+
+`ticket-relationships-and-ownership-have-no-mechani` (G1-G3) ·
+`document-when-to-attach-a-large-context-versus-cit` (G4) ·
+`title-only-tickets-have-no-convention-and-no-valid` (G5, G23) ·
+`nothing-exercises-python-3-11-the-declared-floor` (G6) ·
+`record-or-clear-the-standing-repo-wide-coga-valida` (G8) ·
+`document-how-packaged-contexts-reach-a-repo-and-se` (G7, G9) ·
+`installer-managed-skills-the-local-adaptation-guar` (G10, G11) ·
+`state-which-branch-is-canonical-for-machine-genera` (G12) ·
+`define-the-recipe-reporting-contract-report-durabi` (G13, G14) ·
+`the-period-task-context-never-covers-the-determini` (G15) ·
+`define-the-split-a-ticket-mechanic-shared-by-code` (G17) ·
+`record-dochub-s-why-not-the-api-answer-that-browse` (G18) ·
+`the-v2-parking-area-premise-check-has-four-holes` (G19-G22) ·
+`the-autofix-analyst-ticket-closed-without-shipping` (D9) ·
+`test-recurring-create-is-silent-fixture-fix-is-hal` (E17) ·
+`adjudicate-parked-and-active-tickets-whose-premise` (S20-S25, D12-D22) ·
+`narrative-candidates-md-publishes-log-text-the-own` (D11) ·
+`phase-0-audit-is-complete-per-the-plan-but-still-i` (D10)
+
+G16 (ticket specs pinning line numbers) was deliberately **not** ticketed: the
+in_progress sibling `ticket-specs-should-cite-symbols-not-line-numbers` already
+owns that change, on the unmerged branch `design-cite-symbols`. Filing a second
+ticket would have duplicated live work.
+
+### human-needed
+
+1. **`narrative-candidates.md` publishes material the owner ruled confidential**
+   in a public repo — ten verbatim `coga/log.md` lines with slugs, dates and
+   block reasons from three private repos, plus two admin entries beside a
+   trademark serial and payroll/tax questions. Dream deliberately opened **no
+   PR** here: deleting the file and purging it from history are different
+   decisions with different costs, and a PR diff would quote the material again.
+   Ticketed; the decision is the owner's.
+2. **34 done tickets are deferred retirement debt** awaiting human-typed
+   `coga retire <slug>`. Their durable knowledge is what Phase 6's PRs carry —
+   the extract findings E1-E17 all originate in these tickets, and because they
+   are not Retro-eligible, Phase 4 could not route them. Routing them into
+   proposal PRs instead is the deviation this run made from the body's "extract
+   → already handled by Phase 4" line, taken so no verified durable fact is lost
+   when retirement removes its source.
+3. **Phase 1's 27 human-needed validator issues** stand: 6 `stuck-in-progress`
+   tasks (one idle 1,178h), 15 `unfrozen-workflow` warnings, 6
+   `unknown-assignee` warnings. Each is a lifecycle or ownership decision Dream
+   must not make silently.
+4. **The repo-wide `coga validate` baseline is still 4 errors** on the same four
+   `v2/` drafts. Unchanged by this run; ticketed.
+5. **Environment gap seen by every PR author:**
+   `tests/test_packaging.py::test_wheel_includes_bootstrap_batteries` fails on
+   this machine because the ambient interpreter cannot import `hatchling`
+   (PEP 668 blocks installing it). It fails identically on unmodified
+   `origin/main`. Every twin-parity assertion — the check these PRs actually
+   need — passes. Worth fixing so a red suite stops being ambiguous.
+
+### Scan directories
+
+Both were reconciled, merged, and removed: knowledge scan
+`/tmp/dream-knowledge-Dam6`, contract audit `/tmp/dream-contract-sVMA`. No
+`partial` phase, so nothing was retained for a human.

@@ -1,20 +1,13 @@
 {
-  "include": [
-    "SKILL.md",
-    "LICENSE",
-    "references",
-    "scripts/prose_stats.py",
-    "scripts/strip_markdown.py"
-  ],
-  "installed_at": "2026-09-08T19:11:37Z",
+  "installed_at": "2026-09-08T23:49:06Z",
   "installed_ref": "clarity",
-  "installed_tree_digest": "a6d3504add60875eadf27268a7a7f777a86a2bdb136db5f6a7c56892af23d19e",
+  "installed_tree_digest": "9c43832470a463b6524dee665301f0fd1d80576c419859b5cf82e2881e9e83f1",
   "local_adaptation_notes": "Pruned to the runtime skill only via the recorded `include` allowlist (SKILL.md, LICENSE, references/, scripts/{prose_stats,strip_markdown}.py). Upstream project scaffolding the skill body never loads - commands/, evals/, samples/, site/, README/DESIGN/PRODUCT, netlify.toml, skills.sh.json - and scripts/validate_package.py, which asserts the presence of the dropped paths, are excluded by that allowlist rather than by hand, so `coga skill update` re-applies the same pruning instead of reporting a conflict.",
   "schema": "coga.skill-source.v1",
   "selector": null,
   "source_digest": "112007fb4d5c9c60bee3ca5549a093cc0fd268e79638ada3f225ed84f4da8843",
-  "source_tree_digest": "a6d3504add60875eadf27268a7a7f777a86a2bdb136db5f6a7c56892af23d19e",
+  "source_tree_digest": "9c43832470a463b6524dee665301f0fd1d80576c419859b5cf82e2881e9e83f1",
   "source_type": "url",
   "source_url": "https://github.com/addyosmani/clarity/archive/refs/heads/main.tar.gz",
-  "updated_at": "2026-09-08T19:11:37Z"
+  "updated_at": "2026-09-08T23:49:06Z"
 }

@@ -1,30 +1,52 @@
 ---
 name: marketing/plan
-description: The operational Coga launch plan — three gated personal essays moving from mental decluttering, to human amplification, to productivity by mechanism. Attach alongside marketing/positioning to marketing/comms tickets.
+description: Starting point for Coga marketing work — preparation order, needed deliverables, retained essay briefs, phase gates, and execution owners. See marketing/map for sources and marketing/distribution for channels.
 ---
 
 # Coga marketing plan
 
-The operational plan for Coga's launch. When this drifts from
-`marketing/positioning` or `docs/market-thesis.md`, they win — update this
-file in the same change. The procedure for producing and shipping one post is
-`marketing/write-post`; this context owns what ships, in what order, through
-which channels, and behind which gates.
+This is the starting point for marketing work. [marketing/map](../map/SKILL.md)
+locates the documents; [marketing/positioning](../positioning/SKILL.md) owns
+the pitch direction, audience and voice; [marketing/distribution](../distribution/SKILL.md)
+owns channels and audience measurement. `marketing/write-post` owns the
+writing and publication procedure. Product claims remain grounded in
+`docs/vision.md` and the relevant Coga contracts.
 
-**Live plan (2026-09-04).** Fork A remains pinned: an internal tool,
-open-sourced, told as a personal story. The series moves through three angles,
-in this order, each recruiting for the next:
+## Preparation order — owner direction, 2026-09-09
 
-1. it declutters your mind;
-2. it amplifies the human;
-3. productivity, argued by mechanism rather than claimed as a result.
+1. **Extract and locate the knowledge.** The audit supplies `marketing/map`
+   and `marketing/distribution`; this plan links the authored homes.
+2. **List needed deliverables and proposed cuts.** The audit's current worklist
+   records owners and evidence. The launch gates below remain the publication
+   bar while the owner reviews the message.
+3. **Make and decide, then write.** The owner clarified that the first job is
+   creative and editorial: `marketing/plan/collect-public-examples-for-the-launch`
+   now makes story/example options and reaches a choice with the owner.
+   `marketing/plan/write-the-pitch-and-narrative` turns that decision into
+   finished copy. Start from the managed-prompt direction in positioning;
+   distinguish worked illustrations from claims about observed events.
+4. **Review the plan, then execute cleanup.** `marketing/build-the-launch-plan`
+   records the final keep/drop choices against that message. The existing
+   cleanup, README, community and post tickets execute the retained work.
 
-The superseded "20 minutes a day" experiment and the later proof-post
-apparatus are archived in `marketing/launch-history`, an unattached context
-that does not compose into launch work. The proof post is a shelved option, not
-phase 4 of this launch and not a current execution ticket. Reopening it
-requires a fresh owner decision after the essay series lands and megalaunch
-has held up under sustained daily use.
+**Retained campaign:** three personal essays — decluttering, human
+amplification, and documentation as a cache. The owner has not canceled those
+tickets or approved replacement titles. Their briefs below remain working
+constraints; final copy must reconcile them with the newer pitch before
+publication.
+
+**Dropped by the owner on 2026-09-09:** the paired token/time experiment and
+its launch gates. Do not create `marketing/token-receipts`. The historical
+protocol joins the earlier experiment and shelved proof post in
+`marketing/launch-history`; it is not an attachment for live launch work.
+Post 3 still needs a public example of a context being used by a later session.
+Ordinary usage diagnostics and audience-response measurement remain useful.
+
+**Excluded from launch sources:** the private-repo narrative quotations, the
+superseded audit claim that no plan exists, and duplicated distribution prose.
+The separate confidentiality ticket owns the private attachment's disposition.
+Broader document deletion or the proposed context-root migration requires the
+existing documentation ticket's review.
 
 ## The play
 
@@ -56,7 +78,7 @@ a late defensive feature.
 |---|---|---|---|---|
 | 1 — declutter | Moving work and working state into a visible queue clears the founder's head without hiding the work. | Name the autonomy tradeoff or the tools that turn the human into the scheduler; keep the claim conservative. | A measured time saving, fire-and-forget autonomy, evidence from private repos, or "it works without me" as the thesis. | Once the work is out of your head, the human is not removed; their judgment becomes the scarce input. |
 | 2 — amplify | One human correction can become durable guidance for every later agent session. | Name the autonomy doctrine that treats the human as residue; do not name-and-attack a vendor. | A generic "humans think" slogan, an ownership feature list, or an output/productivity multiplier. | The correction compounds only because the repo can reuse what the human taught it. |
-| 3 — productivity | Documentation acts as a cache: a stateless agent can reuse grounded understanding instead of reconstructing it every run. | Name documentation-as-overhead or the belief that a larger model/context window removes grounding work. | Any measured token/time result, even an unquantified "faster" or "fewer tokens" conclusion from the receipts. | Close on the practice and invite readers into the repo/community; do not tease a proof post. |
+| 3 — productivity | Documentation acts as a cache: a stateless agent can reuse grounded understanding instead of reconstructing it every run. | Name documentation-as-overhead or the belief that a larger model/context window removes grounding work. | Any measured token/time result or unsupported "faster" / "fewer tokens" claim. | Close on the practice and invite readers into the repo/community; do not tease a proof post. |
 
 The final blog and HN titles are written in the post ticket and approved by the
 owner. The HN title may differ from the blog title. Every HN candidate must
@@ -72,8 +94,10 @@ Five beats:
 
 1. **The felt pain:** tabs, agent sessions, questions, and half-held task state
    turn the founder into the CPU and leave every open loop in their head.
-2. **Put the state somewhere:** tickets and blackboards hold the work; the
-   morning queue gathers the decisions that actually need judgment.
+2. **Make the work's inputs explicit:** show the intent, instructions,
+   relevant knowledge and current state in files the founder owns. Tickets
+   and blackboards hold the work; the morning queue gathers decisions that
+   need judgment.
 3. **Batch judgment, then leave:** answer the queue, review, brief, launch the
    sweep, close the laptop. Megalaunch illustrates the changed mental posture;
    it is not a promise of fully managed autonomy.
@@ -98,7 +122,7 @@ The post is an offensive claim about what the operator becomes able to do:
 
 1. start with the strongest version of the objection — autonomy is supposed to
    remove the human, so a judgment loop sounds like failure;
-2. show one public two-minute correction: the agent does something wrong, the
+2. show one public correction: the agent does something wrong, the
    founder edits the governing context, and a later session behaves
    differently;
 3. show the amplification mechanism — one act of judgment becomes reusable
@@ -122,13 +146,12 @@ once and compose it into later work: **documentation becomes a cache of human
 judgment.** Show the exact context and the exact question it already answered
 on a later run.
 
-The receipt set collected during phases 1–2 is required working source
-support. It tests whether the premise survives and helps select the concrete
-example; its values are not copy. The Coga repo is public, so a ticket
-blackboard is visible even though the essay does not publish the result. If the
-receipts contradict the premise, cut or narrow the claim. Publishing a token
-delta, time delta, multiplier, or even a measured "it was faster" moves the
-post into the proof-post regime and is forbidden in this series.
+Required support is the exact public context, the question it answers, and a
+later session whose recorded work shows that understanding in use. A prompt
+containing a context proves delivery; the later behavior supplies the reuse
+example. If that second half is missing, report the gap and narrow or defer
+the claim. No paired experiment, token quota, or time-to-first-edit measurement
+is required. Do not claim a measured saving or general productivity effect.
 
 ## Phase 0 — make the launch real
 
@@ -143,117 +166,45 @@ not publish until every blocking row is green.
 |---|---|---|
 | Product queue | Every task under `cleanup/` is done. The Python 3.11 resources fix lands before the 1.0 release. | Each cleanup-ticket assignee executes; `nicktoper` accepts/merges and owns the release decision. |
 | Install path | Coga 1.0 is on PyPI and the README path passes from a clean Python 3.11 repo through a real first agent launch. Record the tested version and environment. | `nicktoper` publishes; the post-1 agent reruns and records the quickstart. |
-| Landing page | `marketing/readme-top` is done and the README first screen echoes decluttering through owned, visible state rather than the old capability-first story. | Ticket assignee; `nicktoper` approves. |
+| Landing page | `marketing/readme-top` is done and the first screen explains the approved interaction and its decluttering benefit through owned, visible state. | Ticket assignee; `nicktoper` approves. |
 | Community | `marketing/discord` has created the chosen home, its repo link works, the exact URL is in the post draft, and one person can post a real question there. The live post link is rechecked on Day 0. | Ticket assignee implements; `nicktoper` chooses Discussions vs Discord. |
 | Blog measurement | Before post 1, record Jetpack subscriber count, trailing-30-day views, community count, GitHub stars, and the PyPI download baseline; complete a real test of the Jetpack subscribe flow. | `nicktoper`, because the stats and subscriber account are login-gated. |
 | Account decisions | Record Bookface standing and reserve a founder-present HN window. `Let047` already has sufficient age/karma; supply its joined-subreddit list, because membership and community rules are the only remaining Reddit gate. No suitable existing community means Reddit is omitted, not that the launch is blocked. | `nicktoper`. |
 | Post package | Post 1 has cleared every `marketing/write-post` gate: supported beats, clarity pass, claim check, full prepared replies, owner-approved blog/HN titles, live repo/community links, and channel copy. | Post-ticket agent prepares; `nicktoper` approves and publishes. |
-| Measurement tasks | Create `marketing/token-receipts` with its first suitable pairs and `marketing/phase-1-retro` with the baseline, scorecard, and dated 24-hour / 72-hour / day-14 checkpoints before post 1 ships. | `nicktoper` selects pairs and supplies private counters; assigned agents collect and score. |
+| Audience follow-up | Create `marketing/phase-1-retro` with the baseline, distribution context's scorecard, and dated 24-hour / 72-hour / day-14 checkpoints before post 1 ships. | `nicktoper` supplies private counters; the assigned agent collects and scores. |
 
 Bookface is a hard pre-HN gate in `marketing/write-post`. If the owner reports
 that it cannot be used, do not silently skip it: the owner must explicitly
 change this plan and the skill's matching gate before any HN submission.
 
-## Channel runbook
+## Distribution
 
-The blog is the canonical artifact. Attribution is deliberately
-referrer-level: use the canonical blog URL everywhere, record publication
-times, and read Jetpack referrers against the baseline. Do not buy analytics or
-pretend newsletter-to-subscriber attribution is more precise than it is.
+Read `marketing/distribution` for the channel matrix, Day-0 sequence,
+HN/Lobsters/Reddit spacing, account evidence, titles, attribution, fixed
+audience scorecard and miss branches. The blog remains canonical; the owner
+publishes, takes the Bookface read before HN, and is present in the threads.
 
-Use this order for every post:
-
-1. **Day 0 — blog:** `nicktoper` publishes, then verifies the page, repo link,
-   community link, and subscribe flow on the live URL.
-2. **Day 0 — newsletter:** send only after the canonical page is verified.
-3. **Day 0 — Bookface:** share the blog URL and collect the friendly read. Fix
-   factual or structural problems on the canonical page before HN.
-4. **Day 0 — optional X:** a summary may follow Bookface; omitting it never
-   blocks the phase.
-5. **Day +2 or +3 — HN:** submit from `top256` as a story, never Show HN,
-   using an opponent-naming title. Pick a time when the founder can remain in
-   the thread; account history gives no useful weekday or hour rule.
-6. **The next day — Lobsters, when scheduled for that post:** submit from
-   `ntoper`; do not split founder attention across the HN and Lobsters
-   openings. Use `vibecoding` + `practices`, never `ai`, and only submit
-   while the essay honestly reads as engineering practice.
-7. **One day later — Reddit, only if eligible:** post from `Let047` to at
-   most one relevant subreddit the founder already belongs to, check its
-   current self-promotion rules, and write a native introduction. Never join a
-   subreddit merely to drop the launch link.
-
-On post 1 only, add a **fastjvm.com launch announcement** after the Day-0 blog
-and newsletter are live. It is a one-time owner action, not a phase-1 channel,
-not a gate, and not part of the short-term scorecard.
-
-| Channel | Post 1 | Post 2 | Post 3 |
-|---|---|---|---|
-| Blog + newsletter | Required | Required | Required |
-| Bookface before HN | Required | Required | Required |
-| HN story | Required | Required | Required |
-| Lobsters | Required | Use only if post 1 showed channel fit and this post still reads as engineering practice | Use unless post 1 established a clear channel mismatch |
-| Reddit | Conditional on the joined-subreddit/rules gate | Conditional | Conditional |
-| X | Optional | Optional | Optional |
-| fastjvm.com | One launch announcement; unscored | No | No |
-
-Never ask for upvotes. Sharing the article or thread is fine; let readers
-decide what to do.
+The YC channels in that context — a Launch YC post and YC's own amplification —
+are product-launch shaped and therefore sit outside "the play" above rather than
+replacing it. They are unscored and excluded from the phase-1 read. The owner
+placed them **after phase 1, with the second run** (2026-09-09); post 1 stays a
+pure essay opening. `marketing/build-the-launch-plan` tailors the exact
+placement against post 2's window.
 
 ## Phase 1 — declutter launch and retro
 
 Phase 1 starts only when all phase-0 gates are green. Ship post 1 through the
-channel runbook and start the token-receipt ticket alongside it. The post agent
+policy in `marketing/distribution`. The post agent
 hands its channel timestamps and initial observations to
 `marketing/phase-1-retro`; that separate ticket owns the 24-hour, 72-hour,
 and day-14 checks so a writing ticket does not remain open as a hidden timer.
 `nicktoper` supplies login-gated blog and community figures and makes the
 phase disposition.
 
-### Fixed phase-1 scorecard
-
-These bars are set before publication. They diagnose different parts of the
-launch; there is no post-hoc weighted score and installs are not substituted
-for a miss.
-
-| Signal | Bar by day 14 |
-|---|---|
-| HN | An observed front-page appearance and at least 30 points. Record placement while live; the API cannot prove it later. |
-| Lobsters | At least 15 points and 5 comments. |
-| Blog subscribers | At least +25 net from the pre-launch baseline. |
-| Community | Discord: at least +15 members; GitHub Discussions: at least 15 unique non-owner participants or reactors. Either home also needs 3 people the owner did not already know posting something other than an introduction. |
-| Vocabulary taking | At least one person the owner does not know uses "you are the CPU" or "batch your judgment" unprompted. |
-
-Record stars, downloads, and installs as trailing context, not success bars.
-The series is designed to spread an idea and recruit a narrow audience; it is
-not an install campaign.
-
-### Miss branches
-
-- **HN dies in `/new`:** after the first attempt is clearly dead, email
-  `hn@ycombinator.com` for the second-chance pool. If it is not lifted, make
-  one resubmission no sooner than four days after the original, with a
-  materially different opponent-naming title. Complete this branch before the
-  phase-1 disposition.
-- **HN hits but subscribers or community miss:** the essay reached people and
-  the funnel failed. The post agent identifies the exact README, CTA, subscribe
-  flow, or community-onboarding defect; the responsible ticket must be fixed
-  before post 2 ships. Do not rewrite the thesis to explain a funnel miss.
-- **Reach hits but vocabulary misses:** the idea did not transmit. Post 2's
-  brief must explicitly sharpen the post-1-to-post-2 handoff, and the owner
-  approves that change before publishing.
-- **Lobsters misses its bar:** do not resubmit the same URL there. Treat the
-  channel as unproven and omit it from post 2 unless the engineering-practice
-  fit or account participation materially changes.
-- **Both HN (after its retry) and Lobsters miss:** hold post 2's external
-  launch for an owner decision on title/channel fit versus message fit. A miss
-  does not make the finished essay unpublishable and does not automatically
-  cancel the series, but it does remove automatic progression.
-
-Post 2 may be drafted during the observation window. It does not publish until
-day 14, the applicable branch work is closed, and `nicktoper` records a
-proceed decision. Target publication within seven days of that decision so
-post 1 can still recruit for it; an autonomy news cycle may choose the exact
-day but must not hold the series indefinitely.
+The fixed scorecard and miss branches live in `marketing/distribution`.
+Post 2 may be drafted during observation. It does not publish until day 14,
+the applicable branch work is closed, and `nicktoper` records a proceed
+decision. Aim to publish within seven days of that decision.
 
 ## Phase 2 — human amplification
 
@@ -264,72 +215,24 @@ replies must include the real objection that keeping a human judgment gate is
 less autonomous than managed alternatives; concede the trade rather than
 renaming it as autonomy.
 
-Continue token-receipt collection. Phase 2 is complete when its chosen channel
-sequence is finished, responses and referrers are recorded, and at least four
-valid receipt pairs exist. No new numeric audience threshold is invented here;
+Phase 2 is complete when its chosen channel sequence is finished and responses
+and referrers are recorded. No new numeric audience threshold is invented here;
 phase 1 is the pre-registered distribution test.
 
-## Phase 3 — productivity mechanism
+## Phase 3 — documentation as a cache
 
 Post 3 waits for all of the following:
 
 - post 2's channel sequence and response capture are complete;
-- `marketing/token-receipts` holds at least four valid pairs;
-- the evidence still supports the narrower documentation-as-cache mechanism;
-- a selected pair and its exact cached question are copied or linked into the
-  post-3 blackboard as working source support; and
+- a public context and the exact question it answers are linked in the post's
+  working sources;
+- a later session's record supports actual reuse of that understanding; and
 - the post has cleared the ordinary `marketing/write-post` and owner gates.
 
-If the receipt set is incomplete, postpone the post. If it contradicts the
-premise, narrow or replace the claim rather than hiding the result. Once those
-gates pass, ship through the channel runbook, targeted one to two weeks after
-phase 2. The series ends at post 3; a proof post does not start automatically.
-
-## Token-receipt protocol
-
-`marketing/token-receipts` is a one-off agent-owned task created at phase-1
-entry, not a recurring job and not new core code. During phases 1–2:
-
-1. `nicktoper` selects 4–6 real implement-step tickets where the attached
-   contexts plausibly contain task-relevant grounding.
-2. For each, the agent makes a `<slug>-nocontext` copy with `contexts: []` on a
-   throwaway branch and runs the real ticket with its contexts from the same
-   starting revision, using the same model/agent where practical. Never rewind
-   a task to manufacture the pair.
-3. Before launch, save both `--prompt-report` outputs. Afterward, save
-   `coga usage --task <slug> --json`, the usage-log reference, first-edit
-   commit SHA/time, context refs, model, starting revision, and every material
-   deviation between the runs.
-4. Keep the receipt table on the token ticket's blackboard. Link or copy the
-   selected rows into `marketing/post-doc-as-cache` when its brief starts.
-
-A valid pair has the same task intent and starting revision, differs in ticket
-contexts rather than repo context, and records any execution divergence. The
-values remain source notes; they are never smuggled into post 3 as a result.
-
-## Distribution tactics
-
-- **Titles name an opponent.** This account's evidence reverses the old
-  "experience, never thesis" rule. Every 30+ point story names something to
-  disagree with — tech inevitability, the computing industry, Copilot, or VC —
-  while descriptive, definitional, tutorial, and all six Show HN submissions
-  scored 1–6 points. In the cleanest natural experiment, the same URL scored
-  1 point as "Making All Software Faster: Experiments with Bytecode on
-  Real-World Apps" and 32 four days later as "Computing Industry Doesn't Care
-  about Performance: how I made things faster." Make the frame adversarial
-  and the claim conservative.
-- **Founder presence beats timing folklore.** The 26-story history does not
-  distinguish weekday from weekend or one midday-Eastern slot from another.
-  Submit when the founder can answer honestly and promptly.
-- Quote the claim *genre* ("fully autonomous", "+500%"), never a competitor
-  brand as an attack target.
-- **Attribution without telemetry:** Jetpack referrers against publication
-  timestamps and the pre-launch baseline, laid beside the GitHub-star and PyPI
-  curves. Referrer-level attribution is enough; Coga never instruments users.
-- **Craft risk is priced:** the founder has four 30+ point HN stories — 87,
-  52, 47, and 32 — and three won on prose rather than a benchmark. The HN API
-  records points, not placement, so never turn those scores into unobserved
-  front-page claims.
+If evidence is missing or contradicts the proposed mechanism, narrow or
+postpone the post. The owner removed the paired token/time experiment; it is
+not a prerequisite. Once the content and publication gates pass, target one
+to two weeks after phase 2. The series ends at post 3.
 
 ## Prepared replies
 
@@ -358,9 +261,9 @@ post ticket must write before shipping:
   `docs/vision.md`, echoed in `README.md`: a thesis about what the tool is for,
   never a measured result. Keep that framing.
 - Essay posts claim ideas, not results. The moment a post states a figure as a
-  result, it graduates into the archived proof-post regime. Post 3's working
-  receipts test and ground its mechanism; neither their values nor a measured
-  outcome belongs in the essay. `marketing/write-post` step 6 enforces this.
+  result, it graduates into the archived proof-post regime. Post 3's public
+  source example grounds its mechanism; it does not establish a comparative
+  efficiency result. `marketing/write-post` step 6 enforces this.
 - Misses stay publishable. Honest caveats and limits go in the posts, not in a
   FAQ, and a failed channel threshold is recorded rather than rationalized
   away.
@@ -369,10 +272,9 @@ post ticket must write before shipping:
 
 | Role | Owns |
 |---|---|
-| `nicktoper` | Final message and phase decisions; login-gated facts and baselines; selecting receipt pairs; publishing/submitting through personal accounts; the fastjvm.com announcement; founder presence in threads. |
+| `nicktoper` | Final message and phase decisions; login-gated facts and baselines; publishing/submitting through personal accounts; the fastjvm.com announcement; founder presence in threads. |
 | Post-ticket agent | Source packet, brief, stress test, outline, draft, clarity pass, claim check, full replies, title/channel options, live-link verification, public metric capture, and blackboard handoff. |
 | Cleanup/readme/community ticket assignees | Their named launch precondition, with evidence of completion in that ticket. |
-| Token-receipt agent | Pair execution and the auditable receipt table; no public result claim. |
 | Phase-1 retro agent | Public channel capture, checkpoint table, branch diagnosis, and a proposed disposition for the owner. |
 
 External publication is an owner action. An agent prepares it and verifies the
@@ -380,12 +282,19 @@ result, but never infers permission to post from a completed draft.
 
 ## Execution tickets and disposition
 
-- `marketing/phase-0-audit` — complete input to this plan; do not rerun it.
+- `marketing/phase-0-audit` — original checks completed; current owner review
+  extracts the knowledge and hands off the worklist. Its lifecycle remains at
+  the human gate until the owner advances it; do not rerun the audit.
+- `marketing/plan/collect-public-examples-for-the-launch` — make story and
+  example options, recommend one, and record the owner's choice. The existing
+  ref is historical; this is no longer a collection brief.
+- `marketing/plan/write-the-pitch-and-narrative` — use the chosen story and
+  worked examples to write the reusable message and supported narrative.
+- `marketing/build-the-launch-plan` — final message/sequence and keep/drop
+  decision at the existing owner gate.
 - Every ticket under `cleanup/` — blocking product/first-run queue.
 - `marketing/readme-top` — blocking landing-page alignment.
 - `marketing/discord` — blocking community-home decision and creation.
-- `marketing/token-receipts` — create at phase-1 entry; collect 4–6 pairs
-  through phases 1–2.
 - `marketing/phase-1-retro` — create before post 1; own the dated checkpoints,
   HN second-chance branch, fixed scorecard, and owner disposition.
 - `marketing/post-async-megalaunch` — **retained and rescoped** to post 1,
@@ -395,22 +304,17 @@ result, but never infers permission to post from a completed draft.
   amplification. Ownership moves into the causal spine and post-1 trust beat;
   the stable slug is historical bookkeeping.
 - `marketing/post-doc-as-cache` — **retained and sharpened** as post 3,
-  productivity by mechanism. It does not publish receipt values or become the
-  proof post.
+  documentation-as-cache mechanism, supported by a real reuse example.
 
 None of the three post tickets is canceled. Each runs
 `marketing/write-post`, which supplies the production steps and gates; this
 context supplies the brief and launch state.
 
-## Continuous — public responsiveness is the marketing
-
-Answer issues and community questions quickly, fix docs when a reader
-stumbles, and thank early testers. The public correction loop is the campaign
-performed in real time. This is a standard to hold throughout all three
-phases, not a fourth scheduled channel.
-
 ## What this context does NOT cover
 
+- Channel/account facts, distribution policy and audience scoring —
+  `marketing/distribution`.
+- Document locations, authority and overlapping work — `marketing/map`.
 - How a post is written and shipped — `marketing/write-post`, which hands its
   prose-craft pass to the imported `clarity` skill.
 - Positioning, audience, voice, competitive facts, and honest product limits —
