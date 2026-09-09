@@ -17,7 +17,7 @@ workflow:
     assignee: agent
 secrets: null
 step: 1 (execute)
-launch_generation: pending:b044ad94-2df2-47b4-b091-b4b42c214128
+launch_generation: b044ad94-2df2-47b4-b091-b4b42c214128
 ---
 
 ## Description
