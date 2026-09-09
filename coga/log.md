@@ -4639,3 +4639,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-09 12:08 [reuse-the-existing-control-worktree-for-recurring] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-09-09 12:08 [reuse-the-existing-control-worktree-for-recurring] [megalaunch] launched via coga megalaunch
 2026-09-09 12:54 [agent-usage-report] [human:zach] created (status=draft)
+2026-09-09 12:54 [agent-usage-report] [human:zach] ticket authoring launched (assignee=claude, agent=claude)
