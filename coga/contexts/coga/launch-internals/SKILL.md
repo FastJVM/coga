@@ -13,10 +13,10 @@ are what a change to `commands/launch.py`, `megalaunch.py`, the recurring scan,
 **Not attached by default, on purpose.** `coga/architecture` carries the model
 an agent needs to *operate* — what runs when, what advances a step, what a
 handoff means, and where each of these sections picks up. Everything here is
-what the implementation must *guarantee* under concurrent writers, and it is
-~19 KiB of prompt every ordinary ticket is better off not paying for. Add
-`coga/launch-internals` to a ticket's `contexts:` list when the work touches
-those paths.
+what the implementation must *guarantee* under concurrent writers, at several
+times the prompt weight of an ordinary attached context — a bill every
+ordinary ticket is better off not paying. Add `coga/launch-internals` to a
+ticket's `contexts:` list when the work touches those paths.
 
 ## Strict human-assist publication
 
@@ -88,10 +88,32 @@ the local tip already equals the remote; a genuinely append-only pending
 union-safe audit log is the sole explicit exception. That exception requires a
 non-empty byte suffix on the same regular file with the same Git mode; a
 chmod-only delta or a symlink/type replacement is ordinary unexpected dirt.
-Draft, paused, and blocked activation and
-`in_progress` publication stay deferred through prompt
-composition, prompt-file and argv construction, and the pre-session audit
-commit. At the final pre-spawn boundary launch captures one exact ticket byte
+On the agent path, draft, paused, and blocked activation and `in_progress`
+publication stay deferred through prompt composition, prompt-file and argv
+construction, and the pre-session audit commit. Two deterministic paths invert
+that order on purpose and are not instances of the bug this ordering fixed. A
+`ticket.py` phase resolves declared secrets through `build_launch_env` and then
+activates the ticket *before* every agent-only preflight, because a
+deterministic phase genuinely is work starting; CLI lookup, skill refresh,
+prompt composition, and the remaining agent preflights stay deferred until
+`ticket.py` actually leaves agent work open.
+
+Which writer performs that activation depends on the path, and the two are an
+`if`/`elif` in `commands/launch.py` — only one ever runs. The ordinary
+(non-assist) `ticket.py` phase calls `_auto_activate`. A **strict human assist**
+(`single_checkout_assist_branch is not None`) never reaches it: it builds the
+environment, takes `_prospective_assist_ticket`, runs the notification and
+push-auth preflights, captures the exact ticket bytes, and activates through
+`_publish_assist_lifecycle_before_spawn` under the publication lease. So a
+change to `_auto_activate` does not carry to the assist path and cannot be
+assumed to preserve its behavior; a change to the deferral *order* has to be
+made in both. A forced recurring run's
+`recurring_runner._prepare_forced_launch` durably `mark_active`s the period
+ticket ahead of launch's own preflights — logged `activated (<prior> → active)
+for forced recurring run` — so a later preflight failure at least leaves the
+task live for a future normal sweep instead of silently burning the forced
+period. Grepping `mark_active` will surface both; neither is a deferral to
+restore. At the final pre-spawn boundary launch captures one exact ticket byte
 revision, parses the lifecycle from those bytes, and binds rollback to that
 same revision. It rechecks the bytes after the network-backed publication
 lease is acquired,
