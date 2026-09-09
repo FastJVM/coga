@@ -84,12 +84,37 @@ the example under "Extend recurring with a task-specific workflow").
   agent session. Direct `coga launch recurring/<name>` obeys the same snapshot;
   it never re-reads mutable template dispatch. A task carrying `ticket.py` runs
   that file as a subprocess from the host repo with the period ticket's scoped
-  secrets and freshly derived `COGA_TASK_*` metadata; no prompt is composed and
-  no agent starts.
+  secrets and freshly derived `COGA_TASK_*` metadata.
+  **`ticket.py` selects a deterministic *phase*, not necessarily a wholly
+  deterministic period.** Whether an agent follows is decided after the script
+  exits, from the step it left behind — `run_script_chain` in
+  `src/coga/launch_script.py` classifies three outcomes. A script that closed
+  the last step ends the launch with no prompt composed and no agent started;
+  that is the shape every shipped template is written for and the only one an
+  unattended sweep can complete. A script that bumped into a step assigned to a
+  configured agent chains straight into agent preflight and prompt composition.
+  A script that exits 0 leaving the step **unchanged** is read as
+  "deterministic preparation succeeded and the agent continues that same open
+  unit of work" and returns `chain=True` — also an agent launch.
+  `src/coga/recurring_runner.py` carries the same hybrid notion explicitly,
+  which is why the temporary-worktree mode below has to thread a hard no-agent
+  reason through shared launch instead of assuming file presence means the
+  script is the whole run.
   The launcher marks `active → in_progress` before starting and then leaves
   the workflow alone: the script closes its own step (`coga bump`), exactly as
   an agent does. A non-zero exit halts the launch, leaves the task unfinished,
-  and stops the sweep after reporting it.
+  and stops the sweep after reporting it — reporting *that* template only.
+  Every template admitted behind it in the launch order is abandoned **and goes
+  unreported**: the scan returns the child's exit code from inside its own
+  launch loop, so no outcome record is ever built for them, and they survive in
+  the run record only as `launch` rows in its scan listing while the counts
+  read like a mostly-successful sweep. On 2026-09-08 one routine URL-skill
+  digest conflict made `skill-update` exit 1 and the four templates behind it
+  never ran and were never named; the record read `templates scanned: 7 /
+  tasks run: 3 / problems: 1` (see
+  `coga/tasks/autofix/stop-one-failing-ticket-py-from-starving-the-rest/run-log.md`).
+  Contrast the `--force` bullet below, whose canceled-task refusal explicitly
+  continues through later templates.
 - `coga recurring --force` — ignores schedule and status filters and attempts
   the real period task for every template, reactivating `done` and `paused`
   runs. A `canceled` task remains terminal: the runner reports a controlled
@@ -108,7 +133,20 @@ the example under "Extend recurring with a task-specific workflow").
   sweep in each configured target, sequentially. A missing local `user` or
   another intentional Coga config guard
   makes a scratch checkout an unconfigured non-target: these are omitted from
-  dispatch, summarized once by count, and do not make the parent fail. Each
+  dispatch, summarized once by count, and do not make the parent fail. That
+  exemption is about *targets*; the parent's own config carries a second,
+  narrower one. `cli.main` in `src/coga/cli.py` catches `ConfigError` from its
+  eager `find_repo_root()` / `load_config(require_user=False)` and from
+  `_validate_aliases`, and — when and only when the invoked command is
+  `coga init` / `coga uninstall` or a cross-repo `coga recurring --all` —
+  warns on stderr (`Note: ignoring current config error so the cross-repo
+  recurring sweep can run`), discards this repo's alias map, and dispatches on
+  `_DEFAULT_ALIASES` alone. Every ordinary command still exits 2 on the same
+  error. This is deliberate rather than a hole in fail-loud: the parent's own
+  checkout may be legacy or half-migrated while the repos under `<path>` are
+  fine, and each of those loads its own config in its own process anyway. Do
+  not tighten alias or config validation without preserving it, or the change
+  silently re-breaks every cross-repo sweep started from an old checkout. Each
   selected repo runs in a fresh CLI process so its config, launch supervision,
   and end-of-command git sync stay repo-local. TOML parse errors and failures
   after dispatch are reported without preventing later repos from running; the
@@ -537,7 +575,24 @@ This extension seam has five important constraints:
   `coga mark done`, or records an unavailable prerequisite with `coga block`;
   the launcher never advances the workflow on its behalf. A blocked script
   completion stays `blocked`; a non-zero exit leaves the period task
-  `in_progress`.
+  `in_progress`. **Exiting 0 without closing the step is the third outcome and
+  the commonest authoring mistake — it is not a no-op.** An unchanged step is
+  exactly the chain-to-agent signal described under dispatch above, so a
+  template this context calls headless becomes an agent-requiring launch: an
+  unattended sweep has no TTY for it and reports the period `unfinished`. That
+  is why every shipped script ends in an explicit completion shell-out — see
+  `coga/recurring/blocker-reminders/ticket.py`, which finishes with
+  `subprocess.run([sys.executable, "-m", "coga.cli", "bump",
+  os.environ["COGA_TASK_SLUG"]])` rather than calling the Typer command
+  in-process, where option defaults would arrive as `OptionInfo` sentinels.
+  Deliberately exiting non-zero to keep a period visible until a human looks at
+  it is an available idiom — `coga/recurring/skill-update/ticket.md` documents
+  using it that way — but price it first: a non-zero exit stops the whole
+  sweep, and every template behind this one is abandoned and unnamed in the run
+  record. `coga block` buys the same visibility without that cost: the ask is
+  recorded on the period ticket, the script-recorded `blocked` lifecycle is
+  preserved rather than paused, the run is reported as `unfinished` with its
+  reason, and the sweep continues to the templates behind it.
 - **A scheduled agent run must reach `done` in one launch.** When a bare
   `coga recurring` sweep gets control back from an unfinished agent launch, it
   pauses the period task before continuing. That includes an intermediate
@@ -713,9 +768,21 @@ The output is unchanged; the loop is what got added after it
    that failed to load. It is
    *built*, not scraped: tee-ing fd 1 would make `isatty` false and every
    interactive agent launch would then refuse itself. The blackboard is read
-   instead because it is where a `ticket.py` phase and an agent session both
-   already write what they found — the durable report channel, which the
-   console is not.
+   instead because it is the only durable per-run channel Coga owns; the
+   console is not one. **It is populated only by runs that choose to write to
+   it.** Nothing in the `ticket.py` contract asks for a run report — the
+   completion-contract bullet above asks a script to run headlessly, close its
+   own step, and record an unavailable prerequisite with `coga block`, and no
+   more. Of the shipped templates only `skill-update` writes one, through
+   `render_blackboard_report` / `append_report` in `src/coga/skill_update.py`,
+   which appends a `## Skill Update` section; `autoclose-merged`,
+   `branch-sweep`, `digest` and `blocker-reminders` hand the analyst a period
+   blackboard holding nothing but the seeded placeholder (the committed run
+   records under `coga/tasks/autofix/` show exactly that). So the analyst can
+   see *that* those runs ended cleanly and nothing about what they did, and
+   `skill-update` is faulted more often partly because it is the only one that
+   says anything. A template whose findings should be analyzed has to write
+   them to the period blackboard itself.
 2. **One agent call reads that record** and answers `ok`, `duplicate`, or
    `problem` plus a ticket body. This is the only place Coga spawns an agent
    without a PTY — a one-shot, text-in/text-out call with no REPL and no
