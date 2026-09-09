@@ -4650,3 +4650,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-09 14:21 [activation-does-not-resolve-step-1-s-assignee-role] [megalaunch] launched via coga megalaunch
 2026-09-09 14:26 [agent-usage-report] [agent:claude] slack: New draft ticket, owner set to you: a recurring report showing where people stand on AI usage vs. their subscription, so an over-provisioned plan becomes an obvious downgrade. Vision only — the engineering path is deliberately left to the design step. Ticket: coga/tasks/agent-usage-report.md (workflow: code/design-then-implement)
 2026-09-09 14:48 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-09-09 16:00 [activation-does-not-resolve-step-1-s-assignee-role] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
