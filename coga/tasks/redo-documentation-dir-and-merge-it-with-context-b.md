@@ -203,8 +203,8 @@ docs/
     dev/{code,checkouts,dev-record,design-history}/SKILL.md
     browser/{api-first,dom-backed}/SKILL.md
     docs/gdrive-mcp/SKILL.md
-    marketing/{positioning,strategy,plan,post-declutter,post-amplify,
-          post-doc-cache,channels,scorecard,token-receipts}/SKILL.md
+    marketing/{map,positioning,strategy,plan,post-declutter,post-amplify,
+          post-doc-cache,distribution,scorecard}/SKILL.md
 ```
 
 The many leaves replace a few manuals with selectable topics; the index should
@@ -281,7 +281,7 @@ The final row accounts for the package-only entry explicitly.
 | `browser/dom-backed` | 6,136 / I | Retain runner/DOM constraints at same ref and preserve its init-seeded package copy; leave actual execution process in browser skills. |
 | `docs/gdrive-mcp` | 2,363 / L | Retain only as an explicitly dated contract for the identified MCP, pending capability re-verification; never present its 2026-06 limitations as universal Google Docs facts. |
 | `marketing/positioning` | 8,480 / L | Rewrite around approved voice/ownership/limits and pinned fork A; merge repeated strategy into strategy page. |
-| `marketing/plan` | 25,542 / L | Split live phase gates/ownership at same ref from three post briefs, channels, scorecard, and token-receipts; process stays in `marketing/write-post`. |
+| `marketing/plan` | 25,542 / L (pre-extraction baseline) | Retain live phase gates/ownership and coordinate any further brief split with the marketing tickets. The 2026-09-09 extraction adds `marketing/map` and `marketing/distribution`; preserve these refs and their content at migration. Process stays in `marketing/write-post`; the owner dropped the marketing token experiment. |
 | `marketing/launch-history` | 2,283 / L | Move to `docs/archive/launch-programs.md`; retire the attachable ref and update the writing skill's historical pointer. Keep no automatic live attachment. |
 | Bundled-only `coga/cli` | 77,252 / package only | Bring its useful contracts into the canonical doc tree and topic homes; keep same ref as a short command index, mirrored into the package. No giant fallback left behind. |
 
@@ -322,7 +322,7 @@ sources before deleting them.
 | Digest/spool: sync digest/concurrency sections, patterns, CLI digest | `coga/digest`, `coga/patterns`, `coga/internals/spool-merge` | Outcome kinds, git high-water state, post-before-drain, anchor watermark, union merges, crash-safe replacement is not a lock, no hidden queue. |
 | Git state: sync durable sync/regression/sweep/pull-back sections, codebase checkout warnings, CLI state-command prose | `coga/sync`, `coga/internals/git-regressions`, `coga/internals/git-refresh`, `coga/internals/state-publication` | Control/feature publication, best-effort versus strict paths, union-file handling, stale-generation refusal, dirty state sweep and relocated root, deletion handling, pre-review publication hazard, refresh/stranding rules. |
 | Developer surface: codebase/development/dev-code, extension model and audits, CLI run/skill/open-pr | `coga/codebase`, `coga/testing`, `coga/packaging`, `coga/extension-model`, `coga/skill-management`, `dev/*`, `coga/releasing` | Shared-infra/command proof, closed recipes, no executable skill plugins, imported/hand-vendored skills, package-only resolution, portable fixtures, launch-env isolation, wheel test dependencies, exact test receipts and publish-only CI. |
-| Usage/evidence: usage, CLI usage, velocity, marketing token protocol | `coga/usage`, `coga/internals/activity-capture`, `docs/evidence/velocity.md`, `marketing/token-receipts` | Read API versus capture schema, Claude deltas/Codex cumulative counts, ambiguity => unknown, bounded secret-redacted content, elapsed time is not active human time, observed workstreams are not simultaneous processes or a multiplier. |
+| Usage/evidence: usage, CLI usage, velocity | `coga/usage`, `coga/internals/activity-capture`, `docs/evidence/velocity.md` | Read API versus capture schema, Claude deltas/Codex cumulative counts, ambiguity => unknown, bounded secret-redacted content, elapsed time is not active human time, observed workstreams are not simultaneous processes or a multiplier. The marketing token protocol is retired history in `marketing/launch-history`, not a new live context. |
 
 The CLI index maps each installed public command/alias to the owning topic
 above. In particular: init/build/install -> setup pages; create/ticket/show ->
@@ -578,7 +578,7 @@ changes cannot be credited to documentation work.
 | `service-recurring-from-a-temp-control-worktree-ins` | 37,718 / 46,200 | recurring overview + recurring-control + recurring-temp-worktrees + recurring-admission + script-tickets; <=8,000 context tokens. Include workspace identity, fresh control, hybrid refusal, cancellation and recovery, not the whole CLI. |
 | `stop-syncing-task-state-onto-the-feature-branch` | 26,424 / 29,690 | sync + state-publication + git-regressions + dev/checkouts; <=6,000 context tokens. Include control/feature paths, dirty sweep and union/CAS rules; exclude Slack setup and release instructions. |
 | `launch-activates-before-preflight` | 7,275 / 17,232 | launch + relevant human-assist/assist-publication/claim pages after rereading scope; <=5,000 context tokens. Preserve no-mutation preflight and exact publication obligations; no blanket launch-internals inclusion. |
-| `marketing/post-doc-as-cache` | 8,474 / 13,772 | positioning + post-doc-cache + token-receipts + only required plan gates; <=4,000 context tokens. Preserve evidence and claim restrictions; exclude other post briefs and historical competitor matrix. |
+| `marketing/post-doc-as-cache` | 8,474 / 13,772 (pre-extraction baseline) | positioning + proposed post-doc-cache + only required plan gates; read distribution for channel work. <=4,000 context tokens. Preserve the public context/question/later-use example and claim restrictions; exclude other post briefs and historical competitor matrix. No marketing token experiment or receipt quota. |
 | `recurring/dream` | 976 / 8,525 | Keep automatic period-task alone unless its body needs an additional specific fact; <=1,100 context tokens. Parent state versus per-run scratch/ledger must remain present. Do not execute Dream for this check. |
 
 For every sample, record each layer's path/ref/bytes/token estimate, inspect the
@@ -634,6 +634,16 @@ No branch, code changes, manual commits, PR, config edits, or actual rewrite in 
 **design** step.
 
 ## Context
+
+### Marketing extraction — owner decision, 2026-09-09
+
+The owner approved extracting the audit into `marketing/map` and
+`marketing/distribution`, preparing writing tickets under `marketing/plan/`,
+and dropping the marketing token experiment. The current context root stays
+unchanged. Treat these new contexts as maintained consumers and migrate their
+authored content once this ticket's own cutover is approved. Any further
+marketing split must build on those homes; do not recreate a token-receipts
+context or restore its launch prerequisite. Source: `marketing/phase-0-audit`.
 
 ### Prompt-as-interface claim check (2026-09-08)
 

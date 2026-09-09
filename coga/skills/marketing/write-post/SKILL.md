@@ -8,14 +8,16 @@ description: The procedure for writing one post in the Coga launch series — br
 This is the **order of work** for one post in the launch series, and the gates
 that block it. It owns sequence and gates only.
 
-Everything about *content* lives in two contexts, and this file defers to both:
+Content lives in the following contexts; this skill defers to their authored homes:
 
 - `marketing/plan` — which post this is, its beats, the phasing, the writing
-  rules, the claim-discipline rationale, the channel tactics.
+  rules and the claim-discipline rationale.
 - `marketing/positioning` — the spine, the audience, the voice, the honest
   limits, the competitive framing, and the pinned strategic fork.
+- `marketing/distribution` — channels, account evidence, attribution,
+  audience scorecard and response branches. Read it for channel work.
 
-Read both before step 1. When this file and a context disagree about *what to
+Read plan and positioning before step 1. When this file and a context disagree about *what to
 say*, the context wins. Never restate a context's content here; cite it.
 
 ## Entry condition
@@ -39,7 +41,7 @@ piece from scratch — the same slot steps 1–4 below occupy. The split is
 therefore a decision, not something clarity's design hands over:
 
 - **Steps 1–4 are this skill's.** Do not enter clarity in co-write mode. Coga's
-  posts are not open interviews: the two marketing contexts already fix the
+  posts are not open interviews: the marketing contexts already fix the
   brief, audience, voice, and any required arc, and the source material is a
   repo you can read. Co-write mode would re-derive decisions already made, and
   two skills would fight over the same job.
@@ -93,7 +95,7 @@ An objection with no decision is a hole the comment section will find.
 
 **Do:** Turn the structure `marketing/plan` supplies into an outline. For post
 1, that is the five-beat arc. For a later post, use that phase's stated angle,
-exclusions, and evidence or receipt requirements; do not silently reuse post
+exclusions, and public-source requirements; do not silently reuse post
 1's arc. If the plan does not supply enough structure, record the gap and ask
 the owner rather than inventing a new post. Attach to every beat or section the
 real, checkable material the plan requires.
@@ -101,16 +103,13 @@ real, checkable material the plan requires.
 Apply source requirements only to the post and plan version where they appear;
 a condition attached to one post is not a series-wide default.
 
-For post 3, attach the required token and time-to-first-edit receipts to the
-outline or blackboard as **working source support**. The repo and blackboard may
-be public; "source support" means the values are not essay copy, not that they
-are secret. Use them to test whether the premise survives and to identify the
-exact context and repository question whose understanding was reused. Do not
-outline a measured delta or quote a receipt value. The permitted essay form is
-the concrete mechanism — name what the context already answered on a later
-session — without saying it was faster or used fewer tokens. Publishing that
-measured comparison would require the owner to move the ticket into the
-proof-post regime.
+For post 3, attach the exact public context, the question it answers, and a
+later session's record showing that understanding in use. A context appearing
+in a composed prompt proves delivery, not successful reuse by itself. If the
+later behavior is missing, report the gap and narrow or defer the passage.
+The owner dropped the paired token/time experiment; no receipt quota or
+counterfactual run is required. This source example supports a mechanism,
+not a measured saving, output multiplier, or claim of generality.
 
 **Exit:** Every planned beat or section has real, checkable support attached,
 and any missing structure has been resolved. A section carrying only a
@@ -174,16 +173,13 @@ The reasoning behind the rule, and the one ratio Coga does publish and why it
 is exempt, are in `marketing/plan`'s "Claim discipline". Read it there; this
 step is the check, not the argument.
 
-For post 3, keep the required receipts attached as support, including their
-values. In the post itself, use only the non-result form from step 3: the exact
-context and question it cached. Do not publish the values, a delta, or an
-unquantified measured outcome such as "it was faster" or "it used fewer
-tokens". If the receipts undermine the premise, cut or reframe the claim; do
-not make contrary evidence disappear to pass this gate.
+For post 3, use the public source example from step 3 to support only the
+specific reuse it shows. Do not infer a measured token/time saving or
+productivity effect. If the source contradicts the proposed mechanism, cut or
+reframe the claim and preserve the contrary evidence in the working notes.
 
-**Exit:** Zero figures stated as results in the publishable post, all required
-working receipts remain attached to their source notes, and the post's honest
-caveat is *in the post* rather than deferred to a FAQ.
+**Exit:** Zero figures stated as results in the publishable post, required
+source references remain attached, and the honest caveat is in the post.
 
 **Blocks step 7** while any result-shaped figure survives.
 
@@ -204,9 +200,10 @@ replies are written. Never improvise one in-thread.
 
 ## Step 8 — Channel sequencing
 
-**Do:** Publish in the order `marketing/plan`'s channel runbook sets. Use the
+**Do:** Prepare publication in the order `marketing/distribution`'s channel
+runbook sets. The owner publishes and submits; an agent verifies the result. Use the
 canonical blog URL, record each channel's timestamp, and read attribution at
-the referrer level as the plan specifies. An optional channel omitted from
+the referrer level as the distribution context specifies. An optional channel omitted from
 that phase does not block the post; once it is chosen, its stated position in
 the sequence is binding.
 
@@ -218,12 +215,12 @@ the sequence is binding.
   YC readers arrive in the HN thread already convinced. Submitting to HN before
   the Bookface read has happened is out of order — hold the submission.
 
-Before any HN submission, reread `marketing/plan`'s "Distribution tactics" and
+Before any HN submission, reread `marketing/distribution`'s "Distribution tactics" and
 verify its current submission-form, title, upvote, retry, and founder-presence
 rules. Those tactics are context, not duplicated here. Any mismatch blocks the
 submission.
 
-**Exit:** Published in the plan's order, with every channel-specific gate
+**Exit:** Published by the owner in the distribution policy's order, with every channel-specific gate
 satisfied.
 
 ---
@@ -249,6 +246,8 @@ A post is blocked from moving forward while any of these is true:
 - Why the claim-discipline rule exists and which ratio is exempt:
   `marketing/plan`, "Claim discipline".
 - The pinned fork and the competitive framing: `marketing/positioning`.
+- Channel facts, distribution policy and audience scoring:
+  `marketing/distribution`.
 - General prose craft — mode selection, the editing pass, the anti-generic
   safeguards, the prose-stat scripts: `coga/skills/clarity/SKILL.md`.
 - The proof-post regime: excluded from the live plan and preserved in the

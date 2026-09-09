@@ -1,6 +1,11 @@
 <!-- Attachment of the `marketing/phase-0-audit` task. Not a ticket; moved out of
 the blackboard on 2026-09-03 so composed launch prompts stay small. -->
 
+> Historical evidence from September 2–3, 2026, not a current launch checklist.
+> The owner subsequently excluded all private-repo quotations and dropped the
+> token experiment on 2026-09-09. Current decisions are in `marketing/plan`
+> and `marketing/distribution`; no paired-run assignment is outstanding.
+
 ## Step 1 findings (agent, 2026-09-02)
 
 Inventory only — no fixes made. Each check below ends with what it means

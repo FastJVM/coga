@@ -22,13 +22,17 @@ Write and ship launch post 3 — **productivity, by mechanism** — per phase 3 
 agent reconstruct the same understanding every run; contexts turn
 documentation into a cache of human judgment.
 
-Do not start until `marketing/token-receipts` holds at least four valid pairs
-from phases 1–2 and one exact cached question is attached here as working
-source support. Use the receipts to test and ground the premise, never as
-publishable results: no values, delta, multiplier, or measured "faster" /
-"fewer tokens" claim belongs in the essay. If the receipts contradict the
-premise, narrow or replace the claim. This ticket remains an idea essay and
-does not become the archived proof post.
+Before drafting, link the exact public context, the question it answers, and
+a later session's record showing that understanding in use. Begin with the
+source packet from `marketing/plan/collect-public-examples-for-the-launch`;
+report a missing second half instead of inventing reuse. The ordinary phase
+and owner gates in `marketing/plan` still apply.
+
+The owner dropped the paired token/time experiment on 2026-09-09. No paired
+runs, receipt quota, or token-measurement ticket is required. This remains an
+idea essay: do not claim a measured saving, a productivity multiplier, or
+generality from a single example. If the source contradicts the mechanism,
+narrow or replace the claim.
 
 ## Context
 

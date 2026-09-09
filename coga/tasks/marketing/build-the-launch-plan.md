@@ -26,15 +26,29 @@ step: 2 (human-owns-and-finishes)
 
 ## Description
 
-Build the launch plan. `marketing/phase-0-audit` did the two jobs it was for —
-identify the points to fix, and gather the information a plan needs — and both
-are done. What does not exist yet is the plan itself: what ships, in what
-order, through which channels, gated on what. The owner named the message
-architecture on 2026-09-03 as three angles: **it declutters your mind**, then
-**it amplifies the human**, then **productivity**. Turn that plus the audit's
-findings into an operational launch plan.
+Review and finalize the launch plan against the public source packet and the
+owner's newer pitch direction. `marketing/plan` already holds the retained
+three-post campaign and its gates; the remaining work is the owner's message,
+sequence and keep/drop decision, followed by a current handoff to execution.
+
+`marketing/plan/collect-public-examples-for-the-launch` supplies the sources;
+`marketing/plan/write-the-pitch-and-narrative` supplies the reusable message.
+Use those outputs here instead of independently commissioning the same work.
+The owner dropped the marketing token experiment on 2026-09-09.
 
 ## Context
+
+**Current handoff, 2026-09-09.** The audit's reusable material has moved to
+`marketing/map` and `marketing/distribution`. The newer managed-prompt
+direction is recorded in `marketing/positioning`; the writing tickets above
+own the public examples and final pitch prose. This ticket retains the final
+campaign decision at its existing human gate. The three essay tickets remain
+retained until that decision changes them. Audience scoring stays in scope;
+token/time measurement and receipt quotas are removed.
+
+The older research and angle discussion below are background. Account evidence
+and channel rules now have their authored home in `marketing/distribution`;
+do not use their September 3 status statements as current certification.
 
 **Scope: this ticket owns both the message and the operation.** It was first
 written around a split — the three angles are the message, the plan is the
@@ -122,8 +136,8 @@ plan needs:
 The operation, not the message. At minimum: the ordered sequence of what
 ships; which channel each post goes to and in what order within a launch day;
 the preconditions each ship gate waits on; who owns each step; the phase-1
-thresholds and what a miss triggers; and where the token receipts for the
-productivity angle get collected during earlier phases.
+thresholds and what a miss triggers; and which public examples support the
+message. The token-measurement requirement was removed on 2026-09-09.
 
 ### Evidence: what actually works on this HN account
 
@@ -307,8 +321,8 @@ rescoped, or canceled.
   unprompted vocabulary use. Each miss now routes to a specific retry, funnel
   repair, message repair, channel omission, or owner hold instead of a vague
   "review performance" step.
-- Receipt collection starts with a one-off `marketing/token-receipts` task at
-  phase-1 entry and ends with 4–6 paired runs recorded on its blackboard.
+- **Superseded 2026-09-09:** the former one-off token-receipts task and paired-run
+  gate were dropped by the owner. Public examples now support the mechanism.
   `marketing/phase-1-retro` is a separate planned task for the 24-hour,
   72-hour, and day-14 checkpoints; this avoids using a writing ticket as a
   hidden timer.
@@ -337,8 +351,8 @@ rescoped, or canceled.
   not a performance inference; the HN history showed no useful day/hour
   effect. Its purpose is Bookface feedback and one founder-attended thread at a
   time.
-- `marketing/token-receipts` and `marketing/phase-1-retro` are deliberate
-  future tickets, not missing current files. Both must exist before post 1.
+- `marketing/phase-1-retro` remains a planned ticket required before post 1.
+  The owner dropped the former token-receipts ticket on 2026-09-09.
 - The live plan is 25,542 bytes after adding the operation the old context
   lacked. The 2,283-byte history context is no longer composed. If prompt cost
   is judged too high, split the channel/measurement runbook later; do not move
