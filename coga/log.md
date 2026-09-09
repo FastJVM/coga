@@ -4567,3 +4567,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-08 17:22 [document-when-to-attach-a-large-context-versus-cit] [human:nicktoper] created (status=draft)
 2026-09-08 17:22 [title-only-tickets-have-no-convention-and-no-valid] [human:nicktoper] created (status=draft)
 2026-09-08 17:23 [nothing-exercises-python-3-11-the-declared-floor] [human:nicktoper] created (status=draft)
+2026-09-08 17:23 [record-or-clear-the-standing-repo-wide-coga-valida] [human:nicktoper] created (status=draft)
