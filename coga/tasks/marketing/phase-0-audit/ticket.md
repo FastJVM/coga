@@ -155,6 +155,88 @@ that, stop and note it on the worklist instead of finishing it here.
 
 <!-- coga:blackboard -->
 
+## Ticket authoring notes
+
+**2026-09-09 — owner-requested direction, scope still being refined.** Organize
+the marketing work in this order: (1) a context indexing the marketing documents
+and where they live; (2) a list of needed deliverables and things to drop;
+(3) a focused distribution context plus the pitch, narrative, and concrete
+examples; (4) cleanup after those decisions. The owner also asked why token
+measurement is needed. This is an authoring discussion, not approval to cancel
+posts, retire evidence gates, migrate the context root, or advance the workflow.
+The September 2–3 findings below remain historical audit evidence; do not rerun
+the original audit or mistake its old plan-premise failure for current intent.
+
+**Newer message source found.** The owner correction dated 2026-09-08 in
+`coga/tasks/redo-documentation-dir-and-merge-it-with-context-b.md`, under
+"Owner's pitch direction and proposed authority" and "Managed-prompt
+clarification and claim check", says to lead with Coga as a new way to work
+with AI by explicitly managing the intent, instructions, knowledge, and working
+state that compose its prompt. This direction has not reached the marketing
+contexts. The exact opening copy and the wider documentation migration remain
+at owner review. Carry this source into the marketing map and pitch brief;
+do not silently cancel the three-post series or implement the proposed
+`docs/contexts` relocation here.
+
+**Current document map (paths relative to the repo root).** These are existing
+homes; the proposed new contexts below have not been created.
+
+| Material | Current home | What the reorganization must resolve |
+|---|---|---|
+| Public introduction and first-run path | `README.md`, `docs/README.md`, `docs/getting-started.md`, `docs/releasing.md` | Keep a clear entry path; link message and install work to their owning tickets. |
+| Product purpose and strategic argument | `docs/vision.md`, `docs/market-thesis.md` | Distinguish product thesis, reusable message, and dated competitive research. |
+| Audience, voice, ownership, limits | `coga/contexts/marketing/positioning/SKILL.md` | Incorporate the newer pitch direction after review; resolve its older human-minutes-as-comms instruction against the essay plan. |
+| Launch sequence, post briefs, channel facts, scorecard, token protocol | `coga/contexts/marketing/plan/SKILL.md` | Give reusable distribution knowledge a focused home; preserve campaign decisions and record proposed cuts explicitly. |
+| Post-writing procedure and craft | `coga/skills/marketing/write-post/SKILL.md`, `coga/skills/clarity/` | Keep procedure in skills; update content pointers when material moves. |
+| Historical programs and quantitative evidence | `coga/contexts/marketing/launch-history/SKILL.md`, `docs/velocity-report.md`, `scripts/human_minutes.py` | Keep history visibly separate from live launch requirements; existing usage tooling is not itself a marketing experiment. |
+| Completed audit and findings | This ticket, `step-1-findings.md`, `narrative-candidates.md` | Preserve useful findings; the owner ruled the private-repo quotations unpublishable, so they cannot supply the new message. |
+| Launch decisions and post deliverables | `coga/tasks/marketing/build-the-launch-plan.md`, the three `marketing/post-*` tickets | Reconcile pending decisions and message ownership; no draft essay or public source packet is recorded yet. |
+| Landing page and community deliverables | `coga/tasks/marketing/readme-top.md`, `coga/tasks/marketing/discord.md` | Both are drafts without workflows; community choice remains open. |
+| Product and release prerequisites | `coga/tasks/cleanup/README.md`, its nine sibling tickets | Current recorded state: two done, Python 3.11 fix at peer review, six drafts. |
+| Newer pitch and proposed knowledge-library migration | `coga/tasks/redo-documentation-dir-and-merge-it-with-context-b.md` | Coordinate with its owner review; avoid two competing reorganizations or unapproved file moves. |
+| Audit-status reconciliation | `coga/tasks/phase-0-audit-is-complete-per-the-plan-but-still-i.md` | Existing draft already tracks the discrepancy; reconcile it when this audit's disposition is decided. |
+| Confidential narrative disposition | `coga/tasks/narrative-candidates-md-publishes-log-text-the-own.md` | Existing draft owns the removal/sanitization decision; never copy those quotations into a new context. |
+| Completed writing-process extraction | `coga/tasks/no-comms-writing-skill-the-process-is-smeared-thro.md` | Historical rationale for the skill/context boundary; do not repeat the extraction already done. |
+
+## Proposals
+
+**Context structure, pending namespace/name confirmation.** Use
+`marketing/map` for a short index of authored homes, authority by subject,
+live versus historical material, and owning tickets. Use
+`marketing/distribution` for reusable channel/account facts, approved tactics,
+measurement definitions, and links to dated evidence. Campaign dates, phase
+gates, and current execution belong in the plan/tickets; publishing procedure
+belongs in `marketing/write-post`. Enrich the existing
+`marketing/positioning` with the approved pitch and message rather than adding
+another competing positioning document. Keep long example/source packets in
+attachments and link them from the relevant message/post brief. Physical paths
+must follow the configured context root and be coordinated with the separate
+documentation migration. Avoid attaching the entire map's contents to every
+marketing ticket.
+
+**Needs/drop ledger, preliminary.** Keep the working install/release path,
+README, a chosen community home, subscribe test and baseline, public examples,
+post/reply/channel copy, and a record of audience response. Review duplicated
+message prose, superseded blockers, dated competitive arguments in live
+prompts, and the necessity of each proposed essay after the pitch is written.
+Retain the existing post tickets pending that decision. Use the existing
+cleanup and confidentiality tickets for their work; do not create duplicates.
+
+**Token experiment — recommendation, not yet a decision.** The paired
+with/without-context runs were retained to test the documentation-as-cache
+premise and select a concrete example for post 3. They are not a launch-success
+metric, and raw token totals cannot establish clearer thinking or better work.
+Recommend shelving the mandatory 4–6-pair marketing experiment and supporting
+the narrower mechanism with an exact public context, the question it answers,
+and evidence of its use in a later session. That gives up a controlled
+comparison and cannot support claims about efficiency, generality, or a
+productivity multiplier. Keep audience-response measurement and ordinary
+operational usage/prompt-size inspection. If the owner accepts the change,
+update the plan, `marketing/write-post`, post 3, this audit, and the overlapping
+documentation-migration proposal together; preserve the retired protocol as
+history rather than leaving a hidden launch gate. Existing gates remain in
+force until that decision is made.
+
 ## Findings — moved to attachments
 
 The full step-1 evidence lived here and pushed the blackboard to 58 KiB, all
