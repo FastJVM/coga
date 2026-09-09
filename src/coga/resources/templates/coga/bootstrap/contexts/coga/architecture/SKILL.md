@@ -457,12 +457,18 @@ to a missing-workflow or no-instructions placeholder. Draft and terminal
 tickets are left alone.
 
 The freeze covers step *metadata*, not step *content*, and that has a standing
-authoring consequence. A frozen step's `skills:` refs resolve against the live
-`coga/skills/` tree at composition time, and a skill-less step's instructions
-are read live out of the current workflow definition, so editing a shared step
-skill — or that inline prose — silently rewrites the prompt of every
-already-frozen ticket, including tickets frozen on an older step sequence that
-never contained the step the edit assumes. Inserting `evaluate-design` into
+authoring consequence. A frozen step's `skills:` refs are resolved live at
+composition time — local-first, then package-backed: `resolve_skill_path`
+(`paths.py`) tries `coga/skills/<ref>/SKILL.md` and falls back to the installed
+package's `bootstrap/skills/<ref>/SKILL.md`, which `coga init` deliberately does
+not materialize. A skill-less step's instructions are likewise read live out of
+the current workflow definition. So editing a shared step skill — or that inline
+prose — silently rewrites the prompt of every already-frozen ticket, including
+tickets frozen on an older step sequence that never contained the step the edit
+assumes. **The warning applies to whichever copy actually resolves**: in a repo
+with no local override that is the packaged battery, so editing a bundled
+`code/*` skill in the Coga source tree rewrites frozen tickets' prompts exactly
+as a local edit would. Inserting `evaluate-design` into
 `code/design-then-implement` demonstrated both halves: a `code/design` step
 skill that told the agent its bump advanced to `evaluate-design`, and a
 `review-design` owner prompt that required an `## Evaluator review` blackboard
@@ -1144,12 +1150,16 @@ phase across bounded shard subagents, reconciles only active leaf assignments �
 at the barrier, and by distinct completing shard id rather than by counting the
 completion lines in the shared append-only `progress.md` — and merges their
 on-disk findings into `## Findings`; a final message is not the delivery
-mechanism. Known limitation, and it belongs to the shared corpus definition
-rather than to one phase: the contract audit and the knowledge scan declare the
-same corpus — the configured contexts directory (`coga/contexts/` unless
-`[layout] contexts` moves it) plus `coga/skills/**` — and neither reaches
-package-backed `bootstrap/skills/**`, so both halves of decide share one blind
-spot. The bundled Dream skills, the scan skills included, sit outside the
+mechanism. Known limitation: neither decide phase reaches package-backed
+`bootstrap/skills/**`, so both halves share one blind spot. What they share is
+only that *subset* — the configured contexts directory (`coga/contexts/` unless
+`[layout] contexts` moves it) plus `coga/skills/**`, and the package-backed
+exclusion. The two corpora are otherwise different, and a fix must not assume a
+common definition to patch: the knowledge scan also owns every task ticket and
+`coga/workflows/**`, while the contract audit instead adds the
+`coga/recurring/<name>/ticket.md` templates, `README.md`, `docs/*.md`, and the
+`CLAUDE.md` / `AGENTS.md` agent instruction files — and explicitly treats
+`coga/tasks/` as historical record rather than contract. The bundled Dream skills, the scan skills included, sit outside the
 surface either phase reads; a Dream run confirmed it empirically, indexing zero
 `bootstrap/skills` entries while 30 Markdown files live under
 `src/coga/resources/templates/coga/bootstrap/skills/`. The fix is a corpus
