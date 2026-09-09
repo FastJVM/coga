@@ -59,6 +59,6 @@ so it can grow unbounded).
 
 ### Digest State
 
-last_commit: 034c5a8c04b0caa7728bb85692aca962ecd0e991
-range: af7d08a..034c5a8 (178 commit(s), 63 reported)
+last_commit: f2f7eb1f73e7116c6d163fa121eae7c88b2060f1
+range: 034c5a8..f2f7eb1 (51 commit(s), 4 reported)
 posted: yes
