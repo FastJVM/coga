@@ -382,7 +382,10 @@ def test_recurring_create_is_silent(
     from coga.tasks import TaskRef
 
     # Recurring period tasks are always directory-form because they may carry
-    # deterministic and state-snapshot siblings.
+    # deterministic and state-snapshot siblings. The `TaskRef` below must agree:
+    # with `file_form=True`, `ticket_path` returns the directory itself and
+    # `_broadcast_scan`'s period-lease read raises IsADirectoryError before the
+    # notification assertion is ever reached.
     slug, path = _make_task(repo, status="active", force_directory=True)
     posts = _capture(monkeypatch)
     cfg = load_config(repo)
@@ -391,7 +394,7 @@ def test_recurring_create_is_silent(
         tasks=[
             DueTask(
                 template="weekly",
-                ref=TaskRef(slug=slug, path=path, file_form=True),
+                ref=TaskRef(slug=slug, path=path, file_form=False),
                 last_fire=datetime(2026, 6, 9),
                 period_key="2026-W24",
                 created=True,
