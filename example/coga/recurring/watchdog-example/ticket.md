@@ -3,7 +3,7 @@ schedule: "0 9 * * 1"
 title: Watchdog recovery example
 owner: marc
 assignee: claude
-workflow: deterministic/check
+workflow: direct/body
 ---
 
 ## Description

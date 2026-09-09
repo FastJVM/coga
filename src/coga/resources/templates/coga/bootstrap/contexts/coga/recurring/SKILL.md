@@ -571,8 +571,9 @@ This extension seam has five important constraints:
   (`delegate: bootstrap/<name>`) is agent-backed for this purpose — its
   delegated run is an agent launch — and is skipped headless the same way,
   including when an `active` / `in_progress` period already exists from an
-  earlier attended sweep. A normal scan can still inspect and report a paused
+  earlier attended sweep. A scan can still inspect and report a paused
   period without admitting an agent; a forced launch retains the TTY gate.
+  Refused watchdog recovery remains an unresolved failure, not a task run.
   Admission leaves that period untouched and continues
   to later deterministic jobs. A template carrying `ticket.py` runs directly
   without a TTY and is the appropriate shape for an unattended scheduler.

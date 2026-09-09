@@ -1609,27 +1609,42 @@ def run_recurring_scan(
         scan_lines=scan_lines_for_record(scan, force=force),
         scan_errors=list(scan.errors),
     )
-    if not force:
-        for task in scan.tasks:
-            if not task.watchdog_paused or task.ref is None:
-                continue
-            detail = (
-                "watchdog timeout left this run paused. "
-                f"Resume with `coga launch {task.ref.id_slug}`; "
-                "its recorded step and blackboard are retained. "
-                f"Audit: {task.watchdog_pause}"
+    # Forced preparation mutates each DueTask's status. Remember admitted
+    # watchdog recoveries so an unsuccessful retry cannot report success.
+    watchdog_recoveries: set[str] = set()
+    for task in scan.tasks:
+        if not task.watchdog_paused or task.ref is None:
+            continue
+        if force and not task.launch_refusal:
+            watchdog_recoveries.add(task.ref.id_slug)
+            continue
+        paused_ticket = read_ticket(task.ref)
+        detail = (
+            "watchdog timeout left this run paused. "
+            f"Resume with `coga launch {task.ref.id_slug}`; "
+            "its recorded step and blackboard are retained. "
+            f"Audit: {task.watchdog_pause}"
+        )
+        if task.launch_refusal:
+            typer.secho(
+                f"{task.ref.id_slug}: {task.launch_refusal}",
+                fg=typer.colors.YELLOW,
+                err=True,
             )
-            record.scan_problems.append((task.ref.id_slug, detail))
-            notify(
-                cfg,
-                f"⚠️ *{task.ref.id_slug}*: {detail}",
-                kind="recurring-error",
-                detail=detail,
-                ticket=task.ref.id_slug,
-                task_path=task.ref.path,
-                important=True,
-                fatal=False,
-            )
+            detail = f"Forced recovery refused: {task.launch_refusal} {detail}"
+        record.scan_problems.append((task.ref.id_slug, detail))
+        notify(
+            cfg,
+            f"⚠️ *{task.ref.id_slug}*: {detail}",
+            kind="recurring-error",
+            detail=detail,
+            ticket=task.ref.id_slug,
+            owner=paused_ticket.owner or cfg.current_user,
+            watchers=paused_ticket.watchers,
+            task_path=task.ref.path,
+            important=True,
+            fatal=False,
+        )
 
     # `force` launches every materialized task regardless of status;
     # the bare sweep launches only the launchable (active/in_progress) ones.
@@ -1661,7 +1676,11 @@ def run_recurring_scan(
             control_remote_expected=control_remote_expected,
             agent_spawn_refusal=agent_spawn_refusal,
         )
-        return code or (2 if record.scan_problems else 0)
+        recovery_failed = any(
+            outcome.slug in watchdog_recoveries and outcome.is_problem
+            for outcome in record.outcomes
+        )
+        return code or (2 if record.scan_problems or recovery_failed else 0)
     finally:
         run_autofix(cfg, record, agent_override=agent_override)
 
@@ -4825,7 +4844,7 @@ def _print_table(scan: DueScan, *, force: bool = False) -> None:
             # An orphaned `in_progress` period task from a dead sweep — relaunch
             # resumes its current step rather than starting a fresh run.
             action = typer.style("→ resume", fg=typer.colors.YELLOW)
-        elif task.launchable or force:
+        elif task.launchable or (force and not task.launch_refusal):
             action = typer.style("→ launch", fg=typer.colors.GREEN)
         elif task.watchdog_paused:
             action = typer.style(

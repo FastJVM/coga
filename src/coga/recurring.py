@@ -313,6 +313,7 @@ class DueTask:
     replaced_done: bool = False
     replaced_done_ticket_bytes: bytes | None = None
     watchdog_pause: str = ""
+    launch_refusal: str = ""
 
     @property
     def watchdog_paused(self) -> bool:
@@ -397,9 +398,12 @@ class DueScan:
         `canceled`, or `paused` period task is still included. The force runner
         reactivates done/paused tasks but refuses canceled tasks; they
         must be deleted before a fresh run. The same Dream-last / resume-first
-        ordering as `due` applies.
+        ordering as `due` applies. A watchdog failure retained only for
+        reporting after an admission refusal is never launched.
         """
-        return _order_for_launch(t for t in self.tasks if t.ref is not None)
+        return _order_for_launch(
+            t for t in self.tasks if t.ref is not None and not t.launch_refusal
+        )
 
 
 def _order_for_launch(tasks: Iterable[DueTask]) -> list[DueTask]:
@@ -550,9 +554,9 @@ def scan_due(
                 # unavailable agent template.
                 retain_canceled=force,
                 # Inspect parked agent periods even without a TTY. Reporting
-                # an existing failure requires no executable phase; a forced
-                # relaunch still goes through the ordinary admission gate.
-                retain_paused=not force,
+                # an existing failure requires no executable phase. Forced
+                # admission refusals are classified after pause provenance.
+                retain_paused=True,
                 # Forced scans defer every status/period mutation until the
                 # sequential launch loop actually reaches that template.
                 replace_done=not force,
@@ -585,9 +589,23 @@ def scan_due(
         cfg,
         {t.ref.id_slug for t in tasks if t.ref is not None and t.status == "paused"},
     )
-    for task in tasks:
+    for task in list(tasks):
         if task.ref is not None:
             task.watchdog_pause = pauses.get(task.ref.id_slug, "")
+        if (
+            force
+            and not allow_interactive
+            and task.status == "paused"
+            and task.ref is not None
+            and resolve_script_entry_point(task.ref) is None
+        ):
+            reason = agent_unavailable_reason or _AGENT_NEEDS_TTY
+            if task.watchdog_paused:
+                task.launch_refusal = reason
+            else:
+                tasks.remove(task)
+                sys.stderr.write(f"[recurring] skipping {task.template}: {reason}\n")
+                errors.append((task.template, reason))
     return DueScan(
         tasks=tasks,
         errors=errors,
@@ -672,8 +690,8 @@ def create_template(
     launchable; the force runner consumes it only to issue the canceled-task
     refusal and a non-zero sweep result.
 
-    `retain_paused` lets an ordinary scan inspect parked periods without an
-    agent-capable terminal. It does not admit them for launch.
+    `retain_paused` lets a scan inspect parked periods without an agent-capable
+    terminal. The scanner must retain that admission refusal if force-running.
     """
     last_fire = _last_firing(template.schedule, now)
     period_key = _period_key(template.schedule, last_fire)

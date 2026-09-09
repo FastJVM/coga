@@ -917,7 +917,7 @@ def scan_lines_for_record(scan, *, force: bool = False) -> list[str]:
             action = "skip (ran this period)"
         elif task.resuming:
             action = "resume"
-        elif task.launchable or force:
+        elif task.launchable or (force and not task.launch_refusal):
             action = "launch"
         elif task.watchdog_paused:
             action = (

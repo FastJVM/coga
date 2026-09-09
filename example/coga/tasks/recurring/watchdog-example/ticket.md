@@ -9,10 +9,11 @@ assignee: claude
 contexts: []
 skills: []
 workflow:
-  name: deterministic/check
+  name: direct/body
   steps:
   - name: execute
-    skills: []
+    skills:
+    - direct/body
     assignee: agent
 step: 1 (execute)
 secrets: null
