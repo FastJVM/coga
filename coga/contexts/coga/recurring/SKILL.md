@@ -92,7 +92,16 @@ the example under "Extend recurring with a task-specific workflow").
   the last step ends the launch with no prompt composed and no agent started;
   that is the shape every shipped template is written for and the only one an
   unattended sweep can complete. A script that bumped into a step assigned to a
-  configured agent chains straight into agent preflight and prompt composition.
+  **configured agent does not hand off there** — `run_script_chain` sets
+  `current = after` and loops, running `ticket.py` again for the new step. The
+  deterministic phase repeats for each consecutive agent-owned step, and the
+  agent is only reached once a phase leaves its step unchanged or the loop
+  revisits a step it already ran (`while current.step not in ran_steps`). So a
+  script that bumps can execute the next step itself, and can advance past it
+  again; a template author must not assume the agent runs the step their bump
+  landed on. The chain stops and returns to the caller only when the next step
+  is assigned to a human or is unassigned — the deterministic chain honors the
+  same approval boundary as the agent supervisor.
   A script that exits 0 leaving the step **unchanged** is read as
   "deterministic preparation succeeded and the agent continues that same open
   unit of work" and returns `chain=True` — also an agent launch.
@@ -773,15 +782,21 @@ The output is unchanged; the loop is what got added after it
    it.** Nothing in the `ticket.py` contract asks for a run report — the
    completion-contract bullet above asks a script to run headlessly, close its
    own step, and record an unavailable prerequisite with `coga block`, and no
-   more. Of the shipped templates only `skill-update` writes one, through
-   `render_blackboard_report` / `append_report` in `src/coga/skill_update.py`,
-   which appends a `## Skill Update` section; `autoclose-merged`,
-   `branch-sweep`, `digest` and `blocker-reminders` hand the analyst a period
-   blackboard holding nothing but the seeded placeholder (the committed run
-   records under `coga/tasks/autofix/` show exactly that). So the analyst can
-   see *that* those runs ended cleanly and nothing about what they did, and
-   `skill-update` is faulted more often partly because it is the only one that
-   says anything. A template whose findings should be analyzed has to write
+   more. Of the shipped templates `skill-update` writes one on every run,
+   through `render_blackboard_report` / `append_report` in
+   `src/coga/skill_update.py`, which appends a `## Skill Update` section.
+   `autoclose-merged` writes one **conditionally**: when it closes a ticket
+   that still has a recorded branch or worktree, `_report_retire_followups`
+   renders the pending-retire report and `_append_blackboard_report` writes it
+   to the period task, so that run does give the analyst more than the seeded
+   placeholder. A sweep that closed nothing, or nothing needing retire, still
+   leaves only the placeholder. `branch-sweep`, `digest` and
+   `blocker-reminders` hand the analyst a period blackboard holding nothing but
+   the seeded placeholder (the committed run records under
+   `coga/tasks/autofix/` show exactly that). So for those runs the analyst can
+   see *that* they ended cleanly and nothing about what they did, and
+   `skill-update` is faulted more often partly because it is the one that
+   always says something. A template whose findings should be analyzed has to write
    them to the period blackboard itself.
 2. **One agent call reads that record** and answers `ok`, `duplicate`, or
    `problem` plus a ticket body. This is the only place Coga spawns an agent
