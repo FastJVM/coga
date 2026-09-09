@@ -4575,3 +4575,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-08 17:23 [the-period-task-context-never-covers-the-determini] [human:nicktoper] created (status=draft)
 2026-09-08 17:23 [define-the-split-a-ticket-mechanic-shared-by-code] [human:nicktoper] created (status=draft)
 2026-09-08 17:23 [record-dochub-s-why-not-the-api-answer-that-browse] [human:nicktoper] created (status=draft)
+2026-09-08 17:23 [the-v2-parking-area-premise-check-has-four-holes] [human:nicktoper] created (status=draft)
