@@ -4595,3 +4595,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-09 10:30 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-09-09
 2026-09-09 10:30 [recurring/digest] [system] created (status=active)
 2026-09-09 10:30 [recurring/digest] [system] created recurring/digest for 2026-09-09
+2026-09-09 10:30 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
