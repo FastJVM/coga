@@ -1,7 +1,7 @@
 ---
 slug: verify-the-pr-review-comment-loop-once-the-review
 title: Verify the PR review-comment loop once the review queue drains
-status: in_progress
+status: blocked
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -17,7 +17,6 @@ workflow:
     assignee: agent
 secrets: null
 step: 1 (execute)
-launch_generation: b044ad94-2df2-47b4-b091-b4b42c214128
 ---
 
 ## Description
@@ -195,6 +194,46 @@ remains unsatisfied. Per phase 0, phases 1–4 were not started. On relaunch,
 rerun the gate and recompute the retired-since-2026-08-17 set only after it
 returns no live review tickets.
 
+## Run 2026-09-09 — 2026-08-26 blocker resolved, phase 0 gate FAILED again (3rd time)
+
+Cleared the 2026-08-26 ask: all three named tickets are now `done` and off review
+(`fix-the-autofix-analyst` PR 724, `reconcile-recurring-wrapper-tty-admission-guidance`
+PR 723, `rewrite-coga-base-prompt-and-agent-mode-block` PR 726 — all merged).
+
+Reran the gate verbatim. One live row:
+
+| ticket | step | status | PR | PR state |
+| --- | --- | --- | --- | --- |
+| `a-slack-repo-without-important-webhook-can-abort-t` | 4 (review) | in_progress | 761 | OPEN (created 2026-09-08, no reviewDecision) |
+
+Not a missed sweep — the PR is a day old and genuinely awaiting owner review.
+Per phase 0, phases 1–4 were not started and the ticket is not marked done.
+
+Note: this ticket carries a `code/address-pr-comments` review step, so it is *not*
+another instance of the frozen-empty-skills shape from phase 3. It is also, by
+subject, the fix for the PR 696 miss recorded in `## Context` — phase 2's concrete
+example now has a remediation ticket in flight.
+
+### Meta-finding: the gate may be unsatisfiable as written
+
+Three attempts (2026-08-20, 2026-08-26, 2026-09-09) over three weeks, three failures,
+with a *different* set of tickets parked on review each time. The queue drains
+continuously but is never empty at any sampled instant, because normal throughput
+keeps at least one PR in owner review. Waiting for a zero-row gate is waiting for a
+quiet period the repo does not appear to have.
+
+This is a ticket-shape problem, not something to route around, so it goes to the owner
+rather than being self-resolved. The cheap fix if the owner agrees: phases 1–4 are all
+retrospective — they read *retired* tickets and *merged* PRs — so they do not actually
+need a quiet queue. Only phase 3's original "check live review steps" framing did, and
+the body already replaced that with a frozen-snapshot check. Relaxing phase 0 to
+"exclude tickets whose PR opened after the measurement window" (or dropping the gate and
+scoping phases 1–4 to tickets retired in a closed date range) would make the ticket
+runnable without measuring the live backlog. Naming that option in the blocker.
+
+Phases 1–4 still start from a clean slate on relaunch; the retired-since-2026-08-17 set
+must be recomputed then.
+
 ---
 
 ## Blockers
@@ -204,6 +243,8 @@ returns no live review tickets.
 
 - [x] [2026-08-26 21:58] [agent:claude] id=20260826T215802 Phase 0 precondition gate still fails: coga/tasks/fix-the-autofix-analyst.md is in_progress on review with merged PR 724; coga/tasks/reconcile-recurring-wrapper-tty-admission-guidance.md is in_progress on review with merged PR 723; and coga/tasks/rewrite-coga-base-prompt-and-agent-mode-block.md is in_progress on review with open PR 726. The first two need autoclose/bump and the third needs review/merge plus autoclose/bump before this steady-state verification can proceed.
   resolved: [2026-09-09 12:07] [human:nicktoper] Resolved: all three named tickets are now status done and off the review queue — fix-the-autofix-analyst (PR 724 merged), reconcile-recurring-wrapper-tty-admission-guidance (PR 723 merged), and rewrite-coga-base-prompt-and-agent-mode-block (PR 726 merged). The autoclose/bump transitions the ask was waiting on have all landed.
+
+- [ ] [2026-09-09 12:08] [agent:claude] id=20260909T120805 Phase 0 precondition gate fails a third time: coga/tasks/a-slack-repo-without-important-webhook-can-abort-t.md is in_progress on step 4 (review) with PR 761 still OPEN and unreviewed (opened 2026-09-08). Needs owner review+merge, then autoclose/bump. But please also decide the shape question: three attempts over three weeks have each found a different ticket parked on review, so a zero-row queue may never occur. Phases 1-4 are all retrospective (they read retired tickets and merged PRs) and do not actually need a quiet queue — consider relaxing phase 0 to ignore tickets whose PR opened after the measurement window, or scoping phases 1-4 to a closed date range, so this verification can run at all.
 
 
 ---
