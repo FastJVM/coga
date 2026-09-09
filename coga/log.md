@@ -4587,3 +4587,11 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-08 22:17 [dream-should-be-able-to-use-codex-instead-of-claud] [human:nicktoper] created (status=draft)
 2026-09-08 22:17 [recurring-task-to-manage-all-open-pr-and-address-c] [human:nicktoper] created (status=draft)
 2026-09-08 22:18 [dream-shouldn-t-touch-coga-in-coga-enabled-repo] [human:nicktoper] created (status=draft)
+2026-09-08 19:34 [bootstrap/ticket] [system] {"agent":"codex","agent_turns":4,"cache_creation_input_tokens":null,"cache_read_input_tokens":193024,"cli":"codex","content_status":"ok","elapsed_seconds":9969.069345,"ended_at":"2026-09-09T02:34:47.210342Z","human_turns":1,"input_tokens":43379,"model":"gpt-6-astra","outcome":"**Not yet for implementation.** It’s at `review-design`; launching now would resume that review. Before advancing: - Fix the distribution plan: two browser contexts already ship during initialization and must remain covered by migration checks. - Approve the proposed pitch, documentation layout, cuts, distribution policy, and cutover. - Set the implementation scope: the recommendation is four preparatory tickets, followed by relocation/adoption in this ticket. The design and independent review …","outcome_status":"failed","output_tokens":1753,"provider":"openai","request":"is it ready for launch?","schema":2,"session_id":"01a0836c-75a9-7d01-a140-ea734841d25d","slug":"bootstrap/ticket","started_at":"2026-09-08T23:48:38.140997Z","step":null,"title":"Create a new ticket","ts":"2026-09-09T02:34:47.210342Z","usage_status":"ok"}
+2026-09-08 19:34 [redo-documentation-dir-and-merge-it-with-context-b] [human:nicktoper] launched (assignee=nicktoper, launch_assignee=codex, agent=codex)
+2026-09-09 10:30 [recurring/autoclose-merged] [system] created (status=active)
+2026-09-09 10:30 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-09-09
+2026-09-09 10:30 [recurring/blocker-reminders] [system] created (status=active)
+2026-09-09 10:30 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-09-09
+2026-09-09 10:30 [recurring/digest] [system] created (status=active)
+2026-09-09 10:30 [recurring/digest] [system] created recurring/digest for 2026-09-09
