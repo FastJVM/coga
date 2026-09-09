@@ -127,9 +127,19 @@ Comms must stay credible. State plainly where Coga is outclassed:
   note must never stand alone as the positioning.
 - **The metric Coga owns: human-minutes per shipped task.** Absolute,
   human-scaled, recomputable from public timestamps — vs the field's
-  relative, unverifiable machine-output numbers. Use it by name across
-  comms; spreading the metric spreads the practice, because computing it
-  requires a legible, self-recording substrate.
+  relative, unverifiable machine-output numbers. Computing it requires a
+  legible, self-recording substrate, so spreading the metric spreads the
+  practice — but that is an argument for the regime that can carry it, not
+  a license to publish now. **Naming it in comms belongs to the shelved
+  proof-post regime**, whose pre-registration and recomputability are what
+  make a measured human-time number honest; that apparatus is archived in
+  `marketing/launch-history` and may not be spent on posts 1–3 of the live
+  plan. Through the essay series the metric stays internal working
+  language — the one ratio those posts publish is the
+  two-person/output-of-ten bet from `docs/vision.md` (`marketing/plan`,
+  "Claim discipline", enforced at `marketing/write-post` step 6). Reopening
+  it by name is an owner decision taken with that regime, not inside a post
+  ticket.
 
 ## The strategic fork (decided)
 
