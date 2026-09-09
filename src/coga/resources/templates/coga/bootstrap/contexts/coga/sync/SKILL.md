@@ -114,6 +114,24 @@ Silent lifecycle surface — no notification post, no spool record:
 - `coga bump` with no `--message`.
 - Successful `coga recurring` creates.
 - `coga retire` creating.
+- `recurring/branch-sweep` — the weekly stale-branch prune. `branchsweep.py`
+  makes no notification call at all; the run reports to the period task's
+  blackboard, and deleting a branch whose work already landed is not something
+  a human has to act on.
+- `recurring/skill-update` — the weekly managed-skill refresh. `skill_update.py`
+  likewise never notifies: the run's entire output is a reviewable PR, so the
+  PR *is* the notification and a post would duplicate it.
+- `recurring/resolve-conflicts` — the period template ships only a `ticket.md`
+  and emits nothing itself. Its `delegate: bootstrap/resolve-conflicts` target
+  posts the per-PR roll-up through the explicit `coga slack` escape hatch
+  already listed on the live surface, so the recurring entry is silent by
+  design rather than by omission.
+
+Those three complete the enumeration: `coga/recurring/` ships seven templates —
+`autoclose-merged`, `blocker-reminders`, `branch-sweep`, `digest`, `dream`,
+`resolve-conflicts`, `skill-update` — and every one of them now appears on
+exactly one of the three surfaces above. A new template that appears on none of
+them is an unreviewed cadence decision, not a neutral default.
 
 The digest is **opt-in by installing the `recurring/digest/` ticket**. When
 that ticket is absent, `notification.notify` degrades to a live `post` for the
@@ -175,9 +193,27 @@ operational prerequisite. Default `coga validate` warns, without a network
 probe, whenever Slack is selected, enabled, and that destination is unresolved.
 The supported `enabled = false` opt-out suppresses the warning along with
 delivery. The warning does not weaken delivery: an automatic important post
-still raises rather than falling back to flow. The declared-period-state
-warning remains the known best-effort exception — its existing advisory guard
-reports that raise on stderr so it cannot undo a successful `mark done`.
+still raises rather than falling back to flow. There are exactly **two**
+best-effort exceptions, and each is scoped to a durable result that an
+announcement must not be allowed to overturn:
+
+- **The declared-period-state warning.** Its existing advisory guard reports
+  that raise on stderr, so a failed important post cannot undo a successful
+  `mark done`.
+- **The script-failure post in `launch_script.py`.** When a recurring period's
+  `ticket.py` exits non-zero, the important post announcing that exit passes
+  `fatal=False` with `record_failure=not strict_assist`, and the call is
+  wrapped so that under strict assist a `typer.Exit` — a missing or failing
+  `important_webhook` — is swallowed rather than re-raised. Same shape, same
+  reason as the period-state guard: the deterministic failure and its exit code
+  are already durable, so a notification outage must not replace that result.
+  The scope is `strict_assist` (`publish_aligned_branch is not None`), the live
+  human-assist feature-branch publication mode, where the child's exit code is
+  the authoritative answer the wrapper reports upward. Outside strict assist
+  the miss is still recorded and a configuration `typer.Exit` still propagates.
+
+Both are exceptions to the *fail-loud* half only; the miss is still surfaced on
+stderr and in `coga/log.md` exactly as everywhere else.
 
 **One carve-out: a broadcast that announces an already-committed state
 change.** The lifecycle transitions — `bump`, `mark done` / `canceled` /
@@ -813,11 +849,26 @@ both. In the normal nested layout it commits everything dirty under the
 `coga/` subtree (`cfg.repo_root`, where `coga.toml` lives), plus the configured
 contexts directory when `[layout] contexts` places it outside that subtree. In
 older/root layouts where `coga.toml` lives at the git toplevel, it scopes to the
-known Coga OS pathspecs (`tasks`, configured contexts, `skills`, `workflows`,
-`recurring`, `bootstrap`, `coga.toml`, `context.md`, `log.md`) instead of
-treating the whole git root as Coga state. The configured contexts path
-substitutes for the default `contexts` entry; the vacated path is not kept as a
-permanent state boundary. A full `git status` under those pathspecs captures
+known Coga OS pathspecs instead of treating the whole git root as Coga state.
+That list is `git.py::_ROOT_LAYOUT_COGA_PATHS`, and it is exactly `coga.toml`,
+`context.md`, `contexts`, `log.md`, `recurring`, `skills`, `tasks`,
+`workflows`. The configured contexts path substitutes for the default
+`contexts` entry; the vacated path is not kept as a permanent state boundary.
+
+**`bootstrap` is not in that tuple**, and it appears nowhere else as a sweep
+pathspec — so a root-layout repo does not get bootstrap authoring swept. That
+is a real gap, not a naming detail: `coga/codebase` explicitly sanctions
+deliberate repo-authored content under `coga/bootstrap/` — a repo that mints
+its own command ticket (`coga/bootstrap/<verb>/ticket.md` plus an `[aliases]`
+line) or intentionally overrides a shipped bootstrap ticket. In the normal
+nested layout the subtree sweep picks those files up like anything else under
+`coga/`. In a root layout they are outside every pathspec, so they sit dirty
+forever — precisely the "human hand-edit that no command committed" class the
+catch-all exists to close, and it fails silently because a sweep that commits
+nothing is indistinguishable from a clean tree. Until the tuple is widened,
+a root-layout repo authoring under `bootstrap/` must commit it by hand.
+
+A full `git status` under those pathspecs captures
 modifications, deletions, renames, **and new untracked files**. This is *not*
 the forbidden `git add -A`: the subtree/pathspec boundary is exactly the
 OS-state line the "Scope is narrow" rule draws, so product code (`src/`,
@@ -855,6 +906,27 @@ This is the deliberate no-daemon alternative to instant commits (`coga/
 architecture`: "no database, no daemon, no in-memory state"). The sweep's commit
 subject (`Sync coga state`) is filtered out of the daily digest's "Also merged"
 section alongside the per-transition state-sync subjects.
+
+**Never run a repo-mutating verification experiment in a checkout whose sweep
+can reach the real remote.** Because the sweep fires at the dispatch boundary
+of every mutating command, the familiar "change something, run the command,
+look at what happened, then revert" recipe cannot be followed as written in a
+live Coga checkout. The very invocation under test — `coga launch`, `bump`,
+`mark`, a recurring sweep — commits the scratch mutation under the `Sync coga
+state` subject and pushes it to the control branch before the experimenter has
+read the output, and the launch-end pull-back can then fold control state back
+into the checkout the launch was invoked from, so the effect is not even
+confined to the terminal running the experiment. The read-only exclusions
+(`coga validate`, `status`, `show`) do not sweep, but they do not protect
+either: they leave the mutation dirty, and it rides along on the *next*
+mutating command, which may be a scheduled sweep or another terminal's session
+rather than anything the experimenter typed. There is no window in which such
+an experiment is only local — the revert comes too late by design, because
+lazy on-access convergence is the whole point of the boundary. Run the
+experiment with `[git] enabled = false` in `coga.local.toml` (the opt-out
+below, machine-local precisely so one checkout can stand down without changing
+repo policy), or in a throwaway clone with no real remote. Those are the only
+two safe forms.
 
 Failure model:
 
