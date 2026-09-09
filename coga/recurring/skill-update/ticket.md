@@ -71,24 +71,41 @@ as an ordinary upstream refresh, under the report's updated heading with no
 follow-up line. Record the digests honestly instead — both taken from the
 download — and the pruned copy reads as locally adapted forever:
 `skipped-local-adaptation` while upstream is quiet, `conflict` when it moves,
-parked under the follow-up heading on every run. `coga/skills/clarity` is the
-live instance of the first case: its recorded `source_tree_digest` is the digest
-of the pruned tree on disk, not of any upstream tree.
+parked under the follow-up heading on every run.
+
+The first case is the one to check for: a skill whose recorded
+`source_tree_digest` is the digest of the pruned tree on disk rather than of any
+upstream tree. Compare each URL-installed skill's recorded `source_tree_digest`
+against a fresh download to tell them apart.
 
 Neither shape is a steady state — the follow-up heading is for exceptions a
-human resolves, and the updated heading is for changes a human reviewed. Two
-resolutions are real. Implement the `include` allowlist in the URL install and
-update path so the pruning is re-applied from each fetched archive, keeping
-`source_tree_digest` the true upstream digest and re-recording
-`installed_tree_digest` from the pruned result; that is a code change and needs
-its own ticket. Or drop the allowlist and the claim in
-`local_adaptation_notes`, record the pruning as the hand adaptation it is, and
-accept a standing follow-up line as the price of keeping the local edit.
+human resolves, and the updated heading is for changes a human reviewed. The
+resolution has to actually clear the follow-up. Implement the `include`
+allowlist in the URL install and update path so the pruning is re-applied from
+each fetched archive, keeping `source_tree_digest` the true upstream digest and
+re-recording `installed_tree_digest` from the pruned result; that is a code
+change and needs its own ticket. **Do not simply accept a standing follow-up
+line as the price of keeping the local edit** — see the cost below. If the
+allowlist is not implemented, drop it and the claim in
+`local_adaptation_notes`, and resolve the pruning some way that leaves no
+recurring follow-up: re-record the digests to match the tree actually on disk,
+or reinstall the skill unpruned.
 
 A week with no upstream changes is a quiet no-op: nothing is committed and no
-PR is opened. A week with only follow-up statuses is intentionally loud: after
-writing the `## Skill Update` report, `ticket.py` exits non-zero so this period
-task remains visible until a human resolves or parks it.
+PR is opened.
+
+**A week with only follow-up statuses stops the sweep**, and that cost is much
+larger than one persistent report line. When a follow-up is the only outcome
+and no PR was opened, `run_skill_update_recipe` returns 1
+(`skill_update.py`), so `ticket.py` exits before it reaches `coga bump`. The
+recurring runner treats a non-zero `ticket.py` as a sweep-ending failure — it
+records the outcome and returns that code rather than continuing
+(`recurring_runner.py`, the `except SystemExit` branch: "the sweep stops where
+the old recipe dispatch stopped ... the task is deliberately left unfinished,
+not paused"). So `recurring/skill-update` stays unfinished **and every template
+ordered after it does not run at all that period**. A permanently unresolved
+follow-up therefore silently disables the rest of the recurring schedule, week
+after week. Resolve it, or park the template, rather than living with it.
 
 <!-- coga:blackboard -->
 
