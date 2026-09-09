@@ -4573,3 +4573,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-08 17:23 [state-which-branch-is-canonical-for-machine-genera] [human:nicktoper] created (status=draft)
 2026-09-08 17:23 [define-the-recipe-reporting-contract-report-durabi] [human:nicktoper] created (status=draft)
 2026-09-08 17:23 [the-period-task-context-never-covers-the-determini] [human:nicktoper] created (status=draft)
+2026-09-08 17:23 [define-the-split-a-ticket-mechanic-shared-by-code] [human:nicktoper] created (status=draft)
