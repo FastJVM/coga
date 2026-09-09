@@ -4615,3 +4615,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-09 11:28 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-09-09 11:37 [marketing/add-telemetry] [human:nicktoper] created (status=draft)
 2026-09-09 11:39 [marketing/plan/collect-public-examples-for-the-launch] [human:nicktoper] created (status=draft)
+2026-09-09 11:39 [marketing/plan/write-the-pitch-and-narrative] [human:nicktoper] created (status=draft)
