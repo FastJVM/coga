@@ -312,6 +312,12 @@ class DueTask:
     period_key: str = ""
     replaced_done: bool = False
     replaced_done_ticket_bytes: bytes | None = None
+    watchdog_pause: str = ""
+
+    @property
+    def watchdog_paused(self) -> bool:
+        """A still-paused run whose latest pause was written by the watchdog."""
+        return self.status == "paused" and bool(self.watchdog_pause)
 
     @property
     def launchable(self) -> bool:
@@ -330,8 +336,8 @@ class DueTask:
         # the next period until it reaches a closed/paused state: one live task per
         # template).
         # `done` → finished work, never re-run normally. `canceled` →
-        # intentionally abandoned and never reactivated. `paused` → a human
-        # parked it.
+        # intentionally abandoned and never reactivated. `paused` → parked;
+        # watchdog pauses stay parked too, but the sweep escalates them.
         return self.status in {"active", "in_progress"}
 
     @property
@@ -543,6 +549,10 @@ def scan_due(
                 # (and fail the sweep) instead of misclassifying it as an
                 # unavailable agent template.
                 retain_canceled=force,
+                # Inspect parked agent periods even without a TTY. Reporting
+                # an existing failure requires no executable phase; a forced
+                # relaunch still goes through the ordinary admission gate.
+                retain_paused=not force,
                 # Forced scans defer every status/period mutation until the
                 # sequential launch loop actually reaches that template.
                 replace_done=not force,
@@ -571,6 +581,13 @@ def scan_due(
                 replaced_done_ticket_bytes=outcome.replaced_done_ticket_bytes,
             )
         )
+    pauses = _watchdog_pauses(
+        cfg,
+        {t.ref.id_slug for t in tasks if t.ref is not None and t.status == "paused"},
+    )
+    for task in tasks:
+        if task.ref is not None:
+            task.watchdog_pause = pauses.get(task.ref.id_slug, "")
     return DueScan(
         tasks=tasks,
         errors=errors,
@@ -578,6 +595,38 @@ def scan_due(
         ledger_errors=ledger_errors_before_scan,
         period_targets=period_targets,
     )
+
+
+def _watchdog_pauses(cfg: Config, refs: set[str]) -> dict[str, str]:
+    """Read pause provenance for the few parked periods in one log pass.
+
+    The watchdog already writes a distinct system actor, including in legacy
+    runs. Reuse that durable signal instead of inventing another status or
+    duplicating lifecycle state in the blackboard. Audit timestamps win over
+    file order because merge=union may append older events after newer ones;
+    same-minute ties follow append order. A newer creation clears old-period
+    provenance at the stable task path. No paused periods means no log read.
+    """
+    if not refs or not log_path(cfg).exists():
+        return {}
+    event_re = re.compile(
+        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) \[([^\]]+)\] "
+        r"\[([^\]]+)\] (paused|created) .*$"
+    )
+    latest: dict[str, tuple[str, str]] = {}
+    with log_path(cfg).open() as stream:
+        for line in stream:
+            match = event_re.match(line)
+            if match is None:
+                continue
+            stamp, ref, actor, event = match.groups()
+            if ref not in refs or stamp < latest.get(ref, ("", ""))[0]:
+                continue
+            evidence = (
+                line.strip() if event == "paused" and actor == "system:watchdog" else ""
+            )
+            latest[ref] = (stamp, evidence)
+    return {ref: evidence for ref, (_, evidence) in latest.items() if evidence}
 
 
 def create_named(
@@ -608,6 +657,7 @@ def create_template(
     serviced: dict[str, str] | None = None,
     agent_unavailable_reason: str | None = None,
     retain_canceled: bool = False,
+    retain_paused: bool = False,
 ) -> CreateOutcome:
     """Create one recurring template for `now`'s firing. Idempotent.
 
@@ -621,6 +671,9 @@ def create_template(
     canceled period even when no agent may run. It does not make that period
     launchable; the force runner consumes it only to issue the canceled-task
     refusal and a non-zero sweep result.
+
+    `retain_paused` lets an ordinary scan inspect parked periods without an
+    agent-capable terminal. It does not admit them for launch.
     """
     last_fire = _last_firing(template.schedule, now)
     period_key = _period_key(template.schedule, last_fire)
@@ -701,6 +754,7 @@ def create_template(
         if (
             not allow_agent
             and not (retain_canceled and ticket.status == "canceled")
+            and not (retain_paused and ticket.status == "paused")
             and resolve_script_entry_point(existing) is None
         ):
             raise RecurringError(agent_unavailable_reason or _AGENT_NEEDS_TTY)

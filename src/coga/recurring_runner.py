@@ -1609,6 +1609,27 @@ def run_recurring_scan(
         scan_lines=scan_lines_for_record(scan, force=force),
         scan_errors=list(scan.errors),
     )
+    if not force:
+        for task in scan.tasks:
+            if not task.watchdog_paused or task.ref is None:
+                continue
+            detail = (
+                "watchdog timeout left this run paused. "
+                f"Resume with `coga launch {task.ref.id_slug}`; "
+                "its recorded step and blackboard are retained. "
+                f"Audit: {task.watchdog_pause}"
+            )
+            record.scan_problems.append((task.ref.id_slug, detail))
+            notify(
+                cfg,
+                f"⚠️ *{task.ref.id_slug}*: {detail}",
+                kind="recurring-error",
+                detail=detail,
+                ticket=task.ref.id_slug,
+                task_path=task.ref.path,
+                important=True,
+                fatal=False,
+            )
 
     # `force` launches every materialized task regardless of status;
     # the bare sweep launches only the launchable (active/in_progress) ones.
@@ -1620,7 +1641,7 @@ def run_recurring_scan(
         typer.echo(message)
         record.note(message)
         run_autofix(cfg, record, agent_override=agent_override)
-        return 0
+        return 2 if record.scan_problems else 0
 
     label = "task(s)" if force else "due task(s)"
     typer.echo(f"\nLaunching {len(due)} {label} sequentially...\n")
@@ -1630,7 +1651,7 @@ def run_recurring_scan(
     # `ticket.py` exiting non-zero, `_stop_if_unfinished_after_launch` exiting
     # on an invalid ticket — is exactly the run most worth analyzing.
     try:
-        return _launch_due_tasks(
+        code = _launch_due_tasks(
             cfg,
             due,
             record,
@@ -1640,6 +1661,7 @@ def run_recurring_scan(
             control_remote_expected=control_remote_expected,
             agent_spawn_refusal=agent_spawn_refusal,
         )
+        return code or (2 if record.scan_problems else 0)
     finally:
         run_autofix(cfg, record, agent_override=agent_override)
 
@@ -4805,6 +4827,12 @@ def _print_table(scan: DueScan, *, force: bool = False) -> None:
             action = typer.style("→ resume", fg=typer.colors.YELLOW)
         elif task.launchable or force:
             action = typer.style("→ launch", fg=typer.colors.GREEN)
+        elif task.watchdog_paused:
+            action = typer.style(
+                "needs attention (watchdog timeout; "
+                f"coga launch {task.ref.id_slug})",
+                fg=typer.colors.RED,
+            )
         else:
             action = typer.style(
                 f"skip ({task.status})", fg=typer.colors.BRIGHT_BLACK
