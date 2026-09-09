@@ -4609,3 +4609,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-09 10:31 [recurring/blocker-reminders] [system] script exited with code 0
 2026-09-09 10:35 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
 2026-09-09 11:12 [branch-sweep-strands-squash-merged-branches-whose] [human:nicktoper] created (status=draft)
+2026-09-09 11:18 [marketing/phase-0-audit] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-09-09 11:18 [bootstrap/ticket] [system] {"agent":"claude","agent_turns":0,"cache_creation_input_tokens":null,"cache_read_input_tokens":null,"cli":"claude","content_status":"ok","elapsed_seconds":4.50014,"ended_at":"2026-09-09T18:18:55.139602Z","human_turns":0,"input_tokens":null,"model":null,"outcome":null,"outcome_status":"completed","output_tokens":null,"provider":"anthropic","request":null,"schema":2,"session_id":"3287bfc6-c364-46f3-a30e-e07e8db9e323","slug":"bootstrap/ticket","started_at":"2026-09-09T18:18:50.639462Z","step":null,"title":"Create a new ticket","ts":"2026-09-09T18:18:55.139602Z","usage_status":"unknown"}
