@@ -4580,3 +4580,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-08 17:23 [test-recurring-create-is-silent-fixture-fix-is-hal] [human:nicktoper] created (status=draft)
 2026-09-08 17:23 [adjudicate-parked-and-active-tickets-whose-premise] [human:nicktoper] created (status=draft)
 2026-09-08 17:23 [narrative-candidates-md-publishes-log-text-the-own] [human:nicktoper] created (status=draft)
+2026-09-08 17:23 [phase-0-audit-is-complete-per-the-plan-but-still-i] [human:nicktoper] created (status=draft)
