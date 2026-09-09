@@ -88,8 +88,13 @@ the example under "Extend recurring with a task-specific workflow").
   no agent starts.
   The launcher marks `active → in_progress` before starting and then leaves
   the workflow alone: the script closes its own step (`coga bump`), exactly as
-  an agent does. A non-zero exit halts the launch, leaves the task unfinished,
-  and stops the sweep after reporting it.
+  an agent does. A non-zero exit halts that launch and leaves the task
+  unfinished — but it does **not** stop the sweep. The failure is recorded and
+  the remaining due templates still run; the sweep names every failed template
+  in its summary and run record, then exits with the first failing code. One
+  template's problem is not its licence to cancel the ones behind it, which is
+  the same isolate-and-aggregate posture `coga recurring --all` takes across
+  repos.
 - `coga recurring --force` — ignores schedule and status filters and attempts
   the real period task for every template, reactivating `done` and `paused`
   runs. A `canceled` task remains terminal: the runner reports a controlled
