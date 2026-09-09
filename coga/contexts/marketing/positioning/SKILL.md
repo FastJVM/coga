@@ -155,6 +155,13 @@ Comms must stay credible. State plainly where Coga is outclassed:
   specific public work, correction and later reuse that a source supports;
   no measured efficiency or productivity outcome is claimed by this series.
 
+  Naming that metric as *defined and deliberately unmeasured* is not a
+  violation to be scrubbed. `README.md` and `docs/velocity-report.md` both do
+  exactly that today ("defined there but deliberately unmeasured", "until that
+  run finishes"), and that disclosure is what keeps the absent number honest.
+  What stays forbidden is quoting a figure, implying one exists, or resting a
+  claim on it.
+
 ## The strategic fork (decided)
 
 **Fork A is pinned** for the launch series — owner decision of 2026-08-19,
