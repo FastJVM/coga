@@ -178,8 +178,14 @@ coexist under `coga/skills/`:
   Coga-managed skill down flat at `coga/skills/<ref>/` under its upstream ref
   name, so this repo also carries seven flat `google-agents-cli-*` directories,
   declared in `src/coga/resources/managed-skills.toml`. That file is the list
-  of *optional GitHub refs init/update tries to fetch*, not the membership test
-  for the flat shape — the directories themselves carry no Coga provenance
+  of *optional GitHub refs `coga init` tries to fetch*, not the membership test
+  for the flat shape — and **init is the only reader**:
+  `install_managed_skills` / `reconcile_managed_skills` are called from
+  `commands/init.py` alone. `update_skills` enumerates the skill directories
+  that already exist on disk and delegates them to `gh skill update`; it never
+  loads the manifest. A pack whose optional install failed at init (or that was
+  later removed) is therefore **not** restored by `coga skill update --all` or
+  the weekly job — it stays absent until someone reinstalls it explicitly — the directories themselves carry no Coga provenance
   file, because `gh skill` keeps its own metadata and `coga skill update`
   delegates their refresh to `gh skill update --dir coga/skills --all`.
 - **Installer-managed, flat and URL-backed** — `coga skill install-url` lands
@@ -190,9 +196,17 @@ coexist under `coga/skills/`:
   example, and it is deliberately **absent** from `managed-skills.toml`: an
   operator installed it directly. Its refresh posture differs from the
   GitHub-backed form — `coga skill update` walks `.coga-source.json` in Coga's
-  own code and re-applies the recorded `include` allowlist, so a deliberate
-  pruning of upstream scaffolding is reproduced on every update rather than
-  reported as a conflict. `coga skill install-local` is a third installer path
+  own code rather than delegating to `gh`. **The `include` allowlist is inert
+  documentation, not behavior**: `include` is never read anywhere in
+  `skill_manager.py`. `_update_url_skill_dir` compares digests only — it
+  materializes the complete upstream tree and then either reports a
+  `conflict`/`skipped-local-adaptation` (when the installed tree no longer
+  matches `installed_tree_digest`) or replaces the directory with that complete
+  tree. So a deliberate pruning of upstream scaffolding is *not* reproduced on
+  update: it either blocks the update as a local adaptation, or is undone
+  wholesale, restoring every path the operator meant to exclude. Reproducing a
+  pruning from the recorded allowlist is unimplemented work, not current
+  behavior. `coga skill install-local` is a third installer path
   and is updated by neither: `gh skill` records it as `local-path` and skips
   it, and Coga's URL updater does not consume that metadata. **The presence of
   `.coga-source.json` — not an entry in `managed-skills.toml` — is what tells
@@ -459,10 +473,20 @@ wrong checkout silently produces wrong results in both directions:
   behavior `main`'s code did not have, and leaving those files out of the PR
   diff entirely. Commit in-flight `coga/` edits onto the feature branch before
   running any state-changing coga command there, or expect them to reach `main`
-  out-of-band. The exclusion list is literal: `cli._NON_SWEEPING_COMMANDS` is
-  `status`, `show`, `validate`, `usage`, `init`, `uninstall`, and only the first
-  four of those are read-only in the ordinary sense. Everything else — `launch`,
-  `megalaunch`, `run`, `bump`, `create`, `mark`, `digest`, … — sweeps.
+  out-of-band. `cli._NON_SWEEPING_COMMANDS` is `status`, `show`, `validate`,
+  `usage`, `init`, `uninstall`, and only the first four of those are read-only
+  in the ordinary sense.
+
+  **That list is not the whole exclusion set, so do not read it literally.**
+  `_should_sweep_coga_state` also declines on options and subcommands:
+  `--help`/`-h` anywhere, `bump --backward` / `--to` (a rewind publishes
+  through its own scoped guard, and a refused one deliberately stays dirty),
+  `recurring --all` (the parent dispatcher owns no repo state; each child
+  sweeps its own repo), `secret` in every form, and any `skill` / `mark` /
+  `recurring` subcommand outside its sweeping set. So `launch`, `megalaunch`,
+  `run`, `create`, `digest`, a plain `bump`, and the mutating `mark` /
+  `skill` / `recurring` subcommands sweep — but a dirty `coga/` edit left
+  around one of the excluded invocations stays local.
 - **`coga launch <target> --prompt-report` is not read-only, despite reading
   like a diagnostic.** `cli._should_sweep_coga_state` classifies on `argv[1]`
   alone, and `launch` is in `_SWEEPING_COMMANDS`; the flag never reaches that
