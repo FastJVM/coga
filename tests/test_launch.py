@@ -2951,9 +2951,11 @@ def test_launch_llm_chains_consecutive_agent_steps(
     assert ticket.step == "3 (review)"
 
 
+@pytest.mark.parametrize("activate_draft", [False, True])
 def test_launch_agent_override_follows_consecutive_agent_role_steps(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,
+    activate_draft: bool,
 ) -> None:
     """An explicit agent keeps a same-role chain on the selected CLI.
 
@@ -2963,6 +2965,14 @@ def test_launch_agent_override_follows_consecutive_agent_role_steps(
     """
     ref = _create_chain_task(active_task)
     slug = str(ref["slug"])
+    if activate_draft:
+        ticket_path = Path(ref["path"])
+        ticket = Ticket.read(ticket_path)
+        ticket.frontmatter["status"] = "draft"
+        ticket.frontmatter["workflow"] = "chain"
+        ticket.frontmatter.pop("step")
+        ticket.frontmatter["assignee"] = "marc"
+        ticket.write(ticket_path)
     # The packaged onboarding ticket starts with agent/assignee=claude. Prove
     # an explicit Codex selection carries both steps even after the operator
     # configures a Codex-only repo and that durable default is no longer known.
@@ -3436,6 +3446,62 @@ def test_launch_auto_activates_draft_and_paused(
     assert after.step == "1 (implement)"
     log = _read_log(active_task)
     assert f"activated ({prior} → active) — auto on launch" in log
+
+
+@pytest.mark.parametrize("prior_assignee", ["marc", "codex"])
+def test_launch_uses_step_one_assignee_after_freezing_draft(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch, prior_assignee: str
+) -> None:
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    ticket_path = Path(ref["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = "draft"
+    ticket.frontmatter["workflow"] = "chain"
+    ticket.frontmatter.pop("step")
+    ticket.frontmatter["assignee"] = prior_assignee
+    ticket.write(ticket_path)
+
+    calls = _launch_single_spawn(monkeypatch)
+
+    result = CliRunner().invoke(app, ["launch", slug])
+
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1
+    assert calls[0][0] == "claude"
+    after = Ticket.read(ticket_path)
+    assert after.status == "in_progress"
+    assert after.step == "1 (implement)"
+    assert after.assignee == "claude"
+    assert "launched (assignee=claude, agent=claude)" in _read_log(active_task)
+
+
+def test_launch_preflights_resolved_step_one_agent_before_activation(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    ticket_path = Path(ref["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = "draft"
+    ticket.frontmatter["workflow"] = "chain"
+    ticket.frontmatter.pop("step")
+    ticket.frontmatter["assignee"] = "codex"
+    ticket.write(ticket_path)
+    before = ticket_path.read_bytes()
+    calls = _launch_single_spawn(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: None if name == "claude" else f"/usr/bin/{name}",
+    )
+
+    result = CliRunner().invoke(app, ["launch", slug])
+
+    assert result.exit_code == 2, result.output
+    assert "Agent CLI 'claude' not found" in result.output
+    assert calls == []
+    assert ticket_path.read_bytes() == before
+    assert "activated (draft" not in _read_log(active_task)
 
 
 @pytest.mark.parametrize("prior", ["draft", "paused"])

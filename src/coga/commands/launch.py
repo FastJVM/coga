@@ -1567,6 +1567,23 @@ def _launch(
         ):
             auto_activate_prior = ticket.status
             _prepare_auto_activate(cfg, ref, ticket)
+            # Freezing step 1 can replace the draft's initial assignee. Use
+            # that resolved identity for CLI preflight, audit, and override
+            # continuation before committing any lifecycle state.
+            assignee = ticket.assignee
+            current_step = ticket.current_step()
+            agent_role_override = bool(
+                agent_override is not None
+                and assignee == ticket.agent
+                and isinstance(current_step, dict)
+                and current_step.get("assignee") == "agent"
+            )
+            human_assist = bool(
+                agent_override is not None
+                and assignee
+                and assignee not in cfg.agents
+                and not agent_role_override
+            )
 
         _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 

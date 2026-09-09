@@ -94,7 +94,10 @@ no in-memory state.
   activation freezes the workflow — the token resolves against the ticket's
   matching role field and rewrites `assignee:`. A step-1 token that cannot
   resolve fails at that freeze, rather than surfacing later as a launch
-  refusing an agent step as a human handoff. `other-agent` resolves to the
+  refusing an agent step as a human handoff. Direct launch and megalaunch
+  choose the agent and check human handoffs from the prepared activation's
+  resolved assignee before preflight or any durable lifecycle write.
+  `other-agent` resolves to the
   ticket agent's explicit `[agents.<type>].peer` when set, otherwise to the
   single other configured type. This keeps two-agent repos configuration-free
   while making three-agent repos declare the intended reviewer instead of

@@ -2457,6 +2457,82 @@ def _log_lines_for(cfg, slug: str, needle: str) -> list[str]:
     ]
 
 
+@pytest.mark.parametrize("agent_override", [None, "codex"])
+@pytest.mark.parametrize(
+    ("role", "prior_assignee", "resolved_assignee"),
+    [
+        ("agent", "marc", "claude"),
+        ("other-agent", "claude", "codex"),
+        ("owner", "claude", "marc"),
+        ("human", "claude", "marc"),
+    ],
+)
+def test_megalaunch_selection_routes_from_resolved_step_one_assignee(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    agent_override: str | None,
+    role: str,
+    prior_assignee: str,
+    resolved_assignee: str,
+) -> None:
+    cfg = load_config(repo)
+    workflow_path = repo / "workflows" / "code.md"
+    workflow_path.write_text(
+        workflow_path.read_text().replace("assignee: agent", f"assignee: {role}", 1)
+    )
+    draft = create_task(
+        cfg=cfg,
+        title="Resolve draft routing",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        human="marc",
+        agent="claude",
+        assignee=prior_assignee,
+        status="draft",
+        watchers=[],
+    )
+    ticket_path = Path(draft["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["workflow"] = "code"
+    ticket.write(ticket_path)
+    before = ticket_path.read_bytes()
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    calls: list[tuple[str, str | None]] = []
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(cfg_, ref_obj, launched, agent, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append((agent.name, launched.assignee))
+        assert launched.step == "1 (implement)"
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step")
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(
+        cfg, selection=[draft["slug"]], agent_override=agent_override
+    )
+
+    if resolved_assignee in cfg.agents:
+        assert calls == [(agent_override or resolved_assignee, resolved_assignee)]
+        assert run.counts["completed"] == 1
+        assert Ticket.read(ticket_path).assignee == resolved_assignee
+    else:
+        assert calls == []
+        assert run.counts["skipped-human-gate"] == 1
+        assert run.results[0].agent == resolved_assignee
+        assert ticket_path.read_bytes() == before
+        assert _log_lines_for(cfg, draft["slug"], "activated") == []
+
+
 def test_megalaunch_selection_does_not_activate_pick_refused_by_preflight(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

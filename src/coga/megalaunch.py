@@ -780,17 +780,14 @@ def _run_selection(
             if isinstance(prepared, MegalaunchResult):
                 results.append(prepared)
                 continue
-            # Activation will freeze the workflow and seed step 1. A ticket
-            # with no resulting step cannot be launched.
-            if prepared.current_step() is None:
-                results.append(
-                    _result(
-                        ref,
-                        "skipped-human-gate",
-                        "no current workflow step",
-                        ticket.assignee,
-                    )
-                )
+            # Activation can change both the step and its assignee. Classify
+            # that prospective state before admitting the pick to the plan.
+            # The source ticket's blockers were already classified above.
+            candidate = _candidate_result(
+                cfg, ref, prepared, explicit=True, blockers=[]
+            )
+            if candidate is not None:
+                results.append(candidate)
                 continue
         launch_plan.append(ref)
 
@@ -1108,6 +1105,16 @@ def _candidate_result(
         detail = "; ".join(blocker.reason for blocker in blockers)
         return _result(ref, "skipped-unresolved-blocker", detail, ticket.assignee)
 
+    # A picked stepless ticket acquires its first step and assignee during
+    # activation. The check phase and final preflight apply these gates to
+    # that prepared view; the draft's creation default cannot decide routing.
+    if (
+        explicit
+        and ticket.status in {"draft", "paused", "blocked"}
+        and not ticket.step
+    ):
+        return None
+
     if ticket.assignee not in cfg.agents:
         return _result(
             ref,
@@ -1238,22 +1245,6 @@ def _launch_until_stop(
             if exact_candidate is not None:
                 return replace(exact_candidate, launched=launched)
 
-        if ticket.assignee not in cfg.agents:
-            return _result(
-                ref,
-                "completed",
-                f"handed off to {ticket.assignee or 'unassigned'}",
-                ticket.assignee,
-                launched=launched,
-            )
-        # The override applies only to the task's first launched step, so
-        # `other-agent` rotation on later steps still lands on the ticket's
-        # resolved assignee.
-        launch_assignee = (
-            (agent_override or ticket.assignee) if first_step else ticket.assignee
-        )
-        first_step = False
-
         # A deferred activation belongs to the first step only. Preflight the
         # prospective `active` view, materializing the exact `in_progress`
         # prompt, environment, and agent this launch will use. Commit the flip
@@ -1267,6 +1258,25 @@ def _launch_until_stop(
                 return prepared
             preflight_view = prepared
             prepared_activation = prepared
+            candidate = _candidate_result(
+                cfg, ref, prepared, explicit=True, blockers=[]
+            )
+            if candidate is not None:
+                return candidate
+
+        assignee = preflight_view.assignee
+        if assignee not in cfg.agents:
+            return _result(
+                ref,
+                "completed",
+                f"handed off to {assignee or 'unassigned'}",
+                assignee,
+                launched=launched,
+            )
+        # Select from the same prepared ticket the preflight and activation
+        # will use. An override applies only to the first launched step.
+        launch_assignee = (agent_override or assignee) if first_step else assignee
+        first_step = False
 
         prepared_launch = _preflight_agent_launch(
             cfg,
