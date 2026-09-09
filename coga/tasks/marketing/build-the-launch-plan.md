@@ -367,3 +367,21 @@ rescoped, or canceled.
 - Confirmed there is no packaged marketing-context twin under
   `src/coga/resources/templates/coga/contexts/`; live `coga/` copies are the
   only required edit.
+
+## 2026-09-09 — owner input: YC channels
+
+- Coga is YC-backed, so two product-launch channels exist that the essay
+  channels do not cover: a **Launch YC** post and **YC amplifying** it from its
+  own accounts. Both are owner actions. Recorded in `marketing/distribution`
+  under `## YC channels and personal asks`, with the friends share ask.
+- **Owner placed them after phase 1, with the second run.** Post 1 stays a pure
+  essay opening. Open for this ticket: where exactly they sit against post 2's
+  window, given post 2 does not publish until day 14 plus a recorded proceed
+  decision, and the Day-0-to-+3 founder window belongs to the HN thread.
+- Genre tension to reconcile while planning: `marketing/plan`'s play states the
+  launch is *not* a product announcement, and a Launch YC post is one. Both
+  contexts now say the YC channels sit outside the play rather than replacing
+  it; confirm that is the framing the owner wants.
+- Note: this ticket carries `contexts: []`, so neither `marketing/plan` nor
+  `marketing/distribution` is composed into its launches — hence this summary
+  on the blackboard. Attach them if a later step needs the full policy.

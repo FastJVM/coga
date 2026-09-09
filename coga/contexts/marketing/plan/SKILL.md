@@ -184,6 +184,13 @@ HN/Lobsters/Reddit spacing, account evidence, titles, attribution, fixed
 audience scorecard and miss branches. The blog remains canonical; the owner
 publishes, takes the Bookface read before HN, and is present in the threads.
 
+The YC channels in that context — a Launch YC post and YC's own amplification —
+are product-launch shaped and therefore sit outside "the play" above rather than
+replacing it. They are unscored and excluded from the phase-1 read. The owner
+placed them **after phase 1, with the second run** (2026-09-09); post 1 stays a
+pure essay opening. `marketing/build-the-launch-plan` tailors the exact
+placement against post 2's window.
+
 ## Phase 1 — declutter launch and retro
 
 Phase 1 starts only when all phase-0 gates are green. Ship post 1 through the
