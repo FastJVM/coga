@@ -24,7 +24,7 @@ documentation into a cache of human judgment.
 
 Before drafting, link the exact public context, the question it answers, and
 a later session's record showing that understanding in use. Begin with the
-source packet from `marketing/plan/collect-public-examples-for-the-launch`;
+selected examples from `marketing/plan/collect-public-examples-for-the-launch`;
 report a missing second half instead of inventing reuse. The ordinary phase
 and owner gates in `marketing/plan` still apply.
 

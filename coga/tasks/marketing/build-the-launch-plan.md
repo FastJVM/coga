@@ -26,12 +26,13 @@ step: 2 (human-owns-and-finishes)
 
 ## Description
 
-Review and finalize the launch plan against the public source packet and the
+Review and finalize the launch plan against the selected story/examples and the
 owner's newer pitch direction. `marketing/plan` already holds the retained
 three-post campaign and its gates; the remaining work is the owner's message,
 sequence and keep/drop decision, followed by a current handoff to execution.
 
-`marketing/plan/collect-public-examples-for-the-launch` supplies the sources;
+`marketing/plan/collect-public-examples-for-the-launch` makes story/example
+options and records the owner's choice;
 `marketing/plan/write-the-pitch-and-narrative` supplies the reusable message.
 Use those outputs here instead of independently commissioning the same work.
 The owner dropped the marketing token experiment on 2026-09-09.
@@ -41,7 +42,7 @@ The owner dropped the marketing token experiment on 2026-09-09.
 **Current handoff, 2026-09-09.** The audit's reusable material has moved to
 `marketing/map` and `marketing/distribution`. The newer managed-prompt
 direction is recorded in `marketing/positioning`; the writing tickets above
-own the public examples and final pitch prose. This ticket retains the final
+own the story/example decision and final pitch prose. This ticket retains the final
 campaign decision at its existing human gate. The three essay tickets remain
 retained until that decision changes them. Audience scoring stays in scope;
 token/time measurement and receipt quotas are removed.

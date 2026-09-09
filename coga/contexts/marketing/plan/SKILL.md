@@ -19,11 +19,12 @@ writing and publication procedure. Product claims remain grounded in
 2. **List needed deliverables and proposed cuts.** The audit's current worklist
    records owners and evidence. The launch gates below remain the publication
    bar while the owner reviews the message.
-3. **Build the source material and write the message.** Run
-   `marketing/plan/collect-public-examples-for-the-launch`, then
-   `marketing/plan/write-the-pitch-and-narrative`. Start from the owner's
-   newer managed-prompt direction in positioning. The output is a pitch,
-   narrative, and public examples, with each claim tied to its source.
+3. **Make and decide, then write.** The owner clarified that the first job is
+   creative and editorial: `marketing/plan/collect-public-examples-for-the-launch`
+   now makes story/example options and reaches a choice with the owner.
+   `marketing/plan/write-the-pitch-and-narrative` turns that decision into
+   finished copy. Start from the managed-prompt direction in positioning;
+   distinguish worked illustrations from claims about observed events.
 4. **Review the plan, then execute cleanup.** `marketing/build-the-launch-plan`
    records the final keep/drop choices against that message. The existing
    cleanup, README, community and post tickets execute the retained work.
@@ -277,10 +278,11 @@ result, but never infers permission to post from a completed draft.
 - `marketing/phase-0-audit` — original checks completed; current owner review
   extracts the knowledge and hands off the worklist. Its lifecycle remains at
   the human gate until the owner advances it; do not rerun the audit.
-- `marketing/plan/collect-public-examples-for-the-launch` — collect the public
-  source packet and report gaps.
-- `marketing/plan/write-the-pitch-and-narrative` — use that packet to write the
-  reusable message and supported narrative.
+- `marketing/plan/collect-public-examples-for-the-launch` — make story and
+  example options, recommend one, and record the owner's choice. The existing
+  ref is historical; this is no longer a collection brief.
+- `marketing/plan/write-the-pitch-and-narrative` — use the chosen story and
+  worked examples to write the reusable message and supported narrative.
 - `marketing/build-the-launch-plan` — final message/sequence and keep/drop
   decision at the existing owner gate.
 - Every ticket under `cleanup/` — blocking product/first-run queue.
