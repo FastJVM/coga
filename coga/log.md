@@ -4644,3 +4644,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-09 14:03 [activation-does-not-resolve-step-1-s-assignee-role] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-09 14:03 [activation-does-not-resolve-step-1-s-assignee-role] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-09 14:03 [activation-does-not-resolve-step-1-s-assignee-role] [megalaunch] launched via coga megalaunch
+2026-09-09 14:21 [activation-does-not-resolve-step-1-s-assignee-role] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
