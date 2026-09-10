@@ -4702,3 +4702,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-10 09:54 [recurring/digest] [system] deleted completed prior-period task before 2026-09-10
 2026-09-10 09:54 [recurring/digest] [system] created recurring/digest for 2026-09-10
 2026-09-10 09:55 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
+2026-09-10 09:55 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
