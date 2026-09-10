@@ -33,7 +33,8 @@ no in-memory state.
   the directory it sits in, so a task sub-directory documents itself the same
   way any other directory does. Either way the ticket is YAML frontmatter + body, then a
   fence line `<!-- coga:blackboard -->` followed by the free-form blackboard
-  region (the workspace shared between human and agent). The append-only audit
+  region (the workspace shared between human and agent); `coga/blackboard` is
+  the writer's contract for that region. The append-only audit
   trail is not in the task file — it lives in one repo-global `coga/log.md`
   (written by CLI commands only), each line tagged with its task ref. That
   tag is the slug and nothing ever rewrites earlier lines, so renaming a task
