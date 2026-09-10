@@ -19,7 +19,7 @@ import typer
 
 from coga import git
 from coga.blackboard import prelaunch_blackboard_synthesis_reason
-from coga.bump import AssigneeResolutionError, resolve_first_step_assignee
+from coga.bump import OperatorResolutionError, resolve_main_agent, resolve_operator
 from coga.config import Config
 from coga.lifecycle import CANCELABLE_STATUSES
 from coga.logfile import append_log
@@ -182,7 +182,6 @@ def mark_done(
             slack_text,
             kind="done",
             owner=owner,
-            watchers=ticket.watchers,
             task_path=ref.path,
             image_url=image_url,
             # The ticket is already `done` on disk; an undeliverable broadcast
@@ -306,7 +305,6 @@ def mark_canceled(
             slack_text,
             kind="canceled",
             owner=owner,
-            watchers=ticket.watchers,
             task_path=ref.path,
             image_url=image_url,
             fatal=False,
@@ -498,7 +496,6 @@ def _warn_if_state_not_advanced(
             f"({keys}) — next run may duplicate work.",
             task_path=ref.path,
             owner=owner,
-            watchers=ticket.watchers,
             important=True,
             record_failure=record_failure,
         )
@@ -528,6 +525,16 @@ class WorkflowMissing(RuntimeError):
     `coga bump`, so activating one would strand it. The workflow may be a
     bare string ref (frozen on the first `coga bump`) or an already-frozen
     dict — only `null`/missing is refused.
+    """
+
+
+class MainAgentUnavailable(RuntimeError):
+    """Raised when activation cannot settle this ticket's main agent.
+
+    Either the ticket names an agent that configuration no longer declares, or
+    it names none and no `[agents.*]` table exists to default to. Both are
+    routing inputs a human fixes; activation refuses rather than substituting a
+    different agent behind the operator's back.
     """
 
 
@@ -574,15 +581,14 @@ def _freeze_workflow_ref(cfg: Config, ticket: Ticket) -> None:
     plain workflow name. Activation is when that becomes real: we freeze the
     snapshot. We also seed `step: 1` whenever the ticket has no current step,
     so a fresh draft is launch-ready — `coga launch` composes the current
-    step's skill from the frozen workflow. Seeding step 1 resolves that step's
-    `assignee:` role token through the same `resolve_first_step_assignee` that
-    `create_task` uses, so a draft that arrives here lands on an agent-owned
-    step wearing an agent rather than the human `assignee:` creation defaulted
-    to — which `coga launch` would otherwise read as a human handoff its own
-    frozen step contradicts. It is a no-op for the workflow dict of an
-    `active`/`paused` ticket that already carries a step. Raises
-    `WorkflowError` if a string ref names no known workflow, or if step 1's
-    role token cannot resolve — every activation caller already renders that.
+    step's skill from the frozen workflow. It is a no-op for the workflow dict
+    of an `active`/`paused` ticket that already carries a step.
+
+    Seeding a step writes no assignment: who holds step 1 is derived from the
+    frozen role every time it is read (`coga.bump.resolve_operator`), so a
+    stored nickname can no longer disagree with the snapshot's own role the way
+    it once could. Raises `WorkflowError` if a string ref names no known
+    workflow — every activation caller already renders that.
 
     Precondition: `_has_workflow(ticket)` is true, so `ticket.workflow` is a
     non-empty string or dict by the time we read its steps.
@@ -595,22 +601,46 @@ def _freeze_workflow_ref(cfg: Config, ticket: Ticket) -> None:
         frozen = ticket.workflow or {}
         steps = frozen.get("steps") or []
         if steps:
-            role = steps[0].get("assignee")
-            assignee: str | None = None
-            if role:
-                try:
-                    assignee = resolve_first_step_assignee(
-                        cfg,
-                        role,
-                        workflow_name=frozen.get("name"),
-                        roles=ticket.frontmatter,
-                        agent=ticket.agent,
-                    )
-                except AssigneeResolutionError as exc:
-                    raise WorkflowError(str(exc)) from exc
             ticket.frontmatter["step"] = f"1 ({steps[0]['name']})"
-            if assignee is not None:
-                ticket.frontmatter["assignee"] = assignee
+
+
+def _select_main_agent(cfg: Config, ticket: Ticket) -> None:
+    """Freeze this ticket's main agent, if it has not chosen one already.
+
+    Activation is the moment approved work first needs an agent, so it is where
+    an omitted choice becomes a concrete, stable identity: the configured
+    default is resolved once and persisted in `agent:`. Everything afterwards —
+    pause/resume, peer review, unblock, terminal transitions — retains it, so
+    reordering `[agents.*]` between launches changes only *future* activations
+    and can never turn a ticket's `main -> peer -> main` rotation into
+    `main -> peer -> peer`.
+
+    An explicit choice is never replaced, only validated. Removing a selected
+    agent from configuration is an error to fix, not permission to substitute
+    another one. Peers stay live configuration and are deliberately not frozen
+    here.
+    """
+    try:
+        ticket.frontmatter["agent"] = resolve_main_agent(
+            cfg, ticket.agent, allow_prospective_default=True
+        )
+    except OperatorResolutionError as exc:
+        raise MainAgentUnavailable(str(exc)) from exc
+
+
+def _assert_operator_resolves(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
+    """Refuse activation whose prepared step has no derivable operator.
+
+    Activation is the last cheap boundary before a ticket becomes launchable, so
+    a role token this machine cannot resolve — an ambiguous `other-agent`, an
+    `owner` step on a ticket with no owner — fails here rather than surfacing
+    later as a launch refusing a step its own snapshot declares. It runs on the
+    prospective ticket, so a refusal leaves the stored bytes untouched.
+    """
+    try:
+        resolve_operator(cfg, ref, ticket)
+    except OperatorResolutionError as exc:
+        raise WorkflowError(str(exc)) from exc
 
 
 def _missing_required_extensions(cfg: Config, ticket: Ticket) -> list[str]:
@@ -650,6 +680,12 @@ def prepare_active(
     Launch uses this pure preparation boundary to compose a prospective prompt
     before an assist's final publication gate. ``mark_active`` remains the
     durable wrapper that writes, audits, and optionally syncs the result.
+
+    Main-agent selection lives here rather than in `mark_active` so it is part
+    of the *prospective* preparation and commits only with the successful
+    transition. A preparation that fails afterwards — a missing required
+    extension, a refused publication — leaves the ticket's bytes untouched, so
+    a newly chosen agent is never written to a real ticket by a failed attempt.
     """
     prior_status = ticket.status
     if prior_status == "canceled":
@@ -659,6 +695,8 @@ def prepare_active(
     if not _has_workflow(ticket):
         raise WorkflowMissing()
     _freeze_workflow_ref(cfg, ticket)
+    _select_main_agent(cfg, ticket)
+    _assert_operator_resolves(cfg, ref, ticket)
 
     missing = _missing_required_extensions(cfg, ticket)
     if missing:
@@ -831,7 +869,6 @@ def mark_in_progress(
             slack_text,
             task_path=ref.path,
             owner=owner,
-            watchers=ticket.watchers,
             fatal=False,
             # Strict lifecycle state already consumed its exact feature lease.
             # Keep a delivery failure on stderr instead of appending an
@@ -908,7 +945,6 @@ def mark_blocked(
         slack_text,
         task_path=ref.path,
         owner=owner,
-        watchers=ticket.watchers,
         image_url=image_url,
         # `coga block` ends the session: a Slack outage must not keep the
         # blocked ticket's agent REPL alive to its idle timeout.
@@ -1000,7 +1036,6 @@ def mark_paused(
             slack_text,
             kind="recurring-error",
             owner=owner,
-            watchers=ticket.watchers,
             task_path=ref.path,
             important=True,
             fatal=False,
@@ -1025,5 +1060,6 @@ __all__ = [
     "CancellationError",
     "RequiredExtensionMissing",
     "WorkflowMissing",
+    "MainAgentUnavailable",
     "StrandedProductCode",
 ]

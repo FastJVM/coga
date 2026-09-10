@@ -218,8 +218,7 @@ def test_parse_task_reads_annotated_pr_line(tmp_path: Path) -> None:
         task,
         f"""
         ---
-        slug: demo
-        human: nicktoper
+        owner: nicktoper
         ---
         <!-- coga:blackboard -->
         ## Dev
@@ -242,11 +241,9 @@ def test_json_report_merges_log_git_github_and_usage_records(
         task,
         f"""
         ---
-        slug: demo
         title: Demo
         status: done
         owner: nicktoper
-        human: nicktoper
         ---
 
         ## Description
@@ -541,8 +538,7 @@ def test_github_fixture_missing_record_fails_loud(tmp_path: Path, capsys) -> Non
         tmp_path / "coga" / "tasks" / "demo.md",
         """
         ---
-        slug: demo
-        human: nicktoper
+        owner: nicktoper
         ---
         <!-- coga:blackboard -->
         ## Dev

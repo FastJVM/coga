@@ -57,7 +57,9 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         description: tiny.
         steps:
           - name: implement
+            assignee: agent
           - name: review
+            assignee: agent
         ---
 
         ## implement
@@ -84,8 +86,7 @@ def _task_with_blocker(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status=status,
         slug_override=slug,
     )

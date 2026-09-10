@@ -89,6 +89,7 @@ from coga.logfile import first_activity_map
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.mark import (
     BlackboardNeedsSynthesis,
+    MainAgentUnavailable,
     RequiredExtensionMissing,
     WorkflowMissing,
     mark_active,
@@ -211,12 +212,12 @@ def run_megalaunch(
     raises `UnknownDirectoryError` rather than sweeping nothing silently.
 
     `agent_override` runs picked-draft authoring interviews and launches swept
-    agent-owned tickets with that configured agent type instead of the default
-    authoring agent / each ticket's `assignee:`. It is ephemeral and applies
-    only to authoring plus the first launched step, so `other-agent` rotation
-    on later steps still lands on the ticket's resolved assignee. Unlike an
-    explicit `coga launch --agent`, megalaunch keeps its independent human
-    gate: human-assigned working steps still skip.
+    agent-held tickets with that configured agent type instead of the default
+    authoring agent / each ticket's derived operator. It is ephemeral and applies
+    only to authoring plus the first launched step, so `other-agent` rotation on
+    later steps still lands on the ticket's configured peer. Unlike an explicit
+    `coga launch --agent`, megalaunch keeps its independent human gate: steps the
+    workflow hands to the owner still skip, override or not.
 
     `selection` (exact `id_slug`s) switches to explicit mode: only the named
     tasks run, any owner's, and the run is staged so every human-in-the-loop
@@ -456,7 +457,7 @@ def _drain_satisfied_blockers(
                         ref,
                         "skipped-unresolved-blocker",
                         detail,
-                        ticket.assignee,
+                        _operator_name(cfg, ref, ticket),
                     ),
                 )
             dependency = _finished_blocker_dependency(blockers, known)
@@ -521,7 +522,7 @@ def _drain_satisfied_blockers(
                         ref,
                         "failed",
                         "ticket changed before dependency activation; retry",
-                        ticket.assignee,
+                        _operator_name(cfg, ref, ticket),
                     ),
                 )
                 continue
@@ -542,7 +543,7 @@ def _drain_satisfied_blockers(
                         ref,
                         "skipped-unresolved-blocker",
                         detail,
-                        ticket.assignee,
+                        _operator_name(cfg, ref, ticket),
                     ),
                 )
                 continue
@@ -721,7 +722,7 @@ def _run_selection(
     # Phase 1 — Prepare. When the operator opted in (the CLI's one-shot batch
     # prompt, asked only when the pick contains drafts), run the guided
     # `coga ticket` authoring interview on each picked draft, bringing a
-    # not-ready ticket to a launchable shape (workflow, contexts, assignee).
+    # not-ready ticket to a launchable shape (workflow, contexts, agent).
     # The human ends the interview immediately if the draft is already fine —
     # authoring leaves the status at `draft`, and an unreadable/vanished ref is
     # left for phase 2 to report.
@@ -763,7 +764,7 @@ def _run_selection(
                     ref,
                     "skipped-unlaunchable",
                     f"status is {ticket.status}",
-                    ticket.assignee,
+                    _operator_name(cfg, ref, ticket),
                 )
             )
             continue
@@ -780,8 +781,9 @@ def _run_selection(
             if isinstance(prepared, MegalaunchResult):
                 results.append(prepared)
                 continue
-            # Activation can change both the step and its assignee. Classify
-            # that prospective state before admitting the pick to the plan.
+            # Activation freezes the snapshot, seeds step 1, and selects a main
+            # agent — all routing inputs. Classify that prospective state before
+            # admitting the pick to the plan.
             # The source ticket's blockers were already classified above.
             candidate = _candidate_result(
                 cfg, ref, prepared, explicit=True, blockers=[]
@@ -823,7 +825,7 @@ def _run_selection(
                     ref,
                     "skipped-unlaunchable",
                     f"status is {ticket.status}",
-                    ticket.assignee,
+                    _operator_name(cfg, ref, ticket),
                 )
             )
             continue
@@ -870,7 +872,7 @@ def _run_selection(
                         ref,
                         "skipped-unlaunchable",
                         f"status is {ticket.status}",
-                        ticket.assignee,
+                        _operator_name(cfg, ref, ticket),
                     )
                 )
                 continue
@@ -895,7 +897,7 @@ def _run_selection(
                         ref,
                         "failed",
                         "ticket changed before deferred activation; retry",
-                        ticket.assignee,
+                        _operator_name(cfg, ref, ticket),
                     )
                 )
                 continue
@@ -912,7 +914,7 @@ def _run_selection(
             activation_snapshot=activation_snapshot,
             explicit=True,
         )
-        # A selected candidate can cross a current-step, assignee, or terminal
+        # A selected candidate can cross a current-step, routing, or terminal
         # gate at the exact reread just like a sweep candidate.  Only a real
         # attempt consumes the shared limit.
         if result.launched or not result.outcome.startswith("skipped-"):
@@ -948,20 +950,26 @@ def _author_draft(
     except TaskNotFoundError:
         return
     bootstrap_ticket = read_ticket(bootstrap_ref)
-    launch_assignee = (
-        agent_override
-        or bootstrap_ticket.assignee
-        or ticket.agent
-        or ticket.assignee
-    )
-    if not launch_assignee:
+    # Interviewer selection precedence, unchanged apart from the rename:
+    # explicit override, then `bootstrap/ticket`'s own explicit agent, then the
+    # edited draft's explicit agent, then the configured default. This picks who
+    # runs the interview and never persists onto the edited ticket.
+    from coga.bump import OperatorResolutionError, resolve_main_agent
+
+    try:
+        launch_agent = agent_override or resolve_main_agent(
+            cfg,
+            bootstrap_ticket.agent or ticket.agent,
+            allow_prospective_default=True,
+        )
+    except OperatorResolutionError:
         return
     try:
         _run_authoring_session(
             cfg=cfg,
             ref=ref,
             ticket=_authoring_ticket(ticket),
-            launch_assignee=launch_assignee,
+            launch_agent=launch_agent,
             kickoff=AUTHORING_KICKOFF_EDIT,
             bootstrap_title=bootstrap_ticket.title or "",
         )
@@ -1090,24 +1098,34 @@ def _candidate_result(
                     ref,
                     "skipped-unlaunchable",
                     "blocked but has no open blocker asks to resolve",
-                    ticket.assignee,
+                    _operator_name(cfg, ref, ticket),
                 )
         else:
             detail = (
                 "; ".join(blocker.reason for blocker in blockers)
                 or "status is blocked"
             )
-            return _result(ref, "skipped-unresolved-blocker", detail, ticket.assignee)
+            return _result(
+                ref,
+                "skipped-unresolved-blocker",
+                detail,
+                _operator_name(cfg, ref, ticket),
+            )
     elif blockers and ticket.status in {"active", "in_progress"} and not explicit:
         # An `in_progress` resume goes through the same gates as an `active`
         # start — it must not dodge the blocker gate just because a prior
         # session already flipped the status.
         detail = "; ".join(blocker.reason for blocker in blockers)
-        return _result(ref, "skipped-unresolved-blocker", detail, ticket.assignee)
+        return _result(
+            ref,
+            "skipped-unresolved-blocker",
+            detail,
+            _operator_name(cfg, ref, ticket),
+        )
 
-    # A picked stepless ticket acquires its first step and assignee during
-    # activation. The check phase and final preflight apply these gates to
-    # that prepared view; the draft's creation default cannot decide routing.
+    # A picked stepless ticket acquires its first step during activation. The
+    # check phase and final preflight apply these gates to that prepared view;
+    # an unactivated draft has no position to route from.
     if (
         explicit
         and ticket.status in {"draft", "paused", "blocked"}
@@ -1115,21 +1133,38 @@ def _candidate_result(
     ):
         return None
 
-    if ticket.assignee not in cfg.agents:
-        return _result(
-            ref,
-            "skipped-human-gate",
-            f"assignee {ticket.assignee or 'unassigned'} is not a configured agent",
-            ticket.assignee,
-        )
-
     # A draft has no current step yet — activation freezes the workflow and
     # seeds step 1, so its step gate runs post-activation in
     # `_launch_until_stop`. Everything else is gated here.
     if ticket.status == "draft":
         return None
     if ticket.current_step() is None:
-        return _result(ref, "skipped-human-gate", "no current workflow step", ticket.assignee)
+        return _result(
+            ref,
+            "skipped-human-gate",
+            "no current workflow step",
+            _operator_name(cfg, ref, ticket),
+        )
+
+    # Megalaunch keeps its own human gate even under `--agent`: an ordinary
+    # override selects the worker for agent-held steps, and never authorizes an
+    # assist on a step the workflow hands to the owner.
+    from coga.bump import OperatorResolutionError, resolve_operator
+
+    try:
+        operator = resolve_operator(
+            cfg, ref, ticket, allow_prospective_default=True
+        )
+    except OperatorResolutionError as exc:
+        return _result(ref, "failed", f"unresolvable operator: {exc}")
+    if operator is None or operator.is_human:
+        who = "no operator" if operator is None else operator.name
+        return _result(
+            ref,
+            "skipped-human-gate",
+            f"current step hands off to {who}",
+            None if operator is None else operator.name,
+        )
     return None
 
 
@@ -1165,7 +1200,7 @@ def _launch_until_stop(
                 ref,
                 "failed",
                 f"exceeded {max_steps_per_task} unattended steps",
-                ticket.assignee,
+                _operator_name(cfg, ref, ticket),
                 launched=launched,
             )
 
@@ -1190,7 +1225,7 @@ def _launch_until_stop(
                     ref,
                     "failed",
                     "ticket disappeared before launch",
-                    ticket.assignee,
+                    _operator_name(cfg, ref, ticket),
                     launched=launched,
                 )
             except (UnicodeDecodeError, TicketError, TaskFileError) as exc:
@@ -1198,7 +1233,7 @@ def _launch_until_stop(
                     ref,
                     "failed",
                     f"unreadable ticket: {exc}",
-                    ticket.assignee,
+                    _operator_name(cfg, ref, ticket),
                     launched=launched,
                 )
 
@@ -1212,7 +1247,7 @@ def _launch_until_stop(
                     "skipped-human-gate",
                     f"owner {ticket.owner or 'unassigned'} is not current "
                     f"operator {cfg.current_user}",
-                    ticket.assignee,
+                    _operator_name(cfg, ref, ticket),
                     launched=launched,
                 )
             if not explicit and ticket.status not in {
@@ -1224,7 +1259,7 @@ def _launch_until_stop(
                     ref,
                     "skipped-unlaunchable",
                     f"status is {ticket.status}",
-                    ticket.assignee,
+                    _operator_name(cfg, ref, ticket),
                     launched=launched,
                 )
             if ticket.status in TERMINAL_STATUSES:
@@ -1232,7 +1267,7 @@ def _launch_until_stop(
                     ref,
                     "skipped-unlaunchable",
                     f"status is {ticket.status}",
-                    ticket.assignee,
+                    _operator_name(cfg, ref, ticket),
                     launched=launched,
                 )
             exact_candidate = _candidate_result(
@@ -1264,25 +1299,35 @@ def _launch_until_stop(
             if candidate is not None:
                 return candidate
 
-        assignee = preflight_view.assignee
-        if assignee not in cfg.agents:
+        from coga.bump import OperatorResolutionError, resolve_operator
+
+        try:
+            operator = resolve_operator(cfg, ref, preflight_view)
+        except OperatorResolutionError as exc:
+            return _result(ref, "failed", str(exc), launched=launched)
+        if operator is None or operator.is_human:
+            who = "no operator" if operator is None else operator.name
             return _result(
                 ref,
                 "completed",
-                f"handed off to {assignee or 'unassigned'}",
-                assignee,
+                f"handed off to {who}",
+                None if operator is None else operator.name,
                 launched=launched,
             )
         # Select from the same prepared ticket the preflight and activation
-        # will use. An override applies only to the first launched step.
-        launch_assignee = (agent_override or assignee) if first_step else assignee
+        # will use. An override applies only to the first launched step; every
+        # later step follows the ticket's own derived routing, so `other-agent`
+        # rotation still lands on the configured peer.
+        launch_agent = (
+            (agent_override or operator.name) if first_step else operator.name
+        )
         first_step = False
 
         prepared_launch = _preflight_agent_launch(
             cfg,
             ref,
             preflight_view,
-            launch_assignee,
+            launch_agent,
             source_ticket_bytes=preflight_source_bytes,
         )
         if isinstance(prepared_launch, str):
@@ -1290,7 +1335,7 @@ def _launch_until_stop(
                 ref,
                 "failed",
                 prepared_launch,
-                launch_assignee,
+                launch_agent,
                 launched=launched,
             )
 
@@ -1325,7 +1370,7 @@ def _launch_until_stop(
                 ref,
                 "failed",
                 "ticket changed after launch preflight; retry",
-                launch_assignee,
+                launch_agent,
                 launched=launched,
             )
         try:
@@ -1358,14 +1403,14 @@ def _launch_until_stop(
             )
         except TaskValidationError as exc:
             git.restore_files_under_barrier(cfg, start_snapshot)
-            return _result(ref, "failed", str(exc), ticket.assignee)
+            return _result(ref, "failed", str(exc), _operator_name(cfg, ref, ticket))
         except git.UncertainFeaturePublicationError as exc:
             return _result(
                 ref,
                 "failed",
                 "launch claim publication outcome is uncertain; generated "
                 f"local state retained for reconciliation — {exc}",
-                ticket.assignee,
+                _operator_name(cfg, ref, ticket),
             )
         except git.GitError as exc:
             git.restore_files_under_barrier(cfg, start_snapshot)
@@ -1373,7 +1418,7 @@ def _launch_until_stop(
                 ref,
                 "failed",
                 f"launch claim publication refused: {exc}; retry",
-                ticket.assignee,
+                _operator_name(cfg, ref, ticket),
             )
         # `mark_in_progress` includes synchronous Git publication. A peer can
         # replace, complete, or claim the ticket while that network boundary
@@ -1391,7 +1436,7 @@ def _launch_until_stop(
                 "failed",
                 "ticket changed during start publication; current state "
                 "retained for safe resume; retry",
-                launch_assignee,
+                launch_agent,
                 launched=launched,
             )
 
@@ -1444,24 +1489,24 @@ def _launch_until_stop(
                 ref,
                 "failed",
                 f"{exc}; current state retained for safe resume; retry",
-                launch_assignee,
+                launch_agent,
                 launched=launched,
             )
         except (ComposeError, ConfigError, SecretError) as exc:
-            return _result(ref, "failed", str(exc), launch_assignee)
+            return _result(ref, "failed", str(exc), launch_agent)
         except git.GitError as exc:
             return _result(
                 ref,
                 "failed",
                 f"launch admission publication barrier unavailable: {exc}",
-                launch_assignee,
+                launch_agent,
             )
         except FileNotFoundError:
             return _result(
                 ref,
                 "failed",
                 f"agent CLI {agent.cli!r} not found",
-                launch_assignee,
+                launch_agent,
             )
 
         launched = True
@@ -1478,7 +1523,9 @@ def _launch_until_stop(
         if after.status == "blocked":
             blockers = open_blockers(ref.ticket_path)
             detail = "; ".join(blocker.reason for blocker in blockers) or "blocked"
-            return _result(ref, "blocked", detail, after.assignee, launched=True)
+            return _result(
+        ref, "blocked", detail, _operator_name(cfg, ref, after), launched=True
+    )
         if session.termination_kind == "timeout":
             timeout_reason = getattr(session, "termination_reason", None)
             detail = (
@@ -1490,7 +1537,7 @@ def _launch_until_stop(
                 ref,
                 "failed",
                 detail,
-                after.assignee,
+                _operator_name(cfg, ref, after),
                 launched=True,
             )
         if session.exit_code != 0:
@@ -1498,7 +1545,7 @@ def _launch_until_stop(
                 ref,
                 "failed",
                 f"agent exited with code {session.exit_code}",
-                after.assignee,
+                _operator_name(cfg, ref, after),
                 launched=True,
             )
         stop = _chain_stop_result(cfg, ref, after)
@@ -1509,7 +1556,7 @@ def _launch_until_stop(
                 ref,
                 "failed",
                 "agent exited without changing task state",
-                after.assignee,
+                _operator_name(cfg, ref, after),
                 launched=True,
             )
         ticket = after
@@ -1523,10 +1570,12 @@ _PREPARE_ACTIVE_ERRORS = (
     WorkflowError,
     RequiredExtensionMissing,
     BlackboardNeedsSynthesis,
+    MainAgentUnavailable,
 )
 
 
 def _activation_refusal(
+    cfg: Config,
     ref: TaskRef,
     ticket: Ticket,
     prior: str,
@@ -1543,14 +1592,14 @@ def _activation_refusal(
             "skipped-unlaunchable",
             f"{prior} with no workflow — set `workflow:` in ticket.md or run "
             f"`coga ticket {ref.id_slug}`",
-            ticket.assignee,
+            _operator_name(cfg, ref, ticket),
         )
     if isinstance(exc, WorkflowError):
         return _result(
             ref,
             "skipped-unlaunchable",
             f"`workflow:` ref could not be frozen — {exc}",
-            ticket.assignee,
+            _operator_name(cfg, ref, ticket),
         )
     if isinstance(exc, RequiredExtensionMissing):
         names = ", ".join(repr(f) for f in exc.fields)
@@ -1558,16 +1607,23 @@ def _activation_refusal(
             ref,
             "skipped-unlaunchable",
             f"required extension field(s) empty: {names}",
-            ticket.assignee,
+            _operator_name(cfg, ref, ticket),
         )
     if isinstance(exc, BlackboardNeedsSynthesis):
         return _result(
             ref,
             "skipped-unlaunchable",
             f"blackboard needs synthesis before first launch: {exc.reason}",
-            ticket.assignee,
+            _operator_name(cfg, ref, ticket),
         )
-    return _result(ref, "failed", str(exc), ticket.assignee)
+    if isinstance(exc, MainAgentUnavailable):
+        return _result(
+            ref,
+            "skipped-unlaunchable",
+            f"main agent unavailable: {exc}",
+            _operator_name(cfg, ref, ticket),
+        )
+    return _result(ref, "failed", str(exc), _operator_name(cfg, ref, ticket))
 
 
 def _prepare_for_launch(
@@ -1591,7 +1647,7 @@ def _prepare_for_launch(
     try:
         prepare_active(cfg, ref, prospective)
     except _PREPARE_ACTIVE_ERRORS as exc:
-        return _activation_refusal(ref, ticket, prior, exc)
+        return _activation_refusal(cfg, ref, ticket, prior, exc)
     return prospective
 
 
@@ -1635,7 +1691,7 @@ def _activate_for_launch(
             ref,
             "failed",
             "dependency resolution requires an exact activation snapshot",
-            ticket.assignee,
+            _operator_name(cfg, ref, ticket),
         )
     if strict_activation:
         strict_source_bytes = mutation_snapshot.originals.get(ref.ticket_path)
@@ -1644,7 +1700,7 @@ def _activate_for_launch(
                 ref,
                 "failed",
                 "ticket disappeared before deferred activation",
-                ticket.assignee,
+                _operator_name(cfg, ref, ticket),
             )
     if prepared is not None:
         ticket.frontmatter = dict(prepared.frontmatter)
@@ -1708,6 +1764,7 @@ def _activate_for_launch(
             )
     except git.UncertainFeaturePublicationError as exc:
         return _activation_refusal(
+            cfg,
             ref,
             ticket,
             prior,
@@ -1726,7 +1783,7 @@ def _activate_for_launch(
             and mutation_snapshot is not None
         ):
             git.restore_files_under_barrier(cfg, mutation_snapshot)
-        return _activation_refusal(ref, ticket, prior, exc)
+        return _activation_refusal(cfg, ref, ticket, prior, exc)
     return None
 
 
@@ -1956,8 +2013,12 @@ def _reblock_unresolved(
             ),
         )
     except TaskValidationError as exc:
-        return _result(ref, "failed", str(exc), after.assignee, launched=True)
-    return _result(ref, "blocked", detail, after.assignee, launched=True)
+        return _result(
+            ref, "failed", str(exc), _operator_name(cfg, ref, after), launched=True
+        )
+    return _result(
+        ref, "blocked", detail, _operator_name(cfg, ref, after), launched=True
+    )
 
 
 def _chain_stop_result(
@@ -1967,13 +2028,15 @@ def _chain_stop_result(
     if after.status == "blocked":
         blockers = open_blockers(ref.ticket_path)
         detail = "; ".join(blocker.reason for blocker in blockers) or "blocked"
-        return _result(ref, "blocked", detail, after.assignee, launched=True)
+        return _result(
+        ref, "blocked", detail, _operator_name(cfg, ref, after), launched=True
+    )
     if after.status == "canceled":
         return _result(
             ref,
             "canceled",
             "task canceled",
-            after.assignee,
+            _operator_name(cfg, ref, after),
             launched=True,
         )
     if after.status in TERMINAL_STATUSES:
@@ -1981,7 +2044,7 @@ def _chain_stop_result(
             ref,
             "completed",
             f"task {after.status}",
-            after.assignee,
+            _operator_name(cfg, ref, after),
             launched=True,
         )
     if after.status != "in_progress":
@@ -1989,15 +2052,22 @@ def _chain_stop_result(
             ref,
             "completed",
             f"status is {after.status}",
-            after.assignee,
+            _operator_name(cfg, ref, after),
             launched=True,
         )
-    if after.assignee not in cfg.agents:
+    from coga.bump import OperatorResolutionError, resolve_operator
+
+    try:
+        operator = resolve_operator(cfg, ref, after)
+    except OperatorResolutionError as exc:
+        return _result(ref, "failed", str(exc), launched=True)
+    if operator is None or operator.is_human:
+        who = "no operator" if operator is None else operator.name
         return _result(
             ref,
             "completed",
-            f"handed off to {after.assignee or 'unassigned'}",
-            after.assignee,
+            f"handed off to {who}",
+            None if operator is None else operator.name,
             launched=True,
         )
     return None
@@ -2007,12 +2077,12 @@ def _preflight_agent_launch(
     cfg: Config,
     ref: TaskRef,
     ticket: Ticket,
-    launch_assignee: str | None,
+    launch_agent: str | None,
     *,
     source_ticket_bytes: bytes | None = None,
 ) -> _PreparedAgentLaunch | str:
     try:
-        agent = cfg.agent_type(launch_assignee or "")
+        agent = cfg.agent_type(launch_agent or "")
     except ConfigError as exc:
         return str(exc)
     # A not-yet-activated pick arrives as its prospective `active` view. Keep
@@ -2077,6 +2147,24 @@ def _preflight_agent_launch(
         env=env,
         prompt=prompt,
     )
+
+
+def _operator_name(cfg: Config, ref: TaskRef, ticket: Ticket) -> str | None:
+    """The derived operator's nickname for a report row, or None if unknown.
+
+    Report rows are a record of what the sweep decided, so a ticket whose
+    routing cannot resolve must still produce a row. Eligibility decisions call
+    `resolve_operator` directly and refuse loudly instead.
+    """
+    from coga.bump import OperatorResolutionError, resolve_operator
+
+    try:
+        operator = resolve_operator(
+            cfg, ref, ticket, allow_prospective_default=True
+        )
+    except OperatorResolutionError:
+        return None
+    return operator.name if operator is not None else None
 
 
 def _result(

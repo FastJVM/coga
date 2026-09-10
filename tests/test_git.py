@@ -71,21 +71,19 @@ def _step_ticket_text(
 ) -> str:
     head = dedent(f"""
         ---
-        slug: demo
         title: demo
         status: {status}
         owner: marc
-        human: marc
         agent: claude
-        assignee: claude
-        contexts: []
-        skills: []
         workflow:
           name: code
           steps:
           - name: implement
+            assignee: agent
           - name: review
+            assignee: agent
           - name: merge
+            assignee: agent
         step: {step}
         ---
 
@@ -1647,7 +1645,6 @@ def _seed_ticket_bootstrap(coga_os: Path) -> None:
             title: Create a new ticket
             skills:
               - bootstrap/ticket
-            assignee: claude
             ---
 
             ## Description
@@ -3463,7 +3460,15 @@ def test_feature_publication_lease_reads_separate_pushurl(
 
     assert lease.local_oid == expected
     assert lease.remote_oid == expected
-    assert lease.control_ticket_state == ("active", "1 (implement)", "claude")
+    # Status plus the persisted routing inputs — there is no cached assignment
+    # to compare, so the lease pins what the assignment used to be derived from.
+    assert lease.control_ticket_state == git.TicketRoutingState(
+        status="active",
+        step="1 (implement)",
+        owner="marc",
+        agent="claude",
+        step_roles=("agent", "agent", "agent"),
+    )
 
 
 def test_feature_publication_lease_rejects_multiple_pushurls(
@@ -5801,9 +5806,14 @@ def _active_task(git_repo, *, workflow: str, slug: str) -> tuple[str, Path]:
     """Create + activate a task (frozen workflow, launch-ready) on `main`."""
     cfg = load_config(git_repo.coga_os)
     ref = create_task(
-        cfg=cfg, title="Strandy", workflow_name=workflow,
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="draft", slug_override=slug,
+        cfg=cfg,
+        title="Strandy",
+        workflow_name=workflow,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
+        slug_override=slug,
     )
     assert runner.invoke(app, ["mark", "active", ref["slug"]]).exit_code == 0
     return ref["slug"], Path(ref["path"])

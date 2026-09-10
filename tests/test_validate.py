@@ -9,6 +9,7 @@ import pytest
 import requests
 
 from coga.create import create_task
+from conftest import seed_direct_body_workflow
 from coga.config import load_config
 from coga.taskfile import replace_blackboard
 from coga.tasks import list_tasks
@@ -50,7 +51,9 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         description: Standard code workflow.
         steps:
           - name: implement
+            assignee: agent
           - name: pr
+            assignee: agent
         ---
         """,
     )
@@ -67,6 +70,7 @@ def _write_skillless_release_workflow(
         description: Release workflow.
         steps:
           - name: release
+            assignee: agent
         ---
 
         ## release
@@ -79,9 +83,13 @@ def _write_skillless_release_workflow(
 def test_clean_repo_has_no_issues(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="X", workflow_name="code/with-review",
+        cfg=cfg,
+        title="X",
+        workflow_name="code/with-review",
         contexts=["email/payment-flow"],
-        owner="marc", assignee="claude", watchers=[], status="draft",
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     report = run(cfg)
     assert report.issues == []
@@ -97,9 +105,13 @@ def test_unresolvable_other_agent_step_is_an_error(repo: Path) -> None:
     )
     cfg = load_config(repo)
     created = create_task(
-        cfg=cfg, title="X", workflow_name="code/with-review",
-        contexts=[], owner="marc", assignee="claude",
-        human="marc", agent="claude", watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     ticket = Ticket.read(created["path"])
     assert isinstance(ticket.workflow, dict)
@@ -121,9 +133,13 @@ def test_other_agent_check_preserves_bad_shape_for_malformed_agent(
 ) -> None:
     cfg = load_config(repo)
     created = create_task(
-        cfg=cfg, title="X", workflow_name="code/with-review",
-        contexts=[], owner="marc", assignee="claude",
-        human="marc", agent="claude", watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     ticket = Ticket.read(created["path"])
     assert isinstance(ticket.workflow, dict)
@@ -148,10 +164,8 @@ def test_broken_skill_ref(repo: Path) -> None:
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(dedent("""
         ---
-        slug: 001-x
         title: X
         status: active
-        assignee: claude
         owner: marc
         workflow:
           name: x
@@ -159,6 +173,7 @@ def test_broken_skill_ref(repo: Path) -> None:
             - name: a
               skills:
                 - does/not/exist
+              assignee: agent
         step: 1 (a)
         ---
 
@@ -182,6 +197,7 @@ def test_validate_reports_removed_skill_in_materialized_recurring_template(
           - name: run
             skills:
               - coga/megalaunch/run
+            assignee: agent
         ---
     """)
     _write(repo / "recurring" / "megalaunch" / "ticket.md", """
@@ -221,6 +237,7 @@ def test_validate_recurring_template_unknown_skill_lists_checked_paths(
           - name: run
             skills:
               - local/missing
+            assignee: agent
         ---
     """)
     _write(repo / "recurring" / "custom" / "ticket.md", """
@@ -558,7 +575,6 @@ def test_validate_rejects_script_backed_recurring_delegate(repo: Path) -> None:
         """
         ---
         title: Scripted command
-        assignee: claude
         ---
         """,
     )
@@ -589,15 +605,15 @@ def test_validate_rejects_frozen_delegate_combined_with_period_script(
     repo: Path,
 ) -> None:
     """Validation refuses a materialized period with two dispatch signals."""
+    seed_direct_body_workflow(repo)
     cfg = load_config(repo)
     created = create_task(
         cfg=cfg,
         title="Conflicting delegated period",
-        workflow_name="code/with-review",
+        workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="draft",
         slug_override="recurring/delegate-check",
         force_directory=True,
@@ -625,15 +641,15 @@ def test_validate_rejects_unsafe_frozen_delegate_component(
     repo: Path, delegate: str
 ) -> None:
     """Frozen dispatch accepts one real path component on every platform."""
+    seed_direct_body_workflow(repo)
     cfg = load_config(repo)
     created = create_task(
         cfg=cfg,
         title="Unsafe delegated period",
-        workflow_name="code/with-review",
+        workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="draft",
         slug_override="recurring/delegate-check",
         force_directory=True,
@@ -663,8 +679,7 @@ def test_validate_rejects_an_empty_period_generation(repo: Path) -> None:
         workflow_name="code/with-review",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="draft",
         slug_override="recurring/generated-period",
         force_directory=True,
@@ -694,8 +709,7 @@ def test_validate_rejects_period_generation_on_an_ordinary_task(repo: Path) -> N
         workflow_name="code/with-review",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="draft",
     )
     ticket_path = Path(created["path"])
@@ -722,19 +736,22 @@ def test_validate_tolerates_legacy_null_script_key(repo: Path) -> None:
         workflow_name="code/with-review",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="draft",
     )
     path = Path(created["path"])
     text = path.read_text()
-    path.write_text(text.replace("secrets: null\n", "secrets: null\nscript: null\n"))
+    path.write_text(text.replace("status: draft\n", "status: draft\nscript: null\n"))
 
     ticket = Ticket.read(path)
     report = run(cfg)
 
-    assert "script" not in ticket.frontmatter
-    assert not [issue for issue in report.issues if issue.task == created["slug"]]
+    # No special-case pop any more: an inert `script: null` is simply an orphan
+    # extension, reported as a warning like any other stale key.
+    assert ticket.frontmatter["script"] is None
+    issues = [issue for issue in report.issues if issue.task == created["slug"]]
+    assert issues and all(issue.severity == "warn" for issue in issues)
+    assert all(issue.kind == "orphan-extension" for issue in issues)
 
 
 def test_validate_tolerates_legacy_non_null_script_key(repo: Path) -> None:
@@ -748,13 +765,12 @@ def test_validate_tolerates_legacy_non_null_script_key(repo: Path) -> None:
         workflow_name="code/with-review",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="draft",
     )
     path = Path(created["path"])
     text = path.read_text()
-    path.write_text(text.replace("secrets: null\n", "secrets: null\nscript: run.py\n"))
+    path.write_text(text.replace("status: draft\n", "status: draft\nscript: run.py\n"))
 
     ticket = Ticket.read(path)
     report = run(cfg)
@@ -773,8 +789,7 @@ def test_validate_checks_only_the_reserved_ticket_py_entry_point(repo: Path) -> 
         workflow_name="code/with-review",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="draft",
         force_directory=True,
     )
@@ -813,16 +828,15 @@ def test_step_requires_unknown_gate_is_error(repo: Path) -> None:
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(dedent("""
         ---
-        slug: 001-x
         title: X
         status: active
-        assignee: claude
         owner: marc
         workflow:
           name: x
           steps:
             - name: open-pr
               requires: not-a-real-gate
+              assignee: agent
         step: 1 (open-pr)
         ---
 
@@ -841,16 +855,15 @@ def test_step_requires_known_gate_is_clean(repo: Path) -> None:
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(dedent("""
         ---
-        slug: 002-y
         title: Y
         status: active
-        assignee: claude
         owner: marc
         workflow:
           name: x
           steps:
             - name: open-pr
               requires: pr
+              assignee: agent
         step: 1 (open-pr)
         ---
 
@@ -869,16 +882,15 @@ def test_step_requires_non_string_is_error(repo: Path, requires: str) -> None:
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(dedent(f"""
         ---
-        slug: 003-z
         title: Z
         status: active
-        assignee: claude
         owner: marc
         workflow:
           name: x
           steps:
             - name: open-pr
               requires: {requires}
+              assignee: agent
         step: 1 (open-pr)
         ---
 
@@ -899,9 +911,13 @@ def test_unfrozen_workflow_string_does_not_crash(repo: Path) -> None:
     them as a warning instead."""
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="X", workflow_name=None,
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     ref = list_tasks(cfg)[0]
     t = Ticket.read(ref.ticket_path)
@@ -924,9 +940,13 @@ def test_validate_json_flags_deleted_frozen_workflow(
     workflow_path = _write_skillless_release_workflow(repo)
     cfg = load_config(repo)
     task = create_task(
-        cfg=cfg, title="Release", workflow_name="custom/release",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status=status,
+        cfg=cfg,
+        title="Release",
+        workflow_name="custom/release",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status=status,
     )
     monkeypatch.chdir(repo)
 
@@ -954,9 +974,13 @@ def test_validate_flags_malformed_current_frozen_workflow(repo: Path) -> None:
     workflow_path = _write_skillless_release_workflow(repo)
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="Release", workflow_name="custom/release",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="active",
+        cfg=cfg,
+        title="Release",
+        workflow_name="custom/release",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
     )
     _write(workflow_path, """
         ---
@@ -984,9 +1008,13 @@ def test_validate_json_flags_empty_instructions_for_skillless_frozen_step(
     _write_skillless_release_workflow(repo)
     cfg = load_config(repo)
     task = create_task(
-        cfg=cfg, title="Release", workflow_name="custom/release",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="active",
+        cfg=cfg,
+        title="Release",
+        workflow_name="custom/release",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
     )
     monkeypatch.chdir(repo)
 
@@ -1017,13 +1045,18 @@ def test_skill_backed_frozen_step_does_not_require_inline_instructions(
           - name: release
             skills:
               - infra/tests
+            assignee: agent
         ---
     """)
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="Release", workflow_name="custom/release",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="active",
+        cfg=cfg,
+        title="Release",
+        workflow_name="custom/release",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
     )
 
     report = run(cfg)
@@ -1041,9 +1074,13 @@ def test_non_live_ticket_does_not_require_frozen_workflow_to_resolve(
     workflow_path = _write_skillless_release_workflow(repo)
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="Release", workflow_name="custom/release",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status=status,
+        cfg=cfg,
+        title="Release",
+        workflow_name="custom/release",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status=status,
     )
     workflow_path.unlink()
 
@@ -1058,9 +1095,13 @@ def test_non_live_ticket_does_not_require_frozen_workflow_to_resolve(
 def test_invalid_status(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="X", workflow_name=None,
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     ref = list_tasks(cfg)[0]
     t = Ticket.read(ref.ticket_path)
@@ -1073,9 +1114,13 @@ def test_invalid_status(repo: Path) -> None:
 def test_canceled_is_valid_terminal_status_without_step(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
-        cfg=cfg, title="Declined", workflow_name="code/with-review",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="canceled",
+        cfg=cfg,
+        title="Declined",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="canceled",
     )
 
     ticket = Ticket.read(ref["path"])
@@ -1091,9 +1136,13 @@ def test_canceled_is_valid_terminal_status_without_step(repo: Path) -> None:
 def test_canceled_ticket_with_step_is_invalid(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
-        cfg=cfg, title="Declined", workflow_name="code/with-review",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="canceled",
+        cfg=cfg,
+        title="Declined",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="canceled",
     )
     ticket = Ticket.read(ref["path"])
     ticket.frontmatter["step"] = "1 (implement)"
@@ -1121,9 +1170,13 @@ def test_canceled_ticket_with_step_is_invalid(repo: Path) -> None:
 
 def _draft_with_secrets(repo: Path, cfg, secrets_value) -> None:
     create_task(
-        cfg=cfg, title="X", workflow_name=None,
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     ref = list_tasks(cfg)[0]
     t = Ticket.read(ref.ticket_path)
@@ -1193,9 +1246,13 @@ def test_missing_blackboard_fence_is_error(repo: Path) -> None:
     # old missing-blackboard.md check — is a `blackboard-fence` error.
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="X", workflow_name=None,
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     ref = list_tasks(cfg)[0]
     ticket_path = ref.ticket_path
@@ -1212,9 +1269,13 @@ def test_missing_blackboard_fence_is_error(repo: Path) -> None:
 def test_apply_safe_fixes_adds_missing_blackboard_fence(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="X", workflow_name=None,
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     ref = list_tasks(cfg)[0]
     # Single-file format: strip the blackboard fence so the ticket.md is
@@ -1235,9 +1296,13 @@ def test_apply_safe_fixes_adds_missing_blackboard_fence(repo: Path) -> None:
 def test_run_fix_repairs_before_reporting(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="X", workflow_name=None,
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     ref = list_tasks(cfg)[0]
     # Single-file format: strip the fence so the ticket.md is fence-less; the
@@ -1257,9 +1322,13 @@ def test_run_fix_repairs_before_reporting(repo: Path) -> None:
 def test_large_blackboard_warns(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="X", workflow_name=None,
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     ref = list_tasks(cfg)[0]
     # Single-file format: the measured blackboard is the region below the fence
@@ -1276,9 +1345,13 @@ def test_large_blackboard_warns(repo: Path) -> None:
 def test_draft_authoring_blackboard_errors_without_fixing(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="X", workflow_name=None,
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     ref = list_tasks(cfg)[0]
     replace_blackboard(ref.ticket_path, "\n## Evaluator review\n\nNeeds synthesis.\n")
@@ -1297,9 +1370,13 @@ def test_draft_authoring_blackboard_errors_without_fixing(repo: Path) -> None:
 def test_authoring_blackboard_error_is_draft_only(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="X", workflow_name="code/with-review",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     ref = list_tasks(cfg)[0]
     # This fixture's workflow intentionally has no inline instructions. Build
@@ -1320,9 +1397,13 @@ def test_authoring_blackboard_error_is_draft_only(repo: Path) -> None:
 def test_draft_authoring_blackboard_allows_production_notes(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="X", workflow_name=None,
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     ref = list_tasks(cfg)[0]
     replace_blackboard(
@@ -1516,8 +1597,7 @@ def test_task_scoped_validate_includes_important_webhook_warning(
         workflow_name="code/with-review",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="draft",
     )
 
@@ -1896,9 +1976,13 @@ def test_validate_accepts_declared_extension_fields(repo: Path) -> None:
     )
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="X", workflow_name="code/with-review",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     report = run(cfg)
     assert report.issues == []
@@ -1907,9 +1991,13 @@ def test_validate_accepts_declared_extension_fields(repo: Path) -> None:
 def test_validate_flags_missing_declared_extension(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="X", workflow_name=None,
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     # Add the declaration AFTER the ticket exists — simulates declaring a new
     # extension once tickets are already on disk.
@@ -1931,9 +2019,13 @@ def test_validate_warns_orphan_extension(repo: Path) -> None:
     )
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="X", workflow_name=None,
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     # Now remove the declaration.
     (repo / "coga.toml").write_text(
@@ -1960,9 +2052,13 @@ def test_validate_flags_enum_violation(repo: Path) -> None:
     )
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="X", workflow_name=None,
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     ref = list_tasks(cfg)[0]
     t = Ticket.read(ref.ticket_path)
@@ -1989,9 +2085,13 @@ def test_validate_allows_empty_extension_value(repo: Path) -> None:
     )
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="X", workflow_name="code/with-review",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     report = run(cfg)
     assert report.issues == []
@@ -2003,9 +2103,13 @@ def test_workflow_less_draft_is_clean(repo: Path) -> None:
     status where a workflow is optional."""
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="X", workflow_name=None,
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     report = run(cfg)
     kinds = [i.kind for i in report.issues]
@@ -2021,11 +2125,9 @@ def _write_workflow_less_task(repo: Path, slug: str, status: str) -> Path:
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(dedent(f"""
         ---
-        slug: {slug}
         title: X
         status: {status}
         owner: marc
-        assignee: claude
         workflow: null
         ---
 
@@ -2062,9 +2164,13 @@ def test_workflow_less_done_is_not_flagged(repo: Path) -> None:
 def test_stuck_in_progress_flagged(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="X", workflow_name="code/with-review",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="draft",
+        cfg=cfg,
+        title="X",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
     )
     ref = list_tasks(cfg)[0]
     # As above, bypass the create-time workflow-instruction gate because this
@@ -2091,15 +2197,10 @@ def _write_full_task(repo: Path, rel: str, title: str = "X") -> Path:
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(dedent(f"""
         ---
-        slug: {rel}
         title: {title}
         status: draft
         owner: marc
-        human: marc
         agent: claude
-        assignee: claude
-        contexts: []
-        skills: []
         workflow: null
         ---
 
@@ -2187,3 +2288,163 @@ def test_top_level_numbering_is_not_checked(repo: Path) -> None:
     report = run(cfg)
 
     assert [i for i in report.issues if i.kind == "duplicate-task-number"] == []
+
+
+# --- simplified format: rejected metadata and the activation invariant --------
+
+
+@pytest.mark.parametrize("removed", ["slug", "human", "assignee", "watchers"])
+def test_validate_rejects_removed_metadata_by_name(repo: Path, removed: str) -> None:
+    """Removed metadata is an error, not a warn-level orphan extension.
+
+    That severity is what makes every Coga writer refuse the ticket instead of
+    perpetuating the old shape, so it is asserted directly.
+    """
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="X",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
+    )
+    ticket = Ticket.read(created["path"])
+    ticket.frontmatter[removed] = "marc"
+    ticket.write(created["path"])
+
+    issue = next(
+        issue
+        for issue in run(cfg).issues
+        if issue.kind == "removed-ticket-field"
+    )
+    assert issue.severity == "error"
+    assert removed in issue.message
+    assert "simplified ticket format" in issue.message
+
+
+def test_validate_requires_a_main_agent_once_activated(repo: Path) -> None:
+    """The activation invariant: a live ticket names the agent it routes to."""
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="X",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        status="draft",
+    )
+    # A draft may omit it.
+    ticket = Ticket.read(created["path"])
+    assert "agent" not in ticket.frontmatter
+    assert not [i for i in run(cfg).issues if i.task == created["slug"]]
+
+    # A hand-authored live ticket may not.
+    ticket.frontmatter["status"] = "active"
+    ticket.write(created["path"])
+    issue = next(
+        issue for issue in run(cfg).issues if issue.kind == "missing-main-agent"
+    )
+    assert issue.severity == "error"
+    assert "activation selects the configured default" in issue.message
+
+
+def test_validate_rejects_an_unconfigured_selected_agent(repo: Path) -> None:
+    """Deleting a selected agent's config breaks a real routing input."""
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="X",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
+    )
+    ticket = Ticket.read(created["path"])
+    ticket.frontmatter["agent"] = "gone"
+    ticket.write(created["path"])
+
+    issue = next(
+        issue for issue in run(cfg).issues if issue.kind == "unknown-agent"
+    )
+    assert issue.severity == "error"
+    assert "restore its `[agents.*]` table" in issue.message
+
+
+def test_validate_reports_an_underivable_operator(repo: Path) -> None:
+    """A live ticket at a step with no frozen workflow is a structural error."""
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="X",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
+    )
+    ticket = Ticket.read(created["path"])
+    ticket.frontmatter["status"] = "active"
+    ticket.frontmatter["workflow"] = "code/with-review"  # unfrozen, but stepped
+    ticket.write(created["path"])
+
+    issue = next(
+        issue
+        for issue in run(cfg).issues
+        if issue.kind == "unresolvable-operator"
+    )
+    assert issue.severity == "error"
+    assert "will not guess a routing role" in issue.message
+
+
+def test_validate_reports_the_retired_human_role_in_a_frozen_snapshot(
+    repo: Path,
+) -> None:
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="X",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
+    )
+    ticket = Ticket.read(created["path"])
+    assert isinstance(ticket.workflow, dict)
+    ticket.workflow["steps"][0]["assignee"] = "human"
+    ticket.write(created["path"])
+
+    kinds = {issue.kind for issue in run(cfg).issues if issue.severity == "error"}
+    assert "bad-shape" in kinds
+
+
+def test_validate_accepts_a_draft_with_no_optional_declarations(repo: Path) -> None:
+    """The minimal draft shape passes cleanly."""
+    cfg = load_config(repo)
+    path = repo / "tasks" / "minimal.md"
+    _write(
+        path,
+        """
+        ---
+        title: Minimal
+        status: draft
+        owner: marc
+        workflow: null
+        ---
+
+        ## Description
+
+        Capture the idea.
+
+        ## Context
+
+        <!-- coga:blackboard -->
+
+        Nothing yet.
+        """,
+    )
+
+    assert not [issue for issue in run(cfg).issues if issue.task == "minimal"]

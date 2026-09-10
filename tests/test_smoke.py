@@ -65,8 +65,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         workflow_name="code/with-review",
         contexts=["email/payment-flow"],
         owner="marc",
-        assignee="claude",
-        watchers=["pierre"],
+        agent="claude",
         status="in_progress",
     )
     # File-form task: the result path is the self-contained `tasks/<slug>.md`
@@ -145,9 +144,13 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
     # 4. Create a second task so we can exercise block + slack without revival of the first.
     ref2 = create_task(
-        cfg=cfg, title="Investigate slow DNS",
-        workflow_name="code/with-review", contexts=[],
-        owner="marc", assignee="claude", watchers=[], status="in_progress",
+        cfg=cfg,
+        title="Investigate slow DNS",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="in_progress",
     )
     r = runner.invoke(app, [
         "block",

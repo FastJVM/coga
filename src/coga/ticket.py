@@ -32,14 +32,10 @@ _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
 # rendered below the `# --- extensions ---` marker. Kept here so renderer and
 # validator share the same source of truth.
 CANONICAL_TICKET_KEYS: frozenset[str] = frozenset({
-    "slug",
     "title",
     "status",
     "owner",
-    "human",
     "agent",
-    "assignee",
-    "watchers",
     "workflow",
     "step",
     "contexts",
@@ -48,6 +44,27 @@ CANONICAL_TICKET_KEYS: frozenset[str] = frozenset({
     "period_generation",
     "launch_generation",
     "secrets",
+})
+
+# Metadata the simplified format removed outright. These are not ordinary
+# orphan extensions: each one used to carry routing or notification meaning, so
+# leaving a stale copy on disk would look authoritative while nothing reads it.
+# `coga validate` reports them by name as errors, which makes every Coga writer
+# (each calls `assert_task_valid` before or after its write) refuse a ticket
+# that still carries one instead of perpetuating it. `config.py` also keeps
+# these names reserved against `[ticket.fields.*]` so a repo extension cannot
+# quietly restore independent assignment.
+#
+# - `slug` duplicated the task's path-derived `TaskRef.id_slug`.
+# - `human` always equalled `owner` in practice; `owner` is the human of record.
+# - `assignee` cached a routing result now derived from the frozen workflow
+#   step's role (see `coga.bump.resolve_operator`).
+# - `watchers` cc'd Slack notifications and was never populated.
+REJECTED_TICKET_KEYS: frozenset[str] = frozenset({
+    "slug",
+    "human",
+    "assignee",
+    "watchers",
 })
 
 EXTENSION_MARKER = "# --- extensions ---"
@@ -126,19 +143,14 @@ class Ticket:
             raise TicketError(f"Invalid YAML frontmatter: {exc}") from exc
         if not isinstance(fm, dict):
             raise TicketError("Frontmatter must be a YAML mapping")
-        # Bounded model migration: older Coga versions wrote `script: null`
-        # into every ticket. The launch-integrated script field no longer
-        # exists, so treat that inert legacy value exactly like an absent key.
-        # A non-null value remains visible as an orphan extension and is never
-        # executed.
-        if fm.get("script") is None:
-            fm.pop("script", None)
         return cls(frontmatter=fm, body=body)
 
     def render(self) -> str:
         canonical: dict[str, Any] = {}
         extensions: dict[str, Any] = {}
         for key, value in self.frontmatter.items():
+            if _omit_empty_optional(key, value):
+                continue
             if key in CANONICAL_TICKET_KEYS:
                 canonical[key] = value
             else:
@@ -180,16 +192,6 @@ class Ticket:
     # --- helpers ---------------------------------------------------------------
 
     @property
-    def slug(self) -> str | None:
-        """The task's canonical slug, recorded on the ticket for legibility.
-
-        Defaults to (and is kept in sync with) the task's path under `tasks/`;
-        `coga validate` flags a mismatch. The path stays the addressing source
-        of truth — this field makes a ticket self-describing.
-        """
-        return self.frontmatter.get("slug")
-
-    @property
     def title(self) -> str:
         return self.frontmatter.get("title", "")
 
@@ -202,25 +204,16 @@ class Ticket:
         return self.frontmatter.get("owner")
 
     @property
-    def human(self) -> str | None:
-        """The human worker for this ticket (separate from `owner`, which is accountable)."""
-        return self.frontmatter.get("human")
-
-    @property
     def agent(self) -> str | None:
-        """The agent assigned to this ticket."""
+        """This ticket's optional main-agent choice, exactly as stored.
+
+        Deliberately raw: it is *not* the current operator (a workflow step may
+        route to the owner or to the main agent's peer), and it is not resolved
+        against `[agents.*]` here. `coga.bump.resolve_main_agent` owns the
+        configured-agent check, and `coga.bump.resolve_operator` owns routing,
+        so an accessor never loads config or writes a file.
+        """
         return self.frontmatter.get("agent")
-
-    @property
-    def assignee(self) -> str | None:
-        return self.frontmatter.get("assignee")
-
-    @property
-    def watchers(self) -> list[str]:
-        """Names following this ticket without owning it. Used to cc Slack
-        pings alongside the owner."""
-        value = self.frontmatter.get("watchers") or []
-        return [str(w) for w in value] if isinstance(value, list) else []
 
     @property
     def contexts(self) -> list[str]:
@@ -253,14 +246,15 @@ class Ticket:
 
     @property
     def secrets(self) -> Any:
-        """Raw `secrets:` frontmatter value, three-way semantics preserved.
+        """Raw `secrets:` frontmatter value.
 
-        Returns `None` (absent / explicit null → legacy blanket-inject), `[]`
-        (explicit empty → inject nothing), or a list of secret keys (least
-        privilege). The `None`/`[]` distinction is load-bearing for
-        `coga.config.select_launch_secrets`, so this deliberately does **not**
-        normalize with `or []` the way `watchers`/`skills` do — callers must see
-        the raw value.
+        Absent, explicit null, and explicit empty all mean "no secrets
+        declared" — see `coga.config.parse_inline_secrets` /
+        `select_launch_secrets`, which treat the three alike — so the renderer
+        omits every one of them. A non-empty list declares least-privilege
+        inline references (`op://…`, `env:VAR`). Kept raw rather than
+        normalized with `or []` so `coga validate` can still report a malformed
+        non-list value instead of seeing it erased.
         """
         return self.frontmatter.get("secrets")
 
@@ -295,10 +289,27 @@ class Ticket:
         return None
 
 
+def _omit_empty_optional(key: str, value: Any) -> bool:
+    """Whether an optional declaration is empty and should not be rendered.
+
+    Absence *is* empty for `contexts` / `skills` / `secrets`, so a rendered
+    ticket stops carrying rows that say nothing. Only genuinely empty values
+    disappear: an explicit null `contexts:`/`skills:` and any malformed falsy
+    value (`""`, `0`, `False`, `{}`) stays on disk so `coga validate` can name
+    it rather than silently erasing a typo as though it were an empty list.
+    """
+    if key in ("contexts", "skills"):
+        return isinstance(value, list) and not value
+    if key == "secrets":
+        return value is None or (isinstance(value, list) and not value)
+    return False
+
+
 __all__ = [
     "admitted_launch_generation",
     "CANONICAL_TICKET_KEYS",
     "PENDING_LAUNCH_GENERATION_PREFIX",
+    "REJECTED_TICKET_KEYS",
     "pending_launch_generation",
     "RELEASED_LAUNCH_GENERATION_PREFIX",
     "released_generation_from_pending",

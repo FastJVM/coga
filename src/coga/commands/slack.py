@@ -14,6 +14,7 @@ import sys
 
 import typer
 
+from coga.commands.common import current_operator
 from coga.config import ConfigError, load_config
 from coga.logfile import append_log
 from coga.notification import post
@@ -21,6 +22,7 @@ from coga.repl_supervisor import emit_done_marker
 from coga.tasks import (
     BootstrapRef,
     TaskNotFoundError,
+    TaskRef,
     read_ticket,
     resolve_target,
 )
@@ -54,15 +56,17 @@ def slack(
         _bail(str(exc))
 
     ticket = read_ticket(ref)
-    actor = f"agent:{ticket.assignee}" if ticket.assignee else f"human:{cfg.current_user}"
+    operator = (
+        current_operator(cfg, ref, ticket) if isinstance(ref, TaskRef) else None
+    )
+    actor = f"agent:{operator}" if operator else f"human:{cfg.current_user}"
 
     post(
         cfg,
-        f"💬 {ticket.assignee or cfg.current_user} on *{ref.id_slug}* "
+        f"💬 {operator or cfg.current_user} on *{ref.id_slug}* "
         f"\"{ticket.title}\": {message}",
         task_path=ref.path,
         owner=ticket.owner or cfg.current_user,
-        watchers=ticket.watchers,
         important=important,
     )
     append_log(cfg, ref.id_slug, actor, f"slack: {message}")

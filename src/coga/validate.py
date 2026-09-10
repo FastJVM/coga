@@ -63,7 +63,11 @@ from coga.config import (
 )
 from coga.logfile import last_activity
 from coga.launch_script import SCRIPT_ENTRY_POINT, script_entry_point
-from coga.lifecycle import TERMINAL_STATUSES, VALID_STATUSES
+from coga.lifecycle import (
+    MAIN_AGENT_REQUIRED_STATUSES,
+    TERMINAL_STATUSES,
+    VALID_STATUSES,
+)
 from coga.taskfile import BLACKBOARD_FENCE, TaskFileError, fence_count
 from coga.period_state import read_snapshot, stale_keys
 from coga.paths import (
@@ -84,28 +88,28 @@ from coga.tasks import (
     resolve_bootstrap,
     resolve_task,
 )
-from coga.ticket import Ticket, TicketError
+from coga.ticket import REJECTED_TICKET_KEYS, Ticket, TicketError
 from coga.step_gate import known_gate_tokens
 from coga.workflow import VALID_ASSIGNEE_ROLES, Workflow, WorkflowError
 
-# Canonical ticket frontmatter schema.
+# Canonical ticket frontmatter schema. Identity is the task's path, routing is
+# the frozen workflow step's role, so neither is duplicated here.
 REQUIRED_TASK_KEYS: tuple[str, ...] = (
-    "slug",
     "title",
     "status",
     "owner",
-    "human",
-    "agent",
-    "assignee",
-    "contexts",
-    "skills",
     "workflow",
 )
-# Optional keys that may appear in addition to the required set.
+# Optional keys that may appear in addition to the required set. `contexts`,
+# `skills`, and `secrets` are declarations: absence means empty, so an empty
+# list is simply not written. `agent` is the optional main-agent choice, which
+# activation makes mandatory (see `_check_main_agent`).
 OPTIONAL_TASK_KEYS: frozenset[str] = frozenset(
     {
         "step",
-        "watchers",
+        "agent",
+        "contexts",
+        "skills",
         "secrets",
         "delegate",
         "period_generation",
@@ -115,9 +119,7 @@ OPTIONAL_TASK_KEYS: frozenset[str] = frozenset(
 _NON_EMPTY_STRING_KEYS: tuple[str, ...] = (
     "title",
     "owner",
-    "human",
     "agent",
-    "assignee",
     "period_generation",
     "launch_generation",
 )
@@ -222,7 +224,6 @@ def run(
     if check_github:
         report.issues.extend(_github_issues(cfg))
 
-    valid_assignees = _valid_assignee_set(cfg)
     now = datetime.now(timezone.utc)
 
     for ref in refs:
@@ -230,7 +231,6 @@ def run(
             _check_one_task(
                 cfg,
                 ref,
-                valid_assignees=valid_assignees,
                 max_blackboard_bytes=max_blackboard_bytes,
                 idle_hours=idle_hours,
                 now=now,
@@ -278,12 +278,10 @@ def validate_task(
     if fix:
         report.fixes.extend(apply_safe_fixes(cfg, only=[ref]))
 
-    valid_assignees = _valid_assignee_set(cfg)
     report.issues.extend(
         _check_one_task(
             cfg,
             ref,
-            valid_assignees=valid_assignees,
             max_blackboard_bytes=max_blackboard_bytes,
             idle_hours=idle_hours,
             now=datetime.now(timezone.utc),
@@ -309,7 +307,6 @@ def validate_task_dir(
     return _check_one_task(
         cfg,
         ref,
-        valid_assignees=_valid_assignee_set(cfg),
         max_blackboard_bytes=BLACKBOARD_WARN_BYTES,
         idle_hours=float("inf"),
         now=datetime.now(timezone.utc),
@@ -368,7 +365,6 @@ def _check_one_task(
     cfg: Config,
     ref: TaskRef,
     *,
-    valid_assignees: set[str],
     max_blackboard_bytes: int,
     idle_hours: float,
     now: datetime,
@@ -436,20 +432,7 @@ def _check_one_task(
     out.extend(_check_period_generation_owner(ref, ticket))
     out.extend(_check_secrets(cfg, task_label, ticket))
 
-    # Valid assignees: known agent types OR one of this ticket's role-field
-    # values (owner / human / agent). The role rotation puts whichever of
-    # those is current into `assignee:`.
-    role_values = {
-        v for v in (ticket.owner, ticket.frontmatter.get("human"), ticket.frontmatter.get("agent"))
-        if isinstance(v, str) and v
-    }
-    if ticket.assignee and ticket.assignee not in valid_assignees and ticket.assignee not in role_values:
-        out.append(Issue(
-            kind="unknown-assignee",
-            task=task_label,
-            message=f"assignee {ticket.assignee!r} is neither a known agent type nor one of this ticket's role-field values",
-            severity="warn",
-        ))
+    out.extend(_check_operator(cfg, ref, ticket))
 
     out.extend(_check_refs(cfg, task_label, ticket))
     out.extend(_check_workflow_shape(cfg, task_label, ticket))
@@ -576,6 +559,29 @@ def _check_task_delegate(
             ),
             severity="error",
         )]
+    # Deferred for the same module-cycle reason as `_check_recurring_templates`.
+    from coga.recurring import delegated_frozen_workflow_violation
+
+    # The same bound the runner re-checks before dispatch and before sentinel
+    # completion. Reporting it here means an edited snapshot is visible in a
+    # sweep instead of only at the moment a run refuses.
+    #
+    # The position is only checked when the ticket carries one: a finished period
+    # has had its `step:` popped, and a draft/paused one may not have been
+    # activated yet. A live task missing a step it should have is the ordinary
+    # workflow-shape check's finding, not this one's.
+    violation = delegated_frozen_workflow_violation(
+        ticket, require_step=bool(ticket.step)
+    )
+    if violation is not None:
+        return [Issue(
+            kind="unbounded-delegated-workflow",
+            task=ref.id_slug,
+            message=(
+                f"delegated period declares {name!r} but {violation}"
+            ),
+            severity="error",
+        )]
     return []
 
 
@@ -646,9 +652,35 @@ def _check_frontmatter_schema(
                 severity="error",
             ))
 
+    # Metadata the simplified format removed is rejected by name rather than
+    # reported as a warn-level orphan extension: each of these once carried
+    # routing or notification meaning, so a leftover copy looks authoritative
+    # while nothing reads it. An error here is also what makes every Coga writer
+    # refuse the ticket — they all run `assert_task_valid` around their write —
+    # instead of silently perpetuating the old shape.
+    rejected = sorted(set(fm) & REJECTED_TICKET_KEYS)
+    if rejected:
+        out.append(Issue(
+            kind="removed-ticket-field",
+            task=task_label,
+            message=(
+                "frontmatter carries metadata the simplified ticket format "
+                f"removed: {rejected}. Delete these keys. Identity is the "
+                "task's path, the human of record is `owner:`, and the current "
+                "operator is derived from the frozen workflow step's role."
+            ),
+            severity="error",
+        ))
+
+    out.extend(_check_main_agent(cfg, task_label, ticket))
+
     extension_keys = set(cfg.ticket_fields)
     extra = (
-        set(fm) - set(REQUIRED_TASK_KEYS) - OPTIONAL_TASK_KEYS - extension_keys
+        set(fm)
+        - set(REQUIRED_TASK_KEYS)
+        - OPTIONAL_TASK_KEYS
+        - REJECTED_TICKET_KEYS
+        - extension_keys
     )
     for key in sorted(extra):
         out.append(Issue(
@@ -787,6 +819,77 @@ def _check_frontmatter_schema(
     return out
 
 
+def _check_main_agent(
+    cfg: Config, task_label: str, ticket: Ticket
+) -> list[Issue]:
+    """Check the optional main-agent choice, and the activation invariant.
+
+    `agent:` is optional on drafts, terminal records, templates, and stateless
+    targets. It stops being optional at activation: a ticket with approved work
+    must name the agent it routes to, the same way a live ticket must carry a
+    frozen workflow. A hand-authored live ticket missing the field is therefore
+    an error, not something a later launch quietly fills in.
+
+    An explicitly present value must name a configured agent. Deleting a
+    selected agent's `[agents.*]` table breaks a real routing input, so it
+    reports here rather than letting the next launch substitute a different
+    agent.
+    """
+    fm = ticket.frontmatter
+    if "agent" in fm:
+        value = fm["agent"]
+        if isinstance(value, str) and value.strip() and value.strip() not in cfg.agents:
+            return [Issue(
+                kind="unknown-agent",
+                task=task_label,
+                message=(
+                    f"agent {value.strip()!r} is not a configured agent type "
+                    f"(configured: {sorted(cfg.agents)}); restore its "
+                    "`[agents.*]` table or choose a configured agent"
+                ),
+                severity="error",
+            )]
+        # A malformed value (null, blank, non-string) is the schema check's.
+        return []
+    status = fm.get("status")
+    if isinstance(status, str) and status in MAIN_AGENT_REQUIRED_STATUSES:
+        return [Issue(
+            kind="missing-main-agent",
+            task=task_label,
+            message=(
+                f"status {status!r} requires a main-agent choice but no `agent:` "
+                "is recorded; activation selects the configured default, so a "
+                "live ticket without one was hand-authored — add `agent: "
+                "<type>`"
+            ),
+            severity="error",
+        )]
+    return []
+
+
+def _check_operator(cfg: Config, ref: TaskRef, ticket: Ticket) -> list[Issue]:
+    """Check that this ticket's current operator can actually be derived.
+
+    Reports the same structural refusal a launch or transition would hit, so a
+    broken routing input surfaces in a sweep instead of at dispatch time. Purely
+    read-only: it resolves the *prospective* default agent for a draft that has
+    not chosen one, and persists nothing.
+    """
+    # Deferred to avoid the coga.bump -> coga.validate module cycle.
+    from coga.bump import OperatorResolutionError, resolve_operator
+
+    try:
+        resolve_operator(cfg, ref, ticket, allow_prospective_default=True)
+    except OperatorResolutionError as exc:
+        return [Issue(
+            kind="unresolvable-operator",
+            task=ref.id_slug,
+            message=f"cannot derive the current operator: {exc}",
+            severity="error",
+        )]
+    return []
+
+
 def _check_secrets(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
     """Validate a ticket's inline `secrets:` declaration.
 
@@ -897,11 +1000,11 @@ def _check_step_shape(
         and ticket_agent.strip()
     ):
         # Deferred to avoid the coga.bump -> coga.validate module cycle.
-        from coga.bump import AssigneeResolutionError, resolve_other_agent
+        from coga.bump import OperatorResolutionError, resolve_other_agent
 
         try:
             resolve_other_agent(cfg, ticket_agent)
-        except AssigneeResolutionError as exc:
+        except OperatorResolutionError as exc:
             out.append(Issue(
                 kind="unresolvable-step-assignee",
                 task=task_label,
@@ -1033,7 +1136,13 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
     """Check schedules, template frontmatter, and workflow-step skills."""
     # Imported here, not at module scope: `coga.recurring` imports this module
     # for `TaskValidationError`, so a top-level import would be circular.
-    from coga.recurring import RecurringError, Template, _validate_schedule
+    from coga.recurring import (
+        DEFAULT_PERIOD_WORKFLOW,
+        RecurringError,
+        Template,
+        _validate_schedule,
+        delegated_workflow_violation,
+    )
 
     root = recurring_dir(cfg)
     if not root.is_dir():
@@ -1175,13 +1284,31 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
                         severity="error",
                     ))
 
-        workflow_name = ticket.frontmatter.get("workflow") or "direct/body"
+        workflow_name = (
+            ticket.frontmatter.get("workflow") or DEFAULT_PERIOD_WORKFLOW
+        )
         if not isinstance(workflow_name, str):
             continue
         try:
             workflow = Workflow.load(resolve_workflow_path(cfg, workflow_name))
         except WorkflowError:
             continue
+        # Report the delegated bound on the *template*, so an ineligible
+        # combination is visible in a sweep rather than only when the sweep that
+        # fires it refuses to materialize a period.
+        if template is not None and template.delegate is not None:
+            violation = delegated_workflow_violation(workflow)
+            if violation is not None:
+                out.append(Issue(
+                    kind="unbounded-delegated-workflow",
+                    task=f"recurring/{path.name}",
+                    message=(
+                        f"recurring template {path.name!r} delegates to "
+                        f"{template.delegate!r} but declares workflow "
+                        f"{workflow_name!r}: {violation}"
+                    ),
+                    severity="error",
+                ))
         for step in workflow.steps:
             for ref_name in step.skills:
                 skill_path = resolve_skill_path(cfg, ref_name)
@@ -1343,19 +1470,6 @@ def _is_delegate_name(value: Any) -> bool:
 
 def _is_string_list(value: Any) -> bool:
     return isinstance(value, list) and all(isinstance(v, str) for v in value)
-
-
-def _valid_assignee_set(cfg: Config) -> set[str]:
-    """Names a ticket's `assignee:` may take.
-
-    The canonical model is that `assignee:` rotates between role-field
-    values (`owner` / `human` / `agent`) so anything that names a known
-    agent type is valid. Human names aren't enumerated in config — they
-    only have to match the ticket's own `owner:` / `human:` fields, which
-    is checked elsewhere — so the warn-level "unknown assignee" check
-    just verifies agent-typed assignees resolve.
-    """
-    return set(cfg.agents)
 
 
 def _ok_count(refs: list[TaskRef], issues: list[Issue]) -> int:

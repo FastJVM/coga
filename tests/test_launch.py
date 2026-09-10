@@ -10,7 +10,7 @@ import requests
 from types import SimpleNamespace
 from typer.testing import CliRunner
 
-from conftest import seed_direct_body_workflow
+from conftest import hold_by_agent, hold_by_owner, seed_direct_body_workflow
 from coga import git as coga_git
 from coga import recurring_runner as recurring_cmd
 from coga.cli import app
@@ -1034,15 +1034,10 @@ def test_spawn_publishes_usage_log_after_pr_gated_handoff(git_repo, monkeypatch)
         dedent(
             """
             ---
-            slug: ship-it
             title: Ship it
             status: in_progress
             owner: marc
-            human: marc
             agent: claude
-            assignee: claude
-            contexts: []
-            skills: []
             workflow:
               name: code/with-review
               steps:
@@ -1051,8 +1046,6 @@ def test_spawn_publishes_usage_log_after_pr_gated_handoff(git_repo, monkeypatch)
                 - name: review
                   assignee: owner
             step: 1 (open-pr)
-            secrets: null
-            script: null
             ---
 
             ## Description
@@ -1360,9 +1353,13 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.chdir(company)
     cfg = load_config(company)
     create_task(
-        cfg=cfg, title="Fix retry logic",
-        workflow_name="direct/body", contexts=[],
-        owner="marc", assignee="claude", watchers=[], status="active",
+        cfg=cfg,
+        title="Fix retry logic",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
     )
     return company
 
@@ -1455,7 +1452,7 @@ def _create_chain_task(active_task: Path) -> dict[str, object]:
               - code/self-review
             assignee: agent
           - name: review
-            assignee: human
+            assignee: owner
         ---
 
         ## review
@@ -1472,10 +1469,7 @@ def _create_chain_task(active_task: Path) -> dict[str, object]:
         workflow_name="chain",
         contexts=[],
         owner="marc",
-        human="marc",
         agent="claude",
-        assignee="claude",
-        watchers=[],
         status="active",
     )
 
@@ -1525,7 +1519,7 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert slack_urls == [FLOW_WEBHOOK]
     log = _read_log(active_task)
     assert "started (active → in_progress) via coga launch" in log
-    assert "launched (assignee=claude, agent=claude)" in log
+    assert "launched (operator=claude, agent=claude)" in log
 
 
 def test_launch_routes_materialized_recurring_delegate_from_ticket(
@@ -1541,8 +1535,7 @@ def test_launch_routes_materialized_recurring_delegate_from_ticket(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         slug_override="recurring/delegate-check",
         force_directory=True,
@@ -1576,8 +1569,7 @@ def test_direct_recurring_launch_refreshes_control_before_frozen_dispatch(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         slug_override="recurring/delegate-check",
         force_directory=True,
@@ -1617,15 +1609,10 @@ def test_direct_recurring_launch_catches_up_before_resolving_a_missing_local_ref
         dedent(
             """
             ---
-            slug: recurring/delegate-check
             title: Delegated period
             status: active
             owner: marc
-            human: marc
             agent: claude
-            assignee: claude
-            watchers: []
-            contexts: []
             workflow:
               name: direct/body
               description: one step
@@ -1668,8 +1655,7 @@ def test_direct_recurring_launch_refuses_an_unverified_control_catch_up(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         slug_override="recurring/ordinary-check",
         force_directory=True,
@@ -1710,8 +1696,7 @@ def test_direct_recurring_launch_uses_local_control_without_a_remote(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         slug_override="recurring/local-delegate-check",
         force_directory=True,
@@ -1808,8 +1793,7 @@ def test_internal_recurring_launch_stops_hybrid_before_agent_setup(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         slug_override="recurring/hybrid-check",
         force_directory=True,
@@ -1989,8 +1973,7 @@ def test_internal_recurring_launch_refreshes_and_skips_a_remotely_paused_period(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         slug_override="recurring/ordinary-check",
         force_directory=True,
@@ -2042,8 +2025,7 @@ def test_internal_recurring_launch_skips_a_replaced_period_generation(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         slug_override="recurring/replaced-check",
         force_directory=True,
@@ -2097,8 +2079,7 @@ def test_internal_recurring_launch_refreshes_and_skips_a_reaped_period(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         slug_override="recurring/reaped-check",
         force_directory=True,
@@ -2109,8 +2090,7 @@ def test_internal_recurring_launch_refreshes_and_skips_a_reaped_period(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         slug_override="recurring/reaped-check-extra",
         force_directory=True,
@@ -2167,8 +2147,7 @@ def test_internal_recurring_launch_refuses_when_remote_refresh_becomes_a_noop(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         slug_override="recurring/ordinary-check",
         force_directory=True,
@@ -2219,8 +2198,7 @@ def test_internal_recurring_launch_uses_admitted_remote_less_control(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         slug_override="recurring/local-ordinary-check",
         force_directory=True,
@@ -2276,8 +2254,7 @@ def test_direct_recurring_task_enforces_recurring_launch_gates_before_dispatch(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         slug_override="recurring/delegate-check",
         force_directory=True,
@@ -2325,8 +2302,7 @@ def test_direct_recurring_delegate_rejects_period_ticket_script(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         slug_override="recurring/delegate-check",
         force_directory=True,
@@ -2779,7 +2755,9 @@ def test_launch_bails_on_missing_context(
     ref = list_tasks(cfg)[0]
     ticket_md = ref.ticket_path
     ticket_md.write_text(
-        ticket_md.read_text().replace("contexts: []", "contexts:\n- email/ghost")
+        ticket_md.read_text().replace(
+            "status: active", "status: active\ncontexts:\n- email/ghost"
+        )
     )
 
     def fail_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
@@ -2960,23 +2938,23 @@ def test_launch_agent_override_follows_consecutive_agent_role_steps(
 ) -> None:
     """An explicit agent keeps a same-role chain on the selected CLI.
 
-    This is the shape used by coga-build: both onboarding steps declare the
-    workflow role ``agent``. The override remains in-memory and never rewrites
-    the ticket's durable assignee.
+    This is the shape used by coga-build: both onboarding steps explicitly
+    declare the workflow role ``agent``. The override remains in-memory and
+    never rewrites the ticket's own main-agent choice.
     """
     ref = _create_chain_task(active_task)
     slug = str(ref["slug"])
     if activate_draft:
+        # Park it as a draft carrying a bare workflow ref, so the launch has to
+        # freeze the snapshot and seed step 1 before it can route at all.
         ticket_path = Path(ref["path"])
         ticket = Ticket.read(ticket_path)
         ticket.frontmatter["status"] = "draft"
         ticket.frontmatter["workflow"] = "chain"
         ticket.frontmatter.pop("step")
-        ticket.frontmatter["assignee"] = "marc"
         ticket.write(ticket_path)
-    # The packaged onboarding ticket starts with agent/assignee=claude. Prove
-    # an explicit Codex selection carries both steps even after the operator
-    # configures a Codex-only repo and that durable default is no longer known.
+    # The ticket's main agent stays `claude` and stays configured; codex is
+    # added alongside it so the explicit selection is a real, valid override.
     _write(
         active_task / "coga.toml",
         """
@@ -2985,6 +2963,9 @@ def test_launch_agent_override_follows_consecutive_agent_role_steps(
         [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
         important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
+        [agents.claude]
+        cli = "claude"
+        file = "CLAUDE.md"
         [agents.codex]
         cli = "codex"
         file = "AGENTS.md"
@@ -3014,7 +2995,57 @@ def test_launch_agent_override_follows_consecutive_agent_role_steps(
     assert [call[0] for call in calls] == ["codex", "codex"]
     ticket = Ticket.read(Path(ref["path"]))
     assert ticket.step == "3 (review)"
-    assert ticket.assignee == "marc"
+    assert ticket.current_step()["assignee"] == "owner"
+    # Ephemeral: the ticket's own main-agent choice is untouched.
+    assert ticket.agent == "claude"
+    assert "assignee" not in ticket.frontmatter
+
+
+def test_launch_override_refuses_when_the_main_agent_is_unconfigured(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An override cannot repair an invalid routing input.
+
+    This deliberately removes an old recovery path: a ticket that selected
+    `claude` in a repo that has since become codex-only used to be launchable
+    with `--agent codex`. The main-agent choice is a real routing input now, so
+    the launch refuses *before dispatch* and the operator either restores the
+    agent's `[agents.*]` table or changes the ticket's choice through authoring.
+    """
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    _write(
+        active_task / "coga.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [notification.slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
+        important_webhook = "env:COGA_IMPORTANT_WEBHOOK_URL"
+        [agents.codex]
+        cli = "codex"
+        file = "AGENTS.md"
+        """,
+    )
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+
+    def fail_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        raise AssertionError(f"no agent may be spawned, got {cmd!r}")
+
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fail_run)
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    result = CliRunner().invoke(app, ["launch", slug, "--agent", "codex"])
+
+    assert result.exit_code == 2, result.output
+    combined = result.output + (result.stderr or "")
+    assert "is not a configured agent type" in combined
+    assert "cannot repair an invalid routing input" in combined
+    # Refused before dispatch: no lifecycle mutation.
+    assert Ticket.read(Path(ref["path"])).status == "active"
 
 
 def test_launch_chains_when_ticket_has_ticket_level_skills(
@@ -3044,7 +3075,7 @@ def test_launch_chains_when_ticket_has_ticket_level_skills(
               - code/self-review
             assignee: agent
           - name: review
-            assignee: human
+            assignee: owner
         ---
 
         ## review
@@ -3061,12 +3092,10 @@ def test_launch_chains_when_ticket_has_ticket_level_skills(
         workflow_name="chain",
         contexts=[],
         owner="marc",
-        human="marc",
         agent="claude",
-        assignee="claude",
-        watchers=[],
         status="active",
-        skills=["code/implement"],  # ticket-level skills — must not block chaining
+        skills=["code/implement"],
+        # ticket-level skills — must not block chaining,
     )
     slug = str(ref["slug"])
 
@@ -3114,7 +3143,7 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
           - name: human-check
             skills:
               - code/human-check
-            assignee: human
+            assignee: owner
         ---
         """,
     )
@@ -3127,10 +3156,7 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
         workflow_name="handoff",
         contexts=[],
         owner="marc",
-        human="marc",
         agent="claude",
-        assignee="claude",
-        watchers=[],
         status="active",
     )
     slug = ref["slug"]
@@ -3160,7 +3186,7 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
     from coga.ticket import Ticket
     ticket = Ticket.read(Path(ref["path"]))
     assert ticket.step == "2 (human-check)"
-    assert ticket.assignee == "marc"
+    assert ticket.current_step()["assignee"] == "owner"
 
 
 def test_launch_harness_stops_on_agent_block(
@@ -3449,10 +3475,15 @@ def test_launch_auto_activates_draft_and_paused(
     assert f"activated ({prior} → active) — auto on launch" in log
 
 
-@pytest.mark.parametrize("prior_assignee", ["marc", "codex"])
-def test_launch_uses_step_one_assignee_after_freezing_draft(
-    active_task: Path, monkeypatch: pytest.MonkeyPatch, prior_assignee: str
+@pytest.mark.parametrize("prior_agent", ["claude", "codex"])
+def test_launch_uses_step_one_role_after_freezing_draft(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch, prior_agent: str
 ) -> None:
+    """Launch routes from the *prepared activation*, not the parked draft.
+
+    Activation freezes the bare workflow ref and seeds step 1, so step 1's role
+    is what picks the agent — whichever main agent the draft happens to name.
+    """
     ref = _create_chain_task(active_task)
     slug = str(ref["slug"])
     ticket_path = Path(ref["path"])
@@ -3460,7 +3491,7 @@ def test_launch_uses_step_one_assignee_after_freezing_draft(
     ticket.frontmatter["status"] = "draft"
     ticket.frontmatter["workflow"] = "chain"
     ticket.frontmatter.pop("step")
-    ticket.frontmatter["assignee"] = prior_assignee
+    ticket.frontmatter["agent"] = prior_agent
     ticket.write(ticket_path)
 
     calls = _launch_single_spawn(monkeypatch)
@@ -3469,12 +3500,16 @@ def test_launch_uses_step_one_assignee_after_freezing_draft(
 
     assert result.exit_code == 0, result.output
     assert len(calls) == 1
-    assert calls[0][0] == "claude"
+    # Step 1's `agent` role resolves to whichever main agent the draft names.
+    assert calls[0][0] == prior_agent
     after = Ticket.read(ticket_path)
     assert after.status == "in_progress"
     assert after.step == "1 (implement)"
-    assert after.assignee == "claude"
-    assert "launched (assignee=claude, agent=claude)" in _read_log(active_task)
+    assert after.current_step()["assignee"] == "agent"
+    assert (
+        f"launched (operator={prior_agent}, agent={prior_agent})"
+        in _read_log(active_task)
+    )
 
 
 def _spy_recorded_assist(monkeypatch: pytest.MonkeyPatch) -> list[str]:
@@ -3483,7 +3518,8 @@ def _spy_recorded_assist(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     real = launch_cmd._recorded_single_checkout_assist_branch
 
     def spy(cfg, ticket):  # type: ignore[no-untyped-def]
-        seen.append(ticket.assignee or "")
+        step = ticket.current_step()
+        seen.append((step or {}).get("assignee") or "")
         return real(cfg, ticket)
 
     monkeypatch.setattr(
@@ -3510,9 +3546,9 @@ def test_launch_does_not_enter_assist_handling_for_a_human_to_agent_draft(
     ticket.frontmatter["status"] = "draft"
     ticket.frontmatter["workflow"] = "chain"
     ticket.frontmatter.pop("step")
-    # Stale human assignee; step 1 declares `assignee: agent`, which resolves
-    # to the ticket's `agent:` (claude) the moment the workflow is frozen.
-    ticket.frontmatter["assignee"] = "marc"
+    # A parked draft has no position at all, so nothing about it looks
+    # owner-held until activation freezes the snapshot; step 1 then declares
+    # `assignee: agent`, which routes to the ticket's `agent:` (claude).
     ticket.write(ticket_path)
 
     seen = _spy_recorded_assist(monkeypatch)
@@ -3524,7 +3560,7 @@ def test_launch_does_not_enter_assist_handling_for_a_human_to_agent_draft(
     assert seen == [], "no assist lookup: step 1 is agent-owned once frozen"
     assert len(calls) == 1
     assert calls[0][0] == "claude"
-    assert Ticket.read(ticket_path).assignee == "claude"
+    assert Ticket.read(ticket_path).current_step()["assignee"] == "agent"
 
 
 def test_launch_preflights_resolved_step_one_agent_before_activation(
@@ -3537,7 +3573,6 @@ def test_launch_preflights_resolved_step_one_agent_before_activation(
     ticket.frontmatter["status"] = "draft"
     ticket.frontmatter["workflow"] = "chain"
     ticket.frontmatter.pop("step")
-    ticket.frontmatter["assignee"] = "codex"
     ticket.write(ticket_path)
     before = ticket_path.read_bytes()
     calls = _launch_single_spawn(monkeypatch)
@@ -3771,9 +3806,8 @@ def test_released_launch_admission_reconciles_control_ticket(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ref = next(item for item in list_tasks(cfg) if item.id_slug == created["slug"])
     coga_git.sync_task_state(
@@ -3831,7 +3865,7 @@ def test_launch_auto_activate_bails_without_workflow(
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 2, result.output
     combined = result.output + (result.stderr or "")
-    assert "no workflow" in combined
+    assert "no workflow" in combined or "carries no frozen workflow" in combined
     assert not calls  # agent never spawned
 
     # Ticket stayed draft — the failed activation did not mutate status.
@@ -3903,6 +3937,7 @@ def test_launch_prompt_report_prints_layers_without_launching(
           - name: implement
             skills:
               - code/implement
+            assignee: agent
         ---
         """,
     )
@@ -3914,10 +3949,7 @@ def test_launch_prompt_report_prints_layers_without_launching(
         workflow_name="code/measure",
         contexts=["email/payment-flow"],
         owner="marc",
-        human="marc",
         agent="claude",
-        assignee="claude",
-        watchers=[],
         status="draft",
     )
 
@@ -4012,7 +4044,6 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         title: Create a new ticket
         skills:
           - bootstrap/ticket
-        assignee: claude
         ---
 
         ## Description
@@ -4167,7 +4198,7 @@ def test_launch_recomposes_after_before_spawn_publication(
     assert kind == "done"
     assert events == ["publish", "revalidate", "spawn"]
     assert _read_log(bootstrap_repo).count(
-        "launched (assignee=claude, agent=claude)"
+        "launched (operator=claude, agent=claude)"
     ) == 1
 
 
@@ -4206,8 +4237,6 @@ def test_local_bootstrap_ticket_resolves_without_packaged_twin(
         """
         ---
         title: Local check
-        assignee: claude
-        secrets: null
         ---
 
         ## Description
@@ -4251,8 +4280,6 @@ def test_local_agent_command_ticket_plus_alias_mints_new_verb(
         """
         ---
         title: Hello
-        assignee: claude
-        secrets: null
         ---
 
         ## Description
@@ -4359,7 +4386,7 @@ def test_launch_bootstrap_skips_status_and_lock(
 
     # The repo-global log recorded the launch.
     log = _read_log(bootstrap_repo)
-    assert "launched (assignee=claude, agent=claude)" in log
+    assert "launched (operator=claude, agent=claude)" in log
 
 
 def test_launch_discussion_bootstrap_uses_discussion_template(
@@ -4418,7 +4445,6 @@ def test_launch_orient_bootstrap_stays_silent(
         """
         ---
         title: Chat
-        assignee: claude
         ---
 
         ## Description
@@ -4514,7 +4540,9 @@ def test_launch_bootstrap_agent_override_uses_requested_agent(
     assert cmd[-1] == "Begin"
 
     log = _read_log(bootstrap_repo)
-    assert "assignee=codex, agent=codex" in log
+    # A stateless bootstrap target's own agent is its operator, so an override
+    # is still recorded as the temporary worker beside it.
+    assert "operator=claude, launch_agent=codex, agent=codex" in log
 
 
 def test_launch_agent_override_normal_task_uses_requested_agent_without_reassigning(
@@ -4550,11 +4578,13 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
     from coga.ticket import Ticket
+    # The override never writes to the ticket: its main-agent choice is intact.
     ticket = Ticket.read(ref.ticket_path)
-    assert ticket.frontmatter["assignee"] == "claude"
+    assert ticket.agent == "claude"
+    assert "assignee" not in ticket.frontmatter
 
     log = _read_log(active_task)
-    assert "assignee=claude, launch_assignee=codex, agent=codex" in log
+    assert "operator=claude, launch_agent=codex, agent=codex" in log
 
 
 def test_launch_agent_override_assists_human_handoff_without_reassigning(
@@ -4566,7 +4596,7 @@ def test_launch_agent_override_assists_human_handoff_without_reassigning(
     ref = list_tasks(cfg)[0]
     ticket = Ticket.read(ref.ticket_path)
     ticket.frontmatter["status"] = "in_progress"
-    ticket.frontmatter["assignee"] = "marc"
+    hold_by_owner(ticket)
     ticket.write(ref.ticket_path)
     _allow_interactive_tty(monkeypatch)
 
@@ -4587,16 +4617,19 @@ def test_launch_agent_override_assists_human_handoff_without_reassigning(
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic", "--agent", "codex"])
 
     assert result.exit_code == 0, result.output
-    assert "assisting on human-owned step" in (
+    assert "assisting on owner-held step" in (
         result.output + (result.stderr or "")
     )
     cmd = captured["cmd"]
     assert isinstance(cmd, list)
     assert cmd[0] == "codex"
-    assert Ticket.read(ref.ticket_path).frontmatter["assignee"] == "marc"
+    # The assist runs on the owner's step without changing its routing.
+    assist_ticket = Ticket.read(ref.ticket_path)
+    assert assist_ticket.current_step()["assignee"] == "owner"
+    assert "assignee" not in assist_ticket.frontmatter
 
     log = _read_log(active_task)
-    assert "assignee=marc, launch_assignee=codex, agent=codex" in log
+    assert "operator=marc, launch_agent=codex, agent=codex" in log
     # No recorded `branch:` / `worktree:` means this launch is authorized as
     # an assist, but the current checkout is not authorized to publish for it.
     assert len(sync_calls) == 1
@@ -4758,15 +4791,14 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     ticket_path = Path(created["path"])
     ticket = Ticket.read(ticket_path)
     ticket.frontmatter["status"] = "in_progress"
     ticket.frontmatter["step"] = "2 (review)"
-    ticket.frontmatter["assignee"] = "marc"
+    hold_by_owner(ticket)
     ticket.write(ticket_path)
     replace_blackboard(
         ticket_path,
@@ -4894,7 +4926,7 @@ def test_human_assist_aligns_before_prompt_and_keeps_pr_branch_clean(
         "show", "refs/heads/feature/review:coga/log.md", cwd=git_repo.origin
     )
     assert "Remote prompt state: address the latest review." in ticket_path.read_text()
-    assert Ticket.read(ticket_path).assignee == "marc"
+    assert Ticket.read(ticket_path).current_step()["assignee"] == "owner"
 
 
 def test_agent_owned_override_does_not_enter_human_assist_alignment(
@@ -4909,14 +4941,13 @@ def test_agent_owned_override_does_not_enter_human_assist_alignment(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     ticket_path = Path(created["path"])
     ticket = Ticket.read(ticket_path)
     ticket.frontmatter["step"] = "1 (implement)"
-    ticket.frontmatter["assignee"] = "claude"
+    hold_by_agent(ticket)
     ticket.write(ticket_path)
     replace_blackboard(
         ticket_path,
@@ -4948,7 +4979,7 @@ def test_agent_owned_override_does_not_enter_human_assist_alignment(
     handed_off = Ticket.read(peer_ticket)
     handed_off.frontmatter["status"] = "in_progress"
     handed_off.frontmatter["step"] = "2 (review)"
-    handed_off.frontmatter["assignee"] = "marc"
+    hold_by_owner(handed_off)
     handed_off.write(peer_ticket)
     git_repo.git("add", str(peer_ticket.relative_to(peer)), cwd=peer)
     git_repo.git("commit", "-m", "ticket: hand off to review", cwd=peer)
@@ -4972,7 +5003,7 @@ def test_agent_owned_override_does_not_enter_human_assist_alignment(
 
     def observe_review(*args, **kwargs):  # type: ignore[no-untyped-def]
         current = Ticket.read(ticket_path)
-        observed.append((current.assignee, current.step))
+        observed.append(((current.current_step() or {}).get("assignee"), current.step))
         return ReplOutcome(exit_code=0, kind="exit")
 
     monkeypatch.setattr(
@@ -4993,7 +5024,7 @@ def test_agent_owned_override_does_not_enter_human_assist_alignment(
         return_timeout=False,
     )
 
-    assert observed == [("claude", "1 (implement)")]
+    assert observed == [("agent", "1 (implement)")]
 
 
 def test_human_assist_validates_override_after_remote_config_alignment(
@@ -5146,15 +5177,14 @@ def test_human_assist_aligns_resumable_state_before_lifecycle_commits(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     ticket_path = Path(created["path"])
     ticket = Ticket.read(ticket_path)
     ticket.frontmatter["status"] = initial_status
     ticket.frontmatter["step"] = "2 (review)"
-    ticket.frontmatter["assignee"] = "marc"
+    hold_by_owner(ticket)
     ticket.write(ticket_path)
     replace_blackboard(
         ticket_path,
@@ -5243,7 +5273,7 @@ def test_human_assist_aligns_resumable_state_before_lifecycle_commits(
     )
 
     assert Ticket.read(ticket_path).status == "in_progress"
-    assert Ticket.read(ticket_path).assignee == "marc"
+    assert Ticket.read(ticket_path).current_step()["assignee"] == "owner"
     assert git_repo.git("status", "--porcelain").strip() == ""
     assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
         "rev-parse", "refs/heads/feature/review", cwd=git_repo.origin
@@ -5263,14 +5293,13 @@ def test_human_assist_does_not_recreate_branch_deleted_after_alignment(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     ticket_path = Path(created["path"])
     ticket = Ticket.read(ticket_path)
     ticket.frontmatter["step"] = "2 (review)"
-    ticket.frontmatter["assignee"] = "marc"
+    hold_by_owner(ticket)
     ticket.write(ticket_path)
     replace_blackboard(
         ticket_path,
@@ -5339,7 +5368,7 @@ def test_human_assist_does_not_recreate_branch_deleted_after_alignment(
         git_repo.root, "origin", "feature/review"
     ) is None
     assert Ticket.read(ticket_path).status == "active"
-    assert Ticket.read(ticket_path).assignee == "marc"
+    assert Ticket.read(ticket_path).current_step()["assignee"] == "owner"
     assert "Ticket: refuse-a-deleted-review-branch — in_progress" not in (
         git_repo.git("log", "--format=%s", "main", cwd=git_repo.origin)
     )
@@ -5354,6 +5383,7 @@ def _seed_single_checkout_human_review(
     status: str,
     branch: str = "feature/review",
     force_directory: bool = False,
+    keep_steps: int | None = None,
 ) -> tuple[dict[str, str], Path]:
     cfg = load_config(git_repo.coga_os)
     created = create_task(
@@ -5362,8 +5392,7 @@ def _seed_single_checkout_human_review(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         force_directory=force_directory,
     )
@@ -5374,7 +5403,13 @@ def _seed_single_checkout_human_review(
     ticket = Ticket.read(ticket_path)
     ticket.frontmatter["status"] = status
     ticket.frontmatter["step"] = "2 (review)"
-    ticket.frontmatter["assignee"] = "marc"
+    if keep_steps is not None:
+        # Trimming the frozen snapshot has to happen *before* the control
+        # commit: the frozen step roles are routing inputs, so a feature-only
+        # edit is exactly the drift the publication lease refuses.
+        assert isinstance(ticket.workflow, dict)
+        ticket.workflow["steps"] = ticket.workflow["steps"][:keep_steps]
+    hold_by_owner(ticket)
     ticket.write(ticket_path)
     replace_blackboard(
         ticket_path,
@@ -5929,7 +5964,6 @@ def test_recorded_assist_period_completion_publishes_parent_without_ignored_file
         """
         ---
         title: Review cursor
-        assignee: claude
         ---
 
         <!-- coga:blackboard -->
@@ -5945,13 +5979,10 @@ def test_recorded_assist_period_completion_publishes_parent_without_ignored_file
         title=f"Finish period review with {terminal_command}",
         status="in_progress",
         force_directory=True,
+        # `bump` has to land on the final step to be terminal.
+        keep_steps=2 if terminal_command == "bump" else None,
     )
     task_dir = ticket_path.parent
-    ticket = Ticket.read(ticket_path)
-    if terminal_command == "bump":
-        assert isinstance(ticket.workflow, dict)
-        ticket.workflow["steps"] = ticket.workflow["steps"][:2]
-    ticket.write(ticket_path)
     _write(
         task_dir / ".state-snapshot.json",
         """
@@ -6122,9 +6153,9 @@ def test_blocked_recorded_assist_terminal_script_is_reblocked(
         return_timeout=False,
     )
 
-    expected = ("blocked", "2 (review)", "marc")
+    expected = ("blocked", "2 (review)")
     local = Ticket.read(ticket_path)
-    assert (local.status, local.step, local.assignee) == expected
+    assert (local.status, local.step) == expected
     ticket_rel = str(ticket_path.relative_to(git_repo.root))
     for branch in ("feature/review", "main"):
         published = Ticket.parse(
@@ -6134,7 +6165,7 @@ def test_blocked_recorded_assist_terminal_script_is_reblocked(
                 cwd=git_repo.origin,
             )
         )
-        assert (published.status, published.step, published.assignee) == expected
+        assert (published.status, published.step) == expected
     assert git_repo.git("status", "--porcelain").strip() == ""
 
 
@@ -6275,7 +6306,7 @@ def test_recorded_assist_script_handoff_keeps_strict_agent_publication(
     for spawn in spawns:
         assert spawn["publish_aligned_branch"] == "feature/review"
         assert spawn["assist_agent"] == "claude"
-    assert Ticket.read(ticket_path).assignee == "claude"
+    assert Ticket.read(ticket_path).current_step()["assignee"] == "agent"
     assert Ticket.read(ticket_path).step == "4 (verify)"
     identities_path = ticket_path.parent / "assist-identities.txt"
     expected_identities = [
@@ -6352,7 +6383,7 @@ def test_human_assist_alignment_keeps_original_prefix_target(
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
     assert resolve_calls == [prefix, original.id_slug]
     assert "different prefix match" in capsys.readouterr().err
-    assert Ticket.read(ticket_path).assignee == "marc"
+    assert Ticket.read(ticket_path).current_step()["assignee"] == "owner"
     assert created["slug"] == original.id_slug
 
 
@@ -6662,8 +6693,7 @@ def test_blocked_malformed_script_reblock_is_published_before_child_exit(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         force_directory=True,
     )
@@ -7530,15 +7560,14 @@ def test_human_assist_from_recorded_linked_worktree_starts_clean(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     ticket_path = Path(created["path"])
     ticket = Ticket.read(ticket_path)
     ticket.frontmatter["status"] = "in_progress"
     ticket.frontmatter["step"] = "2 (review)"
-    ticket.frontmatter["assignee"] = "marc"
+    hold_by_owner(ticket)
     ticket.write(ticket_path)
     replace_blackboard(
         ticket_path,
@@ -7609,7 +7638,7 @@ def test_human_assist_from_recorded_linked_worktree_starts_clean(
         return_timeout=False,
     )
 
-    assert Ticket.read(linked_ticket).assignee == "marc"
+    assert Ticket.read(linked_ticket).current_step()["assignee"] == "owner"
     assert git_repo.git("status", "--porcelain", cwd=linked).strip() == ""
     assert git_repo.git("rev-parse", "HEAD", cwd=linked).strip() == git_repo.git(
         "rev-parse",
@@ -7819,7 +7848,7 @@ def test_final_assist_lease_rechecks_exact_ticket_bytes(
             expected=expected,
             expected_bytes=expected_bytes,
             branch="feature/review",
-            launch_assignee="claude",
+            launch_agent="claude",
             publication_guard=lambda oid: None,
         )
 
@@ -7875,7 +7904,7 @@ def test_final_assist_state_write_rechecks_snapshot_bytes(
             expected=expected,
             expected_bytes=expected_bytes,
             branch="feature/review",
-            launch_assignee="claude",
+            launch_agent="claude",
             publication_guard=lambda oid: None,
         )
 
@@ -7935,7 +7964,7 @@ def test_final_assist_gate_revalidates_generated_publication(
             expected=expected,
             expected_bytes=expected_bytes,
             branch="feature/review",
-            launch_assignee="claude",
+            launch_agent="claude",
             publication_guard=lambda oid: None,
         )
 
@@ -8520,7 +8549,7 @@ def test_aligned_assist_refuses_checkout_switch_before_session(
     assert excinfo.value.code == launch_module.git.RETRY_WITHOUT_SWEEP_EXIT_CODE
     assert git_repo.git("branch", "--show-current").strip() == "feature/other"
     assert git_repo.git("rev-parse", "HEAD").strip() == other_before
-    assert Ticket.read(ticket_path).assignee == "marc"
+    assert Ticket.read(ticket_path).current_step()["assignee"] == "owner"
 
 
 def test_human_assist_rejects_control_named_pr_before_writing(
@@ -8945,15 +8974,14 @@ def test_human_assist_branch_switch_cannot_redirect_teardown_publication(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     ticket_path = Path(created["path"])
     ticket = Ticket.read(ticket_path)
     ticket.frontmatter["status"] = "in_progress"
     ticket.frontmatter["step"] = "2 (review)"
-    ticket.frontmatter["assignee"] = "marc"
+    hold_by_owner(ticket)
     ticket.write(ticket_path)
     replace_blackboard(
         ticket_path,
@@ -9037,7 +9065,7 @@ def test_human_assist_branch_switch_cannot_redirect_teardown_publication(
     )
     assert "coga/log.md" in git_repo.git("status", "--porcelain")
     assert "expected feature branch 'feature/review'" in capsys.readouterr().err
-    assert Ticket.read(ticket_path).assignee == "marc"
+    assert Ticket.read(ticket_path).current_step()["assignee"] == "owner"
 
 
 def test_human_assist_does_not_publish_from_an_unrecorded_branch(
@@ -9050,15 +9078,14 @@ def test_human_assist_does_not_publish_from_an_unrecorded_branch(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     ticket_path = Path(created["path"])
     ticket = Ticket.read(ticket_path)
     ticket.frontmatter["status"] = "in_progress"
     ticket.frontmatter["step"] = "2 (review)"
-    ticket.frontmatter["assignee"] = "marc"
+    hold_by_owner(ticket)
     ticket.write(ticket_path)
     replace_blackboard(
         ticket_path,
@@ -9118,7 +9145,7 @@ def test_human_assist_does_not_publish_from_an_unrecorded_branch(
     assert "Log: address-review-elsewhere" not in git_repo.git(
         "log", "--format=%s", "refs/heads/feature/unrelated", cwd=git_repo.origin
     )
-    assert Ticket.read(ticket_path).assignee == "marc"
+    assert Ticket.read(ticket_path).current_step()["assignee"] == "owner"
 
 
 def test_launch_human_handoff_without_agent_override_is_still_refused(
@@ -9128,7 +9155,7 @@ def test_launch_human_handoff_without_agent_override_is_still_refused(
     ref = list_tasks(cfg)[0]
     ticket = Ticket.read(ref.ticket_path)
     ticket.frontmatter["status"] = "in_progress"
-    ticket.frontmatter["assignee"] = "marc"
+    hold_by_owner(ticket)
     ticket.write(ref.ticket_path)
     _allow_interactive_tty(monkeypatch)
 
@@ -9143,10 +9170,10 @@ def test_launch_human_handoff_without_agent_override_is_still_refused(
     assert "Cannot launch fix-retry-logic" in (
         result.output + (result.stderr or "")
     )
-    assert "assignee 'marc' is not a configured agent type" in (
+    assert "hands off to the owner (marc)" in (
         result.output + (result.stderr or "")
     )
-    assert Ticket.read(ref.ticket_path).frontmatter["assignee"] == "marc"
+    assert Ticket.read(ref.ticket_path).current_step()["assignee"] == "owner"
 
 
 def test_launch_bootstrap_unknown_ticket(
@@ -9161,18 +9188,28 @@ def test_launch_bootstrap_unknown_ticket(
 # --- unit: supervisor stop logic (agent rotation vs human handoff) -------------
 
 
-def _wf_ticket(step: str, assignee: str, status: str = "in_progress") -> Ticket:
-    """Build an in-memory 2-step-workflow ticket for stop-reason tests."""
+def _wf_ticket(
+    step: str,
+    second_role: str = "other-agent",
+    status: str = "in_progress",
+    agent: str = "claude",
+) -> Ticket:
+    """Build an in-memory 2-step-workflow ticket for stop-reason tests.
+
+    The *roles* decide who holds each step, so `second_role` is what a
+    stop-reason test varies — there is no stored assignment to set.
+    """
     return Ticket(
         frontmatter={
             "status": status,
-            "assignee": assignee,
+            "owner": "marc",
+            "agent": agent,
             "step": step,
             "workflow": {
                 "name": "test/wf",
                 "steps": [
                     {"name": "a", "assignee": "agent"},
-                    {"name": "b", "assignee": "other-agent"},
+                    {"name": "b", "assignee": second_role},
                 ],
             },
         },
@@ -9181,13 +9218,13 @@ def _wf_ticket(step: str, assignee: str, status: str = "in_progress") -> Ticket:
 
 
 def test_harness_chains_across_agent_rotation(active_task: Path) -> None:
-    """claude -> codex (assignee change to another agent) must NOT stop."""
+    """main -> peer (an `other-agent` step) must NOT stop."""
     from coga.commands.launch import _harness_stop_reason
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    before = _wf_ticket("1 (a)", "claude")
-    after = _wf_ticket("2 (b)", "codex")
+    before = _wf_ticket("1 (a)")
+    after = _wf_ticket("2 (b)")
     assert _harness_stop_reason(ref, before, after, cfg) is None
 
 
@@ -9196,19 +9233,19 @@ def test_harness_chains_same_agent(active_task: Path) -> None:
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    before = _wf_ticket("1 (a)", "claude")
-    after = _wf_ticket("2 (b)", "claude")
+    before = _wf_ticket("1 (a)", "agent")
+    after = _wf_ticket("2 (b)", "agent")
     assert _harness_stop_reason(ref, before, after, cfg) is None
 
 
 def test_harness_stops_on_human_handoff(active_task: Path) -> None:
-    """Next step assigned to a human (not a configured agent) returns control."""
+    """A next step the workflow hands to the owner returns control."""
     from coga.commands.launch import _harness_stop_reason
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    before = _wf_ticket("1 (a)", "codex")
-    after = _wf_ticket("2 (b)", "marc")
+    before = _wf_ticket("1 (a)", "owner")
+    after = _wf_ticket("2 (b)", "owner")
     reason = _harness_stop_reason(ref, before, after, cfg)
     assert reason is not None
     assert "hands off to marc" in reason
@@ -9286,7 +9323,7 @@ def test_launch_interactive_rotates_across_agents(
           - name: peer
             assignee: other-agent
           - name: review
-            assignee: human
+            assignee: owner
         ---
 
         ## implement
@@ -9301,9 +9338,13 @@ def test_launch_interactive_rotates_across_agents(
     )
     cfg = load_config(active_task)
     ref = create_task(
-        cfg=cfg, title="Rotate work", workflow_name="rotate", contexts=[],
-        owner="marc", human="marc", agent="claude",
-        assignee="claude", watchers=[], status="active",
+        cfg=cfg,
+        title="Rotate work",
+        workflow_name="rotate",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
     )
     slug = ref["slug"]
     calls: list[list[str]] = []
@@ -9334,7 +9375,7 @@ def test_launch_interactive_rotates_across_agents(
     from coga.ticket import Ticket
     ticket = Ticket.read(Path(ref["path"]))
     assert ticket.step == "3 (review)"
-    assert ticket.assignee == "marc"
+    assert ticket.current_step()["assignee"] == "owner"
 
 
 def test_launch_rotation_stops_when_next_agent_cli_missing(
@@ -9364,9 +9405,13 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
     )
     cfg = load_config(active_task)
     ref = create_task(
-        cfg=cfg, title="Rotate2 work", workflow_name="rotate2", contexts=[],
-        owner="marc", human="marc", agent="claude",
-        assignee="claude", watchers=[], status="active",
+        cfg=cfg,
+        title="Rotate2 work",
+        workflow_name="rotate2",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
     )
     slug = ref["slug"]
     calls: list[list[str]] = []
@@ -9400,7 +9445,7 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
     from coga.ticket import Ticket
     ticket = Ticket.read(Path(ref["path"]))
     assert ticket.step == "2 (peer)"
-    assert ticket.assignee == "codex"
+    assert ticket.current_step()["assignee"] == "other-agent"
 
 
 def test_conduct_is_a_composed_layer_not_a_prompt_suffix(

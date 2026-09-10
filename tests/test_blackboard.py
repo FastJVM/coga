@@ -115,7 +115,6 @@ def test_prelaunch_blackboard_ignores_missing_optional_blackboard(
         dedent(
             """\
             ---
-            slug: bootstrap/orient
             title: Bootstrap
             ---
 

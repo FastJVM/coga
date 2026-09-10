@@ -200,12 +200,8 @@ def _seed_fake_templates(templates: Path) -> None:
         "---\n"
         "title: coga-build\n"
         "status: active\n"
-                "owner: new-user\n"
-        "human: new-user\n"
+        "owner: new-user\n"
         "agent: claude\n"
-        "assignee: claude\n"
-        "contexts: []\n"
-        "skills: []\n"
         "workflow:\n"
         "  name: build/onboarding\n"
         "  steps:\n"
@@ -821,7 +817,6 @@ def test_init_ships_build_ticket_template(
     # The placeholder is stamped with the captured name; it never ships live.
     seeded = Ticket.read(ticket)
     assert seeded.owner == "tester"
-    assert seeded.frontmatter["human"] == "tester"
     assert "new-user" not in text
     # Single-file format: the blackboard rides inside ticket.md behind one
     # fence; no per-task blackboard.md / log.md siblings.
@@ -1031,17 +1026,17 @@ def test_stamp_user_into_delivered_tickets(tmp_path: Path) -> None:
     tasks = coga_os / "tasks"
     (tasks / "alpha").mkdir(parents=True)
     (tasks / "alpha" / "ticket.md").write_text(
-        "---\nowner: new-user\nhuman: new-user\nassignee: claude\n---\n"
+        "---\nowner: new-user\nagent: claude\n---\n"
     )
     (tasks / "beta").mkdir(parents=True)
     (tasks / "beta" / "ticket.md").write_text(
-        "---\nowner: new-user\nhuman: new-user\nassignee: new-user\n---\n"
+        "---\nowner: new-user\ntitle: Beta\n---\n"
     )
     # The `replace-with-human-name` token is a different placeholder, owned by
     # create_task/recurring — the stamp must leave it alone.
     (tasks / "_template").mkdir(parents=True)
     (tasks / "_template" / "ticket.md").write_text(
-        "---\nowner: replace-with-human-name\nhuman: replace-with-human-name\n---\n"
+        "---\nowner: replace-with-human-name\n---\n"
     )
 
     stamped = init_cmd._stamp_user_into_delivered_tickets(coga_os, "marc")
@@ -1050,12 +1045,10 @@ def test_stamp_user_into_delivered_tickets(tmp_path: Path) -> None:
     alpha_path = tasks / "alpha" / "ticket.md"
     alpha = Ticket.read(alpha_path)
     assert alpha.owner == "marc"
-    assert alpha.frontmatter["human"] == "marc"
-    assert alpha.assignee == "claude"  # non-placeholder line untouched
+    assert alpha.agent == "claude"  # non-placeholder line untouched
     assert "new-user" not in alpha_path.read_text()
     beta_path = tasks / "beta" / "ticket.md"
-    beta = Ticket.read(beta_path)
-    assert beta.assignee == "marc"
+    assert Ticket.read(beta_path).owner == "marc"
     assert "new-user" not in beta_path.read_text()
     template = (tasks / "_template" / "ticket.md").read_text()
     assert "replace-with-human-name" in template  # left alone
@@ -1066,16 +1059,11 @@ def test_stamp_user_quotes_yaml_sensitive_names(tmp_path: Path, name: str) -> No
     coga_os = tmp_path / "coga"
     ticket_path = coga_os / "tasks" / "coga-build.md"
     ticket_path.parent.mkdir(parents=True)
-    ticket_path.write_text(
-        "---\nowner: new-user\nhuman: new-user\nassignee: new-user\n---\n"
-    )
+    ticket_path.write_text("---\nowner: new-user\n---\n")
 
     init_cmd._stamp_user_into_delivered_tickets(coga_os, name)
 
-    ticket = Ticket.read(ticket_path)
-    assert ticket.owner == name
-    assert ticket.frontmatter["human"] == name
-    assert ticket.assignee == name
+    assert Ticket.read(ticket_path).owner == name
 
 
 # --- vendored-CLI location, pin, and host gitignore --------------------------

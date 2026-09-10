@@ -7,23 +7,30 @@ rewinds move to an earlier workflow step. Status transitions
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import typer
 
 from coga import git
 from coga.config import Config
+from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log, log_path
 from coga.notification import post
 from coga.tasks import TaskRef
 from coga.ticket import Ticket
-from coga.validate import assert_task_valid
 from coga.workflow import VALID_ASSIGNEE_ROLES
 
 
-class AssigneeResolutionError(Exception):
-    """Raised when a workflow step's role token can't resolve against the ticket."""
+class OperatorResolutionError(Exception):
+    """Raised when a ticket's current operator cannot be derived.
+
+    Either the frozen workflow role token does not resolve against this
+    machine's `[agents.*]`, or the ticket's live routing inputs (status, frozen
+    workflow, current step) are structurally inconsistent. Never swallowed into
+    a fallback: guessing an operator is how a human gate gets skipped.
+    """
 
 
 REWINDABLE_STATUSES: frozenset[str] = frozenset({"active", "in_progress", "paused"})
@@ -56,108 +63,250 @@ def rewind_status_error(id_slug: str, status: str) -> str | None:
     )
 
 
-def resolve_other_agent(cfg: Config, agent: str | None) -> str:
+@dataclass(frozen=True)
+class Operator:
+    """Who holds a ticket at one workflow position.
+
+    `role` is the frozen step's routing role — `owner`, `agent`, or
+    `other-agent` — and `name` is the concrete nickname it resolved to. Both
+    matter: a human gate is identified by its *role*, never by asking whether
+    `name` happens to be missing from `[agents.*]`, so renaming a human to
+    match an agent type cannot turn a handoff into an automated step.
+    """
+
+    role: str
+    name: str
+
+    @property
+    def is_human(self) -> bool:
+        """Whether this operator is a human handoff rather than an agent."""
+        return self.role == "owner"
+
+    @property
+    def is_agent(self) -> bool:
+        return self.role in ("agent", "other-agent")
+
+
+def resolve_main_agent(
+    cfg: Config,
+    agent: Any,
+    *,
+    task_label: str | None = None,
+    allow_prospective_default: bool = False,
+) -> str:
+    """Resolve a ticket's stored main-agent choice to a configured agent type.
+
+    `agent` is the raw `agent:` frontmatter value. An explicitly present value
+    must be a non-empty, configured agent name — null, blank, and unknown all
+    fail loud rather than silently meaning "the default", because an override
+    cannot repair an invalid routing input and a wrong guess here picks the
+    wrong reviewer.
+
+    `allow_prospective_default=True` lets an *absent* choice resolve to
+    `Config.default_agent()`. Read-only surfaces (status, show, compose,
+    validate) and prospective preparation use it to report the agent activation
+    *would* select; nothing persists that name except the activation transition
+    itself.
+    """
+    where = f" on {task_label}" if task_label else ""
+    if agent is None:
+        if not allow_prospective_default:
+            raise OperatorResolutionError(
+                f"no main agent recorded{where}, but the current workflow step "
+                "routes to one. An activated ticket must carry `agent:`; run "
+                "`coga mark active` to select the configured default, or choose "
+                "one explicitly through authoring."
+            )
+        default = cfg.default_agent()
+        if default is None:
+            raise OperatorResolutionError(
+                "No agent types are configured; declare at least one "
+                "`[agents.*]` table in coga.toml or coga.local.toml "
+                "(e.g. `[agents.claude]`)."
+            )
+        return default.name
+    # Ticket parsing deliberately preserves malformed frontmatter so validate
+    # can report it. Keep resolution fail-loud for those values instead of
+    # letting an unhashable list or mapping escape as a TypeError.
+    if not isinstance(agent, str) or not agent.strip():
+        raise OperatorResolutionError(
+            f"`agent:`{where} must be a non-empty agent name, got {agent!r}."
+        )
+    name = agent.strip()
+    if name not in cfg.agents:
+        raise OperatorResolutionError(
+            f"`agent: {name}`{where} is not a configured agent type "
+            f"(configured: {sorted(cfg.agents)}). Restore that agent's "
+            "`[agents.*]` table, or change the ticket's main-agent choice "
+            "through authoring — a `--agent` override is ephemeral and cannot "
+            "repair an invalid routing input."
+        )
+    return name
+
+
+def resolve_other_agent(
+    cfg: Config,
+    agent: Any,
+    *,
+    task_label: str | None = None,
+    allow_prospective_default: bool = False,
+) -> str:
     """Resolve the `other-agent` role token to the peer agent's nickname.
 
     A declared `[agents.<type>].peer` wins. Without one, "other" means the
-    single configured type that is not the ticket's own `agent:`, preserving
+    single configured type that is not the ticket's own main agent, preserving
     zero-config behavior for two-agent repos. Ambiguity fails loud.
+
+    Peers are live configuration, not frozen ticket metadata: editing a
+    `peer =` changes subsequent peer launches without rewriting any ticket.
     """
-    if not agent:
-        raise AssigneeResolutionError(
-            "Workflow step declares assignee='other-agent' but the ticket has "
-            "no `agent:` field to take the peer of. Add `agent: <type>`."
-        )
-    # Ticket parsing deliberately preserves malformed frontmatter so validate
-    # can report it. Keep role resolution fail-loud for those values instead
-    # of letting an unhashable list or mapping escape as a TypeError.
-    configured = cfg.agents.get(agent) if isinstance(agent, str) else None
+    main = resolve_main_agent(
+        cfg,
+        agent,
+        task_label=task_label,
+        allow_prospective_default=allow_prospective_default,
+    )
+    configured = cfg.agents.get(main)
     if configured is not None and configured.peer is not None:
         return configured.peer
-    others = [name for name in cfg.agents if name != agent]
+    others = [name for name in cfg.agents if name != main]
     if len(others) != 1:
-        if isinstance(agent, str) and agent in cfg.agents and len(cfg.agents) >= 3:
-            raise AssigneeResolutionError(
+        if len(cfg.agents) >= 3:
+            raise OperatorResolutionError(
                 "assignee='other-agent' needs an unambiguous peer for "
-                f"`agent: {agent}`. To fix it, add peer = \"<type>\" to "
-                f"[agents.{agent}]. "
+                f"`agent: {main}`. To fix it, add peer = \"<type>\" to "
+                f"[agents.{main}]. "
                 f"Configured agents: {sorted(cfg.agents)}; peer candidates: "
                 f"{sorted(others)}."
             )
-        raise AssigneeResolutionError(
+        raise OperatorResolutionError(
             "assignee='other-agent' needs exactly two configured `[agents.*]` "
-            f"types to pick the peer, with `agent: {agent}` as one of them. "
+            f"types to pick the peer, with `agent: {main}` as one of them. "
             f"Configured agents: {sorted(cfg.agents)}; peer candidates: "
             f"{sorted(others)}. Fix coga.toml or the ticket's `agent:`."
         )
     return others[0]
 
 
-def resolve_role_token(
+def effective_step_role(steps: Sequence[Any], step_index: int) -> str:
+    """The routing role in force at 1-indexed `step_index`.
+
+    A step that omits `assignee:` inherits the nearest *preceding* declared
+    role; before any declaration the role is `owner`. This is a scan of the
+    frozen steps — not of the audit log, and not a memory of whoever ran the
+    task last — so forward moves, restarts, and human rewinds all derive the
+    same answer from the same snapshot. A preceding `other-agent` stays that
+    role: it is resolved against the ticket's main-agent choice on each read,
+    never flattened into a permanent nickname.
+    """
+    for idx in range(min(step_index, len(steps)), 0, -1):
+        entry = steps[idx - 1]
+        role = entry.get("assignee") if isinstance(entry, Mapping) else None
+        if role:
+            return str(role)
+    return "owner"
+
+
+def operator_for_role(
     cfg: Config,
+    ticket: Ticket,
     role: str,
     *,
-    roles: Mapping[str, Any],
-    agent: str | None,
-) -> str:
-    """Resolve a role token against explicit role fields.
-
-    The primitive under `resolve_step_assignee` (bump, from a ticket on disk)
-    and `resolve_first_step_assignee` (create and activation, from a ticket
-    that is still being assembled). `roles` supplies the `owner` / `human` /
-    `agent` values; `agent` is the ticket's own agent type, which
-    `other-agent` takes the peer of. Raises AssigneeResolutionError when the
-    token can't resolve.
-    """
+    task_label: str | None = None,
+    allow_prospective_default: bool = False,
+) -> Operator:
+    """Resolve one role token against a ticket's persisted routing inputs."""
     if role not in VALID_ASSIGNEE_ROLES:
-        raise AssigneeResolutionError(
-            f"Unknown role token {role!r} (expected one of {sorted(VALID_ASSIGNEE_ROLES)})"
+        hint = (
+            " — `human` was renamed to `owner`; rewrite the frozen snapshot"
+            if role == "human"
+            else ""
         )
-    if role == "other-agent":
-        return resolve_other_agent(cfg, agent)
-    value = roles.get(role)
-    if not value:
-        raise AssigneeResolutionError(
-            f"Workflow step declares assignee={role!r} but ticket has no `{role}:` field. "
-            f"Add `{role}: <nickname>` to ticket frontmatter."
+        raise OperatorResolutionError(
+            f"Unknown role token {role!r} (expected one of "
+            f"{sorted(VALID_ASSIGNEE_ROLES)}){hint}"
         )
-    return str(value)
+    if role == "owner":
+        owner = ticket.owner
+        if not isinstance(owner, str) or not owner.strip():
+            where = f" on {task_label}" if task_label else ""
+            raise OperatorResolutionError(
+                f"workflow step routes to the owner but no `owner:` is "
+                f"recorded{where}."
+            )
+        return Operator("owner", owner.strip())
+    resolver = resolve_main_agent if role == "agent" else resolve_other_agent
+    return Operator(
+        role,
+        resolver(
+            cfg,
+            ticket.agent,
+            task_label=task_label,
+            allow_prospective_default=allow_prospective_default,
+        ),
+    )
 
 
-def resolve_step_assignee(cfg: Config, ticket: Ticket, role: str) -> str:
-    """Resolve a workflow step's role token to a concrete nickname.
-
-    `role` must be one of `owner` | `human` | `agent` | `other-agent`.
-    The first three read the matching ticket field; `other-agent` derives
-    the peer agent from config. Raises AssigneeResolutionError when the
-    token can't resolve.
-    """
-    return resolve_role_token(cfg, role, roles=ticket.frontmatter, agent=ticket.agent)
-
-
-def resolve_first_step_assignee(
+def resolve_operator(
     cfg: Config,
-    role: str,
+    ref: TaskRef | None,
+    ticket: Ticket,
     *,
-    workflow_name: str | None,
-    roles: Mapping[str, Any],
-    agent: str | None,
-) -> str:
-    """Resolve step 1's role token for a ticket landing on that step.
+    step_index: int | None = None,
+    allow_prospective_default: bool = False,
+) -> Operator | None:
+    """Derive who holds `ticket` — the one routing rule every consumer shares.
 
-    Two paths land a ticket on step 1 of a frozen workflow: `create_task`
-    freezes the snapshot at creation, and `_freeze_workflow_ref` (`coga.mark`)
-    freezes a bare-string `workflow:` ref at activation. Both call this so a
-    ticket wears the same `assignee:` whichever way it arrived, and an
-    unresolvable token fails at the same moment with the same message instead
-    of deferring a contradictory refusal to launch time.
+    Pure: it reads config and the ticket's persisted routing inputs (owner,
+    main-agent choice, frozen workflow role declarations, current position) and
+    returns a value. It never writes, and no command persists what it returns —
+    that is the whole point of deriving the operator instead of caching it.
+
+    Returns None only for a terminal task, which has no current operator; the
+    read views show a dash. `step_index` derives a *prospective* position (the
+    next step before a bump) instead of the ticket's current one.
+
+    Raises `OperatorResolutionError` for a live ticket whose workflow or step is
+    missing or inconsistent. That is a structural error by design: falling back
+    to the owner would silently convert an agent step into a human handoff, and
+    falling back to the agent would skip a human gate.
     """
-    try:
-        return resolve_role_token(cfg, role, roles=roles, agent=agent)
-    except AssigneeResolutionError as exc:
-        raise AssigneeResolutionError(
-            f"Workflow {workflow_name!r} step 1 assignee={role!r}: {exc}"
-        ) from exc
+    label = ref.id_slug if ref is not None else None
+    idx = ticket.step_index() if step_index is None else step_index
+    if idx is None:
+        if ticket.status in TERMINAL_STATUSES:
+            # Terminal tasks keep no `step:`, so there is nobody holding them.
+            return None
+        # A draft — including one whose `workflow:` is still a bare string ref —
+        # sits with its owner for triage. `coga launch` derives again from the
+        # prepared activation, which freezes the snapshot and seeds step 1.
+        return Operator("owner", ticket.owner or cfg.current_user)
+    wf = ticket.workflow
+    steps = wf.get("steps") if isinstance(wf, dict) else None
+    where = f"Task {label}" if label else "Ticket"
+    if not isinstance(steps, list) or not steps:
+        raise OperatorResolutionError(
+            f"{where} is at step {ticket.step!r} but carries no frozen workflow "
+            "steps to derive its operator from. Fix the ticket's `workflow:` "
+            "snapshot; Coga will not guess a routing role."
+        )
+    if not 1 <= idx <= len(steps):
+        raise OperatorResolutionError(
+            f"{where} step index {idx} is outside its frozen workflow "
+            f"(1..{len(steps)})."
+        )
+    return operator_for_role(
+        cfg,
+        ticket,
+        effective_step_role(steps, idx),
+        task_label=label,
+        allow_prospective_default=allow_prospective_default,
+    )
+
+
+def operator_name(operator: Operator | None) -> str | None:
+    """The concrete nickname of an operator, or None for a terminal task."""
+    return operator.name if operator is not None else None
 
 
 def advance_step(
@@ -170,7 +319,6 @@ def advance_step(
     actor: str,
     log_message: str,
     slack_text: str,
-    new_assignee: str | None = None,
     notify_slack: bool = False,
     echo: str | None = None,
     rewind: bool = False,
@@ -182,9 +330,12 @@ def advance_step(
 ) -> None:
     """Move a ticket to a workflow step.
 
-    If `new_assignee` is given, also rewrites the ticket's `assignee:` to that
-    nickname. Caller is responsible for resolving role tokens against the
-    ticket beforehand (see `resolve_step_assignee`). Step movement is normally
+    Writes `step:` and nothing else about routing: who holds the ticket next is
+    derived from the frozen workflow at read time (see `resolve_operator`), so a
+    transition has no assignment to write and cannot leave a stale one behind.
+    Callers still resolve the prospective operator beforehand — to refuse a move
+    whose role cannot resolve, and to name the handoff — but that answer is
+    reported, never persisted. Step movement is normally
     silent in Slack; callers set `notify_slack=True` only for an explicit
     operator FYI such as `coga bump --message`. A completion gate may request
     that the transition commit also update the current feature branch; the PR
@@ -216,8 +367,12 @@ def advance_step(
     # Advancing the workflow ends the agent session that owned this durable
     # megalaunch claim. The next step may acquire a fresh generation.
     prospective.frontmatter.pop("launch_generation", None)
-    if new_assignee is not None:
-        prospective.frontmatter["assignee"] = new_assignee
+    # Imported lazily: `coga.validate` reaches the routing helpers above through
+    # its own deferred imports, and keeping this module free of a top-level
+    # dependency on the validator is what lets the pure resolver be imported
+    # from anywhere (launch, scripts, views) without a cycle.
+    from coga.validate import assert_task_valid
+
     assert_task_valid(
         cfg,
         ref,
@@ -299,7 +454,6 @@ def advance_step(
             slack_text,
             task_path=ref.path,
             owner=owner,
-            watchers=ticket.watchers,
             fatal=False,
             record_failure=feature_publication is None,
         )
@@ -327,11 +481,14 @@ def advance_step(
 
 __all__ = [
     "advance_step",
-    "resolve_first_step_assignee",
-    "resolve_role_token",
-    "resolve_step_assignee",
+    "effective_step_role",
+    "operator_for_role",
+    "operator_name",
+    "resolve_main_agent",
+    "resolve_operator",
     "resolve_other_agent",
     "rewind_status_error",
-    "AssigneeResolutionError",
+    "Operator",
+    "OperatorResolutionError",
     "REWINDABLE_STATUSES",
 ]

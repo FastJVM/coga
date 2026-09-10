@@ -7,7 +7,7 @@ import pytest
 
 from typer.testing import CliRunner
 
-from conftest import seed_direct_body_workflow
+from conftest import derived_operator, seed_direct_body_workflow
 from coga.cli import app
 from coga.commands.launch import RecurringPeriodLaunchResult
 from coga.create import create_task
@@ -81,8 +81,11 @@ def repo(tmp_path: Path) -> Path:
           - name: implement
             skills:
               - infra/testing-conventions
+            assignee: agent
           - name: pr
+            assignee: agent
           - name: merge
+            assignee: agent
         ---
 
         ## pr
@@ -112,8 +115,6 @@ def test_create_minimal(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         workflow_name=None,
         contexts=[],
         owner=None,
-        assignee=None,
-        watchers=[],
         status=None,
     )
     assert ref["slug"] == "fix-retry-logic"
@@ -132,13 +133,19 @@ def test_create_minimal(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert ticket.status == "draft"
     assert "mode" not in ticket.frontmatter
     assert ticket.owner == "marc"
-    assert ticket.assignee == "marc"
-    # Auto-populated role fields: human ← owner, agent ← owner's lone configured agent.
-    assert ticket.human == "marc"
-    assert ticket.agent == "claude"
+    # A draft defers the main-agent choice to activation, and empty optional
+    # declarations are simply not written: absence is empty.
+    assert ticket.agent is None
     assert ticket.workflow is None
-    assert "secrets" in ticket.frontmatter
+    assert "agent" not in ticket.frontmatter
+    assert "contexts" not in ticket.frontmatter
+    assert "skills" not in ticket.frontmatter
+    assert "secrets" not in ticket.frontmatter
+    assert ticket.contexts == []
+    assert ticket.skills == []
     assert ticket.secrets is None
+    for removed in ("slug", "human", "assignee", "watchers"):
+        assert removed not in ticket.frontmatter
 
 
 def test_create_can_stamp_a_recurring_period_generation(repo: Path) -> None:
@@ -150,8 +157,7 @@ def test_create_can_stamp_a_recurring_period_generation(repo: Path) -> None:
         workflow_name="code/with-review",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         slug_override="recurring/generated-period",
         force_directory=True,
@@ -172,8 +178,7 @@ def test_create_canceled_ticket_has_no_workflow_step(repo: Path) -> None:
         workflow_name="code/with-review",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="canceled",
     )
 
@@ -191,8 +196,6 @@ def test_create_preserves_secret_declaration(repo: Path, monkeypatch: pytest.Mon
         workflow_name=None,
         contexts=[],
         owner=None,
-        assignee=None,
-        watchers=[],
         status=None,
         secrets=[{"API_KEY": "op://Vault/item/field"}],
     )
@@ -229,13 +232,20 @@ def test_create_uses_first_configured_agent_for_multi_agent_owner(repo: Path) ->
         workflow_name=None,
         contexts=[],
         owner=None,
-        assignee=None,
-        watchers=[],
         status=None,
     )
     ticket = Ticket.read(ref["path"])
-    assert ticket.human == "marc"
-    assert ticket.agent == "claude"
+    # A draft still defers the choice; a live create makes it now.
+    assert ticket.agent is None
+    live = create_task(
+        cfg=cfg,
+        title="Live now",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner=None,
+        status="active",
+    )
+    assert Ticket.read(live["path"]).agent == "claude"
 
 
 def test_create_requires_agent_before_writing_task_dir(repo: Path) -> None:
@@ -247,22 +257,30 @@ def test_create_requires_agent_before_writing_task_dir(repo: Path) -> None:
         """,
     )
     cfg = load_config(repo)
-    with pytest.raises(ValueError, match="No default agent configured"):
+    # A draft needs no agent at all, so an agent-less repo can still capture an
+    # idea. Creating straight into a live status is what needs one.
+    create_task(
+        cfg=cfg,
+        title="No agent draft",
+        workflow_name=None,
+        contexts=[],
+        owner=None,
+        status="draft",
+    )
+    with pytest.raises(ValueError, match="No agent types are configured"):
         create_task(
             cfg=cfg,
             title="No agent",
-            workflow_name=None,
+            workflow_name="code/with-review",
             contexts=[],
             owner=None,
-            assignee=None,
-            watchers=[],
-            status=None,
+            status="active",
         )
 
     assert not (repo / "tasks" / "no-agent").exists()
 
 
-def test_create_initial_assignee_resolved_from_workflow_step(repo: Path) -> None:
+def test_create_derives_operator_from_step_one_role(repo: Path) -> None:
     _write(
         repo / "workflows" / "review.md",
         """
@@ -272,7 +290,7 @@ def test_create_initial_assignee_resolved_from_workflow_step(repo: Path) -> None
           - name: implement
             assignee: agent
           - name: review
-            assignee: human
+            assignee: owner
         ---
 
         ## implement
@@ -284,28 +302,56 @@ def test_create_initial_assignee_resolved_from_workflow_step(repo: Path) -> None
     )
     cfg = load_config(repo)
     ref = create_task(
-        cfg=cfg, title="W", workflow_name="review",
+        cfg=cfg,
+        title="W",
+        workflow_name="review",
         contexts=[],
-        owner="marc", assignee=None,
-        watchers=[], status="active",
+        owner="marc",
+        status="active",
     )
     ticket = Ticket.read(ref["path"])
-    # Step 1 declares `assignee: agent` → resolves to `marc`'s configured agent.
-    assert ticket.assignee == "claude"
+    # Step 1 declares `assignee: agent`, so the derived operator is the ticket's
+    # main agent — and nothing is written to the ticket to say so.
+    assert derived_operator(repo, ref["slug"]) == "claude"
+    for removed in ("assignee", "human", "slug", "watchers"):
+        assert removed not in ticket.frontmatter
 
 
-def test_create_explicit_human_and_agent_overrides_defaults(repo: Path) -> None:
+def test_create_rejects_an_unconfigured_explicit_agent(repo: Path) -> None:
+    cfg = load_config(repo)
+    with pytest.raises(ValueError, match="not a configured agent type"):
+        create_task(
+            cfg=cfg,
+            title="X",
+            workflow_name=None,
+            contexts=[],
+            owner="marc",
+            agent="claude2",
+            status="draft",
+        )
+    assert not (repo / "tasks" / "x.md").exists()
+
+
+def test_create_keeps_an_explicit_agent_on_a_draft(repo: Path) -> None:
+    _write(
+        repo / "coga.toml",
+        (repo / "coga.toml").read_text()
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n',
+    )
     cfg = load_config(repo)
     ref = create_task(
-        cfg=cfg, title="X", workflow_name=None,
+        cfg=cfg,
+        title="X",
+        workflow_name=None,
         contexts=[],
-        owner="marc", assignee=None,
-        human="alice", agent="claude2",
-        watchers=[], status="draft",
+        owner="marc",
+        agent="codex",
+        status="draft",
     )
     ticket = Ticket.read(ref["path"])
-    assert ticket.human == "alice"
-    assert ticket.agent == "claude2"
+    # An explicit choice survives creation even on a draft, and even when it
+    # equals today's default: it is a decision, not a coincidence.
+    assert ticket.agent == "codex"
 
 
 def test_create_with_workflow_and_contexts(repo: Path) -> None:
@@ -314,17 +360,16 @@ def test_create_with_workflow_and_contexts(repo: Path) -> None:
         cfg=cfg,
         title="Task A",
         workflow_name="code/with-review",
-        contexts=["email/payment-flow", "email/payment-flow"],  # dupe ignored
+        contexts=["email/payment-flow", "email/payment-flow"],
+        # dupe ignored
         owner="marc",
-        assignee="claude",
-        watchers=["pierre"],
+        agent="claude",
         status="active",
     )
     ticket = Ticket.read(ref["path"])
     assert ticket.contexts == ["email/payment-flow"]
     assert ticket.workflow["name"] == "code/with-review"
     assert ticket.step == "1 (implement)"
-    assert ticket.frontmatter["watchers"] == ["pierre"]
 
 
 def test_create_rejects_unknown_context(repo: Path) -> None:
@@ -336,8 +381,6 @@ def test_create_rejects_unknown_context(repo: Path) -> None:
             workflow_name=None,
             contexts=["does/not/exist"],
             owner=None,
-            assignee=None,
-            watchers=[],
             status=None,
         )
 
@@ -351,8 +394,6 @@ def test_create_distinct_titles_get_distinct_slugs(repo: Path) -> None:
             workflow_name=None,
             contexts=[],
             owner=None,
-            assignee=None,
-            watchers=[],
             status=None,
         )
         for i in range(3)
@@ -368,8 +409,6 @@ def test_create_collision_auto_suffixes(repo: Path) -> None:
         workflow_name=None,
         contexts=[],
         owner=None,
-        assignee=None,
-        watchers=[],
         status=None,
     )
     a = create_task(title="Same title", **kwargs)
@@ -387,8 +426,6 @@ def test_create_nested_slug_can_reuse_top_level_leaf(repo: Path) -> None:
         workflow_name=None,
         contexts=[],
         owner=None,
-        assignee=None,
-        watchers=[],
         status=None,
     )
     top = create_task(title="Digest", slug_override="digest", **kwargs)
@@ -412,8 +449,6 @@ def _dir_kwargs(cfg, **overrides):  # type: ignore[no-untyped-def]
         workflow_name=None,
         contexts=[],
         owner=None,
-        assignee=None,
-        watchers=[],
         status=None,
     )
     base.update(overrides)
@@ -427,9 +462,9 @@ def test_create_into_subdirectory(repo: Path) -> None:
     ticket_path = ref["path"]
     assert ticket_path == repo / "tasks" / "v2" / "build-the-flow.md"
     assert ticket_path.is_file()
-    t = Ticket.read(ticket_path)
-    # The on-disk slug is path-qualified so the file is self-describing.
-    assert t.frontmatter["slug"] == "v2/build-the-flow"
+    # The path is the whole identity — nothing is copied into frontmatter to
+    # drift from it.
+    assert "slug" not in Ticket.read(ticket_path).frontmatter
     refs = {r.id_slug: r for r in list_tasks(cfg)}
     assert refs["v2/build-the-flow"].directory == "v2"
 
@@ -552,7 +587,7 @@ def test_cli_create_path_syntax(repo: Path, monkeypatch: pytest.MonkeyPatch) -> 
     ticket_path = repo / "tasks" / "v2" / "subdir-ticket.md"
     assert ticket_path.is_file()
     t = Ticket.read(ticket_path)
-    assert t.frontmatter["slug"] == "v2/subdir-ticket"
+    assert "slug" not in t.frontmatter
     assert t.title == "subdir-ticket"
     assert "v2/subdir-ticket: created" in result.output
 
@@ -569,7 +604,7 @@ def test_cli_create_path_syntax_preserves_title(
     assert ticket_path.is_file()
     t = Ticket.read(ticket_path)
     assert t.title == "Build the flow"
-    assert t.frontmatter["slug"] == "v2/build-the-flow"
+    assert "slug" not in t.frontmatter
 
 
 def test_cli_create_nested_path_syntax(
@@ -610,8 +645,6 @@ def test_create_log_entry_written(repo: Path) -> None:
         workflow_name=None,
         contexts=[],
         owner=None,
-        assignee=None,
-        watchers=[],
         status=None,
     )
     # The audit line lands in the repo-global log, tagged with the new slug.
@@ -631,7 +664,6 @@ def repo_with_bootstrap_ticket(repo: Path) -> Path:
         title: Create a new ticket
         skills:
           - bootstrap/ticket
-        assignee: claude
         ---
 
         ## Description
@@ -666,7 +698,6 @@ def test_recurring_creates_silently(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly deliverability check"
-        assignee: claude
         owner: marc
         ---
 
@@ -1090,8 +1121,7 @@ def test_create_writes_declared_extension_fields(repo: Path) -> None:
         workflow_name=None,
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="draft",
     )
     t = Ticket.read(ref["path"])
@@ -1115,8 +1145,7 @@ def test_create_no_extensions_no_marker(repo: Path) -> None:
         workflow_name=None,
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="draft",
     )
     raw = ref["path"].read_text()
@@ -1135,8 +1164,7 @@ def test_extension_fields_round_trip(repo: Path) -> None:
         workflow_name=None,
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="draft",
     )
     t = Ticket.read(ref["path"])

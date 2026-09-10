@@ -520,8 +520,6 @@ def test_blackboard_is_read_from_the_period_task(cfg_repo) -> None:
         workflow_name=None,
         contexts=[],
         owner="tester",
-        assignee=None,
-        watchers=[],
         status="draft",
     )
     ref = resolve_task(cfg_repo, created["slug"])
@@ -559,8 +557,6 @@ def _ref_with_status(cfg, status: str):  # type: ignore[no-untyped-def]
         workflow_name=None,
         contexts=[],
         owner="tester",
-        assignee=None,
-        watchers=[],
         status="draft",
     )
     ref = resolve_task(cfg, created["slug"])

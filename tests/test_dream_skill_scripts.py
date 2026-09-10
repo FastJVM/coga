@@ -84,6 +84,7 @@ def _write_workflow(coga_os: Path, name: str, skill: str) -> None:
           - name: run
             skills:
               - {skill}
+            assignee: agent
         ---
         """,
     )
@@ -117,8 +118,7 @@ def test_validate_drift_runs_as_registered_recipe(
         workflow_name="validate-drift",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
 
@@ -150,11 +150,9 @@ def test_cleanup_orphan_markers_runs_as_recipe_and_gates_delete(
         repo / "tasks" / "processed-ticket" / "ticket.md",
         """
         ---
-        slug: processed-ticket
         title: Processed Ticket
         status: done
         owner: marc
-        assignee: marc
         ---
 
         ## Description
@@ -180,8 +178,7 @@ def test_cleanup_orphan_markers_runs_as_recipe_and_gates_delete(
         workflow_name="cleanup-orphan-markers",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
 
@@ -212,11 +209,9 @@ def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(
         repo / "tasks" / "processed-ticket" / "ticket.md",
         """
         ---
-        slug: processed-ticket
         title: Processed Ticket
         status: done
         owner: marc
-        assignee: marc
         ---
 
         ## Description
@@ -242,8 +237,7 @@ def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(
         workflow_name="cleanup-orphan-markers",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
 
@@ -278,11 +272,9 @@ def test_cleanup_orphan_markers_ignores_inline_retro_mentions(
         repo / "tasks" / "documents-the-marker" / "ticket.md",
         """
         ---
-        slug: documents-the-marker
         title: Documents The Marker
         status: done
         owner: marc
-        assignee: marc
         ---
 
         ## Description
@@ -306,8 +298,7 @@ def test_cleanup_orphan_markers_ignores_inline_retro_mentions(
         workflow_name="cleanup-orphan-markers",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
 

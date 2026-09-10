@@ -91,16 +91,11 @@ def _write_ticket(repo: Path, slug: str, *, status: str, branch: str) -> None:
         dedent(
             f"""
             ---
-            slug: {slug}
             title: {slug}
             status: {status}
             autonomy: interactive
             owner: marc
-            human: marc
             agent: claude
-            assignee: claude
-            contexts: []
-            skills: []
             workflow: null
             ---
 

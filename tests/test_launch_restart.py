@@ -85,10 +85,7 @@ def _create_agent_task(coga_os: Path, step_names: list[str]) -> str:
         workflow_name="chain",
         contexts=[],
         owner="marc",
-        human="marc",
         agent="claude",
-        assignee="claude",
-        watchers=[],
         status="active",
     )
     return list_tasks(cfg)[0].id_slug

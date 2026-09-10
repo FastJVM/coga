@@ -78,7 +78,9 @@ def relocated_repo(tmp_path: Path) -> Path:
         description: Standard.
         steps:
           - name: implement
+            assignee: agent
           - name: pr
+            assignee: agent
         ---
 
         ## implement
@@ -134,8 +136,7 @@ def test_relocated_contexts_resolve_compose_validate_and_sync(
         workflow_name="code/with-review",
         contexts=["email/payment-flow"],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     ref = resolve_task(cfg, "fix-retry-logic")

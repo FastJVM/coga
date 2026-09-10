@@ -39,7 +39,6 @@ TICKET_EXAMPLE = dedent(
     title: Fix retry logic
     status: active
     owner: marc
-    assignee: claude
     workflow:
       name: code/with-review
       steps:
@@ -143,7 +142,7 @@ def test_workflow_step_assignee_role_token_round_trips(tmp_path: Path) -> None:
           - name: implement
             assignee: agent
           - name: review
-            assignee: human
+            assignee: owner
         ---
         """
     ).lstrip())
@@ -151,7 +150,7 @@ def test_workflow_step_assignee_role_token_round_trips(tmp_path: Path) -> None:
     assert wf.steps[0].assignee == "agent"
     frozen = wf.freeze()
     assert frozen["steps"][0] == {"name": "implement", "skills": [], "assignee": "agent"}
-    assert frozen["steps"][1] == {"name": "review", "skills": [], "assignee": "human"}
+    assert frozen["steps"][1] == {"name": "review", "skills": [], "assignee": "owner"}
 
 
 def test_workflow_rejects_non_role_token_assignee(tmp_path: Path) -> None:

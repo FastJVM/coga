@@ -694,8 +694,6 @@ def create_autofix_ticket(
         workflow_name=AUTOFIX_WORKFLOW,
         contexts=[],
         owner=cfg.current_user,
-        assignee=None,
-        watchers=[],
         status="active",
         directory=AUTOFIX_DIRECTORY,
         description=_ticket_description(analysis),
@@ -811,7 +809,6 @@ def run_autofix(
         "from the recurring sweep",
         task_path=task_dir,
         owner=cfg.current_user,
-        watchers=[],
     )
 
 
@@ -884,7 +881,6 @@ def run_autofix_analyze_recipe(cfg: Config, argv: list[str]) -> int:
         f"🩹 autofix created *{slug}* \"{analysis.title}\" from {path.name}",
         task_path=task_dir,
         owner=cfg.current_user,
-        watchers=[],
     )
     return 0
 

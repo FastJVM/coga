@@ -1084,22 +1084,26 @@ def test_post_owner_without_mapping_stays_plain(
     )
 
 
-def test_post_watchers_cc_only_mapped_names(
+def test_post_addresses_only_the_owner(
     cfg_with_users, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """There is no watcher list and no cc trailer; the owner is the audience."""
     calls = _capture(monkeypatch)
-    post(cfg_with_users, "task done", owner="marc", watchers=["ada", "stranger"])
+    post(cfg_with_users, "task done", owner="marc")
     assert calls[0]["json"]["text"] == (
-        f"[{cfg_with_users.project_name}] [<@U01MARC>] task done (cc <@U02ADA>)"
+        f"[{cfg_with_users.project_name}] [<@U01MARC>] task done"
     )
+    assert "(cc" not in calls[0]["json"]["text"]
 
 
-def test_post_watchers_all_unmapped_omits_trailer(
+def test_post_rejects_the_removed_watchers_argument(
     cfg_with_users, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    calls = _capture(monkeypatch)
-    post(cfg_with_users, "task done", owner="marc", watchers=["nobody", "stranger"])
-    assert "(cc" not in calls[0]["json"]["text"]
+    _capture(monkeypatch)
+    with pytest.raises(TypeError):
+        post(  # type: ignore[call-arg]
+            cfg_with_users, "task done", owner="marc", watchers=["ada"]
+        )
 
 
 def test_invalid_enabled_type_raises_config_error(tmp_path: Path) -> None:

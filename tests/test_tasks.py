@@ -25,11 +25,7 @@ TICKET = """
 title: X
 status: draft
 owner: marc
-human: marc
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow: null
 ---
 

@@ -539,6 +539,7 @@ def test_skill_update_runs_through_generic_recipe_and_reports_no_op(
           - name: update
             skills:
               - bootstrap/skill-update
+            assignee: agent
         ---
         """,
     )
@@ -549,8 +550,7 @@ def test_skill_update_runs_through_generic_recipe_and_reports_no_op(
         workflow_name="skill-update/run",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
 

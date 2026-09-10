@@ -11,7 +11,7 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from conftest import seed_direct_body_workflow
+from conftest import derived_operator, hold_by_agent, hold_by_owner, seed_direct_body_workflow
 from coga import compose as compose_module, git
 from coga.blackboard import append_blocker
 from coga.cli import app
@@ -84,8 +84,7 @@ def _create_script_task(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         secrets=secrets,
         force_directory=True,
@@ -133,10 +132,7 @@ def _create_two_step_script_task(
         workflow_name="deterministic/two-step",
         contexts=[],
         owner="marc",
-        human="marc",
         agent="claude",
-        assignee="claude",
-        watchers=[],
         status="active",
         force_directory=True,
     )
@@ -163,8 +159,7 @@ def test_classifier_reserves_only_ticket_py_in_a_task_directory(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="draft",
     )
     file_ref = resolve_task(cfg, created["slug"])
@@ -488,10 +483,10 @@ def test_script_target_deleted_during_sync_stops_cleanly(
 
 
 @pytest.mark.parametrize(
-    ("fresh_state", "expected_status", "expected_assignee", "reason"),
+    ("fresh_state", "expected_status", "expected_role", "reason"),
     [
-        ("done", "done", "claude", "task is done"),
-        ("human", "in_progress", "marc", "hands off to marc"),
+        ("done", "done", "agent", "task is done"),
+        ("human", "in_progress", "owner", "hands off to marc"),
     ],
 )
 def test_script_does_not_run_after_sync_changes_lifecycle_or_owner(
@@ -499,7 +494,7 @@ def test_script_does_not_run_after_sync_changes_lifecycle_or_owner(
     monkeypatch: pytest.MonkeyPatch,
     fresh_state: str,
     expected_status: str,
-    expected_assignee: str,
+    expected_role: str,
     reason: str,
 ) -> None:
     marker = script_repo.parent / f"stale-{fresh_state}-script-ran"
@@ -516,7 +511,7 @@ def test_script_does_not_run_after_sync_changes_lifecycle_or_owner(
         if fresh_state == "done":
             fresh.frontmatter["status"] = "done"
         else:
-            fresh.frontmatter["assignee"] = "marc"
+            hold_by_owner(fresh)
         fresh.write(ref.ticket_path)
         return True
 
@@ -536,7 +531,7 @@ def test_script_does_not_run_after_sync_changes_lifecycle_or_owner(
     assert marker.exists() is False
     assert outcome.ticket is not None
     assert outcome.ticket.status == expected_status
-    assert outcome.ticket.assignee == expected_assignee
+    assert (outcome.ticket.current_step() or {}).get("assignee") == expected_role
 
 
 def test_recorded_assist_script_receives_capability_and_publishes_result(
@@ -566,7 +561,7 @@ def test_recorded_assist_script_receives_capability_and_publishes_result(
     )
     ticket = Ticket.read(ref.ticket_path)
     ticket.frontmatter["status"] = "in_progress"
-    ticket.frontmatter["assignee"] = "marc"
+    hold_by_owner(ticket)
     ticket.write(ref.ticket_path)
 
     sync_log_calls: list[dict[str, object]] = []
@@ -641,7 +636,7 @@ def test_recorded_assist_aligns_before_running_ticket_script(
 ) -> None:
     ref = _create_script_task(script_repo, "raise AssertionError('not run')\n")
     ticket = Ticket.read(ref.ticket_path)
-    ticket.frontmatter["assignee"] = "marc"
+    hold_by_owner(ticket)
     ticket.write(ref.ticket_path)
     replace_blackboard(
         ref.ticket_path,
@@ -1059,18 +1054,27 @@ def test_human_assist_override_expires_at_agent_owned_step(
     assert spawned == ["claude"]
     ticket = Ticket.read(ref.ticket_path)
     assert ticket.step == "2 (finish)"
-    assert ticket.assignee == "claude"
+    # The assist override expired at the agent step; the step's own role routes
+    # it, and nothing was written to the ticket.
+    assert ticket.current_step()["assignee"] == "agent"
+    assert "assignee" not in ticket.frontmatter
 
 
-def test_reblock_restores_original_assignee_with_terminal_step(
+def test_reblock_restores_the_original_position_not_an_assignment(
     script_repo: Path,
 ) -> None:
+    """Restoring an unanswered resume restores the *routing inputs*.
+
+    A terminal deterministic transition can clear `step:`. Putting the original
+    position back is enough: the operator is derived from the frozen role at that
+    position, so an unresolved ask can no longer be attributed to whichever agent
+    a later step would have used.
+    """
     ref = _create_script_task(script_repo, "pass\n")
     append_blocker(ref.ticket_path, "agent:claude", "which retry ceiling?")
     ticket = Ticket.read(ref.ticket_path)
     ticket.frontmatter["status"] = "done"
     ticket.frontmatter["step"] = None
-    ticket.frontmatter["assignee"] = "codex"
     ticket.write(ref.ticket_path)
 
     reblocked = launch_module._reblock_unresolved_resume(
@@ -1078,42 +1082,14 @@ def test_reblock_restores_original_assignee_with_terminal_step(
         ref,
         "claude",
         resume_step="1 (execute)",
-        resume_assignee="claude",
     )
 
     assert reblocked is True
     restored = Ticket.read(ref.ticket_path)
     assert restored.status == "blocked"
     assert restored.step == "1 (execute)"
-    assert restored.assignee == "claude"
-
-
-def test_reblock_refuses_to_misroute_an_originally_unassigned_step(
-    script_repo: Path,
-) -> None:
-    ref = _create_script_task(script_repo, "pass\n")
-    append_blocker(ref.ticket_path, "agent:claude", "which retry ceiling?")
-    ticket = Ticket.read(ref.ticket_path)
-    ticket.frontmatter["status"] = "done"
-    ticket.frontmatter["step"] = None
-    ticket.frontmatter["assignee"] = "codex"
-    ticket.write(ref.ticket_path)
-
-    with pytest.raises(
-        launch_module._AssistPublicationRefused,
-        match="original resumed step had no valid assignee",
-    ):
-        launch_module._reblock_unresolved_resume(
-            load_config(script_repo),
-            ref,
-            "claude",
-            resume_step="1 (execute)",
-            resume_assignee=None,
-        )
-
-    retained = Ticket.read(ref.ticket_path)
-    assert retained.status == "done"
-    assert retained.assignee == "codex"
+    assert "assignee" not in restored.frontmatter
+    assert derived_operator(script_repo, ref.id_slug) == "claude"
 
 
 def test_agent_handoff_uses_configuration_reloaded_after_script(
@@ -1134,11 +1110,7 @@ def test_agent_handoff_uses_configuration_reloaded_after_script(
         )
         ticket = Path(os.environ["COGA_TASK_TICKET"])
         ticket.write_text(
-            ticket.read_text().replace(
-                "assignee: claude",
-                "assignee: reviewer",
-                1,
-            )
+            ticket.read_text().replace("agent: claude", "agent: reviewer", 1)
         )
         """,
     )
@@ -1173,8 +1145,10 @@ def test_agent_handoff_uses_configuration_reloaded_after_script(
     result = CliRunner().invoke(app, ["launch", ref.id_slug])
 
     assert result.exit_code == 0, result.output
+    # The handoff resolves the `agent` role against the *reloaded* config and
+    # the *reloaded* ticket, so a main-agent change the script made takes effect.
     assert spawned == ["reviewer"]
-    assert Ticket.read(ref.ticket_path).assignee == "reviewer"
+    assert Ticket.read(ref.ticket_path).agent == "reviewer"
 
 
 def test_chained_agent_env_uses_fresh_ticket_secrets(
@@ -1317,8 +1291,7 @@ def test_script_chain_stops_when_next_step_hands_off_to_human(
         workflow_name="deterministic/handoff",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         force_directory=True,
     )
@@ -1403,7 +1376,7 @@ def test_script_chain_stops_when_next_step_hands_off_to_human(
     ticket = Ticket.read(ref.ticket_path)
     assert ticket.status == ("blocked" if blocked_resume else "in_progress")
     assert ticket.step == "2 (approve)"
-    assert ticket.assignee == "marc"
+    assert ticket.current_step()["assignee"] == "owner"
     assert "next step hands off to marc" in result.output
     if blocked_resume:
         assert "- [ ]" in read_blackboard(ref.ticket_path)
@@ -1427,7 +1400,7 @@ def test_open_script_step_fails_loud_when_no_agent_can_continue(
     )
     if unavailable == "human":
         ticket = Ticket.read(ref.ticket_path)
-        ticket.frontmatter["assignee"] = "marc"
+        hold_by_owner(ticket)
         ticket.write(ref.ticket_path)
 
     monkeypatch.setattr(launch_module, "compose_prompt", _fail("prompt composed"))
@@ -1469,9 +1442,6 @@ def test_bootstrap_script_is_stateless_and_keeps_stdout_machine_readable(
         """
         ---
         title: Deterministic command
-        assignee: claude
-        skills: []
-        secrets: null
         ---
 
         ## Description

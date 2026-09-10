@@ -62,11 +62,9 @@ def _seed_done_task(repo: Path, slug: str = "fix-retry-logic") -> Path:
         task_dir / "ticket.md",
         f"""
         ---
-        slug: {slug}
         title: Fix retry logic
         status: done
         owner: marc
-        assignee: marc
         ---
 
         ## Description
@@ -89,7 +87,7 @@ def test_retire_no_launch_creates_task_with_target_slug(
 
     assert result.exit_code == 0, result.output
     assert "Retire: target task fix-retry-logic" in result.output
-    assert "Retire: using assignee claude (agent type claude)" in result.output
+    assert "Retire: using main agent claude (agent type claude)" in result.output
     assert "Retire: creating task 'Retire fix-retry-logic'" in result.output
     assert "Retire: created task retire-fix-retry-logic" in result.output
     assert "Retire: launch skipped (--no-launch)" in result.output
@@ -104,7 +102,7 @@ def test_retire_no_launch_creates_task_with_target_slug(
     # workflow-carrying, bumpable, valid active task.
     assert ticket.status == "active"
     assert "mode" not in ticket.frontmatter
-    assert ticket.assignee == "claude"
+    assert ticket.agent == "claude"
     assert ticket.workflow["name"] == "direct/body"
     assert "Retire the done ticket `fix-retry-logic`" in ticket.body
     assert "retro/done-ticket" in ticket.body
@@ -171,11 +169,9 @@ def test_retire_refuses_non_done_target(
         task_dir / "ticket.md",
         """
         ---
-        slug: in-flight
         title: Still going
         status: active
         owner: marc
-        assignee: marc
         ---
 
         ## Description
@@ -307,11 +303,9 @@ def test_retire_prunes_merged_branch_before_launch(
         task_dir / "ticket.md",
         f"""
         ---
-        slug: {slug}
         title: Fix retry logic
         status: done
         owner: marc
-        assignee: marc
         ---
 
         ## Description
@@ -383,11 +377,9 @@ def test_retire_removes_linked_worktree_then_prunes_its_branch(
         task_dir / "ticket.md",
         f"""
         ---
-        slug: {slug}
         title: Fix retry logic
         status: done
         owner: marc
-        assignee: marc
         ---
 
         ## Description
@@ -443,11 +435,9 @@ def test_retire_leaves_dirty_worktree_in_place(
         task_dir / "ticket.md",
         f"""
         ---
-        slug: {slug}
         title: Fix retry logic
         status: done
         owner: marc
-        assignee: marc
         ---
 
         ## Description
@@ -503,11 +493,9 @@ def test_retire_records_forceable_ignored_checkout_in_retro_body(
         task_dir / "ticket.md",
         f"""
         ---
-        slug: {slug}
         title: Fix retry logic
         status: done
         owner: marc
-        assignee: marc
         ---
 
         ## Description
@@ -568,11 +556,9 @@ def test_retire_preserves_checkout_claimed_by_another_live_ticket(
         source_dir / "ticket.md",
         f"""
         ---
-        slug: {source_slug}
         title: Finished half
         status: done
         owner: marc
-        assignee: marc
         ---
 
         ## Description
@@ -592,11 +578,9 @@ def test_retire_preserves_checkout_claimed_by_another_live_ticket(
         live_dir / "ticket.md",
         f"""
         ---
-        slug: still-active
         title: Still active
         status: in_progress
         owner: marc
-        assignee: marc
         ---
 
         ## Description
@@ -666,11 +650,9 @@ def test_retire_preserves_checkout_claimed_by_sibling_coga_workspace(
         current / "tasks" / "finished" / "ticket.md",
         f"""
         ---
-        slug: finished
         title: Finished
         status: done
         owner: marc
-        assignee: marc
         ---
 
         ## Description
@@ -688,11 +670,9 @@ def test_retire_preserves_checkout_claimed_by_sibling_coga_workspace(
         sibling / "tasks" / "still-active" / "ticket.md",
         f"""
         ---
-        slug: still-active
         title: Still active
         status: in_progress
         owner: marc
-        assignee: marc
         ---
 
         ## Description

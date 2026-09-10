@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import shutil
 import sys
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -163,6 +163,143 @@ def resolve_agent_delegate(cfg: Config, delegate: str) -> BootstrapRef:
             "instead of delegating to a bootstrap script"
         )
     return target
+
+
+# The default workflow a template without one materializes into. Its single
+# step explicitly declares `assignee: agent` and carries no completion gate, so
+# it already satisfies the delegated bound below.
+DEFAULT_PERIOD_WORKFLOW = "direct/body"
+
+DELEGATED_WORKFLOW_RULE = (
+    "a delegated recurring period must resolve to a workflow with exactly one "
+    "step, that step explicitly declaring `assignee: agent`, and no `requires:` "
+    f"completion gate (the default `{DEFAULT_PERIOD_WORKFLOW}` qualifies)"
+)
+
+
+def _delegated_bound_violation(
+    steps: Sequence[tuple[Any, Any]] | None,
+) -> str | None:
+    """Why these (role, requires) pairs break the delegated bound, or None.
+
+    A delegated period represents **one bootstrap agent job**: the runner
+    launches the frozen bootstrap target and completes the whole period on that
+    target's done signal, without advancing the period workflow. So the period's
+    workflow is only its lifecycle envelope, and it must not promise anything
+    the runner will not deliver.
+
+    - More than one step would leave later steps — including a human gate — with
+      no chance to run before whole-period completion skipped them.
+    - A peer, owner, or omitted role would derive an operator that disagrees
+      with the bootstrap agent actually doing the work.
+    - A completion requirement would be a gate nothing evaluates. It is rejected
+      even when it currently *passes*, because whether it passes is run state,
+      not a property of the contract.
+
+    Jobs that genuinely need multiple steps, peer review, or a gate run through
+    ordinary recurring execution, without `delegate`.
+    """
+    if steps is None:
+        return (
+            "its workflow is missing or malformed, so the delegated bound "
+            f"cannot be verified: {DELEGATED_WORKFLOW_RULE}"
+        )
+    if len(steps) != 1:
+        return (
+            f"its workflow has {len(steps)} steps; {DELEGATED_WORKFLOW_RULE}"
+        )
+    role, requires = steps[0]
+    if role != "agent":
+        shown = "omitted" if role in (None, "") else repr(role)
+        return (
+            f"its only step declares assignee={shown}; {DELEGATED_WORKFLOW_RULE}"
+        )
+    if requires:
+        return (
+            f"its only step declares requires={requires!r}, a completion gate "
+            f"nothing evaluates for a delegated period; {DELEGATED_WORKFLOW_RULE}"
+        )
+    return None
+
+
+def delegated_workflow_violation(workflow: Workflow) -> str | None:
+    """Check a loaded workflow definition against the delegated bound."""
+    return _delegated_bound_violation(
+        [(step.assignee, step.requires) for step in workflow.steps]
+    )
+
+
+def delegated_frozen_workflow_violation(
+    ticket: Ticket, *, require_step: bool = True
+) -> str | None:
+    """Check a materialized period's frozen snapshot against the bound.
+
+    `require_step` also requires the period to be at step 1: with one step there
+    is nowhere else to be, so any other position means the snapshot and the
+    position disagree. A direct launch of a draft/paused period checks the shape
+    before its prospective activation has seeded a position, and checks the
+    position again afterwards.
+    """
+    wf = ticket.workflow
+    steps = wf.get("steps") if isinstance(wf, dict) else None
+    if not isinstance(steps, list) or not all(
+        isinstance(step, Mapping) for step in steps
+    ):
+        return _delegated_bound_violation(None)
+    violation = _delegated_bound_violation(
+        [(step.get("assignee"), step.get("requires")) for step in steps]
+    )
+    if violation is not None:
+        return violation
+    if require_step and ticket.step_index() != 1:
+        return (
+            f"its current step is {ticket.step!r}, but a delegated period's "
+            "one-step workflow must be at step 1"
+        )
+    return None
+
+
+def assert_template_delegation(cfg: Config, template: "Template") -> BootstrapRef:
+    """Gate a delegating template before any period is materialized.
+
+    Resolves the bootstrap target and checks the workflow the period *would*
+    freeze, so an ineligible template is refused while it still has no task on
+    disk to roll back.
+    """
+    target = resolve_agent_delegate(cfg, template.delegate or "")
+    name = template.frontmatter.get("workflow") or DEFAULT_PERIOD_WORKFLOW
+    try:
+        workflow = Workflow.load(resolve_workflow_path(cfg, name))
+    except WorkflowError as exc:
+        raise RecurringError(
+            f"delegating template declares workflow {name!r}, which does not "
+            f"load: {exc}"
+        ) from exc
+    violation = delegated_workflow_violation(workflow)
+    if violation is not None:
+        raise RecurringError(
+            f"delegating template cannot use workflow {name!r}: {violation}"
+        )
+    return target
+
+
+def assert_frozen_delegation(
+    ref: TaskRef, ticket: Ticket, *, require_step: bool = True
+) -> None:
+    """Gate a materialized delegated period before dispatch or completion.
+
+    Re-checked after every ticket/config reload — before spawning the target and
+    again before the sentinel completes the period — so a workflow edited while
+    a child runs cannot slip a gate past whole-period completion. A refusal must
+    leave the period untouched: no target spawned, no advance, no completion.
+    """
+    violation = delegated_frozen_workflow_violation(
+        ticket, require_step=require_step
+    )
+    if violation is not None:
+        raise RecurringError(
+            f"delegated period {ref.id_slug} cannot run: {violation}"
+        )
 
 
 def frozen_task_delegate(ref: TaskRef, ticket: Ticket) -> str | None:
@@ -772,7 +909,7 @@ def create_template(
             # that prior-period artifact through the canonical deletion path,
             # then create a genuinely fresh task from the current template.
             if template.delegate is not None:
-                resolve_agent_delegate(cfg, template.delegate)
+                assert_template_delegation(cfg, template)
             if not allow_agent and template.script_entry_point is None:
                 raise RecurringError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
             replaced_done_ticket_bytes = existing.ticket_path.read_bytes()
@@ -817,7 +954,7 @@ def create_template(
         )
 
     if template.delegate is not None:
-        resolve_agent_delegate(cfg, template.delegate)
+        assert_template_delegation(cfg, template)
     if not allow_agent and template.script_entry_point is None:
         raise RecurringError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
     outcome = _create_at_slug(
@@ -990,18 +1127,16 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
 # --- promote ------------------------------------------------------------------
 
 # A task's per-run fields, which a template must not carry. `status`/`step` are
-# run state the scanner and workflow own; `slug` identifies a *task*, while a
-# template is identified by its directory name; `human`/`agent` are task-launch
-# fields the creator re-derives for every period task. `skills:` is dropped too,
-# but reported separately: it is deliberately never copied into a period task
-# (see the `coga/recurring` context), so leaving it on the template would look
+# run state the scanner and workflow own, and `period_generation` is the
+# creator's per-run discriminator. `agent:` is *not* here: a template's main-agent
+# choice is a real preference, so promotion keeps it and every period task
+# inherits it (see `_TEMPLATE_PASSTHROUGH`). `skills:` is dropped too, but
+# reported separately: it is deliberately never copied into a period task (see
+# the `coga/recurring` context), so leaving it on the template would look
 # load-bearing while doing nothing.
 _TASK_ONLY_FIELDS = (
-    "slug",
     "status",
     "step",
-    "human",
-    "agent",
     "period_generation",
 )
 
@@ -1011,8 +1146,7 @@ _TEMPLATE_PASSTHROUGH = (
     "title",
     "workflow",
     "owner",
-    "assignee",
-    "watchers",
+    "agent",
     "contexts",
     "secrets",
 )
@@ -1225,17 +1359,6 @@ def _create_at_slug(
     """Create one recurring task at an explicit slug. Shared by period and
     debug creating — the only differences are the slug and ledger handling,
     which the callers own."""
-    # A recurring task is a machine-authored job: it creates straight to
-    # `active` and is meant to run, not be triaged. So when the template
-    # doesn't name an assignee, default to the repo's configured default
-    # agent — not the human owner, which `coga launch` cannot resolve to
-    # an agent type. Without this a workflow-less template like Dream (no
-    # step to ever rewrite `assignee:`) creates unlaunchable.
-    assignee = template.frontmatter.get("assignee")
-    if not assignee:
-        default_agent = cfg.default_agent()
-        assignee = default_agent.name if default_agent else None
-
     # Every period task gets `coga/period-task` auto-attached so the run
     # learns where persistent state lives (the parent's blackboard, not
     # its own). The convention applies to every period task by definition —
@@ -1253,11 +1376,17 @@ def _create_at_slug(
             # keeps it; a workflow-less one (e.g. Dream, whose process is
             # its body's ordered phases) runs through the one-step `direct/body`
             # workflow so it is activatable, bumpable, and valid like any task.
-            workflow_name=template.frontmatter.get("workflow") or "direct/body",
+            workflow_name=(
+                template.frontmatter.get("workflow") or DEFAULT_PERIOD_WORKFLOW
+            ),
             contexts=contexts,
             owner=template.frontmatter.get("owner"),
-            assignee=assignee,
-            watchers=list(template.frontmatter.get("watchers") or []),
+            # A recurring task is a machine-authored job: it creates straight to
+            # `active` and is meant to run, not be triaged. Creating live selects
+            # the configured default main agent when the template names none,
+            # exactly as activation would — so a workflow-less template like
+            # Dream is launchable from the moment it materializes.
+            agent=template.frontmatter.get("agent"),
             status="active",
             slug_override=target_slug,
             secrets=template.frontmatter.get("secrets"),

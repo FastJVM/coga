@@ -153,7 +153,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         ---
         schedule: "0 9 * * *"
         title: "Dev update"
-        assignee: claude
         owner: marc
         state_keys:
           - last_commit
@@ -248,7 +247,6 @@ def test_create_without_state_keys_writes_no_snapshot(tmp_path: Path) -> None:
         ---
         schedule: "0 9 * * *"
         title: "Plain"
-        assignee: claude
         owner: marc
         ---
 
@@ -283,7 +281,6 @@ def test_template_rejects_malformed_state_keys(
         ---
         schedule: "0 9 * * *"
         title: "Bad"
-        assignee: claude
         owner: marc
         {state_keys_line}
         ---

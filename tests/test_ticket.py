@@ -32,7 +32,7 @@ def _prompt_arg(cmd: list[str]) -> str:
 def test_period_generation_renders_as_canonical_task_state() -> None:
     """The runner-owned token is not mislabeled as a repo extension."""
     ticket = Ticket(
-        frontmatter={"slug": "recurring/check", "period_generation": "generation-1"},
+        frontmatter={"title": "Check", "period_generation": "generation-1"},
         body="",
     )
 
@@ -68,7 +68,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         title: Create a new ticket
         skills:
           - bootstrap/ticket
-        assignee: claude
         ---
 
         ## Description
@@ -167,7 +166,7 @@ def test_ticket_path_title_drafts_in_subdirectory(
     ticket = Ticket.read(ticket_path)
     assert ticket.status == "draft"
     assert ticket.title == "Build the flow"
-    assert ticket.frontmatter["slug"] == "v2/build-the-flow"
+    assert "slug" not in ticket.frontmatter
     assert "Coga task — v2/build-the-flow" in prompts[0]
 
 
@@ -378,8 +377,7 @@ def test_ticket_existing_active_task_is_editable_without_status_change(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     prompts: list[str] = []
@@ -406,8 +404,7 @@ def test_ticket_reports_compose_error_for_broken_editable_task(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     ticket_path = Path(ref["path"])
@@ -445,8 +442,7 @@ def test_ticket_edits_in_progress_task(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="in_progress",
     )
     prompts: list[str] = []
@@ -469,8 +465,7 @@ def test_ticket_edits_blocked_task_without_unblocking(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="blocked",
     )
     original_step = Ticket.read(ref["path"]).step
@@ -507,8 +502,7 @@ def test_ticket_repairs_invalid_status_with_terminal_shape(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="in_progress",
     )
     ticket = Ticket.read(ref["path"])
@@ -549,8 +543,7 @@ def test_ticket_can_edit_canceled_task_without_reopening(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="canceled",
     )
     prompts: list[str] = []
@@ -619,8 +612,7 @@ def test_ticket_existing_draft_greets_as_edit_not_create(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="draft",
     )
     captured: dict[str, object] = {}
@@ -646,8 +638,7 @@ def test_ticket_nested_bare_leaf_edits_existing_not_duplicate(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="draft",
         directory="marketing",
     )
@@ -680,8 +671,7 @@ def test_ticket_ambiguous_bare_leaf_bails_without_launching(
             workflow_name="direct/body",
             contexts=[],
             owner="marc",
-            assignee="claude",
-            watchers=[],
+            agent="claude",
             status="draft",
             directory=directory,
         )
@@ -703,3 +693,124 @@ def test_ticket_ambiguous_bare_leaf_bails_without_launching(
     assert not called
     # No duplicate top-level draft was scaffolded.
     assert not (repo / "tasks" / "relaunch.md").exists()
+
+
+# --- simplified format: rendering, rejection, and the raw-value contract ------
+
+
+def test_render_omits_empty_optional_declarations() -> None:
+    """Absence *is* empty, so an empty list is simply not written."""
+    ticket = Ticket(
+        frontmatter={
+            "title": "Minimal",
+            "status": "draft",
+            "owner": "marc",
+            "contexts": [],
+            "skills": [],
+            "workflow": None,
+            "secrets": None,
+        },
+        body="body\n",
+    )
+
+    rendered = ticket.render()
+
+    assert "contexts:" not in rendered
+    assert "skills:" not in rendered
+    assert "secrets:" not in rendered
+    # The required keys stay, including an explicit `workflow: null`.
+    assert "title: Minimal" in rendered
+    assert "workflow: null" in rendered
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("contexts", None),
+        ("skills", None),
+        ("contexts", ""),
+        ("skills", 0),
+        ("secrets", ""),
+        ("secrets", {}),
+    ],
+)
+def test_render_keeps_malformed_falsy_declarations(key: str, value: object) -> None:
+    """A typo must stay visible for validation, not vanish as "empty"."""
+    ticket = Ticket(
+        frontmatter={"title": "T", "status": "draft", "owner": "marc", key: value},
+        body="",
+    )
+
+    assert f"{key}:" in ticket.render()
+
+
+def test_render_keeps_nonempty_declarations_in_order() -> None:
+    ticket = Ticket(
+        frontmatter={
+            "title": "T",
+            "status": "draft",
+            "owner": "marc",
+            "contexts": ["b/two", "a/one"],
+            "skills": ["s/one"],
+            "workflow": None,
+            "secrets": [{"TOKEN": "env:TOKEN"}],
+        },
+        body="",
+    )
+
+    rendered = ticket.render()
+
+    assert "- b/two\n" in rendered
+    assert rendered.index("- b/two") < rendered.index("- a/one")
+    assert "- s/one" in rendered
+    assert "TOKEN: env:TOKEN" in rendered
+
+
+def test_render_does_not_mutate_the_callers_frontmatter_or_body() -> None:
+    frontmatter = {
+        "title": "T",
+        "status": "draft",
+        "owner": "marc",
+        "contexts": [],
+        "workflow": None,
+    }
+    body = "\n\n## Description\n\nkeep me\n"
+    ticket = Ticket(frontmatter=frontmatter, body=body)
+
+    ticket.render()
+
+    assert frontmatter == {
+        "title": "T",
+        "status": "draft",
+        "owner": "marc",
+        "contexts": [],
+        "workflow": None,
+    }
+    assert ticket.body == body
+
+
+def test_parse_no_longer_pops_a_legacy_script_key() -> None:
+    """The obsolete `script: null` accommodation is gone.
+
+    A leftover key is now an ordinary orphan extension — visible, warned about,
+    and never a dispatch input.
+    """
+    ticket = Ticket.parse("---\ntitle: T\nscript: null\n---\n\nbody\n")
+
+    assert "script" in ticket.frontmatter
+    assert ticket.frontmatter["script"] is None
+    assert "# --- extensions ---" in ticket.render()
+
+
+def test_removed_metadata_has_no_accessor() -> None:
+    ticket = Ticket.parse("---\ntitle: T\nowner: marc\n---\n\nbody\n")
+
+    for name in ("slug", "human", "assignee", "watchers"):
+        assert not hasattr(ticket, name)
+
+
+def test_agent_accessor_is_raw() -> None:
+    """`Ticket.agent` never loads config or resolves anything."""
+    ticket = Ticket.parse("---\ntitle: T\nagent: not-configured\n---\n\nbody\n")
+
+    assert ticket.agent == "not-configured"

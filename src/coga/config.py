@@ -11,7 +11,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from coga.ticket import CANONICAL_TICKET_KEYS
+from coga.ticket import CANONICAL_TICKET_KEYS, REJECTED_TICKET_KEYS
 
 
 class ConfigError(Exception):
@@ -624,8 +624,13 @@ def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentTy
 # Ticket rendering already owns the canonical key set. Reuse it here so every
 # new internal field is reserved from `[ticket.fields.*]` in the same change;
 # a duplicate hand-maintained list let `launch_generation` be declared as user
-# data even though megalaunch overwrites it as a session claim.
-_RESERVED_TICKET_FIELD_NAMES: frozenset[str] = CANONICAL_TICKET_KEYS
+# data even though megalaunch overwrites it as a session claim. The metadata the
+# simplified format removed stays reserved too: `assignee`/`human`/`watchers`
+# must not come back as a repo extension that reintroduces independent
+# assignment beside the derived operator.
+_RESERVED_TICKET_FIELD_NAMES: frozenset[str] = (
+    CANONICAL_TICKET_KEYS | REJECTED_TICKET_KEYS
+)
 
 _ALLOWED_TICKET_FIELD_KEYS: frozenset[str] = frozenset({
     "description",
@@ -664,9 +669,13 @@ def _parse_ticket_fields(raw: dict | None) -> dict[str, TicketField]:
                 f"(got {type(data).__name__})"
             )
         if name in _RESERVED_TICKET_FIELD_NAMES:
+            why = (
+                "names metadata the simplified ticket format removed"
+                if name in REJECTED_TICKET_KEYS
+                else "collides with the canonical ticket frontmatter key"
+            )
             raise ConfigError(
-                f"[ticket.fields.{name}] collides with the canonical ticket "
-                f"frontmatter key {name!r}. Pick a different name. "
+                f"[ticket.fields.{name}] {why} {name!r}. Pick a different name. "
                 "See the `coga/architecture` context for the reserved set."
             )
         bad_keys = sorted(set(data) - _ALLOWED_TICKET_FIELD_KEYS)
@@ -1017,7 +1026,7 @@ def _parse_slack_users(
     shared: dict | None, table_name: str = "[notification.slack.users]"
 ) -> dict[str, str]:
     """Parse Slack user mapping — maps a coga name (the token used in a
-    ticket's `owner` / `watchers` fields) to a Slack member ID.
+    ticket's `owner` field) to a Slack member ID.
 
     The member ID is what lets an incoming webhook actually *ping* someone:
     Slack only fires a notification for the `<@U…>` mention form, and a

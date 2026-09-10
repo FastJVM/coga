@@ -51,6 +51,7 @@ from coga.recurring import (
     period_key_at_least,
     read_serviced_ledger,
     recurring_dir,
+    assert_frozen_delegation,
     resolve_agent_delegate,
     same_period_lease as _same_period_lease,
     same_ticket_bytes as _same_ticket_bytes,
@@ -73,6 +74,7 @@ from coga.period_state import (
 )
 from coga.mark import (
     BlackboardNeedsSynthesis,
+    MainAgentUnavailable,
     RequiredExtensionMissing,
     StrandedProductCode,
     WorkflowMissing,
@@ -1640,7 +1642,6 @@ def run_recurring_scan(
             f"⚠️ *{task.ref.id_slug}*: {detail}",
             kind="recurring-error",
             owner=paused_ticket.owner or cfg.current_user,
-            watchers=paused_ticket.watchers,
             task_path=task.ref.path,
             important=True,
             fatal=False,
@@ -2512,6 +2513,13 @@ def _run_delegated_task(
         # catches drift repo-wide; this runtime gate keeps a later bootstrap
         # edit from turning an agent delegation into repeated script work.
         resolve_agent_delegate(cfg, delegate)
+        # And re-check the delegated workflow bound. A period whose snapshot was
+        # edited into a peer step, a later owner gate, an extra step, or a
+        # completion requirement must refuse here — before the target spawns —
+        # because whole-period sentinel completion would otherwise skip whatever
+        # that snapshot promised. The position is checked again once a
+        # draft/paused direct launch has prospectively activated.
+        assert_frozen_delegation(ref, ticket, require_step=False)
     except (RecurringError, UnicodeError, TicketError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return DelegatedRunResult(2, "refused")
@@ -2552,6 +2560,12 @@ def _run_delegated_task(
                 f"changed from {delegate!r} to {current_delegate!r} at "
                 f"{boundary}"
             )
+        # Every leased boundary re-checks the bound, so a workflow edited while
+        # the child runs cannot reach completion. The `completion` boundary is
+        # the one that matters most: refusing there leaves the period
+        # `in_progress` for an explicit retry rather than marking a gated
+        # workflow done.
+        assert_frozen_delegation(ref, current)
         return current
 
     def confirm_control_lease(
@@ -2614,6 +2628,7 @@ def _run_delegated_task(
                 f"cannot start delegated period {ref.id_slug}: frozen target "
                 f"changed from {delegate!r} to {current_delegate!r}"
             )
+        assert_frozen_delegation(ref, current, require_step=False)
 
         prior_status = current.status
         if activate_if_needed and prior_status in {"draft", "paused"}:
@@ -2641,6 +2656,14 @@ def _run_delegated_task(
                         ref.id_slug, action="launch", reason=exc.reason
                     )
                 ) from exc
+            except MainAgentUnavailable as exc:
+                raise RecurringError(
+                    f"cannot activate delegated period {ref.id_slug}: {exc}"
+                ) from exc
+            # Prospective activation has now frozen the snapshot and seeded a
+            # position; the full bound, step included, must hold before the
+            # transition is committed.
+            assert_frozen_delegation(ref, current)
 
         if current.status == "active":
             cur = current.current_step()

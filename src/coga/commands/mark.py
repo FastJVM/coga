@@ -17,11 +17,13 @@ import sys
 import typer
 
 from coga import git, pr_assist
+from coga.commands.common import current_operator
 from coga.config import Config, ConfigError, load_config
 from coga.lifecycle import CANCELABLE_STATUSES
 from coga.logfile import log_path
 from coga.mark import (
     BlackboardNeedsSynthesis,
+    MainAgentUnavailable,
     CancellationError,
     RequiredExtensionMissing,
     StrandedProductCode,
@@ -92,6 +94,8 @@ def active(
             f"Cannot activate {ref.id_slug}: its `workflow:` ref could not "
             f"be frozen — {exc}"
         )
+    except MainAgentUnavailable as exc:
+        _bail(f"Cannot activate {ref.id_slug}: {exc}")
     except RequiredExtensionMissing as exc:
         names = ", ".join(repr(f) for f in exc.fields)
         _bail(
@@ -218,7 +222,7 @@ def done(
     finisher = (
         assist.agent
         if assist is not None
-        else ticket.assignee or cfg.current_user
+        else current_operator(cfg, ref, ticket) or cfg.current_user
     )
     actor = (
         f"agent:{assist.agent}"
