@@ -25,7 +25,7 @@ workflow:
     assignee: owner
 secrets: null
 step: 1 (implement)
-launch_generation: pending:e09dc8bf-9eb3-41f3-ad27-35e4f411a4ee
+launch_generation: e09dc8bf-9eb3-41f3-ad27-35e4f411a4ee
 ---
 
 ## Description
