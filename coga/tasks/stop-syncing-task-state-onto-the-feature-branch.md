@@ -34,7 +34,7 @@ workflow:
     assignee: owner
 secrets: null
 step: 2 (self-qa)
-launch_generation: pending:214b2e84-cb35-4e6d-9f2d-d97701bede2c
+launch_generation: 214b2e84-cb35-4e6d-9f2d-d97701bede2c
 ---
 
 ## Description
