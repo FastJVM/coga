@@ -118,6 +118,7 @@ one command, without opening the file or running the `coga ticket` interview.
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/783
 branch: create-description-owner
 worktree: /home/zach2179/dev/coga-create-description-owner
 
