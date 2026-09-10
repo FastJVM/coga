@@ -1,7 +1,7 @@
 ---
 slug: activation-does-not-resolve-step-1-s-assignee-role
 title: Activation does not resolve step 1's assignee role token
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -30,7 +30,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description

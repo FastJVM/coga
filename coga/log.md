@@ -4704,3 +4704,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-10 09:55 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
 2026-09-10 09:55 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
 2026-09-10 09:55 [a-slack-repo-without-important-webhook-can-abort-t] [human:nicktoper] auto-bumped on merge of PR #761 → done
+2026-09-10 09:55 [activation-does-not-resolve-step-1-s-assignee-role] [human:nicktoper] auto-bumped on merge of PR #779 → done
