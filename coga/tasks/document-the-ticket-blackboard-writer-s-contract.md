@@ -25,7 +25,7 @@ workflow:
     assignee: owner
 secrets: null
 step: 2 (peer-review)
-launch_generation: pending:c1ee353a-a195-4986-8b45-ccf545c4d4fc
+launch_generation: c1ee353a-a195-4986-8b45-ccf545c4d4fc
 ---
 
 ## Description
