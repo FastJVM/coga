@@ -1,7 +1,6 @@
 ---
 title: Resolve PR conflicts
-assignee: claude
-secrets: null
+agent: claude
 ---
 
 ## Description

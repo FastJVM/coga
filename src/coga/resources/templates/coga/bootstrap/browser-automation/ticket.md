@@ -1,6 +1,6 @@
 ---
 title: Build a browser automation
-assignee: claude
+agent: claude
 contexts:
   - browser/api-first
 skills:

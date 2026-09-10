@@ -213,7 +213,7 @@ or create a fresh worktree or PR, overwrite the existing line. `## Dev` records
 ## Why a section, not frontmatter
 
 YAML frontmatter is reserved for canonical task state (`status`, `step`,
-`assignee`, `workflow`). Branch and PR linkage remains legible working state
+`workflow`, `owner`, `agent`). Branch and PR linkage remains legible working state
 under `## Dev`. Several focused Coga consumers deliberately parse those lines:
 the `code/open-pr` runner writes `pr:`, autoclose reads PR linkage and reports
 the `coga retire` follow-up for the `branch:` / `worktree:` a closed ticket

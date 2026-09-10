@@ -74,11 +74,10 @@ no in-memory state.
   step's inline instructions, therefore degrades prompt composition and is a
   validation error for live tickets.
   Nothing ever re-freezes an existing ticket. `_freeze_workflow_ref`
-  (`mark.py`) only converts a bare string ref and seeds `step: 1` — resolving
-  that step's `assignee:` role token as it does, through the same
-  `resolve_first_step_assignee` (`bump.py`) that `create_task` uses, so both
-  ways of landing on step 1 agree; it is a documented no-op once `workflow:`
-  is already a dict carrying a step, assignee included. A
+  (`mark.py`) only converts a bare string ref and seeds `step: 1`; it writes no
+  routing, because routing is derived from the frozen role every time it is
+  read. It is a documented no-op once `workflow:` is already a dict carrying a
+  step. A
   `steps:` edit — an added `skills:` ref, a changed `assignee:` token, a new
   `requires:` gate — therefore reaches only tickets created afterwards, plus
   drafts still carrying a *bare-string* `workflow:` ref (hand-authored or
@@ -92,23 +91,36 @@ no in-memory state.
   on composition takes the skill layers *instead of* that step's inline prose,
   so any limit carried only in the prose has to be restated inside the skill or
   it silently stops reaching the agent.
-  Each step may declare an `assignee:` role token (`owner` | `human` |
-  `agent` | `other-agent`); on bump — and, for step 1, when creation or
-  activation freezes the workflow — the token resolves against the ticket's
-  matching role field and rewrites `assignee:`. A step-1 token that cannot
-  resolve fails at that freeze, rather than surfacing later as a launch
-  refusing an agent step as a human handoff. Direct launch and megalaunch
-  choose the agent and check human handoffs from the prepared activation's
-  resolved assignee before preflight or any durable lifecycle write.
-  `other-agent` resolves to the
-  ticket agent's explicit `[agents.<type>].peer` when set, otherwise to the
-  single other configured type. This keeps two-agent repos configuration-free
-  while making three-agent repos declare the intended reviewer instead of
-  guessing. `peer` is one-directional: configuring Claude's peer does not
-  configure Codex's. The token drives peer-review flips (e.g.
-  `code/with-review`) and agent-rotation relaunches. Steps without one leave
-  the assignee unchanged. Validation checks every frozen `other-agent` step
-  against current config as an error, even before the ticket enters that step.
+  Each step may declare an `assignee:` role token — `owner` | `agent` |
+  `other-agent`. **The role is the routing, and nothing is written to the
+  ticket.** `coga.bump.resolve_operator` is the one shared, pure resolver every
+  consumer uses (launch, transitions, script handoffs, status/show,
+  notifications, sweep eligibility), so a stored nickname can no longer disagree
+  with the snapshot's own role. `owner` resolves to the ticket's `owner:` and is
+  a human handoff; `agent` resolves to the ticket's `agent:` — its main-agent
+  choice; `other-agent` resolves to that agent's explicit
+  `[agents.<type>].peer` when set, otherwise to the single other configured
+  type. This keeps two-agent repos configuration-free while making three-agent
+  repos declare the intended reviewer instead of guessing. `peer` is
+  one-directional: configuring Claude's peer does not configure Codex's, and
+  peers stay *live configuration* rather than frozen ticket metadata, so editing
+  one changes subsequent peer launches without rewriting any ticket. The token
+  drives peer-review flips (e.g. `code/with-review`) and agent-rotation
+  relaunches.
+  A step that **omits** `assignee:` inherits the nearest *preceding* declared
+  role; before any declaration the role is `owner`. Inheritance is a scan of the
+  frozen steps — not of the audit log, and not a memory of whoever ran the task
+  last — so forward moves, restarts, and human rewinds all derive the same
+  answer. Human gates are identified by the *role*, never by asking whether the
+  resolved name is missing from `[agents.*]`, so a human whose nickname matches
+  an agent type is still a handoff.
+  A live ticket whose workflow or step is missing or inconsistent is a
+  structural error, never a fallback to owner or agent: guessing either way
+  would skip a human gate or silently convert an agent step into one. Direct
+  launch and megalaunch derive routing from the *prepared activation* before
+  preflight or any durable lifecycle write. Validation checks every frozen
+  `other-agent` step against current config as an error, even before the ticket
+  enters that step.
 - **Recurring templates** live in `coga/recurring/`. `coga recurring`
   invokes the fixed `recurring-scan` recipe, which scans templates, creates
   the current run at the stable
@@ -244,17 +256,52 @@ Claude Code and Codex use.
 Every ticket carries the same canonical key set. These names are
 reserved — no extension or alias may collide with them:
 
-`slug`, `title`, `status`, `owner`, `human`, `agent`,
-`assignee`, `watchers`, `workflow`, `step`, `contexts`, `skills`, `delegate`,
-`period_generation`, `launch_generation`, `secrets`.
+`title`, `status`, `owner`, `agent`, `workflow`, `step`, `contexts`, `skills`,
+`delegate`, `period_generation`, `launch_generation`, `secrets`.
 
 That is `ticket.CANONICAL_TICKET_KEYS`, which
 `config._RESERVED_TICKET_FIELD_NAMES` reuses to reject extension collisions;
 it is also the set `validate.REQUIRED_TASK_KEYS` plus `OPTIONAL_TASK_KEYS`
 admits.
 
-`slug` is the task's path-qualified reference, recorded on the ticket for
-legibility (the path under `tasks/` stays the addressing source of truth).
+The minimal newly created draft is four lines plus its body: `title`, `status:
+draft`, `owner`, and `workflow: null`. Only `title`, `status`, `owner`, and
+`workflow` are required; everything else appears when it says something.
+
+**Removed metadata is rejected, not tolerated.** `slug`, `human`, `assignee`,
+and `watchers` are `ticket.REJECTED_TICKET_KEYS`: `coga validate` names them as
+an error (`removed-ticket-field`), which makes every Coga writer refuse a ticket
+that still carries one rather than perpetuating it, and `config.py` keeps the
+names reserved so an extension cannot restore independent assignment. There is
+no compatibility reader and no migration facility. What replaced each:
+
+- `slug` — the task's **path** under `tasks/` is the only identity. `TaskRef`,
+  `TaskRef.id_slug`, `COGA_TASK_SLUG`, and result/log keys named `slug` all keep
+  meaning filesystem identity; this was not a repo-wide rename of the word.
+- `human` — `owner` is the human of record.
+- `assignee` — the operator is **derived** from the current frozen step's role
+  (see `resolve_operator` above). Nothing caches it: no command persists a
+  resolved operator, and no command offers independent assignment.
+- `watchers` — never populated, and Slack cc rendering is gone. An old queued
+  digest record may still carry the key; it is inert.
+
+`agent` is the optional **main-agent choice**, not the current operator. It stays
+absent on a draft; when activation first approves work it is filled in with
+`Config.default_agent()` — the first agent declared in the effective merged
+configuration — and frozen there. Pause/resume, unblock, bump, peer review, and
+terminal transitions all retain it, so reordering `[agents.*]` changes only
+*future* activations and a `main -> peer -> main` rotation stays stable. An
+explicitly present value must name a configured agent: null, blank, and unknown
+all fail loud rather than silently meaning "the default", and removing a selected
+agent from configuration is a validation/preflight error, not permission to
+substitute another. The field stays optional for drafts, terminal records,
+templates, and stateless bootstrap targets; an *activated* task missing it is an
+activation-invariant validation error, exactly like an unfrozen live workflow.
+
+`contexts`, `skills`, and `secrets` are optional declarations where **absence is
+empty**: an empty list is simply not rendered. A malformed falsy value (an
+explicit null `contexts:`, `""`, `0`) is *not* erased — it stays on disk so
+validation can name it instead of silently swallowing a typo.
 
 `delegate` is an optional, system-authored dispatch snapshot reserved for a
 materialized task directly under `tasks/recurring/`. Creation copies its

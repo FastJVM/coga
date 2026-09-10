@@ -61,7 +61,7 @@ Last updated: 2026-09-02.
   mislabels the concept. "Workflow" imports the romantic, absorption-camp
   connotation (*the automation runs itself* — n8n/Zapier/CI), which is the
   opposite of what the primitive is: a sequence of **operator handoffs**
-  (`assignee: agent | human | owner`) with a human gate in the step list. The
+  (`assignee: agent | other-agent | owner`) with a human gate in the step list. The
   product is literally a *coga* (baton between runners); "playbook" names the
   ordered-plays-with-handoffs shape without the runs-itself baggage and pairs
   with `skills`/`contexts`. It touches a reserved frontmatter key, so it needs
@@ -227,6 +227,48 @@ Last updated: 2026-09-02.
   `coga/log.md` on 2026-08-14, then twice more), so it is precedent, not a
   judgement call.
 
+## Recent decisions (simplified ticket format)
+
+- **Ticket metadata cut to what is actually read; routing is derived.** Top-level
+  `slug`, `human`, `assignee`, and `watchers` are removed, along with their
+  accessors, authoring inputs, and supported behavior, and the residual
+  `script: null` accommodation is gone. Empty `contexts` / `skills` / `secrets`
+  no longer render — absence *is* empty — so the minimal draft is `title`,
+  `status: draft`, `owner`, `workflow: null` plus its body.
+- **One shared, pure operator resolver.** `coga.bump.resolve_operator` derives
+  who holds a ticket from its frozen workflow step's role and feeds launch,
+  transitions, script handoffs, status/show, notifications, and sweep
+  eligibility. Nothing caches the answer: no command persists a resolved
+  operator, and none offers independent assignment. A step that omits
+  `assignee:` inherits the nearest preceding declared role; before any
+  declaration the role is `owner`. Human gates are keyed on the *role*, not on
+  whether a name is absent from `[agents.*]`.
+- **The role vocabulary is `owner` | `agent` | `other-agent`.** `human` is
+  rejected rather than kept as a second spelling of `owner`; shipped workflows
+  and every stored snapshot were rewritten.
+- **`agent:` is the optional main-agent choice, frozen at activation.** It stays
+  absent on drafts; the first activation persists `Config.default_agent()` and
+  every later transition retains it, so reordering `[agents.*]` changes only
+  future activations and a `main -> peer -> main` rotation stays stable. An
+  explicit value must name a configured agent. Peers remain live configuration,
+  not frozen metadata.
+- **Overrides stay ephemeral.** `launch --agent X` runs the initial agent phase
+  and directly consecutive steps that *explicitly* declare `assignee: agent`;
+  an omitted role, an owner step, or `other-agent` ends propagation for that
+  launch. Neither an override nor an assist writes `agent:`. Consequence
+  accepted deliberately: an override does not change who `other-agent` is
+  relative to, so `--agent codex` on a Claude-main ticket can produce
+  Codex → Codex → Claude, and an override cannot rescue a ticket whose chosen
+  main agent is no longer configured.
+- **Delegated recurring periods are bounded to one explicit agent step** with no
+  completion gate — see `coga/recurring`. Multi-step, peer-review, or gated
+  recurring jobs run without `delegate:`.
+- **Removed metadata is rejected, not tolerated.** Validation names the
+  offending fields as an error, so every writer refuses them; `config.py` keeps
+  the names reserved against `[ticket.fields.*]`. No compatibility reader, no
+  migration tool, no dual-writer period — the whole stored population was
+  converted in the same change.
+
 ## Recent decisions (assignees flattened out)
 
 - **`[assignees.<user>]` removed entirely.** For ≤3 people, the
@@ -248,12 +290,13 @@ Last updated: 2026-09-02.
   @mentions add zero signal. At the time, `slack.py` collapsed to a
   single `post(cfg, message)` and `post_mention` / `_mention_tag` were
   dropped.
-- **Per-user @mentions since re-introduced.** The prediction above
-  held: `notification.post(cfg, message, *, owner=..., watchers=...)`
-  dispatches through the Slack backend, whose mention helper renders any name
-  mapped in `[notification.slack.users]` as a real `<@U…>` ping — owner
-  inline, watchers cc'd in a trailer. Posts ping the ticket owner and watchers
-  again; see `coga/sync` for the current behavior.
+- **Per-user @mentions since re-introduced, for the owner only.** The
+  prediction above held in part: `notification.post(cfg, message, *,
+  owner=...)` dispatches through the Slack backend, whose mention helper renders
+  a name mapped in `[notification.slack.users]` as a real `<@U…>` ping. Posts
+  ping the ticket owner again. The watcher half did *not* survive — see the
+  ticket-format simplification below — so there is no cc trailer; see
+  `coga/sync` for the current behavior.
 
 ## Recent decisions (alias mechanism)
 
@@ -283,10 +326,13 @@ Last updated: 2026-09-02.
 12 audit threads were resolved during the spec-audit review. The
 ones that affect implementation:
 
-- **Watchers were removed in PR #43 (historical; superseded).** At that point
-  there was no multi-watcher fanout and only `assignee` reached Slack. The
-  later reintroduction above is current: watcher names mapped under
-  `[notification.slack.users]` are cc'd on notifications.
+- **Watchers were removed in PR #43, briefly reintroduced, and are now gone
+  again (historical).** At the PR #43 point there was no multi-watcher fanout and
+  only `assignee` reached Slack. A later change did cc watcher names mapped under
+  `[notification.slack.users]`. The ticket-format simplification below removed
+  the field, the arguments, the spool writes, and the cc rendering outright: no
+  ticket ever populated `watchers`, so the whole path was carrying no traffic.
+  The owner is the only person a post addresses.
 - **Manual edits stay silent by design.** Editing ticket.md,
   the blackboard region, or contexts directly does NOT post to Slack and
   does NOT log. Slack is for agent-driven state transitions only.

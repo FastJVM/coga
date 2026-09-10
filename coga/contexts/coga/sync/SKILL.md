@@ -293,19 +293,18 @@ When suppressed, each call still writes one line to stderr (`[slack] disabled
 (post suppressed): <message>`) so the user notices their
 opt-out is active. Quiet opt-outs become forgotten opt-outs.
 
-## Pinging the owner and watchers
+## Pinging the owner
 
-A post names the ticket's `owner` in its `[<project>] [<owner>]` prefix
-and cc's any `watchers`. For those names to actually *notify* someone,
-Slack needs the `<@U…>` member-ID mention form — a plain `@name` or
-`[name]` in incoming-webhook text never pings.
+A post names the ticket's `owner` in its `[<project>] [<owner>]` prefix. The
+owner is the only person a post addresses: there is no watcher list and no cc
+trailer. For that name to actually *notify* someone, Slack needs the `<@U…>`
+member-ID mention form — a plain `@name` or `[name]` in incoming-webhook text
+never pings.
 
 `[notification.slack.users]` in `coga.toml` supplies the mapping: a coga name (the
-token used in a ticket's `owner` / `watchers` fields) → a Slack member
-ID. `notification.post` resolves `owner` and `watchers` through it, emitting
-`<@U…>` for mapped names and plain text for the rest. A watcher is cc'd
-only when mapped — cc'ing an unmapped name notifies no one and is just
-noise.
+token used in a ticket's `owner` field) → a Slack member ID.
+`notification.post` resolves `owner` through it, emitting `<@U…>` for a mapped
+name and plain text otherwise.
 
 The mapping is supplied by hand because an incoming webhook is
 write-only: it can't call `users.list` / `users.lookupByEmail` to resolve
@@ -328,7 +327,7 @@ new string:
   `{prev-step} → {new-step}` or `{prev-step} → done`. A workflow-less ticket
   has no prior step, so its done posts collapse the transition ("finished").
 - **`:` introduces the body** after `*{slug}* "{title}"`; **`(key: value)` is
-  an aside** (`(assignee: …)`, `(step N/total)`); **`—` is reserved for the
+  an aside** (`(agent: …)`, `(step N/total)`); **`—` is reserved for the
   optional trailing FYI** (`bump --message`, pause reasons, retire
   annotations).
 - **PR references are Slack links**: `<{url}|PR #{N}>`, never plain `PR #N`
@@ -341,7 +340,7 @@ new string:
 ## Notification implementation pointers
 
 - `src/coga/notification/__init__.py::post(cfg, message, *, task_path=None, owner=None,
-  watchers=None, image_url=None, important=False, fatal=True,
+  image_url=None, important=False, fatal=True,
   record_failure=True)` — the **live** path. Three branches: not
   configured channel(s). Slack has three branches: not enabled → stderr;
   enabled + no webhook → crash; enabled + webhook → POST, then on failure
@@ -351,10 +350,10 @@ new string:
   `typer.Exit(1)` for a configuration refusal; `post` is the single boundary
   where *both* become a crash or a return, per `fatal`.
 - `src/coga/notification/slack.py::SlackChannel` — the Slack backend. It owns
-  Slack text rendering (project/owner prefix, watcher cc, image attachment),
+  Slack text rendering (project/owner prefix, image attachment),
   mention rendering, and the webhook POST.
 - `src/coga/notification/__init__.py::notify(cfg, slack_text, *, kind,
-  owner=None, watchers=None, task_path=None, image_url=None, important=False,
+  owner=None, task_path=None, image_url=None, important=False,
   fatal=True, record_failure=True)` — the **outcome** path. It accepts only
   `done`, `canceled`, and `recurring-error` (`OUTCOME_EVENT_KINDS`) and
   forwards everything else to `post(slack_text, …)` unchanged; the `kind`
@@ -700,9 +699,9 @@ debug/recovery operation, not normal lifecycle progression. `coga bump
 `advance_step` with forward bumps, so guarding it naively would refuse exactly
 the thing the human asked for. `advance_step(rewind=True)` therefore passes
 `allow_step_rewind`, which drops the step-backward rule and tightens the status
-rule to exact equality. `advance_step` writes only `step:` (plus `assignee:`),
-so any status difference during a rewind means the checkout is stale rather
-than the human deliberate. This refuses not only a terminal control copy but
+rule to exact equality. `advance_step` writes only `step:` — routing is derived,
+so there is nothing else for it to write — and any status difference during a
+rewind therefore means the checkout is stale rather than the human deliberate. This refuses not only a terminal control copy but
 also `active` / `paused` rewinds whose control copy concurrently became
 `in_progress` or `blocked`.
 

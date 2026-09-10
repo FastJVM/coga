@@ -59,16 +59,22 @@ Compose context and start work on a task. Accepts a task slug, id-slug, or a
 `bootstrap/<name>` ticket (resolved local-first: a repo-local
 `coga/bootstrap/<name>/ticket.md` overrides the packaged one). Activates a
 `draft`/`paused` ticket inline, flips `active → in_progress`, composes the
-prompt, and spawns the assignee's agent. A `done` ticket is refused and left
+prompt, and spawns the current operator's agent. A `done` ticket is refused and left
 untouched. Trailing `ARGS` arrive as ordered values in an appended
 `## Launch arguments` prompt block.
 
-- `--agent <nickname>` — explicitly use this agent for one launch instead of
-  the ticket assignee. Within that supervised launch, the override follows
-  directly consecutive workflow steps declared `assignee: agent`; another role
-  ends the continuation. It can assist on a human-owned step without rewriting
-  `assignee:`, but that assist never propagates; without the flag, a human
-  handoff is still refused.
+- `--agent <nickname>` — explicitly use this agent for one launch instead of the
+  ticket's derived operator. Within that supervised launch, the override follows
+  directly consecutive workflow steps that *explicitly declare*
+  `assignee: agent`; an omitted role, an owner step, or `other-agent` ends the
+  continuation permanently for that launch. It can assist on an owner-held step,
+  but that assist never propagates, and without the flag a human handoff is still
+  refused. The override is ephemeral either way: it never writes `agent:` to the
+  ticket. Two consequences follow deliberately — it does not change who
+  `other-agent` is relative to (with main Claude and peer Codex,
+  `--agent codex` can produce Codex → Codex → Claude), and it cannot rescue a
+  ticket whose chosen main agent is no longer configured; restore that agent's
+  `[agents.*]` table or change the ticket's choice through authoring.
 - `--prompt-report` — print the composed prompt layers and approximate token
   counts, then exit **without** launching.
 - `--idle-timeout <seconds>` — tear down a stalled interactive REPL after this
@@ -164,8 +170,9 @@ task (optionally scoped to `tasks/<DIR>/`).
 - `--relaunch` — re-run the last confirmed picker selection.
 - `--max-tasks <n>` — stop after this many launchable tasks have been attempted.
 - `--agent <type>` — use this agent for picked-draft authoring interviews and
-  the first launched step regardless of the ticket's agent assignee
-  (human-assigned working steps still skip).
+  the first launched step regardless of the ticket's derived operator; later
+  steps follow the ticket's own routing. Steps the workflow hands to the owner
+  still skip, override or not.
 
 Tasks drain oldest-first (first `coga/log.md` line per ref). A sub-directory
 whose tasks are named `1-schema`, `2-migrate`, `3-cutover` instead runs in
@@ -275,7 +282,7 @@ Subcommands:
   - `--interactive` — launch as a human-stepped run, leaving REPL liveness
     backstops unarmed; ticket files aren't modified.
   - `--agent <type>` — agent to use for an agent-backed launch (a period task
-    carrying `ticket.py` keeps its deterministic path; the ticket assignee
+    carrying `ticket.py` keeps its deterministic path; the ticket's own routing
     isn't rewritten).
 - **`coga recurring promote TASK --schedule "<cron>"`** — move an existing task
   into `coga/recurring/<name>/` as a recurring template: task-only frontmatter
@@ -323,11 +330,12 @@ be bumped; use `coga mark done` for those.
 The rewind flags are refused for an agent inside a supervised launch — a human
 runs them.
 
-A rewind repositions `step:` and may re-resolve `assignee:` for the target
-step, so it works from `active`, `in_progress`, or `paused` while leaving the
-status where it was. From `active` or `paused`, the target must resolve to a
-configured agent so it remains resumable with `coga launch`; a human or
-unassigned target is accepted only when the ticket is already `in_progress`.
+A rewind repositions `step:` and nothing else — the target step's operator is
+derived from its frozen role, so there is no assignment to rewrite or to go
+stale. It works from `active`, `in_progress`, or `paused` while leaving the
+status where it was. From `active` or `paused`, the target must derive to an
+agent so it remains resumable with `coga launch`; an owner-held target is
+accepted only when the ticket is already `in_progress`.
 Rewind refuses a `blocked` ticket (run `coga unblock` first) and the terminal
 statuses, which have no `step:` to move. A concurrent control-status change
 also refuses publication and leaves the local rewind dirty for inspection and
@@ -436,9 +444,11 @@ is via `git restore`.
 Show tasks in the repo. `DIR` scopes to `tasks/<DIR>/` (nested tasks included).
 
 - `--no-recurse` — list only tasks directly in the directory, not sub-directories.
-- `-o`, `--order-by <col>` — sort by `slug`, `status`, `owner`, `assignee`,
-  `step`, `updated`, or `created` (default `updated`). `created` is the exact
-  order `coga megalaunch` drains in, numbered sub-directories included.
+- `-o`, `--order-by <col>` — sort by `slug`, `status`, `owner`, `operator`,
+  `step`, `updated`, or `created` (default `updated`). `assignee` is retained as
+  an alias for `operator`; both sort the derived-operator column, which is a
+  read-only view and not an assignment input. `created` is the exact order
+  `coga megalaunch` drains in, numbered sub-directories included.
 - `-r`, `--reverse` — reverse the sort.
 - `-a`, `--all` — include terminal `done` and `canceled` tasks (hidden by
   default). The totals report the two outcomes separately.

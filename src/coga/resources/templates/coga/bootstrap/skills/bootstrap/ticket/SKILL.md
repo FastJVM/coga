@@ -1,6 +1,6 @@
 ---
 name: bootstrap/ticket
-description: Interview the human, fill in a freshly-scaffolded draft ticket (workflow, contexts, assignee, body), create any missing contexts or skills the ticket needs, and run an independent evaluator review before handing back to the human for approval.
+description: Interview the human, fill in a freshly-scaffolded draft ticket (workflow, contexts, owner, optional main agent, body), create any missing contexts or skills the ticket needs, and run an independent evaluator review before handing back to the human for approval.
 ---
 
 # Bootstrap a ticket
@@ -34,7 +34,25 @@ workflow. Don't force a workflow onto an idea that isn't ready for one; just
 make the tradeoff explicit (it can't be activated yet).
 
 Match this shape exactly. Don't invent fields the template doesn't define
-(see the frontmatter rules in the base prompt).
+(see the frontmatter rules in the base prompt), and don't reintroduce metadata
+the format removed: there is no `slug:`, `human:`, `assignee:`, or `watchers:`.
+Writing one back makes the ticket invalid and every Coga command refuse it.
+
+**Who holds the ticket is derived, not written.** Coga reads the current
+workflow step's `assignee:` *role* — `owner`, `agent`, or `other-agent` — every
+time it needs an operator. `owner` is a human handoff to the ticket's `owner:`;
+`agent` is the ticket's `agent:`; `other-agent` is that agent's configured peer.
+So choosing the workflow (step 3) is how you choose the handoffs; there is no
+separate assignment to make.
+
+**Frontmatter you may write in this interview** — the explicit exception the
+base prompt allows: `title`, `status`, `owner`, `agent`, `contexts`, `skills`,
+`workflow`, `step`, `secrets`, and any repo extension field. `agent` is optional
+and is the ticket's *main-agent choice*: leave it out of a draft unless the human
+picks one, and `coga mark active` will select the configured default at
+activation. `--agent` on `coga ticket` selects **the interviewer running this
+session** and nothing else — never copy it onto the ticket. Leave `contexts`,
+`skills`, and `secrets` out entirely when they are empty; absence is empty.
 
 ## Step 1 — Identify the launch shape and open with the matching greeting
 
@@ -126,7 +144,7 @@ Before suggesting anything, ground yourself in what actually exists:
 - Effective `[agents.*]` after `coga.local.toml` layers over `coga.toml` —
   known agent types (e.g. `claude`, `codex`).
 
-Don't propose a workflow, context, skill, or assignee that isn't in this
+Don't propose a workflow, context, skill, or agent that isn't in this
 list — create it (step 4) or pick from the list.
 
 ## Context and skill selection contract
@@ -269,7 +287,10 @@ attachments. The base prompt's frontmatter rules apply:
 - Add `contexts:` as a YAML list (one item per line with `- `).
 - Do not add a context just because it is generally related. If in doubt, leave
   it out and write the one needed fact into `## Context`.
-- Update `assignee:` only if it changed.
+- Set `owner:` to the human accountable for the ticket. Write `agent:` only
+  when the human explicitly picks a main agent; otherwise leave it absent on a
+  draft and let activation select the configured default. Never copy this
+  session's own interviewer into it.
 - If the target file actually has `skill: bootstrap/ticket` in frontmatter
   from an older seeded flow, remove it. Modern `coga ticket` injects this
   skill only into the prompt; it should not persist on normal tasks.
@@ -405,7 +426,7 @@ Updated <slug>. Run `coga launch <slug>` when ready to start work.
 ```
 
 Optionally `coga slack --task <slug> --message "<short>"` if the ticket
-warrants a heads-up to the channel (a new context was created, an assignee
+warrants a heads-up to the channel (a new context was created, the workflow
 changed, etc.). Skip the Slack post for routine fill-ins.
 
 Then exit.

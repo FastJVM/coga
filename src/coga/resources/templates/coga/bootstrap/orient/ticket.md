@@ -1,6 +1,6 @@
 ---
 title: Orient an agent in this coga/ repo
-assignee: claude
+agent: claude
 contexts:
   - coga/architecture
   - coga/principles

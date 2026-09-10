@@ -65,7 +65,7 @@ A few things worth knowing:
   destination, Coga raises rather than quietly rerouting — a human-action alert
   in the wrong channel is worse than a loud misconfiguration.
 - **Pings need a mapping.** `[notification.slack.users]` maps a Coga name (the
-  token in a ticket's `owner`/`watchers`) to a Slack member ID, so that person
+  token in a ticket's `owner`) to a Slack member ID, so that person
   gets a real `<@…>` ping. Without a mapping they're still named, just in plain
   text. `--important` uses that same task-owner mention: the owner is the triage
   point, and can hand the alert to someone else in its Slack thread. There is no

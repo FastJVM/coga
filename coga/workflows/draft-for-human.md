@@ -5,7 +5,7 @@ steps:
   - name: agent-produces
     assignee: agent
   - name: human-owns-and-finishes
-    assignee: human
+    assignee: owner
   - name: report-to-coga
     assignee: agent
 ---
