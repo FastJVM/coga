@@ -34,7 +34,7 @@ workflow:
     assignee: owner
 secrets: null
 step: 3 (pr)
-launch_generation: pending:bce68d20-e36c-404d-a9d8-0e382905688a
+launch_generation: bce68d20-e36c-404d-a9d8-0e382905688a
 ---
 
 ## Description
