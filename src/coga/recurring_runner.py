@@ -1743,6 +1743,11 @@ def _launch_due_tasks(
     }
 
     forced_refusals = 0
+    # One template's failure must not starve the templates behind it. Record
+    # each failure, keep sweeping, and surface the first non-zero code at the
+    # end — the same isolate-and-aggregate shape `coga recurring --all` already
+    # uses across repos.
+    failures: list[tuple[str, int]] = []
     for i, task in enumerate(due, 1):
         if task.ref is None:
             detail = (
@@ -1890,7 +1895,13 @@ def _launch_due_tasks(
                 )
             )
             if delegated.exit_code:
-                return delegated.exit_code
+                failures.append((task.ref.id_slug, delegated.exit_code))
+                detail = (
+                    f"{task.ref.id_slug} failed (exit {delegated.exit_code}); "
+                    "continuing with the remaining due templates"
+                )
+                typer.secho(detail, fg=typer.colors.RED, err=True)
+                record.note(detail)
             continue
         # Sequential by design: each launch blocks until the session exits
         # before the next begins. `scan_due` filters periods with no executable
@@ -1926,11 +1937,29 @@ def _launch_due_tasks(
                 )
             launch_result = raw_launch_result
         except SystemExit as exc:
-            # A failed `ticket.py` exits the launch. Return that code instead
-            # of unwinding the process, so the sweep stops where the old recipe
-            # dispatch stopped *and* the command still reaches its exit-boundary
-            # git sync. The task is deliberately left unfinished, not paused.
+            # A failed `ticket.py` exits the launch. Catch it rather than
+            # unwinding the process, so the command still reaches its
+            # exit-boundary git sync. The task is deliberately left unfinished,
+            # not paused — but the templates *behind* it are not this task's to
+            # cancel, so record the failure and keep sweeping. The aggregate
+            # non-zero code is returned once every due template has had its
+            # turn.
             code = _exit_status(exc)
+            # Two exit classes are *not* template failures and must stop the
+            # sweep where they happened. Aggregating them would let this sweep
+            # start work the operator or the launch contract just forbade, and
+            # returning them after the fact is too late.
+            if code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
+                # An aligned-assist publication or teardown refused and
+                # deliberately left dirty retained state for the operator to
+                # reconcile. No later template may run a refresh, sync, or
+                # agent that could disturb or publish those bytes first.
+                raise
+            if code >= 128:
+                # Process-level interrupt: `commands/launch.py`'s handler turns
+                # SIGINT/SIGTERM into `SystemExit(128 + signum)`. An explicit
+                # cancellation must never initiate additional work.
+                raise
             if code:
                 _record_outcome(
                     record,
@@ -1945,7 +1974,14 @@ def _launch_due_tasks(
                         ),
                     )
                 )
-                return code
+                failures.append((task.ref.id_slug, code))
+                detail = (
+                    f"{task.ref.id_slug} failed (exit {code}); continuing with "
+                    "the remaining due templates"
+                )
+                typer.secho(detail, fg=typer.colors.RED, err=True)
+                record.note(detail)
+                continue
             launch_result = RecurringPeriodLaunchResult(None, None, False)
         kind = launch_result.kind
         if kind == "skipped":
@@ -1972,7 +2008,8 @@ def _launch_due_tasks(
                     ),
                 )
             )
-            return 2
+            failures.append((task.ref.id_slug, 2))
+            continue
         _stop_if_unfinished_after_launch(
             cfg,
             task.ref,
@@ -1996,6 +2033,15 @@ def _launch_due_tasks(
                 ),
             )
         )
+    if failures:
+        # Name every failure. The old early return left the templates behind a
+        # failure unmentioned, so the report read as a clean sweep with one
+        # problem rather than one problem plus N abandoned jobs.
+        summary = ", ".join(f"{slug} (exit {code})" for slug, code in failures)
+        detail = f"{len(failures)} of {len(due)} due template(s) failed: {summary}"
+        typer.secho(detail, fg=typer.colors.RED, err=True)
+        record.note(detail)
+        return failures[0][1]
     return 2 if forced_refusals else 0
 
 

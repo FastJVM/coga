@@ -121,19 +121,35 @@ the example under "Extend recurring with a task-specific workflow").
   script is the whole run.
   The launcher marks `active → in_progress` before starting and then leaves
   the workflow alone: the script closes its own step (`coga bump`), exactly as
-  an agent does. A non-zero exit halts the launch, leaves the task unfinished,
-  and stops the sweep after reporting it — reporting *that* template only.
-  Every template admitted behind it in the launch order is abandoned **and goes
-  unreported**: the scan returns the child's exit code from inside its own
-  launch loop, so no outcome record is ever built for them, and they survive in
-  the run record only as `launch` rows in its scan listing while the counts
-  read like a mostly-successful sweep. On 2026-09-08 one routine URL-skill
-  digest conflict made `skill-update` exit 1 and the four templates behind it
-  never ran and were never named; the record read `templates scanned: 7 /
+  an agent does. A non-zero exit halts that launch and leaves the task
+  unfinished — but it does **not** stop the sweep. The failure is recorded and
+  the remaining due templates still run; the sweep names every failed template
+  in its summary and run record, then exits with the first failing code. One
+  template's problem is not its licence to cancel the ones behind it, which is
+  the same isolate-and-aggregate posture `coga recurring --all` takes across
+  repos and the same posture as the `--force` bullet below, whose canceled-task
+  refusal also continues through later templates.
+
+  It used to stop, and the failure mode is worth remembering: the scan returned
+  the child's exit code from inside its own launch loop, so every template
+  admitted behind the failure was abandoned **and went unreported** — no
+  outcome record was ever built for them. On 2026-09-08 one routine URL-skill
+  digest conflict made `skill-update` exit 1, the four templates behind it
+  never ran and were never named, and the record read `templates scanned: 7 /
   tasks run: 3 / problems: 1` (see
   `coga/tasks/autofix/stop-one-failing-ticket-py-from-starving-the-rest/run-log.md`).
-  Contrast the `--force` bullet below, whose canceled-task refusal explicitly
-  continues through later templates.
+
+  Two exit classes are exempt from the aggregation, because they are not
+  template failures and continuing would let the sweep start work that was just
+  forbidden. Both re-raise immediately, stopping the sweep where they happened:
+
+  - **75** (`git.RETRY_WITHOUT_SWEEP_EXIT_CODE`) — an aligned-assist
+    publication or teardown refused and deliberately left dirty retained state
+    for the operator to reconcile. No later template may run a refresh, sync,
+    or agent that could disturb or publish those bytes first.
+  - **≥ 128** — a process-level interrupt. `commands/launch.py` turns
+    SIGINT/SIGTERM into `SystemExit(128 + signum)`, and an explicit
+    cancellation must never initiate additional work.
 - `coga recurring --force` — ignores schedule and status filters and attempts
   the real period task for every template, reactivating `done` and `paused`
   runs. A `canceled` task remains terminal: the runner reports a controlled

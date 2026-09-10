@@ -6318,12 +6318,17 @@ def test_forced_recurring_scan_prepares_then_launches_task(
 def test_recurring_scan_returns_failed_script_exit_without_unwinding(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A failed `ticket.py` stops the sweep as a return, not a process abort.
+    """A failed `ticket.py` becomes a return code, and does not starve the rest.
 
     `coga launch` raises `SystemExit` for a non-zero deterministic phase. The
     sweep has to turn that back into a return code, or the command never
-    reaches its exit-boundary git sync — and the tasks behind it lose the
-    ordinary refusal path they had under the old recipe dispatch.
+    reaches its exit-boundary git sync.
+
+    It must not turn it into an early return. One template's failure is not
+    that template's licence to cancel the ones behind it: on 2026-09-08 a
+    single routine `clarity` skill conflict exited `recurring/skill-update`
+    non-zero and silently abandoned four unrelated due jobs. Every due template
+    gets its turn; the first failing exit code is returned at the end.
     """
     cfg = load_config(repo)
     first = SimpleNamespace(
@@ -6342,11 +6347,11 @@ def test_recurring_scan_returns_failed_script_exit_without_unwinding(
     )
     launched: list[str] = []
 
-    def failing_launch(slug: str, **kwargs: object) -> str | None:
+    def failing_launch(slug: str, **kwargs: object) -> object:
         launched.append(slug)
         if slug == "recurring/failing":
             raise SystemExit(17)
-        return None
+        return RecurringPeriodLaunchResult(None, active_lease, False)
 
     monkeypatch.setattr(
         recurring_cmd,
@@ -6387,7 +6392,179 @@ def test_recurring_scan_returns_failed_script_exit_without_unwinding(
     )
 
     assert recurring_cmd.run_recurring_scan(cfg) == 17
-    assert launched == ["recurring/failing"]
+    # The template behind the failure still ran.
+    assert launched == ["recurring/failing", "recurring/later"]
+
+
+@pytest.mark.parametrize(
+    ("code", "reason"),
+    [
+        (75, "retained-state refusal must not let a later template touch it"),
+        (130, "SIGINT must not initiate additional work"),
+        (143, "SIGTERM must not initiate additional work"),
+    ],
+)
+def test_recurring_scan_stops_immediately_on_non_template_exits(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, code: int, reason: str
+) -> None:
+    """Exit 75 and signal-derived exits are not template failures.
+
+    Aggregating them would let the sweep start work the launch contract or the
+    operator just forbade: exit 75 deliberately leaves dirty retained state for
+    manual reconciliation, and `commands/launch.py` turns SIGINT/SIGTERM into
+    `SystemExit(128 + signum)`.
+    """
+    cfg = load_config(repo)
+
+    def due_task(name: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            template=name,
+            ref=SimpleNamespace(
+                id_slug=f"recurring/{name}", ticket_path=Path("no-such-ticket.md")
+            ),
+            delegate=None,
+        )
+
+    first, second = due_task("alpha"), due_task("beta")
+    launched: list[str] = []
+
+    def exiting_launch(slug: str, **kwargs: object) -> object:
+        launched.append(slug)
+        if slug == "recurring/alpha":
+            raise SystemExit(code)
+        return RecurringPeriodLaunchResult(None, active_lease, False)
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_sync_control_checkout_ahead",
+        lambda *args, **kwargs: recurring_cmd._ControlCatchup(fresh=True, reason=""),
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: SimpleNamespace(
+            forced=[], due=[first, second], tasks=[], errors=[]
+        ),
+    )
+    monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
+    monkeypatch.setattr(recurring_cmd, "_print_table", lambda *args, **kwargs: None)
+    active_lease = PeriodLease(
+        Ticket(frontmatter={"status": "active"}, body="").render().encode(),
+        "generation-1",
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "_local_period_lease", lambda *args: active_lease
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "read_ticket", lambda ref: SimpleNamespace(status="active")
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "frozen_task_delegate", lambda ref, ticket: None
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", exiting_launch
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_stop_if_unfinished_after_launch",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "run_autofix",
+        lambda cfg_arg, record, **kwargs: None,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        recurring_cmd.run_recurring_scan(cfg)
+
+    assert excinfo.value.code == code, reason
+    # The template behind it was never started.
+    assert launched == ["recurring/alpha"], reason
+
+
+def test_recurring_scan_names_every_failed_template_in_the_run_record(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The report must not read as a clean sweep with one problem.
+
+    The 2026-09-08 sweep announced `launching 7 due task(s) sequentially`, ran
+    3, and never mentioned the 4 it abandoned. Failures are now named in the
+    run record the autofix analyst reads.
+    """
+    cfg = load_config(repo)
+
+    def due_task(name: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            template=name,
+            ref=SimpleNamespace(
+                id_slug=f"recurring/{name}", ticket_path=Path("no-such-ticket.md")
+            ),
+            delegate=None,
+        )
+
+    first, second, third = due_task("alpha"), due_task("beta"), due_task("gamma")
+    launched: list[str] = []
+
+    def flaky_launch(slug: str, **kwargs: object) -> object:
+        launched.append(slug)
+        if slug == "recurring/alpha":
+            raise SystemExit(17)
+        if slug == "recurring/beta":
+            raise SystemExit(9)
+        return RecurringPeriodLaunchResult(None, active_lease, False)
+
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_sync_control_checkout_ahead",
+        lambda *args, **kwargs: recurring_cmd._ControlCatchup(fresh=True, reason=""),
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: SimpleNamespace(
+            forced=[], due=[first, second, third], tasks=[], errors=[]
+        ),
+    )
+    monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
+    monkeypatch.setattr(recurring_cmd, "_print_table", lambda *args, **kwargs: None)
+    active_lease = PeriodLease(
+        Ticket(frontmatter={"status": "active"}, body="").render().encode(),
+        "generation-1",
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "_local_period_lease", lambda *args: active_lease
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "read_ticket", lambda ref: SimpleNamespace(status="active")
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "frozen_task_delegate", lambda ref, ticket: None
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_recurring_period", flaky_launch
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_stop_if_unfinished_after_launch",
+        lambda *args, **kwargs: None,
+    )
+    records: list[object] = []
+    monkeypatch.setattr(
+        recurring_cmd,
+        "run_autofix",
+        lambda cfg_arg, record, **kwargs: records.append(record),
+    )
+
+    # The first failing code is what the sweep exits with.
+    assert recurring_cmd.run_recurring_scan(cfg) == 17
+    assert launched == ["recurring/alpha", "recurring/beta", "recurring/gamma"]
+
+    assert records, "the autofix loop still receives the run record"
+    rendered = records[0].render()
+    assert "2 of 3 due template(s) failed" in rendered
+    assert "recurring/alpha (exit 17)" in rendered
+    assert "recurring/beta (exit 9)" in rendered
 
 
 def test_scan_due_force_defers_existing_done_period_until_launch(
