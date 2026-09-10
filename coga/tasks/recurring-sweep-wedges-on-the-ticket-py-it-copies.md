@@ -1,7 +1,7 @@
 ---
 slug: recurring-sweep-wedges-on-the-ticket-py-it-copies
 title: Recurring sweep wedges on the ticket.py it copies, then reports a clean run
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -39,6 +39,7 @@ workflow:
     assignee: owner
 secrets: null
 step: 1 (design)
+launch_generation: pending:1b31545c-91b5-4e2b-aaa9-3ce9ab64db50
 ---
 
 ## Description
