@@ -1708,30 +1708,35 @@ def run_recurring_scan(
         run_autofix(cfg, record, agent_override=agent_override)
 
 
+# Admission skip reason for a create whose period control had already
+# serviced. Another checkout got there first, so the skip is reported but is
+# not lost work.
+_ALREADY_HANDLED_ON_CONTROL = "already handled on control"
+
+
 def _record_unlaunched_creates(scan: DueScan, record: RunRecord) -> None:
     """Flag every period this sweep created but never launched.
 
-    A create refused at admission, or skipped by a launch-loop path that
-    records only a note, leaves no outcome behind. The sweep would otherwise
-    report `problems: 0` over lost work, so absence of an outcome is the
-    signal, as with admitted watchdog recoveries above.
+    A create refused at admission because control changed it, or skipped by a
+    launch-loop path that records only a note, leaves no outcome behind. The
+    sweep would otherwise report `problems: 0` over lost work, so absence of an
+    outcome is the signal, as with admitted watchdog recoveries above.
     """
     ran = {outcome.slug for outcome in record.outcomes}
-    reasons = {
-        task.ref.id_slug: reason
+    # Every admission skip is a create already removed from `scan.tasks`.
+    unlaunched = [
+        (task.ref.id_slug, reason)
         for task, reason in scan.admission_skips
-        if task.ref is not None
-    }
-    created = [
-        task
-        for task in [*scan.tasks, *(task for task, _ in scan.admission_skips)]
-        if task.ref is not None and (task.created or task.replaced_done)
+        if task.ref is not None and reason != _ALREADY_HANDLED_ON_CONTROL
     ]
-    for task in created:
-        slug = task.ref.id_slug
-        if slug in ran:
-            continue
-        reason = reasons.get(slug, "no launch outcome was recorded")
+    unlaunched += [
+        (task.ref.id_slug, "no launch outcome was recorded")
+        for task in scan.tasks
+        if task.ref is not None
+        and (task.created or task.replaced_done)
+        and task.ref.id_slug not in ran
+    ]
+    for slug, reason in unlaunched:
         detail = f"created this sweep but never launched ({reason})"
         typer.secho(f"{slug}: {detail}", fg=typer.colors.RED, err=True)
         record.scan_problems.append((slug, detail))
@@ -2362,7 +2367,7 @@ def _period_lease_guard(
             actual_parent = _revision_parent_state_lease(
                 cfg, expected_parent, base
             )
-            if actual_parent.path != expected_parent.path or not _same_ticket_bytes(
+            if not _same_ticket_bytes(
                 actual_parent.ticket_bytes, expected_parent.ticket_bytes
             ):
                 raise git.StateRegressionError(
@@ -3968,7 +3973,9 @@ def _control_already_has_period(
         control_ticket = git._tree_bytes(
             root, ref, f"{task_rel.rstrip('/')}/ticket.md"
         )
-        if control_ticket == replaced_done_ticket_bytes:
+        # The replaced ticket was read from disk, which a line-ending-converting
+        # checkout holds CRLF while control's blob stays LF.
+        if _same_ticket_bytes(control_ticket, replaced_done_ticket_bytes):
             return False
     return True
 
@@ -4863,7 +4870,7 @@ def _broadcast_scan(
             continue
         if not (task.ref.ticket_path).is_file():
             scan.tasks.remove(task)
-            scan.admission_skips.append((task, "already handled on control"))
+            scan.admission_skips.append((task, _ALREADY_HANDLED_ON_CONTROL))
             typer.secho(
                 f"{task.ref.id_slug} was already handled on the control branch; "
                 "not launching.",

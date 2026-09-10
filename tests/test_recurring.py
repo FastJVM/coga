@@ -4655,20 +4655,25 @@ def _drop_created_period_at_admission(
 
 
 @pytest.mark.parametrize(
-    ("control_move", "reason"),
+    ("control_move", "reason", "exit_code", "problems"),
     [
-        ("replaced", "changed on control during admission"),
-        ("handled", "already handled on control"),
+        ("replaced", "changed on control during admission", 2, 1),
+        ("handled", "already handled on control", 0, 0),
     ],
 )
-def test_a_create_dropped_at_admission_is_a_recorded_problem(
-    repo: Path, monkeypatch: pytest.MonkeyPatch, control_move: str, reason: str
+def test_a_create_dropped_at_admission_is_recorded(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    control_move: str,
+    reason: str,
+    exit_code: int,
+    problems: int,
 ) -> None:
-    """A period this sweep created but never launched is not a clean sweep.
+    """A period this sweep created but never launched stays in the record.
 
     Both refusals used to remove the task from the scan with only a grey console
-    line, so the record listed neither the template nor a problem and read
-    "No recurring tasks due." with `problems: 0`.
+    line, so the record never listed the template. A create control changed is
+    lost work and a problem; one control had already serviced is only a skip.
     """
     cfg = load_config(repo)
     _allow_interactive_recurring(monkeypatch)
@@ -4683,14 +4688,14 @@ def test_a_create_dropped_at_admission_is_a_recorded_problem(
         recurring_cmd, "run_autofix", lambda cfg, record, **kw: records.append(record)
     )
 
-    assert recurring_cmd.run_recurring_scan(cfg) == 2
+    assert recurring_cmd.run_recurring_scan(cfg) == exit_code
 
     assert launched == []
     rendered = records[0].render()
     assert "- templates scanned: 1" in rendered
+    assert "weekly-check" in rendered
     assert f"skip ({reason})" in rendered
-    assert "- problems: 1" in rendered
-    assert "recurring/weekly-check" in rendered
+    assert f"- problems: {problems}" in rendered
 
 
 def test_a_create_dropped_at_admission_launches_on_the_next_sweep(
@@ -5110,6 +5115,75 @@ def test_recurring_scan_launches_a_create_that_autocrlf_rewrote_on_disk(
 
     _allow_interactive_recurring(monkeypatch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
+    _patch_recurring_command_launch(monkeypatch, coga_os, fake_launch)
+
+    assert recurring_cmd.run_recurring_scan(cfg) == 0
+    assert launched == ["recurring/weekly-check"]
+
+
+def test_recurring_scan_replaces_a_stale_done_task_autocrlf_rewrote_on_disk(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The replaced done ticket still matches control when held CRLF on disk.
+
+    The create freezes the stale done ticket from this checkout, which
+    `core.autocrlf=true` holds CRLF while control's blob stays LF. A raw byte
+    comparison read it as some other task on control, restored the old done
+    ticket over the fresh period, and never launched the period.
+    """
+    coga_os = git_repo.coga_os
+    git_repo.git("config", "core.autocrlf", "true")
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Current template body.
+        """,
+    )
+    _seed_global_log(git_repo)
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+
+    cfg = load_config(coga_os)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0]
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", first.ref)
+    ticket = Ticket.read(first.ref.ticket_path)
+    ticket.frontmatter["status"] = "done"
+    ticket.frontmatter.pop("step", None)
+    ticket.write(first.ref.ticket_path)
+    coga_git.sync_task_state(
+        cfg,
+        first.ref.path,
+        message="Ticket: recurring/weekly-check — done",
+    )
+    # Hold the done ticket the way a converting checkout does after a restore.
+    first.ref.ticket_path.unlink()
+    git_repo.git("checkout", "HEAD", "--", "coga/tasks/recurring/weekly-check")
+    assert b"\r\n" in first.ref.ticket_path.read_bytes()
+
+    launched: list[str] = []
+
+    def fake_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        fresh = Ticket.read(first.ref.ticket_path)
+        assert fresh.status == "active"
+        fresh.frontmatter["status"] = "done"
+        fresh.frontmatter.pop("step", None)
+        fresh.write(first.ref.ticket_path)
+
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
     _patch_recurring_command_launch(monkeypatch, coga_os, fake_launch)
 
     assert recurring_cmd.run_recurring_scan(cfg) == 0
