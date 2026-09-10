@@ -39,7 +39,7 @@ workflow:
     assignee: owner
 secrets: null
 step: 1 (design)
-launch_generation: pending:8d04cd6f-66c4-4025-b1f8-6125da2a8cc3
+launch_generation: 8d04cd6f-66c4-4025-b1f8-6125da2a8cc3
 ---
 
 ## Description
