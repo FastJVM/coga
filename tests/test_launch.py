@@ -19,6 +19,7 @@ from coga.commands import block as block_module
 from coga.commands import launch as launch_module
 from coga.commands import unblock as unblock_module
 from coga.create import create_task
+from coga.commands import launch as launch_cmd
 from coga.commands.launch import (
     _MAX_PROMPT_ARG_BYTES,
     _argv_prompt,
@@ -3474,6 +3475,56 @@ def test_launch_uses_step_one_assignee_after_freezing_draft(
     assert after.step == "1 (implement)"
     assert after.assignee == "claude"
     assert "launched (assignee=claude, agent=claude)" in _read_log(active_task)
+
+
+def _spy_recorded_assist(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Record every recorded-assist lookup, which only a human-owned step makes."""
+    seen: list[str] = []
+    real = launch_cmd._recorded_single_checkout_assist_branch
+
+    def spy(cfg, ticket):  # type: ignore[no-untyped-def]
+        seen.append(ticket.assignee or "")
+        return real(cfg, ticket)
+
+    monkeypatch.setattr(
+        launch_cmd, "_recorded_single_checkout_assist_branch", spy
+    )
+    return seen
+
+
+def test_launch_does_not_enter_assist_handling_for_a_human_to_agent_draft(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--agent` on a human-assigned draft whose step 1 resolves to an agent.
+
+    The recorded-assist classification read the *stale* draft assignee, so this
+    human->agent transition entered strict human-assist handling and performed
+    the recorded-PR lookup for a step that is agent-owned once frozen.
+    `coga/architecture` requires the check to use the prepared activation's
+    resolved assignee.
+    """
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    ticket_path = Path(ref["path"])
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = "draft"
+    ticket.frontmatter["workflow"] = "chain"
+    ticket.frontmatter.pop("step")
+    # Stale human assignee; step 1 declares `assignee: agent`, which resolves
+    # to the ticket's `agent:` (claude) the moment the workflow is frozen.
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ticket_path)
+
+    seen = _spy_recorded_assist(monkeypatch)
+    calls = _launch_single_spawn(monkeypatch)
+
+    result = CliRunner().invoke(app, ["launch", slug, "--agent", "claude"])
+
+    assert result.exit_code == 0, result.output
+    assert seen == [], "no assist lookup: step 1 is agent-owned once frozen"
+    assert len(calls) == 1
+    assert calls[0][0] == "claude"
+    assert Ticket.read(ticket_path).assignee == "claude"
 
 
 def test_launch_preflights_resolved_step_one_agent_before_activation(
