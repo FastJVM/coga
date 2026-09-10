@@ -1474,3 +1474,46 @@ def test_a_peer_config_edit_reroutes_the_next_peer_step(repo: Path) -> None:
     toml.write_text(toml.read_text().replace('peer = "codex"', 'peer = "reviewer"'))
     assert derived_operator(repo, slug) == "reviewer"
     assert "assignee" not in Ticket.read(created["path"]).frontmatter
+
+
+def test_no_transition_restores_removed_metadata(repo: Path) -> None:
+    """No writer reintroduces the removed keys across a ticket's whole life."""
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Work",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        status="draft",
+    )
+    slug, path = created["slug"], Path(created["path"])
+    removed = ("slug", "human", "assignee", "watchers", "script")
+
+    def assert_clean(after: str) -> None:
+        frontmatter = Ticket.read(path).frontmatter
+        for key in removed:
+            assert key not in frontmatter, f"{key!r} came back after {after}"
+
+    runner = CliRunner()
+    assert_clean("create")
+    assert runner.invoke(app, ["mark", "active", slug]).exit_code == 0
+    assert_clean("mark active")
+    # `in_progress` is launch's flip, not a `mark` subcommand.
+    started = Ticket.read(path)
+    started.frontmatter["status"] = "in_progress"
+    started.write(path)
+    assert_clean("in_progress")
+
+    for label, command in (
+        ("bump", ["bump", slug]),
+        ("block", ["block", "--task", slug, "--reason", "which ceiling?"]),
+        ("unblock", ["unblock", slug, "--answer", "the default one"]),
+        ("mark paused", ["mark", "paused", slug, "--message", "hold"]),
+        ("mark active again", ["mark", "active", slug]),
+        ("mark done", ["mark", "done", slug]),
+    ):
+        result = runner.invoke(app, command)
+        assert result.exit_code == 0, f"{label}: {result.output}"
+        assert_clean(label)
+    assert Ticket.read(path).status == "done"

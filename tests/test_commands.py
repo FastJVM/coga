@@ -2425,3 +2425,37 @@ def test_status_tasks_without_log_sort_to_end(repo: Path) -> None:
     result = runner.invoke(app, ["status", "--reverse"])
     assert result.exit_code == 0, result.output
     assert result.output.index("zzz-logged") < result.output.index("aaa-nolog")
+
+
+def test_an_override_does_not_change_who_other_agent_is_relative_to(
+    repo: Path,
+) -> None:
+    """The retained tradeoff: `other-agent` is relative to the *ticket's* agent.
+
+    An ephemeral `--agent codex` selects the worker for a launch; it never
+    becomes the ticket's main-agent choice. So a Claude-main ticket reviewed by
+    `other-agent` still routes that review to Codex — which is why
+    `--agent codex` can produce Codex -> Codex -> Claude. A human who wants Codex
+    to be the main agent chooses `agent: codex` through authoring.
+    """
+    _add_codex_agent(repo)
+    _write_peer_review_workflow(repo)
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="W",
+        workflow_name="peer",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="in_progress",
+    )
+    slug, path = ref["slug"], ref["path"]
+
+    assert derived_operator(repo, slug) == "claude"
+    assert CliRunner().invoke(app, ["bump", slug]).exit_code == 0
+    # Step 2 is `other-agent`, resolved against the ticket's own `agent: claude`.
+    assert derived_operator(repo, slug) == "codex"
+    ticket = Ticket.read(path)
+    assert ticket.agent == "claude"
+    assert "assignee" not in ticket.frontmatter
