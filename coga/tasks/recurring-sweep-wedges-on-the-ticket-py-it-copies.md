@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: nicktoper
 contexts:
 - coga/codebase
 skills: []
@@ -38,8 +38,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (evaluate-design)
-launch_generation: f8fcec00-69d6-4909-9076-0f87cee19fc5
+step: 3 (review-design)
 ---
 
 ## Description
@@ -638,3 +637,107 @@ the spec.
    analyst reads `problems: 0` for a sweep where a template never loaded. Same
    class of blind spot as this ticket, different trigger. Spec puts it out of
    scope. Confirm that, or say to fold it in.
+
+## Evaluator review
+
+Reviewed cold on 2026-09-10 against `643105f8`. **Changes required before
+implementation.** The four outcomes fit one PR, and reusing
+`RunRecord.scan_problems` is sound. The proposed deletion rule and two control
+flow assumptions need correction. The relevant source has not changed since
+the design's `aebfe867`; these are omissions in the design, not intervening
+source drift.
+
+### Must resolve before implementation
+
+1. **P1 — Stage A can discard untracked bytes that the adopted commit does not
+   contain.** `_ref_has_path` in `src/coga/recurring_runner.py` proves only path
+   existence. In the already-handled branch, `base` is another control revision;
+   even on the post-landing branch, a local file can change after
+   `git._build_overlay_tree` snapshots it. Neither proves that the current
+   untracked bytes were saved. An isolated Git probe following Stage A exactly
+   replaced an untracked `notes.md` containing local work with different target
+   content and left a clean checkout. The assertion that deleted bytes are
+   "superseded, not lost" is false. Specify a narrow ownership/content proof for
+   the generated artifact, and preserve or refuse differing local content.
+   Acceptance should cover both restore/rebase sites, the matching copied shim,
+   and a differing untracked attachment. The breadth question needs resolution
+   before implementing the proposed default.
+
+2. **P1 — Stage D is downstream of the branch that removes the failed task.**
+   `_broadcast_scan` captures `created_period_lease`, then compares it after sync
+   and removes the task with `continue` *before* `read_ticket` and the proposed
+   detector. `recurring.local_period_lease` includes the complete ticket bytes
+   as well as `period_generation`, so restoring an old `done` ticket necessarily
+   changes that lease. The actual case-3 reproduction on unchanged source
+   produced: remote task `active`, local task `done`, zero remaining scan tasks,
+   empty record scan lines, `problems: 0`, and exit `0`; stdout said "changed on
+   the control branch during recurring admission; not launching." Neither
+   renderer gets a row. Stage D therefore cannot meet acceptance 4 at its stated
+   location. Classify the failed-create restoration before this removal while
+   retaining the existing refusal of legitimate concurrent generations; simply
+   removing the lease guard would regress admission safety. Test with a real
+   ticket-byte replacement, including generation changes, and a successful
+   competing control generation. Attach `coga/launch-internals` before
+   implementation as `coga/codebase` requires; its "Recurring admission
+   generations" section is the relevant contract.
+
+3. **P1 — Stage C leaves a create-sync failure path outside its sink.** In
+   `_sync_recurring_create_paths`, a failed `_fetch_control_branch` falls back
+   to `git.sync_paths`. That function in `src/coga/git.py` swallows `GitError`
+   itself by default, prints `[git] sync failed`, and returns normally. It never
+   calls the runner's `_append_sync_failure`. Fault injection through the real
+   fallback confirmed a printed sync failure, `created_on_control=True`, and
+   zero calls to the proposed funnel. Thus acceptance 3's clean-report
+   prohibition remains violated. Forward fallback failures into the same sink
+   while retaining best-effort task execution; `git.sync_paths` already exposes
+   `raise_git_error` for callers needing propagation. Audit the early
+   missing-template fallback too. Add a regression through the real fallback,
+   rather than only replacing `_sync_recurring_create_paths` with a throwing
+   mock. Capture failures before missing-task/changed-lease early exits, and
+   append to the sink before `_append_sync_failure`'s `anchor_path.is_dir()`
+   guard: the existing
+   `test_recurring_create_sync_failure_after_removing_stale_task_is_soft`
+   demonstrates that the directory can already be absent.
+
+4. **P2 — Stage B leaves the new cleanup failure outside recovery.** Its `try`
+   starts after `_drop_untracked_paths_present_in`. A failed `ls-files` or
+   `unlink` therefore propagates after restore-to-`HEAD` without restoring
+   `landed`; the old completed ticket remains in place. The existing outer
+   non-fatal handlers do not repair it. Define recovery for failures throughout
+   the post-restore sequence, including partial cleanup and OS errors, and add
+   a fault-injection assertion that these cannot leave the previous period as
+   the current task. The proposed rebase-only test does not cover this hole in
+   outcome 4.
+
+### Optional recommendations
+
+- Keep template-load error counting out of this PR. A best-effort
+  `recurring-error` notification is consistent with the existing watchdog
+  path; no additional notification policy is needed for implementation.
+- Clarify acceptance 1's observation point: check `active` and a clean tree
+  after create sync, with launch stubbed or before dispatch. A completing real
+  script normally leaves `done` after the full sweep.
+- Correct Stage D's `--all` comment: current `--all` runs ordinary due sweeps;
+  only `--force` enables `sync_existing`. The implemented condition can retain
+  that force-specific exemption.
+
+### Verification
+
+Three isolated `/tmp` Git probes checked the actual case-3 sweep, Stage A's
+specified operations on differing untracked content, and the swallowed fallback
+failure. No agent or notification was dispatched. The recurring context and its
+packaged twin currently compare byte-identical. The following existing tests
+passed (`5 passed`):
+
+```sh
+PYTHONPATH=$PWD/src python3.12 -m pytest -q \
+  tests/test_recurring.py::test_recurring_create_sync_restores_control_ledger_for_handled_period \
+  tests/test_recurring.py::test_recurring_create_sync_failure_after_removing_stale_task_is_soft \
+  tests/test_recurring.py::test_named_replacement_does_not_launch_a_concurrent_generation \
+  tests/test_recurring.py::test_recurring_scan_launches_even_when_create_sync_crashes \
+  tests/test_recurring.py::test_scan_due_force_reruns_already_done_period
+```
+
+The full suite was not run for this design-only review. The frozen
+`code/design-then-implement` workflow correctly hands these findings to the owner
+at `review-design`. No ticket-body, source, fixture, or workflow edits were made.
