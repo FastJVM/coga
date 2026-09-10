@@ -31,7 +31,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (self-qa)
 ---
 
 ## Description
@@ -116,3 +116,48 @@ one command, without opening the file or running the `coga ticket` interview.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+branch: create-description-owner
+worktree: /home/zach2179/dev/coga-create-description-owner
+
+## Implement notes
+- Layout: separate feature checkout (sibling linked worktree). Ticket edits and
+  `coga bump` stay in the primary checkout on `main`.
+- `--description` / `--owner` pass through `create_draft` as keyword args
+  defaulting to `None`, so `coga ticket`'s `create_draft(title=target)` call is
+  unchanged. `create_task` is untouched.
+- Owner: stripped; empty/whitespace -> `_bail("owner cannot be empty")`; no
+  known-users gate. Omitted -> `cfg.current_user`, as before.
+- Structure guard (human chose "match the parsers"): reject any line matching
+  `^##(?:\s|$)`, the shape compose's `_SECTION_HEADING_RE` treats as a section
+  (`###` allowed; a `## ` line inside a code block is also rejected, an
+  accepted tradeoff). Reject `fence_count(description) > 0`, i.e. the fence on
+  its own line, exactly what `split_body` counts; inline mentions allowed.
+  Both checks run before `load_config`/`create_task`, so nothing is written on
+  rejection.
+
+## What changed
+- `src/coga/commands/create.py`: `--description` / `--owner` Typer options;
+  `create_draft` gains matching `None`-default kwargs, the owner strip/empty
+  check, and `_description_structure_problem` (heading regex +
+  `taskfile.fence_count`). Module docstring updated.
+- `tests/test_create.py`: new `--description / --owner` section covering
+  description placement, owner + human cascade, defaults with neither flag,
+  composition with a path-prefixed title + `--workflow`, empty owner (`""`,
+  `"   "`), padded owner, four structure-breaking descriptions (nothing on
+  disk), and the allowed `###` / inline fence mention.
+- `docs/reference.md` and packaged `bootstrap/contexts/coga/cli/SKILL.md`:
+  new flags documented. The stale "posts ✨" line is replaced with "does not
+  post to Slack".
+- No example fixture change: flags are optional and don't touch task layout,
+  composition, or workflow semantics.
+
+## Verification (implement)
+- `python -m pytest tests/test_create.py tests/test_packaging.py` → 70 passed.
+- `coga create --help` renders both options.
+- `coga validate --json` (primary checkout): no issues for this ticket.
+- `python -m pytest` (full suite, feature worktree) → 2387 passed.
+- Committed on `create-description-owner`, then rebased onto `origin/main`
+  `449385d9` (4 new commits, task/log files only) -> `c4a554d6`. Targeted
+  tests re-run after rebase: 70 passed. Not pushed; no PR (later steps).
