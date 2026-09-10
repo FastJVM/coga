@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -37,7 +37,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 5 (open-pr)
+step: 6 (review)
 ---
 
 ## Description
@@ -1033,3 +1033,59 @@ are writing.
 The branch is rebased onto control `247313a7` with the full suite re-run green
 (2407 passed, plus the environmental packaging failure above) and the population
 re-verified after each rebase.
+
+## Open-PR — 2026-09-10
+
+PR https://github.com/FastJVM/coga/pull/784, opened by `coga open-pr` from the
+primary control checkout on `main`; `pr:` is recorded under `## Dev` above. No
+review was in flight — this ticket's frozen workflow has no `self-qa` or
+`peer-review` step, and `code/implement` orders none.
+
+Control moved twice more during this step, so the branch was stale on the first
+two `coga open-pr` attempts (both refused cleanly, nothing pushed). Rebased onto
+`origin/main` twice:
+
+- `247313a7` → `8414dda8`: conflicts on `allow-description-and-owner-on-create`,
+  `stop-syncing-task-state-onto-the-feature-branch`, and this ticket.
+- `8414dda8` → `58c9e283`: conflict on `allow-description-and-owner-on-create`
+  again (another session advanced it to step 4 mid-verification).
+
+Every conflict was resolved the way Shape 7 requires and the implementation note
+predicted: take control's version of the ticket wholesale — lifecycle, body, and
+blackboard — then re-apply only the mechanical key removals to it. Verified by
+diffing each resolved file against `git show origin/main:<path>`: the diffs are
+pure deletions of `slug`, `human`, `assignee`, empty `skills`/`contexts`, and
+`secrets: null`. No side was taken wholesale and no lifecycle state was reverted.
+
+Verification after each rebase, from the feature checkout with its own absolute
+`src` pinned:
+
+```sh
+cd /home/n/Code/codex/coga-simplify-ticket-format
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/home/n/Code/codex/coga-simplify-ticket-format/src \
+  python3.12 -m pytest -q --no-header -p no:randomly
+# → 2407 passed, 1 failed (both runs)
+cd coga && PYTHONDONTWRITEBYTECODE=1 \
+  PYTHONPATH=/home/n/Code/codex/coga-simplify-ticket-format/src \
+  python3.12 -m coga.validate --json
+# → exit 1: the same 4 baseline unsynthesized-draft-blackboard errors,
+#   22 warnings (15 unfrozen-workflow, 5 stuck-in-progress, 2 large-blackboard),
+#   0 unknown-assignee, no new finding kinds
+```
+
+The single failure is the pre-existing environmental
+`test_packaging.py::test_wheel_includes_bootstrap_batteries` (`hatchling.build`
+not importable on this machine); it reproduces on control and is carried as the
+adjacent finding above. A read-only frontmatter scan of the rebased population
+shows 211 tasks with **zero** residual `slug`/`human`/`assignee`/`watchers`/
+`script` keys and zero empty `contexts`/`skills`/`secrets` declarations.
+
+Nothing mutating was run from the feature checkout. The control checkout keeps
+its old-schema copy of this ticket for the remaining pre-merge transitions.
+
+**Merge-gate note.** Control has now moved four times across implementation and
+this step, twice within the ~10 minutes of this session. That is direct evidence
+for Shape 7's warning: the conversion commit must be refreshed from the exact
+control revision at the gate, and the field/token diff re-verified, and it will
+likely need repeating. Stopping the dispatchers first is what makes that
+comparison hold still.
