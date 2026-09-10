@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -37,7 +37,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (evaluate-design)
+step: 3 (review-design)
 ---
 
 ## Description
@@ -619,3 +619,114 @@ understand the baseline. Refresh all counts before the eventual cutover.
   scheduled/supervised sessions? If not, approve a split for a preparatory
   writer-admission guard before attempting the atomic format PR. Do not claim
   the current lifecycle guard already provides that protection.
+
+## Evaluator review
+
+Cold review on 2026-09-10 against `146f6557`. **Not ready for implementation:**
+one delegation contract gap needs a disposition, and the three existing owner
+decisions remain open. The shared resolver fits the microkernel rule; the
+code/data/docs cutover is one coherent change, conditional on the writer quiet
+window. The frozen `evaluate-design` -> `review-design` handoff fits this work.
+
+### Must resolve before implementation
+
+1. **P1 — Define which workflows a delegated period can execute and finish.**
+   Proposed Shape 2 makes the workflow role authoritative, but Shape 5 runs
+   the target using the period's main agent and retains whole-period sentinel
+   completion. Those rules disagree for a period at `other-agent`, or one
+   with an owner gate after its current agent step. Checking only the current
+   human handoff cannot protect a later gate.
+
+   Evidence: `src/coga/recurring.py:Template.load`, `_create_at_slug`, and
+   `resolve_agent_delegate` accept a custom period workflow without restricting
+   its roles or length. `src/coga/recurring_runner.py:_run_delegated_task`
+   launches the bootstrap target and calls `mark_done` directly on its done
+   signal; it does not advance the period workflow. In an isolated temporary
+   fixture with Git/notifications disabled and a fake bootstrap completion,
+   a valid `other-agent` -> `owner` period with main Claude had **zero validation
+   findings**, derived Codex at step 1, selected the Claude bootstrap target,
+   and ended `done` with no step, skipping owner approval. This is an existing
+   behavior the new contract must reconcile, not a proposed implementation bug.
+
+   Decide either a bounded allowed workflow shape for delegation, rejected
+   before materialization and again on retries/direct launches, or specify
+   role-aware dispatch and step-aware completion and revise the recurring
+   redesign exclusion accordingly. Add explicit acceptance cases for a peer
+   current step, a later owner gate, and a completion requirement; preserve
+   the existing one-step delegation leases and sentinel behavior.
+
+2. **P1 — Settle the explicitly approval-dependent contracts.** The body
+   deliberately leaves activation-time persistence versus live default
+   resolution undecided (Shape 3), asks the owner to accept the possible
+   same-worker override/peer sequence (Shape 4), and conditions one-PR rollout
+   on stopping every old writer (Shape 7). Record those dispositions in the
+   spec before handing it to implementation; field-removal approval alone
+   does not select them. If the quiet window is infeasible, use the separately
+   reviewed guard proposal already described by the ticket.
+
+   Evidence: `src/coga/config.py:Config.default_agent` selects the first merged
+   agent; `src/coga/create.py:create_task` currently persists it at creation,
+   while `src/coga/mark.py:prepare_active` does not select an agent. The proposed
+   timing is therefore a behavior change.
+   `src/coga/commands/launch.py:consecutive_agent_override` and
+   `src/coga/bump.py:resolve_other_agent` keep temporary execution and the stored
+   main agent separate. `src/coga/git.py:_ticket_lifecycle_state` compares only status,
+   step, and assignment today; `coga/sync`'s "catch-all subtree sweep" confirms
+   why older writers cannot safely remain active during this cutover. Local
+   inspection cannot certify the other machines or scheduled writers.
+
+### Optional recommendations
+
+- Explicitly call out the loss of the existing override recovery path when a
+  stored main agent is absent from config. The configured-agent requirement
+  in Shapes 1/3 implies refusal, but
+  `tests/test_launch.py:test_launch_agent_override_follows_consecutive_agent_role_steps`
+  currently proves success for a Claude-main ticket after config becomes
+  Codex-only, using `--agent codex`. If retaining the proposed requirement,
+  document this tradeoff and retain separate tests for that refusal and for
+  successful override propagation with a valid main agent.
+- Keep the mandated fresh inventory, rather than treating 207 as a fixed
+  conversion target. This review found **208 tasks**, 81 parked `v2/` tasks,
+  four recurring instances, 200 Claude/eight Codex selections, and all 15 Zach
+  owners. The ten explicit agent-role mismatches, two omitted-current-role
+  snapshots, five `human` snapshots, and six nonempty top-level skill lists
+  still match the recorded exception dispositions. No ticket has watchers or
+  a path/slug mismatch. This is expected population drift, not a scope defect.
+
+### Verification and limits
+
+Checked ticket IO, creation/activation, role/override dispatch, script handoffs,
+authoring, recurring delegation, publication leases, notification watcher
+consumers, validation, and the cited live/package contracts. No implementation,
+manual ticket-body/frontmatter edit, branch, or PR was produced. The existing dirty
+`coga/log.md` was not hand-edited.
+
+The following focused existing tests passed: **13 passed** including
+parameterized cases. This verifies current behavior, not the future format;
+the full suite remains an implementation requirement.
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/home/n/Code/codex/coga/src python -m pytest -q \
+  tests/test_create.py::test_create_initial_assignee_resolved_from_workflow_step \
+  tests/test_mark.py::test_mark_active_resolves_step_one_assignee \
+  tests/test_launch.py::test_launch_agent_override_follows_consecutive_agent_role_steps \
+  tests/test_megalaunch.py::test_megalaunch_agent_override_applies_to_first_step_only \
+  tests/test_recurring.py::test_delegated_task_launches_target_and_owns_lifecycle \
+  tests/test_launch_script.py::test_script_only_launch_is_headless_and_receives_task_contract \
+  tests/test_packaging.py::test_live_and_packaged_copies_stay_identical
+```
+
+Source-pinned read-only validation used
+`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/home/n/Code/codex/coga/src coga validate --json`
+from the real checkout, and the same command prefixed by
+`env -u SLACK_WEBHOOK_URL` from `example/`. Reports are at
+`/tmp/simplify-ticket-format-evaluator-{real,example}-validation.json`.
+The real repo still has the same four draft-blackboard errors; warnings are
+now 28 (16 unfrozen workflows, five idle tasks, two large blackboards, five
+unknown assignments). The example has no findings. These are pre-change
+observations, not conversion results; no live webhook or secret was probed.
+Ticket-only validation (`coga validate --task simplify-ticket-format --json`,
+with the same source pin) passes with no findings after recording this review.
+Byte comparisons confirm the original frontmatter, body, and unrelated
+blackboard remain unchanged, with exactly one fence and evaluator section;
+`git diff --check -- coga/tasks/simplify-ticket-format.md` passes.
