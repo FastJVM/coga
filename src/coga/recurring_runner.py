@@ -1608,7 +1608,6 @@ def run_recurring_scan(
         agent_override=agent_override,
         scan_lines=scan_lines_for_record(scan, force=force),
         scan_errors=list(scan.errors),
-        scan_problems=list(scan.sync_problems),
     )
     for task in scan.tasks:
         if task.skip_reason and task.ref is not None:
@@ -2276,12 +2275,10 @@ def _revision_period_lease(
 def _same_period_lease(actual: _PeriodLease, expected: _PeriodLease) -> bool:
     """Whether two period leases name the same ticket, ignoring line endings.
 
-    Line endings are not period state. Under `core.autocrlf=true` git stores the
-    ticket LF but checks it out CRLF, so the create sync's own restore + rebase
-    rewrites the admitted bytes, and a control-revision lease never matches a
-    worktree one byte for byte. Neither is the control branch changing the
-    period. The generation is derived from the bytes, so equal normalized bytes
-    imply an equal generation. Only lease comparisons normalize; the
+    Under `core.autocrlf=true` git stores the ticket LF and checks it out CRLF,
+    so the create sync's own checkout rewrites the admitted bytes and a control
+    blob never matches the worktree copy. The generation derives from the
+    bytes, so it needs no separate check. Only lease comparisons normalize; the
     `expected_ticket_bytes` CASes still compare raw bytes.
     """
 
@@ -3459,10 +3456,10 @@ def _sync_recurring_create(
         # `read_text` folds CRLF, so an unchanged template is left alone. Under
         # `core.autocrlf=true` the sync's own checkout writes it CRLF; rewriting
         # it LF would leave a stray diff for the next state sync to sweep.
-        current_ticket = (
-            template_ticket.read_text() if template_ticket.is_file() else ""
-        )
-        if restore_ticket and current_ticket != restore_ticket:
+        if restore_ticket and (
+            not template_ticket.is_file()
+            or template_ticket.read_text() != restore_ticket
+        ):
             template_ticket.write_text(restore_ticket)
     return created_on_control
 
@@ -4875,17 +4872,9 @@ def _broadcast_scan(
                 "recurring admission; not launching.",
                 fg=typer.colors.BRIGHT_BLACK,
             )
-            # A problem, not a quiet skip: it leaves this period's ticket on
-            # disk unlaunched, and nothing else will run it this period.
-            scan.sync_problems.append(
-                (
-                    task.ref.id_slug,
-                    "created this sweep, then changed on the control branch "
-                    "during recurring admission, so it was not launched. "
-                    f"Check the ticket, then `coga launch {task.ref.id_slug}` "
-                    "or delete it.",
-                )
-            )
+            # A note, not a problem: the usual cause is another checkout landing
+            # this period first, and that sweep runs it. A live ticket left
+            # here is resumed by the next sweep.
             continue
         ticket = read_ticket(task.ref)
         task.status = ticket.status

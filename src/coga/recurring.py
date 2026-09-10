@@ -375,9 +375,6 @@ class DueScan:
     ledger_periods: dict[str, str] = field(default_factory=dict, repr=False)
     ledger_errors: dict[str, str] = field(default_factory=dict, repr=False)
     period_targets: dict[str, str] = field(default_factory=dict, repr=False)
-    # Failures observed outside the launch loop, as `(id_slug, detail)` — the
-    # shape `RunRecord.scan_problems` takes, which the runner seeds from this.
-    sync_problems: list[tuple[str, str]] = field(default_factory=list, repr=False)
 
     @property
     def due(self) -> list[DueTask]:
