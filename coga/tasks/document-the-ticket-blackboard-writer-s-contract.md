@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -24,8 +24,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
-launch_generation: e09dc8bf-9eb3-41f3-ad27-35e4f411a4ee
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -160,4 +159,52 @@ already has. `coga/architecture` alone would be paid on all four steps.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: blackboard-writer-contract
+worktree: /home/n/Code/claude/coga-blackboard-writer-contract
+
+## Implementation notes (step 1)
+
+Commit `beaa8ff6` — four files, docs only, no code touched:
+
+- new `coga/contexts/coga/blackboard/SKILL.md` (the contract)
+- its packaged twin under
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md`
+  (created deliberately — the twin test only pairs a packaged file whose live
+  counterpart exists, so nothing would have caught its absence)
+- one-line cross-reference added to `coga/architecture` next to the fence
+  definition, in **both** copies (that twin *is* enforced)
+
+Sources transcribed (read directly; `contexts:` intentionally empty):
+`src/coga/taskfile.py`, `src/coga/blackboard.py`, `coga/architecture`
+(fence definition, layer-6 composition, "Status is the signal"),
+`coga/patterns` ("Durability and concurrency"), `dev/code`
+(`## Dev`, `## Superseded designs`), the `bootstrap/ticket` skill's pre-launch
+cleanup pass, `coga/recurring`, `coga/period-task`.
+
+Structure: fence boundary → append/rewrite regimes → replaced content →
+concurrent writers → non-coverage. Rule 3 points at the architecture passage
+rather than restating it, per the ticket. Cross-checkout reconciliation is
+named as deferred to `detect-stranded-ticket-writes-across-checkouts`;
+enforcement is named as a separate job.
+
+## Verification
+
+- `pytest tests/test_packaging.py` — 10 passed, incl. the twin byte-identity
+  test. The 1 failure (`test_wheel_includes_bootstrap_batteries`) is
+  environmental and **pre-existing**: `.venv` has no `pip`
+  ("No module named pip"); reproduced identically on unmodified `main`.
+- `coga validate --json` in the feature worktree — 34 issues, all pre-existing
+  drift (`large-blackboard`, `unknown-assignee`, `unsynthesized-draft-blackboard`,
+  `unfrozen-workflow`, `missing-user`, `stuck-in-progress`); none reference the
+  new context.
+- Reachability: `paths.context_resolution_paths(cfg, "coga/blackboard")` returns
+  exactly the two paths created, confirming the ref resolves by name.
+- Full `pytest` not run: no code or fixture changed.
+
+## Follow-ups (not folded in)
+
+- `EXPECTED_BOOTSTRAP_RESOURCES` in `tests/test_packaging.py` is a hand-kept
+  partial list and does not include the new packaged context — nor does it list
+  `patterns`, `period-task`, `launch-internals`, or `cli`. Left alone for scope;
+  a separate ticket could either complete the list or derive it.

@@ -4765,3 +4765,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-10 11:52 [document-the-ticket-blackboard-writer-s-contract] [megalaunch] launched via coga megalaunch
 2026-09-10 12:53 [allow-description-and-owner-on-create] [human:zach] created (status=draft)
 2026-09-10 12:53 [allow-description-and-owner-on-create] [human:zach] ticket authoring launched (assignee=claude, agent=claude)
+2026-09-10 13:16 [document-the-ticket-blackboard-writer-s-contract] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
