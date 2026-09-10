@@ -4695,3 +4695,9 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-10 09:50 [agent-usage-report] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-10 09:50 [agent-usage-report] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-10 09:50 [agent-usage-report] [megalaunch] launched via coga megalaunch
+2026-09-10 09:54 [recurring/autoclose-merged] [system] created (status=active)
+2026-09-10 09:54 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-09-10
+2026-09-10 09:54 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-09-10
+2026-09-10 09:54 [recurring/digest] [system] created (status=active)
+2026-09-10 09:54 [recurring/digest] [system] deleted completed prior-period task before 2026-09-10
+2026-09-10 09:54 [recurring/digest] [system] created recurring/digest for 2026-09-10
