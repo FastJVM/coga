@@ -33,8 +33,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (self-qa)
-launch_generation: 214b2e84-cb35-4e6d-9f2d-d97701bede2c
+step: 3 (pr)
 ---
 
 ## Description
@@ -208,9 +207,85 @@ boundary needs; `publish_current_branch` pushes the post-reconcile HEAD.
   environment noise reads as a packaging regression). Not caused by, and not in
   scope for, this ticket. No follow-up ticket found; the context already
   records the cause and the fix shape (keep `hatchling` a tracked test dep).
+  Re-confirmed at self-QA: `hatchling` *is* declared in
+  `[project.optional-dependencies].test`, so this is purely an environment that
+  never installed the test extra — not a missing declaration to fix here.
 - Repo-wide `coga validate` reports four pre-existing
   `unsynthesized-draft-blackboard` errors under the parked `coga/tasks/v2/`
   tree. Unrelated drift, untouched.
+
+## Self-QA
+
+**The review returned.** `/code-review` ran to completion against the branch
+diff and reported nine findings; a `/simplify` pass was launched the same way,
+but its four agents went idle without their reports reaching this session, so
+the reuse/simplification/efficiency/altitude pass was done directly instead.
+Both passes are therefore accounted for, one delegated and one first-hand —
+noting the difference because the `pr` step reads this line as its evidence.
+
+Fixed, in commit `55e63ec3`:
+
+- **The refusal kept its own merge commit** (HIGH). `_reconcile_feature_payload`
+  could complete the merge and *then* have the manifest check refuse, leaving
+  the merge on the branch while stderr claimed it had left the branch exactly as
+  it was. It now unwinds its own commit with `reset --keep` — which refuses
+  rather than discarding a local modification — or reports that it could not.
+- **An unreachable path made reconciliation unsatisfiable** (HIGH). A generated
+  path that reached neither the overlay nor the union land stayed in the
+  manifest, so the verification diff refused forever and re-merged on every
+  sync. The manifest is narrowed to what the landing accepted, and the dropped
+  path (an append-only file whose `merge=union` attribute is gone — a real
+  misconfiguration) is named on stderr rather than ignored.
+- **The PR-gated teardown put `coga/log.md` straight back in the payload.**
+  Found here, not by the review: `sync_log`'s `publish_current_branch` path
+  pushed the session-usage append to the already-open PR branch without landing
+  or reconciling it. That is the last write of every `requires: pr` launch, so
+  the gated bump's clean payload was undone moments later — the ticket's
+  requirement 4 case, and the exact symptom PR #867 was filed for. Confirmed
+  with a throwaway test (`git diff origin/main...HEAD` → `['coga/log.md']`)
+  before and after.
+- **The authored-ticket signature swallowed `# --- extensions ---`** (MED). The
+  drop state carried across any colon-free line, and `Ticket.render` emits
+  `launch_generation` immediately before that marker — so for any repo using
+  `[ticket.fields.*]`, a ticket Coga merely advanced read as hand-authored and
+  defeated the gate. The drop now extends over real continuation lines only.
+- **`check-attr` failed open and unbatched** (LOW), and ticket bodies decoded
+  through the ambient locale (LOW) — an em dash under `LC_ALL=C` crashed
+  `open-pr`. Both fixed; the probe is now fatal on failure.
+- **An unguarded no-op landing returned `None`** (LOW), silently skipping
+  reconciliation in the one case where control provably holds the bytes. It
+  returns the accepted base.
+
+Reported rather than changed:
+
+- **The reconciliation merge is a real base sync** (MED). It integrates
+  everything on control since the fork into a checkout a session may still be
+  working in — the review confirmed an unrelated `app.py` being rewritten
+  mid-`sync_task_state`. That is requirement 3 as written, so the mechanism
+  stands, but the silence was indefensible: it now prints one line naming the
+  files it moved, and the docstring no longer claims the delta is only bytes
+  the branch already has. **This is the thing for the human reviewer to weigh** —
+  whether a lifecycle transition should ever fast-forward product files at a
+  moment Coga picked.
+
+Deliberately not changed, both leaning the same way (refusing a real PR is
+worse than admitting an empty one), now documented in code and context:
+
+- `workflow:` stays on the authored side of the classifier even though
+  `mark_active` freezes it. Cost: a branch whose only change is that freeze
+  reads as publishable — reachable only once reconciliation has failed closed.
+- A ticket added or deleted on the branch counts as work.
+
+Quality pass: one `check-attr` reading shared by the sync layer and `open-pr`
+(`git.union_merge_paths`, batched, loud); one `_land_and_reconcile_log` for
+both feature-branch log paths, since a boundary applied in only one of the two
+is one the next write undoes. `_generated_commit_rels`'s armed-snapshot branch
+looked dead but is live — `bump` and `mark` supply `generated_paths` on
+ordinary syncs too — so it stays.
+
+Tests: `2388 passed` (`PYTHONPATH=$PWD/src python3.12 -m pytest`), plus
+`coga validate --task stop-syncing-task-state-onto-the-feature-branch` clean.
+The single deselected test is the pre-existing packaging one below.
 
 ## Notes for review
 
@@ -218,6 +293,8 @@ The behavior change users will notice: an ordinary feature-branch lifecycle
 sync now base-syncs the branch onto the control tip. That is consistent with
 existing policy — `code/implement` already requires freshening before handoff
 and `coga open-pr` already refuses a branch missing material commits from
-`origin/main` — and taken at publication time each merge's only delta from the
-branch's own copy is bytes the branch already has. When it does conflict, the
-boundary declines and says so rather than resolving it.
+`origin/main`. Two honest qualifications, both from self-QA: at `open-pr` time
+the merge's only delta is bytes the branch already has, but at an arbitrary
+`bump`/`mark`/`block` it is whatever landed on control since the fork, which is
+why that integration now reports itself; and when it conflicts, the boundary
+declines, says so, and leaves the branch untouched.
