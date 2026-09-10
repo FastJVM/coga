@@ -4780,3 +4780,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-10 14:18 [add-an-agent-picker-for-recurring] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-09-10 14:18 [add-an-agent-picker-for-recurring] [megalaunch] launched via coga megalaunch
 2026-09-10 14:19 [allow-description-and-owner-on-create] [human:zach] activated (draft → active) — auto on launch
+2026-09-10 14:19 [allow-description-and-owner-on-create] [human:zach] started (active → in_progress) via coga launch
