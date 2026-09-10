@@ -38,7 +38,18 @@ later. Once a week this ticket fires on its schedule and its `ticket.py` runs
 
 Local-edit protection applies to URL-backed skills: a diverged local copy,
 provenance conflict, or fetch failure is left untouched and listed under the
-report's follow-up heading for a human to resolve. GitHub-backed directories
+report's follow-up heading for a human to resolve.
+
+**A recorded `include` allowlist is not a divergence.** When a URL skill's
+`.coga-source.json` carries an `include` list, that names the subset of upstream
+this repo installs. The update re-applies it to each fetched archive before the
+tree lands, so the pruning is reproduced rather than reported: `source_tree_digest`
+stays the true unpruned upstream digest (so upstream-change detection still
+works) while `installed_tree_digest` describes the pruned tree on disk. A pruned
+skill therefore reads as `unchanged` or `updated`, not as a standing follow-up.
+Edits *beyond* the allowlist are still real divergence and still conflict. A
+digest recorded before the allowlist was honored is repaired in place on the
+next run, and that repair counts as a change so `--pr` commits it. GitHub-backed directories
 are upstream-owned by `gh skill update`; when its recorded tree SHA differs
 from upstream, re-downloading can overwrite local modifications before the
 draft PR is opened. That PR reviews the resulting upstream update; it does not
