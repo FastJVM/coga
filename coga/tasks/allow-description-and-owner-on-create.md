@@ -5,7 +5,7 @@ status: in_progress
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: zach
 contexts:
 - dev/code
 skills: []
@@ -31,7 +31,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 3 (pr)
+step: 4 (review)
 ---
 
 ## Description
