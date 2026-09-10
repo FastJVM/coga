@@ -1,13 +1,8 @@
 ---
-slug: v2/minimal-ci-run-pytest-on-prs-and-tags
 title: 'Minimal CI: run pytest on PRs and tags'
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/design-then-implement
   steps:

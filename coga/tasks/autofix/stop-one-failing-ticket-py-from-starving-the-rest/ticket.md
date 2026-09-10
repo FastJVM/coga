@@ -1,13 +1,8 @@
 ---
-slug: autofix/stop-one-failing-ticket-py-from-starving-the-rest
 title: Stop one failing ticket.py from starving the rest of the sweep
 status: active
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-self-review
   steps:
@@ -29,7 +24,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

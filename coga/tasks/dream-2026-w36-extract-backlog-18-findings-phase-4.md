@@ -1,13 +1,8 @@
 ---
-slug: dream-2026-w36-extract-backlog-18-findings-phase-4
 title: 'Dream 2026-W36 extract backlog: 18 findings Phase 4 could not consume'
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

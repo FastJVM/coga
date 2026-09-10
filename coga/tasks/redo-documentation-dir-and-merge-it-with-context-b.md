@@ -1,13 +1,8 @@
 ---
-slug: redo-documentation-dir-and-merge-it-with-context-b
 title: redo documentation dir and merge it with context blocks
 status: in_progress
 owner: nicktoper
-human: nick
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/design-then-implement
   steps:
@@ -36,7 +31,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 3 (review-design)
 ---
 

@@ -1,13 +1,8 @@
 ---
-slug: no-durable-runbook-covers-running-coga-headless
 title: No durable runbook covers running Coga headless
 status: canceled
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +22,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

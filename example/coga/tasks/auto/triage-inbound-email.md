@@ -1,14 +1,10 @@
 ---
-slug: auto/triage-inbound-email
 title: Triage inbound email
 status: draft
 owner: marc
-human: marc
 agent: claude
-assignee: claude
 contexts:
   - email/payment-flow
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -21,7 +17,7 @@ workflow:
     assignee: agent
   - name: approve
     skills: []
-    assignee: human
+    assignee: owner
   - name: merge
     skills: []
     assignee: owner

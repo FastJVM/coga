@@ -1,13 +1,8 @@
 ---
-slug: v2/skill-update-aborts-on-uncommitted-log-file
 title: skill-update aborts on uncommitted log file
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -26,8 +21,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-secrets: null
-script: null
 step: 1 (implement)
 ---
 

@@ -1,13 +1,8 @@
 ---
-slug: no-skill-exists-for-the-cold-evaluator-review-of-a
 title: No skill exists for the cold evaluator review of a design spec
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +22,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

@@ -1,13 +1,8 @@
 ---
-slug: no-rule-says-ticket-context-must-cite-symbols-not
 title: No rule says ticket Context must cite symbols, not line numbers
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

@@ -1,13 +1,8 @@
 ---
-slug: document-the-ticket-blackboard-writer-s-contract
 title: Document the ticket-blackboard writer's contract
 status: in_progress
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: docs/with-review
   steps:
@@ -23,7 +18,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-secrets: null
 step: 3 (open-pr)
 ---
 

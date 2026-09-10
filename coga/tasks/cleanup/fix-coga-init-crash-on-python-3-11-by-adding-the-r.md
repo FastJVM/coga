@@ -1,13 +1,8 @@
 ---
-slug: cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r
 title: Fix coga init crash on Python 3.11 by adding the resources package init
 status: in_progress
 owner: nicktoper
-human: nick
 agent: claude
-assignee: codex
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 2 (peer-review)
 ---
 

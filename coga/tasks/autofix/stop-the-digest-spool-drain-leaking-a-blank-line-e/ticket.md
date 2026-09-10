@@ -1,13 +1,8 @@
 ---
-slug: autofix/stop-the-digest-spool-drain-leaking-a-blank-line-e
 title: Stop the digest spool drain leaking a blank line every run
 status: active
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-self-review
   steps:
@@ -29,7 +24,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

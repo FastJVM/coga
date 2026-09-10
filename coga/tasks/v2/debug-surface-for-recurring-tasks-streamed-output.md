@@ -1,13 +1,8 @@
 ---
-slug: v2/debug-surface-for-recurring-tasks-streamed-output
 title: 'Debug surface for recurring tasks: streamed output + step-through'
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/design-then-implement
   steps:

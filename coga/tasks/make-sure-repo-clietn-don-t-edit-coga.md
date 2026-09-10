@@ -1,13 +1,8 @@
 ---
-slug: make-sure-repo-clietn-don-t-edit-coga
 title: make sure repo clietn don't edit coga
 status: in_progress
 owner: nicktoper
-human: nick
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/design-then-implement
   steps:
@@ -36,7 +31,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 3 (review-design)
 ---
 

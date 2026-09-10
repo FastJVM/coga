@@ -1,13 +1,8 @@
 ---
-slug: the-ticket-interview-never-asks-what-done-means
 title: The ticket interview never asks what done means
 status: in_progress
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/design-then-implement
   steps:
@@ -32,7 +27,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 2 (review-design)
 ---
 

@@ -1,16 +1,12 @@
 ---
-slug: recurring-recipe-question
 title: Deduce whether a ticket is a script or an agent prompt
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
 - coga/extension-model
 - coga/principles
 - coga/codebase
-skills: []
 workflow:
   name: code/design-then-implement
   steps:
@@ -34,7 +30,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

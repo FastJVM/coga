@@ -1,13 +1,8 @@
 ---
-slug: cleanup/add-contributing-docs-issue-templates-and-a-repo-d
 title: Add contributing docs, issue templates and a repo description
 status: draft
 owner: nicktoper
-human: nick
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

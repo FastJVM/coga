@@ -1,14 +1,10 @@
 ---
-slug: activation-does-not-resolve-step-1-s-assignee-role
 title: Activation does not resolve step 1's assignee role token
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
 - coga/launch-internals
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -29,7 +25,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

@@ -1,14 +1,9 @@
 ---
-slug: the-human-doc-vs-agent-context-boundary-is-decided
 title: The human-doc vs agent-context boundary is decided per ticket and recorded
   nowhere
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -29,7 +24,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

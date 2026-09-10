@@ -1,13 +1,8 @@
 ---
-slug: v2/implement-accepted-ticket-interview-improvements
 title: Implement accepted ticket-interview improvements
 status: paused
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -26,8 +21,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-secrets: null
-script: null
 step: 1 (implement)
 ---
 

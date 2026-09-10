@@ -1,16 +1,12 @@
 ---
-slug: v2/use-worktree-when-starting-a-dev-task
 title: use worktree when starting a dev task
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
 - coga/codebase
 - coga/sync
 - dev/code
-skills: []
 workflow:
   name: code/with-review
   steps:

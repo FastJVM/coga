@@ -1,15 +1,9 @@
 ---
-slug: adjudicate-the-eight-premise-dead-v2-drafts
 title: Adjudicate the eight premise-dead v2 drafts
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: code/design-then-implement
-secrets: null
 ---
 
 ## Description

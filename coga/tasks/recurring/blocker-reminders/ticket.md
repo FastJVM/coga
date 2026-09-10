@@ -1,14 +1,10 @@
 ---
-slug: recurring/blocker-reminders
 title: Blocker reminders
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
 contexts:
 - coga/period-task
-skills: []
 period_generation: ed1fde88-9e61-4acc-87af-dd67f5bb5be1
 workflow:
   name: blocker-reminders/run
@@ -17,7 +13,6 @@ workflow:
     skills:
     - coga/blockers/remind
     assignee: agent
-secrets: null
 ---
 
 ## Description

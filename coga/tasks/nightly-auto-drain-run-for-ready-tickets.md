@@ -1,15 +1,11 @@
 ---
-slug: nightly-auto-drain-run-for-ready-tickets
 title: Nightly auto-drain run for ready tickets
 status: canceled
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
 - coga/architecture
 - coga/cli
-skills: []
 workflow:
   name: code/design-then-implement
   steps:

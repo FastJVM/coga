@@ -1,13 +1,8 @@
 ---
-slug: narrative-candidates-md-publishes-log-text-the-own
 title: narrative-candidates.md publishes log text the owner ruled confidential
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

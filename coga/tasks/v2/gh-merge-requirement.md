@@ -1,13 +1,8 @@
 ---
-slug: v2/gh-merge-requirement
 title: gh-merge-requirement
 status: paused
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/design-then-implement
   steps:

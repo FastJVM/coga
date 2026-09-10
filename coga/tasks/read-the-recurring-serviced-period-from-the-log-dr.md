@@ -1,15 +1,11 @@
 ---
-slug: read-the-recurring-serviced-period-from-the-log-dr
 title: Read the recurring serviced-period from the log, drop the blackboard marker
 status: done
 owner: nick
-human: nick
 agent: claude
-assignee: nick
 contexts:
 - coga/recurring
 - coga/codebase
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -29,7 +25,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

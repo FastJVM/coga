@@ -1,13 +1,8 @@
 ---
-slug: v2/ship-a-shared-recurring-reminder-engine-battery
 title: Retry the shared recurring-reminder engine at a smaller boundary
 status: draft
 owner: zach
-human: zach
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -26,8 +21,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-secrets: null
-script: null
 step: 1 (implement)
 ---
 

@@ -1,18 +1,14 @@
 ---
-slug: marketing/post-you-own-it
 title: Post you own it
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
   - marketing/plan
   - marketing/positioning
 skills:
   - marketing/write-post
 workflow: null
-secrets: null
 ---
 
 ## Description

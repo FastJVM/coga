@@ -1,17 +1,12 @@
 ---
-slug: marketing/discord
 title: Discord
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
   - marketing/plan
   - marketing/positioning
-skills: []
 workflow: null
-secrets: null
 ---
 
 ## Description

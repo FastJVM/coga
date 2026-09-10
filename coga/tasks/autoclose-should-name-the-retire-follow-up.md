@@ -1,13 +1,8 @@
 ---
-slug: autoclose-should-name-the-retire-follow-up
 title: Autoclose should name the retire follow-up
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +22,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

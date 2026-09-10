@@ -1,14 +1,10 @@
 ---
-slug: recurring/dream
 title: Dream
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
 contexts:
 - coga/period-task
-skills: []
 period_generation: 5ba8c09e-726e-4b73-a358-bf27617ffef9
 workflow:
   name: direct/body
@@ -17,7 +13,6 @@ workflow:
     skills:
     - direct/body
     assignee: agent
-secrets: null
 ---
 
 ## Description

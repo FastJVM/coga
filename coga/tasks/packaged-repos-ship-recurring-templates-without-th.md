@@ -1,13 +1,8 @@
 ---
-slug: packaged-repos-ship-recurring-templates-without-th
 title: Packaged repos ship recurring templates without the coga recurring context
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +22,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

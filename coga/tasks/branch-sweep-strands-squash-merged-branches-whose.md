@@ -1,17 +1,13 @@
 ---
-slug: branch-sweep-strands-squash-merged-branches-whose
 title: Branch sweep strands squash-merged branches whose tip moved
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
 contexts:
   - coga/principles
   - coga/architecture
   - coga/codebase
   - coga/recurring
-skills: []
 workflow:
   name: code/with-self-review
   steps:
@@ -33,7 +29,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

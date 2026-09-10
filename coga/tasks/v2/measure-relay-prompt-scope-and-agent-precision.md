@@ -1,16 +1,12 @@
 ---
-slug: v2/measure-relay-prompt-scope-and-agent-precision
 title: Measure Relay prompt scope (precision comparison scoped, not measured)
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: codex
-assignee: codex
 contexts:
 - coga/principles
 - coga/codebase
 - dev/code
-skills: []
 workflow:
   name: code/with-review
   steps:

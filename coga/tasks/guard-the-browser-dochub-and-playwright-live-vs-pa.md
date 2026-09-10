@@ -1,15 +1,9 @@
 ---
-slug: guard-the-browser-dochub-and-playwright-live-vs-pa
 title: Guard the browser dochub and playwright live-vs-packaged pair in test_packaging
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow: code/with-review
-secrets: null
 ---
 
 ## Description

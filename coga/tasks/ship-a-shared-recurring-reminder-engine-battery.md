@@ -1,14 +1,10 @@
 ---
-slug: ship-a-shared-recurring-reminder-engine-battery
 title: Ship a shared recurring-reminder engine battery
 status: canceled
 owner: zach
-human: zach
 agent: claude
-assignee: zach
 contexts:
 - coga/period-task
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -27,8 +23,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-secrets: null
-script: null
 ---
 
 ## Description

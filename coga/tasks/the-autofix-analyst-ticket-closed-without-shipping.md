@@ -1,13 +1,8 @@
 ---
-slug: the-autofix-analyst-ticket-closed-without-shipping
 title: The autofix analyst ticket closed without shipping any of its three defects
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

@@ -1,13 +1,8 @@
 ---
-slug: v2/write-prompt-file-second-resolution-timestamps-col
 title: write_prompt_file second-resolution timestamps collide on same-second launches
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
 ---
 

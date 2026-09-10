@@ -1,13 +1,8 @@
 ---
-slug: record-dochub-s-why-not-the-api-answer-that-browse
 title: Record DocHub's why-not-the-API answer that browser api-first requires
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

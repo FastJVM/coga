@@ -1,14 +1,10 @@
 ---
-slug: review-slack-channels
 title: review slack channels
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
 - coga/important
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +24,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

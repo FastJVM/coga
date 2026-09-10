@@ -1,13 +1,8 @@
 ---
-slug: auto/deterministic-repo-check
 title: Run a deterministic repository check
 status: active
 owner: marc
-human: marc
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: deterministic/check
   steps:
@@ -15,7 +10,6 @@ workflow:
     skills: []
     assignee: agent
 step: 1 (execute)
-secrets: null
 ---
 
 ## Description

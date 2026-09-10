@@ -1,13 +1,8 @@
 ---
-slug: give-a-ticket-s-superseded-design-one-documented-h
 title: Give a ticket's superseded design one documented home
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +22,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

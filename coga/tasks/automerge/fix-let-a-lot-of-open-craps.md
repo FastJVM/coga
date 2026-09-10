@@ -1,15 +1,9 @@
 ---
-slug: automerge/fix-let-a-lot-of-open-craps
 title: fix let a lot of open craps
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
-secrets: null
 ---
 
 ## Description

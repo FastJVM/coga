@@ -1,15 +1,11 @@
 ---
-slug: v2/overload-ticket-locally-easily
 title: overload ticket locally easily
 status: paused
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
 - coga/extension-model
 - coga/architecture
-skills: []
 workflow:
   name: docs/with-review
   steps:
@@ -25,8 +21,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-secrets: null
-script: null
 step: 1 (implement)
 ---
 

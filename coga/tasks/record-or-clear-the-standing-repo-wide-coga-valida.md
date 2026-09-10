@@ -1,13 +1,8 @@
 ---
-slug: record-or-clear-the-standing-repo-wide-coga-valida
 title: Record or clear the standing repo-wide coga validate baseline
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

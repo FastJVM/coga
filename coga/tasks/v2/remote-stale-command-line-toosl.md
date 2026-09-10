@@ -1,13 +1,8 @@
 ---
-slug: v2/remote-stale-command-line-toosl
 title: remote stale command line toosl
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
 ---
 

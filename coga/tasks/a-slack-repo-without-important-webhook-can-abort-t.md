@@ -1,13 +1,8 @@
 ---
-slug: a-slack-repo-without-important-webhook-can-abort-t
 title: A Slack repo without important_webhook can abort the recurring scan phase
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +22,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

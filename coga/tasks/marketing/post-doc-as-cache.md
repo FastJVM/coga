@@ -1,18 +1,14 @@
 ---
-slug: marketing/post-doc-as-cache
 title: Post doc as cache
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
   - marketing/plan
   - marketing/positioning
 skills:
   - marketing/write-post
 workflow: null
-secrets: null
 ---
 
 ## Description

@@ -1,14 +1,8 @@
 ---
-slug: v2/use-slack-as-a-sync-channel-for-tickets
 title: Use Slack as a sync channel for tickets
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills:
-- bootstrap/ticket
 workflow: null
 ---
 

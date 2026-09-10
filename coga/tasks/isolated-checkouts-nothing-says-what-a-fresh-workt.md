@@ -1,13 +1,8 @@
 ---
-slug: isolated-checkouts-nothing-says-what-a-fresh-workt
 title: 'Isolated checkouts: nothing says what a fresh worktree lacks'
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

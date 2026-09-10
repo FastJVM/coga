@@ -1,13 +1,8 @@
 ---
-slug: the-v2-parking-area-premise-check-has-four-holes
 title: The v2 parking-area premise check has four holes
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

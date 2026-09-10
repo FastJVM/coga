@@ -1,14 +1,10 @@
 ---
-slug: allow-description-and-owner-on-create
 title: Allow --description and --owner on coga create
 status: done
 owner: zach
-human: zach
 agent: claude
-assignee: zach
 contexts:
 - dev/code
-skills: []
 workflow:
   name: code/with-self-review
   steps:
@@ -30,7 +26,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

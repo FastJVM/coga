@@ -1,15 +1,11 @@
 ---
-slug: v2/rename-workflow-primitive-to-playbook
 title: Rename workflow primitive to playbook
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
 - coga/architecture
 - coga/codebase
-skills: []
 workflow:
   name: code/design-then-implement
   steps:

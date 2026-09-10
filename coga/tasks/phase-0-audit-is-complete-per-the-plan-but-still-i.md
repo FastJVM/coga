@@ -1,13 +1,8 @@
 ---
-slug: phase-0-audit-is-complete-per-the-plan-but-still-i
 title: phase-0-audit is complete per the plan but still in_progress
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

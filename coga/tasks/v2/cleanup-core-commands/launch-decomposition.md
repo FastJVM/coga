@@ -1,11 +1,8 @@
 ---
-slug: v2/cleanup-core-commands/launch-decomposition
 title: Decompose launch into substrate plus ticket orchestration
 status: paused
 owner: nicktoper
-human: nicktoper
 agent: codex
-assignee: nicktoper
 contexts:
 - coga/principles
 - coga/architecture
@@ -15,7 +12,6 @@ contexts:
 - coga/project-stage
 - coga/cli
 - dev/code
-skills: []
 workflow:
   name: code/design-then-implement
   steps:
@@ -37,8 +33,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-secrets: null
-script: null
 step: 2 (review-design)
 ---
 

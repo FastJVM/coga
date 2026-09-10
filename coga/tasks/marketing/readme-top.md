@@ -1,17 +1,12 @@
 ---
-slug: marketing/readme-top
 title: README top
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
   - marketing/plan
   - marketing/positioning
-skills: []
 workflow: null
-secrets: null
 ---
 
 ## Description

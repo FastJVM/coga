@@ -1,15 +1,11 @@
 ---
-slug: migrate-recurring-templates-to-ticket-py-shims-and
 title: 'Migrate recurring templates to ticket.py shims and delete recipe:'
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
 - coga/codebase
 - coga/recurring
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -29,7 +25,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

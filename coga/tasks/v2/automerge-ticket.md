@@ -1,14 +1,10 @@
 ---
-slug: v2/automerge-ticket
 title: automerge ticket
 status: paused
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
 - dev/code
-skills: []
 workflow:
   name: code/with-review
   steps:

@@ -1,13 +1,8 @@
 ---
-slug: the-period-task-context-never-covers-the-determini
 title: The period-task context never covers the deterministic ticket.py firing
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

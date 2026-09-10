@@ -1,15 +1,9 @@
 ---
-slug: some-recurring-tasks-are-not-launched-correctly-to
 title: 'some recurring tasks are not launched correctly: too often or never'
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
-secrets: null
 ---
 
 ## Description

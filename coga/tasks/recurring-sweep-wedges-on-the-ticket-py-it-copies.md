@@ -1,14 +1,10 @@
 ---
-slug: recurring-sweep-wedges-on-the-ticket-py-it-copies
 title: Recurring sweep wedges on the ticket.py it copies, then reports a clean run
 status: in_progress
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
 - coga/codebase
-skills: []
 workflow:
   name: code/design-then-implement
   steps:
@@ -37,7 +33,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 3 (review-design)
 ---
 

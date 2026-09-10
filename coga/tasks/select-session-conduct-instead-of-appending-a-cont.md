@@ -1,18 +1,14 @@
 ---
-slug: select-session-conduct-instead-of-appending-a-cont
 title: Select session conduct instead of appending a contradiction
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
 - coga/principles
 - coga/architecture
 - coga/codebase
 - coga/launch-internals
 - coga/recurring
-skills: []
 workflow:
   name: code/design-then-implement
   steps:
@@ -37,7 +33,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

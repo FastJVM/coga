@@ -1,13 +1,8 @@
 ---
-slug: reuse-the-existing-control-worktree-for-recurring
 title: Run single-repo recurring from the control worktree that already exists
 status: in_progress
 owner: nicktoper
-human: nick
 agent: claude
-assignee: codex
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 2 (peer-review)
 launch_generation: f1703b7f-13e1-40f4-b796-e81f35907d93
 ---

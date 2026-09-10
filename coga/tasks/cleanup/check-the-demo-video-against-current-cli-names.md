@@ -1,13 +1,8 @@
 ---
-slug: cleanup/check-the-demo-video-against-current-cli-names
 title: Check the demo video against current CLI names
 status: draft
 owner: nicktoper
-human: nick
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: brief-for-human
   steps:
@@ -16,11 +11,10 @@ workflow:
     assignee: agent
   - name: human-executes
     skills: []
-    assignee: human
+    assignee: owner
   - name: verify-read-only
     skills: []
     assignee: agent
-secrets: null
 step: 1 (brief-and-hand-off)
 ---
 

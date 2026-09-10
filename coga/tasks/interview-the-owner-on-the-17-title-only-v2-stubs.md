@@ -1,15 +1,9 @@
 ---
-slug: interview-the-owner-on-the-17-title-only-v2-stubs
 title: Interview the owner on the 17 title-only v2 stubs
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: code/design-then-implement
-secrets: null
 ---
 
 ## Description

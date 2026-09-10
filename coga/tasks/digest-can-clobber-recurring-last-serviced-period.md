@@ -1,15 +1,11 @@
 ---
-slug: digest-can-clobber-recurring-last-serviced-period
 title: Digest can clobber recurring last_serviced_period
 status: canceled
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
 contexts:
 - coga/recurring
 - coga/codebase
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +24,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-secrets: null
 ---
 
 ## Description

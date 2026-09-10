@@ -1,13 +1,8 @@
 ---
-slug: v2/relay-design-repositories
 title: relay-design-repositories
 status: paused
 owner: zach
-human: zach
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/design-then-implement
   steps:

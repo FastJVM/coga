@@ -1,14 +1,10 @@
 ---
-slug: v2/skill-for-split-into-sibling-ticket-discipline
 title: Skill for split-into-sibling-ticket discipline
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
 contexts:
 - coga/architecture
-skills: []
 workflow:
   name: code/with-review
   steps:

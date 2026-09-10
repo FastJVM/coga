@@ -1,13 +1,8 @@
 ---
-slug: vendored-skills-carry-no-coga-source-json-so-coga
 title: Correct recurring/skill-update's provenance claim to match how skills are actually managed
 status: active
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +22,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

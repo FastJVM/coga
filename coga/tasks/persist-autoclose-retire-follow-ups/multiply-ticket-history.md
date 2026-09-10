@@ -1,13 +1,8 @@
 ---
-slug: autofix/persist-autoclose-retire-follow-ups-beyond-the-per
 title: Persist autoclose retire follow-ups beyond the period task
 status: in_progress
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/with-self-review
   steps:
@@ -29,7 +24,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 4 (review)
 ---
 

@@ -1,13 +1,8 @@
 ---
-slug: v2/clean-uncommitted-work
 title: clean-uncommitted-work
 status: draft
 owner: zach
-human: zach
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
 ---
 

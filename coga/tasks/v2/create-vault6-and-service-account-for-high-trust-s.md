@@ -1,16 +1,9 @@
 ---
-slug: v2/create-vault6-and-service-account-for-high-trust-s
 title: Create vault6 and service account for high-trust secrets
 status: draft
 owner: zach
-human: zach
 agent: claude
-assignee: zach
-contexts: []
-skills: []
 workflow: null
-secrets: null
-script: null
 ---
 
 ## Description

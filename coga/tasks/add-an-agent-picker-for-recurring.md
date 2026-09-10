@@ -1,14 +1,10 @@
 ---
-slug: add-an-agent-picker-for-recurring
 title: add an agent picker for recurring
 status: in_progress
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
 - dev/code
-skills: []
 workflow:
   name: code/design-then-implement
   steps:
@@ -37,7 +33,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 3 (review-design)
 ---
 
