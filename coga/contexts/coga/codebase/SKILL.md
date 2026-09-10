@@ -45,7 +45,26 @@ review bars.
   handoffs. `commands/megalaunch.py` is the manual drain entrypoint;
   reusable drain logic lives in `megalaunch.py` and the drain order (age plus
   numbered sub-directories) in `service_order.py`. `bump.py` advances
-  workflow steps. `validate.py` checks repo consistency.
+  workflow steps. `validate.py` checks repo consistency. `mark.py` owns the
+  status transitions and splits each at one seam: `prepare_active` is the pure
+  preparation boundary (validate the ticket, freeze its workflow ref, mutate an
+  in-memory copy to `active`, write nothing) and `mark_active` is the durable
+  wrapper around it that writes, validates, audits, and optionally syncs. The
+  exception ladder divides along that seam, and the tuple
+  `megalaunch._PREPARE_ACTIVE_ERRORS` encodes the division:
+  `WorkflowMissing`, `WorkflowError`,
+  `RequiredExtensionMissing`, and `BlackboardNeedsSynthesis` are prepare-side
+  refusals raised before any byte is written, while `TaskValidationError` comes
+  from the post-write `assert_task_valid` and therefore belongs to the commit
+  half alone. Two constraints a new caller must keep: megalaunch prepares on a
+  *throwaway* copy (`_prepare_for_launch`), preflights the prompt, env, and
+  agent off that prospective view, commits only after every refusal has passed,
+  and then recaptures the ticket bytes and refuses if they moved — so a
+  prepared-but-uncommitted `Ticket` never becomes the durable revision. And the
+  dependency-drain call site activates *before* resolving open blockers on
+  purpose: `mark_active` writes first so the blocker update can join the same
+  mutation snapshot and exact control publication, leaving the next launch
+  claim leasing resolved bytes instead of a local-only edit.
 - `tests/` — pytest. Run with `python -m pytest`.
 - `example/` — seeded fixture used by tests. **Update this when
   you change task layout, prompt composition, or workflow
@@ -69,10 +88,19 @@ kinds of code**:
    use a fixed alias are necessary to rule out alias sugar, but do not by
    themselves choose core over a command ticket or external CLI.
 
-`coga digest` (`commands/digest.py` → `run_digest`) and `coga megalaunch`
-(`megalaunch.py`) currently live in core, but that is inventory, not a settled
-classification. The active command-cleanup design must either record the exact
-co-versioning proof for each or migrate it to the appropriate edge.
+`coga digest` is a registered `coga run` recipe — `"digest": run_digest_recipe`
+in `runner.RECIPES`, implemented at `commands/digest.py` — so exception 2
+already settles where its implementation lives. What stays open for it is
+narrower than "unclassified": it is *also* `app.command("digest")` in
+`src/coga/cli.py`, while `open-pr` and `delete-task` carry no Typer command at
+all and are reached only as `coga run <name>`. `coga megalaunch`
+(`megalaunch.py`) has no `RECIPES` entry and is the genuinely unclassified one.
+Both questions are deferred to a **parked** design, not an active one:
+`coga/tasks/v2/cleanup-core-commands/` is one paused ticket
+(`launch-decomposition.md`) plus five drafts, and `coga/tasks/v2/README.md`
+defines everything under it as real work deliberately off the current execution
+path. Until that design is pulled forward, both commands stay in core — read
+this as recorded status, not as a migration in flight.
 
 **Everything else stays at the edge.** A single-consumer helper may live beside
 the ticket or skill that uses it and import **only shared core infra**. An agent
@@ -137,49 +165,107 @@ coga/
 ```
 
 `<ns>/<name>/` is the convention for skills this repo *authors* — `code/`,
-`coga/`, `direct/`, and the repo-authored members of `browser/`. It is not a
-requirement, and it is
-not the only shape in the tree. Three shapes coexist under `coga/skills/`:
+`coga/`, `direct/`, `marketing/`, and the repo-authored members of `browser/`.
+It is not a requirement, and it is not the only shape in the tree. Four shapes
+coexist under `coga/skills/`:
 
-- **Repo-authored, namespaced** — `code/`, `coga/`, `direct/`, and
-  `browser/dochub`; `_template/` sits beside them as the starter directory to
-  copy. DocHub's Coga ref is `browser/dochub`, derived from that directory
-  path, while its portable Agent Skills metadata deliberately keeps the
-  standards-valid leaf `name: dochub`.
-- **Installer-managed, flat** — `coga skill install` lays a Coga-managed skill
-  down flat at `coga/skills/<ref>/` under its upstream ref name, so this repo
-  also carries seven flat `google-agents-cli-*` directories, each declared in
-  `src/coga/resources/managed-skills.toml`.
+- **Repo-authored, namespaced** — `code/`, `coga/`, `direct/`,
+  `marketing/write-post`, and `browser/dochub`; `_template/` sits beside them
+  as the starter directory to copy. DocHub's Coga ref is `browser/dochub`,
+  derived from that directory path, while its portable Agent Skills metadata
+  deliberately keeps the standards-valid leaf `name: dochub`.
+- **Installer-managed, flat and GitHub-backed** — `coga skill install` lays a
+  Coga-managed skill down flat at `coga/skills/<ref>/` under its upstream ref
+  name, so this repo also carries seven flat `google-agents-cli-*` directories,
+  declared in `src/coga/resources/managed-skills.toml`. That file is the list
+  of *optional GitHub refs `coga init` tries to fetch*, not the membership test
+  for the flat shape — and **init is the only reader**:
+  `install_managed_skills` / `reconcile_managed_skills` are called from
+  `commands/init.py` alone. `update_skills` enumerates the skill directories
+  that already exist on disk and delegates them to `gh skill update`; it never
+  loads the manifest. A pack whose optional install failed at init (or that was
+  later removed) is therefore **not** restored by `coga skill update --all` or
+  the weekly job — it stays absent until someone reinstalls it explicitly — the directories themselves carry no Coga provenance
+  file, because `gh skill` keeps its own metadata and `coga skill update`
+  delegates their refresh to `gh skill update --dir coga/skills --all`.
+- **Installer-managed, flat and URL-backed** — `coga skill install-url` lands
+  the same flat `coga/skills/<ref>/` placement but marks it with a
+  `.coga-source.json` (`schema: coga.skill-source.v1`) recording
+  `source_type: "url"`, the `source_url`, source/tree digests, an `include`
+  allowlist, and `local_adaptation_notes`. `clarity/` is the checked-in
+  example, and it is deliberately **absent** from `managed-skills.toml`: an
+  operator installed it directly. Its refresh posture differs from the
+  GitHub-backed form — `coga skill update` walks `.coga-source.json` in Coga's
+  own code rather than delegating to `gh`. **The `include` allowlist is inert
+  documentation, not behavior**: `include` is never read anywhere in
+  `skill_manager.py`. `_update_url_skill_dir` compares digests only — it
+  materializes the complete upstream tree and then either reports a
+  `conflict`/`skipped-local-adaptation` (when the installed tree no longer
+  matches `installed_tree_digest`) or replaces the directory with that complete
+  tree. So a deliberate pruning of upstream scaffolding is *not* reproduced on
+  update: it either blocks the update as a local adaptation, or is undone
+  wholesale, restoring every path the operator meant to exclude. Reproducing a
+  pruning from the recorded allowlist is unimplemented work, not current
+  behavior. `coga skill install-local` is a third installer path
+  and is updated by neither: `gh skill` records it as `local-path` and skips
+  it, and Coga's URL updater does not consume that metadata. **The presence of
+  `.coga-source.json` — not an entry in `managed-skills.toml` — is what tells
+  you a flat directory is on Coga's own update path.**
 - **Hand-vendored upstream skills, verbatim or adapted** — committed under a
   namespace and carrying their upstream source, license, and modification /
   refresh record in `ATTRIBUTION.md` or `NOTICE.txt` plus `LICENSE.txt`.
   `anthropic/skill-creator/` is a verbatim pinned copy;
   `browser/playwright/` is an adapted derivative of
   `microsoft/playwright-cli` with a wrapper and local references. Neither is in
-  `managed-skills.toml`: the installer neither placed nor updates them.
+  `managed-skills.toml` and neither carries `.coga-source.json`: no installer
+  placed them and none updates them.
   Refreshing a verbatim copy means re-copying the reviewed upstream revision;
   refreshing an adapted copy also means deliberately reapplying and reviewing
   its recorded local modifications. Preserve a standards-valid leaf `name:`
   from upstream when applicable; Coga derives the namespaced ref from the
   directory path, and a slash does not belong in upstream leaf metadata.
-  Nothing installs a skill's dependencies on its behalf — Coga builds no
-  environment to install them into. A skill declares them in a
-  `requirements.txt` beside its `SKILL.md`, and the operator installs them
-  into the Python that runs the script.
 
-Skill resolution reads the directory path in all three cases. Prefer a
+Nothing installs a skill's dependencies on its behalf — Coga builds no
+environment to install them into — and two different declaration forms show up
+in the tree, only one of which is a Coga convention:
+
+- **Coga's convention: a `requirements.txt` beside the `SKILL.md`**, which the
+  operator installs into whatever Python runs the script. This is the shape to
+  write and the one a failing skill should name. Note that **no skill under
+  `coga/skills/` actually carries one today**, so it is a convention with no
+  in-tree example yet, not an observed pattern.
+- **Upstream `metadata.requires.bins` / `metadata.requires.install` frontmatter
+  blocks**, present in each of the seven managed `google-agents-cli-*` packs.
+  **Coga reads these nowhere** — no code path parses `metadata.requires`, so
+  they are documentation the reading agent may act on, never something the
+  installer or launch honors. Do not add one expecting Coga to enforce it.
+
+Skill resolution reads the directory path in all four cases. Prefer a
 namespaced directory for anything you write, expect the flat form for anything
-the installer imported, and use a namespaced directory plus attribution,
+an installer imported, and use a namespaced directory plus attribution,
 license, and modification history for anything you vendor by hand.
+
 Repo-authored namespaced skills normally use the Coga ref
 (`name: <namespace>/<name>`) established by the authoring template. A skill
 also intended to satisfy the portable Agent Skills metadata grammar may keep a
 standards-valid leaf `name:` while Coga derives its namespaced ref from the
 directory path; DocHub is the checked-in example. Flat installer-managed
-imports retain their upstream metadata. A hand-vendored import follows the
-same portable rule: preserve its standards-valid upstream leaf `name:` when
-applicable even though Coga derives a namespaced ref from its directory path,
-and make adaptations explicit in its notice.
+imports, GitHub- and URL-backed alike, retain their upstream metadata. A
+hand-vendored import follows the same portable rule: preserve its
+standards-valid upstream leaf `name:` when applicable even though Coga derives
+a namespaced ref from its directory path, and make adaptations explicit in its
+notice.
+
+**A Coga-managed pack is refreshed only by `coga skill update` — never by the
+pack's own upstream installer.** The weekly `recurring/skill-update` job runs
+`coga skill update --all --pr` so every refresh lands as one reviewable PR.
+Some upstream packs instruct the reading agent to bootstrap themselves anyway:
+`coga/skills/google-agents-cli-workflow/SKILL.md` says to run
+`uvx google-agents-cli setup` (twice) and `agents-cli setup --skip-auth`.
+Inside this repo, following that would install a second, unmanaged copy of
+those skills and bypass the reviewed weekly job entirely. That file is
+upstream-owned and gh-managed, so the correction cannot be a local edit to it —
+it has to be known here.
 
 File-form `tasks/<slug>.md` tickets cannot carry attachments and therefore
 cannot be script-backed. In a directory-form ticket, only `ticket.py` is
@@ -212,7 +298,22 @@ project-local overrides. Optional domain skills belong in a published skill
 source plus `src/coga/resources/managed-skills.toml`, not under the packaged
 template payload.
 
-Two sharp gotchas live here:
+**Editing a bundled workflow changes what *this* repo freezes, not only what
+downstream repos get.** `paths.resolve_workflow_path` is local-first: a live
+`coga/workflows/<name>.md` wins, and only when none exists does it fall back to
+the packaged `bootstrap/workflows/<name>.md`. This repo has **no live
+`coga/workflows/code/`**, so every `code/*` workflow — `design-then-implement`,
+`with-review`, `with-self-review` — resolves to
+`src/coga/resources/templates/coga/bootstrap/workflows/code/*.md`, and that is
+the file `mark_active` freezes into Coga's own future tickets. The live
+`coga/workflows/digest/post.md` shows the other direction: it shadows the
+packaged copy of the same name, so editing the packaged one changes nothing
+here. General rule, and it holds for skills and contexts too: **a live
+`coga/<kind>/<name>` overrides the bundled copy, and where no live copy exists
+the packaged file *is* what this repo resolves and freezes.** Check which side
+is live before assuming an edit is downstream-only.
+
+Three sharp gotchas live here:
 
 - **Do not *repair* bundled resources by copying them into
   `coga/bootstrap/`.** If `bootstrap/orient`, `bootstrap/ticket`, a bundled
@@ -230,7 +331,12 @@ Two sharp gotchas live here:
   installs them into whatever Python runs that skill's script. Coga does not
   install them: it builds no environment to install them into, and a skill
   script's `#!/usr/bin/env python3` resolves through the operator's own PATH.
-  A skill whose import fails says which `requirements.txt` to install.
+  A skill whose import fails says which `requirements.txt` to install. This is
+  the convention to write, but nothing in `coga/skills/` carries one yet, so do
+  not go looking for an example. The declarations that *are* in the tree are
+  upstream `metadata.requires.bins` / `metadata.requires.install` frontmatter
+  blocks in the seven managed `google-agents-cli-*` packs, and Coga reads them
+  nowhere — they inform the reading agent and nothing else.
 ## Wheel packaging: force-include vs the package walk
 
 `[tool.hatch.build.targets.wheel]` ships pure-data skill/context dirs (no
@@ -283,15 +389,24 @@ has a non-editable install.
 Reinstall against the venv that backs your `coga` shim:
 `<that venv's python> -m pip install -e .` from the repo root.
 
-Sharper failure mode: an editable install's `.pth` can point at a
-worktree that was later deleted. Then `coga` and `import coga` are
-unimportable and pytest fails to even collect. Reinstalling fixes it, but
-when you only need to run the suite, the proven workaround is to bypass the
-broken `.pth` with an explicit `PYTHONPATH`:
+**Run the suite with an explicit `PYTHONPATH` whenever you are not in the
+primary checkout — this is the default, not a recovery step.** A *healthy*
+editable install is the trap: its `.pth` names one absolute path, the primary
+checkout's `src`. Run `python -m pytest` from a feature worktree and pytest
+collects that worktree's `tests/` while `import coga` resolves to the primary
+checkout's unchanged package. Nothing errors; the suite is simply green against
+source you did not edit, and a real regression in your branch is invisible.
+Point the import path at the checkout you actually mean:
 
 ```
 PYTHONPATH=$PWD/src python3.12 -m pytest
 ```
+
+The same command is also the recovery for the sharper failure mode, where an
+editable install's `.pth` points at a worktree that was later deleted: then
+`coga` and `import coga` are unimportable and pytest fails to even collect.
+Reinstalling fixes that one, but the same explicit `PYTHONPATH` runs the suite
+now and is the right spelling in both situations.
 
 Two non-obvious requirements:
 
@@ -358,8 +473,30 @@ wrong checkout silently produces wrong results in both directions:
   behavior `main`'s code did not have, and leaving those files out of the PR
   diff entirely. Commit in-flight `coga/` edits onto the feature branch before
   running any state-changing coga command there, or expect them to reach `main`
-  out-of-band. (Read-only commands — `status`, `show`, `validate`, `usage` — are
-  excluded from the sweep and are safe.)
+  out-of-band. `cli._NON_SWEEPING_COMMANDS` is `status`, `show`, `validate`,
+  `usage`, `init`, `uninstall`, and only the first four of those are read-only
+  in the ordinary sense.
+
+  **That list is not the whole exclusion set, so do not read it literally.**
+  `_should_sweep_coga_state` also declines on options and subcommands:
+  `--help`/`-h` anywhere, `bump --backward` / `--to` (a rewind publishes
+  through its own scoped guard, and a refused one deliberately stays dirty),
+  `recurring --all` (the parent dispatcher owns no repo state; each child
+  sweeps its own repo), `secret` in every form, and any `skill` / `mark` /
+  `recurring` subcommand outside its sweeping set. So `launch`, `megalaunch`,
+  `run`, `create`, `digest`, a plain `bump`, and the mutating `mark` /
+  `skill` / `recurring` subcommands sweep — but a dirty `coga/` edit left
+  around one of the excluded invocations stays local.
+- **`coga launch <target> --prompt-report` is not read-only, despite reading
+  like a diagnostic.** `cli._should_sweep_coga_state` classifies on `argv[1]`
+  alone, and `launch` is in `_SWEEPING_COMMANDS`; the flag never reaches that
+  decision. The report path itself also writes, calling
+  `_refresh_agent_skills_for_launch` to regenerate `coga/.agent-skills/` before
+  composing. So "just show me the prompt" publishes Coga state from whatever
+  checkout it ran in — it has already committed three live doc edits straight to
+  `origin/main`. To inspect composition in place with no writes at all, call
+  `compose.compose_prompt_report` / `compose.compose_prompt` directly instead of
+  going through the CLI.
 - **Launch and megalaunch compose prompts from whatever the invoking checkout
   holds.** Run them only from a control checkout freshly synced to
   `origin/<control>`. A checkout parked behind `main` builds the prompt from a
@@ -387,6 +524,22 @@ wrong checkout silently produces wrong results in both directions:
   silently become a sentinel. An **alias** (argv rewrite, e.g.
   `build = "launch coga-build"`) sidesteps the bug entirely — it dispatches
   through real CLI parsing, so Typer fills every default.
+
+- **Ask for the branch with `git branch --show-current`, never
+  `rev-parse --abbrev-ref HEAD`.** When a tag shares a name with the branch,
+  `rev-parse --abbrev-ref HEAD` disambiguates by returning `heads/<name>`
+  instead of `<name>`. Any equality test against the control branch then
+  silently fails — a checkout genuinely on `main` compares as `heads/main` and
+  is treated as a feature checkout, or the reverse, depending on which side the
+  guard protects. `branch --show-current` is unambiguous and returns empty on a
+  detached HEAD, which is the honest answer. **Fail closed when the probe
+  itself errors**: a non-zero `git` exit must not collapse into the empty string
+  and be read as "not the control branch" — decide explicitly what an unknown
+  branch means and refuse rather than assume. Today the reasoning survives only
+  as a comment on `branchcleanup._current_branch`, which uses the correct
+  spelling; `branchsweep._current_branch` and the two `rev-parse --abbrev-ref`
+  call sites in `open_pr.py` still use the shadowable one and still map a failed
+  probe to `""`.
 
 - **Tests must not pin to live dogfooded state.** Coga dogfoods itself, so files
   under `coga/` mutate as the repo is used. A test that compares the live

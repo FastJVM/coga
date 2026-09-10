@@ -176,6 +176,8 @@ class RunRecord:
     agent_override: str | None = None
     scan_lines: list[str] = field(default_factory=list)
     scan_errors: list[tuple[str, str]] = field(default_factory=list)
+    # Failures inherited from earlier runs, not launches in this sweep.
+    scan_problems: list[tuple[str, str]] = field(default_factory=list)
     outcomes: list[TaskOutcome] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
@@ -217,7 +219,7 @@ class RunRecord:
             lines.append(f"- templates scanned: {len(self.scan_lines)}")
         lines += [
             f"- tasks run: {len(self.outcomes)}",
-            f"- problems: {len(self.problems)}",
+            f"- problems: {len(self.problems) + len(self.scan_problems)}",
             "",
         ]
 
@@ -229,6 +231,11 @@ class RunRecord:
         if self.scan_errors:
             lines += ["## Template errors", ""]
             lines += [f"- `{name}`: {msg}" for name, msg in self.scan_errors]
+            lines.append("")
+
+        if self.scan_problems:
+            lines += ["## Unresolved recurring failures", ""]
+            lines += [f"- `{slug}`: {detail}" for slug, detail in self.scan_problems]
             lines.append("")
 
         if self.outcomes:
@@ -910,8 +917,13 @@ def scan_lines_for_record(scan, *, force: bool = False) -> list[str]:
             action = "skip (ran this period)"
         elif task.resuming:
             action = "resume"
-        elif task.launchable or force:
+        elif task.launchable or (force and not task.launch_refusal):
             action = "launch"
+        elif task.watchdog_paused:
+            action = (
+                "needs attention (watchdog timeout; "
+                f"coga launch {task.ref.id_slug})"
+            )
         else:
             action = f"skip ({task.status})"
         lines.append(f"{task.template:<20} {when:<26} {action}")

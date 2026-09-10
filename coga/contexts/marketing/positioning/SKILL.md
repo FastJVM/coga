@@ -32,7 +32,7 @@ Source: the owner correction and managed-prompt clarification in
 [coga/tasks/redo-documentation-dir-and-merge-it-with-context-b.md](../../../tasks/redo-documentation-dir-and-merge-it-with-context-b.md).
 The correction settles the direction, not final copy or historical uniqueness.
 `marketing/plan/write-the-pitch-and-narrative` owns the reusable pitch and
-narrative, grounded in the public examples ticket. Its owner review must
+narrative from the story/example decision ticket. Its owner review must
 reconcile the message with the retained three-post briefs in `marketing/plan`.
 
 ## The spine: independence / ownership
@@ -42,8 +42,9 @@ depend on vendors less, the substrate is yours.** This is the *only*
 taste an incumbent can't credibly voice — Anthropic already says "amplify
 not replace / you're in control," but a business whose revenue scales
 with your dependence can't mean "depend on us less" all the way down.
-So do **not** lead with "human-in-the-loop" or "amplify your thinking" —
-those slogans are commoditized now. Lead with ownership/independence.
+Make ownership concrete inside the opening interaction: the reader can inspect
+and change the material the agent works from. "Human-in-the-loop" and
+"amplify your thinking" need that mechanism to carry the claim.
 
 - Supporting category line (vision.md): *"A company OS for small teams in the agentic
   era. Humanist tech for people who still want to understand their own
@@ -78,8 +79,8 @@ Coga is **classical in a romantic stampede**: every competitor sells
   feature-listers. Sell the worldview, not a spec sheet.
 - **But keep it sayable without the reading list.** The thesis leans on
   Pirsig / GEB / Lisp / homoiconicity; that's genuine taste but
-  high-brow and may not travel. For launch comms, lead with the legible
-  version: *a frontier agent is brilliant but blank — it needs your
+  high-brow and may not travel. After the concrete opening interaction, use
+  the explanation: *a frontier agent is brilliant but blank — it needs your
   grounding, and an ungrounded smart agent acts confidently wrong.*
   Coga is the apparatus that feeds it (contexts = facts, skills =
   procedures, blackboard = state), kept correct by a human-gated loop.
@@ -92,9 +93,9 @@ Coga is **classical in a romantic stampede**: every competitor sells
 Coga owns no UI (it borrows the terminal, your editor, Slack), so don't
 claim Linear-style pixel polish. The felt moments to dramatize instead:
 
-- **The 2-minute correction loop**: catch the agent doing something
-  wrong → open the context → fix one line → re-run → it does the right
-  thing. This is the sensory moment; show it.
+- **The correction loop**: show the agent's mistake, the exact governing
+  edit, and the later behavior the public record actually supports. Use the
+  source's details without adding a duration or promising that a rerun works.
 - **Steered-agent behavior**: the agent reliably does the right thing
   *because* the substrate directed it.
 - **Calm Slack feed** over many parallel agents — ambient control.
@@ -154,10 +155,18 @@ Comms must stay credible. State plainly where Coga is outclassed:
   specific public work, correction and later reuse that a source supports;
   no measured efficiency or productivity outcome is claimed by this series.
 
+  Naming that metric as *defined and deliberately unmeasured* is not a
+  violation to be scrubbed. `README.md` and `docs/velocity-report.md` both do
+  exactly that today ("defined there but deliberately unmeasured", "until that
+  run finishes"), and that disclosure is what keeps the absent number honest.
+  What stays forbidden is quoting a figure, implying one exists, or resting a
+  claim on it.
+
 ## The strategic fork (decided)
 
 **Fork A is pinned** for the launch series — owner decision of 2026-08-19,
-recorded in `marketing/plan`'s status block. Write to fork A; do not reopen
+preserved here and in `marketing/plan`'s retained campaign. Write to fork A;
+do not reopen
 the question inside a marketing/comms ticket. Changing the fork is an owner
 decision. `marketing/write-post` cites this paragraph at its entry condition
 rather than restating the fork.

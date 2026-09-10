@@ -22,9 +22,12 @@ secrets: null
 
 ## Description
 
-What needs to happen and why. The agent reads the composed prompt at
-launch time, not this body — these sections exist to help humans
-organize their thinking.
+What needs to happen and why. This section and `## Context` below are
+composed into the launch prompt: `coga launch` lifts them out of this
+file and places them last, contiguous with the blackboard, so the agent
+reads the ticket as written. Only those two headings carry over — any
+other heading above the blackboard fence is not composed, and the region
+below the fence composes separately as the blackboard layer.
 
 ## Context
 

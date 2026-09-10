@@ -8,7 +8,7 @@ from typing import Any
 
 from coga import git
 from coga.blackboard import render_blackboard
-from coga.bump import AssigneeResolutionError, resolve_other_agent
+from coga.bump import AssigneeResolutionError, resolve_first_step_assignee
 from coga.config import Config
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log
@@ -117,22 +117,16 @@ def create_task(
     # the owner.
     role_fields = {"owner": owner, "human": human, "agent": agent}
     if wf and wf.steps[0].assignee:
-        role = wf.steps[0].assignee
-        if role == "other-agent":
-            try:
-                assignee = resolve_other_agent(cfg, agent)
-            except AssigneeResolutionError as exc:
-                raise ValueError(
-                    f"Workflow {workflow_name!r} step 1 assignee='other-agent': {exc}"
-                ) from exc
-        else:
-            resolved = role_fields.get(role)
-            if not resolved:
-                raise ValueError(
-                    f"Workflow {workflow_name!r} step 1 assignee={role!r} but no `{role}` "
-                    f"set on the new ticket."
-                )
-            assignee = resolved
+        try:
+            assignee = resolve_first_step_assignee(
+                cfg,
+                wf.steps[0].assignee,
+                workflow_name=workflow_name,
+                roles=role_fields,
+                agent=agent,
+            )
+        except AssigneeResolutionError as exc:
+            raise ValueError(str(exc)) from exc
     else:
         assignee = assignee or owner
 

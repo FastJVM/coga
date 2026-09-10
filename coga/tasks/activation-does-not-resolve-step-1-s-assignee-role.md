@@ -5,8 +5,9 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
-contexts: []
+assignee: nicktoper
+contexts:
+- coga/launch-internals
 skills: []
 workflow:
   name: code/with-review
@@ -29,8 +30,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (peer-review)
-launch_generation: 968796b2-283e-4ac5-b989-5ecd9cb87cc9
+step: 4 (review)
 ---
 
 ## Description
@@ -91,91 +91,93 @@ sites rather than copied.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Plan
-
-Share one step-1 role resolver between the two paths that land a ticket on
-step 1.
-
-- `coga.bump` grows `resolve_first_step_assignee(...)`, layered on a new
-  role-mapping primitive that `resolve_step_assignee` also delegates to, so
-  `other-agent` handling and the failure text have one home.
-- `create_task` (`coga.create`) drops its inline branch and calls it.
-- `_freeze_workflow_ref` (`coga.mark`) calls it in the branch that already
-  seeds `step: 1`, so only a ticket with no step is touched — the documented
-  no-op for an already-stepped ticket holds.
-- An unresolvable step-1 token raises `WorkflowError` out of activation.
-  Every activation call site (`commands/mark`, `commands/launch` both the
-  prospective and the prepare half, `commands/unblock`, `megalaunch`,
-  `recurring_runner`) already catches `WorkflowError`, so the loud failure
-  lands with the existing "`workflow:` ref could not be frozen" rendering
-  and no new plumbing.
-
-Tradeoff: `WorkflowError` reuse over a new exception type means the operator
-message is framed as a freeze failure rather than an assignee failure; the
-resolver's own text (identical to what `create_task` gives) carries the real
-cause, and the alternative is threading a new exception through six call
-sites for the same outcome.
-
-## Findings
-
-- Migration sweep (context bullet: "check before deciding whether a migration
-  is in scope"). Ten live tickets in this repo carry a human `assignee:` on an
-  agent-owned step: `run-recurring-agent-templates-off-the-control-bran`
-  (blocked) and nine under `tasks/v2/` (`acceptance-criteria`,
-  `automerge-ticket`, `gh-merge-requirement`, `identify-blocking-issues`,
-  `implement-accepted-ticket-interview-improvements`, `issue-inbox-slack`,
-  `overload-ticket-locally-easily`, `relay-design-repositories`,
-  `use-worktree-when-starting-a-dev-task`). All already carry a `step:`, so
-  the fix is prospective for them by design. Decided a migration is out of
-  scope for this PR: they are repo task state on the control branch, not
-  product code, and bundling them into a feature branch collides with the
-  routine state syncs that touch the same files. Each is a one-field repair.
-
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/779
 branch: resolve-step-one-assignee
 worktree: /home/n/Code/claude/coga-resolve-step-one-assignee
 
-## Implemented
+## Implemented and reviewed
 
-Commit `28dd114d` on `resolve-step-one-assignee`.
+- Creation and activation share `resolve_first_step_assignee`, backed by
+  `resolve_role_token` in `coga.bump`. `resolve_step_assignee` delegates to the
+  same primitive, preserving bump's role and peer semantics.
+- `_freeze_workflow_ref` resolves the first-step role only when seeding a
+  missing step. A frozen workflow carrying a step keeps its assignee. Failed
+  resolution raises `WorkflowError` before any durable activation; existing
+  activation callers already render that exception. Creation and activation
+  share the resolver's failure text.
+- `codex review --base main` reported one P2: launchers cached routing before
+  preparation changed the assignee. Confirmed failures included direct launch
+  rejecting a human-default draft, CLI preflight checking the wrong agent and
+  leaving an unstarted ticket `in_progress`, and megalaunch spawning the old
+  agent while recording the resolved one.
+- Fixed `commands.launch._launch` to refresh routing and override continuation
+  after preparation. Megalaunch defers stepless ticket routing until its
+  prepared view exists, rechecks human gates in the selection and final
+  preflight, and selects the agent from that same view. Blocker classification
+  remains tied to the original snapshot; the routing check adds no blocker
+  reread or lifecycle write.
+- Regressions cover activation success/failure/no-op, direct draft launch,
+  missing resolved-agent CLI, all four first-step roles in megalaunch with
+  and without an override, and override continuation after draft activation.
+  Both architecture context copies document the behavior and match exactly.
+- Rebased without conflicts onto fetched `origin/main` at `6d1ed844`.
+  Feature commits: `5c0528ea` (implementation), `63c530ea` (review fixes).
+  The feature checkout is clean and two commits ahead of that base.
 
-- `coga.bump` — new `resolve_role_token` primitive (role token + explicit role
-  mapping + the ticket's own agent). `resolve_step_assignee` is now a
-  one-line delegate over the ticket's frontmatter, so bump behavior and its
-  messages are unchanged. New `resolve_first_step_assignee` wraps it with the
-  `Workflow <name> step 1 assignee=<role>: ...` framing both landing paths
-  share.
-- `coga.create` — `create_task` drops its inline `other-agent` / role-field
-  branch for that call. `other-agent` failure text is byte-identical to
-  before; the missing-role-field case now carries the fuller shared message.
-- `coga.mark` — `_freeze_workflow_ref` resolves step 1's token inside the
-  `if not ticket.step:` branch only, so the already-stepped no-op holds
-  including `assignee:`. Resolution happens before either field is written,
-  and an `AssigneeResolutionError` becomes `WorkflowError`.
-- `WorkflowError` was chosen over a new exception because every activation
-  caller (`commands/mark`, `commands/unblock`, `commands/launch` in both the
-  prospective-compose and prepare halves, `megalaunch`, `recurring_runner`)
-  already catches it, so the loud failure needed no new plumbing and lands
-  with the existing "`workflow:` ref could not be frozen" rendering.
-- `coga/contexts/coga/architecture` updated in both the live and packaged
-  copies: the freeze bullet now names the shared resolver, and the role-token
-  bullet says step 1 also resolves at creation/activation and fails there.
+## Migration scope
+
+The implementation sweep found ten live tickets with a human assignee on an
+agent-owned step: `run-recurring-agent-templates-off-the-control-bran` and
+`v2/acceptance-criteria`, `v2/automerge-ticket`, `v2/gh-merge-requirement`,
+`v2/identify-blocking-issues`,
+`v2/implement-accepted-ticket-interview-improvements`, `v2/issue-inbox-slack`,
+`v2/overload-ticket-locally-easily`, `v2/relay-design-repositories`, and
+`v2/use-worktree-when-starting-a-dev-task`. All already have a step, so this
+prospective fix deliberately leaves them alone. Their one-field repairs remain
+outside this product PR: they are control-branch task state, and including them
+would collide with routine task syncs. No migration machinery was added.
 
 ## Verification
 
-- `python -m pytest` (via `.venv`): 2322 passed, 1 pre-existing failure.
-  - `tests/test_notification_messages.py::test_recurring_create_is_silent`
-    fails identically on unmodified `main` (`IsADirectoryError` on
-    `coga/tasks/work`) — unrelated to this change, not fixed here.
-  - `tests/test_packaging.py::test_wheel_includes_bootstrap_batteries`
-    deselected: it shells out to `pip`, which this `.venv` does not have.
-    The twin byte-identity test it sits next to did run and passes.
-- Three tests added to `tests/test_mark.py`, mirroring
-  `test_mark_active_freezes_string_workflow`: role token resolved on
-  activation, unresolvable token refused with the ticket untouched, and an
-  already-stepped ticket left alone. The first two fail on the unmodified
-  `mark.py`; the third passes both ways as a no-op guard.
-- `coga validate --json` against `example/coga`: 3 ok, no issues.
+- Native review completed; its must-fix finding is addressed.
+- Final full suite on the rebased commits: **2335 passed, 1 confirmed
+  pre-existing failure**, with no skipped or deselected tests. Exact command
+  from the feature checkout:
+  `TMPDIR=/tmp/coga-step-one-final-tests PATH=/tmp/coga-step-one-review-venv/bin:$PATH python -m pytest`.
+  The disposable environment was installed with the declared `[test]` extra,
+  including pip and hatchling; all packaging tests passed, including the wheel
+  build. Full output: `/tmp/coga-step-one-tests-final.log`.
+- The first full run exposed an extra blocker read, fixed above; then
+  `/tmp/coga-step-one-review-venv/bin/python -m pytest tests/test_megalaunch.py -q -p no:cacheprovider`
+  passed all 113 tests. A subsequent full run passed all routing tests but hit
+  a transient unrelated worktree in the cleanup test's shared `/tmp` glob;
+  that directory subsequently vanished. The private-temp full rerun passed
+  that cleanup test without changing product code or deleting other worktrees.
+- Confirmed baseline failure on an untouched archive of `origin/main` at
+  `6d1ed844`: `tests/test_notification_messages.py::test_recurring_create_is_silent`
+  passes a directory-form task as `TaskRef(file_form=True)`, causing
+  `IsADirectoryError`. Reproduced with
+  `/tmp/coga-step-one-review-venv/bin/python -m pytest tests/test_notification_messages.py::test_recurring_create_is_silent -q -p no:cacheprovider`.
+- From feature `example/coga`:
+  `env -u SLACK_WEBHOOK_URL /tmp/coga-step-one-review-venv/bin/coga validate --json`
+  reports 3 valid tasks and no issues. The inherited webhook variable is
+  removed for this fixture's notification-disabled config only.
+- From primary: `coga validate --task activation-does-not-resolve-step-1-s-assignee-role --json`
+  reports 1 valid task and no issues.
+- `git diff --check origin/main...HEAD` passes. A direct diff of the live and
+  packaged architecture contexts is empty after rebase.
+
+## PR
+
+Activating a draft with a bare `workflow:` reference now resolves step 1's
+assignee through the same resolver used by task creation. Unresolvable roles
+fail before activation is written, and tickets with an existing step retain
+their assignment.
+
+Direct launch and megalaunch select and preflight the resolved agent, preserving
+human handoffs and explicit agent overrides. Adds activation and launcher
+regressions and updates both architecture context copies.
+
+Test plan: `python -m pytest` — 2335 passed; the existing `tests/test_notification_messages.py::test_recurring_create_is_silent` failure also reproduces on untouched `main`. `coga validate --json` from `example/coga` — 3 valid tasks, no issues.

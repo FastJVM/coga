@@ -88,8 +88,16 @@ def post(
     sandbox turned a successful `coga bump` into a `timed_out` task). A
     delivery miss must not decide whether a session ends.
 
-    Configuration failures (no webhook resolved) still crash on both paths —
-    a rerun reproduces them identically, so the crash is the fix.
+    Configuration failures (no webhook resolved for the requested route) crash
+    on the fatal path — a rerun reproduces them identically, so the crash is
+    the fix. Under `fatal=False` they are reported and returned like a delivery
+    miss, for the same reason: the announced change is already on disk, and a
+    misconfigured alert sink must not abort work that has nothing to do with
+    it. The recurring sweep is the case that forced this — an unresolved
+    `important_webhook` took down the whole scan phase, before any period task
+    ran, over a *skipped-template summary* already printed to stderr and in the
+    scan table. `preflight_post` remains the fail-fast configuration gate, and
+    it runs before the mutation rather than after it.
 
     A strict feature publisher may set ``record_failure=False`` after it has
     atomically published lifecycle state. Delivery still fails loud on stderr,
@@ -117,6 +125,16 @@ def post(
             # 1. Remaining channels are still attempted when non-fatal.
             if fatal:
                 raise typer.Exit(1) from None
+        except typer.Exit:
+            # The channel's own configuration refusal (no webhook resolved for
+            # the requested route). It has already written the remedy to
+            # stderr, so a non-fatal caller — one announcing a change already
+            # written to disk — reports it and finishes its remaining work
+            # rather than letting a misconfigured sink abort unrelated work.
+            # `preflight_post` is the fail-fast configuration gate that still
+            # crashes, before any mutation.
+            if fatal:
+                raise
 
 
 # --- digest (outcome) path ----------------------------------------------------
@@ -277,8 +295,10 @@ def notify(
     (for example a recurring-scan error summary) renders in its own section.
 
     `fatal` is forwarded to that live-post fallback with the same meaning it
-    has on `post`: the outcome callers here (`mark done` / `mark canceled`)
-    announce a transition already written to disk, so they pass `fatal=False`.
+    has on `post`: the outcome callers here (`mark done` / `mark canceled`,
+    and the recurring scan-error summary) announce something already written to
+    disk or already reported, so they pass `fatal=False` and neither a delivery
+    miss nor an unresolved webhook aborts their remaining work.
     The spool path writes a local file and never had a delivery failure to
     begin with. ``record_failure=False`` is the strict-publication form: a live
     delivery miss remains visible on stderr without appending an unleased log

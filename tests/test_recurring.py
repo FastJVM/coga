@@ -4343,7 +4343,313 @@ def test_scan_due_skips_paused_task(repo: Path) -> None:
     assert second.tasks[0].status == "paused"
     assert second.tasks[0].launchable is False
     assert second.tasks[0].resuming is False
+    assert second.tasks[0].watchdog_paused is False
     assert second.due == []
+
+    parked = first.tasks[0].ref.ticket_path.read_bytes()
+    headless_force = scan_due(cfg, now=now, force=True, allow_interactive=False)
+    assert headless_force.tasks == []
+    assert "requires a TTY" in headless_force.errors[0][1]
+    assert first.tasks[0].ref.ticket_path.read_bytes() == parked
+
+
+@pytest.mark.parametrize("allow_interactive", [True, False])
+def test_scan_due_reports_watchdog_pause_and_preserves_prior_run(
+    repo: Path, allow_interactive: bool
+) -> None:
+    cfg, ref = _in_progress_period(repo)
+    replace_blackboard(ref.ticket_path, "\nCompleted scan findings to route.\n")
+    recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
+    saved_ticket = ref.ticket_path.read_bytes()
+    saved_log = log_path(cfg).read_bytes()
+
+    for now in (datetime(2026, 4, 22, 10), datetime(2026, 4, 29, 10)):
+        scan = scan_due(cfg, now=now, allow_interactive=allow_interactive)
+
+        assert scan.errors == []
+        assert len(scan.tasks) == 1
+        task = scan.tasks[0]
+        assert task.ref == ref
+        assert task.watchdog_paused is True
+        assert "system:watchdog" in task.watchdog_pause
+        assert task.created is False
+        assert scan.due == []
+        assert ref.ticket_path.read_bytes() == saved_ticket
+        assert log_path(cfg).read_bytes() == saved_log
+
+
+@pytest.mark.parametrize("reverse_lines", [False, True])
+@pytest.mark.parametrize(
+    "later_event",
+    [
+        "[human:marc] paused (active → paused)",
+        "[system] created (status=active)",
+    ],
+)
+def test_old_watchdog_pause_does_not_override_later_park_or_creation(
+    repo: Path, reverse_lines: bool, later_event: str
+) -> None:
+    cfg, ref = _in_progress_period(repo)
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["status"] = "paused"
+    ticket.write(ref.ticket_path)
+    lines = [
+        f"2026-04-22 10:00 [{ref.id_slug}] [system:watchdog] "
+        "paused (in_progress → paused) — liveness watchdog: REPL timed out\n",
+        f"2026-04-22 11:00 [{ref.id_slug}] {later_event}\n",
+    ]
+    if reverse_lines:
+        lines.reverse()  # merge=union need not preserve timestamp order.
+    log_path(cfg).write_text("".join(lines))
+
+    scan = scan_due(cfg, now=datetime(2026, 4, 22, 12))
+
+    assert scan.tasks[0].watchdog_paused is False
+    assert scan.due == []
+
+
+@pytest.mark.parametrize("another_due", [False, True])
+@pytest.mark.parametrize("headless_force", [False, True])
+def test_sweep_repeatedly_escalates_watchdog_pause_without_counting_it_as_run(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys,
+    another_due: bool,
+    headless_force: bool,
+) -> None:
+    cfg, ref = _in_progress_period(repo)
+    recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
+    saved_ticket = ref.ticket_path.read_bytes()
+    if another_due:
+        _write_recurring(
+            repo, "later-check", (repo / "recurring/weekly-check/ticket.md").read_text()
+        )
+        if headless_force:
+            _write(
+                repo / "recurring/later-check/ticket.py",
+                "# Deterministic phase; the mocked launch below completes it.\n",
+            )
+    monkeypatch.setattr(
+        recurring_cmd, "_interactive_stdio_has_tty", lambda: not headless_force
+    )
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10))
+    launched: list[str] = []
+    records: list[recurring_cmd.RunRecord] = []
+    notifications: list[str] = []
+
+    def finish(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        path = repo / "tasks" / slug / "ticket.md"
+        ticket = Ticket.read(path)
+        ticket.frontmatter["status"] = "done"
+        ticket.frontmatter.pop("step", None)
+        ticket.write(path)
+
+    _patch_recurring_command_launch(monkeypatch, repo, finish)
+    monkeypatch.setattr(
+        recurring_cmd, "run_autofix", lambda cfg, record, **kw: records.append(record)
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "notify", lambda cfg, text, **kw: notifications.append(text)
+    )
+    capsys.readouterr()
+
+    for _ in range(2):
+        assert recurring_cmd.run_recurring_scan(cfg, force=headless_force) == 2
+
+    output = capsys.readouterr().out
+    assert "needs attention (watchdog timeout" in output
+    assert f"coga launch {ref.id_slug}" in output
+    assert "skip (paused)" not in output
+    expected_runs = (2 if headless_force else 1) if another_due else 0
+    assert launched == ["recurring/later-check"] * expected_runs
+    assert ref.ticket_path.read_bytes() == saved_ticket
+    assert len([text for text in notifications if "watchdog timeout" in text]) == 2
+    assert len(records) == 2
+    for i, record in enumerate(records):
+        rendered = record.render()
+        assert "- problems: 1" in rendered
+        assert f"- tasks run: {int(another_due and (headless_force or i == 0))}" in rendered
+        assert "## Unresolved recurring failures" in rendered
+        assert f"coga launch {ref.id_slug}" in rendered
+        if headless_force:
+            assert "Forced recovery refused:" in rendered
+            assert "requires a TTY" in rendered
+
+
+@pytest.mark.parametrize("force", [False, True])
+def test_explicit_watchdog_recovery_continues_saved_step_and_clears_problem(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, force: bool
+) -> None:
+    cfg, ref = _in_progress_period(repo)
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["workflow"]["steps"].append(
+        {"name": "finish", "skills": ["direct/body"], "assignee": "agent"}
+    )
+    ticket.frontmatter["step"] = "2 (finish)"
+    ticket.write(ref.ticket_path)
+    replace_blackboard(ref.ticket_path, "\nFindings from the interrupted run.\n")
+    recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
+    if not force:
+        monkeypatch.chdir(repo)
+        result = CliRunner().invoke(app, ["mark", "active", ref.id_slug])
+        assert result.exit_code == 0, result.output
+
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10))
+    launched: list[str] = []
+    records: list[recurring_cmd.RunRecord] = []
+
+    def finish(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        current = Ticket.read(ref.ticket_path)
+        assert current.step == "2 (finish)"
+        assert "Findings from the interrupted run." in current.body
+        current.frontmatter["status"] = "done"
+        current.frontmatter.pop("step", None)
+        current.write(ref.ticket_path)
+
+    _patch_recurring_command_launch(monkeypatch, repo, finish)
+    monkeypatch.setattr(
+        recurring_cmd, "run_autofix", lambda cfg, record, **kw: records.append(record)
+    )
+
+    assert recurring_cmd.run_recurring_scan(cfg, force=force) == 0
+    assert launched == [ref.id_slug]
+    assert "- problems: 0" in records[0].render()
+    assert "- tasks run: 1" in records[0].render()
+    assert scan_due(cfg, now=datetime(2026, 4, 22, 10)).tasks[0].watchdog_paused is False
+
+
+@pytest.mark.parametrize(
+    ("launch_kind", "expected_result"),
+    [("timeout", "timed-out"), (None, "unfinished")],
+)
+def test_failed_forced_watchdog_recovery_fails_sweep_and_continues(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    launch_kind: str | None,
+    expected_result: str,
+) -> None:
+    cfg, ref = _in_progress_period(repo)
+    replace_blackboard(ref.ticket_path, "\nFindings still awaiting recovery.\n")
+    recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
+    _write_recurring(
+        repo, "zzz-check", (repo / "recurring/weekly-check/ticket.md").read_text()
+    )
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10))
+    launched: list[str] = []
+    records: list[recurring_cmd.RunRecord] = []
+
+    def launch(slug: str, **kwargs) -> str | None:  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        path = repo / "tasks" / slug / "ticket.md"
+        ticket = Ticket.read(path)
+        ticket.frontmatter["status"] = "in_progress" if slug == ref.id_slug else "done"
+        ticket.write(path)
+        return launch_kind if slug == ref.id_slug else None
+
+    _patch_recurring_command_launch(monkeypatch, repo, launch)
+    monkeypatch.setattr(
+        recurring_cmd, "run_autofix", lambda cfg, record, **kw: records.append(record)
+    )
+
+    assert recurring_cmd.run_recurring_scan(cfg, force=True) == 2
+    assert launched == [ref.id_slug, "recurring/zzz-check"]
+    assert [outcome.result for outcome in records[0].outcomes] == [
+        expected_result, "completed"
+    ]
+    assert "- problems: 1" in records[0].render()
+    assert "- tasks run: 2" in records[0].render()
+    assert Ticket.read(ref.ticket_path).status == "paused"
+    assert "Findings still awaiting recovery." in ref.ticket_path.read_text()
+
+
+def test_skipped_forced_watchdog_recovery_still_fails_the_sweep(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A recovery that never ran must not report success.
+
+    The skip paths in `_launch_due_tasks` record a note and continue without
+    an outcome, so checking only for a *problem* outcome saw nothing and the
+    sweep returned 0 while the task was still watchdog-paused.
+    """
+    cfg, ref = _in_progress_period(repo)
+    replace_blackboard(ref.ticket_path, "\nFindings still awaiting recovery.\n")
+    recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10))
+    launched: list[str] = []
+    records: list[recurring_cmd.RunRecord] = []
+
+    real_lease = recurring_cmd._local_period_lease
+    seen: list[str] = []
+
+    def shifting_lease(cfg_arg, task_ref):  # type: ignore[no-untyped-def]
+        lease = real_lease(cfg_arg, task_ref)
+        seen.append(task_ref.id_slug)
+        # First read admits the period; every later read reports a different
+        # generation, which is the "changed after sweep admission" skip.
+        if seen.count(task_ref.id_slug) > 1:
+            return PeriodLease(lease.ticket_bytes, "generation-moved")
+        return lease
+
+    monkeypatch.setattr(recurring_cmd, "_local_period_lease", shifting_lease)
+
+    def launch(slug: str, **kwargs) -> str | None:  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        return None
+
+    _patch_recurring_command_launch(monkeypatch, repo, launch)
+    monkeypatch.setattr(
+        recurring_cmd, "run_autofix", lambda cfg, record, **kw: records.append(record)
+    )
+
+    assert recurring_cmd.run_recurring_scan(cfg, force=True) == 2
+    # Nothing was launched, and no outcome exists for the admitted recovery.
+    assert launched == []
+    assert [o.slug for o in records[0].outcomes if o.slug == ref.id_slug] == []
+    rendered = records[0].render()
+    assert "was admitted as a watchdog recovery" in rendered
+    assert ref.id_slug in rendered
+    assert Ticket.read(ref.ticket_path).status == "paused"
+
+
+def test_watchdog_reminders_ping_ticket_owner_and_watchers(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg, ref = _in_progress_period(repo)
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["owner"] = "nina"
+    ticket.frontmatter["watchers"] = ["lee"]
+    ticket.write(ref.ticket_path)
+    cfg.slack_users.update({"nina": "U_OWNER", "lee": "U_WATCHER"})
+    recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
+    messages: list[tuple[str, str]] = []
+
+    def capture(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        messages.append((url, json["text"]))
+
+        class Response:
+            status_code = 200
+            text = "ok"
+
+        return Response()
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", capture)
+    monkeypatch.setattr(recurring_cmd, "_interactive_stdio_has_tty", lambda: False)
+    monkeypatch.setattr(recurring_cmd, "run_autofix", lambda *a, **kw: None)
+
+    for _ in range(2):
+        assert recurring_cmd.run_recurring_scan(cfg) == 2
+
+    assert len(messages) == 2
+    for url, message in messages:
+        assert url == IMPORTANT_WEBHOOK
+        assert "<@U_OWNER>" in message
+        assert "<@U_WATCHER>" in message
+        assert f"coga launch {ref.id_slug}" in message
 
 
 def test_scan_due_stale_done_replacement_respects_tty_gate(

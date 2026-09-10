@@ -16,7 +16,7 @@ import zipfile
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PurePosixPath
 from typing import Any
 
 import yaml
@@ -183,6 +183,16 @@ def install_url_skill(
             if metadata and metadata.get("source_type") == "url"
             else None
         )
+        # An `include` allowlist is the operator's standing declaration of which
+        # subset of upstream this repo installs — not a local adaptation that a
+        # forced overwrite discards. There is no CLI flag to re-supply it, so
+        # dropping it here would silently restore every excluded path and lose
+        # the record permanently. Carry it across the reinstall.
+        existing_include = (
+            parse_include_allowlist(metadata)
+            if metadata and metadata.get("source_type") == "url"
+            else None
+        )
         dirty_existing_skill = bool(
             installed_digest and hash_skill_tree(target) != installed_digest
         )
@@ -250,6 +260,8 @@ def install_url_skill(
                 f"missing: {gh_target}"
             )
         shutil.copy2(materialized.path / "SKILL.md", gh_target / "SKILL.md")
+        if existing_include is not None:
+            apply_include_allowlist(gh_target, existing_include)
         target.parent.mkdir(parents=True, exist_ok=True)
         if target.exists():
             _replace_skill_tree(gh_target, target)
@@ -264,6 +276,7 @@ def install_url_skill(
             source_tree_digest=materialized.source_tree_digest,
             installed_tree_digest=installed_tree_digest,
             timestamp=(now or utc_now)(),
+            include=existing_include,
         )
         write_source_metadata(target, metadata)
         return SkillResult(
@@ -916,6 +929,104 @@ def write_source_metadata(skill_dir: Path, metadata: dict[str, Any]) -> None:
     path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
 
 
+def parse_include_allowlist(metadata: dict[str, Any]) -> list[str] | None:
+    """Return a URL skill's recorded `include` allowlist, or None if absent.
+
+    The allowlist is operator-authored in `.coga-source.json`: it names the
+    subset of an upstream tree this repo actually keeps, so a pruned install
+    stays reproducible instead of reading as a local adaptation forever.
+    Entries are repo-relative paths; a file entry keeps that file, a directory
+    entry keeps that directory whole.
+    """
+    raw = metadata.get("include")
+    if raw is None:
+        return None
+    if not isinstance(raw, list) or not all(isinstance(e, str) for e in raw):
+        raise SkillManagerError(
+            "`include` in Coga skill metadata must be a list of strings"
+        )
+    entries: list[str] = []
+    for entry in raw:
+        candidate = entry.strip()
+        if not candidate:
+            raise SkillManagerError("`include` entries must not be empty")
+        path = PurePosixPath(candidate)
+        if path.is_absolute() or ".." in path.parts:
+            raise SkillManagerError(
+                f"Invalid `include` entry {entry!r}: must be a relative path "
+                "inside the skill, with no `..` component"
+            )
+        entries.append(path.as_posix())
+    # Returned as the operator wrote it. `apply_include_allowlist` adds the
+    # entries that are never the allowlist's to drop, so the recorded metadata
+    # stays the hand-authored list rather than accreting implicit members.
+    return entries
+
+
+def apply_include_allowlist(tree: Path, include: list[str]) -> None:
+    """Prune `tree` in place to the allowlisted paths.
+
+    Applied to the freshly materialized upstream copy *before* it replaces the
+    installed directory, so the recorded pruning is re-applied on every update
+    rather than restored wholesale.  `source_tree_digest` is taken from the
+    unpruned download by the caller, so upstream-change detection is
+    unaffected.
+    """
+    # A skill without its SKILL.md is not a skill, and Coga's own provenance
+    # file is not upstream content — `hash_skill_tree` skips it for the same
+    # reason. Neither is ever the allowlist's to remove.
+    keep: set[Path] = set()
+    for entry in [*include, "SKILL.md", SOURCE_METADATA]:
+        target = tree / entry
+        if not target.exists():
+            # Upstream dropped or renamed an allowlisted path. Skip it rather
+            # than failing the update: the allowlist is a subset request, and
+            # a missing entry is visible in the resulting tree.
+            continue
+        keep.add(target)
+        if target.is_dir():
+            keep.update(p for p in target.rglob("*"))
+        for ancestor in target.relative_to(tree).parents:
+            if ancestor != PurePosixPath("."):
+                keep.add(tree / ancestor)
+
+    for path in sorted(tree.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+        if path in keep:
+            continue
+        # Symlinks first: `is_dir()` follows the link, so an excluded symlink
+        # pointing at a retained non-empty directory would read as a non-empty
+        # directory and survive the prune. The tar validator permits in-root
+        # links and materialization preserves them, so this is reachable.
+        if path.is_symlink():
+            path.unlink()
+        elif path.is_dir():
+            if not any(path.iterdir()):
+                path.rmdir()
+        else:
+            path.unlink()
+
+
+def _pruned_upstream_matches_installed(
+    materialized_path: Path,
+    include: list[str],
+    installed_digest: str,
+    workdir: Path,
+) -> bool:
+    """Whether the installed tree is exactly this download pruned to `include`.
+
+    An allowlisted install is legitimately smaller than upstream, so a digest
+    mismatch alone does not prove local adaptation.  `update` and checked
+    `status` share this comparison so they classify the same on-disk bytes the
+    same way.
+    """
+    probe = workdir / "allowlist-probe"
+    if probe.exists():
+        shutil.rmtree(probe)
+    shutil.copytree(materialized_path, probe, symlinks=True)
+    apply_include_allowlist(probe, include)
+    return hash_skill_tree(probe) == installed_digest
+
+
 def hash_skill_tree(skill_dir: Path) -> str:
     hasher = hashlib.sha256()
     for path in sorted(p for p in skill_dir.rglob("*") if p.is_file()):
@@ -1030,12 +1141,34 @@ def _update_url_skill_dir(
             status="failed",
             message="selector in Coga skill metadata is not a string",
         )
+    try:
+        include = parse_include_allowlist(metadata)
+    except SkillManagerError as exc:
+        return SkillResult(
+            name=ref,
+            source_type="url",
+            status="failed",
+            message=str(exc),
+        )
 
     try:
         data = (downloader or download_url)(url)
         with tempfile.TemporaryDirectory(prefix="coga-skill-update-") as tmp:
             materialized = materialize_url_skill(url, data, Path(tmp), selector)
             previous_source_tree = metadata.get("source_tree_digest")
+
+            # An allowlisted install is legitimately smaller than its upstream
+            # tree, so a digest mismatch alone does not prove local adaptation.
+            # Prune a copy of this download and compare: if the installed tree
+            # is exactly what the allowlist prescribes for this upstream, it is
+            # clean, and any stale digest recorded before the allowlist was
+            # honored self-heals on the metadata write below.
+            if include is not None and locally_adapted:
+                if _pruned_upstream_matches_installed(
+                    materialized.path, include, current_digest, Path(tmp)
+                ):
+                    locally_adapted = False
+
             if materialized.source_tree_digest == previous_source_tree:
                 if locally_adapted:
                     return SkillResult(
@@ -1050,6 +1183,42 @@ def _update_url_skill_dir(
                             "expected_digest": installed_digest,
                             "current_digest": current_digest,
                             "source_tree_digest": previous_source_tree,
+                        },
+                    )
+                if include is not None and current_digest != installed_digest:
+                    # Clean, but the recorded digest predates the allowlist
+                    # being honored. Repair it so the next run compares
+                    # against the pruned tree that is actually installed.
+                    write_source_metadata(
+                        skill_dir,
+                        _url_metadata(
+                            url=url,
+                            selector=selector,
+                            installed_ref=ref,
+                            source_digest=materialized.source_digest,
+                            source_tree_digest=materialized.source_tree_digest,
+                            installed_tree_digest=current_digest,
+                            timestamp=(now or utc_now)(),
+                            local_adaptation_notes=_local_adaptation_notes(metadata),
+                            include=include,
+                        ),
+                    )
+                    # This wrote `.coga-source.json`, so it must report as a
+                    # change: `run_skill_update_pr_flow` returns early when no
+                    # result changed, which would leave the provenance repair
+                    # dirty in the caller's checkout under `--pr`.
+                    return SkillResult(
+                        name=ref,
+                        source_type="url",
+                        status="unchanged",
+                        message=(
+                            "upstream digest unchanged; repaired provenance "
+                            "recorded before the include allowlist was honored"
+                        ),
+                        changed=True,
+                        details={
+                            "source_tree_digest": materialized.source_tree_digest,
+                            "installed_tree_digest": current_digest,
                         },
                     )
                 return SkillResult(
@@ -1078,6 +1247,14 @@ def _update_url_skill_dir(
                         "upstream_tree_digest": materialized.source_tree_digest,
                     },
                 )
+            # Re-apply the recorded pruning to the fresh download *before* it
+            # lands. `source_tree_digest` above is the unpruned upstream
+            # digest, so upstream-change detection is unaffected, while
+            # `installed_tree_digest` below is taken from the pruned result —
+            # which is what makes a pruned install read as unmodified on the
+            # next run instead of as a permanent local adaptation.
+            if include is not None:
+                apply_include_allowlist(materialized.path, include)
             _replace_skill_tree(materialized.path, skill_dir)
             installed_tree_digest = hash_skill_tree(skill_dir)
             refreshed = _url_metadata(
@@ -1089,6 +1266,7 @@ def _update_url_skill_dir(
                 installed_tree_digest=installed_tree_digest,
                 timestamp=(now or utc_now)(),
                 local_adaptation_notes=_local_adaptation_notes(metadata),
+                include=include,
             )
             write_source_metadata(skill_dir, refreshed)
             return SkillResult(
@@ -1155,9 +1333,22 @@ def _status_url_skill(
         selector = metadata.get("selector")
         if selector is not None and not isinstance(selector, str):
             raise SkillManagerError("selector in Coga skill metadata is not a string")
+        include = parse_include_allowlist(metadata)
         data = (downloader or download_url)(url)
         with tempfile.TemporaryDirectory(prefix="coga-skill-status-") as tmp:
             materialized = materialize_url_skill(url, data, Path(tmp), selector)
+            # Same comparison `update` makes, for the same reason: an
+            # allowlisted install is legitimately smaller than upstream, so a
+            # digest mismatch is not proof of local adaptation. Checked status
+            # and update must classify the same on-disk bytes identically.
+            if (
+                include is not None
+                and locally_adapted
+                and _pruned_upstream_matches_installed(
+                    materialized.path, include, current_digest, Path(tmp)
+                )
+            ):
+                locally_adapted = False
         upstream_changed = (
             materialized.source_tree_digest != metadata.get("source_tree_digest")
         )
@@ -1303,8 +1494,9 @@ def _url_metadata(
     installed_tree_digest: str,
     timestamp: str,
     local_adaptation_notes: str = "",
+    include: list[str] | None = None,
 ) -> dict[str, Any]:
-    return {
+    metadata: dict[str, Any] = {
         "schema": SOURCE_SCHEMA,
         "source_type": "url",
         "source_url": url,
@@ -1317,6 +1509,12 @@ def _url_metadata(
         "installed_tree_digest": installed_tree_digest,
         "local_adaptation_notes": local_adaptation_notes,
     }
+    # An update rebuilds this dict wholesale. Without carrying the allowlist
+    # forward, the first successful update would drop it and silently restore
+    # the pruned scaffolding on the update after that.
+    if include is not None:
+        metadata["include"] = include
+    return metadata
 
 
 def _local_adaptation_notes(metadata: dict[str, Any]) -> str:

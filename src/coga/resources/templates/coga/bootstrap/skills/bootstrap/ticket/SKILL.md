@@ -146,6 +146,13 @@ Rules:
   the ticket's `## Context` body instead of attaching the whole context.
 - If the same narrow fact recurs across tickets, create or propose a smaller
   focused context rather than repeatedly attaching a broad one.
+- **Do not attach a context the ticket is going to edit.** When the job is to
+  change a context, name its exact path in `## Context` and leave the ref off
+  `contexts:`. Files being edited are read, not composed — the agent opens them
+  first thing regardless — so attaching them pays their full size on *every*
+  step to inline what it already has (one ticket measured ~22.9 KiB per step for
+  two editing targets). This is the case where the naive instinct points the
+  wrong way, because the task is *about* that context.
 - Skills are process knowledge. Select them through the workflow's step
   `skill:` refs, not by putting skill text into `contexts:`. If a relevant
   skill exists but no workflow uses it yet, mention the skill ref in the body

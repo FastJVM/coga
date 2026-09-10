@@ -104,7 +104,12 @@ Outcome digest surface — spooled into the daily digest (live fallback below):
 Both recurring-error producers append one delivery-neutral record when the
 digest is installed, and the daily aggregate stays in flow. With no digest,
 their `notify(..., important=True)` fallback posts live to important. There is
-never both a spool record and a live post for one event.
+never both a spool record and a live post for one event. The scan-error summary
+sends that fallback `fatal=False`: it runs in `_broadcast_scan`, before the
+launch loop, and every skipped template it names has already been printed to
+stderr and to the scan table, so neither an undeliverable post nor an
+unresolved `important_webhook` may abort a sweep whose period tasks have not
+run yet.
 
 Silent lifecycle surface — no notification post, no spool record:
 
@@ -114,6 +119,39 @@ Silent lifecycle surface — no notification post, no spool record:
 - `coga bump` with no `--message`.
 - Successful `coga recurring` creates.
 - `coga retire` creating.
+- `recurring/branch-sweep` — the weekly stale-branch prune. `branchsweep.py`
+  makes no notification call at all, and deleting a branch whose work already
+  landed is not something a human has to act on. Note where its report does
+  *not* go: `run_branch_sweep_recipe` emits its deletion and skip notes through
+  stdout/stderr only, `coga/recurring/branch-sweep/ticket.py` just calls that
+  recipe and then `coga bump`, and `run_script_phase` runs the child with no
+  `capture_output`. The report is therefore **console-only** — after an
+  unattended run nothing about which branches were deleted or skipped survives
+  on the period task's blackboard. Read the run transcript under
+  `.coga/recurring-runs/` to reconstruct one.
+- `recurring/skill-update` — the weekly managed-skill refresh. `skill_update.py`
+  likewise never notifies: the run's entire output is a reviewable PR, so the
+  PR *is* the notification and a post would duplicate it.
+- `recurring/resolve-conflicts` — the period template ships only a `ticket.md`
+  and emits nothing itself. Its `delegate: bootstrap/resolve-conflicts` target
+  posts the per-PR roll-up through the explicit `coga slack` escape hatch
+  already listed on the live surface, so the recurring entry is silent by
+  design rather than by omission.
+
+Those three complete the enumeration: `coga/recurring/` ships seven templates —
+`autoclose-merged`, `blocker-reminders`, `branch-sweep`, `digest`, `dream`,
+`resolve-conflicts`, `skill-update` — and every one of them is now accounted
+for above. A new template accounted for on none of the three surfaces is an
+unreviewed cadence decision, not a neutral default.
+
+**This is an accounting of events, not a partition of templates.** A template
+may legitimately span surfaces, and two already do: `autoclose-merged` posts
+its retire-pending summary live *and* spools its `done` outcomes to the digest,
+and `resolve-conflicts` is silent as a period template while the
+`bootstrap/resolve-conflicts` delegate it runs posts its roll-up through the
+live `coga slack` escape hatch. A cadence audit should ask whether each *event
+kind* a template emits has a reviewed surface, not whether the template name
+appears exactly once.
 
 The digest is **opt-in by installing the `recurring/digest/` ticket**. When
 that ticket is absent, `notification.notify` degrades to a live `post` for the
@@ -175,9 +213,40 @@ operational prerequisite. Default `coga validate` warns, without a network
 probe, whenever Slack is selected, enabled, and that destination is unresolved.
 The supported `enabled = false` opt-out suppresses the warning along with
 delivery. The warning does not weaken delivery: an automatic important post
-still raises rather than falling back to flow. The declared-period-state
-warning remains the known best-effort exception — its existing advisory guard
-reports that raise on stderr so it cannot undo a successful `mark done`.
+still raises rather than falling back to flow. There are exactly **two**
+best-effort exceptions, and each is scoped to a durable result that an
+announcement must not be allowed to overturn:
+
+- **The declared-period-state warning.** Its existing advisory guard reports
+  that raise on stderr, so a failed important post cannot undo a successful
+  `mark done`.
+- **The script-failure post in `launch_script.py`.** When a recurring period's
+  `ticket.py` exits non-zero, the important post announcing that exit passes
+  `fatal=False` with `record_failure=not strict_assist`, and the call is
+  wrapped so that under strict assist a `typer.Exit` — a missing or failing
+  `important_webhook` — is swallowed rather than re-raised. Same shape, same
+  reason as the period-state guard: the deterministic failure and its exit code
+  are already durable, so a notification outage must not replace that result.
+  The scope is `strict_assist` (`publish_aligned_branch is not None`), the live
+  human-assist feature-branch publication mode, where the child's exit code is
+  the authoritative answer the wrapper reports upward. Outside strict assist
+  the miss is still recorded and a configuration `typer.Exit` still propagates.
+
+Both are exceptions to the *fail-loud* half; the miss is always surfaced on
+stderr, but it does **not** always reach `coga/log.md`. Two gaps:
+
+- `record_failure=False` — the strict-assist script-failure call above passes
+  it, and `SlackChannel.send`'s `fail()` appends to the log only
+  `if task_path is not None and record_failure`. Under strict assist the miss
+  is stderr-only by construction, which is the point: the deterministic exit
+  code is already durable and must stay the authoritative answer.
+- an unresolved webhook — `require_webhook` writes its configuration remedy to
+  stderr and raises *before* `fail()` is reached, in every mode. A
+  configuration miss is therefore never logged, best-effort or not.
+
+So the ordinary delivery-failure path does record to `coga/log.md`; these two
+do not. Do not read the best-effort carve-outs as promising the same audit
+trail.
 
 **One carve-out: a broadcast that announces an already-committed state
 change.** The lifecycle transitions — `bump`, `mark done` / `canceled` /
@@ -195,8 +264,17 @@ as `timed_out` — an agent sandbox with restricted network is enough to trigger
 it. This is the bargain git sync already makes for the same reason: the
 markdown on disk is the source of truth, so a failed *announcement* of it must
 not decide whether a session ends, and "fail loud" means surface the miss, not
-crash. Misconfiguration (an unresolved webhook) still crashes on both paths —
-a rerun reproduces it identically, so the crash is the fix.
+crash.
+
+Misconfiguration (an unresolved webhook for the requested route) rides the same
+carve-out: it crashes on the default `fatal=True` path — a rerun reproduces it
+identically, so the crash is the fix — and under `fatal=False` it is reported on
+stderr and returned, exactly like a delivery miss. What `fatal=False` never buys
+is a *reroute*: an important post with no `important_webhook` is dropped, never
+sent to flow. The fail-fast configuration gate is `preflight_post(cfg)`, which
+the `commands/*` module runs *before* the mutation; by the time a `fatal=False`
+post runs, crashing can only skip work that the already-committed write still
+needs done.
 
 The strict single-checkout assist path has one narrower exception after it has
 published lifecycle state under an exact feature lease: a live delivery failure
@@ -296,9 +374,9 @@ new string:
   enabled + no webhook → crash; enabled + webhook → POST, then on failure
   report (stderr + `log.md`) and either crash (`fatal=True`, the default) or
   return (`fatal=False`, for a post that follows a committed transition). The
-  channel raises `NotificationDeliveryError` for a delivery miss; `post` is
-  where that becomes `typer.Exit(1)` or a return. Configuration failures skip
-  that boundary and crash from the channel itself.
+  channel raises `NotificationDeliveryError` for a delivery miss and
+  `typer.Exit(1)` for a configuration refusal; `post` is the single boundary
+  where *both* become a crash or a return, per `fatal`.
 - `src/coga/notification/slack.py::SlackChannel` — the Slack backend. It owns
   Slack text rendering (project/owner prefix, watcher cc, image attachment),
   mention rendering, and the webhook POST.
@@ -333,11 +411,13 @@ new string:
   `config._resolve_notification_slack_important_webhook` with the same `env:`
   indirection and local-overrides-shared rule. Unset resolves to None and
   `SlackChannel.webhook_for`
-  crashes an `--important` post (exit 1, stderr note) rather than rerouting it
+  refuses an `--important` post (exit 1, stderr note) rather than rerouting it
   to `webhook`: delivering a human-action alert to the wrong channel while
   reporting success is worse than crashing, and the crash is what gets the
-  config fixed. Each downstream repo carries its own `coga.toml`, so the
-  unconfigured case is live.
+  config fixed. The refusal is absolute; whether it *aborts the caller* is
+  `post`'s `fatal` decision, so a `fatal=False` producer drops the alert loudly
+  instead of taking its command down. Each downstream repo carries its own
+  `coga.toml`, so the unconfigured case is live.
 - Important posts carry no dedicated recipient key: `coga slack --important` @'s
   the task owner through the ordinary `[project] [owner]` prefix that
   `SlackChannel.render_text` (via `mention`) puts on every post. Whoever owns the
@@ -372,7 +452,8 @@ new string:
   finished string down to `mark.py` / `bump.py`, so grep for an actual `post(`
   call before listing a module here. Outcome producers (`notify`):
   `mark.mark_done` (including the autoclose sweep), `mark.mark_canceled`, the
-  recurring scan-error summary, and `mark.mark_paused` only when the recurring
+  recurring scan-error summary (`recurring_runner._broadcast_scan`, important,
+  `fatal=False`), and `mark.mark_paused` only when the recurring
   watchdog supplies `slack_text`. Both paths pass
   `task_path=ref.path` (when a task exists) so a live-post failure trace lands
   in the repo-global `coga/log.md`, tagged with the task ref.
@@ -813,11 +894,26 @@ both. In the normal nested layout it commits everything dirty under the
 `coga/` subtree (`cfg.repo_root`, where `coga.toml` lives), plus the configured
 contexts directory when `[layout] contexts` places it outside that subtree. In
 older/root layouts where `coga.toml` lives at the git toplevel, it scopes to the
-known Coga OS pathspecs (`tasks`, configured contexts, `skills`, `workflows`,
-`recurring`, `bootstrap`, `coga.toml`, `context.md`, `log.md`) instead of
-treating the whole git root as Coga state. The configured contexts path
-substitutes for the default `contexts` entry; the vacated path is not kept as a
-permanent state boundary. A full `git status` under those pathspecs captures
+known Coga OS pathspecs instead of treating the whole git root as Coga state.
+That list is `git.py::_ROOT_LAYOUT_COGA_PATHS`, and it is exactly `coga.toml`,
+`context.md`, `contexts`, `log.md`, `recurring`, `skills`, `tasks`,
+`workflows`. The configured contexts path substitutes for the default
+`contexts` entry; the vacated path is not kept as a permanent state boundary.
+
+**`bootstrap` is not in that tuple**, and it appears nowhere else as a sweep
+pathspec — so a root-layout repo does not get bootstrap authoring swept. That
+is a real gap, not a naming detail: `coga/codebase` explicitly sanctions
+deliberate repo-authored content under `coga/bootstrap/` — a repo that mints
+its own command ticket (`coga/bootstrap/<verb>/ticket.md` plus an `[aliases]`
+line) or intentionally overrides a shipped bootstrap ticket. In the normal
+nested layout the subtree sweep picks those files up like anything else under
+`coga/`. In a root layout they are outside every pathspec, so they sit dirty
+forever — precisely the "human hand-edit that no command committed" class the
+catch-all exists to close, and it fails silently because a sweep that commits
+nothing is indistinguishable from a clean tree. Until the tuple is widened,
+a root-layout repo authoring under `bootstrap/` must commit it by hand.
+
+A full `git status` under those pathspecs captures
 modifications, deletions, renames, **and new untracked files**. This is *not*
 the forbidden `git add -A`: the subtree/pathspec boundary is exactly the
 OS-state line the "Scope is narrow" rule draws, so product code (`src/`,
@@ -855,6 +951,27 @@ This is the deliberate no-daemon alternative to instant commits (`coga/
 architecture`: "no database, no daemon, no in-memory state"). The sweep's commit
 subject (`Sync coga state`) is filtered out of the daily digest's "Also merged"
 section alongside the per-transition state-sync subjects.
+
+**Never run a repo-mutating verification experiment in a checkout whose sweep
+can reach the real remote.** Because the sweep fires at the dispatch boundary
+of every mutating command, the familiar "change something, run the command,
+look at what happened, then revert" recipe cannot be followed as written in a
+live Coga checkout. The very invocation under test — `coga launch`, `bump`,
+`mark`, a recurring sweep — commits the scratch mutation under the `Sync coga
+state` subject and pushes it to the control branch before the experimenter has
+read the output, and the launch-end pull-back can then fold control state back
+into the checkout the launch was invoked from, so the effect is not even
+confined to the terminal running the experiment. The read-only exclusions
+(`coga validate`, `status`, `show`) do not sweep, but they do not protect
+either: they leave the mutation dirty, and it rides along on the *next*
+mutating command, which may be a scheduled sweep or another terminal's session
+rather than anything the experimenter typed. There is no window in which such
+an experiment is only local — the revert comes too late by design, because
+lazy on-access convergence is the whole point of the boundary. Run the
+experiment with `[git] enabled = false` in `coga.local.toml` (the opt-out
+below, machine-local precisely so one checkout can stand down without changing
+repo policy), or in a throwaway clone with no real remote. Those are the only
+two safe forms.
 
 Failure model:
 

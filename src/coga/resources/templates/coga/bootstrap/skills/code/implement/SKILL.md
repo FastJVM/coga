@@ -24,25 +24,42 @@ later `code/open-pr` step does that, after self-review and fixes.
    only when the evidence is concrete; if a human decision is genuinely
    needed, escalate that ask per your launch mode instead (ask the
    attending human; `coga block` in a queue run).
-3. **Create a feature worktree.** From the primary checkout on `main`,
-   create a feature branch in a separate worktree outside the repo
-   directory, for example:
-   `git worktree add ../coga-<branch-name> -b <branch-name> main`.
-   Pick a short descriptive branch name — it does
-   *not* have to match the slug. Then return to the primary checkout and
-   write the machine-readable fields `branch: <branch-name>` and
-   `worktree: <path>` under a `## Dev` section on the blackboard. Keep trailing
-   annotations on a separate line, or backtick-delimit the value first (for
-   example, ``worktree: `/path with spaces` (other repo)``). See the `dev/code`
-   context for the full convention.
+3. **Set up the feature checkout.** Two layouts are first-class; pick one
+   deliberately, because every later step reads `worktree:` to decide where it
+   runs. Either way, pick a short descriptive branch name — it does *not* have
+   to match the slug — and write the machine-readable fields
+   `branch: <branch-name>` and `worktree: <path>` under a `## Dev` section on
+   the blackboard. Keep trailing annotations on a separate line, or
+   backtick-delimit the value first (for example,
+   ``worktree: `/path with spaces` (other repo)``). See the `dev/code` context
+   for the full convention.
+
+   *Separate feature checkout.* From the primary checkout on `main`, create the
+   feature branch in a worktree outside the repo directory, for example
+   `git worktree add ../coga-<branch-name> -b <branch-name> main`. Then return
+   to the primary checkout, on the control branch, to write `## Dev` and to run
+   `coga bump` at the end of the step.
+
+   *Single checkout.* When the ticket is run in one checkout — you are already
+   in the primary checkout and no second copy will be created — create the
+   branch in place (`git switch -c <branch-name>`) and record that checkout's
+   own path as `worktree:`. Write `## Dev` there, on the feature branch: it is
+   the live ticket copy, and `coga bump` and `coga open-pr` both run from that
+   same checkout on that same branch. Do not add a linked worktree in this
+   layout — `coga open-pr`'s `_checkout_mode` proves the layout from the
+   recorded path plus `COGA_EXPECTED_TASK`, and a stray worktree makes the
+   recorded path name a checkout this session cannot claim. Note also that
+   generated task/log commits are not implementation work here: `coga open-pr`
+   requires at least one committed non-generated path, so a branch carrying only
+   task-state churn will not open a PR.
 
    **Write `## Dev` in the checkout you will bump from.** `coga bump` reads and
-   syncs the ticket copy of the checkout it runs in, and nothing else. Writing
-   these lines in the feature checkout and bumping from the primary checkout
-   strands them on the feature branch, and `coga open-pr` then fails with "No
-   usable `branch:` recorded" even though you did record it. Workflows whose
-   implement step declares `requires: branch` refuse the bump instead of failing
-   a step later — see step 9.
+   syncs the ticket copy of the checkout it runs in, and nothing else. In the
+   separate-checkout layout, writing these lines in the feature checkout and
+   bumping from the primary checkout strands them on the feature branch, and
+   `coga open-pr` then fails with "No usable `branch:` recorded" even though you
+   did record it. Workflows whose implement step declares `requires: branch`
+   refuse the bump instead of failing a step later — see step 9.
 
    **Read-only Git fallback.** A managed agent sandbox may allow source edits
    while mounting the primary checkout's `.git` metadata read-only. If
@@ -73,8 +90,9 @@ later `code/open-pr` step does that, after self-review and fixes.
    FETCH_HEAD`, re-running the tests if new commits came in. Work parked
    for days drifts; start from current `main`, not from where the last
    session left off.
-4. **Implement in the worktree.** Change into the feature worktree and
-   match existing code style. Keep changes scoped to the
+4. **Implement in the feature checkout.** Change into the feature worktree
+   (in the single-checkout layout you are already there, on the feature branch)
+   and match existing code style. Keep changes scoped to the
    ticket — no opportunistic refactors. If you find a real adjacent bug,
    record its symptom, affected code, evidence or reproduction, and any
    existing follow-up ticket reference on the blackboard; don't fix it here.
@@ -106,8 +124,10 @@ later `code/open-pr` step does that, after self-review and fixes.
    `origin/main`, and as a script it has no judgment to rebase with —
    freshness lands in the agent steps, while judgment is available.
 9. **Bump — this is what ends the step.** Return to the primary
-   checkout and run `coga bump <slug>`. This advances the workflow to
-   the next step and is the *only* thing that does so — there is no
+   checkout and run `coga bump <slug>`; in the single-checkout layout there is
+   nowhere to return to — stay put, on the feature branch, and run it there.
+   This advances the workflow to the next step and is the *only* thing that
+   does so — there is no
    autobump. Where the workflow declares `requires: branch` on this step,
    `coga bump` refuses to advance unless it reads usable `branch:` and
    `worktree:` lines under `## Dev` in *this* checkout's ticket copy — that
@@ -122,8 +142,9 @@ later `code/open-pr` step does that, after self-review and fixes.
 
 ## Acceptance for this step
 
-- Local branch and feature checkout (linked worktree or independent fallback
-  clone) exist; both are recorded under `## Dev`
+- Local branch and feature checkout (a linked worktree, an independent fallback
+  clone, or the primary checkout itself in the single-checkout layout) exist;
+  both are recorded under `## Dev`
   on the blackboard, in the ticket copy of the checkout `coga bump` runs from.
 - Tests pass locally.
 - Changes committed (no working-tree modifications left).

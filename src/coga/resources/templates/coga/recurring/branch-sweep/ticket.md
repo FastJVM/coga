@@ -28,15 +28,19 @@ which:
 2. enumerates every local branch and every branch on the configured git remote,
 3. skips the configured control branch, the checked-out branch, and any branch recorded under a
    non-terminal ticket's `## Dev` `branch:` line,
-4. for the rest, checks GitHub by head branch name and current tip SHA —
-   deletes only when a merged PR exists for that exact tip and no PR is
-   currently open for the head branch, and
-5. preserves both refs for a merged branch still held by a live worktree and
-   reports the distinct, non-fatal `skipped-worktree-pinned` outcome, and
+4. for the rest, authorizes deletion two independent ways — the local tip
+   being reachable from the control branch, a merge-commit or fast-forward
+   landing that needs no PR at all, or GitHub confirming by head branch name
+   and current tip SHA a merged PR for that exact tip with no PR currently
+   open for that head; the remote ref takes only the second signal,
+5. preserves both refs for a branch that landed either way but is still held
+   by a live worktree and reports the distinct, non-fatal
+   `skipped-worktree-pinned` outcome, and
 6. deletes the remote ref and/or local branch per the same policy
-   `coga retire` uses (prefer `git branch -d`; log the tip SHA and force
-   with `-D` for the squash-merge case; skip and report anything unmerged
-   with no merged PR).
+   `coga retire` uses (plain `git branch -d` when the tip is reachable from
+   the control branch; log the tip SHA and force with `-D` for the
+   squash-merge case a merged PR vouches for; skip and report anything
+   unmerged with no merged PR).
 
 The sweep is defined in `coga.branchsweep.sweep_branches`. Its first run
 also prunes the merged part of the branch backlog that accumulated before

@@ -7,7 +7,8 @@ rewinds move to an earlier workflow step. Status transitions
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from typing import Any
 
 import typer
 
@@ -92,6 +93,37 @@ def resolve_other_agent(cfg: Config, agent: str | None) -> str:
     return others[0]
 
 
+def resolve_role_token(
+    cfg: Config,
+    role: str,
+    *,
+    roles: Mapping[str, Any],
+    agent: str | None,
+) -> str:
+    """Resolve a role token against explicit role fields.
+
+    The primitive under `resolve_step_assignee` (bump, from a ticket on disk)
+    and `resolve_first_step_assignee` (create and activation, from a ticket
+    that is still being assembled). `roles` supplies the `owner` / `human` /
+    `agent` values; `agent` is the ticket's own agent type, which
+    `other-agent` takes the peer of. Raises AssigneeResolutionError when the
+    token can't resolve.
+    """
+    if role not in VALID_ASSIGNEE_ROLES:
+        raise AssigneeResolutionError(
+            f"Unknown role token {role!r} (expected one of {sorted(VALID_ASSIGNEE_ROLES)})"
+        )
+    if role == "other-agent":
+        return resolve_other_agent(cfg, agent)
+    value = roles.get(role)
+    if not value:
+        raise AssigneeResolutionError(
+            f"Workflow step declares assignee={role!r} but ticket has no `{role}:` field. "
+            f"Add `{role}: <nickname>` to ticket frontmatter."
+        )
+    return str(value)
+
+
 def resolve_step_assignee(cfg: Config, ticket: Ticket, role: str) -> str:
     """Resolve a workflow step's role token to a concrete nickname.
 
@@ -100,19 +132,32 @@ def resolve_step_assignee(cfg: Config, ticket: Ticket, role: str) -> str:
     the peer agent from config. Raises AssigneeResolutionError when the
     token can't resolve.
     """
-    if role not in VALID_ASSIGNEE_ROLES:
+    return resolve_role_token(cfg, role, roles=ticket.frontmatter, agent=ticket.agent)
+
+
+def resolve_first_step_assignee(
+    cfg: Config,
+    role: str,
+    *,
+    workflow_name: str | None,
+    roles: Mapping[str, Any],
+    agent: str | None,
+) -> str:
+    """Resolve step 1's role token for a ticket landing on that step.
+
+    Two paths land a ticket on step 1 of a frozen workflow: `create_task`
+    freezes the snapshot at creation, and `_freeze_workflow_ref` (`coga.mark`)
+    freezes a bare-string `workflow:` ref at activation. Both call this so a
+    ticket wears the same `assignee:` whichever way it arrived, and an
+    unresolvable token fails at the same moment with the same message instead
+    of deferring a contradictory refusal to launch time.
+    """
+    try:
+        return resolve_role_token(cfg, role, roles=roles, agent=agent)
+    except AssigneeResolutionError as exc:
         raise AssigneeResolutionError(
-            f"Unknown role token {role!r} (expected one of {sorted(VALID_ASSIGNEE_ROLES)})"
-        )
-    if role == "other-agent":
-        return resolve_other_agent(cfg, ticket.agent)
-    value = ticket.frontmatter.get(role)
-    if not value:
-        raise AssigneeResolutionError(
-            f"Workflow step declares assignee={role!r} but ticket has no `{role}:` field. "
-            f"Add `{role}: <nickname>` to ticket frontmatter."
-        )
-    return str(value)
+            f"Workflow {workflow_name!r} step 1 assignee={role!r}: {exc}"
+        ) from exc
 
 
 def advance_step(
@@ -283,6 +328,8 @@ def advance_step(
 
 __all__ = [
     "advance_step",
+    "resolve_first_step_assignee",
+    "resolve_role_token",
     "resolve_step_assignee",
     "resolve_other_agent",
     "rewind_status_error",

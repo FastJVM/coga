@@ -69,8 +69,18 @@ the example under "Extend recurring with a task-specific workflow").
   re-launches that bootstrap target. If an interactive launch returns
   unfinished, the sweep pauses it before continuing, so a frozen `in_progress`
   period task can still mean "dead run's orphan" rather than "human parked it".
-  `done` from the *current* period (finished work) and `paused` (a human
-  parked it) stay skipped. A `done` run left over from a **prior** period —
+  `done` from the *current* period (finished work) and human-parked `paused`
+  runs stay skipped. A watchdog-paused run stays parked but is an unresolved
+  failure: every sweep shows `needs attention (watchdog timeout)` with the
+  exact resume command, counts it in `problems:`, emits a recurring-error
+  notification, and returns non-zero after running other due tasks. This also
+  works with no TTY or no other due work, independently of the autofix analyst.
+  Provenance comes from the latest pause audit entry's `system:watchdog`
+  actor, so existing watchdog pauses are detected without migration. The
+  scanner compares audit timestamps (append order breaks same-minute ties),
+  and a later human pause or task creation supersedes old timeout evidence.
+  It streams the log once only when there are paused periods to classify.
+  A `done` run left over from a **prior** period —
   finished but never reaped by Dream's retro pass — is **deleted before a
   fresh task is created** from the current template. The new task starts
   `active` at workflow step 1 with a fresh blackboard, a re-baselined state-key
@@ -84,8 +94,31 @@ the example under "Extend recurring with a task-specific workflow").
   agent session. Direct `coga launch recurring/<name>` obeys the same snapshot;
   it never re-reads mutable template dispatch. A task carrying `ticket.py` runs
   that file as a subprocess from the host repo with the period ticket's scoped
-  secrets and freshly derived `COGA_TASK_*` metadata; no prompt is composed and
-  no agent starts.
+  secrets and freshly derived `COGA_TASK_*` metadata.
+  **`ticket.py` selects a deterministic *phase*, not necessarily a wholly
+  deterministic period.** Whether an agent follows is decided after the script
+  exits, from the step it left behind — `run_script_chain` in
+  `src/coga/launch_script.py` classifies three outcomes. A script that closed
+  the last step ends the launch with no prompt composed and no agent started;
+  that is the shape every shipped template is written for and the only one an
+  unattended sweep can complete. A script that bumped into a step assigned to a
+  **configured agent does not hand off there** — `run_script_chain` sets
+  `current = after` and loops, running `ticket.py` again for the new step. The
+  deterministic phase repeats for each consecutive agent-owned step, and the
+  agent is only reached once a phase leaves its step unchanged or the loop
+  revisits a step it already ran (`while current.step not in ran_steps`). So a
+  script that bumps can execute the next step itself, and can advance past it
+  again; a template author must not assume the agent runs the step their bump
+  landed on. The chain stops and returns to the caller only when the next step
+  is assigned to a human or is unassigned — the deterministic chain honors the
+  same approval boundary as the agent supervisor.
+  A script that exits 0 leaving the step **unchanged** is read as
+  "deterministic preparation succeeded and the agent continues that same open
+  unit of work" and returns `chain=True` — also an agent launch.
+  `src/coga/recurring_runner.py` carries the same hybrid notion explicitly,
+  which is why the temporary-worktree mode below has to thread a hard no-agent
+  reason through shared launch instead of assuming file presence means the
+  script is the whole run.
   The launcher marks `active → in_progress` before starting and then leaves
   the workflow alone: the script closes its own step (`coga bump`), exactly as
   an agent does. A non-zero exit halts that launch and leaves the task
@@ -94,11 +127,21 @@ the example under "Extend recurring with a task-specific workflow").
   in its summary and run record, then exits with the first failing code. One
   template's problem is not its licence to cancel the ones behind it, which is
   the same isolate-and-aggregate posture `coga recurring --all` takes across
-  repos.
+  repos and the same posture as the `--force` bullet below, whose canceled-task
+  refusal also continues through later templates.
 
-  Two exit classes are exempt, because they are not template failures and
-  aggregating them would let the sweep start work that was just forbidden.
-  Both re-raise immediately, stopping the sweep where they happened:
+  It used to stop, and the failure mode is worth remembering: the scan returned
+  the child's exit code from inside its own launch loop, so every template
+  admitted behind the failure was abandoned **and went unreported** — no
+  outcome record was ever built for them. On 2026-09-08 one routine URL-skill
+  digest conflict made `skill-update` exit 1, the four templates behind it
+  never ran and were never named, and the record read `templates scanned: 7 /
+  tasks run: 3 / problems: 1` (see
+  `coga/tasks/autofix/stop-one-failing-ticket-py-from-starving-the-rest/run-log.md`).
+
+  Two exit classes are exempt from the aggregation, because they are not
+  template failures and continuing would let the sweep start work that was just
+  forbidden. Both re-raise immediately, stopping the sweep where they happened:
 
   - **75** (`git.RETRY_WITHOUT_SWEEP_EXIT_CODE`) — an aligned-assist
     publication or teardown refused and deliberately left dirty retained state
@@ -125,7 +168,20 @@ the example under "Extend recurring with a task-specific workflow").
   sweep in each configured target, sequentially. A missing local `user` or
   another intentional Coga config guard
   makes a scratch checkout an unconfigured non-target: these are omitted from
-  dispatch, summarized once by count, and do not make the parent fail. Each
+  dispatch, summarized once by count, and do not make the parent fail. That
+  exemption is about *targets*; the parent's own config carries a second,
+  narrower one. `cli.main` in `src/coga/cli.py` catches `ConfigError` from its
+  eager `find_repo_root()` / `load_config(require_user=False)` and from
+  `_validate_aliases`, and — when and only when the invoked command is
+  `coga init` / `coga uninstall` or a cross-repo `coga recurring --all` —
+  warns on stderr (`Note: ignoring current config error so the cross-repo
+  recurring sweep can run`), discards this repo's alias map, and dispatches on
+  `_DEFAULT_ALIASES` alone. Every ordinary command still exits 2 on the same
+  error. This is deliberate rather than a hole in fail-loud: the parent's own
+  checkout may be legacy or half-migrated while the repos under `<path>` are
+  fine, and each of those loads its own config in its own process anyway. Do
+  not tighten alias or config validation without preserving it, or the change
+  silently re-breaks every cross-repo sweep started from an old checkout. Each
   selected repo runs in a fresh CLI process so its config, launch supervision,
   and end-of-command git sync stay repo-local. TOML parse errors and failures
   after dispatch are reported without preventing later repos from running; the
@@ -554,13 +610,38 @@ This extension seam has five important constraints:
   `coga mark done`, or records an unavailable prerequisite with `coga block`;
   the launcher never advances the workflow on its behalf. A blocked script
   completion stays `blocked`; a non-zero exit leaves the period task
-  `in_progress`.
+  `in_progress`. **Exiting 0 without closing the step is the third outcome and
+  the commonest authoring mistake — it is not a no-op.** An unchanged step is
+  exactly the chain-to-agent signal described under dispatch above, so a
+  template this context calls headless becomes an agent-requiring launch: an
+  unattended sweep has no TTY for it and reports the period `unfinished`. That
+  is why every shipped script ends in an explicit completion shell-out — see
+  `coga/recurring/blocker-reminders/ticket.py`, which finishes with
+  `subprocess.run([sys.executable, "-m", "coga.cli", "bump",
+  os.environ["COGA_TASK_SLUG"]])` rather than calling the Typer command
+  in-process, where option defaults would arrive as `OptionInfo` sentinels.
+  Deliberately exiting non-zero to keep a period visible until a human looks at
+  it is an available idiom — `coga/recurring/skill-update/ticket.md` documents
+  using it that way — but price it first: a non-zero exit stops the whole
+  sweep, and every template behind this one is abandoned and unnamed in the run
+  record. `coga block` buys the same visibility without that cost: the ask is
+  recorded on the period ticket, the script-recorded `blocked` lifecycle is
+  preserved rather than paused, the run is reported as `unfinished` with its
+  reason, and the sweep continues to the templates behind it.
 - **A scheduled agent run must reach `done` in one launch.** When a bare
   `coga recurring` sweep gets control back from an unfinished agent launch, it
   pauses the period task before continuing. That includes an intermediate
   human or unassigned handoff and a task that invoked `coga block`; the paused
-  run is skipped by later sweeps and cannot use ordinary `bump` / `unblock`
-  from that state. Do not put human gates or expected blockers in a scheduled
+  run cannot use ordinary `bump` / `unblock` from that state. Watchdog timeouts
+  keep failing subsequent sweeps until explicitly resumed: use
+  `coga launch recurring/<name>` to continue the saved step, or
+  `coga mark active recurring/<name>` to make the next sweep resume it.
+  `--force` also resumes paused runs; its resulting task outcome determines
+  success instead of counting the pre-recovery pause twice. A paused run is
+  never replaced just because another period is due. Its ticket and findings
+  remain intact; route unfinished findings into durable artifacts before
+  explicitly closing a run instead of resuming it.
+  Do not put human gates or expected blockers in a scheduled
   agent workflow. Use the on-demand `coga recurring launch <name>` path (then
   drive the ordinary ticket handoff) or an ordinary task when a run needs
   those intermediate states.
@@ -570,7 +651,17 @@ This extension seam has five important constraints:
   (`delegate: bootstrap/<name>`) is agent-backed for this purpose — its
   delegated run is an agent launch — and is skipped headless the same way,
   including when an `active` / `in_progress` period already exists from an
-  earlier attended sweep. Admission leaves that period untouched and continues
+  earlier attended sweep. A scan can still inspect and report a paused
+  period without admitting an agent; a forced launch retains the TTY gate.
+  Refused watchdog recovery remains an unresolved failure, not a task run.
+  So does a recovery that was *admitted* and then never ran: an admitted
+  watchdog recovery must produce a completed outcome, and the sweep exits 2
+  naming any slug that did not. The check is absence-based on purpose —
+  several paths (a period lease that changed after admission, a control
+  refresh that skips the launch, a removed period) record only a note and
+  continue with no outcome at all, so looking for a failed outcome would see
+  nothing and report success while the task stayed paused.
+  Admission leaves that period untouched and continues
   to later deterministic jobs. A template carrying `ticket.py` runs directly
   without a TTY and is the appropriate shape for an unattended scheduler.
 
@@ -730,9 +821,27 @@ The output is unchanged; the loop is what got added after it
    that failed to load. It is
    *built*, not scraped: tee-ing fd 1 would make `isatty` false and every
    interactive agent launch would then refuse itself. The blackboard is read
-   instead because it is where a `ticket.py` phase and an agent session both
-   already write what they found — the durable report channel, which the
-   console is not.
+   instead because it is the only durable per-run channel Coga owns; the
+   console is not one. **It is populated only by runs that choose to write to
+   it.** Nothing in the `ticket.py` contract asks for a run report — the
+   completion-contract bullet above asks a script to run headlessly, close its
+   own step, and record an unavailable prerequisite with `coga block`, and no
+   more. Of the shipped templates `skill-update` writes one on every run,
+   through `render_blackboard_report` / `append_report` in
+   `src/coga/skill_update.py`, which appends a `## Skill Update` section.
+   `autoclose-merged` writes one **conditionally**: when it closes a ticket
+   that still has a recorded branch or worktree, `_report_retire_followups`
+   renders the pending-retire report and `_append_blackboard_report` writes it
+   to the period task, so that run does give the analyst more than the seeded
+   placeholder. A sweep that closed nothing, or nothing needing retire, still
+   leaves only the placeholder. `branch-sweep`, `digest` and
+   `blocker-reminders` hand the analyst a period blackboard holding nothing but
+   the seeded placeholder (the committed run records under
+   `coga/tasks/autofix/` show exactly that). So for those runs the analyst can
+   see *that* they ended cleanly and nothing about what they did, and
+   `skill-update` is faulted more often partly because it is the one that
+   always says something. A template whose findings should be analyzed has to write
+   them to the period blackboard itself.
 2. **One agent call reads that record** and answers `ok`, `duplicate`, or
    `problem` plus a ticket body. This is the only place Coga spawns an agent
    without a PTY — a one-shot, text-in/text-out call with no REPL and no

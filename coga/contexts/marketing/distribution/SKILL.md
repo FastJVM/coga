@@ -1,6 +1,6 @@
 ---
 name: marketing/distribution
-description: Coga launch channels, dated account evidence, attribution, audience scorecard, and response branches. Read when preparing distribution or scoring a launch.
+description: Coga launch channels, dated account evidence, attribution, amplification asks, audience scorecard, and response branches. Read when preparing distribution or scoring a launch.
 ---
 
 # Coga distribution
@@ -73,10 +73,52 @@ not a gate, and not part of the short-term scorecard.
 | Lobsters | Required | Use only if post 1 showed channel fit and this post still reads as engineering practice | Use unless post 1 established a clear channel mismatch |
 | Reddit | Conditional on the joined-subreddit/rules gate | Conditional | Conditional |
 | X | Optional | Optional | Optional |
+| Launch YC | No | One product launch, placed during launch planning; unscored | No |
+| YC amplification | No | Rides the Launch YC announcement; unscored | No |
+| Friends share ask | Optional; unscored | Optional | Optional |
 | fastjvm.com | One launch announcement; unscored | No | No |
 
 Never ask for upvotes. Sharing the article or thread is fine; let readers
 decide what to do.
+
+## YC channels and personal asks
+
+Coga is YC-backed, so `nicktoper` has two distribution moves the essay channels
+above do not cover. Both are **product-launch shaped**, and that is the tension
+to hold: `marketing/plan`'s play states the series is deliberately not a product
+announcement. They are owner actions on their own schedule, not steps a post
+agent slots into post 1's Day-0 sequence.
+
+- **Launch YC.** Publish a product launch on Launch YC — its own surface, page,
+  and audience. It is alumni-gated, so it rests on the same unreported Bookface
+  standing the pre-HN read does. Write it to the series' own envelope — *this is
+  my internal tool; I'm open-sourcing it* — pointing at the repo and the
+  install, not at an essay's thesis.
+- **YC amplification.** Ask YC to amplify that launch announcement from its own
+  accounts. It attaches to the product launch, not to an essay, so the optional
+  Day-0 X summary is not its prerequisite and skipping X does not remove it.
+- **Friends.** Ask people the owner actually knows to share the canonical blog
+  URL or a live thread. Personal and one-time.
+
+Three constraints hold whenever they fire:
+
+- **Keep them out of the HN window.** Days 0 to +3 already commit the founder to
+  the Bookface read and a live HN thread, and the runbook's own rule is not to
+  split founder attention across two openings. The product launch sits after
+  phase 1's day-14 disposition, and the same rule applies inside post 2's own
+  window.
+- **Unscored, and excluded from the phase-1 read.** No scorecard bar depends on
+  them and silence is not a miss branch. They move stars, PyPI downloads, and
+  referrers — which the scorecard already treats as trailing context — so record
+  the exact date each one fires, or a product-launch spike gets read as the
+  essay's audience response.
+- The boundary above is unchanged: ask for a share, never for a vote, and never
+  assemble friends or the YC network into voting on HN, Lobsters, or Reddit.
+
+**Owner decision, 2026-09-09:** the product launch runs **after phase 1**, with
+the second run of the series. It does not open the campaign. The exact placement
+against post 2's window is tailored during launch planning
+(`marketing/build-the-launch-plan`), so no ticket should fix a date for it here.
 
 ## Distribution tactics
 

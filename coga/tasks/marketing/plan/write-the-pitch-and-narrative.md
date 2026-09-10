@@ -15,11 +15,11 @@ secrets: null
 
 ## Description
 
-Write the reusable Coga pitch and a short narrative from the reviewed public
-examples. Lead with the owner's direction: Coga makes the intent, instructions,
-knowledge and working state behind an AI session explicit and editable.
-Explain the experience through a real piece of work before introducing the
-company-OS category or the parallel queue.
+Write the reusable Coga pitch and a short narrative from the owner's chosen
+story and worked examples. Lead with the owner's direction: Coga makes the
+intent, instructions, knowledge and working state behind an AI session
+explicit and editable. Explain the experience through the chosen worked
+example before introducing the company-OS category or the parallel queue.
 
 Produce one short pitch, a narrative outline with source links, and a mapping
 from the supported message to the existing launch deliverables. The owner
@@ -27,15 +27,20 @@ reviews the wording before it becomes canonical marketing copy.
 
 ## Context
 
-### Dependency and sources
+### Story decision and supporting material
 
-The reviewed packet from
-`marketing/plan/collect-public-examples-for-the-launch` is the prerequisite
-for final narrative claims. Its durable output is
-`coga/contexts/marketing/positioning/examples.md`. If that file is absent,
-or a needed example is still unaccepted, record the specific dependency under
-the session's conduct; do not manufacture an example. The source collector can
-report an honest shortfall, in which case narrow the narrative accordingly.
+`marketing/plan/collect-public-examples-for-the-launch` now makes story and
+example options and reaches a decision with the owner; its old collection name
+is historical. Its durable output is
+`coga/contexts/marketing/positioning/examples.md`. Use the selected angle,
+worked examples and exclusions to write the copy. If the story decision is
+missing, resolve that editorial choice before finalizing the pitch.
+
+Examples may be authored illustrations or newly made demonstrations. Identify
+them accurately. Claims about a real event or observed behavior need public
+support; a missing old log entry does not prevent drafting a clearly
+identified worked example. Close any factual evidence gap before publishing
+the corresponding claim.
 
 `marketing/positioning` supplies the full audience, voice, ownership spine
 and limits. `marketing/map` locates the strategic sources and the newer
@@ -49,8 +54,9 @@ Draft on this blackboard:
 
 1. A one-sentence pitch and a short expansion that explain what the reader can
    do with Coga, for whom, and why managing the inputs changes the interaction.
-2. A narrative outline from rough intent through execution and correction to
-   later reuse, with each claimed event linked to an accepted public example.
+2. A narrative outline expressing the chosen story through its worked
+   examples. Link factual event claims to public support and distinguish
+   authored illustrations from observed behavior.
 3. A compact source-to-claim table: what is observed, what is interpretation,
    what is the founder's thesis, and what must be conceded or omitted.
 4. A proposed mapping to the README and retained three essay tickets,
@@ -65,9 +71,15 @@ Use the relevant `clarity` review guidance for the short copy, without running
 the post-publication workflow.
 
 The owner chooses and edits the wording at step 2. At step 3, put the accepted
-pitch and narrative in `marketing/positioning`, linking the source packet,
+pitch and narrative in `marketing/positioning`, linking the chosen examples,
 and hand the deliverable mapping to `marketing/build-the-launch-plan`.
 Do not leave the reusable message only on a task blackboard.
+
+Keep the canonical positioning context focused on the current interaction,
+ownership, audience, voice, limits and pinned fork. During the rewrite, move
+optional dated competitive/category discussion into a linked reference where
+useful, preserving its provenance. This implements the extraction review's
+trim recommendation without changing the shared base prompt.
 
 ### Boundaries
 

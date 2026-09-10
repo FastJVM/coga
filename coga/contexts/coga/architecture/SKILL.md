@@ -35,7 +35,11 @@ no in-memory state.
   fence line `<!-- coga:blackboard -->` followed by the free-form blackboard
   region (the workspace shared between human and agent). The append-only audit
   trail is not in the task file — it lives in one repo-global `coga/log.md`
-  (written by CLI commands only), each line tagged with its task ref.
+  (written by CLI commands only), each line tagged with its task ref. That
+  tag is the slug and nothing ever rewrites earlier lines, so renaming a task
+  orphans its whole prior history under the retired tag: `coga show
+  <new-slug>` reconstructs none of it. Record the prior slug in the ticket
+  body and grep the retired tag when reconstructing the trail.
   A directory-form task may reserve the exact sibling name `ticket.py` for its
   deterministic launch phase. Launch stats that one path and subprocesses it;
   core never imports from the task directory. No other attachment changes
@@ -71,8 +75,11 @@ no in-memory state.
   step's inline instructions, therefore degrades prompt composition and is a
   validation error for live tickets.
   Nothing ever re-freezes an existing ticket. `_freeze_workflow_ref`
-  (`mark.py`) only converts a bare string ref and seeds `step: 1`; it is a
-  documented no-op once `workflow:` is already a dict carrying a step. A
+  (`mark.py`) only converts a bare string ref and seeds `step: 1` — resolving
+  that step's `assignee:` role token as it does, through the same
+  `resolve_first_step_assignee` (`bump.py`) that `create_task` uses, so both
+  ways of landing on step 1 agree; it is a documented no-op once `workflow:`
+  is already a dict carrying a step, assignee included. A
   `steps:` edit — an added `skills:` ref, a changed `assignee:` token, a new
   `requires:` gate — therefore reaches only tickets created afterwards, plus
   drafts still carrying a *bare-string* `workflow:` ref (hand-authored or
@@ -87,8 +94,14 @@ no in-memory state.
   so any limit carried only in the prose has to be restated inside the skill or
   it silently stops reaching the agent.
   Each step may declare an `assignee:` role token (`owner` | `human` |
-  `agent` | `other-agent`); on bump, the token resolves against the ticket's
-  matching role field and rewrites `assignee:`. `other-agent` resolves to the
+  `agent` | `other-agent`); on bump — and, for step 1, when creation or
+  activation freezes the workflow — the token resolves against the ticket's
+  matching role field and rewrites `assignee:`. A step-1 token that cannot
+  resolve fails at that freeze, rather than surfacing later as a launch
+  refusing an agent step as a human handoff. Direct launch and megalaunch
+  choose the agent and check human handoffs from the prepared activation's
+  resolved assignee before preflight or any durable lifecycle write.
+  `other-agent` resolves to the
   ticket agent's explicit `[agents.<type>].peer` when set, otherwise to the
   single other configured type. This keeps two-agent repos configuration-free
   while making three-agent repos declare the intended reviewer instead of
@@ -452,6 +465,32 @@ inline prose is not part of the frozen snapshot: launch otherwise falls back
 to a missing-workflow or no-instructions placeholder. Draft and terminal
 tickets are left alone.
 
+The freeze covers step *metadata*, not step *content*, and that has a standing
+authoring consequence. A frozen step's `skills:` refs are resolved live at
+composition time — local-first, then package-backed: `resolve_skill_path`
+(`paths.py`) tries `coga/skills/<ref>/SKILL.md` and falls back to the installed
+package's `bootstrap/skills/<ref>/SKILL.md`, which `coga init` deliberately does
+not materialize. A skill-less step's instructions are likewise read live out of
+the current workflow definition. So editing a shared step skill — or that inline
+prose — silently rewrites the prompt of every already-frozen ticket, including
+tickets frozen on an older step sequence that never contained the step the edit
+assumes. **The warning applies to whichever copy actually resolves**: in a repo
+with no local override that is the packaged battery, so editing a bundled
+`code/*` skill in the Coga source tree rewrites frozen tickets' prompts exactly
+as a local edit would. Inserting `evaluate-design` into
+`code/design-then-implement` demonstrated both halves: a `code/design` step
+skill that told the agent its bump advanced to `evaluate-design`, and a
+`review-design` owner prompt that required an `## Evaluator review` blackboard
+section, were each wrong for every snapshot frozen before that step existed.
+The rule for a shared step skill, therefore: refer to **the next frozen step**
+rather than to a step by name, and consume any newly introduced blackboard
+section conditionally — "when the frozen workflow includes an independent
+evaluator", "if an `## Evaluator review` section is present" — never as a
+precondition. `coga/skills/code/design/SKILL.md` and the `## review-design`
+prose in `code/design-then-implement` already carry exactly that phrasing.
+Regression-check a changed shared skill by composing it from a pre-change
+snapshot, not only from a ticket frozen on today's workflow.
+
 `coga ticket` (guided authoring) fills the workflow in through its
 interview skill. The `recurring-scan` recipe, on-demand `recurring launch
 <name>` (including the `coga dream` alias), and `coga retire` create their
@@ -536,6 +575,28 @@ authors a draft, the `coga.mark` finalizers flip status across the lifecycle,
 a `draft` or `paused` ticket to `active` first (reusing `coga mark active`),
 then flipping `active → in_progress` as work begins.
 
+Each of those writers also chooses when it validates, and the choice is not
+stylistic. `assert_task_valid`'s documented contract — report the failure and
+leave the written ticket on disk for the operator to correct — holds only
+while every error-severity check is keyed off *ticket content*.
+`unresolvable-step-assignee` is not: it resolves an `other-agent` step through
+`resolve_other_agent` against this machine's `[agents.*]`, a config fact the
+transition never touched and no edit to the ticket can repair, since the
+frozen snapshot must not be hand-edited. Validating it after the write left a
+mutated ticket nothing on disk could fix, and the ordinary bump path bailed
+with `step:` already advanced, no audit line and no sync — so each retry
+advanced it again. The rule: post-write validation is safe only for
+content-keyed checks; an error-severity check that can fail on configuration
+must run against a **prospective** ticket first. The idiom is already in
+`src/coga/mark.py` and `src/coga/bump.py` — copy the `Ticket`, apply the
+intended frontmatter to the copy, pass it as
+`assert_task_valid(..., ticket_override=...)`, and only then write, append the
+log line, and sync. The asymmetry is still live: `mark_done`, `mark_canceled`,
+the bump step-advance, and the assist-path workflow freeze in
+`coga/commands/bump.py` validate prospectively, while `mark_active`,
+`mark_in_progress`, `mark_blocked`, and `mark_paused` still validate after the
+write.
+
 ## Ticket launch phases and registered recipes
 
 There is no ticket execution-mode field and workflow skills remain prompt
@@ -571,6 +632,21 @@ entered only when the ticket is locally human-owned; an override on an
 agent-owned ticket remains an ordinary launch. A human-step override without a
 TTY is refused before recorded-checkout or PR validation. The proofs, leases,
 and compensation behind that publication are in `coga/launch-internals`.
+
+"That launch" means the whole supervised chain, not just its first step. The
+override follows *directly consecutive* frozen steps whose role is `agent`:
+`consecutive_agent_override` in `src/coga/commands/launch.py` is armed on the
+first step only when an override was passed, the launch is not a strict human
+assist, and that step's role is `agent`; every later step whose role is still
+`agent` then runs on the override instead of the ticket's own `assignee:`,
+with nothing written to disk either way. Two things terminate it. A step whose
+role is not `agent` — `owner`, `human`, `other-agent`, or an unassigned step —
+clears the flag as the chain passes through it, and nothing re-arms it for the
+rest of that launch. A strict human assist never arms it at all, so an assist
+override applies to its one step. The terminators matter because the
+alternative is split routing: `coga build --agent codex` once overrode only
+the first iteration while the frozen ticket's `agent: claude` routed step two
+back to an unavailable Claude — a P1, not a cosmetic inconsistency.
 
 Blocked tickets can resume inline only from an interactive TTY. Their first
 job is to resolve or re-block the open asks.
@@ -1083,10 +1159,21 @@ phase across bounded shard subagents, reconciles only active leaf assignments �
 at the barrier, and by distinct completing shard id rather than by counting the
 completion lines in the shared append-only `progress.md` — and merges their
 on-disk findings into `## Findings`; a final message is not the delivery
-mechanism. Known limitation: the contract audit's own corpus globs
-(the configured contexts directory, `coga/skills/**`) do not cover package-backed
-`bootstrap/skills/**`, so the bundled Dream skills — the scan skills included
-— sit outside the surface that audit reads.
+mechanism. Known limitation: neither decide phase reaches package-backed
+`bootstrap/skills/**`, so both halves share one blind spot. What they share is
+only that *subset* — the configured contexts directory (`coga/contexts/` unless
+`[layout] contexts` moves it) plus `coga/skills/**`, and the package-backed
+exclusion. The two corpora are otherwise different, and a fix must not assume a
+common definition to patch: the knowledge scan also owns every task ticket and
+`coga/workflows/**`, while the contract audit instead adds the
+`coga/recurring/<name>/ticket.md` templates, `README.md`, `docs/*.md`, and the
+`CLAUDE.md` / `AGENTS.md` agent instruction files — and explicitly treats
+`coga/tasks/` as historical record rather than contract. The bundled Dream skills, the scan skills included, sit outside the
+surface either phase reads; a Dream run confirmed it empirically, indexing zero
+`bootstrap/skills` entries while 30 Markdown files live under
+`src/coga/resources/templates/coga/bootstrap/skills/`. The fix is a corpus
+decision, not a per-phase patch: index the packaged batteries in both scans, or
+record the exclusion as deliberate.
 
 Every launched agent and ticket script subprocess receives
 task metadata as environment variables:

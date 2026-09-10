@@ -26,12 +26,13 @@ step: 2 (human-owns-and-finishes)
 
 ## Description
 
-Review and finalize the launch plan against the public source packet and the
+Review and finalize the launch plan against the selected story/examples and the
 owner's newer pitch direction. `marketing/plan` already holds the retained
 three-post campaign and its gates; the remaining work is the owner's message,
 sequence and keep/drop decision, followed by a current handoff to execution.
 
-`marketing/plan/collect-public-examples-for-the-launch` supplies the sources;
+`marketing/plan/collect-public-examples-for-the-launch` makes story/example
+options and records the owner's choice;
 `marketing/plan/write-the-pitch-and-narrative` supplies the reusable message.
 Use those outputs here instead of independently commissioning the same work.
 The owner dropped the marketing token experiment on 2026-09-09.
@@ -41,7 +42,7 @@ The owner dropped the marketing token experiment on 2026-09-09.
 **Current handoff, 2026-09-09.** The audit's reusable material has moved to
 `marketing/map` and `marketing/distribution`. The newer managed-prompt
 direction is recorded in `marketing/positioning`; the writing tickets above
-own the public examples and final pitch prose. This ticket retains the final
+own the story/example decision and final pitch prose. This ticket retains the final
 campaign decision at its existing human gate. The three essay tickets remain
 retained until that decision changes them. Audience scoring stays in scope;
 token/time measurement and receipt quotas are removed.
@@ -366,3 +367,21 @@ rescoped, or canceled.
 - Confirmed there is no packaged marketing-context twin under
   `src/coga/resources/templates/coga/contexts/`; live `coga/` copies are the
   only required edit.
+
+## 2026-09-09 — owner input: YC channels
+
+- Coga is YC-backed, so two product-launch channels exist that the essay
+  channels do not cover: a **Launch YC** post and **YC amplifying** it from its
+  own accounts. Both are owner actions. Recorded in `marketing/distribution`
+  under `## YC channels and personal asks`, with the friends share ask.
+- **Owner placed them after phase 1, with the second run.** Post 1 stays a pure
+  essay opening. Open for this ticket: where exactly they sit against post 2's
+  window, given post 2 does not publish until day 14 plus a recorded proceed
+  decision, and the Day-0-to-+3 founder window belongs to the HN thread.
+- Genre tension to reconcile while planning: `marketing/plan`'s play states the
+  launch is *not* a product announcement, and a Launch YC post is one. Both
+  contexts now say the YC channels sit outside the play rather than replacing
+  it; confirm that is the framing the owner wants.
+- Note: this ticket carries `contexts: []`, so neither `marketing/plan` nor
+  `marketing/distribution` is composed into its launches — hence this summary
+  on the blackboard. Attach them if a later step needs the full policy.

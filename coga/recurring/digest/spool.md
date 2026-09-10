@@ -39,3 +39,4 @@ consumed_through: 2c04ba02765b
 {"id":"2c04ba02765b","ts":"2026-09-09T10:30","project":"coga","kind":"done","detail":"claude finished: sweep → done ✅","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
 {"id":"28cbde2305fc","ts":"2026-09-09T10:31","project":"coga","kind":"done","detail":"claude finished: flush → done ✅","ticket":"recurring/digest","owner":"nicktoper"}
 {"id":"58966bd52011","ts":"2026-09-09T10:31","project":"coga","kind":"done","detail":"claude finished: remind → done ✅","ticket":"recurring/blocker-reminders","owner":"nicktoper"}
+{"id":"76324bdd2669","ts":"2026-09-09T17:01","project":"coga","kind":"canceled","detail":"nicktoper canceled — Duplicate of make-sure-repo-clietn-don-t-edit-coga, which carries the filled ticket.","ticket":"dream-shouldn-t-touch-coga-in-coga-enabled-repo","owner":"nicktoper"}

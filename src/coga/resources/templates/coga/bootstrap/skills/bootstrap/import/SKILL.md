@@ -87,15 +87,99 @@ upstream repo, import date, local changes (the digests), and reason for
 adaptation (the notes) — without inventing a parallel scheme. Do not duplicate
 them into the `SKILL.md` body.
 
+### Installing and pruning
+
+`coga skill install-url <url> [path]` is the import path. Four things about how
+it actually behaves, none of them obvious from the field list above:
+
+- **`coga skill install` is not an import path.** The sibling command
+  (`install_github_skill`) only shells out to `gh skill install … --dir
+  coga/skills`. It writes no `.coga-source.json`, so `coga skill status` reports
+  the result as `delegated (github) — managed by gh skill metadata`: no digests,
+  and therefore no dirty detection and nothing for `coga skill update` to
+  compare. The seven `google-agents-cli-*` skills are exactly that. Reach for it
+  only when you deliberately want `gh` to own the skill; `install-local` has the
+  same property. **Both require you to name the skill**, and coga always runs
+  `gh` with captured output, so gh never gets to prompt interactively.
+
+  What gh does when you omit the name is version-dependent, and both outcomes
+  are bad — which is why the rule is "always pass it" rather than "gh will tell
+  you". On gh 2.92 the documented contract is that `repository` and a skill
+  name are *required* non-interactively, and gh refuses with "must specify a
+  skill name when not running interactively"; coga translates that into a rerun
+  hint (`_translate_gh_skill_error`). Newer gh has been reported to *list* the
+  matching skills instead of refusing — and a successful listing is the failure
+  mode to fear, because `install_github_skill` reads gh's zero exit as an
+  install and you get no error, no rerun hint, and no skill. Do not rely on the
+  refusal to catch a missing name.
+- **Pruning is the normal case, not the exception.** The optional selector can
+  only *descend* to a subdirectory that holds a `SKILL.md`; it cannot exclude
+  siblings (`_select_skill_dir`). So when upstream keeps its `SKILL.md` at the
+  archive root — the usual shape for a repo tarball whose whole point is one
+  skill — the selector has nothing to narrow and the entire repository lands
+  under `coga/skills/<name>/`: site, evals, commands, README/DESIGN prose, large
+  sample assets, and any packaging check that asserts those paths exist. Keep
+  `SKILL.md`, the `references/` the body loads by path, any `scripts/` a mode
+  invokes, and `LICENSE` where the license requires attribution. Delete the rest
+  and hand-write what you dropped, and why, into `local_adaptation_notes` — that
+  is the record a future human and a future `coga skill update` read.
+- **`locally-adapted (url)` is the expected status after a prune**, not a
+  failure. `coga skill status` calls a URL skill locally adapted the moment the
+  installed tree stops hashing to `installed_tree_digest` (`_status_url_skill`),
+  and a prune is exactly that divergence. It is the protection working: `update`
+  will not silently overwrite the skill without `--force`, and the notes explain
+  why the tree is smaller than upstream. A clean import is not the better
+  outcome; an honest one is.
+- **The install auto-commits *and publishes* before you can prune.**
+  `install-url` is in `_SWEEPING_SKILL_SUBCOMMANDS`, so coga's catch-all state
+  sweep (`git.sync_coga_state`) commits the freshly landed tree as a `Sync coga
+  state` commit on the way out — the unpruned bulk included. It does not stop
+  at a local commit: `_dispatch_branch_sync` pushes when HEAD is the control
+  branch, and from a feature branch it lands the same paths on the control
+  branch anyway. **Squashing a feature-branch pair therefore does not help** —
+  by the time you prune, the unpruned tree is already in control-branch
+  history, and only a history rewrite would remove it.
+
+  Decide which you want before you run the install:
+
+  - **Accept it.** Prune in a following commit and let control history carry
+    the bulk once. Fine for a few hundred KB; this is the normal path.
+  - **Keep it out of history.** Do the `install-url` in a throwaway clone,
+    prune there, then copy the pruned directory into the real repo and commit
+    that once. This is the only way to keep the unpruned tree out of the
+    control branch entirely.
+
 ## Where imported skills live
 
-Imported and adapted skills are ordinary project-local skills:
-`coga/skills/<namespace>/<name>/`, resolved before the bundled batteries
-like every other local skill. They stay plain directories — no package cache,
-no hidden service owns them — so the `.coga-source.json` sitting beside the
-`SKILL.md` is the *only* thing marking them as imported. Bundled
-package-backed skills under `bootstrap/skills/` are not an import target; those
-ship with Coga.
+Imported and adapted skills are ordinary project-local skills, resolved before
+the bundled batteries like every other local skill — but you do not pick where
+one lands. `install-url` takes the destination from the *upstream* `SKILL.md`'s
+frontmatter `name` (`_validated_url_skill_ref` validates it, `_skill_target`
+joins it under `coga/skills/`), and an upstream skill carries a plain Agent
+Skills name, so an import installs flat at `coga/skills/<name>/`. Every import
+in this repo looks like that: `coga/skills/clarity/` and the seven
+`coga/skills/google-agents-cli-*/`.
+
+The slash-separated `coga/skills/<namespace>/<name>/` form is Coga's own
+extension to the Agent Skills name. It is available to skills *you* write — the
+namespaced trees here (`coga/skills/marketing/write-post/`,
+`coga/skills/code/*`) are all locally authored, per `bootstrap/ticket` step 4 —
+**and an import can land on it too**. `_validated_url_skill_ref` deliberately
+accepts a slash-separated Coga namespace as well as a plain Agent Skills name,
+and `_skill_target` then installs at the matching nested path, so an upstream
+`SKILL.md` declaring `name: tools/example` lands at `coga/skills/tools/example`
+(`test_install_url_downloads_local_installs_and_records_coga_metadata` pins
+that case).
+
+So do not assume a flat ref. **Read the upstream `name:` and wire workflows to
+the ref it produces** — flat when upstream carries a plain Agent Skills name,
+which is the common case and what every import in this repo happens to be,
+nested when it carries a namespace.
+
+They stay plain directories — no package cache, no hidden service owns them —
+so the `.coga-source.json` sitting beside the `SKILL.md` is the *only* thing
+marking them as imported. Bundled package-backed skills under
+`bootstrap/skills/` are not an import target; those ship with Coga.
 
 ## Don't import broad skills blindly
 

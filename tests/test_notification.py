@@ -541,6 +541,33 @@ def test_important_post_without_important_webhook_crashes(
     assert "important_webhook" in capsys.readouterr().err
 
 
+def test_important_post_without_important_webhook_never_reroutes_when_non_fatal(
+    cfg_with_webhook,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`fatal=False` drops the alert; it never redirects it to the flow webhook.
+
+    The reroute is the fallback that would be wrong. A non-fatal caller only
+    declines to be *aborted* by the refusal.
+    """
+    calls: list[dict] = []
+
+    def fake_post(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        calls.append({"url": url, "json": json})
+        return _SlackResponse()
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
+    post(
+        cfg_with_webhook,
+        "fee window closes 2027-01-15",
+        important=True,
+        fatal=False,
+    )
+    assert calls == []
+    assert "important_webhook" in capsys.readouterr().err
+
+
 def test_local_important_webhook_overrides_shared(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -740,13 +767,15 @@ def test_post_failure_can_skip_unleased_audit_append(
     assert after == before
 
 
-def test_post_missing_webhook_still_crashes_when_non_fatal(
+def test_post_missing_webhook_reports_and_returns_when_non_fatal(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
-    """`fatal=False` covers *delivery*, not misconfiguration.
+    """`fatal=False` covers misconfiguration too, not only delivery.
 
-    An unresolved webhook is a setup error every rerun reproduces, so it keeps
-    crashing loud even on the transition path.
+    The remedy still lands on stderr, so nothing is hidden — but a caller
+    announcing a change already written to disk must not be aborted by its
+    notification sink. `preflight_post` is the gate that still crashes, and it
+    runs *before* the mutation.
     """
     _create_min(tmp_path)
     config_path = tmp_path / "coga.toml"
@@ -755,8 +784,23 @@ def test_post_missing_webhook_still_crashes_when_non_fatal(
     )
     monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
     cfg = load_config(tmp_path)
+    post(cfg, "should not crash", fatal=False)
+    assert "[notification.slack].webhook" in capsys.readouterr().err
+
+
+def test_post_missing_webhook_still_crashes_when_fatal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """The default path keeps the crash-loud configuration contract."""
+    _create_min(tmp_path)
+    config_path = tmp_path / "coga.toml"
+    config_path.write_text(
+        config_path.read_text().replace("SLACK_WEBHOOK_URL", "UNSET_SLACK_WEBHOOK")
+    )
+    monkeypatch.delenv("UNSET_SLACK_WEBHOOK", raising=False)
+    cfg = load_config(tmp_path)
     with pytest.raises(typer.Exit) as exc:
-        post(cfg, "should still crash", fatal=False)
+        post(cfg, "should still crash")
     assert exc.value.exit_code == 1
     assert "[notification.slack].webhook" in capsys.readouterr().err
 

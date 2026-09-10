@@ -9,6 +9,11 @@ Start with `marketing/plan` for the work sequence. This map locates the
 material behind it; each linked file owns its subject. Read or attach only
 what the current task needs. Paths below are relative to the repo root.
 
+Coverage checked on 2026-09-09: the marketing contexts, marketing writing
+skill, every current ticket/attachment under `coga/tasks/marketing/`, and
+related strategy, evidence, cleanup and documentation work. Incidental mentions
+in infrastructure tickets are not additional marketing source documents.
+
 ## Reusable knowledge and public entry points
 
 | Material | Authored home | Role |
@@ -39,13 +44,14 @@ what the current task needs. Paths below are relative to the repo root.
 | Work | Owning ticket |
 |---|---|
 | Audit extraction and current needs/drop ledger | [marketing/phase-0-audit](../../../tasks/marketing/phase-0-audit/ticket.md) |
-| Public examples with source references | [marketing/plan/collect-public-examples-for-the-launch](../../../tasks/marketing/plan/collect-public-examples-for-the-launch.md) |
+| Make and decide the story and examples | [Story/example decision ticket](../../../tasks/marketing/plan/collect-public-examples-for-the-launch.md) — the existing collection ref is retained; its brief now requires creation and an owner decision. |
 | Pitch, narrative, and supported copy | [marketing/plan/write-the-pitch-and-narrative](../../../tasks/marketing/plan/write-the-pitch-and-narrative.md) |
 | Final campaign choices and keep/drop review | [marketing/build-the-launch-plan](../../../tasks/marketing/build-the-launch-plan.md) |
 | Essays | [post 1](../../../tasks/marketing/post-async-megalaunch.md), [post 2](../../../tasks/marketing/post-you-own-it.md), [post 3](../../../tasks/marketing/post-doc-as-cache.md) |
 | Landing page and community | [marketing/readme-top](../../../tasks/marketing/readme-top.md), [marketing/discord](../../../tasks/marketing/discord.md) |
 | Product fixes, release, video and repo hygiene | [cleanup/README.md](../../../tasks/cleanup/README.md) and its nine sibling tickets |
 | Audience follow-up | `marketing/phase-1-retro` — planned; create before post 1 with the baseline and dated checkpoints. |
+| Telemetry proposal | [marketing/add-telemetry](../../../tasks/marketing/add-telemetry.md) — scope and any policy decision belong to that ticket; indexing it does not amend the current distribution policy. |
 | Newer pitch and proposed library relocation | [documentation-reorganization ticket](../../../tasks/redo-documentation-dir-and-merge-it-with-context-b.md) |
 | Audit lifecycle reconciliation | [existing status ticket](../../../tasks/phase-0-audit-is-complete-per-the-plan-but-still-i.md) |
 | Confidential attachment disposition | [existing confidentiality ticket](../../../tasks/narrative-candidates-md-publishes-log-text-the-own.md) |

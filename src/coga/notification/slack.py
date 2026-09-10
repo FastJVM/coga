@@ -18,12 +18,14 @@ class NotificationDeliveryError(RuntimeError):
 
     Deliberately distinct from this module's *configuration* failures (no
     webhook resolved, `--important` with no important webhook), which stay
-    `typer.Exit(1)`: those are setup errors that every rerun reproduces
-    identically, so crashing is what gets them fixed. A delivery miss is a
-    transient/remote condition — and by the time this is raised it has already
-    been written to stderr and appended to `log.md`, so a caller whose state
-    change is *already committed to disk* may swallow it (see
-    `notification.post(fatal=False)`) without hiding anything.
+    `typer.Exit(1)` from the channel: those are setup errors that every rerun
+    reproduces identically, so crashing is what gets them fixed. Whether that
+    crash reaches the caller is `notification.post`'s decision, exactly as it
+    is for this exception — a `fatal=False` caller downgrades both to a report.
+    A delivery miss is a transient/remote condition — and by the time this is
+    raised it has already been written to stderr and appended to `log.md`, so a
+    caller whose state change is *already committed to disk* may swallow it
+    (see `notification.post(fatal=False)`) without hiding anything.
     """
 
 
@@ -73,6 +75,12 @@ class SlackChannel:
         success is worse than crashing: the crash is what gets the config fixed.
         Downstream repos each carry their own `coga.toml`, so the unconfigured
         case is live, not theoretical.
+
+        This refusal stays absolute here: the fallback that would be wrong is
+        the *reroute*, not the crash. A caller that merely must not be aborted
+        by it — one announcing state already on disk — asks `post` for
+        `fatal=False`, which reports this refusal and returns without ever
+        delivering the alert somewhere it does not belong.
         """
         if not important:
             return self.cfg.slack_webhook

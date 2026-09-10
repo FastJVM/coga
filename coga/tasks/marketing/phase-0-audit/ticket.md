@@ -30,7 +30,7 @@ step: 2 (human-owns-and-finishes)
 Extract the reusable knowledge from the completed phase-0 audit into focused
 marketing contexts, and leave a current worklist with clear owners. Make
 `marketing/plan` the starting point: locate the documents, list needed
-deliverables and cuts, collect public examples, write the pitch/narrative,
+deliverables and cuts, make and decide the story/examples, write the pitch/narrative,
 then carry the decisions into the existing cleanup and launch tickets.
 
 The owner approved this organization and dropped the marketing token/time
@@ -53,8 +53,9 @@ or advance this audit's frozen workflow.
   honest limits. The owner clarification of 2026-09-08 leads with managing the
   intent, instructions, knowledge and state an AI session works from. Final
   wording is still the writing ticket's deliverable.
-- `marketing/plan/collect-public-examples-for-the-launch`: first, collect
-  public source material showing the interaction, correction and later reuse.
+- `marketing/plan/collect-public-examples-for-the-launch`: first, make concrete
+  story/example options and decide with the owner which to use. The old
+  collection ref is retained; this is a creative and editorial task.
 - `marketing/plan/write-the-pitch-and-narrative`: then write the reusable
   pitch and narrative from that material, for owner review.
 - `marketing/build-the-launch-plan`: use the supported message to finalize
@@ -98,7 +99,7 @@ authoring work.
 - Needed deliverables, approved cuts and unresolved owner inputs have named
   owners in the worklist.
 - The new writing tickets have concrete outputs, source constraints, a human
-  review workflow and an explicit examples-before-pitch dependency.
+  review workflow and an explicit story-decision-before-final-copy dependency.
 - Active consumers have no token-measurement prerequisite; historical notes
   are clearly labeled.
 - Links, task/context validation and an independent authoring review are
@@ -110,6 +111,9 @@ authoring work.
 
 - Owner approved extracting the audit into marketing contexts and creating
   follow-up writing tickets under `marketing/plan/`.
+- Owner corrected the first writing task on 2026-09-09: make and decide the
+  story/examples, rather than collecting an existing source packet. Newly
+  authored illustrations are allowed; factual event claims still need support.
 - Owner dropped token measurement from the marketing launch. The former
   protocol is archived in `marketing/launch-history`; real public examples
   remain required.
@@ -125,8 +129,8 @@ Recorded repo state on 2026-09-09; external observations retain their original
 dates in `marketing/distribution`.
 
 - [agent] Knowledge extraction — `marketing/map`, `marketing/distribution` and the revised `marketing/plan` prepared; consumers updated for the owner decision.
-- [claude → nicktoper] Public examples — draft `marketing/plan/collect-public-examples-for-the-launch`; collect the source packet before finalizing the pitch.
-- [claude → nicktoper] Pitch and narrative — draft `marketing/plan/write-the-pitch-and-narrative`; depends on the reviewed public examples.
+- [claude → nicktoper] Make and decide the story/examples — draft `marketing/plan/collect-public-examples-for-the-launch`; make options, recommend one, then record the owner's decision before final copy.
+- [claude → nicktoper] Pitch and narrative — draft `marketing/plan/write-the-pitch-and-narrative`; write from the chosen story and examples.
 - [nicktoper] Campaign and keep/drop decisions — existing `marketing/build-the-launch-plan` owner gate; reconcile the new message, retained essays and audience scorecard.
 - [cleanup assignees] Product prerequisites — branch-detection and source/debug-install tickets done; Python 3.11 fix at peer review; release, placeholder yank, first-run noise, Slack error handling, repo hygiene and demo check remain drafts.
 - [nicktoper] Release — `cleanup/publish-coga-1-0-to-pypi`; land the Python 3.11 fix before publishing.
@@ -143,4 +147,21 @@ dates in `marketing/distribution`.
 
 ## Verification
 
-Pending final link/validation checks and independent authoring review.
+- Coverage checked on 2026-09-09: all 19 current marketing context, skill,
+  ticket and attachment files are represented in the map; no missing files
+  or broken local links.
+- Local links in the new/revised context map and audit attachments: pass.
+- `git diff --check`: pass.
+- `coga validate --json`: no new errors against the saved baseline. The two
+  new drafts add the expected `unfrozen-workflow` warnings for their
+  authoring-time workflow names; activation freezes them.
+- `coga launch <slug> --prompt-report` composed the audit and both new
+  drafts without starting agents. Coga's accompanying Git fetch initially
+  hit the network sandbox; the approved retry succeeded.
+- Existing lifecycle fields, role fields and frozen workflows were compared
+  with their pre-edit values and preserved. Marketing contexts/skill have
+  no packaged twins.
+- Independent review found one unsupported duration in positioning. Removed
+  it, corrected the stale fork pointer and consolidated the opening guidance;
+  the reviewer verified the fixes. The optional broader positioning trim is
+  carried by the pitch ticket.

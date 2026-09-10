@@ -33,8 +33,9 @@ command or file path being
 acted on and the result count when available. For the sharded scan phases, say
 how many shards were launched and how many wrote a completion line. If a phase
 is skipped, say why.
-The blackboard remains the durable record; console progress is for the human
-watching the run.
+The blackboard is this run's record of what happened; console progress is for
+the human watching it happen. Neither is durable — that word belongs to the
+PRs, draft tickets, and markers a finding has to end in.
 
 ### Run order
 
@@ -102,9 +103,12 @@ nothing is indistinguishable from a clean repo. Run each scan like this:
    `find -printf`. Enrich those sizes with the compact routing metadata the
    phase skill names and write the full index to `index.md`. Then build the
    phase skill's ownership + evidence assignments at no more than 150 KB across
-   at most 40 distinct files, keeping a task directory's Markdown together and
-   never splitting a file. Append one attempt-1 shard row per assignment to
-   `manifest.md`.
+   at most 40 distinct files, keeping a task directory's Markdown together. A
+   file is never split across two owning shards; the one departure from
+   whole-file ownership is the protocol's **ranged ownership** for a file over
+   the 60 KB whole-read limit, which stays with a single owner and is priced at
+   its declared allowance rather than its full length. Append one attempt-1
+   shard row per assignment to `manifest.md`.
 3. **Run the shards.** Delegate each shard to a subagent using the phase's scan
    skill, passing the scan directory's absolute path, the shard id, and that
    shard's exact paths. Shards append to the shared `findings.md` and

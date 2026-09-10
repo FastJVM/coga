@@ -30,7 +30,9 @@ gate, not your say-so.
    committed and ahead of the base branch. If `branch:` / `worktree:` are
    missing, that is an earlier-step gap — do not improvise a branch here;
    escalate per your launch mode by asking the attending human, or by using
-   `coga block` with a one-line reason in a queue run.
+   `coga block` with a one-line reason in a queue run. Those steps are also not
+   finished while a review they ordered is still running — see *Refuse to
+   publish ahead of a review in flight* below before you run anything.
 2. **Run `coga open-pr <slug>` from the checkout that owns the live ticket.**
    In the legacy layout where `worktree:` names a separate linked worktree,
    return to the primary control checkout first; the control-branch ticket is
@@ -100,6 +102,64 @@ gate, not your say-so.
    exits, launch also publishes its trailing usage-log commit to that already-open
    branch, so the local and PR tips do not diverge after the gated bump.
 
+## Refuse to publish ahead of a review in flight
+
+Alongside the "never hand-open the PR" guard in step 2, this step carries a
+second refusal: **a step must not be bumped, and `coga open-pr` must not run,
+while the review that step ordered is still in flight.** Mergeability belongs to
+the earlier implement / peer-review step, and that step is not complete when a
+review has been *started* — it is complete when the review has returned and its
+must-fix findings are addressed, or explicitly deferred by the owner. A green
+`python -m pytest` is not a substitute — `code/self-qa` already records why.
+
+**The wait itself belongs to the preceding step, not here.** By the time this
+step's agent is composed, the `self-qa` / `peer-review` session that ordered the
+review has already bumped and exited, so this step cannot hold a review open —
+it can only refuse to publish. `code/self-qa` and the `with-review`
+`peer-review` section therefore carry the wait-before-bump rule at the point it
+can still be obeyed. What reaches this step is their durable evidence: a
+`## Self-QA` or `## Peer review` blackboard note stating which review form ran,
+that it **returned**, and what it found. Read that note before running
+`coga open-pr`. If it is absent, or records a review as started without
+recording that it returned, treat the review as still in flight and escalate per
+your launch mode instead of publishing.
+
+`reconcile-recurring-wrapper-tty-admission-guidance` is the worked case. PR #723
+was opened, advanced through this mechanical step, and merged as `5243dfd5`
+while a required independent `codex review --base origin/main` was still
+running. The review then returned six actionable regressions in the merged code,
+including two P1 stale-period races: a period start that was not an observable
+compare-and-set, and completion/timeout that never re-leased the period
+generation after the child exited. Repairing that cost a 19-commit follow-up
+branch, a second PR (#725), and sixteen further review rounds — every one of
+them against code already on `main`.
+
+The recovery the owner chose is the precedent for a review that lands after the
+merge: **hold the owner-controlled review gate and authorize a separate
+follow-up fix PR from current `main`.** Do not rewind or replay the merged
+ticket's implementation flow, and do not close the review gate while must-fix
+findings are unresolved. Record the owner's authorization on the blackboard so
+the corrective branch and PR are traceable to it; that authorization covers the
+follow-up work, not a workflow bump or task closure.
+
+**A blackboard note does not hold that gate — park the status.** The ticket is
+on its final step and its `## Dev` `pr:` still names the merged PR, which is
+exactly `autoclose`'s close predicate (`autoclose.py::_candidate`: final step
+plus `status` in `active`/`in_progress`). The next `autoclose-merged` sweep
+would therefore close the gate you meant to keep open, within 24h, and no
+amount of recorded authorization changes that. `paused` and `blocked` are the
+two statuses the sweep does not consider, so make the hold real:
+
+- `coga block --task <slug> --reason "post-merge review findings unresolved:
+  <specifics>"` when the gate is genuinely waiting on the owner. This is the
+  better fit — the ask shows up in `coga status --blocked` and the
+  `blocker-reminders` job keeps re-notifying until it is answered.
+- `coga mark paused <slug>` when the repair is already authorized and tracked
+  elsewhere, and the original only needs to stop being swept.
+
+Do the repair itself on its own ticket against current `main`; the merged
+ticket's `pr:` linkage stays pointed at the merged PR and is not rewritten.
+
 ## If `coga open-pr` fails
 
 Fix the cause and re-run it — it is idempotent:
@@ -131,6 +191,8 @@ Fix the cause and re-run it — it is idempotent:
 
 ## Acceptance for this step
 
+- Any review the preceding step ordered has returned, and its must-fix findings
+  are addressed or explicitly deferred by the owner.
 - `coga open-pr <slug>` has been run and `pr: <url>` is recorded under `## Dev`.
 - `coga bump <slug>` has advanced the workflow (its `requires: pr` gate passed).
 

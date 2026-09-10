@@ -5,7 +5,7 @@ status: draft
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: nicktoper
+assignee: claude
 contexts:
 - dev/code
 skills: []
@@ -152,6 +152,30 @@ line numbers drift — re-verify before relying on them):
   and `autoclose` (and `parse_branch_name` also feeds `pr_assist.py:176`); grep
   before changing their semantics — this ticket *reads* `worktree:`, it does not
   redefine it, so it should not need to.
+
+**Owner decision (2026-09-09) — remediation is settled; do not over-engineer
+detection.** The owner's steer is that this is a *rare* failure, so the design
+should buy detection cheaply rather than optimize for coverage:
+
+- **Report, never repair.** When the check fires it names both copies and shows
+  the difference; the operator decides which to keep. That is the whole
+  remediation — no auto-merge (see the matching gotcha below), and no blocking
+  prompt. The surfaces this check would land on (`bump`, `validate`, `open-pr`)
+  run inside launched agent sessions, where a `typer.confirm` would hang the
+  supervisor chain; core's only interactive prompts sit in `megalaunch`,
+  `uninstall`, and `unblock`, all commands a human types directly. "Ask the
+  operator" therefore means *refuse or warn with both paths printed* and let
+  the agent escalate — it does not mean prompting. Severity (refuse vs. warn)
+  is still open; see the "Fail loud or warn?" gotcha.
+- **Spend the design on the discriminator, not on coverage.** Because the case
+  is rare, prefer the simplest check that catches the common shape over a
+  general cross-checkout comparator. Asking the operator settles *what to do*
+  once divergence is found; it does not settle *when to ask*, and that remains
+  the hard part, because divergence is the normal state (first gotcha below).
+- **Landing residual 2 alone is the preferred outcome, not a consolation
+  prize.** If residual 1 cannot be detected cheaply, take the ticket's stated
+  fallback — ship the committed-duplicate check and spin residual 1 back to a
+  draft — rather than building speculative machinery for a rare case.
 
 Constraints and gotchas:
 
