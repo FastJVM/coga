@@ -1,7 +1,7 @@
 ---
 slug: make-sure-repo-clietn-don-t-edit-coga
 title: make sure repo clietn don't edit coga
-status: active
+status: in_progress
 owner: nicktoper
 human: nick
 agent: claude
@@ -38,6 +38,7 @@ workflow:
     assignee: owner
 secrets: null
 step: 1 (design)
+launch_generation: pending:90abeb1f-bf70-4b1c-995e-baddbbf7024a
 ---
 
 ## Description
