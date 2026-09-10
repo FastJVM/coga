@@ -4686,3 +4686,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-09 22:08 [make-sure-repo-clietn-don-t-edit-coga] [megalaunch] launched via coga megalaunch
 2026-09-09 21:59 [simplify-ticket-format] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
 2026-09-09 22:13 [coga] [git] sync failed: `git fetch --no-write-fetch-head https://github.com/FastJVM/coga refs/heads/main:refs/coga/fetch/b076b5d036a84f3f81f59b1011756b9c` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com
+2026-09-09 22:17 [make-sure-repo-clietn-don-t-edit-coga] [agent:claude] advanced to step 2 (evaluate-design) → assigned to codex
