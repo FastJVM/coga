@@ -1609,6 +1609,42 @@ def run_recurring_scan(
         scan_lines=scan_lines_for_record(scan, force=force),
         scan_errors=list(scan.errors),
     )
+    # Forced preparation mutates each DueTask's status. Remember admitted
+    # watchdog recoveries so an unsuccessful retry cannot report success.
+    watchdog_recoveries: set[str] = set()
+    for task in scan.tasks:
+        if not task.watchdog_paused or task.ref is None:
+            continue
+        if force and not task.launch_refusal:
+            watchdog_recoveries.add(task.ref.id_slug)
+            continue
+        paused_ticket = read_ticket(task.ref)
+        detail = (
+            "watchdog timeout left this run paused. "
+            f"Resume with `coga launch {task.ref.id_slug}`; "
+            "its recorded step and blackboard are retained. "
+            f"Audit: {task.watchdog_pause}"
+        )
+        if task.launch_refusal:
+            typer.secho(
+                f"{task.ref.id_slug}: {task.launch_refusal}",
+                fg=typer.colors.YELLOW,
+                err=True,
+            )
+            detail = f"Forced recovery refused: {task.launch_refusal} {detail}"
+        record.scan_problems.append((task.ref.id_slug, detail))
+        notify(
+            cfg,
+            f"⚠️ *{task.ref.id_slug}*: {detail}",
+            kind="recurring-error",
+            detail=detail,
+            ticket=task.ref.id_slug,
+            owner=paused_ticket.owner or cfg.current_user,
+            watchers=paused_ticket.watchers,
+            task_path=task.ref.path,
+            important=True,
+            fatal=False,
+        )
 
     # `force` launches every materialized task regardless of status;
     # the bare sweep launches only the launchable (active/in_progress) ones.
@@ -1620,7 +1656,7 @@ def run_recurring_scan(
         typer.echo(message)
         record.note(message)
         run_autofix(cfg, record, agent_override=agent_override)
-        return 0
+        return 2 if record.scan_problems else 0
 
     label = "task(s)" if force else "due task(s)"
     typer.echo(f"\nLaunching {len(due)} {label} sequentially...\n")
@@ -1630,7 +1666,7 @@ def run_recurring_scan(
     # `ticket.py` exiting non-zero, `_stop_if_unfinished_after_launch` exiting
     # on an invalid ticket — is exactly the run most worth analyzing.
     try:
-        return _launch_due_tasks(
+        code = _launch_due_tasks(
             cfg,
             due,
             record,
@@ -1640,6 +1676,30 @@ def run_recurring_scan(
             control_remote_expected=control_remote_expected,
             agent_spawn_refusal=agent_spawn_refusal,
         )
+        # An admitted watchdog recovery must prove it completed. Checking only
+        # for a *problem* outcome misses every path that records a note and
+        # continues without an outcome at all — a lease change after
+        # admission, a `kind == "skipped"` control refresh, a removed period.
+        # Those leave the task watchdog-paused with no recovery run, and the
+        # sweep would report success. Absence of a completed outcome is the
+        # failure signal, so new skip paths are covered without being listed.
+        recovered = {
+            outcome.slug for outcome in record.outcomes if not outcome.is_problem
+        }
+        failed_recoveries = {
+            outcome.slug for outcome in record.outcomes if outcome.is_problem
+        }
+        unrecovered = sorted(
+            (watchdog_recoveries - recovered) | (watchdog_recoveries & failed_recoveries)
+        )
+        for slug in unrecovered:
+            detail = (
+                f"{slug} was admitted as a watchdog recovery but no completed "
+                "run was recorded; it is still paused"
+            )
+            typer.secho(detail, fg=typer.colors.RED, err=True)
+            record.note(detail)
+        return code or (2 if record.scan_problems or unrecovered else 0)
     finally:
         run_autofix(cfg, record, agent_override=agent_override)
 
@@ -4809,8 +4869,14 @@ def _print_table(scan: DueScan, *, force: bool = False) -> None:
             # An orphaned `in_progress` period task from a dead sweep — relaunch
             # resumes its current step rather than starting a fresh run.
             action = typer.style("→ resume", fg=typer.colors.YELLOW)
-        elif task.launchable or force:
+        elif task.launchable or (force and not task.launch_refusal):
             action = typer.style("→ launch", fg=typer.colors.GREEN)
+        elif task.watchdog_paused:
+            action = typer.style(
+                "needs attention (watchdog timeout; "
+                f"coga launch {task.ref.id_slug})",
+                fg=typer.colors.RED,
+            )
         else:
             action = typer.style(
                 f"skip ({task.status})", fg=typer.colors.BRIGHT_BLACK

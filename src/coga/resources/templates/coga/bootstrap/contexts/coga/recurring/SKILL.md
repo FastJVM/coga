@@ -69,8 +69,18 @@ the example under "Extend recurring with a task-specific workflow").
   re-launches that bootstrap target. If an interactive launch returns
   unfinished, the sweep pauses it before continuing, so a frozen `in_progress`
   period task can still mean "dead run's orphan" rather than "human parked it".
-  `done` from the *current* period (finished work) and `paused` (a human
-  parked it) stay skipped. A `done` run left over from a **prior** period —
+  `done` from the *current* period (finished work) and human-parked `paused`
+  runs stay skipped. A watchdog-paused run stays parked but is an unresolved
+  failure: every sweep shows `needs attention (watchdog timeout)` with the
+  exact resume command, counts it in `problems:`, emits a recurring-error
+  notification, and returns non-zero after running other due tasks. This also
+  works with no TTY or no other due work, independently of the autofix analyst.
+  Provenance comes from the latest pause audit entry's `system:watchdog`
+  actor, so existing watchdog pauses are detected without migration. The
+  scanner compares audit timestamps (append order breaks same-minute ties),
+  and a later human pause or task creation supersedes old timeout evidence.
+  It streams the log once only when there are paused periods to classify.
+  A `done` run left over from a **prior** period —
   finished but never reaped by Dream's retro pass — is **deleted before a
   fresh task is created** from the current template. The new task starts
   `active` at workflow step 1 with a fresh blackboard, a re-baselined state-key
@@ -606,8 +616,16 @@ This extension seam has five important constraints:
   `coga recurring` sweep gets control back from an unfinished agent launch, it
   pauses the period task before continuing. That includes an intermediate
   human or unassigned handoff and a task that invoked `coga block`; the paused
-  run is skipped by later sweeps and cannot use ordinary `bump` / `unblock`
-  from that state. Do not put human gates or expected blockers in a scheduled
+  run cannot use ordinary `bump` / `unblock` from that state. Watchdog timeouts
+  keep failing subsequent sweeps until explicitly resumed: use
+  `coga launch recurring/<name>` to continue the saved step, or
+  `coga mark active recurring/<name>` to make the next sweep resume it.
+  `--force` also resumes paused runs; its resulting task outcome determines
+  success instead of counting the pre-recovery pause twice. A paused run is
+  never replaced just because another period is due. Its ticket and findings
+  remain intact; route unfinished findings into durable artifacts before
+  explicitly closing a run instead of resuming it.
+  Do not put human gates or expected blockers in a scheduled
   agent workflow. Use the on-demand `coga recurring launch <name>` path (then
   drive the ordinary ticket handoff) or an ordinary task when a run needs
   those intermediate states.
@@ -617,7 +635,17 @@ This extension seam has five important constraints:
   (`delegate: bootstrap/<name>`) is agent-backed for this purpose — its
   delegated run is an agent launch — and is skipped headless the same way,
   including when an `active` / `in_progress` period already exists from an
-  earlier attended sweep. Admission leaves that period untouched and continues
+  earlier attended sweep. A scan can still inspect and report a paused
+  period without admitting an agent; a forced launch retains the TTY gate.
+  Refused watchdog recovery remains an unresolved failure, not a task run.
+  So does a recovery that was *admitted* and then never ran: an admitted
+  watchdog recovery must produce a completed outcome, and the sweep exits 2
+  naming any slug that did not. The check is absence-based on purpose —
+  several paths (a period lease that changed after admission, a control
+  refresh that skips the launch, a removed period) record only a note and
+  continue with no outcome at all, so looking for a failed outcome would see
+  nothing and report success while the task stayed paused.
+  Admission leaves that period untouched and continues
   to later deterministic jobs. A template carrying `ticket.py` runs directly
   without a TTY and is the appropriate shape for an unattended scheduler.
 
