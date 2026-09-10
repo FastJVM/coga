@@ -1089,3 +1089,75 @@ for Shape 7's warning: the conversion commit must be refreshed from the exact
 control revision at the gate, and the field/token diff re-verified, and it will
 likely need repeating. Stopping the dispatchers first is what makes that
 comparison hold still.
+
+## PR-review assist — 2026-09-10
+
+- Verified the recorded feature checkout is clean on `simplify-ticket-format`.
+  PR #784 is open, its actual head repository matches the sole configured
+  `origin` push URL (`https://github.com/FastJVM/coga`), and a fresh private-ref
+  fetch matches both local HEAD and the reported PR head at `a4c6b5921902`.
+  The private verification ref was deleted after recording the OID.
+- The attending owner approved all four fixes with "ok" after the concrete
+  plan and tradeoffs. Applied them in the recorded feature checkout:
+  - `Template.load` rejects every `REJECTED_TICKET_KEYS` field before named or
+    scheduled materialization; validation reports the offending names as
+    `bad-recurring-template`. Tests cover all four fields and confirm no period,
+    audit write, or template mutation occurs.
+  - Bootstrap completion uses `resolve_main_agent` for the target's explicit
+    agent or configured default. Invalid explicit choices refuse before
+    posting, auditing, or emitting completion. Tests verify message and audit
+    attribution, the completion sentinel, and unchanged target bytes.
+  - Frozen future peer steps validate against the prospective default when
+    `agent` is absent, without persisting it. Tests cover one/two/three-agent
+    configurations, explicit peers, ambiguity, and malformed explicit values
+    retaining their schema diagnostics.
+  - Corrected current-direction, architecture and recurring contexts, existing
+    packaged twins, code/docs review workflows, and calendar-reminder examples
+    to describe derived operators, live peers, and ephemeral overrides.
+    Removed the remaining instructions to write a top-level assignment.
+- Saved source-pinned read-only validation baselines in
+  `/tmp/coga-pr784-review-{real,example}-before.json`: real has the same four
+  draft-blackboard errors and 22 warnings (15 unfrozen workflows, five idle
+  tasks, two large blackboards); example has no findings. The inherited bare
+  Slack variable was unset for the example; no webhook or secret was probed.
+  After-fix reports at the corresponding `*-after.json` paths have exactly the
+  same task/kind/severity counts: no findings added or removed. Real validation
+  exits 1 for its four existing errors; example validation exits 0.
+- Resolved the previously reported test-environment gap without changing an
+  installed writer: created `/tmp/coga-pr784-review-venv` using Python 3.12
+  with system site packages and installed the declared Hatchling test
+  dependency there. The earlier packaging failure is therefore no longer an
+  unverified exception: the full source-pinned suite, including wheel build and
+  twin parity, passed: **2425 passed in 206.04s (0:03:26)**. The focused
+  regressions and twin check passed **20 tests in 1.74s**. Full output is saved
+  at `/tmp/coga-pr784-full-suite.txt`; `git diff --check` passes.
+- Committed and pushed `55f8829906a324f5f9f86e35c38666fae42d5821`
+  (`Fix simplified ticket routing review findings`). Fresh PR metadata and a
+  new private-ref fetch agreed on `a4c6b5921902`; ancestry proof passed and the
+  push used that exact tip as its lease. GitHub's post-push head and local HEAD
+  both equal the fix commit. Re-read each thread immediately before replying;
+  all four now have one fix/test reply and remain unresolved for the owner.
+- The feature checkout is clean. The control ticket remains old-schema,
+  `in_progress`, step `6 (review)`; only this blackboard changed there, and the
+  existing dirty `coga/log.md` was not edited or staged. No mutating Coga command
+  ran in the feature checkout. No bump, completion, merge, branch deletion, or
+  thread resolution was performed. Shape 7's writer quiet window, final
+  control/conversion reconciliation, and owner merge decision remain open.
+
+```sh
+# From the recorded feature checkout:
+PYTHONDONTWRITEBYTECODE=1 \
+  PYTHONPATH=/home/n/Code/codex/coga-simplify-ticket-format/src \
+  /tmp/coga-pr784-review-venv/bin/python -m pytest -q --no-header \
+  -p no:randomly -p no:cacheprovider
+
+# From its coga/ directory:
+PYTHONDONTWRITEBYTECODE=1 \
+  PYTHONPATH=/home/n/Code/codex/coga-simplify-ticket-format/src \
+  /tmp/coga-pr784-review-venv/bin/python -m coga.validate --json
+
+# From its example/coga/ directory:
+env -u SLACK_WEBHOOK_URL PYTHONDONTWRITEBYTECODE=1 \
+  PYTHONPATH=/home/n/Code/codex/coga-simplify-ticket-format/src \
+  /tmp/coga-pr784-review-venv/bin/python -m coga.validate --json
+```
