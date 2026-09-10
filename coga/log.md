@@ -4713,3 +4713,6 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-10 09:55 [recurring/digest] [human:nicktoper] task done
 2026-09-10 09:55 [simplify-ticket-format] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-10 09:55 [simplify-ticket-format] [human:nicktoper] started (active → in_progress) via coga launch
+2026-09-10 09:55 [detect-stranded-ticket-writes-across-checkouts] [git] sync refused: coga/tasks/detect-stranded-ticket-writes-across-checkouts.md: published launch claim would be cleared without an authorized session-ending lifecycle transition
+2026-09-10 09:55 [recurring/digest] [system] script exited with code 0
+2026-09-10 09:56 [agent-usage-report] [agent:claude] advanced to step 2 (evaluate-design) → assigned to codex
