@@ -1,7 +1,7 @@
 ---
 slug: dream-shouldn-t-touch-coga-in-coga-enabled-repo
 title: dream shouldn't touch coga in coga enabled repo
-status: draft
+status: canceled
 owner: nicktoper
 human: nicktoper
 agent: claude
