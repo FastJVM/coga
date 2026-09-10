@@ -39,7 +39,7 @@ workflow:
     assignee: owner
 secrets: null
 step: 2 (evaluate-design)
-launch_generation: pending:f8fcec00-69d6-4909-9076-0f87cee19fc5
+launch_generation: f8fcec00-69d6-4909-9076-0f87cee19fc5
 ---
 
 ## Description
