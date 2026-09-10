@@ -95,6 +95,18 @@ the example under "Extend recurring with a task-specific workflow").
   template's problem is not its licence to cancel the ones behind it, which is
   the same isolate-and-aggregate posture `coga recurring --all` takes across
   repos.
+
+  Two exit classes are exempt, because they are not template failures and
+  aggregating them would let the sweep start work that was just forbidden.
+  Both re-raise immediately, stopping the sweep where they happened:
+
+  - **75** (`git.RETRY_WITHOUT_SWEEP_EXIT_CODE`) — an aligned-assist
+    publication or teardown refused and deliberately left dirty retained state
+    for the operator to reconcile. No later template may run a refresh, sync,
+    or agent that could disturb or publish those bytes first.
+  - **≥ 128** — a process-level interrupt. `commands/launch.py` turns
+    SIGINT/SIGTERM into `SystemExit(128 + signum)`, and an explicit
+    cancellation must never initiate additional work.
 - `coga recurring --force` — ignores schedule and status filters and attempts
   the real period task for every template, reactivating `done` and `paused`
   runs. A `canceled` task remains terminal: the runner reports a controlled

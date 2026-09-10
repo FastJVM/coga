@@ -1885,6 +1885,21 @@ def _launch_due_tasks(
             # non-zero code is returned once every due template has had its
             # turn.
             code = _exit_status(exc)
+            # Two exit classes are *not* template failures and must stop the
+            # sweep where they happened. Aggregating them would let this sweep
+            # start work the operator or the launch contract just forbade, and
+            # returning them after the fact is too late.
+            if code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
+                # An aligned-assist publication or teardown refused and
+                # deliberately left dirty retained state for the operator to
+                # reconcile. No later template may run a refresh, sync, or
+                # agent that could disturb or publish those bytes first.
+                raise
+            if code >= 128:
+                # Process-level interrupt: `commands/launch.py`'s handler turns
+                # SIGINT/SIGTERM into `SystemExit(128 + signum)`. An explicit
+                # cancellation must never initiate additional work.
+                raise
             if code:
                 _record_outcome(
                     record,
