@@ -853,6 +853,7 @@ decision status.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/784
 branch: simplify-ticket-format
 worktree: /home/n/Code/codex/coga-simplify-ticket-format
 
