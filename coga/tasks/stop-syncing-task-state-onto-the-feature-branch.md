@@ -1,7 +1,7 @@
 ---
 slug: stop-syncing-task-state-onto-the-feature-branch
 title: Stop syncing task state onto the feature branch
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -11,8 +11,29 @@ contexts:
 - coga/codebase
 - coga/principles
 skills: []
-workflow: code/with-self-review
+workflow:
+  name: code/with-self-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+  - name: self-qa
+    skills:
+    - code/self-qa
+    assignee: agent
+  - name: pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
 secrets: null
+step: 1 (implement)
 ---
 
 ## Description
