@@ -49,7 +49,7 @@ from coga.git import (
 )
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.repl_supervisor import EXPECTED_TASK_ENV
-from coga.taskfile import split_body
+from coga.taskfile import TaskFileError, split_body
 from coga.tasks import TaskNotFoundError, read_ticket, resolve_task
 from coga.ticket import Ticket
 
@@ -101,9 +101,21 @@ def _single_checkout_publishable_paths(
     A primary-checkout feature branch accumulates lifecycle commits from
     `launch` / `bump`, so a non-zero commit count does not prove that the
     implementation produced anything to review. Compare the branch side of the
-    fork and exclude exactly the generated paths the freshness check treats as
-    operational state: `coga/tasks/**` and `coga/log.md` (adjusted for a Coga OS
-    rooted at the Git toplevel).
+    fork and drop what Coga generated — but decide that by *ownership of the
+    bytes*, not by pathspec. A blanket `coga/tasks/**` exclusion refuses a
+    ticket-prose PR (rewriting a description or acceptance criteria is real,
+    reviewable work), and a blanket allowance would let a branch carrying only
+    lifecycle churn open an empty PR.
+
+    Two content-level rules replace it. A `merge=union` file is an append-only
+    machine queue or audit log by construction — git itself is asked, so a
+    future union file is covered without being named here. A ticket is
+    generated-only when its authored half — frontmatter minus the lifecycle
+    fields Coga commands write, plus the body above the blackboard fence — is
+    byte-identical on both sides; a ticket Coga only advanced is invisible,
+    while one whose prose a human changed is publishable. Anything unparseable
+    or newly added counts as publishable: refusing a real PR is the worse
+    failure.
     """
     try:
         coga_prefix = coga_root.resolve().relative_to(checkout_root).as_posix()
@@ -125,12 +137,94 @@ def _single_checkout_publishable_paths(
 
     prefix = "" if coga_prefix == "." else f"{coga_prefix}/"
     tasks_prefix = f"{prefix}tasks/"
-    log_path = f"{prefix}log.md"
-    return [
-        path
-        for path in changed.stdout.split("\0")
-        if path and path != log_path and not path.startswith(tasks_prefix)
-    ]
+    candidates = [path for path in changed.stdout.split("\0") if path]
+    if not candidates:
+        return []
+    union_paths = _union_attributed_paths(candidates, cwd=str(checkout_root))
+    publishable = []
+    for path in candidates:
+        if path in union_paths:
+            continue
+        if path.startswith(tasks_prefix) and path.endswith(".md"):
+            base_text = _blob_text(f"{base_ref}:{path}", cwd=str(checkout_root))
+            head_text = _blob_text(f"HEAD:{path}", cwd=str(checkout_root))
+            if base_text is None or head_text is None:
+                publishable.append(path)
+                continue
+            base_authored = _authored_ticket_signature(base_text)
+            head_authored = _authored_ticket_signature(head_text)
+            if (
+                base_authored is not None
+                and base_authored == head_authored
+            ):
+                continue
+        publishable.append(path)
+    return publishable
+
+
+# Frontmatter fields Coga's own commands write as a task moves through its
+# workflow. Everything else in the frontmatter — title, contexts, workflow,
+# owner, secrets — is authored, so a change to one is reviewable work.
+_GENERATED_TICKET_KEYS = frozenset(
+    {"status", "step", "assignee", "launch_generation"}
+)
+
+
+def _authored_ticket_signature(text: str) -> str | None:
+    """The human-authored half of a ticket, or None when it does not parse.
+
+    Everything a Coga command owns is dropped: the lifecycle frontmatter fields
+    and the whole blackboard region, which is working memory rather than review
+    payload. What remains is what a reviewer would actually read a diff of.
+    """
+    if not text.startswith("---\n"):
+        return None
+    end = text.find("\n---\n", 3)
+    if end == -1:
+        return None
+    frontmatter = text[4 : end + 1]
+    body = text[end + 5 :]
+    kept: list[str] = []
+    dropping = False
+    for line in frontmatter.splitlines():
+        if line[:1] not in {" ", "\t", "-"} and ":" in line:
+            dropping = line.split(":", 1)[0].strip() in _GENERATED_TICKET_KEYS
+        if not dropping:
+            kept.append(line)
+    try:
+        above, _blackboard = split_body(body, blackboard_required=False)
+    except TaskFileError:
+        return None
+    return "\n".join(kept) + "\n\x00" + above
+
+
+def _union_attributed_paths(paths: list[str], *, cwd: str) -> set[str]:
+    """Paths git resolves to the `merge=union` driver — append-only by design.
+
+    Asking git rather than naming `log.md` and the digest spool keeps a future
+    union file covered the moment `.gitattributes` marks it.
+    """
+    result = _git(
+        ["check-attr", "-z", "merge", "--", *paths],
+        cwd=cwd,
+    )
+    if result.returncode != 0:
+        return set()
+    fields = result.stdout.split("\0")
+    union: set[str] = set()
+    for index in range(0, len(fields) - 2, 3):
+        path, attribute, value = fields[index : index + 3]
+        if attribute == "merge" and value == "union":
+            union.add(path)
+    return union
+
+
+def _blob_text(revision_path: str, *, cwd: str) -> str | None:
+    """Decoded blob content at `<rev>:<path>`, or None when it is not there."""
+    result = _git(["show", revision_path], cwd=cwd)
+    if result.returncode != 0:
+        return None
+    return result.stdout
 
 
 def _remote_branch_oid(remote: str, branch: str, *, cwd: str) -> str | None:
