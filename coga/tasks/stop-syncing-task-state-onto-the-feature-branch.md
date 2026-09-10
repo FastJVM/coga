@@ -1,7 +1,7 @@
 ---
 slug: stop-syncing-task-state-onto-the-feature-branch
 title: Stop syncing task state onto the feature branch
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -34,6 +34,7 @@ workflow:
     assignee: owner
 secrets: null
 step: 1 (implement)
+launch_generation: pending:f10c452f-6ae0-4187-92df-81d3085fffcf
 ---
 
 ## Description
