@@ -5481,6 +5481,128 @@ def test_recurring_sweep_skips_task_removed_by_create_sync(
     assert git_repo.git("status", "--porcelain") == ""
 
 
+def test_recurring_sweep_launches_created_task_under_autocrlf(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The sweep's own control landing is not a concurrent edit.
+
+    With `core.autocrlf=true` the post-landing restore + rebase re-checks-out
+    the period ticket as CRLF. The admission lease taken before the sync must
+    not read that rewrite as the control branch changing the task.
+    """
+    git_repo.git("config", "core.autocrlf", "true")
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
+    _seed_global_log(git_repo)
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+
+    launched: list[str] = []
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))  # Mon, 2026-W24
+    _patch_recurring_command_launch(
+        monkeypatch, coga_os, lambda slug, **kwargs: launched.append(slug)
+    )
+    monkeypatch.setattr("coga.recurring_runner.notify", lambda *a, **k: None)
+
+    cfg = load_config(coga_os)
+    assert recurring_cmd.run_recurring_scan(cfg) == 0
+
+    assert launched == ["recurring/weekly-check"]
+    assert git_repo.git("status", "--porcelain") == ""
+
+
+def test_recurring_sweep_reports_created_task_changed_on_control(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A real concurrent control edit skips the launch loudly, never silently.
+
+    The task stays in the scan table and the run record, and the unlaunched
+    live ticket counts as a problem.
+    """
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
+    _seed_global_log(git_repo)
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+    task_rel = "coga/tasks/recurring/weekly-check/ticket.md"
+
+    real_sync = recurring_cmd._sync_recurring_create
+
+    def racing_sync(cfg_arg, template_name, ref, **kwargs):  # type: ignore[no-untyped-def]
+        winner = Ticket.read(ref.ticket_path)
+        winner.frontmatter["period_generation"] = "concurrent-generation"
+        winner.body += "\nConcurrent edit.\n"
+        git_repo.push_competing_commit(task_rel, winner.render())
+        return real_sync(cfg_arg, template_name, ref, **kwargs)
+
+    monkeypatch.setattr(recurring_cmd, "_sync_recurring_create", racing_sync)
+    launched: list[str] = []
+    records: list[recurring_cmd.RunRecord] = []
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))  # Mon, 2026-W24
+    _patch_recurring_command_launch(
+        monkeypatch, coga_os, lambda slug, **kwargs: launched.append(slug)
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "run_autofix", lambda cfg, record, **kw: records.append(record)
+    )
+    monkeypatch.setattr("coga.recurring_runner.notify", lambda *a, **k: None)
+
+    cfg = load_config(coga_os)
+    assert recurring_cmd.run_recurring_scan(cfg) == 2
+
+    assert launched == []
+    [record] = records
+    rendered = record.render()
+    assert "- templates scanned: 1" in rendered
+    assert "skip (lease changed)" in rendered
+    assert "- problems: 1" in rendered
+    assert "## Unresolved recurring failures" in rendered
+    assert "`recurring/weekly-check`" in rendered
+    assert "recurring/weekly-check: created, then not launched (lease changed)" in (
+        rendered
+    )
+    local = Ticket.read(coga_os / "tasks" / "recurring" / "weekly-check" / "ticket.md")
+    assert local.frontmatter["period_generation"] == "concurrent-generation"
+
+
 def test_recurring_launch_does_not_revert_remote_done_period_from_stale_main(
     git_repo, monkeypatch
 ) -> None:
@@ -6194,7 +6316,9 @@ def test_forced_recurring_scan_reports_canceled_and_continues(
         ),
         delegate=None,
     )
-    scan = SimpleNamespace(forced=[canceled, later], due=[], tasks=[], errors=[])
+    scan = SimpleNamespace(
+        forced=[canceled, later], due=[], tasks=[], errors=[], sync_problems=[]
+    )
     launched: list[str] = []
 
     monkeypatch.setattr(
@@ -6272,7 +6396,7 @@ def test_forced_recurring_scan_prepares_then_launches_task(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[task], due=[], tasks=[], errors=[]
+            forced=[task], due=[], tasks=[], errors=[], sync_problems=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -6362,7 +6486,7 @@ def test_recurring_scan_returns_failed_script_exit_without_unwinding(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[], due=[first, second], tasks=[], errors=[]
+            forced=[], due=[first, second], tasks=[], errors=[], sync_problems=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -6443,7 +6567,7 @@ def test_recurring_scan_stops_immediately_on_non_template_exits(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[], due=[first, second], tasks=[], errors=[]
+            forced=[], due=[first, second], tasks=[], errors=[], sync_problems=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -6523,7 +6647,7 @@ def test_recurring_scan_names_every_failed_template_in_the_run_record(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[], due=[first, second, third], tasks=[], errors=[]
+            forced=[], due=[first, second, third], tasks=[], errors=[], sync_problems=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)

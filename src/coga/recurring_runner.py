@@ -1608,7 +1608,14 @@ def run_recurring_scan(
         agent_override=agent_override,
         scan_lines=scan_lines_for_record(scan, force=force),
         scan_errors=list(scan.errors),
+        scan_problems=list(scan.sync_problems),
     )
+    for task in scan.tasks:
+        if task.skip_reason and task.ref is not None:
+            record.note(
+                f"{task.ref.id_slug}: created, then not launched "
+                f"({task.skip_reason})"
+            )
     # Forced preparation mutates each DueTask's status. Remember admitted
     # watchdog recoveries so an unsuccessful retry cannot report success.
     watchdog_recoveries: set[str] = set()
@@ -2266,6 +2273,24 @@ def _revision_period_lease(
     )
 
 
+def _same_period_lease(actual: _PeriodLease, expected: _PeriodLease) -> bool:
+    """Whether two period leases name the same ticket, ignoring line endings.
+
+    Line endings are not period state. Under `core.autocrlf=true` git stores the
+    ticket LF but checks it out CRLF, so the create sync's own restore + rebase
+    rewrites the admitted bytes, and a control-revision lease never matches a
+    worktree one byte for byte. Neither is the control branch changing the
+    period. The generation is derived from the bytes, so equal normalized bytes
+    imply an equal generation. Only lease comparisons normalize; the
+    `expected_ticket_bytes` CASes still compare raw bytes.
+    """
+
+    def normalized(data: bytes | None) -> bytes | None:
+        return None if data is None else data.replace(b"\r\n", b"\n")
+
+    return normalized(actual.ticket_bytes) == normalized(expected.ticket_bytes)
+
+
 def _local_parent_state_lease(
     cfg: Config, ref: TaskRef
 ) -> _ParentStateLease | None:
@@ -2310,7 +2335,7 @@ def _period_lease_guard(
 
     def guard(base: str) -> None:
         actual = _revision_period_lease(cfg, ref, base)
-        if actual != expected:
+        if not _same_period_lease(actual, expected):
             changed: list[str] = []
             if actual.ticket_bytes != expected.ticket_bytes:
                 changed.append("ticket bytes")
@@ -3004,7 +3029,9 @@ def run_recurring_named(
         return 2
 
     if outcome.created:
-        if _local_period_lease(cfg, ref) != created_period_lease:
+        if not _same_period_lease(
+            _local_period_lease(cfg, ref), created_period_lease
+        ):
             typer.secho(
                 f"{ref.id_slug} changed on the control branch during recurring "
                 "admission; not launching.",
@@ -3429,7 +3456,13 @@ def _sync_recurring_create(
         sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
         _append_sync_failure(cfg, ref.path, exc)
     finally:
-        if restore_ticket:
+        # `read_text` folds CRLF, so an unchanged template is left alone. Under
+        # `core.autocrlf=true` the sync's own checkout writes it CRLF; rewriting
+        # it LF would leave a stray diff for the next state sync to sweep.
+        current_ticket = (
+            template_ticket.read_text() if template_ticket.is_file() else ""
+        )
+        if restore_ticket and current_ticket != restore_ticket:
             template_ticket.write_text(restore_ticket)
     return created_on_control
 
@@ -4822,23 +4855,36 @@ def _broadcast_scan(
             sys.stderr.write(f"[recurring] skipping {task.template}: {exc}\n")
             scan.errors.append((task.template, str(exc)))
             continue
+        # The two skips below keep the task in `scan.tasks`: removing it would
+        # drop the template from the scan table, the record's `templates
+        # scanned`, and every other trace of the sweep.
         if not (task.ref.ticket_path).is_file():
-            scan.tasks.remove(task)
+            task.skip_reason = "handled on control"
             typer.secho(
                 f"{task.ref.id_slug} was already handled on the control branch; "
                 "not launching.",
                 fg=typer.colors.BRIGHT_BLACK,
             )
             continue
-        if (
-            created_period_lease is not None
-            and _local_period_lease(cfg, task.ref) != created_period_lease
+        if created_period_lease is not None and not _same_period_lease(
+            _local_period_lease(cfg, task.ref), created_period_lease
         ):
-            scan.tasks.remove(task)
+            task.skip_reason = "lease changed"
             typer.secho(
                 f"{task.ref.id_slug} changed on the control branch during "
                 "recurring admission; not launching.",
                 fg=typer.colors.BRIGHT_BLACK,
+            )
+            # A problem, not a quiet skip: it leaves this period's ticket on
+            # disk unlaunched, and nothing else will run it this period.
+            scan.sync_problems.append(
+                (
+                    task.ref.id_slug,
+                    "created this sweep, then changed on the control branch "
+                    "during recurring admission, so it was not launched. "
+                    f"Check the ticket, then `coga launch {task.ref.id_slug}` "
+                    "or delete it.",
+                )
             )
             continue
         ticket = read_ticket(task.ref)
@@ -4910,6 +4956,10 @@ def _print_table(scan: DueScan, *, force: bool = False) -> None:
             # was removed afterwards (a later Dream retro pass or `coga delete`).
             action = typer.style(
                 "skip (ran this period)", fg=typer.colors.BRIGHT_BLACK
+            )
+        elif task.skip_reason:
+            action = typer.style(
+                f"skip ({task.skip_reason})", fg=typer.colors.BRIGHT_BLACK
             )
         elif task.resuming:
             # An orphaned `in_progress` period task from a dead sweep — relaunch

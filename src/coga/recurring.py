@@ -314,6 +314,10 @@ class DueTask:
     replaced_done_ticket_bytes: bytes | None = None
     watchdog_pause: str = ""
     launch_refusal: str = ""
+    # Set when the create sync leaves this period unlaunchable (control already
+    # handled it, or changed it mid-sync). The task stays in the scan so the
+    # table and run record name it rather than dropping it from the count.
+    skip_reason: str = ""
 
     @property
     def watchdog_paused(self) -> bool:
@@ -339,7 +343,7 @@ class DueTask:
         # `done` → finished work, never re-run normally. `canceled` →
         # intentionally abandoned and never reactivated. `paused` → parked;
         # watchdog pauses stay parked too, but the sweep escalates them.
-        return self.status in {"active", "in_progress"}
+        return not self.skip_reason and self.status in {"active", "in_progress"}
 
     @property
     def resuming(self) -> bool:
@@ -371,6 +375,9 @@ class DueScan:
     ledger_periods: dict[str, str] = field(default_factory=dict, repr=False)
     ledger_errors: dict[str, str] = field(default_factory=dict, repr=False)
     period_targets: dict[str, str] = field(default_factory=dict, repr=False)
+    # Failures observed outside the launch loop, as `(id_slug, detail)` — the
+    # shape `RunRecord.scan_problems` takes, which the runner seeds from this.
+    sync_problems: list[tuple[str, str]] = field(default_factory=list, repr=False)
 
     @property
     def due(self) -> list[DueTask]:
@@ -402,7 +409,9 @@ class DueScan:
         reporting after an admission refusal is never launched.
         """
         return _order_for_launch(
-            t for t in self.tasks if t.ref is not None and not t.launch_refusal
+            t
+            for t in self.tasks
+            if t.ref is not None and not t.launch_refusal and not t.skip_reason
         )
 
 

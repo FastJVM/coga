@@ -915,6 +915,8 @@ def scan_lines_for_record(scan, *, force: bool = False) -> list[str]:
         when = _firing_label(task.last_fire, now)
         if task.ref is None:
             action = "skip (ran this period)"
+        elif task.skip_reason:
+            action = f"skip ({task.skip_reason})"
         elif task.resuming:
             action = "resume"
         elif task.launchable or (force and not task.launch_refusal):

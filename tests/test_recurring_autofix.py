@@ -496,6 +496,33 @@ def test_an_on_demand_run_is_not_labelled_a_sweep() -> None:
     assert "templates scanned" not in text
 
 
+def test_a_period_left_unlaunched_by_its_create_sync_stays_in_the_scan() -> None:
+    """A skipped period is a scan line, never a template missing from the count."""
+    from coga.recurring import DueScan, DueTask
+    from coga.recurring_autofix import scan_lines_for_record
+    from coga.tasks import TaskRef
+
+    task = DueTask(
+        template="digest",
+        ref=TaskRef(
+            slug="digest",
+            path=Path("tasks/recurring/digest"),
+            directory="recurring",
+        ),
+        last_fire=datetime(2026, 8, 24, 9, 0, 0),
+        created=True,
+        status="active",
+        skip_reason="lease changed",
+    )
+    scan = DueScan(tasks=[task], errors=[])
+
+    for force in (False, True):
+        [line] = scan_lines_for_record(scan, force=force)
+        assert line.endswith("skip (lease changed)")
+    assert scan.due == []
+    assert scan.forced == []
+
+
 def test_prompt_lists_open_autofix_tickets_for_dedupe() -> None:
     prompt = build_prompt(
         "run record here",

@@ -818,7 +818,12 @@ The output is unchanged; the loop is what got added after it
    unfinished, refused by `--force`, or `damaged-template` when the firing
    changed the template instructions it was composed from), the ticket's
    status afterwards, and the period task's **blackboard**, plus any template
-   that failed to load. It is
+   that failed to load. A period the sweep created but its create sync left
+   unlaunchable stays in the scan as `skip (handled on control)` or
+   `skip (lease changed)`, with a sweep note; the lease case also counts as a
+   problem, because it leaves a live ticket nobody will run this period. The
+   lease check ignores line endings, so a `core.autocrlf=true` checkout does
+   not trip it on the sync's own checkout. It is
    *built*, not scraped: tee-ing fd 1 would make `isatty` false and every
    interactive agent launch would then refuse itself. The blackboard is read
    instead because it is the only durable per-run channel Coga owns; the
