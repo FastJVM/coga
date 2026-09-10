@@ -1,7 +1,7 @@
 ---
 slug: simplify-ticket-format
 title: simplify ticket format
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
