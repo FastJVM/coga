@@ -14,78 +14,74 @@ secrets: null
 
 ## Description
 
-**Current brief: make and decide the launch story and examples.** The owner
-corrected the earlier collection brief on 2026-09-09. Develop concrete options
-for how to explain Coga, make the examples that let the reader understand each
-option, and recommend which story to lead with. The existing task ref is retained
-for continuity; the job is editorial creation and a decision with the owner.
+Make and decide the story and examples for a fresh Coga marketing plan.
+Begin after the owner has reviewed the grouped catalogue in `marketing/map`.
+Decide with the owner whom to reach, what the reader should understand or try,
+and what outcome matters; develop distinct treatments and recommend one.
 
-Start from the owner's direction: managing the intent, instructions, knowledge
-and working state an AI session works from, with those inputs visible and
-editable in the user's repo. Decide what the reader should recognize, understand
-and want to try. Existing material can help; the available log entries do not
-determine the story.
+The owner requested a fresh start on 2026-09-10. Previous positioning and
+campaigns are inspiration. The old task name is retained for continuity;
+this is a creative/editorial decision, not a search for a predetermined
+quota of existing log entries.
 
 ## Context
 
 ### Make the options
 
-Develop a few distinct story/example treatments. For each, draft:
+Read `coga/contexts/marketing/plan/SKILL.md` for the preparation order and
+`coga/contexts/marketing/map/SKILL.md` for the grouped sources. Use the
+earlier managed-input direction, ownership themes and essay ideas as inputs
+to evaluate, alongside new treatments. No audience, strategic fork, format
+or three-post sequence is pinned by the old material.
 
-- the reader's felt problem, the one claim and the opening situation;
-- a concrete worked example or demonstration of the interaction, including
-  what the human can inspect or change and what carries into later work;
-- why this example makes the claim understandable and what it leaves out; and
-- what is already observed, what is an authored illustration, and what would
-  need a real demonstration before being described as an observed result.
+For each treatment, produce:
 
-Examples may be newly authored. They can be an explanation, a sample
-ticket/context, or a proposed walkthrough. Clearly identify their form; never
-present an invented scene, quotation, execution result or history as observed.
-A new public demonstration is a valid way to make an example when it serves
-the chosen story. This task does not require a quota of historical incidents.
+- the intended reader, desired response, felt problem and one central claim;
+- an opening situation and a concrete worked example or demonstration;
+- what the human can inspect or change and what carries into later work;
+- why the example makes the claim understandable and what it leaves out;
+- which details are observed, which are authored illustrations, and which
+  would need a real demonstration before being described as results.
 
-The governing owner direction is recorded under "Owner's pitch direction and
-proposed authority" and "Managed-prompt clarification and claim check" in
-`coga/tasks/redo-documentation-dir-and-merge-it-with-context-b.md`.
-`marketing/map` locates related material. Use the managed-input direction,
-ownership, honest limits and personal internal-tool/open-source posture.
+Newly authored sample tickets, contexts and proposed walkthroughs are allowed.
+Identify their form. Do not present an invented scene, quotation, execution
+result or history as observed. A new public demonstration can be proposed or
+made when it serves the selected story and stays within the task's scope.
 
 ### Decide, then hand off
 
-Recommend the strongest treatment and explain the tradeoff against the others.
-At the human step, settle the central story, the examples to use, and what to
-leave out. The decision must say what the later writer is being asked to write;
-an unranked collection of links does not complete the task.
+Recommend the strongest treatment and explain its tradeoff against the
+others. The owner chooses the reader/outcome, central story, examples and
+exclusions at the human step. An unranked list of links is not the deliverable.
 
-Draft options and the recommendation on this blackboard. At step 3, record the
-owner's chosen story and worked examples in
+Draft options and the recommendation on this blackboard. At step 3, record
+the owner's decision and chosen worked examples in
 `coga/contexts/marketing/positioning/examples.md`, link it from
 `marketing/positioning`, and hand it to
-`marketing/plan/write-the-pitch-and-narrative`. Keep short reasons for rejected
-options and any evidence still needed for factual claims. This is a supporting
-reference, not a new automatically composed context.
+`marketing/plan/write-the-pitch-and-narrative`. Preserve short reasons for
+rejected options and evidence still needed for factual claims. That reference
+is a planned output, not an existing input or an automatically composed
+context.
 
-The pitch ticket turns that decision into finished copy. It can use clearly
-identified illustrations while real-event claims require public support.
-The existing `marketing/build-the-launch-plan` owner gate decides resulting
-campaign/keep/drop changes; this task does not cancel the retained posts.
+The pitch ticket turns this decision into copy. The existing
+`marketing/build-the-launch-plan` owner gate later selects the campaign's
+formats, deliverables and keep/change/defer/drop list.
 
 ### Evidence and boundaries
 
-For claims about what actually happened, use public Coga-on-Coga tickets, log
-entries, contexts, diffs or PRs with dates and stable references. A context in a
-prompt proves delivery; later work is needed to support a claim of actual reuse.
-Private-repo quotations from the old audit are excluded even though the
-attachment is tracked in this repo. Do not inspect those private repos.
+Use `marketing/positioning` for the source limits. Real-event claims need
+public Coga-on-Coga support with dates and stable references. A context in a
+prompt proves delivery; later behavior is needed to demonstrate reuse.
+Private-repo quotations from the audit are excluded, and private repos must
+not be inspected.
 
-The owner dropped token/time measurement: no paired experiment, numeric
-efficiency result or invented launch threshold. External publication, product
-fixes, confidential-attachment cleanup and the proposed context-root migration
-remain with their own tickets.
+The marketing token/time experiment remains dropped. No paired run, receipt
+quota or invented efficiency result belongs here. Publication, product
+fixes, confidential-attachment cleanup and context-root migration remain
+outside this task.
 
-Use `draft-for-human`: the agent makes concrete options and a recommendation,
-the owner decides and edits, and the agent records the selected story/examples.
+Keep `draft-for-human`: the agent produces options, the owner decides and
+edits, and the agent records the selected story and examples.
 
 <!-- coga:blackboard -->
 

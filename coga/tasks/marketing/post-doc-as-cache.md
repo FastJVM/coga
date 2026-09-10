@@ -17,30 +17,31 @@ secrets: null
 
 ## Description
 
-Write and ship launch post 3 — **productivity, by mechanism** — per phase 3 of
-`marketing/plan`. Sessions are stateless, so an undocumented repo makes an
-agent reconstruct the same understanding every run; contexts turn
-documentation into a cache of human judgment.
+Candidate essay idea: documentation holds understanding that a later agent
+session can use. The previous campaign called this documentation as a cache.
 
-Before drafting, link the exact public context, the question it answers, and
-a later session's record showing that understanding in use. Begin with the
-selected examples from `marketing/plan/collect-public-examples-for-the-launch`;
-report a missing second half instead of inventing reuse. The ordinary phase
-and owner gates in `marketing/plan` still apply.
-
-The owner dropped the paired token/time experiment on 2026-09-09. No paired
-runs, receipt quota, or token-measurement ticket is required. This remains an
-idea essay: do not claim a measured saving, a productivity multiplier, or
-generality from a single example. If the source contradicts the mechanism,
-narrow or replace the claim.
+The owner requested a fresh marketing start on 2026-09-10. Keep this idea
+available for the campaign decision; it is not selected as “post 3” and
+has no current production or publication brief.
 
 ## Context
 
-`marketing/write-post` is the order of work and the gates for this post; it is
-attached under `skills:`. It reads the two marketing contexts for what to say
-and hands the prose-craft pass to the imported `clarity` skill at
-`coga/skills/clarity/SKILL.md`. Follow its steps rather than re-deriving a
-process from the contexts.
+The [previous brief](../../contexts/marketing/launch-history/campaign-ticket-briefs.md#post-doc-as-cache)
+preserves the earlier treatment for inspiration.
+
+`marketing/build-the-launch-plan` decides whether to keep, change, combine,
+defer or drop this idea after the story and pitch work. If selected, rewrite
+the brief and author its workflow before activation. For a claim of actual
+reuse, identify the public context, question it answers and later work
+showing that understanding in use. Prompt inclusion alone proves delivery.
+Clearly identified illustrations can explain the mechanism without claiming
+an observed result.
+
+Use the current `marketing/positioning` source limits and
+`marketing/write-post` procedure after the selected post is briefed.
+The marketing token/time experiment remains dropped. No paired runs,
+receipt quota, inherited phase gate or efficiency-result claim is required.
+This ticket remains a concept draft.
 
 <!-- coga:blackboard -->
 

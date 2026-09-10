@@ -6,8 +6,7 @@ owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: nicktoper
-contexts:
-  - marketing/map
+contexts: []
 skills: []
 workflow:
   name: draft-for-human
@@ -27,87 +26,123 @@ step: 2 (human-owns-and-finishes)
 
 ## Description
 
-Extract the reusable knowledge from the completed phase-0 audit into focused
-marketing contexts, and leave a current worklist with clear owners. Make
-`marketing/plan` the starting point: locate the documents, list needed
-deliverables and cuts, make and decide the story/examples, write the pitch/narrative,
-then carry the decisions into the existing cleanup and launch tickets.
+First reference and group all existing marketing material so the owner can
+review it as a usable catalogue. Then prepare a fresh planning sequence that
+uses the previous work as inspiration. The owner clarified and approved this
+reset on 2026-09-10; the earlier three-essay campaign is not the default.
 
-The owner approved this organization and dropped the marketing token/time
-experiment on 2026-09-09. Prepare the writing work as draft tickets under
-`marketing/plan/`. This authoring session does not execute those new tickets
-or advance this audit's frozen workflow.
+Keep the prior ideas, research and drafts accessible with their dates and
+source limits. Update the follow-up writing briefs so they make new choices
+with the owner. This authoring work prepares the catalogue and planning
+briefs; it does not choose or execute a new campaign.
 
 ## Context
 
-### Authored homes and handoffs
+### Authored homes and concrete deliverables
 
-- `marketing/map`: document locations, authority by subject, and owning
-  tickets, including the newer pitch in the documentation-reorganization
-  ticket. Read the full mapped sources only as needed.
-- `marketing/distribution`: dated account/surface observations, channel
-  policy, attribution, audience scorecard and response branches.
-- `marketing/plan`: preparation sequence, needed launch deliverables,
-  retained essay briefs, publication gates and execution owners.
-- `marketing/positioning`: reusable message direction, audience, voice and
-  honest limits. The owner clarification of 2026-09-08 leads with managing the
-  intent, instructions, knowledge and state an AI session works from. Final
-  wording is still the writing ticket's deliverable.
-- `marketing/plan/collect-public-examples-for-the-launch`: first, make concrete
-  story/example options and decide with the owner which to use. The old
-  collection ref is retained; this is a creative and editorial task.
-- `marketing/plan/write-the-pitch-and-narrative`: then write the reusable
-  pitch and narrative from that material, for owner review.
-- `marketing/build-the-launch-plan`: use the supported message to finalize
-  the campaign and keep/drop list. Existing README, community, post and
-  cleanup tickets execute the retained work.
+- Edit `coga/contexts/marketing/map/SKILL.md` into a catalogue grouped by
+  positioning/strategy, previous campaigns/drafts, evidence/examples,
+  distribution/audience, writing methods, and public surfaces/dependencies.
+  Include all marketing files and relevant material elsewhere in the repo,
+  including the parked Relay-era domain proposal. Identify each source's role.
+- Edit `coga/contexts/marketing/plan/SKILL.md` as the starting point: catalogue
+  review first; then audience/outcome and story/example decisions, reviewed
+  pitch, fresh campaign choices, and selected execution work with owners.
+- Preserve previous campaign material as linked reference files under
+  `coga/contexts/marketing/launch-history/`. Keep historical imperative
+  wording clearly outside the current instructions.
+- Keep `marketing/positioning` and `marketing/distribution` focused on
+  current message status, product/source limits and dated observations.
+  Their former creative choices, channel schedule and scorecard are prior
+  work to reconsider, not binding inputs.
+- Revise the existing drafts
+  `marketing/plan/collect-public-examples-for-the-launch` and
+  `marketing/plan/write-the-pitch-and-narrative`. The first makes options
+  and reaches a story decision with the owner; the second writes final copy
+  from that decision. Both keep their human review workflow.
+- Reconcile the launch-plan, essay, README and community briefs and writing
+  procedure with the reset. Existing drafts remain candidate work until the
+  owner selects and briefs them; an existing ticket does not choose a format
+  or create a publication gate.
+- Leave the current worklist and verification on this blackboard. The existing
+  `marketing/build-the-launch-plan` ticket owns later campaign choices and
+  the keep/change/defer/drop decisions.
 
-### Current decisions and limits
+These contexts are editing targets, so name and read their files rather than
+attaching their full bodies to this ticket. No new context namespace or
+workflow is needed.
 
-The three existing post tickets remain retained. Their angles are decluttering,
-human amplification and documentation as a cache. The new pitch must be
-reconciled with those briefs at owner review; extraction alone does not cancel
-a post or approve final copy.
+### Decisions and limits
 
-The token experiment, receipt quota, paired task launches and requirement to
-create `marketing/token-receipts` are dropped. Post 3 instead needs an exact
-public context, the question it answers and a later session showing the
-understanding in use. Do not infer an efficiency result from that example.
-Audience measurement remains part of the launch.
+The owner wants to start afresh. Audience, story, strategic fork, tone,
+deliverable count/format, channels, sequence and campaign-specific readiness
+and success criteria remain open. Prior wording is inspiration. Product
+purpose and behavior remain grounded in `docs/vision.md` and the Coga
+contracts; fresh copy must describe the product accurately.
 
-All private-repo narrative quotations are excluded from launch sources. The
-existing `narrative-candidates-md-publishes-log-text-the-own` ticket owns the
-attachment's disposition. Do not copy the quotations into a new context or
-source packet.
+The owner dropped the marketing token/time experiment on 2026-09-09. Do not
+restore receipt collection, paired runs, a token-measurement ticket or an
+efficiency-result gate. Audience measurement remains in scope; the new
+campaign must choose its own objective, signals and checkpoints.
 
-The original audit checks are complete. Preserve them in the dated
-`step-1-findings.md` and `audit-history.md` attachments, rather than rerunning
-them or treating their old instructions as current gates. Public account
-observations are dated September 2–3; this extraction does not certify live
-sites or refreshed metrics.
+Examples may be newly authored illustrations or public demonstrations.
+Identify them honestly. Observed-event claims need public support; a context
+appearing in a prompt alone does not demonstrate successful reuse. All
+private-repo narrative quotations are excluded. The existing
+`narrative-candidates-md-publishes-log-text-the-own` ticket owns the
+attachment's disposition; do not copy or inspect the private-repo sources.
 
-Keep the current context root. The separate
-`redo-documentation-dir-and-merge-it-with-context-b` ticket owns any move to
-`docs/contexts`; its proposed marketing map must include this extraction and
-must not recreate the retired token requirement. No product fixes, external
-publication, configuration edits, or ticket lifecycle changes are part of this
-authoring work.
+The original audit checks are complete. Preserve `step-1-findings.md` and
+`audit-history.md` as dated sources. September 2–3 account observations are
+not live certification. Existing product fixes keep their own scope; this
+catalogue does not make the whole cleanup queue a new campaign prerequisite.
 
-### Completion checks for this extraction
+Keep the context root and all task lifecycle/role fields and frozen workflows.
+The documentation-reorganization ticket owns any later relocation. Product
+implementation, account actions, external publication and ticket lifecycle
+transitions are outside this authoring work. The audit stays at step 2,
+`human-owns-and-finishes`, until an explicit owner transition.
 
-- Each reusable subject has an authored home linked from the map and plan.
-- Needed deliverables, approved cuts and unresolved owner inputs have named
-  owners in the worklist.
-- The new writing tickets have concrete outputs, source constraints, a human
-  review workflow and an explicit story-decision-before-final-copy dependency.
-- Active consumers have no token-measurement prerequisite; historical notes
-  are clearly labeled.
-- Links, task/context validation and an independent authoring review are
-  recorded. Preserve the current `draft-for-human` snapshot and human step.
+### Completion checks
+
+- Every core marketing file and relevant related source is referenced and
+  grouped, with current/reference/dated/excluded status clear.
+- Previous campaign material is preserved and no longer governs new work.
+- The plan and follow-up briefs expose the open decisions, outputs and owners;
+  the story decision precedes final copy.
+- No current brief or writing procedure restores the old three-post,
+  channel-order, scorecard or token-measurement prerequisites.
+- Local links, source coverage, validation against baseline, metadata
+  preservation and an independent authoring review are recorded.
 
 <!-- coga:blackboard -->
 
-## Decisions — 2026-09-09
+## Current handoff — 2026-09-10
+
+The owner approved completing the subject catalogue and preparing a fresh
+planning sequence. The prior campaign is inspiration; no replacement
+campaign has been selected. Catalogue, plan, source contexts and follow-up
+briefs have been revised. Link/coverage checks and independent authoring
+review are in progress. The frozen human step remains unchanged.
+
+## Worklist
+
+- [agent → nicktoper] Review the grouped catalogue and fresh preparation brief.
+- [claude → nicktoper] Story/examples draft: choose reader/outcome and story.
+- [claude → nicktoper] Pitch/narrative draft: write from the chosen story.
+- [nicktoper] Existing launch-plan gate: select campaign, audience measurement,
+  necessary dependencies and keep/change/defer/drop dispositions.
+- [selected ticket assignees] Author execution briefs and workflows after selection.
+- [nicktoper] Existing confidentiality and audit-status tickets retain their
+  separate ownership. No lifecycle transition is part of this authoring work.
+
+## Earlier extraction record — before the fresh start
+
+Historical decisions, task states and verification below describe the
+September 9 extraction. Their campaign commitments were superseded by the
+September 10 owner reset; the earlier product observations retain their dates.
+
+### Decisions — 2026-09-09
 
 - Owner approved extracting the audit into marketing contexts and creating
   follow-up writing tickets under `marketing/plan/`.
@@ -123,7 +158,7 @@ authoring work.
 - The frozen workflow remains at step 2, `human-owns-and-finishes`.
   Extraction does not authorize closing the audit or running a next step.
 
-## Worklist
+### Worklist
 
 Recorded repo state on 2026-09-09; external observations retain their original
 dates in `marketing/distribution`.
@@ -145,7 +180,7 @@ dates in `marketing/distribution`.
 - [nicktoper] Audit lifecycle — reconcile `phase-0-audit-is-complete-per-the-plan-but-still-i` at the owner gate; this session makes no lifecycle transition.
 - [dropped, owner] Marketing token experiment — no collection ticket, paired runs, receipt quota or measurement-dependent publication gate.
 
-## Verification
+### Verification
 
 - Coverage checked on 2026-09-09: all 19 current marketing context, skill,
   ticket and attachment files are represented in the map; no missing files

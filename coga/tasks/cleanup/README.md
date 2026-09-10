@@ -1,13 +1,16 @@
 # cleanup/
 
-Everything that must be done before the marketing materials ship.
+Product and first-run work found during the original marketing audit. The
+fresh marketing plan decides which completed fixes or remaining prerequisites
+its selected reader path needs; indexing this queue does not make every task
+a publication gate. Each product ticket retains its own scope.
 
 The owner opened this directory on 2026-09-03 while finishing step 2 of
 `marketing/phase-0-audit`. That audit ran the README quickstart end to end on
 a fresh repo and found the first-run path broken in several independent ways;
 these tickets are those findings, plus the release that makes a first run
-possible at all. The audit ticket itself holds the evidence — its `## Step 1
-findings` section is the source for every ticket here.
+possible at all. The dated [step-1 findings](../marketing/phase-0-audit/step-1-findings.md)
+hold the original evidence; check each ticket for its current state.
 
 Drain the queue with `coga megalaunch cleanup`.
 

@@ -10,6 +10,25 @@ plan. The current plan is `marketing/plan`. Nothing here is a ship instruction
 or an active phase, and this context stays unattached so it does not compose
 into launch work.
 
+## Fresh-start archive — 2026-09-10
+
+The owner requested a grouped catalogue followed by fresh marketing planning,
+using the previous work as inspiration. These snapshots preserve the material
+before that reset; their instructions and commitments are historical:
+
+- [Three-essay plan](three-essay-plan.md): ideas, beats, sequence, replies,
+  readiness gates and the earlier execution list.
+- [Distribution plan](three-essay-distribution.md): dated account evidence,
+  channel order, YC timing, title tactics, scorecard and miss branches.
+- [Positioning](positioning-before-reset.md): prior message, audience, voice,
+  strategic fork and competitive framing.
+- [Campaign ticket briefs](campaign-ticket-briefs.md): earlier launch-plan,
+  essay, README and community briefs, including detailed HN/blog research.
+
+Use the [current catalogue](../map/SKILL.md) to find material by subject and
+the [current plan](../plan/SKILL.md) for the new preparation order. The older
+program history below also describes prior choices, not current gates.
+
 ## Superseded "20 minutes a day" program
 
 On 2026-08-18/19, the owner replaced a launch led by a pre-registered two-week
@@ -25,10 +44,11 @@ deleted on 2026-08-19. Their source text remains in git history at commits
 
 The proof post was a two-week pre-registered experiment framed around a
 recomputable ledger of every attempt. It survives as an option, not phase 4 of
-the current launch. It has no active ticket. The owner may reconsider it only
-after the three-post essay series lands and megalaunch has held up in sustained
-daily use; reopening it means authoring a fresh ticket and re-deciding the
-fallback framing and demo brief.
+the current launch. It has no active ticket. The former plan deferred
+reconsideration until after the three-post essay series and sustained
+megalaunch use. That sequence is now historical; any future measurement
+proposal needs its own owner decision and brief. The marketing token
+experiment remains dropped.
 
 The tracked apparatus that remains available is:
 
@@ -44,15 +64,16 @@ The tracked apparatus that remains available is:
 
 The fallback what-broke field-report framing and the old demo brief exist only
 in the deleted tickets' git history. A future proof-post ticket must re-decide
-them rather than treating them as approved. None of this apparatus may be
-spent on posts 1–3 of the live plan.
+them rather than treating them as approved. The former campaign excluded
+this apparatus from its three essays.
 
 ## Paired token/time experiment — retired 2026-09-09
 
 The owner dropped this requirement from the marketing launch. It had been
-intended to test the documentation-as-cache premise, but the series does not
-claim measured efficiency. Post 3 now requires a public context and evidence
-of its use in a later session. Do not create a collection ticket or require
+intended to test the documentation-as-cache premise. The former post-3 brief
+replaced it with a public context and evidence of its use in a later session.
+The fresh-start plan has not selected that essay. Do not create a collection
+ticket or require
 paired runs from this archived protocol. Operational usage tooling is separate.
 
 The protocol below is preserved solely as historical rationale:

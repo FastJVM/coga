@@ -645,6 +645,17 @@ authored content once this ticket's own cutover is approved. Any further
 marketing split must build on those homes; do not recreate a token-receipts
 context or restore its launch prerequisite. Source: `marketing/phase-0-audit`.
 
+**Owner reset, 2026-09-10.** First group and reference the marketing material,
+then plan afresh using earlier work as inspiration. `marketing/map` now groups
+the sources by subject; `marketing/plan` carries the fresh preparation order.
+Previous campaign, positioning, distribution and ticket briefs are linked
+references under `coga/contexts/marketing/launch-history/`. Preserve that
+current/reference distinction in any migration; do not reinstate the old
+three-post campaign, pinned fork, channel sequence or scorecard as binding.
+The pitch proposed above remains source material for the new story decision,
+not approved replacement copy. The context-root cutover remains this ticket's
+separate owner decision.
+
 ### Prompt-as-interface claim check (2026-09-08)
 
 The owner asked to check whether explicitly managing the prompt, instead of

@@ -1,254 +1,155 @@
 ---
 name: marketing/write-post
-description: The procedure for writing one post in the Coga launch series — brief, thesis stress-test, outline, draft, craft pass, claim check, prepared replies, channel sequencing — and the gates that stop it shipping early. Attach to any marketing/post-* ticket alongside the marketing/plan and marketing/positioning contexts.
+description: Produce one selected Coga post from an approved brief — objection check, outline, draft, craft review, claim checks, replies and preparation for owner publication.
 ---
 
-# Write a Coga launch post
+# Write a Coga post
 
-This is the **order of work** for one post in the launch series, and the gates
-that block it. It owns sequence and gates only.
+This skill produces a post after the owner has selected it in the current
+campaign. It does not select the campaign or inherit the previous essay
+sequence.
 
-Content lives in the following contexts; this skill defers to their authored homes:
+Read the selected ticket and the relevant current homes:
 
-- `marketing/plan` — which post this is, its beats, the phasing, the writing
-  rules and the claim-discipline rationale.
-- `marketing/positioning` — the spine, the audience, the voice, the honest
-  limits, the competitive framing, and the pinned strategic fork.
-- `marketing/distribution` — channels, account evidence, attribution,
-  audience scorecard and response branches. Read it for channel work.
+- `marketing/plan` — the selected deliverables, purpose, prerequisites and
+  owners. During fresh planning it lists open decisions instead.
+- `marketing/positioning` — the reviewed message and source limits.
+- `marketing/distribution` — the selected channel/measurement policy and
+  dated account evidence, when channel work is needed.
 
-Read plan and positioning before step 1. When this file and a context disagree about *what to
-say*, the context wins. Never restate a context's content here; cite it.
+Use earlier campaign references for inspiration only. Never promote their
+post numbers, strategic fork, channel ordering, scorecard or gates into the
+current brief.
 
 ## Entry condition
 
-A `marketing/post-*` ticket exists and names exactly one post. If you cannot
-name, from `marketing/plan`, which post number this is and which phase it sits
-in, you are not briefed — that is step 1's job, not something to discover in
-step 5.
+The owner has selected this post and its ticket states the intended reader,
+desired response, central idea, scope and relationship to the campaign.
+Resolve missing choices with the owner under the current session conduct.
+A candidate ticket or a historical brief alone does not meet this condition.
+The inventory and story-selection tasks do not run post production.
 
-**Fork A is pinned.** It is an owner decision recorded in
-`marketing/positioning` ("The strategic fork"). Write to it. Do not re-derive
-it, re-argue it, or reopen it inside a post ticket; changing the fork is an
-owner decision taken elsewhere.
+## The division of labour with clarity
 
-## The division of labour with `clarity`
+`coga/skills/clarity/SKILL.md` is the imported prose-craft dependency.
+This skill owns briefing and the first draft. At the craft step, use clarity's
+rewrite, review and lint modes. Its co-write interview is not needed for an
+already approved brief. If an individual passage lacks support or authorship,
+the short existing-draft probe in `references/interview.md` can clarify it.
 
-`coga/skills/clarity/SKILL.md` is an imported general prose-craft skill
-(upstream `addyosmani/clarity`, MIT) with four modes: **co-write**, **rewrite**,
-**review**, **lint**. Its co-write mode runs an author interview and builds a
-piece from scratch — the same slot steps 1–4 below occupy. The split is
-therefore a decision, not something clarity's design hands over:
-
-- **Steps 1–4 are this skill's.** Do not enter clarity in co-write mode. Coga's
-  posts are not open interviews: the marketing contexts already fix the
-  brief, audience, voice, and any required arc, and the source material is a
-  repo you can read. Co-write mode would re-derive decisions already made, and
-  two skills would fight over the same job.
-- **Step 5 is clarity's.** Hand the finished draft to its **rewrite** mode,
-  then its **review** mode, then its **lint** mode. That is the craft pass, and
-  this skill does not duplicate a line of it.
-- **One exception, and only one.** `references/interview.md` has a short "If a
-  draft already exists" probe — three questions for passages with no support or
-  authorship behind them. Step 4 may use that probe on a specific weak beat.
-  That is a gap-filler; it is not a mode switch into co-write.
-
-**Invoke clarity by name, never by slash command.** `docs/with-review` rotates
-peer-review to `other-agent`, which may be Codex, and the import pruned
-clarity's `commands/` directory — so `/clarity-rewrite` does not exist in this
-repo and would not be understood by every agent that runs this skill. Invoke it
-by reading `coga/skills/clarity/SKILL.md`, following the named mode's
-instructions, and loading the reference files that mode lists. Resolve every
-relative `references/` or `scripts/` path against `coga/skills/clarity/`.
-
----
+Invoke clarity by reading the skill, not a slash command. Resolve its
+`references/` and `scripts/` paths against `coga/skills/clarity/`.
 
 ## Step 1 — Brief
 
-**Do:** From `marketing/plan`, write down the post number, its phase, its one
-idea, and any material the plan explicitly excludes from that post. From
-`marketing/positioning`, write down the reader and the register.
+Record one paragraph on the blackboard: reader, desired response, one central
+idea, scope/exclusions, chosen format and the channels currently selected for
+this piece. Use a post number or phase only if the new campaign defines one.
 
-**Exit:** One paragraph on the blackboard naming: post number, the single idea,
-the reader, the excluded material, and the channel set for this phase. If the
-single idea needs two sentences to state, it is two posts — say so on the
-blackboard and ask the owner which one this ticket is.
+Resolve a brief containing two competing central ideas before outlining.
+Do not make a new campaign decision inside the writing task.
 
-**Blocks step 2** until the single idea is one sentence.
+## Step 2 — Test the thesis
 
-## Step 2 — Stress-test the thesis
+Write the strongest relevant reader objection and the actual product
+limitation that bears on this idea. Check the product references and source
+limits in positioning; do not invent a weaker objection.
 
-**Do:** Before outlining, argue against the post's own thesis. Write the
-strongest real objection a skeptical reader in the tribe would raise, and the
-strongest real limitation of Coga that bears on *this* post's idea. Draw the
-limitations from `marketing/positioning`'s "Honest limits" — do not invent
-softer ones, and do not invent a weak opponent to defeat.
+For each, decide whether the post answers it, concedes it or leaves it out
+with a reason. Identify where each answer or concession will appear before
+moving on.
 
-**Exit:** The objection and the limitation are written down, each with a
-decision beside it: **answered in the post**, **conceded in the post**, or
-**out of scope for this post and why**. "Answered" requires naming where.
+## Step 3 — Outline and support
 
-**Blocks step 3** until every objection carries one of those three decisions.
-An objection with no decision is a hole the comment section will find.
+Build an outline from the selected brief. Attach support to every factual
+beat and label authored illustrations. Previously written five-beat arcs and
+post-specific requirements apply only if the owner selected them for this
+piece.
 
-## Step 3 — Outline against the beats
+Observed-event claims need public, checkable sources. An illustration can
+explain an interaction without asserting it happened. For a claim of context
+reuse, prompt inclusion proves delivery; later behavior must support the
+claimed reuse. Narrow or reframe a passage if its evidence is missing.
 
-**Do:** Turn the structure `marketing/plan` supplies into an outline. For post
-1, that is the five-beat arc. For a later post, use that phase's stated angle,
-exclusions, and public-source requirements; do not silently reuse post
-1's arc. If the plan does not supply enough structure, record the gap and ask
-the owner rather than inventing a new post. Attach to every beat or section the
-real, checkable material the plan requires.
-
-Apply source requirements only to the post and plan version where they appear;
-a condition attached to one post is not a series-wide default.
-
-For post 3, attach the exact public context, the question it answers, and a
-later session's record showing that understanding in use. A context appearing
-in a composed prompt proves delivery, not successful reuse by itself. If the
-later behavior is missing, report the gap and narrow or defer the passage.
-The owner dropped the paired token/time experiment; no receipt quota or
-counterfactual run is required. This source example supports a mechanism,
-not a measured saving, output multiplier, or claim of generality.
-
-**Exit:** Every planned beat or section has real, checkable support attached,
-and any missing structure has been resolved. A section carrying only a
-generalization is not outlined yet.
-
-**Blocks step 4** while any required beat or section is generic, a required
-source is absent, or the plan does not yet define a workable structure.
+Resolve any missing structure or required support before drafting. There is
+no token experiment or historical-incident quota.
 
 ## Step 4 — Draft
 
-**Do:** Write the post in the voice the contexts define. Where a beat wants
-material you do not have, do not invent it — leave `[TK: specific question]`
-and carry it forward.
+Write in the chosen voice. Mark a missing fact or author input as
+`[TK: specific question]` rather than inventing it. Resolve each marker from
+a source or owner input, or cut/reframe the dependent passage.
 
-**Exit:** A complete draft with no unresolved `[TK]`. Resolve each one from a
-real source, or cut or reframe the passage so it no longer depends on missing
-material. If owner input is necessary, escalate under the current session
-conduct and wait; recording the question does not satisfy this exit condition.
-If a beat is weak on support or authorship, run clarity's three-question probe
-from `references/interview.md` against that beat before escalating.
+Finish with a complete draft and no unresolved markers. When input is needed,
+follow the attended/unattended session conduct rather than silently parking
+the question.
 
-**Blocks step 5** while any `[TK]` remains. Never close one by writing a
-plausible detail.
+## Step 5 — Craft pass
 
-## Step 5 — Craft pass (clarity)
+Read clarity and apply:
 
-**Do:** Hand the draft to `coga/skills/clarity/SKILL.md`:
+1. **rewrite** mode with `references/edit.md`, plus `longform.md` for an
+   essay and `medium.md` for marketing prose as the skill directs;
+2. **review** mode, recording each finding and its disposition;
+3. **lint** mode, using `scripts/strip_markdown.py` and
+   `scripts/prose_stats.py`, then reading each flagged passage.
 
-1. **rewrite** mode — it loads `coga/skills/clarity/references/edit.md`;
-   because this is an authored essay it also loads
-   `coga/skills/clarity/references/longform.md`, and because the register is
-   marketing it also loads `coga/skills/clarity/references/medium.md`.
-2. **review** mode — a critique, no rewriting.
-3. **lint** mode — `coga/skills/clarity/scripts/strip_markdown.py` writes a
-   stripped copy of the draft, and
-   `coga/skills/clarity/scripts/prose_stats.py` reads that copy. Treat every
-   hit as a prompt to reread the passage, never as a target to optimize.
+Treat lint as a prompt to reread, not a score to optimize. Resolve review
+findings or give a reason for leaving them before proceeding.
 
-Apply clarity's rewrite; take its review findings as findings, not orders. Its
-safeguards are Coga's rules already generalized, so they should not fight the
-contexts. Where they do, the contexts win and you say so on the blackboard.
+## Step 6 — Check claims
 
-**Exit:** Rewrite applied, review findings each either fixed or dismissed with
-a reason, lint output read.
+Read the publishable draft for factual claims and numbers. Check that each
+source supports the claim at its stated scope and date. Separate observation,
+interpretation, product thesis and illustration.
 
-**Blocks step 6** until clarity's review has actually been run. Skipping it
-because the draft "reads fine" is the failure this handoff exists to prevent.
+Use `marketing/positioning` for the source limits: private-repo quotations,
+invented results, unsupported efficiency claims and measured productivity
+multipliers are excluded. The token/time experiment remains dropped.
+A public context example does not establish a comparative saving. Preserve
+contrary evidence and narrow the claim if necessary.
 
-## Step 6 — Claim-discipline check
+Finish with supported claims, accurately labeled examples and the relevant
+product caveats in the draft. Do not move an unsupported claim into a reply
+or title.
 
-**Do:** Read the publishable post once looking only for figures. For each
-number, ask whether it appears as a *result*. This check applies to the post,
-not to working source attachments on its outline or blackboard.
+## Step 7 — Prepare replies
 
-**The stop rule:** if any figure appears as a result, **stop** — the post has
-graduated into the proof-post regime (pre-registration, recomputability), which
-this ticket is not running. Cut the figure or escalate to the owner. Do not
-drift into that regime by accident.
+Write full replies for the objections identified in step 2 and the obvious
+questions the chosen piece raises. The previous campaign's standing replies
+are available as inspiration; inherit only what fits the new piece.
 
-The reasoning behind the rule, and the one ratio Coga does publish and why it
-is exempt, are in `marketing/plan`'s "Claim discipline". Read it there; this
-step is the check, not the argument.
+Finish the replies before publication. A reply must meet the same source
+and claim checks as the post.
 
-For post 3, use the public source example from step 3 to support only the
-specific reuse it shows. Do not infer a measured token/time saving or
-productivity effect. If the source contradicts the proposed mechanism, cut or
-reframe the claim and preserve the contrary evidence in the working notes.
+## Step 8 — Prepare selected channels and verify publication
 
-**Exit:** Zero figures stated as results in the publishable post, required
-source references remain attached, and the honest caveat is in the post.
+Read the current campaign and selected distribution policy. Prepare the
+owner-approved titles, channel copy, links, order and timing for this piece.
+Do not assume a blog-first or Bookface-before-HN sequence unless the new plan
+chooses it. If channels or order are undecided, resolve them with the owner.
 
-**Blocks step 7** while any result-shaped figure survives.
+Verify current rules and required account/link checks for the selected
+surfaces, including the founder availability needed for replies. Share links
+without soliciting votes. The agent prepares the package; publication and
+personal-account actions need explicit owner authorization.
 
-## Step 7 — Prepared replies
+After authorized publication, record the actual URLs and timestamps and
+handoff the selected measurements to their named owner or follow-up ticket.
+Do not create the former day-14 gate or retrofit its numeric thresholds.
 
-**Do:** Write out the replies to the objections this post will draw, before it
-ships, in full sentences. `marketing/plan` carries the four standing replies
-for post 1; a later post inherits those that still apply and needs new ones
-written for the objections *its* idea raises. Step 2's objection list is the
-input — anything you decided was "out of scope for this post" is exactly what
-arrives in the comment section.
+## Completion checks
 
-**Exit:** Every objection from step 2, plus the standing replies that apply,
-has a written reply.
+- The selected brief is clear and its central idea is coherent.
+- Objections and limitations have explicit dispositions.
+- Factual beats and claims have appropriate support; illustrations are labeled.
+- No unresolved draft markers remain.
+- Clarity review findings are resolved or explicitly declined with reasons.
+- Replies, titles and channel copy meet the same claim checks as the post.
+- Publication follows the selected plan and explicit authorization.
+- Observations are handed to the owner of the selected measurement plan.
 
-**This gate blocks shipping.** A post does not go out until the prepared
-replies are written. Never improvise one in-thread.
-
-## Step 8 — Channel sequencing
-
-**Do:** Prepare publication in the order `marketing/distribution`'s channel
-runbook sets. The owner publishes and submits; an agent verifies the result. Use the
-canonical blog URL, record each channel's timestamp, and read attribution at
-the referrer level as the distribution context specifies. An optional channel omitted from
-that phase does not block the post; once it is chosen, its stated position in
-the sequence is binding.
-
-**Two hard orderings, both blocking:**
-
-- **Blog first.** The blog is the canonical hub; every other channel points at
-  it.
-- **Bookface precedes HN**, by a few days. Friendly fire hardens the post and
-  YC readers arrive in the HN thread already convinced. Submitting to HN before
-  the Bookface read has happened is out of order — hold the submission.
-
-Before any HN submission, reread `marketing/distribution`'s "Distribution tactics" and
-verify its current submission-form, title, upvote, retry, and founder-presence
-rules. Those tactics are context, not duplicated here. Any mismatch blocks the
-submission.
-
-**Exit:** Published by the owner in the distribution policy's order, with every channel-specific gate
-satisfied.
-
----
-
-## The gates, in one list
-
-A post is blocked from moving forward while any of these is true:
-
-1. The single idea does not fit in one sentence. (step 1)
-2. An objection or honest limitation has no answer/concede/out-of-scope
-   decision. (step 2)
-3. Any planned beat or section lacks real, checkable support. (step 3)
-4. Any `[TK]` remains unresolved. (step 4)
-5. Clarity's review mode has not been run on the draft. (step 5)
-6. A figure appears as a result in the publishable post. (step 6)
-7. The prepared replies are not written. (step 7)
-8. HN would go out before Bookface, or the blog is not live first. (step 8)
-
-## What this skill does NOT cover
-
-- What the post says — the beats, the voice, the audience, the excluded
-  material: `marketing/plan` and `marketing/positioning`.
-- Why the claim-discipline rule exists and which ratio is exempt:
-  `marketing/plan`, "Claim discipline".
-- The pinned fork and the competitive framing: `marketing/positioning`.
-- Channel facts, distribution policy and audience scoring:
-  `marketing/distribution`.
-- General prose craft — mode selection, the editing pass, the anti-generic
-  safeguards, the prose-stat scripts: `coga/skills/clarity/SKILL.md`.
-- The proof-post regime: excluded from the live plan and preserved in the
-  unattached `marketing/launch-history` context.
+The current plan owns campaign choices, positioning owns the reviewed
+message and source limits, and distribution owns selected channel policy.
+General prose craft stays in clarity. Historical campaigns remain linked
+references outside the current brief.

@@ -17,26 +17,30 @@ secrets: null
 
 ## Description
 
-Write and ship launch post 2 — **it amplifies the human** — after the phase-1
-owner gate in `marketing/plan`. The stable task slug is historical: ownership
-is the enabling condition for amplification, not this post's defensive thesis.
+Candidate essay idea: one human correction becomes durable guidance for
+later agent work, with ownership making the correction inspectable and
+editable. This was the human-amplification angle in the previous campaign.
 
-Build the essay around one public, checkable correction loop: the agent's
-mistake, the human's edit to the governing context, and changed behavior in a
-later session. Make the offensive claim that one act of judgment becomes
-durable guidance. Do not lead with a generic human-in-the-loop slogan, a list
-of local-first features, or a productivity result. Complete the plan's channel
-sequence and capture its responses/referrers while token-receipt collection
-continues.
+The owner requested a fresh marketing start on 2026-09-10. Keep this idea
+available for the campaign decision; it is not selected as “post 2” and
+has no current production or publication brief.
 
 ## Context
 
-`marketing/write-post` is the order of work and the gates for this post; it is
-attached under `skills:`. It reads the two marketing contexts for what to say
-and hands the prose-craft pass to the imported `clarity` skill at
-`coga/skills/clarity/SKILL.md`. Follow its steps rather than re-deriving a
-process from the contexts. The display title is decided during that process;
-the ticket's older bookkeeping name does not constrain it.
+The [previous brief](../../contexts/marketing/launch-history/campaign-ticket-briefs.md#post-you-own-it)
+preserves the earlier treatment for inspiration. Its receipt-collection
+sentence was stale: the owner dropped the token/time experiment on September 9.
+
+`marketing/build-the-launch-plan` decides whether to keep, change, combine,
+defer or drop this idea after the story and pitch work. If selected, rewrite
+the brief and author a workflow before activation. A factual correction-loop
+example needs the governing edit and later behavior that the public record
+actually supports; an authored illustration must be identified as such.
+
+Use the current `marketing/positioning` source limits and
+`marketing/write-post` procedure after the selected post is briefed.
+No token receipt collection or inherited phase gate is required. This ticket
+remains a concept draft.
 
 <!-- coga:blackboard -->
 

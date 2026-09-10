@@ -6,8 +6,7 @@ owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
-contexts:
-  - marketing/positioning
+contexts: []
 skills: []
 workflow: draft-for-human
 secrets: null
@@ -15,84 +14,72 @@ secrets: null
 
 ## Description
 
-Write the reusable Coga pitch and a short narrative from the owner's chosen
-story and worked examples. Lead with the owner's direction: Coga makes the
-intent, instructions, knowledge and working state behind an AI session
-explicit and editable. Explain the experience through the chosen worked
-example before introducing the company-OS category or the parallel queue.
+Write the reusable Coga pitch and narrative from the owner's chosen story
+and worked examples. Produce a one-sentence pitch, short expansion, narrative
+outline and source-to-claim table for owner review.
 
-Produce one short pitch, a narrative outline with source links, and a mapping
-from the supported message to the existing launch deliverables. The owner
-reviews the wording before it becomes canonical marketing copy.
+The owner requested a fresh marketing start on 2026-09-10. Existing copy and
+campaign ideas can inspire the writing; they do not prescribe an audience,
+headline, strategic fork or three-essay sequence.
 
 ## Context
 
-### Story decision and supporting material
+### Story decision and sources
 
-`marketing/plan/collect-public-examples-for-the-launch` now makes story and
-example options and reaches a decision with the owner; its old collection name
-is historical. Its durable output is
-`coga/contexts/marketing/positioning/examples.md`. Use the selected angle,
-worked examples and exclusions to write the copy. If the story decision is
-missing, resolve that editorial choice before finalizing the pitch.
+`marketing/plan/collect-public-examples-for-the-launch` owns the first
+decision: intended reader/outcome, central story, selected examples and
+exclusions. Its planned output is
+`coga/contexts/marketing/positioning/examples.md`. Resolve that editorial
+choice before finalizing the pitch; do not make a substitute decision here.
 
-Examples may be authored illustrations or newly made demonstrations. Identify
-them accurately. Claims about a real event or observed behavior need public
-support; a missing old log entry does not prevent drafting a clearly
-identified worked example. Close any factual evidence gap before publishing
-the corresponding claim.
+Read `coga/contexts/marketing/plan/SKILL.md` for the sequence,
+`coga/contexts/marketing/map/SKILL.md` for source locations, and
+`coga/contexts/marketing/positioning/SKILL.md` for current message status
+and source limits. Positioning is this task's editing target, so it is read
+rather than attached. Earlier positioning and campaigns live in the linked
+history references.
 
-`marketing/positioning` supplies the full audience, voice, ownership spine
-and limits. `marketing/map` locates the strategic sources and the newer
-owner decision in the documentation-reorganization ticket. Read only the
-retained message briefs and phase constraints needed from `marketing/plan`;
-channel/account mechanics belong to `marketing/distribution`.
+Examples may be authored illustrations or newly made public demonstrations.
+Identify them accurately. Real-event and observed-behavior claims require
+public support; a missing historical log entry does not prevent a clearly
+identified illustration.
 
-### Deliverable and acceptance
+### Deliverables and acceptance
 
 Draft on this blackboard:
 
-1. A one-sentence pitch and a short expansion that explain what the reader can
-   do with Coga, for whom, and why managing the inputs changes the interaction.
-2. A narrative outline expressing the chosen story through its worked
-   examples. Link factual event claims to public support and distinguish
-   authored illustrations from observed behavior.
-3. A compact source-to-claim table: what is observed, what is interpretation,
-   what is the founder's thesis, and what must be conceded or omitted.
-4. A proposed mapping to the README and retained three essay tickets,
-   identifying repetition or unsupported angles for the owner's keep/drop
-   decision in `marketing/build-the-launch-plan`.
+1. A one-sentence pitch and short expansion explaining what the chosen reader
+   can do with Coga and why it matters to their stated goal.
+2. A narrative outline expressing the selected story through the worked
+   examples, distinguishing illustration from observation.
+3. A source-to-claim table: observed fact, interpretation, product thesis,
+   illustration, and any claim to concede, narrow or omit.
+4. Possible uses of the message across formats and public surfaces, with
+   tradeoffs. These are input to campaign selection; do not force the message
+   into the old three essays or assume a mandatory README/community package.
 
-Draft for a technically capable reader without assuming the Pirsig/Lisp
-reading list. Make ownership concrete in the opening: the maintained material
-is in files the reader can inspect and edit. Preserve the personal internal-tool,
-open-source posture; avoid claims of historical priority or universal benefit.
-Use the relevant `clarity` review guidance for the short copy, without running
-the post-publication workflow.
+Use plain, concrete language and accurate product behavior. Apply the
+relevant `clarity` review guidance for short copy without running a
+post-publication workflow. The chosen reader and tone come from the story
+decision, not a previously pinned strategic fork.
 
-The owner chooses and edits the wording at step 2. At step 3, put the accepted
-pitch and narrative in `marketing/positioning`, linking the chosen examples,
-and hand the deliverable mapping to `marketing/build-the-launch-plan`.
-Do not leave the reusable message only on a task blackboard.
-
-Keep the canonical positioning context focused on the current interaction,
-ownership, audience, voice, limits and pinned fork. During the rewrite, move
-optional dated competitive/category discussion into a linked reference where
-useful, preserving its provenance. This implements the extraction review's
-trim recommendation without changing the shared base prompt.
+The owner chooses and edits the wording at step 2. At step 3, record the
+accepted pitch and narrative in `marketing/positioning`, link the selected
+examples, and hand the possible uses to `marketing/build-the-launch-plan`.
+Keep the maintained positioning context focused; dated research and rejected
+directions stay in linked references.
 
 ### Boundaries
 
-This ticket prepares the message. The existing post tickets write the full
-essays under `marketing/write-post`; `marketing/readme-top` implements the
-landing page. The existing launch-plan owner gate decides whether an essay or
-channel is kept, changed or dropped. This ticket does not cancel them.
+The campaign ticket selects formats, channels, readiness work and which
+existing ideas to keep, change, defer or drop. This ticket writes the message;
+it neither produces full campaign assets nor selects the campaign.
 
-The token/time experiment was dropped on 2026-09-09. No receipt quota, paired
-run, efficiency result, multiplier, or unsupported generality claim belongs
-here. Private-repo evidence is excluded. Publication, account actions,
-product cleanup and the proposed documentation migration remain with their
-own tickets.
+The marketing token/time experiment remains dropped. No receipt quota,
+paired run, measured multiplier or unsupported efficiency claim belongs here.
+Private-repo evidence is excluded. Publication, account actions, product
+cleanup, confidential-attachment disposition and documentation migration
+remain with their own tickets. Keep the existing `draft-for-human` workflow.
 
 <!-- coga:blackboard -->
 

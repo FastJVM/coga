@@ -17,31 +17,29 @@ secrets: null
 
 ## Description
 
-Write and ship launch post 1 — **it declutters your mind** — following the
-five beats and phase-1 runbook in `marketing/plan`. The stable task slug is
-historical: async megalaunch is one concrete example of batching judgment and
-leaving, not the post's thesis.
+Candidate essay idea: moving agent work and working state out of the
+founder's head into visible, owned files. Async megalaunch and batching
+judgment were examples in the previous treatment.
 
-Use only public, reproducible Coga-on-Coga details as evidence. Own the
-dogfooding and the limit: Coga also runs private work, but private examples are
-not evidence this essay can offer. Fold ownership into the trust beat rather
-than spinning it into a second idea. Do not claim a measured time saving or
-fully managed autonomy.
-
-Write the complete comment-section replies before shipping. Execute the
-channel order in the plan, including the one-time fastjvm.com announcement,
-then hand channel timestamps and initial observations to
-`marketing/phase-1-retro`, which owns the day-14 scorecard and owner
-disposition.
+The owner requested a fresh marketing start on 2026-09-10. Keep this idea
+available for the campaign decision; it is not selected as “post 1” and
+has no current production or publication brief.
 
 ## Context
 
-`marketing/write-post` is the order of work and the gates for this post; it is
-attached under `skills:`. It reads the two marketing contexts for what to say
-and hands the prose-craft pass to the imported `clarity` skill at
-`coga/skills/clarity/SKILL.md`. Follow its steps rather than re-deriving a
-process from the contexts. The display title is decided during that process;
-the ticket's older bookkeeping name does not constrain it.
+The [previous brief](../../contexts/marketing/launch-history/campaign-ticket-briefs.md#post-async-megalaunch)
+and [previous campaign](../../contexts/marketing/launch-history/three-essay-plan.md)
+preserve the earlier beats and reasoning for inspiration.
+
+`marketing/build-the-launch-plan` decides whether to keep, change, combine,
+defer or drop this idea after the story and pitch work. If selected, rewrite
+the brief with the chosen reader, claim, format, supported examples, channels
+and completion conditions, and author its workflow before activation.
+
+Use the current `marketing/positioning` source limits and
+`marketing/write-post` procedure only after the selected post is briefed.
+No private-repo quotations, unsupported efficiency claim or old phase/channel
+gate belongs in a new brief. This ticket remains a concept draft.
 
 <!-- coga:blackboard -->
 
