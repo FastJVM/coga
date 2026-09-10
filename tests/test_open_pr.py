@@ -30,6 +30,7 @@ from coga.logfile import append_log
 from coga.taskfile import read_blackboard
 from coga.ticket import Ticket
 
+from coga import git as coga_git
 from coga.open_pr import (
     OpenPrError,
     _single_checkout_publishable_paths,
@@ -1135,3 +1136,80 @@ def test_publishable_paths_ignores_lifecycle_fields_blackboard_and_union_files(
         )
         == []
     )
+
+
+def test_publishable_paths_keeps_the_extension_marker_out_of_the_signature(
+    tmp_path,
+):
+    """A dropped key takes its continuation lines — and nothing else.
+
+    `Ticket.render` writes `launch_generation` immediately before the
+    `# --- extensions ---` marker. That marker has no colon, so a state machine
+    that carried the drop across it would swallow the marker on the head side
+    only and make a ticket Coga merely advanced look hand-authored — defeating
+    the gate for every repo that declares `[ticket.fields.*]`.
+    """
+    repo = init_git_repo(tmp_path)
+    ticket = _write_ticket(
+        repo.coga_os, "extended", branch="extended", worktree=repo.root
+    )
+    with_extensions = ticket.read_text().replace(
+        "script: null\n",
+        "script: null\nlaunch_generation: abc123\n# --- extensions ---\narea: infra\n",
+    )
+    ticket.write_text(with_extensions)
+    repo.git("add", "--", "coga/tasks/extended/ticket.md")
+    repo.git("commit", "-m", "ticket: seed extended")
+
+    repo.checkout_branch("extended")
+    ticket.write_text(
+        with_extensions.replace("launch_generation: abc123\n", "").replace(
+            "status: in_progress", "status: done"
+        )
+    )
+    repo.git("add", "--", "coga/tasks/extended/ticket.md")
+    repo.git("commit", "-m", "Ticket: extended — done")
+
+    assert (
+        _single_checkout_publishable_paths(
+            base_ref="main",
+            checkout_root=repo.root,
+            coga_root=repo.coga_os,
+        )
+        == []
+    )
+
+
+def test_publishable_paths_fails_loud_when_git_attributes_cannot_be_read(
+    tmp_path, monkeypatch
+):
+    """A failed `check-attr` must not read as "no union files".
+
+    Answering "no union files" on error flips this gate from refusing a
+    state-only branch to opening an empty PR, silently — the failure mode
+    `coga/principles` #6 rules out.
+    """
+    repo = init_git_repo(tmp_path)
+    _write_ticket(repo.coga_os, "probe-fails", branch="probe-fails", worktree=repo.root)
+    repo.git("add", "--", "coga/tasks/probe-fails/ticket.md")
+    repo.git("commit", "-m", "ticket: seed probe-fails")
+    repo.checkout_branch("probe-fails")
+    (repo.coga_os / "log.md").write_text("an audit append\n")
+    repo.git("add", "--", "coga/log.md")
+    repo.git("commit", "-m", "Log: probe-fails")
+
+    real_run_git = coga_git._run_git
+
+    def refuse_check_attr(root, *args, **kwargs):
+        if args and args[0] == "check-attr":
+            raise coga_git.GitError("`git check-attr` failed: fatal: nope")
+        return real_run_git(root, *args, **kwargs)
+
+    monkeypatch.setattr(coga_git, "_run_git", refuse_check_attr)
+
+    with pytest.raises(OpenPrError, match="could not read git attributes"):
+        _single_checkout_publishable_paths(
+            base_ref="main",
+            checkout_root=repo.root,
+            coga_root=repo.coga_os,
+        )

@@ -958,7 +958,10 @@ def _sync_log_without_barrier(
         merge; landing it first is what makes removing it from the payload
         safe. A successful artifact-gated handoff may
         set `publish_current_branch` so the final session-usage commit also
-        reaches the already-open PR branch. An explicit human-step assist uses
+        reaches the already-open PR branch — it takes that same boundary first,
+        because publishing to an open PR is precisely how the append would
+        otherwise return to the payload the gated bump just cleared. An
+        explicit human-step assist uses
         the narrower `publish_if_remote_aligned`: publish the log-only commit
         only from an aligned live configured remote tip. By default, a
         merely-behind branch is fast-forwarded first while its one dirty
@@ -1109,6 +1112,25 @@ def _sync_log_without_barrier(
                 if not remote_ok:
                     sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
                     return False
+                published_oid = generated_oid
+                if not publication.aligned and committed:
+                    # The gated-handoff publication is exactly the "later
+                    # lifecycle publication to an already-open PR" that would
+                    # otherwise put the audit log straight back into the review
+                    # payload the gated bump just cleared. Take the same
+                    # boundary in the same order, then publish the reconciled
+                    # tip so the PR branch and the checkout stay in lockstep.
+                    # Strict assist is excluded — its push is leased to an exact
+                    # PR tip that a merge would invalidate.
+                    _land_and_reconcile_log(
+                        cfg,
+                        root,
+                        branch=branch,
+                        log_rel=log_rel,
+                        generated_oid=generated_oid,
+                        message=message,
+                    )
+                    published_oid = _run_git(root, "rev-parse", "HEAD").strip()
                 push_started = False
                 try:
                     if (
@@ -1121,7 +1143,7 @@ def _sync_log_without_barrier(
                     result = _push_ref(
                         root,
                         assist_push_url or cfg.git_remote,
-                        f"{generated_oid}:refs/heads/{branch}",
+                        f"{published_oid}:refs/heads/{branch}",
                         force_with_lease=(
                             (f"refs/heads/{branch}", publication.remote_oid)
                             if publication.aligned
@@ -1188,39 +1210,14 @@ def _sync_log_without_barrier(
                     f"published ({publication.detail}). ({message})\n"
                 )
             elif committed and remote_ok:
-                # An ordinary feature-branch audit append is canonical on the
-                # control branch, so it union-lands now rather than waiting for
-                # this branch's PR to merge. Landing first is what makes the
-                # payload reconciliation safe: the append leaves the review
-                # payload only once control durably holds the same lines, so
-                # nothing here can delete the only copy of an audit line. A
-                # landing failure keeps the local commit and the ordinary
-                # `True` result — the log is committed, which is all this
-                # helper promises.
-                try:
-                    accepted_control_oid = _land_paths_on_control_branch(
-                        cfg,
-                        root,
-                        [],
-                        union_rels=[log_rel],
-                        message=message,
-                    )
-                except GitError as exc:
-                    sys.stderr.write(
-                        f"[git] audit log not landed on "
-                        f"{cfg.git_control_branch!r}: {exc}. "
-                        f"Message was: {message}\n"
-                    )
-                else:
-                    _reconcile_feature_payload(
-                        cfg,
-                        root,
-                        branch=branch,
-                        accepted_control_oid=accepted_control_oid,
-                        generated_rels=[log_rel],
-                        pre_commit_oid=f"{generated_oid}^",
-                        message=message,
-                    )
+                _land_and_reconcile_log(
+                    cfg,
+                    root,
+                    branch=branch,
+                    log_rel=log_rel,
+                    generated_oid=generated_oid,
+                    message=message,
+                )
         return True
     except GitError as exc:
         sys.stderr.write(f"[git] log sync failed: {exc}. Message was: {message}\n")
@@ -3027,12 +3024,18 @@ def _dispatch_branch_sync(
                 root,
                 branch=branch,
                 accepted_control_oid=accepted_control_oid,
-                generated_rels=_generated_commit_rels(
-                    root,
-                    before=current_oid,
-                    generated_oid=generated_oid,
-                    generated_paths=generated_paths,
-                    local_rels=local_rels,
+                generated_rels=_landed_generated_rels(
+                    cfg,
+                    _generated_commit_rels(
+                        root,
+                        before=current_oid,
+                        generated_oid=generated_oid,
+                        generated_paths=generated_paths,
+                        local_rels=local_rels,
+                    ),
+                    landed=set(overlay_rels) | set(control_union_rels),
+                    branch=branch,
+                    message=message,
                 ),
                 pre_commit_oid=current_oid,
                 message=message,
@@ -3529,25 +3532,47 @@ def _status_paths(status: str, path: str) -> list[str]:
     return [path] if path else []
 
 
-def _union_merge_paths(root: Path, rels: list[str]) -> set[str]:
+# `check-attr` takes every path in one argv, so a wide pathspec set could
+# otherwise exceed the platform's argument limit. Ask in batches instead.
+_CHECK_ATTR_BATCH = 200
+
+
+def union_merge_paths(root: Path, rels: list[str]) -> set[str]:
     """Subset of `rels` carrying the `merge=union` git attribute.
 
     Asked of git directly (`git check-attr merge -z`) rather than hardcoding
     `log.md`, so any file `.gitattributes` marks `merge=union`
     automatically stays out of the cross-branch overlay. `-z` keeps path/value
     parsing robust against special characters.
+
+    Shared with `open_pr`, which needs the same question answered to tell an
+    append-only machine queue from reviewable work. Raises `GitError` when the
+    probe fails: both callers decide something important on the answer, and
+    neither may read a failed probe as "no union files".
     """
     if not rels:
         return set()
-    out = _run_git(root, "check-attr", "merge", "-z", "--", *rels)
-    fields = out.split("\x00")
     union: set[str] = set()
-    # `check-attr -z` emits flat triples: path, attr-name, value.
-    for j in range(0, len(fields) - 2, 3):
-        path, _attr, value = fields[j], fields[j + 1], fields[j + 2]
-        if value == "union":
-            union.add(path)
+    for start in range(0, len(rels), _CHECK_ATTR_BATCH):
+        out = _run_git(
+            root,
+            "check-attr",
+            "merge",
+            "-z",
+            "--",
+            *rels[start : start + _CHECK_ATTR_BATCH],
+        )
+        fields = out.split("\x00")
+        # `check-attr -z` emits flat triples: path, attr-name, value.
+        for j in range(0, len(fields) - 2, 3):
+            path, _attr, value = fields[j], fields[j + 1], fields[j + 2]
+            if value == "union":
+                union.add(path)
     return union
+
+
+# Kept as the in-module spelling every existing call site already uses.
+_union_merge_paths = union_merge_paths
 
 
 def guard_ticket_state(
@@ -5120,8 +5145,11 @@ def _land_paths_on_control_branch(
     pushed commit, or the accepted base when the overlay was already identical.
     `_reconcile_feature_payload` needs that exact OID: a feature branch drops
     generated paths from its review payload only by making the control commit
-    that accepted them reachable. `None` means nothing was published (an
-    unguarded no-op), so there is nothing to reconcile against.
+    that accepted them reachable. An overlay that produced the base tree
+    unchanged returns that base rather than `None`: nothing needed pushing
+    precisely *because* control already holds these bytes, so the branch can
+    and should still reconcile against it. `None` is reserved for the paths
+    that publish nothing at all.
 
     ``source_rev`` pins the overlay to an already-created generated commit;
     ``source_bytes`` is the detached-checkout equivalent. They are mutually
@@ -5166,7 +5194,11 @@ def _land_paths_on_control_branch(
         )
         if tree == _run_git(root, "rev-parse", f"{base}^{{tree}}").strip():
             if guard is None:
-                return None
+                # Control already holds exactly these bytes, so the base *is*
+                # the commit that accepted them. Reporting `None` here would
+                # silently skip the payload reconciliation for the one case
+                # where it is guaranteed safe.
+                return base
             # A guarded no-op against a stale local control ref is not a
             # successful publication. Lease an identity push to the exact base:
             # if live control moved, the rejection drives the normal
@@ -5260,6 +5292,51 @@ def _generated_commit_rels(
     return [rel for rel in output.split("\x00") if rel]
 
 
+def _landed_generated_rels(
+    cfg: Config,
+    generated_rels: list[str],
+    *,
+    landed: set[str],
+    branch: str,
+    message: str,
+) -> list[str]:
+    """The manifest entries the control landing actually accepted.
+
+    Reconciliation can only remove a path from the review payload once control
+    holds it, so a generated path that reached neither the overlay nor the
+    union land must not be asked for. Left in the manifest it is unsatisfiable:
+    the verification diff reports it forever, every sync refuses, and the work
+    of merging is repeated for nothing.
+
+    In a healthy repo the two sets coincide. They come apart when a file Coga
+    appends to has lost its `merge=union` attribute — `coga/log.md` in a repo
+    with no `coga/.gitattributes` — which is a real misconfiguration, so it is
+    named on stderr rather than quietly dropped.
+
+    `landed` holds pathspecs, which are routinely directories (`sync_task_state`
+    lands a whole task dir), while the manifest holds the individual files the
+    state commit touched. Match a file to its covering pathspec rather than by
+    equality, or every directory-scoped landing reads as unlanded.
+    """
+    prefixes = {rel.rstrip("/") for rel in landed}
+
+    def was_landed(rel: str) -> bool:
+        return any(
+            rel == prefix or rel.startswith(f"{prefix}/") for prefix in prefixes
+        )
+
+    unlanded = [rel for rel in generated_rels if not was_landed(rel)]
+    if unlanded:
+        sys.stderr.write(
+            f"[git] not landed on {cfg.git_control_branch!r} and left in "
+            f"{branch!r}'s review payload: {', '.join(sorted(unlanded))} — an "
+            "append-only Coga file reaches the control branch by union merge, "
+            "so check that `.gitattributes` still marks it `merge=union`. "
+            f"({message})\n"
+        )
+    return [rel for rel in generated_rels if was_landed(rel)]
+
+
 def _trees_equal(root: Path, left: str, right: str) -> bool:
     """Whether two revisions name byte-identical trees."""
     return (
@@ -5296,9 +5373,16 @@ def _reconcile_feature_payload(
     ends with the check that matters: a path-producing diff against that same
     tip, restricted to the manifest, proving no generated path survived into the
     payload. `open-pr` already refuses a branch missing material commits from
-    the control branch, so this is the base sync that branch owed anyway —
-    taken at the moment Coga published the state, when its only delta from the
-    branch's own copy is the bytes the branch already has.
+    the control branch, so this is the base sync that branch owed anyway.
+
+    Be precise about what that merge costs, because it is more than the
+    generated bytes. The accepted control commit is an ordinary commit on the
+    control branch, so merging it integrates *everything* that landed there
+    since the fork — product code included — into a checkout a session may
+    still be working in. That is the base sync the branch owed, but it is taken
+    at a moment Coga chose rather than one the operator did, so an integration
+    that touches anything outside the manifest says so on stderr instead of
+    rewriting the working tree silently.
 
     A branch that carried nothing *but* this command's generated state skips
     the merge: control already committed exactly these bytes onto history this
@@ -5313,12 +5397,30 @@ def _reconcile_feature_payload(
     Fails closed and never raises: the control landing already succeeded, so a
     refusal reports (stderr) and leaves the branch exactly as it was rather
     than deleting audit evidence or overwriting authored Coga files to make the
-    check pass. Returns whether the payload is proven free of the manifest.
+    check pass. "Exactly as it was" includes any commit *this* function made:
+    a merge that git completed but the manifest check then rejected is unwound
+    before the refusal, or the refusal says why it could not be. The unwind is
+    `reset --keep`, which refuses rather than discarding a local modification.
+    Returns whether the payload is proven free of the manifest.
     """
     if accepted_control_oid is None or not generated_rels:
         return False
 
+    try:
+        entry_oid: str | None = _run_git(root, "rev-parse", "HEAD").strip()
+    except GitError:
+        entry_oid = None
+    moved = False
+
     def refuse(detail: str) -> bool:
+        if moved and entry_oid is not None:
+            try:
+                _run_git(root, "reset", "--keep", entry_oid)
+            except GitError as exc:
+                detail = (
+                    f"{detail}; the reconciliation commit could not be "
+                    f"unwound and {branch!r} is left at it ({exc})"
+                )
         sys.stderr.write(
             f"[git] feature payload not reconciled: {detail} — "
             f"machine-generated Coga state stays in {branch!r}'s review "
@@ -5340,6 +5442,7 @@ def _reconcile_feature_payload(
             and _is_ancestor(root, pre_commit_oid, accepted_control_oid)
         ):
             _run_git(root, "reset", "--soft", accepted_control_oid)
+            moved = True
         else:
             result = subprocess.run(
                 [
@@ -5368,6 +5471,16 @@ def _reconcile_feature_payload(
                     or f"`git merge {accepted_control_oid}` "
                     f"exited {result.returncode}"
                 )
+            moved = True
+            if entry_oid is not None:
+                _report_base_sync(
+                    cfg,
+                    root,
+                    branch=branch,
+                    entry_oid=entry_oid,
+                    generated_rels=generated_rels,
+                    message=message,
+                )
         remaining_output = _run_git(
             root,
             "diff",
@@ -5386,6 +5499,94 @@ def _reconcile_feature_payload(
             f"{cfg.git_control_branch!r}: {', '.join(remaining)}"
         )
     return True
+
+
+def _land_and_reconcile_log(
+    cfg: Config,
+    root: Path,
+    *,
+    branch: str,
+    log_rel: str,
+    generated_oid: str,
+    message: str,
+) -> None:
+    """Make a feature branch's audit append durable on control, then drop it.
+
+    Audit history is canonical on the control branch, so the append union-lands
+    there now rather than waiting for this branch's PR to merge. That ordering
+    is the whole safety argument for the reconciliation that follows: the line
+    leaves the review payload only once control durably holds it, so nothing
+    here can delete the only copy of an audit line.
+
+    Both feature-branch log paths — the ordinary one and the gated handoff that
+    publishes to an already-open PR — need exactly this, which is why it is one
+    function: a boundary applied in only one of the two is a boundary the next
+    write undoes.
+
+    A landing failure is reported and returns. The log is committed locally,
+    which is all `sync_log` promises, and the payload keeps a line control does
+    not yet have rather than losing it.
+    """
+    try:
+        accepted_control_oid = _land_paths_on_control_branch(
+            cfg,
+            root,
+            [],
+            union_rels=[log_rel],
+            message=message,
+        )
+    except GitError as exc:
+        sys.stderr.write(
+            f"[git] audit log not landed on {cfg.git_control_branch!r}: "
+            f"{exc}. Message was: {message}\n"
+        )
+        return
+    _reconcile_feature_payload(
+        cfg,
+        root,
+        branch=branch,
+        accepted_control_oid=accepted_control_oid,
+        generated_rels=[log_rel],
+        pre_commit_oid=f"{generated_oid}^",
+        message=message,
+    )
+
+
+def _report_base_sync(
+    cfg: Config,
+    root: Path,
+    *,
+    branch: str,
+    entry_oid: str,
+    generated_rels: list[str],
+    message: str,
+) -> None:
+    """Name the files the boundary's merge changed outside its own manifest.
+
+    The reconciliation merge is a real base sync, so it can rewrite product
+    files a session is working against. Coga chose that moment, not the
+    operator, and principle 6 does not allow a silent rewrite: say which files
+    moved. Best-effort — this is a diagnostic, so a probe failure must never
+    turn a completed reconciliation into a refusal.
+    """
+    try:
+        output = _run_git(root, "diff", "--name-only", "-z", entry_oid, "HEAD")
+    except GitError:
+        return
+    manifest = set(generated_rels)
+    integrated = sorted(
+        {rel for rel in output.split("\x00") if rel and rel not in manifest}
+    )
+    if not integrated:
+        return
+    shown = ", ".join(integrated[:5])
+    if len(integrated) > 5:
+        shown += f", and {len(integrated) - 5} more"
+    sys.stderr.write(
+        f"[git] base-synced {branch!r} onto {cfg.git_control_branch!r} while "
+        f"publishing Coga state: {len(integrated)} file(s) updated from the "
+        f"control branch ({shown}). ({message})\n"
+    )
 
 
 def _merge_in_progress(root: Path) -> bool:

@@ -567,7 +567,12 @@ Five properties hold it together:
    commit subject: the caller's armed snapshot when it has one, otherwise the
    exact delta of the state commit this command just made. A new state writer
    is covered the moment it writes, and a mixed-purpose file is owned exactly to
-   the extent this command changed it.
+   the extent this command changed it. It is then narrowed to what the landing
+   actually accepted — a generated path that reached neither the overlay nor
+   the union land is unsatisfiable, and asking for it would refuse forever
+   while re-merging on every sync. That only happens to a misconfigured repo
+   (an append-only file whose `merge=union` attribute is gone), so the dropped
+   path is named on stderr rather than quietly ignored.
 2. **Audit and queue appends land first.** The ordinary feature path now
    union-lands the command's own `merge=union` files onto the fetched control
    tip under the existing compare-and-swap, instead of waiting for the branch's
@@ -583,8 +588,20 @@ Five properties hold it together:
    the manifest. Nothing is assumed from the merge having "worked".
 5. **It fails closed and never raises.** The control landing already succeeded,
    so a conflict or concurrent drift reports on stderr and leaves the branch
-   exactly as it was. It never deletes audit evidence or overwrites authored
-   Coga files to make the check pass.
+   exactly as it was — including any commit the boundary itself made: a merge
+   git completed but the manifest check then rejected is unwound (`reset
+   --keep`, which refuses rather than discarding a local modification) before
+   the refusal, or the refusal says it could not be. It never deletes audit
+   evidence or overwrites authored Coga files to make the check pass.
+
+**What the merge costs, stated plainly.** The accepted control commit is an
+ordinary commit on the control branch, so merging it integrates everything that
+landed there since the fork — product code included — into a checkout a session
+may still be working in. That is the base sync the branch owed, but Coga picks
+the moment, not the operator, so an integration touching anything outside the
+manifest prints one stderr line naming the files it moved. Expect a lifecycle
+transition (`bump`, `mark`, even `block`) to fast-forward the branch's product
+tree, and read that line as the notice that it happened.
 
 The adopt-the-control-commit path also removes a timing coincidence that would
 otherwise decide the shape of history: two `commit-tree` calls with the same
@@ -597,7 +614,12 @@ the spool, and it treats a ticket as generated-only when its authored half —
 frontmatter minus the lifecycle fields Coga writes, plus the body above the
 blackboard fence — is byte-identical on both sides. The blanket
 `coga/tasks/**` exclusion it replaces refused a valid PR whose whole
-implementation was deliberate ticket prose.
+implementation was deliberate ticket prose. Two judgment calls inside it are
+deliberate and both lean the same way, because refusing a real PR is worse than
+admitting an empty one: `workflow:` stays on the authored side even though
+`mark_active` freezes it, and a ticket added or deleted on the branch counts as
+work. A failed `check-attr` probe is the opposite case and fails loud — reading
+it as "no union files" would silently turn the gate into a PR opener.
 
 Cancellation keeps `land_union_files_to_control=True` for the shapes the
 ordinary feature path does not reach, notably a detached checkout. A
@@ -668,12 +690,21 @@ the task-state commit — the temp-index plumbing makes that structural for the
 cross-branch land, since every staging op runs against the throwaway index.
 
 `sync_log` is narrower still: it commits only the union-marked global audit log.
-On a feature branch it normally leaves that commit local for a later PR merge.
-The one publishing exception is teardown after a successfully advanced
-artifact gate such as `requires: pr`: the gated bump already made the branch a
-shared PR ref, so teardown pushes its subsequently appended usage-log commit to
-that same branch. The durable ticket proves the step advanced before this flag
-is set; blocks, crashes, natural exits, and rewinds retain local-only behavior.
+On a feature branch it commits that append locally, union-lands it on the
+control branch, and reconciles it out of the review payload — audit history is
+canonical on control, so it no longer waits for the branch's PR to merge.
+Teardown after a successfully advanced artifact gate such as `requires: pr`
+additionally sets `publish_current_branch`: the gated bump already made the
+branch a shared PR ref, so teardown pushes its subsequently appended usage-log
+commit to that same branch. That push takes the publication boundary *first* —
+publishing to an already-open PR is exactly how the append would otherwise land
+back in the payload the gated bump just cleared — and then publishes the
+reconciled tip, so the PR branch and the checkout stay in lockstep. The durable
+ticket proves the step advanced before this flag is set; blocks, crashes,
+natural exits, and rewinds keep the ordinary land-and-reconcile path with no
+branch publication. Strict human-step assist is the exception to the exception:
+its push is leased to an exact PR tip that a reconciliation merge would
+invalidate, so it publishes its log-only commit unreconciled.
 
 `open-pr`'s generated `pr:` record uses the same publishing form —
 `sync_paths(..., publish_current_branch=True)` on the ticket alone — in the

@@ -46,6 +46,7 @@ from coga.git import (
     sync_log,
     sync_paths,
     ticket_state_guard,
+    union_merge_paths,
 )
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.repl_supervisor import EXPECTED_TASK_ENV
@@ -61,7 +62,18 @@ class OpenPrError(Exception):
 
 
 def _run(args: list[str], *, cwd: str | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=False)
+    # Decode as UTF-8 explicitly rather than through the ambient locale: this
+    # reads ticket bodies, and a launch subprocess chain running under `LC_ALL=C`
+    # would otherwise raise `UnicodeDecodeError` on the first em dash.
+    return subprocess.run(
+        args,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
 
 
 def _git(args: list[str], *, cwd: str) -> subprocess.CompletedProcess[str]:
@@ -163,8 +175,16 @@ def _single_checkout_publishable_paths(
 
 
 # Frontmatter fields Coga's own commands write as a task moves through its
-# workflow. Everything else in the frontmatter — title, contexts, workflow,
-# owner, secrets — is authored, so a change to one is reviewable work.
+# workflow. Everything else in the frontmatter — title, contexts, owner,
+# secrets — is authored, so a change to one is reviewable work.
+#
+# `workflow:` is the deliberate borderline case. `mark_active` and `bump` do
+# write it, freezing a bare reference into an inline definition, so by byte
+# ownership it belongs here. It is left on the authored side anyway: a human
+# who changes which workflow a ticket runs has done reviewable work, and this
+# gate's stated bias is that refusing a real PR is worse than admitting an
+# empty one. The cost is that a branch whose *only* change is that freeze reads
+# as publishable — reachable only when reconciliation has already failed closed.
 _GENERATED_TICKET_KEYS = frozenset(
     {"status", "step", "assignee", "launch_generation"}
 )
@@ -176,6 +196,13 @@ def _authored_ticket_signature(text: str) -> str | None:
     Everything a Coga command owns is dropped: the lifecycle frontmatter fields
     and the whole blackboard region, which is working memory rather than review
     payload. What remains is what a reviewer would actually read a diff of.
+
+    A dropped key takes its continuation lines with it — an indented block or a
+    `-` list item — and nothing else. Only a genuine continuation extends the
+    drop: `Ticket.render` emits `launch_generation` immediately before the
+    `# --- extensions ---` marker, and a state machine that carried the drop
+    across every colon-free line would swallow that marker on one side only,
+    making a ticket Coga merely advanced look hand-authored.
     """
     if not text.startswith("---\n"):
         return None
@@ -187,8 +214,9 @@ def _authored_ticket_signature(text: str) -> str | None:
     kept: list[str] = []
     dropping = False
     for line in frontmatter.splitlines():
-        if line[:1] not in {" ", "\t", "-"} and ":" in line:
-            dropping = line.split(":", 1)[0].strip() in _GENERATED_TICKET_KEYS
+        if line[:1] not in {" ", "\t", "-"}:
+            key = line.split(":", 1)[0].strip() if ":" in line else None
+            dropping = key in _GENERATED_TICKET_KEYS
         if not dropping:
             kept.append(line)
     try:
@@ -202,21 +230,22 @@ def _union_attributed_paths(paths: list[str], *, cwd: str) -> set[str]:
     """Paths git resolves to the `merge=union` driver — append-only by design.
 
     Asking git rather than naming `log.md` and the digest spool keeps a future
-    union file covered the moment `.gitattributes` marks it.
+    union file covered the moment `.gitattributes` marks it. The probe itself
+    is `git.union_merge_paths`, the same one the sync layer uses to keep union
+    files off the cross-branch overlay — one reading of `check-attr`'s flat
+    triples, one batching rule, one answer to "is this file append-only".
+
+    A failed probe is fatal here. Answering "no union files" on error would flip
+    this gate from refusing a state-only branch to opening an empty PR, and it
+    would do it silently — the failure mode `coga/principles` #6 forbids.
     """
-    result = _git(
-        ["check-attr", "-z", "merge", "--", *paths],
-        cwd=cwd,
-    )
-    if result.returncode != 0:
-        return set()
-    fields = result.stdout.split("\0")
-    union: set[str] = set()
-    for index in range(0, len(fields) - 2, 3):
-        path, attribute, value = fields[index : index + 3]
-        if attribute == "merge" and value == "union":
-            union.add(path)
-    return union
+    try:
+        return union_merge_paths(Path(cwd), paths)
+    except GitError as exc:
+        raise OpenPrError(
+            "could not read git attributes to tell generated Coga state from "
+            f"reviewable work: {exc}"
+        ) from exc
 
 
 def _blob_text(revision_path: str, *, cwd: str) -> str | None:
