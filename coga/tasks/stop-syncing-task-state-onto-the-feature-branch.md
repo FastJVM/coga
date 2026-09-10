@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - coga/sync
 - coga/codebase
@@ -33,8 +33,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 3 (pr)
-launch_generation: bce68d20-e36c-404d-a9d8-0e382905688a
+step: 4 (review)
 ---
 
 ## Description
@@ -133,6 +132,7 @@ hand.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/785
 branch: feature-branch-state-boundary
 worktree: /home/n/Code/claude/coga-feature-branch-state-boundary
 
