@@ -1,7 +1,7 @@
 ---
 slug: agent-usage-report
 title: agent-usage-report
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -39,6 +39,7 @@ workflow:
     assignee: owner
 secrets: null
 step: 1 (design)
+launch_generation: pending:10278844-a242-4b74-ab28-f7931117aad0
 ---
 
 ## Description
