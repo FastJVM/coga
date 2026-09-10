@@ -911,10 +911,19 @@ def _launch(
         try:
             for _ in range(_ASSIST_ALIGNMENT_ATTEMPTS):
                 alignment_ticket = read_ticket(ref)
+                # Same resolution the classification below uses: a draft whose
+                # step-1 role token rewrites `assignee:` at activation must be
+                # aligned against the identity it will actually launch with,
+                # not the stale one it is parked with.
+                alignment_assignee = alignment_ticket.assignee
+                if not is_bootstrap and isinstance(ref, TaskRef):
+                    alignment_assignee, _ = _prospective_activation_identity(
+                        cfg, ref, alignment_ticket
+                    )
                 alignment_is_human_assist = (
                     not is_bootstrap
-                    and bool(alignment_ticket.assignee)
-                    and alignment_ticket.assignee not in cfg.agents
+                    and bool(alignment_assignee)
+                    and alignment_assignee not in cfg.agents
                 )
                 if (
                     alignment_is_human_assist
@@ -1174,6 +1183,12 @@ def _launch(
     if not assignee:
         setup_bail(f"Task {ref.id_slug} has no assignee")
     current_step = ticket.current_step()
+    if not is_bootstrap and isinstance(ref, TaskRef):
+        # Step 1's role token may rewrite `assignee:` at activation. Classify
+        # the recorded assist from the resolved identity, not the stale one.
+        assignee, current_step = _prospective_activation_identity(cfg, ref, ticket)
+        if not assignee:
+            setup_bail(f"Task {ref.id_slug} has no assignee")
     agent_role_override = bool(
         not is_bootstrap
         and agent_override is not None
@@ -1567,6 +1582,23 @@ def _launch(
         ):
             auto_activate_prior = ticket.status
             _prepare_auto_activate(cfg, ref, ticket)
+            # Freezing step 1 can replace the draft's initial assignee. Use
+            # that resolved identity for CLI preflight, audit, and override
+            # continuation before committing any lifecycle state.
+            assignee = ticket.assignee
+            current_step = ticket.current_step()
+            agent_role_override = bool(
+                agent_override is not None
+                and assignee == ticket.agent
+                and isinstance(current_step, dict)
+                and current_step.get("assignee") == "agent"
+            )
+            human_assist = bool(
+                agent_override is not None
+                and assignee
+                and assignee not in cfg.agents
+                and not agent_role_override
+            )
 
         _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 
@@ -2294,6 +2326,36 @@ def _exit_failed_script(exit_code: int) -> None:
         err=True,
     )
     raise SystemExit(exit_code)
+
+
+def _prospective_activation_identity(
+    cfg: Config,
+    ref: TaskRef,
+    ticket: Ticket,
+) -> tuple[str | None, dict | None]:
+    """The assignee and step a draft/paused ticket would have once activated.
+
+    Freezing step 1 resolves its `assignee:` role token, which can change the
+    ticket's assignee — so classifying a recorded human assist from the *stale*
+    draft assignee gets both transitions wrong: human→agent needlessly enters
+    strict assist handling, and agent→human misses it entirely.
+    `coga/architecture` requires launch to "choose the agent and check human
+    handoffs from the prepared activation's resolved assignee", so resolve it
+    here, before that classification.
+
+    This runs on a copy and writes nothing. Activation refusals are deliberately
+    swallowed: the real `_prepare_auto_activate` (or the assist publisher) still
+    runs later and owns the operator-facing error, so this must not change which
+    message a refused launch produces or when it appears.
+    """
+    if ticket.status not in {"draft", "paused"}:
+        return ticket.assignee, ticket.current_step()
+    prospective = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
+    try:
+        prepare_active(cfg, ref, prospective)
+    except Exception:
+        return ticket.assignee, ticket.current_step()
+    return prospective.assignee, prospective.current_step()
 
 
 def _prospective_assist_ticket(

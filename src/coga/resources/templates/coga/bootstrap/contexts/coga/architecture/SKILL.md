@@ -75,8 +75,11 @@ no in-memory state.
   step's inline instructions, therefore degrades prompt composition and is a
   validation error for live tickets.
   Nothing ever re-freezes an existing ticket. `_freeze_workflow_ref`
-  (`mark.py`) only converts a bare string ref and seeds `step: 1`; it is a
-  documented no-op once `workflow:` is already a dict carrying a step. A
+  (`mark.py`) only converts a bare string ref and seeds `step: 1` — resolving
+  that step's `assignee:` role token as it does, through the same
+  `resolve_first_step_assignee` (`bump.py`) that `create_task` uses, so both
+  ways of landing on step 1 agree; it is a documented no-op once `workflow:`
+  is already a dict carrying a step, assignee included. A
   `steps:` edit — an added `skills:` ref, a changed `assignee:` token, a new
   `requires:` gate — therefore reaches only tickets created afterwards, plus
   drafts still carrying a *bare-string* `workflow:` ref (hand-authored or
@@ -91,8 +94,14 @@ no in-memory state.
   so any limit carried only in the prose has to be restated inside the skill or
   it silently stops reaching the agent.
   Each step may declare an `assignee:` role token (`owner` | `human` |
-  `agent` | `other-agent`); on bump, the token resolves against the ticket's
-  matching role field and rewrites `assignee:`. `other-agent` resolves to the
+  `agent` | `other-agent`); on bump — and, for step 1, when creation or
+  activation freezes the workflow — the token resolves against the ticket's
+  matching role field and rewrites `assignee:`. A step-1 token that cannot
+  resolve fails at that freeze, rather than surfacing later as a launch
+  refusing an agent step as a human handoff. Direct launch and megalaunch
+  choose the agent and check human handoffs from the prepared activation's
+  resolved assignee before preflight or any durable lifecycle write.
+  `other-agent` resolves to the
   ticket agent's explicit `[agents.<type>].peer` when set, otherwise to the
   single other configured type. This keeps two-agent repos configuration-free
   while making three-agent repos declare the intended reviewer instead of
