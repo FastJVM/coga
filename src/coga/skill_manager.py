@@ -183,6 +183,16 @@ def install_url_skill(
             if metadata and metadata.get("source_type") == "url"
             else None
         )
+        # An `include` allowlist is the operator's standing declaration of which
+        # subset of upstream this repo installs — not a local adaptation that a
+        # forced overwrite discards. There is no CLI flag to re-supply it, so
+        # dropping it here would silently restore every excluded path and lose
+        # the record permanently. Carry it across the reinstall.
+        existing_include = (
+            parse_include_allowlist(metadata)
+            if metadata and metadata.get("source_type") == "url"
+            else None
+        )
         dirty_existing_skill = bool(
             installed_digest and hash_skill_tree(target) != installed_digest
         )
@@ -250,6 +260,8 @@ def install_url_skill(
                 f"missing: {gh_target}"
             )
         shutil.copy2(materialized.path / "SKILL.md", gh_target / "SKILL.md")
+        if existing_include is not None:
+            apply_include_allowlist(gh_target, existing_include)
         target.parent.mkdir(parents=True, exist_ok=True)
         if target.exists():
             _replace_skill_tree(gh_target, target)
@@ -264,6 +276,7 @@ def install_url_skill(
             source_tree_digest=materialized.source_tree_digest,
             installed_tree_digest=installed_tree_digest,
             timestamp=(now or utc_now)(),
+            include=existing_include,
         )
         write_source_metadata(target, metadata)
         return SkillResult(
@@ -980,11 +993,38 @@ def apply_include_allowlist(tree: Path, include: list[str]) -> None:
     for path in sorted(tree.rglob("*"), key=lambda p: len(p.parts), reverse=True):
         if path in keep:
             continue
-        if path.is_dir():
+        # Symlinks first: `is_dir()` follows the link, so an excluded symlink
+        # pointing at a retained non-empty directory would read as a non-empty
+        # directory and survive the prune. The tar validator permits in-root
+        # links and materialization preserves them, so this is reachable.
+        if path.is_symlink():
+            path.unlink()
+        elif path.is_dir():
             if not any(path.iterdir()):
                 path.rmdir()
         else:
             path.unlink()
+
+
+def _pruned_upstream_matches_installed(
+    materialized_path: Path,
+    include: list[str],
+    installed_digest: str,
+    workdir: Path,
+) -> bool:
+    """Whether the installed tree is exactly this download pruned to `include`.
+
+    An allowlisted install is legitimately smaller than upstream, so a digest
+    mismatch alone does not prove local adaptation.  `update` and checked
+    `status` share this comparison so they classify the same on-disk bytes the
+    same way.
+    """
+    probe = workdir / "allowlist-probe"
+    if probe.exists():
+        shutil.rmtree(probe)
+    shutil.copytree(materialized_path, probe, symlinks=True)
+    apply_include_allowlist(probe, include)
+    return hash_skill_tree(probe) == installed_digest
 
 
 def hash_skill_tree(skill_dir: Path) -> str:
@@ -1124,10 +1164,9 @@ def _update_url_skill_dir(
             # clean, and any stale digest recorded before the allowlist was
             # honored self-heals on the metadata write below.
             if include is not None and locally_adapted:
-                probe = Path(tmp) / "allowlist-probe"
-                shutil.copytree(materialized.path, probe, symlinks=True)
-                apply_include_allowlist(probe, include)
-                if hash_skill_tree(probe) == current_digest:
+                if _pruned_upstream_matches_installed(
+                    materialized.path, include, current_digest, Path(tmp)
+                ):
                     locally_adapted = False
 
             if materialized.source_tree_digest == previous_source_tree:
@@ -1163,6 +1202,24 @@ def _update_url_skill_dir(
                             local_adaptation_notes=_local_adaptation_notes(metadata),
                             include=include,
                         ),
+                    )
+                    # This wrote `.coga-source.json`, so it must report as a
+                    # change: `run_skill_update_pr_flow` returns early when no
+                    # result changed, which would leave the provenance repair
+                    # dirty in the caller's checkout under `--pr`.
+                    return SkillResult(
+                        name=ref,
+                        source_type="url",
+                        status="unchanged",
+                        message=(
+                            "upstream digest unchanged; repaired provenance "
+                            "recorded before the include allowlist was honored"
+                        ),
+                        changed=True,
+                        details={
+                            "source_tree_digest": materialized.source_tree_digest,
+                            "installed_tree_digest": current_digest,
+                        },
                     )
                 return SkillResult(
                     name=ref,
@@ -1276,9 +1333,22 @@ def _status_url_skill(
         selector = metadata.get("selector")
         if selector is not None and not isinstance(selector, str):
             raise SkillManagerError("selector in Coga skill metadata is not a string")
+        include = parse_include_allowlist(metadata)
         data = (downloader or download_url)(url)
         with tempfile.TemporaryDirectory(prefix="coga-skill-status-") as tmp:
             materialized = materialize_url_skill(url, data, Path(tmp), selector)
+            # Same comparison `update` makes, for the same reason: an
+            # allowlisted install is legitimately smaller than upstream, so a
+            # digest mismatch is not proof of local adaptation. Checked status
+            # and update must classify the same on-disk bytes identically.
+            if (
+                include is not None
+                and locally_adapted
+                and _pruned_upstream_matches_installed(
+                    materialized.path, include, current_digest, Path(tmp)
+                )
+            ):
+                locally_adapted = False
         upstream_changed = (
             materialized.source_tree_digest != metadata.get("source_tree_digest")
         )

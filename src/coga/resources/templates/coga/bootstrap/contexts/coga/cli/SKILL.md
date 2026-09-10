@@ -582,19 +582,39 @@ substrate:
   the underlying `gh skill install`, rewrites `installed_tree_digest` to the
   freshly installed tree, and resets `local_adaptation_notes` to empty — the
   forced overwrite discards the adaptation, so preserving the note would
-  mis-describe the new tree. Force applies only when the exact target directory
+  mis-describe the new tree. It does **not** discard a recorded `include`
+  allowlist (below): that is the operator's standing declaration of which
+  subset to install, not an adaptation, and there is no flag to re-supply it. Force applies only when the exact target directory
   contains a `SKILL.md`; a flat ref that collides with an existing namespace
   directory is refused so its nested skills cannot be deleted. The inverse is
   refused too: a namespaced ref cannot be installed beneath an existing flat
   skill, where recursive discovery would hide it from status, updates, and the
   generated agent skill view. `--force` overrides neither namespace collision.
+- **An `include` allowlist makes pruning reproducible.** A URL skill's
+  `.coga-source.json` may carry `include`, a list of repo-relative paths naming
+  the subset of upstream this repo keeps. Install and update apply it to the
+  fetched archive *before* the tree lands, so a deliberate pruning of upstream
+  scaffolding is re-applied every run instead of being restored wholesale or
+  reported forever as a local adaptation. The two digests then mean different
+  things and both are needed: `source_tree_digest` is the **unpruned** upstream
+  digest, which is what upstream-change detection compares, while
+  `installed_tree_digest` describes the **pruned** tree actually on disk.
+  Entries are validated (no absolute paths, no `..`); `SKILL.md` and
+  `.coga-source.json` are always kept, and a directory entry keeps that
+  directory whole. The recorded list stays exactly as the operator wrote it —
+  those implicit keeps are added when applying, not written back. A skill whose
+  digest was recorded before the allowlist was honored is repaired in place on
+  the next update, and that repair reports as a change so `--pr` commits it.
+  The allowlist is hand-edited in the JSON; there is no CLI flag, which is why
+  `--force` preserves it.
 - **`conflict` is its own status.** URL-backed update/status checks fetch
   upstream before classifying: locally adapted with upstream unchanged stays
   `skipped-local-adaptation`; locally adapted **and** upstream changed
   reports `conflict` (carrying both refs/digests in details). `coga skill
   update` and `coga skill status --check` use the same vocabulary for the
-  same on-disk state, and the skill-update PR body renders conflicts in a
-  dedicated section.
+  same on-disk state — including the allowlist comparison above, which both
+  apply so an allowlisted tree is never clean to one and adapted to the other —
+  and the skill-update PR body renders conflicts in a dedicated section.
 - `gh skill update --dir` has a known bug that relocates or deletes skills in
   nested custom directories. Keep Coga-managed skills at a flat
   `coga/skills/<ns>/<name>/` layout so `--dir` updates stay safe.

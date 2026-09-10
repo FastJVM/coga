@@ -1758,3 +1758,131 @@ def test_url_update_still_reports_conflict_for_edits_beyond_the_allowlist(
 
     assert summary.results[0].status == "conflict"
     assert "local edit" in (skill_dir / "SKILL.md").read_text()
+
+
+def test_include_allowlist_unlinks_excluded_symlinks(tmp_path: Path) -> None:
+    """`is_dir()` follows links, so an excluded symlink must be handled first.
+
+    Pointed at a retained non-empty directory, an excluded symlink would
+    otherwise read as a non-empty directory and survive the prune.
+    """
+    tree = tmp_path / "tree"
+    (tree / "references").mkdir(parents=True)
+    (tree / "SKILL.md").write_text("---\nname: x\n---\nbody\n")
+    (tree / "references" / "a.md").write_text("ref\n")
+    (tree / "site").symlink_to(tree / "references", target_is_directory=True)
+
+    apply_include_allowlist(tree, ["references"])
+
+    assert (tree / "references" / "a.md").is_file()
+    assert not (tree / "site").exists()
+    assert not (tree / "site").is_symlink()
+
+
+def test_forced_url_reinstall_preserves_the_recorded_allowlist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--force` discards local adaptation, not the operator's install subset.
+
+    There is no CLI flag to re-supply `include`, so dropping it would silently
+    restore every excluded path and lose the record permanently.
+    """
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+        runner=_gh_install_runner([]),
+        now=lambda: "2026-05-13T12:00:00Z",
+    )
+    skill_dir = cfg.repo_root / "skills" / "tools" / "example"
+    _prune_to_skill_only(skill_dir)
+
+    install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        downloader=lambda url: _skill_zip("tools/example", body="new\n"),
+        runner=_gh_install_runner([]),
+        force=True,
+        now=lambda: "2026-05-14T12:00:00Z",
+    )
+
+    assert "new" in (skill_dir / "SKILL.md").read_text()
+    assert not (skill_dir / "scripts").exists()
+    metadata = read_source_metadata(skill_dir)
+    assert metadata is not None
+    assert metadata["include"] == ["SKILL.md"]
+    assert metadata["installed_tree_digest"] == hash_skill_tree(skill_dir)
+
+
+def test_url_status_check_agrees_with_update_on_a_pruned_skill(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Checked status must classify the same on-disk bytes as `update`.
+
+    With a legacy digest recorded before the allowlist was honored, `update`
+    self-heals and reports clean; `status --check` must not call the identical
+    tree `locally-adapted` or `conflict`.
+    """
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+        runner=_gh_install_runner([]),
+        now=lambda: "2026-05-13T12:00:00Z",
+    )
+    skill_dir = cfg.repo_root / "skills" / "tools" / "example"
+    metadata = read_source_metadata(skill_dir)
+    assert metadata is not None
+    metadata["include"] = ["SKILL.md"]
+    write_source_metadata(skill_dir, metadata)
+    # Prune, leaving the digest describing the unpruned tree — the legacy shape.
+    apply_include_allowlist(skill_dir, ["SKILL.md"])
+
+    results = status_skills(
+        cfg,
+        check=True,
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+    )
+    url_results = [r for r in results if r.source_type == "url"]
+
+    assert url_results, "the url skill is reported"
+    assert url_results[0].status == "up-to-date"
+
+
+def test_url_update_self_heal_reports_changed_so_the_pr_flow_commits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The self-heal writes `.coga-source.json`, so it must report as changed.
+
+    `run_skill_update_pr_flow` returns before committing when nothing changed,
+    which would leave the provenance repair dirty in the caller's checkout.
+    """
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+        runner=_gh_install_runner([]),
+        now=lambda: "2026-05-13T12:00:00Z",
+    )
+    skill_dir = cfg.repo_root / "skills" / "tools" / "example"
+    metadata = read_source_metadata(skill_dir)
+    assert metadata is not None
+    metadata["include"] = ["SKILL.md"]
+    write_source_metadata(skill_dir, metadata)
+    apply_include_allowlist(skill_dir, ["SKILL.md"])
+
+    summary = update_skills(
+        cfg,
+        "tools/example",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+    )
+
+    result = summary.results[0]
+    assert result.status == "unchanged"
+    assert result.changed is True
+    assert read_source_metadata(skill_dir)["installed_tree_digest"] == hash_skill_tree(
+        skill_dir
+    )
