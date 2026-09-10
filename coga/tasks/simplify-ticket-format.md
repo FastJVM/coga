@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: nicktoper
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -37,7 +37,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 3 (review-design)
+step: 4 (implement)
 ---
 
 ## Description
@@ -46,6 +46,13 @@ Simplify ticket frontmatter by removing unused or redundant fields and omitting
 empty optional metadata. The human approved the field-removal proposal on
 2026-09-09; retain an optional per-ticket agent choice and preserve workflow
 routing, human approval gates, ownership, and nonempty contexts/skills/secrets.
+
+The owner approved the reviewed design and implementation handoff on
+2026-09-10: freeze the main agent at activation, retain ephemeral override
+semantics, bound delegation to one explicit agent step without completion
+requirements, and use one coordinated PR with the writer quiet window in
+Shape 7. The merge-time writer inventory and shutdown confirmations remain
+required at cutover; design approval does not certify that writers are stopped.
 
 ### Acceptance criteria
 
@@ -78,6 +85,10 @@ routing, human approval gates, ownership, and nonempty contexts/skills/secrets.
   delegation, and megalaunch use the same role inputs. Preserve recurring
   `delegate`, `period_generation`, `launch_generation`, stable refs, state
   snapshots, serviced-period history, and owner-based selection.
+- [ ] Delegated periods obey the bounded workflow contract in Shape 5:
+  exactly one explicit agent step without a completion requirement. Reject
+  peer steps, owner steps, additional steps, and completion requirements
+  before materialization or dispatch, including retries and direct launches.
 - [ ] Owner notifications still work live and through the digest; watcher
   arguments, spool writes, and cc rendering are removed. Old queued records
   remain readable but their watcher values have no effect.
@@ -173,28 +184,27 @@ bump, and blocked-resume compensation. Status changes still own only their
 current lifecycle effects. Restoring an unanswered blocked resume restores the
 original step and routing inputs, never a copied concrete assignment.
 
-#### 3. Optional agent timing — proposal for owner review
+#### 3. Optional agent timing — approved activation-time selection
 
-Proposed default: leave `agent` absent on new drafts unless explicitly chosen;
+Leave `agent` absent on new drafts unless explicitly chosen;
 when activation first approves work, resolve `Config.default_agent()` and
 persist that name in the existing `agent` field. The default is the first
 declared agent in the effective, merged configuration. Creation straight to a
 live status (recurring and retire) performs the same selection. This gives up
 omission on activated tickets in exchange for a stable main-agent identity.
-The attended owner has been asked to choose this versus live resolution; do
-not treat the proposal as approved until the question below is settled.
+The owner accepted this timing contract at review on 2026-09-10.
 
 Selection belongs in pure prospective preparation, committed with the
 successful lifecycle transition. A draft with a frozen workflow still defers
 default-agent persistence until activation. Read-only status, show, compose,
 and validate may report the effective/prospective default but never persist it.
-Under this proposal, an activated task must retain its selected agent: a
+An activated task must retain its selected agent: a
 hand-authored live ticket with the field missing is an activation-invariant
 validation error, just as an unfrozen live workflow is. The human can choose
 `agent` explicitly through authoring or run `mark active` to select the
 default. Plain bump/block/pause transitions must not choose a main agent at a
-peer step. This conditional requirement is part of the tradeoff the owner is
-reviewing; the field remains optional for drafts, terminal records, templates,
+peer step. This conditional requirement is part of the accepted tradeoff;
+the field remains optional for drafts, terminal records, templates,
 and stateless targets.
 
 Once selected, pause/resume, unblock, bump, and terminal transitions retain
@@ -208,10 +218,10 @@ With unchanged config, main A -> peer B -> main A is stable. A peer-only local
 config override can still select a different reviewer on another machine;
 document that consequence without inventing another stored role input.
 
-For the alternative of live default resolution, the owner must explicitly
-accept that reordering agents between launches can turn an omitted ticket's
-A -> peer B -> A sequence into A -> peer A -> B. Implement only the selected
-contract, not both modes or a configuration switch between them.
+Live default resolution was not selected: reordering agents between launches
+could turn an omitted ticket's A -> peer B -> A sequence into A -> peer A -> B.
+Implement activation-time selection only, without a second mode or a
+configuration switch.
 
 #### 4. Overrides, attribution, and publication
 
@@ -236,7 +246,15 @@ Tradeoff retained deliberately: an override does not change who
 `--agent codex` can produce Codex -> Codex -> Claude. A human who wants Codex
 to become the main agent must explicitly choose `agent: codex` through
 authoring; do not describe an ephemeral override as guaranteeing an independent
-reviewer. Flag this consequence for the owner review.
+reviewer. The owner accepted this consequence at review on 2026-09-10.
+
+The configured-main-agent requirement also deliberately removes the current
+override recovery path: if a ticket selects Claude and configuration becomes
+Codex-only, `launch --agent codex` must refuse before dispatch. The operator
+must restore the selected agent's configuration or explicitly change the
+ticket's main-agent choice through authoring. An ephemeral override cannot
+repair an invalid routing input. Keep refusal coverage separate from successful
+override propagation with a valid main agent.
 
 Transition/handoff messages derive their ordinary operator from the same
 resolver. Launch and usage records continue naming the actual spawned agent;
@@ -297,6 +315,38 @@ lease; only the selected main-agent identity is stable. The target's own agent
 remains the choice for a direct stateless bootstrap launch. Keep delegated
 sentinel completion, generation leases, owner gates, and script exclusion.
 Do not let delegation bypass a period workflow's derived human handoff.
+
+**Delegated workflow bound — approved 2026-09-10.** A delegated
+period represents one bootstrap agent job. Its resolved workflow must contain
+exactly one step, explicitly declaring `assignee: agent`, with no `requires`
+completion gate. The default `direct/body` meets this bound; a custom workflow
+may use another name but must have the same shape. Its sole step is the period's
+lifecycle envelope: the bootstrap target remains the source of the executed
+instructions, as today. The period must be at step 1 after any prospective
+activation. Missing or malformed live workflow/position is an error under the
+ordinary structural rules, never a reason to rebuild the snapshot.
+
+Check the resolved template workflow before materialization and the frozen
+period workflow before every retry or direct launch, before activation/start
+is committed. Validation reports the same violations on templates and stored
+periods. Recheck the bound after the existing ticket/config reloads and before
+spawn and sentinel completion, under the existing exact-ticket/generation
+leases. Reject `other-agent`, `owner`, an omitted role, any additional step,
+or any completion requirement, even if that requirement currently passes.
+A refusal must not spawn a target, advance/complete the period, or persist a
+new agent choice. This makes the period's derived operator agree with its
+selected main agent and leaves no later gate for whole-period completion to
+skip. Keep successful one-step sentinel completion, retry behavior, state
+publication, and all generation/parent leases.
+
+Tradeoff: delegated periods cannot execute multi-step, peer-review, or gated
+workflows. Those jobs use ordinary recurring execution without `delegate`;
+role-aware, step-aware delegation is outside this change. The only current
+delegating template, `resolve-conflicts`, already uses the qualifying default
+workflow, and there are no materialized delegated periods at review time.
+Refresh that inventory at implementation and cutover rather than assuming it
+will remain true. The owner accepted this restriction as the disposition of
+evaluator finding 1.
 
 Display the derived operator in status/show; retain the existing
 `--order-by assignee` spelling as sorting that computed column, with help text
@@ -437,7 +487,9 @@ including both file forms and path-qualified refs. Cover:
 - Direct override continuation and expiry, megalaunch's first-step override,
   human assists, owner-gate refusal without an assist, derived transition
   operators, actual-agent launch/usage records, and verified assist attribution.
-  Include the retained same-worker/peer override consequence.
+  Include the retained same-worker/peer override consequence and refusal when
+  an override is valid but the ticket's selected main agent is no longer
+  configured; keep successful propagation with a valid main agent covered.
 - Script-only and script-to-agent handoffs, unanswered blocked-resume
   restoration, and stale owner/agent/role edits invalidating same-step assist
   leases and pre-spawn checks. Preserve the existing pending-claim and rollback
@@ -445,6 +497,14 @@ including both file forms and path-qualified refs. Cover:
 - Stateless bootstrap dispatch, guided authoring, normal/delegated recurring
   creation and retry, promotion, template-without-workflow materialization,
   scoped secrets, human handoffs, and megalaunch owner/blocker eligibility.
+- Delegation's approved bound: accept default/custom one-step explicit-agent
+  workflows without `requires`; reject a current peer step, an agent step
+  followed by an owner gate, any additional agent step, an omitted first role,
+  and a one-step workflow with a completion requirement (satisfied or not).
+  Cover refusal before materialization, scheduled/named retries, direct launch,
+  and edits observed after reload or while a child runs. No refused case may
+  spawn or publish completion; retain successful sentinel/generation-lease and
+  rollback regressions for the permitted shape.
 - Owner notifications and digest rendering without watcher cc, including an
   old queued record; required live/packaged twin parity; no writer restores
   removed keys after activation, bump, block/unblock, or terminal transitions.
@@ -585,7 +645,8 @@ understand the baseline. Refresh all counts before the eventual cutover.
 - The spec is under `## Description` / `## Context` with acceptance criteria,
   shared routing rules, the exact mismatch dispositions, implementation
   pointers, test cases, and a coordinated one-PR cutover. The default-agent
-  section is explicitly a proposal pending the owner's choice, not approval.
+  section was a proposal at design time; the Owner review disposition below
+  records the subsequently approved timing contract.
 - The one-PR recommendation depends on stopping old writers at merge. Ten Git
   worktrees were registered at investigation time; that list does not prove
   which processes, independent clones, or remote machines are still writing.
@@ -604,21 +665,10 @@ understand the baseline. Refresh all counts before the eventual cutover.
 
 ## Open Questions
 
-- **Default-agent timing:** the attended owner was asked whether activation
-  should freeze the default. This spec recommends freezing and states its
-  conditional requirement on live tickets. The alternative is leaving agent
-  omitted and accepting config-driven main/peer changes between launches.
-  Await the human's choice; settle it at `review-design` before implementation.
-- **Override/peer consequence:** confirm retention of the existing ephemeral
-  override boundary, including possible Codex -> Codex -> Claude routing when
-  overriding a Claude-main workflow. An override is not a main-agent choice;
-  a guarantee of a different actual reviewer would require a separate design
-  choice, not an implicit change during field deletion.
-- **Cutover feasibility:** can the owner arrange the described quiet window
-  across the control checkout, feature checkouts, installed writers, and
-  scheduled/supervised sessions? If not, approve a split for a preparatory
-  writer-admission guard before attempting the atomic format PR. Do not claim
-  the current lifecycle guard already provides that protection.
+None for implementation. The owner approved all four presented decisions and
+explicitly requested the handoff on 2026-09-10 ("bump it"). See the Owner review
+disposition below. Writer shutdown and checkout reconciliation are still
+merge-time prerequisites under Shape 7, not completed operations.
 
 ## Evaluator review
 
@@ -730,3 +780,73 @@ with the same source pin) passes with no findings after recording this review.
 Byte comparisons confirm the original frontmatter, body, and unrelated
 blackboard remain unchanged, with exactly one fence and evaluator section;
 `git diff --check -- coga/tasks/simplify-ticket-format.md` passes.
+
+## Owner review preparation — 2026-09-10
+
+Historical preparation; the approval recorded below supersedes its pending
+decision status.
+
+- This is frozen step 3, the owner `review-design` gate. The evaluator's
+  existing findings remain intact. No owner approval or advancement is implied
+  by this preparation.
+- Proposed disposition for evaluator finding 1 is now concrete in Shape 5,
+  Acceptance criteria, and Verification: one explicit agent step, no completion
+  requirement; reject incompatible shapes before creation/activation/dispatch
+  and on reload/completion. This keeps whole-period sentinel completion without
+  adding step-aware delegation. Owner acceptance is still required.
+- Rechecked `recurring.Template.load`, `_create_at_slug`, and
+  `recurring_runner._run_delegated_task` at `e8eb757b`: the current creator can
+  freeze a custom workflow, while delegated completion calls `mark_done`
+  directly. A current-role-only check would leave later gates unprotected.
+- A read-only frontmatter inventory found only `resolve-conflicts` declaring
+  `delegate` in both live and packaged recurring templates. It omits workflow
+  and therefore uses the existing one-step explicit-agent `direct/body`.
+  No real/example task or example recurring template declares delegation.
+  Source-pinned `list_tasks(load_config())` discovers 208 real tasks; the older
+  207-task snapshot is not a fixed conversion target.
+- Incorporated the evaluator's optional recovery-path clarification in Shape 4
+  and Verification: an override cannot rescue a ticket whose chosen main agent
+  is absent from config. This follows the proposed configured-agent invariant;
+  valid-main override propagation retains separate coverage.
+- The default timing, same-worker override consequence, delegation restriction,
+  and ability to arrange a writer quiet window remain owner decisions. Local
+  inspection cannot certify stopped writers on other machines. Do not bump
+  until the owner settles these choices and explicitly authorizes the handoff.
+- Only this ticket's body/blackboard was edited; current-schema frontmatter,
+  source, tests, shared contracts, configuration, and the existing dirty
+  `coga/log.md` were left intact. The full suite remains implementation work.
+- Verification: `PYTHONDONTWRITEBYTECODE=1
+  PYTHONPATH=/home/n/Code/codex/coga/src coga validate --task
+  simplify-ticket-format --json` exits 0 with no findings;
+  `git diff --check -- coga/tasks/simplify-ticket-format.md` passes.
+  Byte comparisons against `e8eb757b` preserve the original frontmatter and
+  evaluator review, with exactly one blackboard fence.
+
+## Owner review disposition — 2026-09-10
+
+- The owner responded "bump it" to the four explicit decisions and the request
+  to hand off to implementation. The design is approved; the body now records
+  the selected contracts instead of leaving approval-dependent alternatives.
+- Evaluator finding 1 is resolved by the accepted one-step explicit-agent,
+  no-completion-requirement delegation bound. Creation, retries, direct launch,
+  reload, and completion checks and regression cases are specified in Shape 5
+  and Verification. Step-aware delegation remains out of scope.
+- Evaluator finding 2 is resolved: freeze the default main agent at activation;
+  keep overrides ephemeral, accepting possible same-agent review and refusal
+  when the chosen main agent is absent from config; use one coordinated PR with
+  the owner-arranged writer quiet window. This is approval of the cutover plan,
+  not evidence that old writers are already stopped. Shape 7's final inventory,
+  reconciliation, shutdown confirmation, and owner merge gate remain mandatory.
+- Both optional evaluator recommendations are incorporated: override recovery
+  refusal has an explicit contract/test case, and the current 208-task inventory
+  must be refreshed during implementation and again immediately before merge.
+- Handoff: implement only in the separate feature checkout described by the
+  ticket. Preserve the control checkout's current schema for this ticket's
+  remaining pre-merge transitions; no mutating Coga command may run from the
+  converted feature checkout. No implementation work was started in this review.
+- Review verification passed: `PYTHONDONTWRITEBYTECODE=1
+  PYTHONPATH=/home/n/Code/codex/coga/src coga validate --task
+  simplify-ticket-format --json` exits 0 with no findings, and
+  `git diff --check -- coga/tasks/simplify-ticket-format.md` passes. Before the
+  CLI handoff, byte comparison confirmed the original frontmatter and step 3
+  were intact, with one blackboard fence; the checkout is on `main`.
