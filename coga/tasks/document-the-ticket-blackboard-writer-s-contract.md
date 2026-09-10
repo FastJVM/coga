@@ -1,15 +1,30 @@
 ---
 slug: document-the-ticket-blackboard-writer-s-contract
 title: Document the ticket-blackboard writer's contract
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
 contexts: []
 skills: []
-workflow: docs/with-review
+workflow:
+  name: docs/with-review
+  steps:
+  - name: implement
+    skills: []
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills: []
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
+step: 1 (implement)
 ---
 
 ## Description
