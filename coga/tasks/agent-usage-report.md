@@ -1,16 +1,44 @@
 ---
 slug: agent-usage-report
 title: agent-usage-report
-status: draft
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
 contexts:
-  - coga/usage
+- coga/usage
 skills: []
-workflow: code/design-then-implement
+workflow:
+  name: code/design-then-implement
+  steps:
+  - name: design
+    skills:
+    - code/design
+    assignee: agent
+  - name: evaluate-design
+    skills:
+    - code/review-design
+    assignee: other-agent
+  - name: review-design
+    skills: []
+    assignee: owner
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
 secrets: null
+step: 1 (design)
 ---
 
 ## Description
