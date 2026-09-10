@@ -1676,11 +1676,30 @@ def run_recurring_scan(
             control_remote_expected=control_remote_expected,
             agent_spawn_refusal=agent_spawn_refusal,
         )
-        recovery_failed = any(
-            outcome.slug in watchdog_recoveries and outcome.is_problem
-            for outcome in record.outcomes
+        # An admitted watchdog recovery must prove it completed. Checking only
+        # for a *problem* outcome misses every path that records a note and
+        # continues without an outcome at all — a lease change after
+        # admission, a `kind == "skipped"` control refresh, a removed period.
+        # Those leave the task watchdog-paused with no recovery run, and the
+        # sweep would report success. Absence of a completed outcome is the
+        # failure signal, so new skip paths are covered without being listed.
+        recovered = {
+            outcome.slug for outcome in record.outcomes if not outcome.is_problem
+        }
+        failed_recoveries = {
+            outcome.slug for outcome in record.outcomes if outcome.is_problem
+        }
+        unrecovered = sorted(
+            (watchdog_recoveries - recovered) | (watchdog_recoveries & failed_recoveries)
         )
-        return code or (2 if record.scan_problems or recovery_failed else 0)
+        for slug in unrecovered:
+            detail = (
+                f"{slug} was admitted as a watchdog recovery but no completed "
+                "run was recorded; it is still paused"
+            )
+            typer.secho(detail, fg=typer.colors.RED, err=True)
+            record.note(detail)
+        return code or (2 if record.scan_problems or unrecovered else 0)
     finally:
         run_autofix(cfg, record, agent_override=agent_override)
 

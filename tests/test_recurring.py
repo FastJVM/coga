@@ -4566,6 +4566,56 @@ def test_failed_forced_watchdog_recovery_fails_sweep_and_continues(
     assert "Findings still awaiting recovery." in ref.ticket_path.read_text()
 
 
+def test_skipped_forced_watchdog_recovery_still_fails_the_sweep(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A recovery that never ran must not report success.
+
+    The skip paths in `_launch_due_tasks` record a note and continue without
+    an outcome, so checking only for a *problem* outcome saw nothing and the
+    sweep returned 0 while the task was still watchdog-paused.
+    """
+    cfg, ref = _in_progress_period(repo)
+    replace_blackboard(ref.ticket_path, "\nFindings still awaiting recovery.\n")
+    recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10))
+    launched: list[str] = []
+    records: list[recurring_cmd.RunRecord] = []
+
+    real_lease = recurring_cmd._local_period_lease
+    seen: list[str] = []
+
+    def shifting_lease(cfg_arg, task_ref):  # type: ignore[no-untyped-def]
+        lease = real_lease(cfg_arg, task_ref)
+        seen.append(task_ref.id_slug)
+        # First read admits the period; every later read reports a different
+        # generation, which is the "changed after sweep admission" skip.
+        if seen.count(task_ref.id_slug) > 1:
+            return PeriodLease(lease.ticket_bytes, "generation-moved")
+        return lease
+
+    monkeypatch.setattr(recurring_cmd, "_local_period_lease", shifting_lease)
+
+    def launch(slug: str, **kwargs) -> str | None:  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        return None
+
+    _patch_recurring_command_launch(monkeypatch, repo, launch)
+    monkeypatch.setattr(
+        recurring_cmd, "run_autofix", lambda cfg, record, **kw: records.append(record)
+    )
+
+    assert recurring_cmd.run_recurring_scan(cfg, force=True) == 2
+    # Nothing was launched, and no outcome exists for the admitted recovery.
+    assert launched == []
+    assert [o.slug for o in records[0].outcomes if o.slug == ref.id_slug] == []
+    rendered = records[0].render()
+    assert "was admitted as a watchdog recovery" in rendered
+    assert ref.id_slug in rendered
+    assert Ticket.read(ref.ticket_path).status == "paused"
+
+
 def test_watchdog_reminders_ping_ticket_owner_and_watchers(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

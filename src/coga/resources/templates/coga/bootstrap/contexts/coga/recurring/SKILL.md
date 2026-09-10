@@ -574,6 +574,13 @@ This extension seam has five important constraints:
   earlier attended sweep. A scan can still inspect and report a paused
   period without admitting an agent; a forced launch retains the TTY gate.
   Refused watchdog recovery remains an unresolved failure, not a task run.
+  So does a recovery that was *admitted* and then never ran: an admitted
+  watchdog recovery must produce a completed outcome, and the sweep exits 2
+  naming any slug that did not. The check is absence-based on purpose —
+  several paths (a period lease that changed after admission, a control
+  refresh that skips the launch, a removed period) record only a note and
+  continue with no outcome at all, so looking for a failed outcome would see
+  nothing and report success while the task stayed paused.
   Admission leaves that period untouched and continues
   to later deterministic jobs. A template carrying `ticket.py` runs directly
   without a TTY and is the appropriate shape for an unattended scheduler.
