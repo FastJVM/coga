@@ -4787,3 +4787,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-10 14:24 [stop-syncing-task-state-onto-the-feature-branch] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-10 14:25 [stop-syncing-task-state-onto-the-feature-branch] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-10 14:25 [stop-syncing-task-state-onto-the-feature-branch] [megalaunch] launched via coga megalaunch
+2026-09-10 11:08 [simplify-ticket-format] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-09-10 14:26 [simplify-ticket-format] [agent:claude] advanced to step 5 (open-pr)

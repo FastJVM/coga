@@ -37,7 +37,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 4 (implement)
+step: 5 (open-pr)
 ---
 
 ## Description
@@ -850,3 +850,185 @@ decision status.
   `git diff --check -- coga/tasks/simplify-ticket-format.md` passes. Before the
   CLI handoff, byte comparison confirmed the original frontmatter and step 3
   were intact, with one blackboard fence; the checkout is on `main`.
+
+## Dev
+
+branch: simplify-ticket-format
+worktree: /home/n/Code/codex/coga-simplify-ticket-format
+
+## Implementation — 2026-09-10
+
+Implemented in the separate feature checkout above; three focused commits on
+`simplify-ticket-format`, rebased onto control `4c03f865`. Nothing mutating was
+run from the feature checkout — the converted data stays there until the owner
+merge gate.
+
+### What landed
+
+- **`bump.py` owns one shared, pure resolver.** `resolve_operator(cfg, ref,
+  ticket, *, step_index=None)` returns an `Operator(role, name)` (or None for a
+  terminal task) from the frozen step's role, with `resolve_main_agent`,
+  `resolve_other_agent`, `effective_step_role`, and `operator_for_role` as the
+  shared helpers. Every consumer reads it: launch, `commands/{bump,mark,block,
+  slack}`, `launch_script`, `views`, `megalaunch`, and validation. `advance_step`
+  lost `new_assignee` — it writes only `step:`. `AssigneeResolutionError` became
+  `OperatorResolutionError`, and `bump.py` no longer imports `validate` at module
+  scope (it was the cycle that blocked `launch_script` from importing the pure
+  resolver).
+- **`agent` is the main-agent choice, frozen at activation.**
+  `mark._select_main_agent` + `_assert_operator_resolves` run inside
+  `prepare_active`, so selection and role resolution are prepare-side: a refused
+  activation writes nothing. `MainAgentUnavailable` joins the prepare-side ladder
+  in `commands/mark`, `commands/launch`, `megalaunch._PREPARE_ACTIVE_ERRORS`, and
+  the recurring runner. `create_task` selects the default only for a live create.
+- **Rendering and rejection.** `Ticket.render` omits actual empty
+  `contexts`/`skills`/`secrets` and keeps malformed falsy values;
+  `REJECTED_TICKET_KEYS` drives a `removed-ticket-field` **error**, which is what
+  makes every writer refuse the old shape, and `config._RESERVED_TICKET_FIELD_NAMES`
+  keeps those names out of `[ticket.fields.*]`.
+- **`git.TicketRoutingState`** replaces `(status, step, assignee)` in
+  `FeaturePublicationLease`, `guard_ticket_state`, the assist guards, and
+  `launch_script` freshness: status plus owner, main agent, frozen step roles,
+  and position, computed from committed bytes with no config load.
+- **Delegated bound** (`recurring.assert_template_delegation` /
+  `assert_frozen_delegation`) checked before materialization and at every leased
+  boundary including completion; reported by validation as
+  `unbounded-delegated-workflow`.
+- Watcher arguments, spool writes, and cc rendering removed;
+  `dream_validate_drift` classifies the five new validator kinds;
+  `scripts/human_minutes.py` reads identities from `owner` only.
+
+### Decisions made during implementation
+
+- **A wholly role-less workflow is owner-held end to end.** That follows from the
+  approved inheritance rule (`owner` before any declaration). Test fixtures that
+  meant "an ordinary agent workflow" now declare `assignee: agent`, the way a
+  real one does. Consequence worth knowing at cutover: a *live* ticket whose
+  frozen snapshot declares no role anywhere is now a human handoff, and
+  `coga launch` refuses it without `--agent`. No such ticket exists in the
+  converted population — the only two omitted-role snapshots already routed to
+  the owner (verified below).
+- **Validation checks the delegated step-1 position only when a step exists.** A
+  finished period has had `step:` popped and a draft/paused one may never have
+  been activated; requiring a position there made `mark done` fail on a healthy
+  delegated completion. The runner still requires step 1 at dispatch.
+- `--order-by assignee` is retained as an alias for the new `operator` column
+  (read-only sorting, per the spec) rather than removed.
+- `coga/coga.toml` still carries a comment mentioning `watchers` in its
+  `[notification.slack.users]` note. Left alone deliberately: editing
+  `coga.toml` is outside this ticket's boundaries, and the packaged seed copy
+  (the twin a fresh repo gets) is updated.
+
+### Verification
+
+Run from the feature checkout with its own absolute `src` pinned:
+
+```sh
+cd /home/n/Code/codex/coga-simplify-ticket-format
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/home/n/Code/codex/coga-simplify-ticket-format/src \
+  python3.12 -m pytest -q --no-header -p no:randomly
+# → 2405 passed, 1 failed
+```
+
+The single failure is `tests/test_packaging.py::test_wheel_includes_bootstrap_batteries`,
+which is **pre-existing and environmental**: no interpreter on this machine can
+import `hatchling.build`, so `pip wheel` cannot run. It fails identically on the
+control checkout at `4c03f865` (verified), so it is a baseline finding, not a
+regression. Everything else in `test_packaging.py` passes, including the
+live/packaged twin parity check.
+
+Source-pinned read-only validation (never `launch --prompt-report`, which
+refreshes skill views and can sweep state):
+
+```sh
+cd /home/n/Code/codex/coga-simplify-ticket-format/coga
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/home/n/Code/codex/coga-simplify-ticket-format/src \
+  python3.12 -m coga.validate --json          # exit 1, 4 errors + 24 warnings
+cd ../example/coga
+env -u SLACK_WEBHOOK_URL PYTHONDONTWRITEBYTECODE=1 \
+  PYTHONPATH=/home/n/Code/codex/coga-simplify-ticket-format/src \
+  python3.12 -m coga.validate --json          # exit 0, no findings
+```
+
+Compared against the *same* control revision, validated the same way:
+
+| | control (old code + data) | converted branch |
+| --- | --- | --- |
+| `unsynthesized-draft-blackboard` (error) | 4 | 4 — same four tasks |
+| `unfrozen-workflow` | 16 | 17 |
+| `stuck-in-progress` | 5 | 5 |
+| `large-blackboard` | 2 | 2 |
+| `unknown-assignee` | 5 | **0** |
+
+No new finding kinds and no new error identities. The five `unknown-assignee`
+warnings are the intended removal of the assignment surface; the extra
+`unfrozen-workflow` is the `allow-description-and-owner-on-create` draft control
+created during implementation. Reports:
+`/tmp/claude-1000/-home-n-Code-codex-coga/{real-after2,example-after,real-control}.json`.
+
+Pure `compose_prompt_report` was used for prompt checks: nonempty contexts,
+top-level skills, workflow-step skills, and ticket bodies all still compose
+(`marketing/post-doc-as-cache` keeps its two contexts and `marketing/write-post`).
+
+### Refreshed conversion inventory (at control `4c03f865`)
+
+209 tasks, 81 parked under `v2/`, four recurring instances; 201 Claude and 8
+Codex explicit selections; 16 Zach owners, 3 `nick`, 190 `nicktoper`. Removed
+across the population: 211 × `slug`/`human`/`assignee`, 22 × `script: null`,
+208 empty `skills`, 153 empty `contexts`, 152 null/empty `secrets`. No task
+carried `watchers`. Verified per ticket that only those keys disappeared, every
+survivor is byte-equal, key order is unchanged, and no body, status, step,
+owner, or explicit agent changed. The one `agent` removal is the hand-rewritten
+`coga/tasks/_template/ticket.md`, where it is now a commented optional example.
+
+All recorded exception dispositions re-verified after conversion:
+
+- The ten former assignment mismatches derive `claude` from their frozen role,
+  with status, position, and owner untouched.
+- The five `human` snapshots became `owner`; the cleanup pair resolves to
+  `nicktoper`.
+- `v2/debug-surface-for-recurring-tasks-streamed-output` and
+  `v2/rename-workflow-primitive-to-playbook` keep their omitted roles and derive
+  `owner` at every step, matching their current human routing.
+- The three marketing drafts keep `marketing/write-post`; the three stale
+  `bootstrap/ticket` entries are gone.
+- Every task in the population resolves an operator with no error.
+
+### Adjacent finding (not fixed here)
+
+`tests/test_packaging.py::test_wheel_includes_bootstrap_batteries` cannot run on
+this machine — `pip wheel --no-build-isolation` needs `hatchling` importable by
+the interpreter running the suite, and neither `python3.12`, `python3.11`, nor
+the installed `coga` tool env has it. Symptom:
+`BackendUnavailable: Cannot import 'hatchling.build'`, assert `2 == 0` at
+`tests/test_packaging.py:433`. Reproduces on control at `4c03f865`, so it is a
+dev-environment/setup gap (install the `[test]` extra plus `hatchling` into one
+env), not a packaging defect. No existing follow-up ticket found.
+`retro/done-ticket` owns carrying this into a durable context before this ticket
+is deleted.
+
+### Merge-gate prerequisites — still open, owner-controlled
+
+Shape 7 is unchanged and unsatisfied by this step. Before merge the owner must:
+stop recurring/megalaunch dispatchers and let every old supervisor finish its
+teardown and state sync; suspend scheduled entry points and direct writers on
+other machines; inventory `git worktree list` plus independent clones and
+installed/editable entry points; catch control up and refresh the conversion
+commit from that exact revision; then merge code and data together and update
+every usable installed writer.
+
+Two concrete facts for that inventory. **Control moved twice during
+implementation** — `2618c2d3` → `4c03f865` → `247313a7`, other sessions running
+`add-an-agent-picker-for-recurring` and `allow-description-and-owner-on-create`
+— which is precisely the concurrent change Shape 7 says invalidates the
+comparison. Each rebase conflicted on the tickets those sessions had advanced,
+and both were resolved the way the spec requires: take control's lifecycle state
+for the conflicting ticket, re-apply the conversion to it, and convert the new
+tickets control created. Never choose one side wholesale. Expect to repeat this
+at the real gate, and expect it more than once. **Ten worktrees were registered
+at implementation time**, which still does not prove which processes or machines
+are writing.
+
+The branch is rebased onto control `247313a7` with the full suite re-run green
+(2407 passed, plus the environmental packaging failure above) and the population
+re-verified after each rebase.
