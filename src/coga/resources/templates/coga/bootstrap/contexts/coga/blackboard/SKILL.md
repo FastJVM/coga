@@ -5,16 +5,18 @@ description: The contract for writing to a ticket blackboard — how the fence i
 
 # Writing to a ticket blackboard
 
-The blackboard is the region of a task's `ticket.md` below the
-`<!-- coga:blackboard -->` fence: the free-form working memory shared by human
-and agent, and the only part of a ticket that carries state forward into the
-next launch. This context is the writer's contract. It describes what shipped
+The blackboard is the region of a task's `.md` ticket (or a directory task's
+`ticket.md`) below the `<!-- coga:blackboard -->` fence: the free-form working
+memory shared by human
+and agent, composed into the next launch alongside the ticket's Description and
+Context. This context is the writer's contract. It describes what shipped
 code and the shipped contexts already do; where this context and the source
 disagree, the source wins.
 
-Nothing here is validated. `coga validate` does not check these rules, so a
-writer that breaks one corrupts a ticket silently and is caught only by review
-or by git.
+`coga validate` already checks fence count and draft-authoring readiness and
+warns about blackboard size. It does not check whether an edit respected the
+boundary or a section's append/rewrite convention. This context adds no
+validation; writers must still scope their edits correctly.
 
 ## The fence is a boundary
 
@@ -35,13 +37,16 @@ Three details the obvious paraphrase gets wrong:
 
 - It matches the fence **only on a line of its own**, so a ticket body that
   *mentions* the fence string inline — a ticket about this very format, for
-  instance — is not mistaken for a region split.
+  instance — is not mistaken for a region split. Leading indentation is not
+  accepted. The matcher does not parse Markdown: an own-line fence inside a
+  code block still counts.
 - The line **tolerates trailing spaces or tabs and a CRLF carriage return**. It
   is not "a line equal to the fence and nothing else"; raw-byte
   compare-and-swap readers do not apply universal-newline translation, so the
   carriage return is accepted explicitly.
-- The region is everything **after the match** — the newline ending the fence
-  line is the region's first byte — with leading whitespace preserved, so
+- The region is everything **after the match** — any line-ending LF after the
+  fence is the region's first byte; a fence at EOF has an empty region — with
+  leading whitespace preserved, so
   `read_blackboard` and `replace_blackboard` round-trip byte-for-byte.
 
 **Never locate the fence by substring.** `text.split(BLACKBOARD_FENCE)`,
@@ -61,8 +66,9 @@ reverse. Two exceptions, both deliberate:
 
 - `split_body(blackboard_required=False)` returns `(body, None)` for a
   fence-less file. **Bootstrap tickets legitimately carry no fence**: they are
-  stateless launch targets with no blackboard. "Zero matches is an error" is
-  true for *task* tickets only.
+  stateless launch targets with no blackboard.
+  `read_blackboard(blackboard_required=False)` returns `""` in that case.
+  Both still reject multiple fences. Normal task tickets require one fence.
 - `upsert_blackboard()` appends a fence and region to a file that has none, for
   writers that must not fail on a hand-authored recurring template predating
   the single-file format. More than one fence still fails loud.
@@ -111,16 +117,26 @@ do not invent a fourth.
   `## Blockers` appends one checkbox line per ask, and `coga unblock` marks the
   existing line `- [x]` and appends an indented `resolved:` line rather than
   removing it.
-- **Authoring scratch — append before launch, reset at activation.** The
-  pre-launch regime in the `bootstrap/ticket` skill and
-  `PRELAUNCH_AUTHORING_HEADINGS` in `coga.blackboard`: `## Evaluator review`,
-  `## Ticket authoring notes`, and `## Proposals` are folded into the body and
-  cleared when the draft is activated, while blockers, dev notes, production
-  notes, and superseded designs survive. Draft activation is a gate, not just a
-  cleanup: substantive pre-launch notes make `mark active` and launch-time
-  auto-activation refuse, and `coga validate` reports the same condition as an
-  error. `## Production notes` marks blackboard content as intentional launch
-  material and exempts it; `## Superseded designs` is separately excluded.
+- **Authoring scratch — append during authoring, synthesize before launch.**
+  The `bootstrap/ticket` skill's final cleanup folds durable substance from
+  `## Evaluator review`, `## Ticket authoring notes`, and `## Proposals` into
+  the body. For a **draft**, it preserves `## Superseded designs` and every
+  dated entry, then resets the rest to the stock placeholder, leaving no empty
+  authoring headings. When authoring an **existing non-draft** ticket, it
+  removes only the authoring sections it used and preserves unrelated blockers,
+  dev notes, production notes, and handoff notes. These are authoring actions;
+  activation does not synthesize or clear notes automatically.
+
+Draft activation checks readiness in `coga.blackboard`, using
+`PRELAUNCH_AUTHORING_HEADINGS` and `_is_stock_blackboard`. Remaining authoring
+sections or large custom scratchpads make `coga mark active` and launch-time
+auto-activation refuse; `coga validate` reports the same error. A
+`## Production notes` section explicitly marks the remaining blackboard as
+intentional launch material and exempts it from that check.
+`## Superseded designs` is separately excluded without exempting unrelated
+notes. Later reactivation does not repeat this first-launch check. An
+`## Evaluator review` written by a live workflow step remains working state
+for the following owner gate, not draft-authoring residue (`coga/current-direction`).
 
 `append_to_section_text` / `append_to_section` in `coga.blackboard` are the
 shipped answer to "append into a named section": a section runs from its `## `
@@ -129,29 +145,31 @@ section is appended at the end of the region.
 
 Two constraints shape the choice:
 
-- **The blackboard is the only region composed into the next prompt**, so it
-  must stay small; `coga/log.md` is never composed and may grow without bound.
+- **The blackboard is composed into the next prompt**, so it must stay small;
+  `coga/log.md` is never composed and may grow without bound.
   Working state the next run must read goes on the blackboard; lifecycle
   history goes in the log. `blackboard_size_warning` warns above
   `BLACKBOARD_WARN_BYTES` (32 KiB), measuring the region alone.
-- **Audit lines never go on a blackboard.** The recurring scan's
+- **CLI audit history lives in the log.** The recurring scan's
   serviced-period ledger lives in the union-merged `coga/log.md` precisely so
   that a co-writer rewriting a region of a template's blackboard cannot destroy
-  an appended line. Anything that must survive an unrelated rewrite belongs
-  there, not here.
+  an appended line. CLI commands write that log; agents do not edit it.
+  Findings and decisions remain blackboard working memory, with durable
+  requirements folded into the ticket body.
 
 ## What happens to content a later pass replaces
 
-- **A replaced live value is gone**, and that is correct — a stale `branch:` has
-  no readers, and git plus `coga/log.md` hold the history.
+- **A replaced live value leaves the current section.** `## Dev` records
+  current linkage; committed earlier values remain in git history.
+  `coga/log.md` records CLI lifecycle history, not every manual field edit.
 - **A replaced design is not gone.** Move the abandoned direction below the
   fence into exactly one `## Superseded designs` section, as a dated entry with
   `Superseded by:` and `Reason:` lines and retained headings nested at `####`
   or deeper. The body keeps at most a one-line pointer to it. Do not scatter
   the same history under improvised headings, and keep the archive concise — it
   is composed into every launch prompt. `dev/code` owns the full shape.
-- **A blocker is never deleted**, only marked resolved with its answer
-  appended, so a ticket's asks and their resolutions stay readable in place.
+- **Resolving a blocker preserves the ask.** `coga unblock` marks it resolved
+  with its answer appended, so asks and resolutions stay readable in place.
 - **A period task's own blackboard disappears** at Dream's retro cleanup, so
   anything durable it learned must be written where it survives: a reusable
   gotcha under `## Gotchas` (extracted into a knowledge PR before the delete),
@@ -173,9 +191,16 @@ What does exist is a narrow **state admission/publication barrier**, and
 boundary." Read that passage for the barrier's full scope; in code it is
 `update_blackboard_under_barrier`, which holds `git.state_publication_barrier`,
 captures the live bytes, and compares them again at replacement via
-`expected_bytes` — raising `TaskFileError` rather than overwriting. An editor
-that does not participate in the barrier therefore **wins loudly** instead of
-being silently clobbered.
+`expected_bytes` — raising `TaskFileError` if a comparison detects a change,
+rather than overwriting it. This detects intervening edits even from an editor
+outside the barrier; it does not lock that editor.
+
+For a programmatic section append, call `append_to_section_text` with the
+heading and entry inside the transform passed to
+`update_blackboard_under_barrier`. The low-level
+`append_to_section` and `replace_blackboard` helpers do not acquire the
+barrier themselves; command and recipe callers own admission and supply the
+captured `expected_bytes` when using those helpers directly.
 
 Atomicity is not a lock. As `coga/patterns` puts it under "Durability and
 concurrency", a rename-based atomic write buys **crash-safety** — a reader sees
@@ -198,8 +223,8 @@ comes from exact Git compare-and-swap publication in the meantime.
 
 ## What this context does not cover
 
-- **Enforcement.** None of these rules is validated today; writing them down
-  and checking them are separate jobs.
+- **New enforcement or writer behavior changes.** Existing checks are
+  described above; adding checks for edit discipline is a separate job.
 - **Cross-checkout reconciliation**, per above.
 - **Frontmatter semantics** beyond the edit allowlist — see the base prompt and
   `coga/architecture`.
