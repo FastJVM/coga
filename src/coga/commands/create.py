@@ -120,7 +120,10 @@ def create_draft(
         owner = owner.strip()
         if not owner:
             _bail("owner cannot be empty")
-    if description:
+    if description is not None:
+        # Check exactly what `create_task` writes: it strips the description,
+        # which would turn an indented first line into a real heading or fence.
+        description = description.strip()
         problem = _description_structure_problem(description)
         if problem:
             _bail(problem)
@@ -136,7 +139,7 @@ def create_draft(
             title=leaf_title,
             workflow_name=workflow,
             contexts=[],
-            owner=owner or cfg.current_user,
+            owner=owner,
             assignee=None,
             watchers=[],
             status="draft",
@@ -155,7 +158,7 @@ def create_draft(
 def _description_structure_problem(description: str) -> str | None:
     """Why `description` would break the ticket's structure, or None.
 
-    The description is written verbatim under `## Description`. A level-2
+    Pass the stripped description, as written under `## Description`. A level-2
     heading line would end that section early (compose would read the rest as
     another section), and a blackboard fence on its own line would split the
     body from the blackboard — `split_body` then sees two fences. An inline

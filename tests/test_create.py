@@ -874,14 +874,15 @@ def test_cli_create_description_lands_in_description_section(
     assert fence_count(ticket_path.read_text()) == 1
 
 
+@pytest.mark.parametrize("owner", ["nicktoper", " nicktoper "])
 def test_cli_create_owner_sets_owner_and_human(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+    repo: Path, monkeypatch: pytest.MonkeyPatch, owner: str
 ) -> None:
-    """`--owner` replaces the local user; `human:` (and a workflow-less
-    `assignee:`) cascade from it."""
+    """`--owner` (stripped) replaces the local user; `human:` (and a
+    workflow-less `assignee:`) cascade from it."""
     monkeypatch.chdir(repo)
     runner = CliRunner()
-    result = runner.invoke(app, ["create", "Owned elsewhere", "--owner", "nicktoper"])
+    result = runner.invoke(app, ["create", "Owned elsewhere", "--owner", owner])
     assert result.exit_code == 0, result.output
     t = Ticket.read(repo / "tasks" / "owned-elsewhere.md")
     assert t.owner == "nicktoper"
@@ -946,18 +947,6 @@ def test_cli_create_rejects_empty_owner(
     assert not list(repo.glob("tasks/**/*.md"))
 
 
-def test_cli_create_strips_padded_owner(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.chdir(repo)
-    runner = CliRunner()
-    result = runner.invoke(app, ["create", "Padded owner", "--owner", " zach "])
-    assert result.exit_code == 0, result.output
-    t = Ticket.read(repo / "tasks" / "padded-owner.md")
-    assert t.owner == "zach"
-    assert t.human == "zach"
-
-
 @pytest.mark.parametrize(
     ("description", "message"),
     [
@@ -965,6 +954,9 @@ def test_cli_create_strips_padded_owner(
         ("## Notes", "level-2 heading"),
         ("Intro.\n##\nBare heading.", "level-2 heading"),
         (f"Intro.\n{BLACKBOARD_FENCE}\nStray blackboard.", "blackboard fence"),
+        # Indented first lines: the stripped text written would be structural.
+        ("  ## Context\nSmuggled section.", "level-2 heading"),
+        (f"\t{BLACKBOARD_FENCE}\nStray blackboard.", "blackboard fence"),
     ],
 )
 def test_cli_create_rejects_structure_breaking_description(
@@ -1000,6 +992,7 @@ def test_cli_create_description_allows_subheadings_and_inline_fence_mention(
     assert fence_count(ticket_path.read_text()) == 1
     t = Ticket.read(ticket_path)
     assert f"## Description\n\n{description}\n\n## Context\n" in t.body
+
 
 # --- workflow always required ------------------------------------------------
 
