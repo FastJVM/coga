@@ -34,7 +34,7 @@ workflow:
     assignee: owner
 secrets: null
 step: 1 (implement)
-launch_generation: pending:f10c452f-6ae0-4187-92df-81d3085fffcf
+launch_generation: f10c452f-6ae0-4187-92df-81d3085fffcf
 ---
 
 ## Description
