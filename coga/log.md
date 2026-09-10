@@ -4706,3 +4706,6 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-10 09:55 [a-slack-repo-without-important-webhook-can-abort-t] [human:nicktoper] auto-bumped on merge of PR #761 → done
 2026-09-10 09:55 [activation-does-not-resolve-step-1-s-assignee-role] [human:nicktoper] auto-bumped on merge of PR #779 → done
 2026-09-10 09:55 [recurring/autoclose-merged] [human:nicktoper] task done
+2026-09-10 09:55 [detect-stranded-ticket-writes-across-checkouts] [git] sync refused: coga/tasks/detect-stranded-ticket-writes-across-checkouts.md: published launch claim would be cleared without an authorized session-ending lifecycle transition
+2026-09-10 09:55 [recurring/autoclose-merged] [system] script exited with code 0
+2026-09-10 09:55 [recurring/digest] [system] started (active → in_progress) via coga launch
