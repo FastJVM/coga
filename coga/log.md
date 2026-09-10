@@ -4775,3 +4775,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-10 14:11 [add-an-agent-picker-for-recurring] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-10 14:11 [add-an-agent-picker-for-recurring] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-10 14:11 [add-an-agent-picker-for-recurring] [megalaunch] launched via coga megalaunch
+2026-09-10 14:17 [add-an-agent-picker-for-recurring] [agent:claude] advanced to step 2 (evaluate-design) → assigned to codex
