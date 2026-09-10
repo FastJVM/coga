@@ -1,7 +1,7 @@
 ---
 slug: recurring/digest
 title: Daily digest
-status: done
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -9,7 +9,7 @@ assignee: claude
 contexts:
 - coga/period-task
 skills: []
-period_generation: 590966cd-2773-4c6e-9192-f1608ef6e71d
+period_generation: d0756aab-da6a-4e3f-9aaa-b7661e2addff
 workflow:
   name: digest/post
   steps:
@@ -18,6 +18,7 @@ workflow:
     - coga/digest/flush
     assignee: agent
 secrets: null
+step: 1 (flush)
 ---
 
 ## Description
