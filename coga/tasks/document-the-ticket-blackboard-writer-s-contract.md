@@ -1,7 +1,7 @@
 ---
 slug: document-the-ticket-blackboard-writer-s-contract
 title: Document the ticket-blackboard writer's contract
-status: active
+status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -25,6 +25,7 @@ workflow:
     assignee: owner
 secrets: null
 step: 1 (implement)
+launch_generation: pending:e09dc8bf-9eb3-41f3-ad27-35e4f411a4ee
 ---
 
 ## Description
