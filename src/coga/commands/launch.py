@@ -84,7 +84,7 @@ from coga.repl_supervisor import (
     build_supervised_step_env,
     run_with_done_marker,
 )
-from coga.recurring import PeriodLease, local_period_lease
+from coga.recurring import PeriodLease, local_period_lease, same_period_lease
 from coga.task_env import apply_task_env
 from coga.step_gate import gate_publishes_current_branch
 from coga.taskfile import TaskFileError, split_body
@@ -422,7 +422,7 @@ def _refresh_recurring_period_before_launch(
     if _refuse_non_control_branch(cfg) or _refuse_non_owner(cfg):
         raise SystemExit(2)
     current_period_lease = local_period_lease(cfg, ref)
-    if current_period_lease != expected_period_lease:
+    if not same_period_lease(current_period_lease, expected_period_lease):
         typer.secho(
             f"{ref.id_slug} belongs to a different ticket/period generation "
             "on control; not launching.",

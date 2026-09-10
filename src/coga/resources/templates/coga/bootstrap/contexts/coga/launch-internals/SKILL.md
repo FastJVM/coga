@@ -366,7 +366,11 @@ starting, completing, or parking work at a stable path.
 
 A sweep or named recurring run performs full recurring admission at its
 outer boundary, freezes each period's exact ticket plus its creator-owned
-`period_generation` token, then launches through an internal typed seam. Immediately
+`period_generation` token, then launches through an internal typed seam. Every
+lease comparison on this path goes through `same_period_lease`: generation and
+the full ticket must both match, but a CRLF-versus-LF difference is not a
+change, because a line-ending-converting checkout (`core.autocrlf`) rewrites an
+untouched ticket on each restore from control while its blob stays LF. Immediately
 before each ordinary child, that seam refreshes control state, resolves only
 the exact ref (never a prefix sibling), and rechecks branch/owner plus the
 frozen generation. A task removed, paused, finished, or replaced while an

@@ -52,6 +52,8 @@ from coga.recurring import (
     read_serviced_ledger,
     recurring_dir,
     resolve_agent_delegate,
+    same_period_lease as _same_period_lease,
+    same_ticket_bytes as _same_ticket_bytes,
     create_named,
     scan_due,
 )
@@ -1655,6 +1657,7 @@ def run_recurring_scan(
         )
         typer.echo(message)
         record.note(message)
+        _record_unlaunched_creates(scan, record)
         run_autofix(cfg, record, agent_override=agent_override)
         return 2 if record.scan_problems else 0
 
@@ -1676,6 +1679,7 @@ def run_recurring_scan(
             control_remote_expected=control_remote_expected,
             agent_spawn_refusal=agent_spawn_refusal,
         )
+        _record_unlaunched_creates(scan, record)
         # An admitted watchdog recovery must prove it completed. Checking only
         # for a *problem* outcome misses every path that records a note and
         # continues without an outcome at all — a lease change after
@@ -1702,6 +1706,35 @@ def run_recurring_scan(
         return code or (2 if record.scan_problems or unrecovered else 0)
     finally:
         run_autofix(cfg, record, agent_override=agent_override)
+
+
+def _record_unlaunched_creates(scan: DueScan, record: RunRecord) -> None:
+    """Flag every period this sweep created but never launched.
+
+    A create refused at admission, or skipped by a launch-loop path that
+    records only a note, leaves no outcome behind. The sweep would otherwise
+    report `problems: 0` over lost work, so absence of an outcome is the
+    signal, as with admitted watchdog recoveries above.
+    """
+    ran = {outcome.slug for outcome in record.outcomes}
+    reasons = {
+        task.ref.id_slug: reason
+        for task, reason in scan.admission_skips
+        if task.ref is not None
+    }
+    created = [
+        task
+        for task in [*scan.tasks, *(task for task, _ in scan.admission_skips)]
+        if task.ref is not None and (task.created or task.replaced_done)
+    ]
+    for task in created:
+        slug = task.ref.id_slug
+        if slug in ran:
+            continue
+        reason = reasons.get(slug, "no launch outcome was recorded")
+        detail = f"created this sweep but never launched ({reason})"
+        typer.secho(f"{slug}: {detail}", fg=typer.colors.RED, err=True)
+        record.scan_problems.append((slug, detail))
 
 
 def _launch_due_tasks(
@@ -1761,7 +1794,9 @@ def _launch_due_tasks(
         )
         admitted_period_lease = admitted_period_leases[task.ref.id_slug]
         if force:
-            if _local_period_lease(cfg, task.ref) != admitted_period_lease:
+            if not _same_period_lease(
+                _local_period_lease(cfg, task.ref), admitted_period_lease
+            ):
                 detail = (
                     f"{task.ref.id_slug} changed after sweep admission; skipped"
                 )
@@ -1788,7 +1823,7 @@ def _launch_due_tasks(
             # snapshot, is what the child is allowed to launch.
             admitted_period_lease = _local_period_lease(cfg, task.ref)
         current_period_lease = _local_period_lease(cfg, task.ref)
-        if current_period_lease != admitted_period_lease:
+        if not _same_period_lease(current_period_lease, admitted_period_lease):
             detail = f"{task.ref.id_slug} changed after sweep admission; skipped"
             typer.secho(detail, fg=typer.colors.YELLOW)
             record.note(detail)
@@ -2310,9 +2345,11 @@ def _period_lease_guard(
 
     def guard(base: str) -> None:
         actual = _revision_period_lease(cfg, ref, base)
-        if actual != expected:
+        # `expected` is usually captured from this checkout's disk, which a
+        # line-ending-converting checkout holds CRLF while the tree stays LF.
+        if not _same_period_lease(actual, expected):
             changed: list[str] = []
-            if actual.ticket_bytes != expected.ticket_bytes:
+            if not _same_ticket_bytes(actual.ticket_bytes, expected.ticket_bytes):
                 changed.append("ticket bytes")
             if actual.generation != expected.generation:
                 changed.append("period generation")
@@ -2325,7 +2362,9 @@ def _period_lease_guard(
             actual_parent = _revision_parent_state_lease(
                 cfg, expected_parent, base
             )
-            if actual_parent != expected_parent:
+            if actual_parent.path != expected_parent.path or not _same_ticket_bytes(
+                actual_parent.ticket_bytes, expected_parent.ticket_bytes
+            ):
                 raise git.StateRegressionError(
                     f"{ref.id_slug}: recurring parent state changed on "
                     "control after delegated child admission; refusing stale "
@@ -2441,7 +2480,7 @@ def _run_delegated_task(
     initial_period_lease = _local_period_lease(cfg, ref)
     if (
         admitted_period_lease is not None
-        and initial_period_lease != admitted_period_lease
+        and not _same_period_lease(initial_period_lease, admitted_period_lease)
     ):
         typer.secho(
             f"{ref.id_slug} belongs to a different ticket/period generation; "
@@ -2555,7 +2594,7 @@ def _run_delegated_task(
         # reload it again before composing the child.
         start_cfg = load_config(cfg.repo_root)
         current_lease = _local_period_lease(start_cfg, ref)
-        if current_lease != initial_period_lease:
+        if not _same_period_lease(current_lease, initial_period_lease):
             raise RecurringError(
                 f"cannot start delegated period {ref.id_slug}: its ticket or "
                 "period generation changed during preflight"
@@ -2697,7 +2736,7 @@ def _run_delegated_task(
         )
         git.sync_log(start_cfg, message=f"Log: {ref.id_slug}")
         expected_period_lease = _local_period_lease(start_cfg, ref)
-        if expected_period_lease != started_lease:
+        if not _same_period_lease(expected_period_lease, started_lease):
             raise RecurringError(
                 f"cannot launch delegated period {ref.id_slug}: its ticket or "
                 "period generation changed while publishing the launch audit"
@@ -2719,7 +2758,7 @@ def _run_delegated_task(
                 "publication did not establish a spawn lease"
             )
         current_lease = _local_period_lease(cfg, ref)
-        if current_lease != expected_period_lease:
+        if not _same_period_lease(current_lease, expected_period_lease):
             raise RecurringError(
                 f"cannot launch delegated period {ref.id_slug}: its ticket or "
                 "period generation changed after start publication; "
@@ -2791,7 +2830,7 @@ def _run_delegated_task(
         return DelegatedRunResult(2, "refused")
 
     current_lease = _local_period_lease(cfg, ref)
-    if current_lease != expected_period_lease:
+    if not _same_period_lease(current_lease, expected_period_lease):
         current_ticket: Ticket | None = None
         if current_lease.ticket_bytes is not None:
             try:
@@ -3004,7 +3043,7 @@ def run_recurring_named(
         return 2
 
     if outcome.created:
-        if _local_period_lease(cfg, ref) != created_period_lease:
+        if not _same_period_lease(_local_period_lease(cfg, ref), created_period_lease):
             typer.secho(
                 f"{ref.id_slug} changed on the control branch during recurring "
                 "admission; not launching.",
@@ -4824,6 +4863,7 @@ def _broadcast_scan(
             continue
         if not (task.ref.ticket_path).is_file():
             scan.tasks.remove(task)
+            scan.admission_skips.append((task, "already handled on control"))
             typer.secho(
                 f"{task.ref.id_slug} was already handled on the control branch; "
                 "not launching.",
@@ -4832,9 +4872,14 @@ def _broadcast_scan(
             continue
         if (
             created_period_lease is not None
-            and _local_period_lease(cfg, task.ref) != created_period_lease
+            and not _same_period_lease(
+                _local_period_lease(cfg, task.ref), created_period_lease
+            )
         ):
             scan.tasks.remove(task)
+            scan.admission_skips.append(
+                (task, "changed on control during admission")
+            )
             typer.secho(
                 f"{task.ref.id_slug} changed on the control branch during "
                 "recurring admission; not launching.",
@@ -4898,7 +4943,7 @@ def _refresh_forced_status_from_control(cfg: Config, task: DueTask) -> None:
 
 def _print_table(scan: DueScan, *, force: bool = False) -> None:
     """Print a one-line-per-template scan summary."""
-    if not scan.tasks and not scan.errors:
+    if not scan.tasks and not scan.errors and not scan.admission_skips:
         return
 
     now = datetime.now()
@@ -4928,6 +4973,11 @@ def _print_table(scan: DueScan, *, force: bool = False) -> None:
                 f"skip ({task.status})", fg=typer.colors.BRIGHT_BLACK
             )
         typer.echo(f"  {task.template:<20} {when:<26} {action}")
+
+    for task, reason in scan.admission_skips:
+        when = _firing_label(task.last_fire, now)
+        skipped = typer.style(f"skip ({reason})", fg=typer.colors.BRIGHT_BLACK)
+        typer.echo(f"  {task.template:<20} {when:<26} {skipped}")
 
     for name, msg in scan.errors:
         bad = typer.style(f"skip (error: {msg})", fg=typer.colors.RED)

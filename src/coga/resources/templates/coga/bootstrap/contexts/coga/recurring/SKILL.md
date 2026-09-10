@@ -661,6 +661,11 @@ This extension seam has five important constraints:
   refresh that skips the launch, a removed period) record only a note and
   continue with no outcome at all, so looking for a failed outcome would see
   nothing and report success while the task stayed paused.
+  A period the sweep *created* is held to the same absence rule: a create
+  refused at admission (already handled, or changed on control) stays in the
+  scan table and run record as `skip (<reason>)`, and any created period with
+  no launch outcome is a problem, so the sweep exits 2 rather than reporting
+  a clean "No recurring tasks due." over work it created and dropped.
   Admission leaves that period untouched and continues
   to later deterministic jobs. A template carrying `ticket.py` runs directly
   without a TTY and is the appropriate shape for an unattended scheduler.
