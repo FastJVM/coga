@@ -1,16 +1,37 @@
 ---
 slug: allow-description-and-owner-on-create
-title: allow-description-and-owner-on-create
-status: draft
+title: Allow --description and --owner on coga create
+status: active
 owner: zach
 human: zach
 agent: claude
-assignee: zach
+assignee: claude
 contexts:
-  - dev/code
+- dev/code
 skills: []
-workflow: code/with-self-review
+workflow:
+  name: code/with-self-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+  - name: self-qa
+    skills:
+    - code/self-qa
+    assignee: agent
+  - name: pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
 secrets: null
+step: 1 (implement)
 ---
 
 ## Description
@@ -48,22 +69,41 @@ one command, without opening the file or running the `coga ticket` interview.
   `[notification.slack.users]` in `coga/coga.toml` (today `zach` and
   `nicktoper`). Humans aren't otherwise enumerated in config and validation
   doesn't reject unknown owners, so accept any non-empty string — don't add a
-  known-users gate. An empty/whitespace `--owner ""` should fail loud via
+  known-users gate. Strip surrounding whitespace from `--owner` before writing
+  (`" zach "` → `zach`); an empty/whitespace `--owner ""` fails loud via
   `_bail`, matching the empty-title check. An omitted or empty `--description`
   yields today's blank `## Description`.
+- **Reject structure-breaking descriptions before writing.** A description
+  written verbatim that contains a level-2 heading line (`## ...`, e.g.
+  `## Context`) or the blackboard fence marker (the HTML comment that
+  `split_body` in `src/coga/taskfile.py` splits on) corrupts the ticket's
+  section/fence structure — and a failed post-write validation leaves the
+  broken draft on disk (see
+  `test_cli_create_reports_validation_failure_and_leaves_draft`). So check in
+  the command, *before* calling `create_task`, and `_bail` with a clear message
+  if either is present. Nothing is written on rejection.
 - **`coga ticket` shares `create_draft`** (its new-draft branch). Keep the new
   keyword args optional with `None` defaults so that call site is unchanged.
 - **Tests:** extend `tests/test_create.py` (see the existing
   `test_cli_create_*` tests for the CLI-invocation pattern). Cover: description
   lands under `## Description`; `--owner` sets `owner:` and `human:`; both
   omitted keeps current defaults; flags compose with a path-prefixed title and
-  `--workflow`; empty `--owner` fails.
+  `--workflow`; empty `--owner` fails; padded `--owner` is stripped; a
+  description containing a `## ` heading or the fence marker fails and leaves
+  no ticket on disk.
 - **Docs, same PR:** `docs/reference.md` (`### coga create TITLE` section) and
   the packaged CLI context
   `src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md`
-  (`## coga create "<title>" [--workflow <name>]` — update the heading
-  signature and body). There is no live `coga/contexts/coga/cli/` twin, so no
-  twin sync is needed; run `python -m pytest tests/test_packaging.py` anyway.
+  (the `## coga create` heading, written with escaped angle brackets as
+  `\<title\>` / `\<name\>` — update the heading signature and body). There is
+  no live `coga/contexts/coga/cli/` twin, so no twin sync is needed; run
+  `python -m pytest tests/test_packaging.py` anyway.
+- **Fix a stale line while there:** that CLI context section says `coga create`
+  posts `✨` when a notification channel is selected, but the code (and the
+  `create.py` docstring) says create never posts to Slack. Correct it in the
+  same PR.
+- **Leave alone:** other flag-less mentions of `coga create "<title>"` (e.g.
+  `src/coga/commands/init.py`, the `bootstrap/ticket` skill) are still correct.
 - **Reviewer:** Nico (`nicktoper`) reviews the PR. `coga open-pr` can't
   request GitHub reviewers, so the ticket owner (zach) adds him on GitHub once
   the PR opens; the `review` gate stays with the owner. Write the PR body
