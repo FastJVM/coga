@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nick
 agent: claude
-assignee: codex
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -37,8 +37,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (evaluate-design)
-launch_generation: a687d924-aab8-4e49-a9f2-2fad0a5c906c
+step: 3 (review-design)
 ---
 
 ## Description
@@ -535,3 +534,113 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - **Size check: this is one PR, not two.** The prose edits are three skills plus
   the dream twin; the code is one config section, one `ticket.py`, one workflow,
   one recurring template. No split recommended.
+
+## Evaluator review
+
+Reviewed 2026-09-09 against the ticket body, current source and templates, tests,
+and frozen workflow. **Not ready for implementation until the four findings
+below are resolved or explicitly dispositioned by the owner.** The per-file
+exclusion, local pull direction, draft triage, and ticket-owned processor form
+one coherent change and fit the microkernel boundary. This is evidence for the
+owner gate, not design approval.
+
+### Must resolve before implementation
+
+1. **[P1] Apply ownership before Phase 4 can act on an upstream `extract`.**
+   The design adds routing only in Phase 6, but
+   `coga/recurring/dream/ticket.md`, **Phase 4 — retro/done-ticket**, passes all
+   eligible done tickets and the live `## Findings` to Retro first. Phase 6
+   explicitly treats `extract` as already handled. The bundled
+   `bootstrap/skills/retro/done-ticket/SKILL.md`, **Required files** and
+   **Workflow**, independently reads those tickets plus local and packaged
+   knowledge, then writes knowledge PRs; it has no ownership filter. Thus a
+   client ticket producing `class: extract`, `owner: coga` can already drive a
+   local knowledge edit before upstream capture runs. State how the owner
+   verdict reaches the Retro handoff and prevents that edit, while preserving
+   local knowledge from a ticket that contains both kinds. Update the relevant
+   Phase 4/Retro contract and require a mixed local/upstream extraction case;
+   an owner-aware Phase 6 alone cannot satisfy “never propose a local edit.”
+
+2. **[P1] Define recovery between ticket creation, cursor update, and git
+   publication.** `src/coga/create.py::create_task` writes the ticket and audit
+   log, then validates and returns; it neither deduplicates an upstream entry
+   nor syncs it. Repeating its inputs creates a suffixed task. The proposed
+   body omits the source entry's `id`, and the cursor is a separate later
+   write, so a stop after creation but before cursor persistence files the
+   same observation again on retry. “Sync through git” also needs an explicit
+   path set: publishing only the template cursor can leave the corresponding
+   new tasks unpublished. `src/coga/git.py::sync_paths` accepts explicit paths
+   but normally reports and swallows Git errors; its strict error option is
+   available when subsequent work depends on publication. Specify a durable
+   source-entry identity and recovery rule, include created tickets, their
+   log entries, and cursor in the publication contract, and test interruption
+   after one creation plus a publication failure. The successful two-run smoke
+   does not cover these cases. This can remain ordinary file/git work in the
+   sibling script; it does not call for new core machinery.
+
+3. **[P2] Give cursor keys an unambiguous checkout identity.** The proposed
+   `[upstream].checkouts` accepts arbitrary path strings, but
+   `- <checkout-name>: <id>` never defines how that name is derived or made
+   unique. `/work/a/product` and `/work/b/product` are both valid inputs and
+   have the same basename; `Config.project_name` in `src/coga/config.py` is
+   likewise a display name, not a unique identity. Sharing their cursor can
+   skip one checkout via the missing-cursor guard, or skip unrelated entries
+   when an id happens to match. Define a stable unique key, or explicitly
+   reject ambiguous names in the processor before filing anything. Specify
+   duplicate configured-path handling and test two distinct checkouts with
+   the same basename and different entry histories.
+
+4. **[P2] Make the runnable ownership block use the active Coga installation.**
+   The exact Proposed Shape block fails here under its advertised `python -`
+   invocation with `ModuleNotFoundError: No module named 'coga.resources'`.
+   `coga` is installed in a uv tool environment, while the ambient `python`
+   belongs to another environment. Executing the same block with
+   `/home/n/.local/share/uv/tools/coga/bin/python` succeeds. This is the
+   installation model documented by `src/coga/commands/update.py`'s module
+   contract; `coga/codebase`, **Daily commands**, also warns about interpreter
+   and installed/source skew. Specify how Dream selects an interpreter that
+   imports the package backing its active `coga`, and make discovery failure
+   an explicit failed/incomplete scan rather than an empty owned set. Verify
+   the documented invocation in a client checkout without a project-local
+   Coga Python installation. The mapping itself executed successfully once
+   the package was importable.
+
+### Recommendations
+
+- Tighten two acceptance statements: source-repo **corpus paths** can remain
+  unchanged while `index.md` gains `repo-identity`; its bytes cannot remain
+  unchanged too. Likewise, “`## Findings` names none” should concern local
+  findings about excluded files: the specified upstream entry example
+  intentionally names the owned Dream template as its target. Include one
+  positive upstream-routing case and one unverified Coga claim that must not
+  become an invented defect. For live verification, retain or snapshot the
+  successful scan indexes before the template's scan-directory cleanup.
+- Name the remaining documentation touchpoints in the implementation plan:
+  `coga/contexts/coga/architecture/SKILL.md`, **Config loading fails loud on
+  unknown keys** and **Dream's known-skill contract**, plus its packaged twin.
+  They describe the config schema and fixed summary vocabulary that this
+  change extends. Put checkout-list setup instructions in the new recurring
+  template as well, so operating it does not depend on this ticket surviving.
+
+### Verification and confirmed claims
+
+- Ran `PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest -q
+  tests/test_dream_worker_templates.py
+  tests/test_packaging.py::test_live_and_packaged_copies_stay_identical
+  tests/test_packaging.py::test_twin_discovery_still_walks_the_packaged_tree`:
+  **12 passed**.
+- Executed the ticket's ownership block against both the active installed
+  package and current source. Both presently produce **146** candidate owned
+  paths, with **17** existing matches in `/home/n/Code/multiply`; the earlier
+  155 is a measurement to refresh, not a stable expected count. Checked both
+  `_live_counterparts` mappings, the absence of live scan-skill twins, and the
+  enforced Dream twin. The filesystem test identifies this checkout as source
+  and multiply as client. These are derivation checks, not completed Dream runs.
+- A temporary-repo `create_task` probe produced `upstream-retry-example` then
+  `upstream-retry-example-2` from identical entry inputs. It also confirmed
+  that `workflow_name=None`, `status="draft"` creates the intended plain draft.
+  Config allowlists, `recurring_dir`, blackboard helpers, the sibling-script
+  bump skeleton, and the next owner gate all exist as described.
+- No implementation, branch, PR, live Dream run, or real config change was
+  made. The ticket body and frontmatter were preserved during review; only
+  this blackboard section was added before the CLI handoff.
