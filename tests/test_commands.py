@@ -1333,6 +1333,71 @@ def test_slack_important_forwards_to_notification_post(
     assert "fee window closes" in calls[0]["message"]
 
 
+@pytest.mark.parametrize(
+    ("agent_field", "expected_agent"),
+    [("", "claude"), ("agent: codex\n", "codex")],
+)
+def test_bootstrap_slack_completion_attributes_configured_agent(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    agent_field: str,
+    expected_agent: str,
+) -> None:
+    config_path = repo / "coga.toml"
+    config_path.write_text(
+        config_path.read_text()
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+    )
+    ticket_path = repo / "bootstrap" / "completion-check" / "ticket.md"
+    _write(ticket_path, f"---\ntitle: Completion check\n{agent_field}---\n\nDone.\n")
+    before = ticket_path.read_bytes()
+    sentinel = repo / "bootstrap-command.done"
+    monkeypatch.setenv(SENTINEL_ENV, str(sentinel))
+    posts: list[str] = []
+    monkeypatch.setattr(
+        "coga.commands.slack.post",
+        lambda cfg, message, **kwargs: posts.append(message),
+    )
+
+    result = CliRunner().invoke(
+        app, ["slack", "--task", "bootstrap/completion-check", "--message", "finished"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert len(posts) == 1
+    assert f"{expected_agent} on *bootstrap/completion-check*" in posts[0]
+    assert f"[agent:{expected_agent}] slack: finished" in _log_text(
+        repo, "bootstrap/completion-check"
+    )
+    assert sentinel.read_text() == "bootstrap/completion-check\n"
+    assert ticket_path.read_bytes() == before
+
+
+@pytest.mark.parametrize("agent_field", ["agent: null", 'agent: ""', "agent: removed"])
+def test_bootstrap_slack_refuses_invalid_agent_without_completing(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, agent_field: str
+) -> None:
+    ticket_path = repo / "bootstrap" / "completion-check" / "ticket.md"
+    _write(ticket_path, f"---\ntitle: Completion check\n{agent_field}\n---\n\nDone.\n")
+    before = ticket_path.read_bytes()
+    sentinel = repo / "bootstrap-command.done"
+    monkeypatch.setenv(SENTINEL_ENV, str(sentinel))
+    monkeypatch.setattr(
+        "coga.commands.slack.post",
+        lambda *args, **kwargs: pytest.fail("invalid agent reached notification"),
+    )
+
+    result = CliRunner().invoke(
+        app, ["slack", "--task", "bootstrap/completion-check", "--message", "finished"]
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "agent" in result.output
+    assert not sentinel.exists()
+    assert _log_text(repo, "bootstrap/completion-check") == ""
+    assert ticket_path.read_bytes() == before
+
+
 # --- bump --message -----------------------------------------------------------
 
 

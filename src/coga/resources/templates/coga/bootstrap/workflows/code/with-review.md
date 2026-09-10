@@ -1,6 +1,6 @@
 ---
 name: code/with-review
-description: Code change implemented by one agent, then peer-reviewed by the other agent (the one that didn't write it) before a PR is opened for the human's final review.
+description: Code change implemented by the main agent, then reviewed by its configured peer before a PR is opened for the human's final review.
 steps:
   - name: implement
     assignee: agent
@@ -30,23 +30,25 @@ compose their section, so those bodies are load-bearing.
 
 ## Peer review by the other agent
 
-The `implement` step runs under the ticket's `agent:` (the coder). The
-`peer-review` step declares `assignee: other-agent`, which resolves to
-the configured `[agents.*]` type that is *not* the coder — so a change
-written by Claude is reviewed by Codex, and one written by Codex is
-reviewed by Claude. The flip is automatic: `coga bump` rewrites
-`assignee:` to the peer when it enters `peer-review`, and `open-pr`
-flips back to the coder.
+The `implement` step derives its operator from the ticket's `agent:` main-agent
+choice. The `peer-review` step declares `assignee: other-agent`, which resolves
+to that main agent's configured peer. `coga bump` advances `step:` and the next
+operator is derived from the frozen role; it never writes an assignment.
+`open-pr` declares `agent` and routes back to the same main-agent choice.
 
 With two configured agent types, `other-agent` infers the only peer with no
-extra config. With three or more, set `peer = "<type>"` on the coder's
-`[agents.<type>]` table; the mapping is one-directional, so each coder that
+extra config. With three or more, set `peer = "<type>"` on the main agent's
+`[agents.<type>]` table; the mapping is one-directional, so each main agent that
 uses this workflow needs its own peer. An absent or ambiguous peer fails loud
 rather than guessing.
 
+An explicit launch override changes the executing agent without changing the
+stored main agent or its peer. It can therefore make the same agent implement
+and review a change. Peer selection alone does not prove independent authorship.
+
 The `coga launch` supervisor auto-chains across these agent boundaries:
-when a bump rotates `assignee:` from one agent to another (coder →
-peer → coder), it relaunches the *next* agent as a fresh process under
+when a bump changes the derived operator (main → peer → main),
+it launches the *next* agent as a fresh process under
 the same supervisor — claude's REPL exits and codex's starts, or vice
 versa. Each step is a clean session with a freshly composed prompt; it
 only returns control to the human at the final `review` step (an
@@ -61,8 +63,8 @@ under `## Dev` in the ticket copy of the checkout the bump runs from.
 
 ## peer-review
 
-You are the *other* agent — you did not write this change. Review it
-with whichever review tool you natively speak:
+You are running the peer-review step. Review the change with whichever review
+tool you natively speak:
 
 - **Claude**: run the `/code-review` slash command (default effort —
   *not* `ultra`) against the branch diff vs `main`.

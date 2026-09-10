@@ -127,7 +127,62 @@ def test_unresolvable_other_agent_step_is_an_error(repo: Path) -> None:
     assert 'add peer = "<type>" to [agents.claude]' in issue.message
 
 
-@pytest.mark.parametrize("malformed_agent", [["claude"], {"name": "claude"}])
+@pytest.mark.parametrize(
+    ("other_agents", "peer", "expect_error"),
+    [
+        ([], None, True),
+        (["codex"], None, False),
+        (["codex", "local-llm"], None, True),
+        (["codex", "local-llm"], "codex", False),
+    ],
+)
+def test_agentless_draft_validates_future_peer_without_selecting_main_agent(
+    repo: Path,
+    other_agents: list[str],
+    peer: str | None,
+    expect_error: bool,
+) -> None:
+    config_path = repo / "coga.toml"
+    config_text = config_path.read_text()
+    if peer is not None:
+        config_text += f'peer = "{peer}"\n'
+    for name in other_agents:
+        config_text += f'\n[agents.{name}]\ncli = "{name}"\nfile = "AGENTS.md"\n'
+    config_path.write_text(config_text)
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Prospective peer",
+        workflow_name="code/with-review",
+        contexts=[],
+        owner="marc",
+        status="draft",
+    )
+    ticket = Ticket.read(created["path"])
+    assert "agent" not in ticket.frontmatter
+    assert isinstance(ticket.workflow, dict)
+    ticket.workflow["steps"][1]["assignee"] = "other-agent"
+    assert ticket.step_index() == 1
+    ticket.write(created["path"])
+    before = created["path"].read_bytes()
+
+    report = run(cfg)
+
+    if expect_error:
+        issues = [i for i in report.issues if i.kind == "unresolvable-step-assignee"]
+        assert len(issues) == 1
+        assert issues[0].severity == "error"
+        assert "workflow step #2" in issues[0].message
+        assert "claude" in issues[0].message
+    else:
+        assert report.issues == []
+    assert created["path"].read_bytes() == before
+    assert "agent" not in Ticket.read(created["path"]).frontmatter
+
+
+@pytest.mark.parametrize(
+    "malformed_agent", [None, "", False, 0, ["claude"], {"name": "claude"}]
+)
 def test_other_agent_check_preserves_bad_shape_for_malformed_agent(
     repo: Path, malformed_agent: object
 ) -> None:

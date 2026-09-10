@@ -2455,6 +2455,64 @@ def test_template_rejects_delegate_combined_with_script(repo: Path) -> None:
         Template.load(repo / "recurring" / "delegate-check")
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("assignee", "codex"),
+        ("human", "marc"),
+        ("slug", "weekly-check"),
+        ("watchers", "[]"),
+    ],
+)
+def test_recurring_templates_reject_removed_metadata_before_creation(
+    repo: Path, field: str, value: str
+) -> None:
+    from coga.validate import run
+
+    config_path = repo / "coga.toml"
+    config_path.write_text(
+        config_path.read_text()
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+    )
+    _write_recurring(repo, "weekly-check", f"""
+        ---
+        schedule: "0 9 * * 1"
+        title: Weekly check
+        owner: marc
+        {field}: {value}
+        ---
+
+        ## Description
+
+        Check the weekly report.
+
+        <!-- coga:blackboard -->
+    """)
+    template_dir = repo / "recurring" / "weekly-check"
+    before = (template_dir / "ticket.md").read_bytes()
+    cfg = load_config(repo)
+    now = datetime(2026, 9, 7, 10)
+
+    with pytest.raises(RecurringError, match=field):
+        Template.load(template_dir, now=now)
+    with pytest.raises(RecurringError, match=field):
+        create_named(cfg, "weekly-check", now=now)
+
+    scan = scan_due(cfg, now=now, allow_interactive=True)
+    assert scan.tasks == []
+    assert len(scan.errors) == 1
+    assert scan.errors[0][0] == "weekly-check"
+    assert field in scan.errors[0][1]
+    issue = next(i for i in run(cfg).issues if i.kind == "bad-recurring-template")
+    assert issue.task == "recurring/weekly-check"
+    assert issue.severity == "error"
+    assert field in issue.message
+    assert "simplified ticket format removed" in issue.message
+    assert not (tasks_dir(cfg) / "recurring" / "weekly-check").exists()
+    assert not log_path(cfg).exists()
+    assert (template_dir / "ticket.md").read_bytes() == before
+
+
 def test_headless_scan_refuses_delegating_template_at_admission(
     repo: Path, capsys
 ) -> None:

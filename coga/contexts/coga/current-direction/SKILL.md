@@ -265,19 +265,20 @@ Last updated: 2026-09-02.
   recurring jobs run without `delegate:`.
 - **Removed metadata is rejected, not tolerated.** Validation names the
   offending fields as an error, so every writer refuses them; `config.py` keeps
-  the names reserved against `[ticket.fields.*]`. No compatibility reader, no
-  migration tool, no dual-writer period — the whole stored population was
+  the names reserved against `[ticket.fields.*]`. Recurring templates reject
+  the same names at load time, before materializing a period. No compatibility
+  reader, no migration tool, no dual-writer period — the whole stored population was
   converted in the same change.
 
 ## Recent decisions (assignees flattened out)
 
 - **`[assignees.<user>]` removed entirely.** For ≤3 people, the
   human → per-user-agent-nickname → agent-type indirection earned
-  nothing — every team member's map was identical. A ticket's
-  `assignee:` now names an `[agents.<type>]` block directly
-  (e.g. `claude`, `codex`) or a human name (routing only; not
-  launchable). `Config.agent_type(name)` replaces the old
-  `agent_type_for(user, nickname)`. `coga.local.toml`'s
+  nothing — every team member's map was identical. The later ticket-format
+  simplification also removed top-level `assignee:`. A ticket now names its
+  human in `owner:` and may choose an `[agents.<type>]` name in `agent:`;
+  frozen step roles derive the current operator. `Config.agent_type(name)`
+  replaces the old `agent_type_for(user, nickname)`. `coga.local.toml`'s
   `user = "name"` is a free-form string — no registry to validate
   against. Re-introduce per-person agent configs when one teammate
   genuinely needs a different binary or auth from another.
@@ -295,7 +296,7 @@ Last updated: 2026-09-02.
   owner=...)` dispatches through the Slack backend, whose mention helper renders
   a name mapped in `[notification.slack.users]` as a real `<@U…>` ping. Posts
   ping the ticket owner again. The watcher half did *not* survive — see the
-  ticket-format simplification below — so there is no cc trailer; see
+  ticket-format simplification above — so there is no cc trailer; see
   `coga/sync` for the current behavior.
 
 ## Recent decisions (alias mechanism)

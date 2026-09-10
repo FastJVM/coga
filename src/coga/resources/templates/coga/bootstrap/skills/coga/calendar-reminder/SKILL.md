@@ -228,9 +228,9 @@ In the ticket's frontmatter as a top-level field:
 ```yaml
 ---
 title: Brex Automation
-status: active
+status: draft
 owner: zach
-assignee: claude
+agent: claude
 contexts:
   - owner-manual
 workflow: brex-missing-gl
@@ -238,8 +238,8 @@ calendar_reminder_event_id: j3lt2meocjfetlbl6ga27jvvh8
 ---
 ```
 
-For recurring entries (no `ticket.md`), the field goes in the
-recurring file's frontmatter instead:
+For recurring templates, the field goes in
+`recurring/<name>/ticket.md` frontmatter instead:
 
 ```yaml
 ---
@@ -247,10 +247,14 @@ schedule: "0 9 5 1 *"
 schedule_comment: "January 5 at 9am — annually..."
 title: "Download previous year's Gusto payroll tax forms"
 owner: zach
-assignee: zach
 calendar_reminder_event_id: 0vhr5me50sbohsq9afo7jf85qg
 ---
 ```
+
+`owner:` names the accountable human. An optional `agent:` chooses the main
+agent; workflow step roles derive who acts. If the recurring work needs a human
+handoff, choose a workflow with an `assignee: owner` step rather than adding
+top-level assignment metadata.
 
 Why this location:
 

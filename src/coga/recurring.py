@@ -41,7 +41,7 @@ from coga.tasks import (
     read_ticket,
     resolve_bootstrap,
 )
-from coga.ticket import Ticket, TicketError
+from coga.ticket import REJECTED_TICKET_KEYS, Ticket, TicketError
 from coga.validate import TaskValidationError
 from coga.workflow import Workflow, WorkflowError
 
@@ -346,6 +346,14 @@ class Template:
         fm = yaml.safe_load(match.group(1)) or {}
         if not isinstance(fm, dict):
             raise RecurringError("frontmatter must be a mapping")
+        rejected = sorted(set(fm) & REJECTED_TICKET_KEYS)
+        if rejected:
+            raise RecurringError(
+                "recurring template carries metadata the simplified ticket "
+                f"format removed: {rejected}. Delete these keys; use owner "
+                "for the human of record and optional agent for the main "
+                "agent choice. Workflow step roles derive the operator."
+            )
         if "schedule" not in fm:
             raise RecurringError("`schedule` is required")
         _validate_schedule(fm["schedule"], now or datetime.now())

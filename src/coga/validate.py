@@ -813,7 +813,7 @@ def _check_frontmatter_schema(
             else:
                 for i, step in enumerate(steps, start=1):
                     out.extend(
-                        _check_step_shape(cfg, task_label, ticket.agent, i, step)
+                        _check_step_shape(cfg, task_label, ticket, i, step)
                     )
 
     return out
@@ -942,7 +942,7 @@ def _check_secrets(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
 def _check_step_shape(
     cfg: Config,
     task_label: str,
-    ticket_agent: str | None,
+    ticket: Ticket,
     idx: int,
     step: Any,
 ) -> list[Issue]:
@@ -983,6 +983,8 @@ def _check_step_shape(
             ),
             severity="error",
         ))
+    ticket_agent = ticket.agent
+    agent_absent = "agent" not in ticket.frontmatter
     assignee = step.get("assignee")
     if assignee is not None and assignee not in VALID_ASSIGNEE_ROLES:
         out.append(Issue(
@@ -996,14 +998,18 @@ def _check_step_shape(
         ))
     elif (
         assignee == "other-agent"
-        and isinstance(ticket_agent, str)
-        and ticket_agent.strip()
+        and (
+            agent_absent
+            or (isinstance(ticket_agent, str) and ticket_agent.strip())
+        )
     ):
         # Deferred to avoid the coga.bump -> coga.validate module cycle.
         from coga.bump import OperatorResolutionError, resolve_other_agent
 
         try:
-            resolve_other_agent(cfg, ticket_agent)
+            resolve_other_agent(
+                cfg, ticket_agent, allow_prospective_default=agent_absent
+            )
         except OperatorResolutionError as exc:
             out.append(Issue(
                 kind="unresolvable-step-assignee",

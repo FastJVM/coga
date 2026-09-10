@@ -312,6 +312,11 @@ the example under "Extend recurring with a task-specific workflow").
 - `owner`, `agent`, `contexts`, `secrets` — passed through to the created
   period task. `agent` is the template's optional main-agent choice; promotion
   retains it and every period task inherits it.
+- Top-level `slug`, `human`, `assignee`, and `watchers` are rejected when a
+  template is loaded, before period creation or reuse. Validation names the
+  offending fields as a `bad-recurring-template` error. Remove those fields
+  and declare any main-agent preference with `agent:`; the template cannot
+  silently discard an old assignment and run the configured default instead.
 
 ## Recurring runs start on the control branch
 

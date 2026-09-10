@@ -120,7 +120,8 @@ no in-memory state.
   launch and megalaunch derive routing from the *prepared activation* before
   preflight or any durable lifecycle write. Validation checks every frozen
   `other-agent` step against current config as an error, even before the ticket
-  enters that step.
+  enters that step. For a draft without `agent:`, it uses the same prospective
+  default activation would select, without writing that choice to the ticket.
 - **Recurring templates** live in `coga/recurring/`. `coga recurring`
   invokes the fixed `recurring-scan` recipe, which scans templates, creates
   the current run at the stable
@@ -285,6 +286,10 @@ no compatibility reader and no migration facility. What replaced each:
 - `watchers` — never populated, and Slack cc rendering is gone. An old queued
   digest record may still carry the key; it is inert.
 
+Recurring templates reject the same removed fields when loaded, before a
+period can be materialized; validation reports the offending names there too.
+An old template's `assignee:` cannot silently turn into a default-agent choice.
+
 `agent` is the optional **main-agent choice**, not the current operator. It stays
 absent on a draft; when activation first approves work it is filled in with
 `Config.default_agent()` — the first agent declared in the effective merged
@@ -444,15 +449,13 @@ reviewer was considered and deferred: this is the smallest policy surface that
 unblocks a third agent, and a narrower override can layer on later if a real
 need appears.
 
-Note the asymmetry `peer` has with the rest of the local overlay. The other
-keys only decide which binary this machine runs and leave no committed trace,
-whereas resolving `other-agent` rewrites the ticket's `assignee:` — committed
-content. A `peer` declared only in `coga.local.toml` therefore makes durable
-ticket state depend on which machine performed the bump. That is accepted:
-declaring the peer locally is how a machine with a third agent installed wires
-itself up without committing a type its teammates do not have. A repo that
-wants one answer for everyone puts `peer` in `coga.toml`, where it is shared
-policy like any other committed default.
+The main-agent choice stays on the ticket, but `peer` is resolved from live
+configuration at each handoff or launch. A `peer` declared only in
+`coga.local.toml` can therefore select a different reviewer on another machine;
+it does not rewrite ticket routing inputs. That is accepted: declaring the
+peer locally lets a machine use a third installed agent without committing a
+type its teammates do not have. A repo that wants one reviewer policy for
+everyone puts `peer` in shared `coga.toml`.
 
 ## Config loading fails loud on unknown keys
 
@@ -582,9 +585,9 @@ bundled refs may replace that list with specific cleanup instructions.
   ticket to `blocked` so blocker queues keep reporting it. This includes a
   `ticket.py` phase that fails, pauses, closes, or advances before an agent
   session starts; an unanswered ask wins, and launch restores the original
-  live step and its assignee when a terminal transition cleared them. An
-  invalid unassigned baseline fails closed instead of inheriting a later agent
-  and misrouting the ask. TTY-less
+  live step and routing inputs when a terminal transition cleared the step.
+  Routing is derived again from those inputs; an invalid baseline fails closed
+  instead of inheriting a later agent and misrouting the ask. TTY-less
   launches keep refusing a blocked ticket until `coga unblock` records the
   answer. `bump` owns workflow progression and enforces
   `status: in_progress` for a forward bump; at the terminal boundary it
@@ -595,10 +598,10 @@ bundled refs may replace that list with specific cleanup instructions.
   and clears `step:` when the current step is final; a human outside a
   supervised launch may rewind to an earlier step with `--to` or
   `--backward`. A rewind is reposition-only: it accepts `active`,
-  `in_progress`, and `paused`, writes `step:`, may re-resolve `assignee:` for
-  the target step, and never changes status. An `active` or `paused` rewind
-  must target a configured agent so the human can resume it with `coga launch`;
-  it refuses a human or unassigned target because ordinary launch is a hard
+  `in_progress`, and `paused`, writes `step:`, derives the operator for the
+  target step without persisting it, and never changes status. An `active` or
+  `paused` rewind must target a configured agent so the human can resume it
+  with `coga launch`; it refuses an owner step because ordinary launch is a hard
   handoff and a forward bump requires `in_progress`. An already `in_progress`
   ticket may rewind to either kind of target. Rewind also refuses a `blocked`
   ticket (run `coga unblock` first, which owns blocker resolution) and the
@@ -650,9 +653,9 @@ contracts, not executable plugins. Instead launch checks the selected
 directory for one fixed `ticket.py` sibling. When present, it subprocesses that
 file headlessly before agent setup. The script receives task identity, current
 step, and declared secrets, but no operands. A zero exit plus an open step
-falls through to the assignee's agent; a completed step or terminal lifecycle
-does not. After a step advance, launch repeats the deterministic phase only for
-another configured agent-owned step; a human or unassigned handoff returns
+falls through to the derived agent operator; a completed step or terminal
+lifecycle does not. After a step advance, launch repeats the deterministic phase
+only for another derived agent step; an owner handoff returns
 control to the caller. Lifecycle and audit sync may move a control checkout, so
 launch reloads config, ticket, target, secrets, and the fixed entry-point stat
 after the last pre-script sync; a removed `ticket.py` becomes an agent-only
@@ -661,38 +664,39 @@ directly to the agent path. What a strict human assist must prove around that
 script phase is in `coga/launch-internals`.
 
 Only an actual agent phase composes the ticket prompt and spawns the
-assignee's CLI in a live REPL, so only that phase requires stdin and stdout to
-be TTYs. `coga bump`, `coga mark done`, `coga mark
+selected agent's CLI in a live REPL, so only that phase requires stdin and stdout
+to be TTYs. `coga bump`, `coga mark done`, `coga mark
 canceled`, and `coga block` signal the session-scoped
 `$COGA_DONE_SENTINEL`; the supervisor tears down the REPL, re-reads the ticket,
 and either starts a fresh agent process for the next agent-owned step or stops
 at a human handoff, terminal state, blocker, no-progress exit, or non-zero
 exit. A stateless bootstrap agent has no lifecycle transition, so its final
 `coga slack --task bootstrap/<name> ...` FYI is the completion signal.
+Its message and audit actor use the target's explicit main agent or, when
+absent, the configured default. An invalid explicit choice refuses the FYI
+before posting, auditing, or signaling completion. This resolves the configured
+agent; an ordinary launch override has no separate attribution variable.
 
-A human-owned agent step remains a hard handoff when launched normally. An explicit
+A step with the effective role `owner` remains a hard handoff. An explicit
 `coga launch <slug> --agent <type>` is the on-demand assist path: it selects a
 configured agent for that launch only, prints the unusual assist in the banner,
-and never rewrites the human `assignee:` on disk. The strict assist path is
-entered only when the ticket is locally human-owned; an override on an
-agent-owned ticket remains an ordinary launch. A human-step override without a
+and preserves the ticket's owner, main-agent choice, and workflow roles. The
+strict assist path is entered only for a derived owner step; an override on an
+agent step remains an ordinary launch. A human-step override without a
 TTY is refused before recorded-checkout or PR validation. The proofs, leases,
 and compensation behind that publication are in `coga/launch-internals`.
 
-"That launch" means the whole supervised chain, not just its first step. The
-override follows *directly consecutive* frozen steps whose role is `agent`:
-`consecutive_agent_override` in `src/coga/commands/launch.py` is armed on the
-first step only when an override was passed, the launch is not a strict human
-assist, and that step's role is `agent`; every later step whose role is still
-`agent` then runs on the override instead of the ticket's own `assignee:`,
-with nothing written to disk either way. Two things terminate it. A step whose
-role is not `agent` — `owner`, `human`, `other-agent`, or an unassigned step —
-clears the flag as the chain passes through it, and nothing re-arms it for the
-rest of that launch. A strict human assist never arms it at all, so an assist
-override applies to its one step. The terminators matter because the
-alternative is split routing: `coga build --agent codex` once overrode only
-the first iteration while the frozen ticket's `agent: claude` routed step two
-back to an unavailable Claude — a P1, not a cosmetic inconsistency.
+An ordinary launch uses the override for its initial agent phase.
+`consecutive_agent_override` in `src/coga/commands/launch.py` continues it only
+when that first frozen step explicitly declares `assignee: agent`. Each
+directly consecutive step with the same explicit role uses the override too.
+An omitted role (even one inheriting `agent`), `owner`, or `other-agent` ends
+propagation permanently for that launch. A strict human assist never arms
+continuation, so its override applies to its one step.
+
+The override is a launch-scoped execution choice, not a new main-agent choice.
+The selected main agent must still be configured: an override cannot repair an
+invalid routing input, and peer selection stays relative to that main agent.
 
 Blocked tickets can resume inline only from an interactive TTY. Their first
 job is to resolve or re-block the open asks.
