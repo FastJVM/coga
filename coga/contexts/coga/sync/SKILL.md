@@ -582,8 +582,20 @@ Five properties hold it together:
    but this command's generated state adopts the control commit outright
    (`reset --soft` over identical trees), ending with no lifecycle commit of its
    own. A branch with real work merges that commit instead, keeping its product
-   commits and its hand-authored Coga changes — contexts, skills, workflows,
-   config, and deliberate ticket prose stay ordinary feature work.
+   commits and every Coga change the operator committed themselves — contexts,
+   skills, workflows, config, and deliberate ticket prose committed by hand
+   stay ordinary feature work, because they are not in the manifest.
+   The one deliberate exception is a hand-edit the **catch-all sweep** picked
+   up: `sync_coga_state` commits every dirty `coga/` path and, on any branch,
+   lands the non-union ones on the control branch — that is its pre-existing
+   contract, not something the boundary added. The sweep therefore derives its
+   manifest from its whole commit, so a swept hand-edit is reconciled exactly
+   like ticket state: control already holds those bytes, and leaving them in
+   the payload would show the PR changing a file `main` already has — the
+   phantom duplicate this boundary exists to remove. An edit that must go
+   through review is committed by hand before the next mutating command runs,
+   which is the same rule the "never run a repo-mutating verification
+   experiment" warning below already states.
 4. **The check is a path-producing diff against that same tip**, restricted to
    the manifest. Nothing is assumed from the merge having "worked".
 5. **It fails closed and never raises.** The control landing already succeeded,

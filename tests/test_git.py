@@ -7338,6 +7338,47 @@ def test_feature_payload_reconciliation_preserves_authored_coga_edits(git_repo):
     )
 
 
+def test_catch_all_sweep_reconciles_the_hand_edit_it_landed_on_control(git_repo):
+    """A hand-edit the catch-all swept is reconciled because control has it.
+
+    `sync_coga_state` commits every dirty `coga/` path and lands the non-union
+    ones on the control branch from any branch — its pre-existing contract.
+    Its manifest is therefore its whole commit: once control holds the swept
+    context, keeping it in the review payload would show the PR changing a
+    file `main` already has. A hand-edit that must go through review is
+    committed by hand first (the previous test), not left for the sweep.
+    """
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed demo ticket")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/x")
+    (git_repo.root / "product.txt").write_text("feature work\n")
+    git_repo.git("add", "product.txt")
+    git_repo.git("commit", "-m", "feature: product work")
+    context = git_repo.coga_os / "contexts" / "demo" / "SKILL.md"
+    context.parent.mkdir(parents=True)
+    context.write_text("---\nname: demo\n---\n\nswept knowledge\n")
+
+    git.sync_coga_state(cfg, message="Sync coga state")
+
+    # The sweep landed the hand-edit on control itself...
+    assert "swept knowledge" in git_repo.git(
+        "show", "main:coga/contexts/demo/SKILL.md", cwd=git_repo.origin
+    )
+    # ...the checkout keeps it, clean...
+    assert "swept knowledge" in git_repo.git(
+        "show", "HEAD:coga/contexts/demo/SKILL.md"
+    )
+    assert "coga/" not in git_repo.git("status", "--porcelain")
+    # ...and the review payload is only the product work.
+    assert git_repo.git(
+        "diff", "--name-only", "origin/main...HEAD"
+    ).split() == ["product.txt"]
+
+
 def test_feature_payload_reconciliation_fails_closed_on_a_conflict(git_repo, capsys):
     """Concurrent material drift leaves the branch alone and says so.
 

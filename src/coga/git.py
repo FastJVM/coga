@@ -5276,6 +5276,17 @@ def _generated_commit_rels(
     writer is covered the moment it writes, and a mixed-purpose file (the
     digest ticket's `### Digest State` cursor beside its authored prose) is
     owned exactly to the extent this command changed it.
+
+    The catch-all `sync_coga_state` takes the delta route, and its delta can
+    include a hand-edited context or ticket prose. That is deliberate rather
+    than over-broad: the sweep already lands every non-union path it commits
+    on the control branch, from any branch, so by the time reconciliation
+    runs control holds those bytes. Keeping them in the review payload would
+    show the PR changing a file control already has — the phantom duplicate
+    this boundary removes. A hand-edit that must go through review is
+    committed by hand before the next mutating command; a narrower
+    lifecycle-only manifest would not protect it, only reintroduce the
+    duplicate.
     """
     if generated_paths is not None:
         return list(generated_paths)
