@@ -1,14 +1,10 @@
 ---
-slug: move-cogacontext-to-roodoc-so-its-easier-for-human
 title: move cogacontext to roodoc so its easier for human
 status: done
 owner: nick
-human: nick
 agent: claude
-assignee: nick
 contexts:
 - dev/code
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +24,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

@@ -379,8 +379,11 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
             description: tiny.
             steps:
               - name: implement
+                assignee: agent
               - name: review
+                assignee: agent
               - name: merge
+                assignee: agent
             ---
 
             ## implement
@@ -415,3 +418,43 @@ def git_repo(tmp_path, monkeypatch) -> GitRepo:
     repo = init_git_repo(tmp_path)
     monkeypatch.chdir(repo.coga_os)
     return repo
+
+
+def derived_operator(coga_os: Path, slug: str) -> str | None:
+    """Who coga says holds `slug` — the replacement for the old `ticket.assignee`.
+
+    Reloads config from disk so a test that edited `coga.toml` (added an agent,
+    declared a peer) sees the routing that edit produces. Returns None for a
+    terminal task, which has no current operator.
+    """
+    from coga.bump import resolve_operator
+    from coga.config import load_config
+    from coga.tasks import resolve_task
+    from coga.ticket import Ticket
+
+    cfg = load_config(coga_os)
+    ref = resolve_task(cfg, slug)
+    operator = resolve_operator(
+        cfg, ref, Ticket.read(ref.ticket_path), allow_prospective_default=True
+    )
+    return operator.name if operator is not None else None
+
+
+def hold_by_owner(ticket: "Ticket") -> None:
+    """Route this ticket's current step to its owner.
+
+    The workflow step's role is the only thing that makes a ticket human-held
+    now, so a fixture that wants an owner handoff edits the frozen snapshot
+    rather than writing an assignment. `current_step()` returns the live step
+    mapping, so mutating it mutates the ticket.
+    """
+    step = ticket.current_step()
+    assert step is not None, "ticket has no current step to route to its owner"
+    step["assignee"] = "owner"
+
+
+def hold_by_agent(ticket: "Ticket", role: str = "agent") -> None:
+    """Route this ticket's current step to an agent (`agent` or `other-agent`)."""
+    step = ticket.current_step()
+    assert step is not None, "ticket has no current step to route to an agent"
+    step["assignee"] = role

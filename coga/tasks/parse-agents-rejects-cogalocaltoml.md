@@ -1,15 +1,9 @@
 ---
-slug: parse-agents-rejects-cogalocaltoml
 title: parse-agents-rejects-cogalocaltoml
 status: canceled
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow: code/with-review
-secrets: null
 ---
 
 ## Description

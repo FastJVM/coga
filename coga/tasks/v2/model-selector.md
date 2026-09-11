@@ -1,13 +1,8 @@
 ---
-slug: v2/model-selector
 title: model selector
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
 ---
 

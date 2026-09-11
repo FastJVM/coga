@@ -1,13 +1,8 @@
 ---
-slug: marketing/build-the-launch-plan
 title: Build the launch plan
 status: in_progress
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: draft-for-human
   steps:
@@ -16,11 +11,10 @@ workflow:
     assignee: agent
   - name: human-owns-and-finishes
     skills: []
-    assignee: human
+    assignee: owner
   - name: report-to-coga
     skills: []
     assignee: agent
-secrets: null
 step: 2 (human-owns-and-finishes)
 ---
 

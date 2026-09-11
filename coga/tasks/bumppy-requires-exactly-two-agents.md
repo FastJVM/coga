@@ -1,13 +1,8 @@
 ---
-slug: bumppy-requires-exactly-two-agents
 title: Layer [agents.*] from coga.local.toml and resolve other-agent with 3+ agents
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

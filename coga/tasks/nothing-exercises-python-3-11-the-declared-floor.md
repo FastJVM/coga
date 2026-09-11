@@ -1,13 +1,8 @@
 ---
-slug: nothing-exercises-python-3-11-the-declared-floor
 title: Nothing exercises Python 3.11, the declared floor
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

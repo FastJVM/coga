@@ -24,7 +24,7 @@ def test_address_pr_comments_skill_preserves_the_owner_gate() -> None:
     assert "Require exactly one" in skill
     assert "multi-push remote" in skill
     assert "<verified-push-url>" in skill
-    assert "`(status, step, assignee)`" in skill
+    assert "persisted routing inputs" in skill
     assert "`coga block`" in skill
     assert "python -m pytest" in skill
     assert "git push --force-with-lease=refs/heads/<branch-name>:" in skill

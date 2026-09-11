@@ -1,13 +1,8 @@
 ---
-slug: v2/document-design-pivot-in-blackboard-convention
 title: Document design-pivot-in-blackboard convention
 status: canceled
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:

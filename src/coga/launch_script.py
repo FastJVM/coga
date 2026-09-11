@@ -16,6 +16,7 @@ from typing import Callable, NamedTuple
 import typer
 
 from coga import git
+from coga.bump import OperatorResolutionError, resolve_operator
 from coga.config import Config, build_launch_env, load_config
 from coga.logfile import append_log, log_path
 from coga.lifecycle import TERMINAL_STATUSES
@@ -193,7 +194,7 @@ def run_script_phase(
                 "pre-script audit record"
             )
 
-    pre_sync_identity = (ticket.status, ticket.step, ticket.assignee)
+    pre_sync_identity = git.ticket_routing_state(ticket)
 
     # The lifecycle and launch-log syncs above may fetch/rebase a control
     # checkout. Re-derive every input after that last moving boundary: a peer
@@ -230,12 +231,14 @@ def run_script_phase(
 
     if not stateless and (
         ticket.status != "in_progress"
-        or (ticket.status, ticket.step, ticket.assignee) != pre_sync_identity
+        or git.ticket_routing_state(ticket) != pre_sync_identity
     ):
         # The moving sync above is authoritative. A peer may have closed or
         # parked the task, advanced it to a configured agent after a human
-        # assist, or handed it to a human. Do not execute code selected from the
-        # stale pre-sync lifecycle; let the chain classify the fresh state.
+        # assist, handed it to a human, changed its owner, or changed its
+        # main-agent choice — any of which reroutes the next phase. Do not
+        # execute code selected from the stale pre-sync lifecycle; let the chain
+        # classify the fresh state.
         return ScriptPhaseResult(
             exit_code=0,
             ticket=ticket,
@@ -424,7 +427,6 @@ def run_script_phase(
                 f"\"{observed.title}\": exit {exit_code}{where}",
                 task_path=ref.path,
                 owner=observed.owner or cfg.current_user,
-                watchers=observed.watchers,
                 important=failure_important,
                 # The deterministic failure and its exit code are already
                 # durable; a notification outage must not replace that result.
@@ -484,7 +486,7 @@ def run_script_chain(
     while current.step not in ran_steps:
         step_key = current.step
         ran_steps.add(step_key)
-        _echo_script_iteration(ref, current, stateless=stateless)
+        _echo_script_iteration(cfg, ref, current, stateless=stateless)
 
         before = current
         phase = run_script_phase(
@@ -544,14 +546,19 @@ def run_script_chain(
         # deterministic preparation succeeded and the agent continues that
         # same open unit of work. A changed step gets its own deterministic
         # phase before any agent preflight or prompt composition, unless the
-        # workflow handed control to a human or left the step unassigned.  The
-        # deterministic chain must honor the same approval boundary as the
-        # agent supervisor instead of running ticket.py on somebody else's
-        # turn.
+        # workflow handed control to the owner. The deterministic chain must
+        # honor the same approval boundary as the agent supervisor instead of
+        # running ticket.py on somebody else's turn.
         if after.step == before.step:
             return ScriptChainResult(0, after, True, None, cfg, ref)
-        if not after.assignee or after.assignee not in cfg.agents:
-            who = after.assignee or "unassigned"
+        try:
+            operator = resolve_operator(cfg, ref, after)
+        except OperatorResolutionError as exc:
+            return ScriptChainResult(
+                0, after, False, f"{ref.id_slug}: {exc}; stopping", cfg, ref
+            )
+        if operator is None or operator.is_human:
+            who = "nobody" if operator is None else operator.name
             return ScriptChainResult(
                 0,
                 after,
@@ -562,11 +569,11 @@ def run_script_chain(
                 ref,
             )
         if publish_aligned_branch is not None:
-            # The override authorizes the human-owned phase only. Once a
-            # deterministic bump hands control to a configured agent, every
-            # immediately chained script phase must be attributed to that
-            # durable assignee.
-            phase_assist_agent = after.assignee
+            # The override authorizes the human-held phase only. Once a
+            # deterministic bump hands control to an agent step, every
+            # immediately chained script phase is attributed to that step's
+            # derived operator.
+            phase_assist_agent = operator.name
         current = after
 
     return ScriptChainResult(0, current, True, None, cfg, ref)
@@ -600,21 +607,29 @@ def _classify_script_handoff(
         else:
             reason = f"{ref.id_slug}: task status is {ticket.status!r}"
         return ScriptChainResult(0, ticket, False, reason, cfg, ref)
-    if not ticket.assignee:
+    try:
+        operator = resolve_operator(cfg, ref, ticket)
+    except OperatorResolutionError as exc:
+        return ScriptChainResult(
+            0, ticket, False, f"{ref.id_slug}: {exc}; stopping", cfg, ref
+        )
+    if operator is None:
         return ScriptChainResult(
             0,
             ticket,
             False,
-            f"{ref.id_slug}: next step is unassigned; returning to caller",
+            f"{ref.id_slug}: next step has no operator; returning to caller",
             cfg,
             ref,
         )
-    if ticket.assignee not in cfg.agents and not strict_assist:
+    # A strict assist is already authorized to run one session on an
+    # owner-held step, so it does not stop here.
+    if operator.is_human and not strict_assist:
         return ScriptChainResult(
             0,
             ticket,
             False,
-            f"{ref.id_slug}: next step hands off to {ticket.assignee}; "
+            f"{ref.id_slug}: next step hands off to {operator.name}; "
             "returning to caller",
             cfg,
             ref,
@@ -760,6 +775,7 @@ def _publish_restored_script_failure(
 
 
 def _echo_script_iteration(
+    cfg: Config,
     ref: TargetRef,
     ticket: Ticket,
     *,
@@ -769,15 +785,22 @@ def _echo_script_iteration(
         typer.echo(f"→ running {ref.id_slug} ticket.py", err=True)
         return
     current = ticket.current_step()
+    try:
+        operator = resolve_operator(
+            cfg, ref, ticket, allow_prospective_default=True
+        )
+        who = operator.name if operator is not None else "none"
+    except OperatorResolutionError:
+        who = "unresolved"
     if current is None:
         typer.echo(
             f"→ running {ref.id_slug} ticket.py "
-            f"(status={ticket.status}, assignee={ticket.assignee or 'unassigned'})"
+            f"(status={ticket.status}, operator={who})"
         )
         return
     typer.echo(
         f"→ entering step {ticket.step}: {current['name']} "
-        f"(status={ticket.status}, assignee={ticket.assignee or 'unassigned'})"
+        f"(status={ticket.status}, operator={who})"
     )
 
 

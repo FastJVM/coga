@@ -40,7 +40,7 @@ from coga.tasks import (
     read_ticket,
     resolve_target,
 )
-from coga.ticket import TicketError
+from coga.ticket import Ticket, TicketError
 
 # Below this terminal width Rich's column balancer can fold long values
 # one-char-per-line, which makes the output unreadable in tmux split panes
@@ -52,11 +52,16 @@ ORDER_BY_CHOICES = (
     "slug",
     "status",
     "owner",
-    "assignee",
+    "operator",
     "step",
     "updated",
     "created",
 )
+
+# `--order-by assignee` is retained as a spelling of `operator`: it sorts the
+# derived operator column and is not an assignment input. Kept because the flag
+# is in muscle memory and in scripts; the ticket schema has no `assignee`.
+ORDER_BY_ALIASES = {"assignee": "operator"}
 
 
 class ViewError(Exception):
@@ -92,6 +97,21 @@ def render_show(cfg: Config, task: str, console: Console | None = None) -> None:
     # Bootstrap tickets are stateless: no log history to reconstruct.
     if isinstance(ref, BootstrapRef):
         return
+
+    # The operator is derived, not stored, so the rendered ticket above cannot
+    # show it. Print it explicitly — and label it — so `coga show` still answers
+    # "whose turn is this?" without anyone looking for a field that no longer
+    # exists.
+    try:
+        shown_ticket = read_ticket(ref)
+    except TicketError:
+        pass
+    else:
+        console.print()
+        console.print(
+            f"operator: {_operator_cell(cfg, ref, shown_ticket)} "
+            "[dim](derived from the current workflow step — not stored)[/dim]"
+        )
 
     console.print()
     console.print(Rule(f"{ref.id_slug} — log (from coga/log.md)"))
@@ -203,6 +223,7 @@ def render_status(
         _list_dirs(cfg, directory, no_recurse=no_recurse)
         return
 
+    order_by = ORDER_BY_ALIASES.get(order_by, order_by)
     if order_by not in ORDER_BY_CHOICES:
         raise ViewError(
             f"--order-by must be one of: {', '.join(ORDER_BY_CHOICES)}"
@@ -251,7 +272,7 @@ def render_status(
             "directory": ref.directory,
             "status": ticket.status or "-",
             "owner": ticket.owner or "-",
-            "assignee": ticket.assignee or "-",
+            "operator": _operator_cell(cfg, ref, ticket),
             "step": ticket.step or "-",
             "updated_ts": updated.get(ref.id_slug),
             "created_ts": created.get(ref.id_slug),
@@ -451,6 +472,30 @@ def _safe_open_blockers(ticket_path: Path) -> list[Blocker]:
         return []
 
 
+def _operator_cell(cfg: Config, ref: TaskRef, ticket: Ticket) -> str:
+    """The derived-operator column for one row.
+
+    Never raises and never consults the network: a single ticket with a broken
+    frozen workflow must show a visible diagnostic in its own row rather than
+    taking down the whole listing. A terminal task shows a dash — it has no
+    current operator. A draft that has not chosen an agent shows the one
+    activation would select, marked so it does not read as already decided.
+    """
+    from coga.bump import OperatorResolutionError, resolve_operator
+
+    try:
+        operator = resolve_operator(cfg, ref, ticket)
+    except OperatorResolutionError:
+        try:
+            operator = resolve_operator(
+                cfg, ref, ticket, allow_prospective_default=True
+            )
+        except OperatorResolutionError:
+            return "(unresolved)"
+        return f"{operator.name}?" if operator is not None else "-"
+    return operator.name if operator is not None else "-"
+
+
 def _build_table(rows: list[dict], narrow: bool, now: datetime) -> Table:
     """Build one status table from already-sorted rows."""
     table = Table(show_lines=False, show_edge=False, pad_edge=False)
@@ -459,18 +504,18 @@ def _build_table(rows: list[dict], narrow: bool, now: datetime) -> Table:
         # so Rich's balancer doesn't crop it. Everything else ellipsizes.
         max_slug = max((len(r["slug"]) for r in rows), default=0)
         table.add_column("slug", no_wrap=True, overflow="fold", min_width=max_slug)
-        for col in ("status", "owner", "assignee", "step", "updated"):
+        for col in ("status", "owner", "operator", "step", "updated"):
             table.add_column(col, no_wrap=True, overflow="ellipsis")
     else:
         table.add_column("slug", no_wrap=True, overflow="fold")
-        for col in ("status", "owner", "assignee", "step", "updated"):
+        for col in ("status", "owner", "operator", "step", "updated"):
             table.add_column(col)
 
     for r in rows:
         ts = r["updated_ts"]
         updated = _format_relative(ts, now) if ts is not None else "-"
         table.add_row(
-            r["slug"], r["status"], r["owner"], r["assignee"],
+            r["slug"], r["status"], r["owner"], r["operator"],
             r["step"], updated,
         )
     return table

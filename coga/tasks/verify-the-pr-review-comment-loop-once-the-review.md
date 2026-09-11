@@ -1,13 +1,8 @@
 ---
-slug: verify-the-pr-review-comment-loop-once-the-review
 title: Verify the PR review-comment loop once the review queue drains
 status: blocked
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: direct/body
   steps:
@@ -15,7 +10,6 @@ workflow:
     skills:
     - direct/body
     assignee: agent
-secrets: null
 step: 1 (execute)
 ---
 

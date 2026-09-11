@@ -20,17 +20,11 @@ def _write_legacy_null_task(repo: Path, *, slug: str, title: str) -> None:
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(dedent(f"""
         ---
-        slug: {slug}
         title: {title}
         status: active
         owner: marc
-        human: marc
         agent: claude
-        assignee: claude
-        contexts: []
-        skills: []
         workflow: null
-        script: null
         ---
 
         ## Description

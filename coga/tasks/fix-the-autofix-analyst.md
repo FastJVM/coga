@@ -1,17 +1,13 @@
 ---
-slug: fix-the-autofix-analyst
 title: Fix the autofix analyst
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
 - coga/recurring
 - coga/codebase
 - coga/principles
 - coga/extension-model
-skills: []
 workflow:
   name: code/with-self-review
   steps:
@@ -33,7 +29,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

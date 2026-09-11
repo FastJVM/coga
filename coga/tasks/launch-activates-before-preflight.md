@@ -1,14 +1,10 @@
 ---
-slug: launch-activates-before-preflight
 title: Launch activates a draft before its preflight checks refuse it
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
 - coga/launch-internals
-skills: []
 workflow:
   name: code/design-then-implement
   steps:
@@ -33,7 +29,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

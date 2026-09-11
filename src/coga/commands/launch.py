@@ -35,6 +35,12 @@ import typer
 from coga import usage as usage_tracking
 from coga.agent_skills import refresh_agent_skill_view
 from coga.autoclose import parse_branch_name, parse_pr_url, parse_worktree_path
+from coga.bump import (
+    Operator,
+    OperatorResolutionError,
+    resolve_main_agent,
+    resolve_operator,
+)
 from coga.blackboard import (
     blackboard_size_warning,
     format_bytes,
@@ -65,6 +71,7 @@ from coga.lifecycle import TERMINAL_STATUSES
 from coga.launch_script import run_script_chain, script_entry_point
 from coga.logfile import append_log, log_path
 from coga.mark import (
+    MainAgentUnavailable,
     BlackboardNeedsSynthesis,
     RequiredExtensionMissing,
     WorkflowMissing,
@@ -811,6 +818,7 @@ def _launch(
             if prompt_report:
                 from coga.recurring import (
                     RecurringError,
+                    assert_frozen_delegation,
                     frozen_task_delegate,
                     resolve_agent_delegate,
                 )
@@ -823,6 +831,9 @@ def _launch(
                             "missing its frozen target"
                         )
                     resolve_agent_delegate(cfg, delegate)
+                    assert_frozen_delegation(
+                        ref, frozen_ticket, require_step=False
+                    )
                 except RecurringError as exc:
                     _bail(str(exc))
                 return _launch(
@@ -911,19 +922,18 @@ def _launch(
         try:
             for _ in range(_ASSIST_ALIGNMENT_ATTEMPTS):
                 alignment_ticket = read_ticket(ref)
-                # Same resolution the classification below uses: a draft whose
-                # step-1 role token rewrites `assignee:` at activation must be
-                # aligned against the identity it will actually launch with,
-                # not the stale one it is parked with.
-                alignment_assignee = alignment_ticket.assignee
+                # Same resolution the classification below uses: activation
+                # freezes the snapshot, seeds step 1, and selects a main agent,
+                # so a draft must be aligned against the routing it will
+                # actually launch with, not the routing it is parked with.
+                alignment_operator: Operator | None = None
                 if not is_bootstrap and isinstance(ref, TaskRef):
-                    alignment_assignee, _ = _prospective_activation_identity(
+                    alignment_operator, _ = _prospective_activation_identity(
                         cfg, ref, alignment_ticket
                     )
                 alignment_is_human_assist = (
-                    not is_bootstrap
-                    and bool(alignment_assignee)
-                    and alignment_assignee not in cfg.agents
+                    alignment_operator is not None
+                    and alignment_operator.is_human
                 )
                 if (
                     alignment_is_human_assist
@@ -1025,11 +1035,14 @@ def _launch(
             raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE) from exc
 
     def _read(target: TaskRef | BootstrapRef) -> Ticket:
-        """Read the ticket, applying the ephemeral `--agent` override."""
-        t = read_ticket(target)
-        if agent_override is not None and is_bootstrap:
-            t.frontmatter["assignee"] = agent_override
-        return t
+        """Read the ticket from disk.
+
+        Deliberately unmodified: an `--agent` override is ephemeral and is
+        applied where the worker is chosen, never by editing a ticket — not even
+        the in-memory copy, which composition and the routing derivation both
+        read.
+        """
+        return read_ticket(target)
 
     # Classify only after recorded-assist alignment. Prompt reporting remains
     # non-executing; for an agent-only report, refresh the agent skill view here
@@ -1112,17 +1125,14 @@ def _launch(
         lambda: typer.echo(
             f"Launch: task {ref.id_slug} "
             f"(status={ticket.status if not is_bootstrap else 'n/a'}, "
-            f"assignee={ticket.assignee or 'unassigned'})",
+            f"operator={_operator_display(cfg, ref, ticket)})",
             err=is_bootstrap and entry is not None,
         )
     )
 
     # A terminal ticket is closed: launching it must not restart its frozen
-    # workflow. Re-activating would re-seed `step: 1` without re-resolving
-    # `assignee` (which still holds the final step's resolved human owner),
-    # crashing the agent-type lookup and leaving the ticket wedged
-    # (`active, step 1, assignee=<human>`). Refuse loud. Draft/paused still
-    # activate inline below.
+    # workflow. Re-activating would re-seed `step: 1` and quietly reopen
+    # finished work. Refuse loud. Draft/paused still activate inline below.
     if (
         not is_bootstrap
         and isinstance(ref, TaskRef)
@@ -1135,7 +1145,6 @@ def _launch(
 
     blocked_resume = False
     blocked_resume_step: str | None = None
-    blocked_resume_assignee: str | None = None
     blocked_resume_ticket_bytes: bytes | None = None
 
     # A blocked ticket may be launched only by an explicit interactive human
@@ -1161,7 +1170,6 @@ def _launch(
                 )
             blocked_resume = True
             blocked_resume_step = ticket.step
-            blocked_resume_assignee = ticket.assignee
             blocked_resume_ticket_bytes = ref.ticket_path.read_bytes()
             post_alignment_setup_call(
                 lambda: typer.echo(
@@ -1179,29 +1187,26 @@ def _launch(
                 f"to resume."
             )
 
-    assignee = ticket.assignee
-    if not assignee:
-        setup_bail(f"Task {ref.id_slug} has no assignee")
-    current_step = ticket.current_step()
     if not is_bootstrap and isinstance(ref, TaskRef):
-        # Step 1's role token may rewrite `assignee:` at activation. Classify
-        # the recorded assist from the resolved identity, not the stale one.
-        assignee, current_step = _prospective_activation_identity(cfg, ref, ticket)
-        if not assignee:
-            setup_bail(f"Task {ref.id_slug} has no assignee")
-    agent_role_override = bool(
-        not is_bootstrap
-        and agent_override is not None
-        and assignee == ticket.agent
-        and isinstance(current_step, dict)
-        and current_step.get("assignee") == "agent"
-    )
+        # Activation can change every routing input, so classify the recorded
+        # assist from the prepared activation rather than the parked ticket.
+        operator, current_step = _prospective_activation_identity(cfg, ref, ticket)
+    else:
+        try:
+            operator = _target_operator(cfg, ref, ticket)
+        except OperatorResolutionError as exc:
+            setup_bail(f"Cannot launch {ref.id_slug}: {exc}")
+            return None
+        current_step = ticket.current_step()
+    # A strict human assist: an explicit override running one visible session on
+    # a step the workflow hands to a human. Decided by the step's *role*, so an
+    # explicitly declared agent step is never mistaken for a handoff, and a
+    # human whose nickname matches an agent type is never mistaken for an agent.
     human_assist = (
         not is_bootstrap
         and agent_override is not None
-        and bool(assignee)
-        and assignee not in cfg.agents
-        and not agent_role_override
+        and operator is not None
+        and operator.is_human
     )
     single_checkout_assist_branch = (
         post_alignment_setup_call(
@@ -1295,9 +1300,8 @@ def _launch(
         return _reblock_unresolved_resume(
             cfg,
             ref,
-            agent_override or ticket.assignee or assignee,
+            agent_override or _operator_display(cfg, ref, ticket),
             resume_step=blocked_resume_step,
-            resume_assignee=blocked_resume_assignee,
             fallback_ticket_bytes=blocked_resume_ticket_bytes,
             feature_branch=single_checkout_assist_branch,
             feature_publication_guard=assist_pr_guard,
@@ -1356,7 +1360,7 @@ def _launch(
                     expected=ticket,
                     expected_bytes=expected_ticket_bytes,
                     branch=single_checkout_assist_branch,
-                    launch_assignee=agent_override,
+                    launch_agent=agent_override,
                     publication_guard=assist_pr_guard,
                 )
                 ticket = _read(ref)
@@ -1444,26 +1448,41 @@ def _launch(
                 )
                 refresh_after_script()
                 return "script" if return_timeout else None
+            try:
+                post_script_operator = _target_operator(cfg, ref, ticket)
+            except OperatorResolutionError as exc:
+                post_script_operator = None
+                script_operator_error: str | None = str(exc)
+            else:
+                script_operator_error = None
+            # An explicit override authorizes the human-owned step it was
+            # requested for. Once ticket.py advances the workflow to an agent
+            # step, that step's derived operator owns the actual spawn and the
+            # assist override stops participating in routing.
             handoff_override = (
-                agent_override
-                if not human_assist or ticket.assignee not in cfg.agents
-                else None
+                None
+                if human_assist
+                and post_script_operator is not None
+                and post_script_operator.is_agent
+                else agent_override
             )
+            if script_operator_error is not None and handoff_override is None:
+                _bail(
+                    f"Cannot continue {ref.id_slug}: ticket.py left work open, "
+                    f"but its operator cannot be derived "
+                    f"({script_operator_error})."
+                )
             _require_agent_after_script(
                 cfg,
                 ref,
                 ticket,
                 handoff_override,
             )
-            # An explicit override authorizes the human-owned step it was
-            # requested for. Once ticket.py advances to a configured agent, the
-            # durable assignee owns the actual spawn and the assist override no
-            # longer participates in routing.
             agent_override = handoff_override
             human_assist = bool(
                 agent_override is not None
-                and ticket.assignee
-                and ticket.assignee not in cfg.agents
+                and post_script_operator is not None
+                and post_script_operator.is_human
             )
         except (SecretError, TaskValidationError, FileNotFoundError) as exc:
             if blocked_resume:
@@ -1554,11 +1573,21 @@ def _launch(
         lambda: _refresh_agent_skills_for_launch(cfg.repo_root)
     )
 
-    assignee = ticket.assignee
-    if not assignee:
+    try:
+        operator = _target_operator(cfg, ref, ticket)
+    except OperatorResolutionError as exc:
         if blocked_resume:
             reblock_after_script_safely()
-        setup_bail(f"Task {ref.id_slug} has no assignee")
+        setup_bail(f"Cannot launch {ref.id_slug}: {exc}")
+        return None
+    if operator is None:
+        if blocked_resume:
+            reblock_after_script_safely()
+        setup_bail(
+            f"Cannot launch {ref.id_slug}: it has no current step, so there is "
+            "no operator to route to."
+        )
+        return None
 
     # Carried across the prepare/commit split below, so the deferred audit line
     # can still name the real transition once `ticket.status` reads `active`.
@@ -1582,22 +1611,24 @@ def _launch(
         ):
             auto_activate_prior = ticket.status
             _prepare_auto_activate(cfg, ref, ticket)
-            # Freezing step 1 can replace the draft's initial assignee. Use
-            # that resolved identity for CLI preflight, audit, and override
-            # continuation before committing any lifecycle state.
-            assignee = ticket.assignee
+            # Activation freezes the snapshot, seeds step 1, and selects a main
+            # agent. Re-derive routing from that prepared state for CLI
+            # preflight, audit, and override continuation, before committing any
+            # lifecycle state.
+            try:
+                operator = _target_operator(cfg, ref, ticket)
+            except OperatorResolutionError as exc:
+                _bail(f"Cannot launch {ref.id_slug}: {exc}")
+                return None
+            if operator is None:
+                _bail(
+                    f"Cannot launch {ref.id_slug}: activation left it with no "
+                    "current step to route."
+                )
+                return None
             current_step = ticket.current_step()
-            agent_role_override = bool(
-                agent_override is not None
-                and assignee == ticket.agent
-                and isinstance(current_step, dict)
-                and current_step.get("assignee") == "agent"
-            )
             human_assist = bool(
-                agent_override is not None
-                and assignee
-                and assignee not in cfg.agents
-                and not agent_role_override
+                agent_override is not None and operator.is_human
             )
 
         _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
@@ -1605,20 +1636,25 @@ def _launch(
         if not _interactive_stdio_has_tty():
             _refuse_tty_launch(ref)
 
-        launch_assignee = agent_override or assignee
+        launch_agent = agent_override or operator.name
         if human_assist:
             typer.echo(
-                f"Launch: agent {agent_override} assisting on human-owned step "
-                f"(assignee={assignee}; ticket assignment unchanged)"
+                f"Launch: agent {agent_override} assisting on owner-held step "
+                f"(operator={operator.name}; ticket routing unchanged)"
+            )
+        elif agent_override is not None and agent_override != operator.name:
+            typer.echo(
+                f"Launch: agent {agent_override} overriding this session only "
+                f"(operator={operator.name}; ticket routing unchanged)"
             )
 
-        # Resolve the agent type — the ticket's assignee names it directly.
+        # Resolve the agent type from whoever is actually going to run.
         try:
-            agent = cfg.agent_type(launch_assignee)
+            agent = cfg.agent_type(launch_agent)
         except ConfigError as exc:
             _bail(str(exc))
         typer.echo(
-            f"Launch: agent {launch_assignee} -> {agent.name} "
+            f"Launch: agent {launch_agent} -> {agent.name} "
             f"(cli={agent.cli})"
         )
 
@@ -1749,7 +1785,7 @@ def _launch(
                     log_message="started (active → in_progress) via coga launch",
                     slack_text=(
                         f"▶️ {cfg.current_user} started *{ref.id_slug}* "
-                        f"\"{ticket.title}\" (assignee: {launch_assignee})"
+                        f"\"{ticket.title}\" (agent: {launch_agent})"
                     ),
                     echo=f"{ref.id_slug}: in_progress",
                 )
@@ -1825,7 +1861,7 @@ def _launch(
                         script_steps_run,
                         publish_aligned_branch=single_checkout_assist_branch,
                         assist_agent=(
-                            ticket.assignee
+                            launch_agent
                             if single_checkout_assist_branch is not None
                             else None
                         ),
@@ -1868,13 +1904,15 @@ def _launch(
             except SecretError as exc:
                 _bail(str(exc))
 
-            # Resolve the agent for THIS step from the ticket's current
-            # assignee, so the supervisor can rotate claude <-> codex across
-            # the workflow. A one-off `--agent` override follows directly
-            # consecutive steps carrying the `agent` role so a same-agent
-            # workflow stays on the explicitly selected CLI. Any role change
-            # ends that continuation; later steps follow the ticket. A
-            # human-owned first step reaches here only through an explicit
+            # Resolve the agent for THIS step from the step's derived operator,
+            # so the supervisor can rotate main <-> peer across the workflow. A
+            # one-off `--agent` override follows directly consecutive steps that
+            # *explicitly declare* the `agent` role, so a same-agent workflow
+            # stays on the explicitly selected CLI. An omitted role, an owner
+            # step, or `other-agent` ends that continuation permanently for this
+            # launch; later steps follow the ticket's own routing. An inherited
+            # agent role can execute, but does not widen the override contract.
+            # An owner-held first step reaches here only through an explicit
             # assist, whose override never propagates. Later human handoffs
             # stop in `_harness_stop_reason` before a relaunch.
             #
@@ -1893,32 +1931,42 @@ def _launch(
                 else None
             )
             current_step = ticket.current_step()
-            current_role = (
-                current_step.get("assignee")
-                if isinstance(current_step, dict)
-                else None
-            )
+            current_role = _explicit_step_role(current_step)
+            try:
+                step_operator = _target_operator(cfg, ref, ticket)
+            except OperatorResolutionError as exc:
+                # A routing input became invalid mid-chain (an agent removed
+                # from config, an edited snapshot). Stop cleanly and hand back
+                # to the human rather than guessing a worker.
+                typer.echo(f"{ref.id_slug}: {exc}; stopping")
+                break
             if first_step:
-                step_assignee = agent_override or ticket.assignee
+                step_agent = agent_override or (
+                    step_operator.name if step_operator is not None else None
+                )
                 consecutive_agent_override = bool(
                     agent_override
                     and not human_assist
                     and current_role == "agent"
                 )
             elif consecutive_agent_override and current_role == "agent":
-                step_assignee = agent_override
+                step_agent = agent_override
             else:
                 consecutive_agent_override = False
-                step_assignee = ticket.assignee
+                step_agent = (
+                    step_operator.name if step_operator is not None else None
+                )
             first_step = False
             try:
-                agent = cfg.agent_type(step_assignee) if step_assignee else None
+                agent = cfg.agent_type(step_agent) if step_agent else None
                 if agent is None:
-                    raise ConfigError(f"Task {ref.id_slug} has no assignee")
+                    raise ConfigError(
+                        f"Task {ref.id_slug} has no agent to route this step to"
+                    )
             except ConfigError as exc:
-                # Defensive: a non-agent assignee should have stopped the
-                # chain at the previous bump. If we somehow reach here, stop
-                # rather than crash.
+                # Defensive: an owner-held step should have stopped the chain at
+                # the previous bump. If we somehow reach here, stop rather than
+                # crash.
                 typer.echo(f"{ref.id_slug}: {exc}; stopping")
                 break
             # Re-check the CLI every step — catches the case where the chain
@@ -1926,7 +1974,7 @@ def _launch(
             # cleanly and hand back to the human rather than blocking.
             if shutil.which(agent.cli) is None:
                 message = (
-                    f"{ref.id_slug}: next step needs agent {step_assignee!r} "
+                    f"{ref.id_slug}: next step needs agent {step_agent!r} "
                     f"but {agent_cli_missing_message(agent.cli)}"
                 )
                 if is_bootstrap and return_timeout:
@@ -1939,11 +1987,11 @@ def _launch(
                 )
                 break
             typer.echo(
-                f"Launch: step agent {step_assignee} -> {agent.name} "
+                f"Launch: step agent {step_agent} -> {agent.name} "
                 f"(cli={agent.cli})"
             )
 
-            _echo_launch_iteration(ref, ticket)
+            _echo_launch_iteration(cfg, ref, ticket)
             spawn_ticket = ticket
             session_before_recompose = (
                 before_recompose if is_first_step else None
@@ -1986,7 +2034,7 @@ def _launch(
                         expected=ticket,
                         expected_bytes=expected_bytes,
                         branch=publish_assist_branch,
-                        launch_assignee=step_assignee or launch_assignee,
+                        launch_agent=step_agent or launch_agent,
                         publication_guard=assist_pr_guard,
                     )
 
@@ -2018,8 +2066,8 @@ def _launch(
                     env=step_env,
                     actor=f"human:{cfg.current_user}",
                     log_message=_launch_log_message(
-                        ticket.assignee or assignee,
-                        step_assignee or launch_assignee,
+                        _operator_display(cfg, ref, ticket),
+                        step_agent or launch_agent,
                         agent.name,
                     ),
                     name=ticket.title or "",
@@ -2040,7 +2088,7 @@ def _launch(
                     # branch and an aligned configured remote.
                     publish_aligned_branch=publish_assist_branch,
                     assist_agent=(
-                        (step_assignee or launch_assignee)
+                        (step_agent or launch_agent)
                         if publish_assist_branch is not None
                         else None
                     ),
@@ -2057,7 +2105,7 @@ def _launch(
                         _reblock_unresolved_resume(
                             cfg,
                             ref,
-                            step_assignee or launch_assignee,
+                            step_agent or launch_agent,
                             feature_branch=publish_assist_branch,
                             feature_publication_guard=assist_pr_guard,
                         )
@@ -2085,7 +2133,7 @@ def _launch(
                     _reblock_unresolved_resume(
                         cfg,
                         ref,
-                        step_assignee or launch_assignee,
+                        step_agent or launch_agent,
                         feature_branch=publish_assist_branch,
                         feature_publication_guard=assist_pr_guard,
                     )
@@ -2170,9 +2218,8 @@ def _launch(
                     _reblock_unresolved_resume(
                         cfg,
                         ref,
-                        agent_override or launch_assignee,
+                        agent_override or launch_agent,
                         resume_step=blocked_resume_step,
-                        resume_assignee=blocked_resume_assignee,
                         feature_branch=single_checkout_assist_branch,
                         feature_publication_guard=assist_pr_guard,
                     )
@@ -2218,9 +2265,8 @@ def _launch(
                 _reblock_unresolved_resume(
                     cfg,
                     ref,
-                    agent_override or launch_assignee,
+                    agent_override or launch_agent,
                     resume_step=blocked_resume_step,
-                    resume_assignee=blocked_resume_assignee,
                     feature_branch=single_checkout_assist_branch,
                     feature_publication_guard=assist_pr_guard,
                 )
@@ -2297,24 +2343,38 @@ def _require_agent_after_script(
             "real shell to continue."
         )
 
-    assignee = agent_override or ticket.assignee
-    if not assignee:
-        _bail(
-            f"Cannot continue {ref.id_slug}: ticket.py left {step_label} open, "
-            "but the ticket has no agent assignee."
-        )
+    worker = agent_override
+    if worker is None:
+        try:
+            operator = _target_operator(cfg, ref, ticket)
+        except OperatorResolutionError as exc:
+            _bail(
+                f"Cannot continue {ref.id_slug}: ticket.py left {step_label} "
+                f"open, but its operator cannot be derived ({exc}). The "
+                "deterministic work was kept."
+            )
+            return
+        if operator is None or operator.is_human:
+            who = "nobody" if operator is None else f"the owner ({operator.name})"
+            _bail(
+                f"Cannot continue {ref.id_slug}: ticket.py left {step_label} "
+                f"open, but it hands off to {who} rather than an agent. The "
+                "deterministic work was kept."
+            )
+            return
+        worker = operator.name
     try:
-        agent = cfg.agent_type(assignee)
+        agent = cfg.agent_type(worker)
     except ConfigError as exc:
         _bail(
             f"Cannot continue {ref.id_slug}: ticket.py left {step_label} open, "
-            f"but assignee {assignee!r} cannot run an agent ({exc}). The "
+            f"but {worker!r} cannot run an agent ({exc}). The "
             "deterministic work was kept."
         )
     if shutil.which(agent.cli) is None:
         _bail(
             f"Cannot continue {ref.id_slug}: ticket.py left {step_label} open "
-            f"for agent {assignee!r}, but {agent_cli_missing_message(agent.cli)} "
+            f"for agent {worker!r}, but {agent_cli_missing_message(agent.cli)} "
             "The deterministic work was kept."
         )
 
@@ -2328,34 +2388,90 @@ def _exit_failed_script(exit_code: int) -> None:
     raise SystemExit(exit_code)
 
 
+def _target_operator(
+    cfg: Config,
+    ref: TargetRef,
+    ticket: Ticket,
+) -> Operator | None:
+    """The operator a launch should route to, for any launch target.
+
+    A `BootstrapRef` is stateless: it has no workflow and no lifecycle, so its
+    operator is simply its own explicit main-agent choice, or the configured
+    default. Ordinary tasks derive theirs from the frozen workflow step.
+
+    Raises `OperatorResolutionError`; callers turn that into a refusal *before*
+    dispatch rather than guessing an agent.
+    """
+    if isinstance(ref, BootstrapRef):
+        return Operator(
+            "agent",
+            resolve_main_agent(
+                cfg,
+                ticket.agent,
+                task_label=ref.id_slug,
+                allow_prospective_default=True,
+            ),
+        )
+    return resolve_operator(cfg, ref, ticket, allow_prospective_default=True)
+
+
+def _operator_display(cfg: Config, ref: TargetRef, ticket: Ticket) -> str:
+    """A never-raising operator label for a launch banner."""
+    try:
+        operator = _target_operator(cfg, ref, ticket)
+    except OperatorResolutionError:
+        return "unresolved"
+    return operator.name if operator is not None else "none"
+
+
+def _explicit_step_role(step: dict | None) -> str | None:
+    """The role a step *declares*, or None when it omits one.
+
+    An omitted role still routes — it inherits the nearest preceding
+    declaration — but an inherited `agent` role deliberately does not extend a
+    `--agent` override's propagation, which is scoped to explicitly declared
+    agent steps.
+    """
+    return step.get("assignee") if isinstance(step, dict) else None
+
+
 def _prospective_activation_identity(
     cfg: Config,
     ref: TaskRef,
     ticket: Ticket,
-) -> tuple[str | None, dict | None]:
-    """The assignee and step a draft/paused ticket would have once activated.
+) -> tuple[Operator | None, dict | None]:
+    """The operator and step a draft/paused ticket would have once activated.
 
-    Freezing step 1 resolves its `assignee:` role token, which can change the
-    ticket's assignee — so classifying a recorded human assist from the *stale*
-    draft assignee gets both transitions wrong: human→agent needlessly enters
-    strict assist handling, and agent→human misses it entirely.
-    `coga/architecture` requires launch to "choose the agent and check human
-    handoffs from the prepared activation's resolved assignee", so resolve it
-    here, before that classification.
+    Activation freezes a bare workflow ref, seeds step 1, and selects a main
+    agent — all three change how routing resolves, so classifying a recorded
+    human assist from the *unactivated* draft gets both transitions wrong:
+    human→agent needlessly enters strict assist handling, and agent→human misses
+    it entirely. `coga/architecture` requires launch to choose the agent and
+    check human handoffs from the prepared activation, so resolve it here,
+    before that classification.
 
-    This runs on a copy and writes nothing. Activation refusals are deliberately
-    swallowed: the real `_prepare_auto_activate` (or the assist publisher) still
-    runs later and owns the operator-facing error, so this must not change which
-    message a refused launch produces or when it appears.
+    This runs on a copy and writes nothing. Activation and resolution refusals
+    are deliberately swallowed: the real `_prepare_auto_activate` (or the assist
+    publisher) still runs later and owns the operator-facing error, so this must
+    not change which message a refused launch produces or when it appears.
     """
+    def _current() -> tuple[Operator | None, dict | None]:
+        try:
+            return _target_operator(cfg, ref, ticket), ticket.current_step()
+        except OperatorResolutionError:
+            return None, ticket.current_step()
+
     if ticket.status not in {"draft", "paused"}:
-        return ticket.assignee, ticket.current_step()
+        return _current()
     prospective = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
     try:
         prepare_active(cfg, ref, prospective)
+        return (
+            _target_operator(cfg, ref, prospective),
+            prospective.current_step(),
+        )
     except Exception:
-        return ticket.assignee, ticket.current_step()
-    return prospective.assignee, prospective.current_step()
+        return _current()
 
 
 def _prospective_assist_ticket(
@@ -2395,6 +2511,10 @@ def _prospective_assist_ticket(
                     reason=exc.reason,
                 )
             ) from exc
+        except MainAgentUnavailable as exc:
+            raise ComposeError(
+                f"Cannot launch {ref.id_slug}: {exc}"
+            ) from exc
     if prospective.status == "active":
         prospective.frontmatter["status"] = "in_progress"
     if prospective.status != "in_progress":
@@ -2412,7 +2532,7 @@ def _publish_assist_lifecycle_before_spawn(
     expected: Ticket,
     expected_bytes: bytes | None = None,
     branch: str,
-    launch_assignee: str,
+    launch_agent: str,
     publication_guard: Callable[[str], None],
 ) -> None:
     """Publish lifecycle state at the last boundary before the child process."""
@@ -2493,7 +2613,7 @@ def _publish_assist_lifecycle_before_spawn(
             log_message="started (active → in_progress) via coga launch",
             slack_text=(
                 f"▶️ {cfg.current_user} started *{ref.id_slug}* "
-                f"\"{current.title}\" (assignee: {launch_assignee})"
+                f"\"{current.title}\" (agent: {launch_agent})"
             ),
             echo=f"{ref.id_slug}: in_progress",
             feature_publication=publication,
@@ -2664,6 +2784,8 @@ def _prepare_auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
                 ref.id_slug, action="launch", reason=exc.reason
             )
         )
+    except MainAgentUnavailable as exc:
+        _bail(f"Cannot launch {ref.id_slug}: {exc}")
 
 
 def _commit_auto_activate(
@@ -2722,7 +2844,6 @@ def _reblock_unresolved_resume(
     blocker: str | None,
     *,
     resume_step: str | None = None,
-    resume_assignee: str | None = None,
     fallback_ticket_bytes: bytes | None = None,
     feature_branch: str | None = None,
     feature_publication_guard: Callable[[str], None] | None = None,
@@ -2739,6 +2860,8 @@ def _reblock_unresolved_resume(
     ask still wins, so restore the original live step when the transition
     cleared it and put the ticket back in the blocked queue.  Agent-session
     callers omit it and retain the established in-progress-only cleanup.
+    Restoring a position restores the routing *inputs*; the operator is derived
+    from them, never copied from the session that ran.
 
     Returns whether an open ask remains durably parked as ``blocked``.
     """
@@ -2797,25 +2920,18 @@ def _reblock_unresolved_resume(
         return True
     if ticket.status != "in_progress" and resume_step is None:
         return False
+    baseline = git.ticket_routing_state(ticket)
     script_lifecycle = (
-        ("in_progress", resume_step, resume_assignee)
+        baseline._replace(status="in_progress", step=resume_step)
         if restored_fallback and resume_step is not None
-        else (ticket.status, ticket.step, ticket.assignee)
+        else baseline
     )
     if resume_step is not None and ticket.step is None:
+        # A terminal deterministic transition can clear ``step``. Restore the
+        # original position and let routing be derived from it again: there is no
+        # copied assignment to restore, so an unresolved ask can no longer be
+        # attributed to whichever agent a later step would have used.
         ticket.frontmatter["step"] = resume_step
-        # A terminal deterministic transition can clear ``step`` while leaving
-        # a later agent assignee behind. Restore the original owner rather than
-        # misrouting the unresolved ask. A live ticket cannot validly be
-        # unassigned (the schema requires a non-empty ``assignee``), so an
-        # invalid baseline fails closed instead of inheriting that later agent.
-        if resume_assignee is None:
-            raise _AssistPublicationRefused(
-                f"Could not return {ref.id_slug} to blocked because its "
-                "original resumed step had no valid assignee; refusing to "
-                "attribute the unresolved ask to a later agent"
-            )
-        ticket.frontmatter["assignee"] = resume_assignee
 
     owner = ticket.owner or cfg.current_user
     detail = "; ".join(b.reason for b in blockers)
@@ -3783,17 +3899,20 @@ def _discussion_template(agent) -> str:
     return DEFAULT_DISCUSSION_TEMPLATES.get(Path(agent.cli).name, "")
 
 
-def _echo_launch_iteration(ref: TaskRef | BootstrapRef, ticket: Ticket) -> None:
+def _echo_launch_iteration(
+    cfg: Config, ref: TaskRef | BootstrapRef, ticket: Ticket
+) -> None:
     current = ticket.current_step()
+    operator = _operator_display(cfg, ref, ticket)
     if current is None:
         typer.echo(
             f"→ launching {ref.id_slug} "
-            f"(status={ticket.status}, assignee={ticket.assignee or 'unassigned'})"
+            f"(status={ticket.status}, operator={operator})"
         )
         return
     typer.echo(
         f"→ entering step {ticket.step}: {current['name']} "
-        f"(status={ticket.status}, assignee={ticket.assignee or 'unassigned'})"
+        f"(status={ticket.status}, operator={operator})"
     )
 
 
@@ -3840,23 +3959,28 @@ def _harness_stop_reason(
     if current is None:
         return f"{ref.id_slug}: no current workflow step; stopping"
 
-    # The supervisor chains across agent steps — including agent rotations
-    # (e.g. claude -> codex for peer review), relaunching the next step's
-    # agent as a fresh process. It only returns control to the caller when
-    # the next step hands off to a HUMAN (an assignee that is not a configured
-    # agent type) or is unassigned. The discriminator is human-vs-agent, NOT
-    # "did the nickname change" — a skill-less agent step is still the agent's
-    # turn and chains. (Same-agent steps were always chained; this also covers
-    # the cross-agent hop the single-agent loop used to stop at.)
+    # The supervisor chains across agent steps — including main <-> peer
+    # rotations, relaunching the next step's agent as a fresh process. It only
+    # returns control to the caller when the next step hands off to the OWNER.
+    # The discriminator is the step's role, NOT "did the nickname change" — a
+    # skill-less agent step is still the agent's turn and chains.
     if (
         chain_agent_override is not None
-        and current.get("assignee") == "agent"
+        and _explicit_step_role(current) == "agent"
         and chain_agent_override in cfg.agents
     ):
         return None
-    if not after.assignee or after.assignee not in cfg.agents:
-        who = after.assignee or "unassigned"
-        return f"{ref.id_slug}: next step hands off to {who}; returning to caller"
+    try:
+        operator = _target_operator(cfg, ref, after)
+    except OperatorResolutionError as exc:
+        return f"{ref.id_slug}: cannot derive the next operator ({exc}); stopping"
+    if operator is None:
+        return f"{ref.id_slug}: no current operator; returning to caller"
+    if operator.is_human:
+        return (
+            f"{ref.id_slug}: next step hands off to {operator.name}; "
+            "returning to caller"
+        )
 
     return None
 
@@ -3886,15 +4010,21 @@ def _format_prompt_report(id_slug: str, composition: PromptComposition) -> str:
 
 
 def _launch_log_message(
-    assignee: str,
-    launch_assignee: str,
+    operator: str,
+    launch_agent: str,
     agent_name: str,
 ) -> str:
-    if launch_assignee == assignee:
-        return f"launched (assignee={assignee}, agent={agent_name})"
+    """Audit line for one spawn.
+
+    Names the *actual* worker. When an ephemeral override makes that differ from
+    the configured operator, record both, so the launch record stays a faithful
+    account of who ran while the ticket keeps its unchanged routing.
+    """
+    if launch_agent == operator:
+        return f"launched (operator={operator}, agent={agent_name})"
     return (
         f"launched "
-        f"(assignee={assignee}, launch_assignee={launch_assignee}, agent={agent_name})"
+        f"(operator={operator}, launch_agent={launch_agent}, agent={agent_name})"
     )
 
 
@@ -3904,18 +4034,27 @@ def _refuse_human_handoff_launch(
     ticket: Ticket,
     agent_override: str | None,
 ) -> None:
-    assignee = ticket.assignee
-    if (
-        isinstance(ref, BootstrapRef)
-        or not assignee
-        or assignee in cfg.agents
-        or agent_override is not None
-    ):
+    """Refuse to run an agent on a step the workflow hands to a human.
+
+    Keyed on the step's *role*, not on whether the derived name happens to be
+    missing from `[agents.*]`: a human whose nickname matches an agent type must
+    still be a handoff. An explicit `--agent` override is the one authorized way
+    past this, and it assists that single human step without changing routing.
+    """
+    if isinstance(ref, BootstrapRef) or agent_override is not None:
+        return
+    try:
+        operator = _target_operator(cfg, ref, ticket)
+    except OperatorResolutionError as exc:
+        _bail(f"Cannot launch {ref.id_slug}: {exc}")
+        return
+    if operator is None or not operator.is_human:
         return
     _bail(
-        f"Cannot launch {ref.id_slug}: assignee {assignee!r} "
-        "is not a configured agent type. This is a human handoff; "
-        "reassign the task to an agent type before launching an agent."
+        f"Cannot launch {ref.id_slug}: its current step hands off to the owner "
+        f"({operator.name}), not to an agent. Advance the workflow to an agent "
+        f"step, or pass `--agent <type>` to run one explicit assisting session "
+        "on this human step."
     )
 
 

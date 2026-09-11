@@ -1,15 +1,9 @@
 ---
-slug: marketing/plan/collect-public-examples-for-the-launch
 title: Collect public examples for the launch
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow: draft-for-human
-secrets: null
 ---
 
 ## Description

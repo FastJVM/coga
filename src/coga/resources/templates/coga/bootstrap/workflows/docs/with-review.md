@@ -28,23 +28,25 @@ there.
 
 ## Peer review by the other agent
 
-The `implement` step runs under the ticket's `agent:` (the author). The
-`peer-review` step declares `assignee: other-agent`, which resolves to
-the configured `[agents.*]` type that is *not* the author — so a change
-written by Claude is reviewed by Codex, and one written by Codex is
-reviewed by Claude. The flip is automatic: `coga bump` rewrites
-`assignee:` to the peer when it enters `peer-review`, and `open-pr`
-flips back to the author.
+The `implement` step derives its operator from the ticket's `agent:` main-agent
+choice. The `peer-review` step declares `assignee: other-agent`, which resolves
+to that main agent's configured peer. `coga bump` advances `step:` and the next
+operator is derived from the frozen role; it never writes an assignment.
+`open-pr` declares `agent` and routes back to the same main-agent choice.
 
 With two configured agent types, `other-agent` infers the only peer with no
-extra config. With three or more, set `peer = "<type>"` on the author's
-`[agents.<type>]` table; the mapping is one-directional, so each author that
+extra config. With three or more, set `peer = "<type>"` on the main agent's
+`[agents.<type>]` table; the mapping is one-directional, so each main agent that
 uses this workflow needs its own peer. An absent or ambiguous peer fails loud
 rather than guessing.
 
+An explicit launch override changes the executing agent without changing the
+stored main agent or its peer. It can therefore make the same agent implement
+and review a change. Peer selection alone does not prove independent authorship.
+
 The `coga launch` supervisor auto-chains across these agent boundaries:
-when a bump rotates `assignee:` from one agent to another (author →
-peer → author), it relaunches the *next* agent as a fresh process under
+when a bump changes the derived operator (main → peer → main),
+it launches the *next* agent as a fresh process under
 the same supervisor — claude's REPL exits and codex's starts, or vice
 versa. Each step is a clean session with a freshly composed prompt; it
 only returns control to the human at the final `review` step (an
@@ -94,9 +96,8 @@ accurate and reachable rather than running tests that cover nothing.
 
 ## peer-review
 
-You are the *other* agent — you did not write this change. This is a
-docs change, so review the **content**, not a code diff. Read the changed
-markdown vs `main` (`git diff main -- '*.md'` plus any non-markdown docs
+You are running the peer-review step for a docs change. Review the **content**.
+Read the changed markdown vs `main` (`git diff main -- '*.md'` plus any non-markdown docs
 the ticket names) and check:
 
 - **Accuracy** — do the claims match how the system actually behaves?

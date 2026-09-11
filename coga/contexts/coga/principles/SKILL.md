@@ -51,9 +51,9 @@ The human's scarce resource is judgment. Don't spend it on doing. Route every
 mechanizable step to an agent (and crystallize the deterministic part to a
 script), so human attention concentrates on what only judgment can settle:
 what's worth doing, whether the output is right, what rule was missing. The
-agent is a first-class operator — any workflow step's `assignee` can be an agent
-or a human, interchangeably — because every operation is a text command or a
-file edit, which an agent does exactly as a human does.
+agent is a first-class operator — any workflow step's `assignee` role can route
+to an agent or to the owner, interchangeably — because every operation is a text
+command or a file edit, which an agent does exactly as a human does.
 
 **Forbids:** a human-only operation (a GUI-locked action, anything not
 expressible as a command + file); making a human do work an agent or script
@@ -66,7 +66,7 @@ the right substance per launch — a reserved `ticket.py` half for deterministic
 Python, then an agent for any judgment it leaves open — deduced from the ticket
 rather than declared in a `mode:` field. Stable package commands also remain
 available through the fixed `coga run` registry; per-step `assignee`
-(`agent`/`other-agent`/`human`) chains a task across operators in one
+(`agent`/`other-agent`/`owner`) chains a task across operators in one
 `coga launch`.
 
 ## 3. Obvious — boring, standard, immediately understandable

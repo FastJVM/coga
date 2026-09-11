@@ -1,14 +1,9 @@
 ---
-slug: no-context-records-the-ci-posture-publish-only-rel
 title: 'No context records the CI posture: publish-only release workflow, no test
   gate'
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -29,7 +24,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

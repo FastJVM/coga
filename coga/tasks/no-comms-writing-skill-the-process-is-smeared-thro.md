@@ -1,13 +1,8 @@
 ---
-slug: no-comms-writing-skill-the-process-is-smeared-thro
 title: No comms-writing skill; the process is smeared through marketing plan
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: docs/with-review
   steps:
@@ -23,7 +18,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-secrets: null
 ---
 
 ## Description

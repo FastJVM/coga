@@ -1,13 +1,8 @@
 ---
-slug: remov-digest-in-recurring
 title: Remove the daily digest
 status: in_progress
 owner: nicktoper
-human: nick
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 4 (review)
 ---
 

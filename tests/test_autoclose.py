@@ -33,15 +33,10 @@ def _write_workflow_less_task(
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(dedent(f"""
         ---
-        slug: {slug}
         title: Work
         status: {status}
         owner: marc
-        human: marc
         agent: claude
-        assignee: claude
-        contexts: []
-        skills: []
         workflow: null
         ---
 
@@ -78,7 +73,9 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         description: tiny.
         steps:
           - name: implement
+            assignee: agent
           - name: review
+            assignee: agent
         ---
 
         ## implement
@@ -113,9 +110,13 @@ def _make_task(
         ticket = path / "ticket.md"
     else:
         ref = create_task(
-            cfg=cfg, title=title, workflow_name=workflow,
-            contexts=[], owner="marc", assignee="claude",
-            watchers=[], status=status,
+            cfg=cfg,
+            title=title,
+            workflow_name=workflow,
+            contexts=[],
+            owner="marc",
+            agent="claude",
+            status=status,
         )
         # File-form default: `ref["path"]` is the `tasks/<slug>.md` ticket itself.
         ticket = ref["path"]

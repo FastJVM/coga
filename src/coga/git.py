@@ -126,6 +126,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any, NamedTuple
 from uuid import uuid4
 
 from coga.config import Config
@@ -275,9 +276,9 @@ def write_ticket_under_barrier(
 class FeaturePublicationLease:
     """Exact branch/control state authorizing one generated publication.
 
-    ``control_ticket_state`` is the exact ``(status, step, assignee)`` tuple
-    shared by the verified feature and control tips before the state command
-    mutates its working-tree copy. ``control_task_oid`` pins the complete
+    ``control_ticket_state`` is the exact `TicketRoutingState` — status plus the
+    persisted routing inputs — shared by the verified feature and control tips
+    before the state command mutates its working-tree copy. ``control_task_oid`` pins the complete
     control-side task object at that same boundary (the ticket blob for a
     file-form task, or the task tree including attachments for directory form).
     Strict publication rechecks both against every candidate control tip.
@@ -289,7 +290,7 @@ class FeaturePublicationLease:
     local_oid: str
     remote_oid: str
     push_url: str | None = None
-    control_ticket_state: tuple[str | None, str | None, str | None] | None = None
+    control_ticket_state: TicketRoutingState | None = None
     control_task_oid: str | None = None
 
 
@@ -3582,7 +3583,7 @@ def guard_ticket_state(
     *,
     allow_step_rewind: bool = False,
     allow_terminal_change: bool = False,
-    expected_lifecycle: tuple[str | None, str | None, str | None] | None = None,
+    expected_lifecycle: TicketRoutingState | None = None,
     expected_ticket_bytes: bytes | None = None,
     allow_launch_claim_acquisition: bool = False,
     allow_launch_claim_admission: bool = False,
@@ -3658,7 +3659,7 @@ def ticket_state_guard(
     *,
     allow_step_rewind: bool = False,
     allow_terminal_change: bool = False,
-    expected_lifecycle: tuple[str | None, str | None, str | None] | None = None,
+    expected_lifecycle: TicketRoutingState | None = None,
     expected_ticket_bytes: bytes | None = None,
     allow_launch_claim_acquisition: bool = False,
     allow_launch_claim_admission: bool = False,
@@ -3712,7 +3713,7 @@ def ticket_state_guard(
 
 def _assist_control_ticket_guard(
     task_path: Path,
-    expected: tuple[str | None, str | None, str | None],
+    expected: TicketRoutingState,
     *,
     expected_task_oid: str | None,
     fallback: _StateGuard | None,
@@ -3758,37 +3759,93 @@ def _ticket_path_for_task_path(task_path: Path) -> Path:
     return directory_ticket if task_path.is_dir() else task_path
 
 
+def _routing_scalar(value: Any) -> str | None:
+    """Normalize one routing input to something comparable and hashable.
+
+    Ticket parsing preserves malformed frontmatter for diagnostics, so a
+    routing field can hold a list or mapping. Byte-identical tickets still
+    compare equal after this, and a lease stays hashable.
+    """
+    if value is None or isinstance(value, str):
+        return value
+    return repr(value)
+
+
+class TicketRoutingState(NamedTuple):
+    """The persisted inputs that decide who holds a ticket, plus its status.
+
+    Replaces the old ``(status, step, assignee)`` triple. There is no cached
+    assignment to compare any more, so the lease compares what the assignment
+    used to be *derived from*: the owner, the main-agent choice, the frozen
+    workflow's role declarations, and the current position. A stale checkout
+    that changed any of them therefore still invalidates a same-step lease, and
+    an unchanged ticket still matches.
+
+    Deliberately does not resolve the operator: this runs inside Git byte
+    comparison, where loading mutable config would make two checkouts of the
+    same bytes disagree because their `coga.local.toml` differs.
+    """
+
+    status: str | None
+    step: str | None
+    owner: str | None
+    agent: str | None
+    step_roles: tuple[str | None, ...]
+
+
 def _ticket_state_summary(data: bytes | None) -> str:
     """Compact lifecycle identity for an exact-ticket mismatch message."""
     if data is None:
         return "a missing ticket"
-    try:
-        ticket = Ticket.parse(data.decode("utf-8"))
-    except (UnicodeDecodeError, TicketError):
+    state = _ticket_lifecycle_state(data)
+    if state is None:
         return "an unreadable ticket"
-    return (
-        f"status={ticket.status!r}, step={ticket.step!r}, "
-        f"assignee={ticket.assignee!r}"
-    )
+    return _lifecycle_state_summary(state)
 
 
-def _ticket_lifecycle_state(
-    data: bytes | None,
-) -> tuple[str | None, str | None, str | None] | None:
+def _ticket_lifecycle_state(data: bytes | None) -> TicketRoutingState | None:
     if data is None:
         return None
     try:
         ticket = Ticket.parse(data.decode("utf-8"))
     except (UnicodeDecodeError, TicketError):
         return None
-    return ticket.status, ticket.step, ticket.assignee
+    return ticket_routing_state(ticket)
 
 
-def _lifecycle_state_summary(
-    state: tuple[str | None, str | None, str | None],
-) -> str:
-    status, step, assignee = state
-    return f"status={status!r}, step={step!r}, assignee={assignee!r}"
+def ticket_routing_state(ticket: Ticket) -> TicketRoutingState:
+    """The status-plus-routing identity of an in-memory ticket.
+
+    The one place this identity is computed, so a lease derived from committed
+    bytes and a freshness check derived from a live `Ticket` cannot drift apart.
+    """
+    workflow = ticket.workflow
+    steps = workflow.get("steps") if isinstance(workflow, dict) else None
+    roles: tuple[str | None, ...] = (
+        tuple(
+            _routing_scalar(step.get("assignee"))
+            if isinstance(step, Mapping)
+            else _routing_scalar(step)
+            for step in steps
+        )
+        if isinstance(steps, list)
+        else ()
+    )
+    return TicketRoutingState(
+        status=_routing_scalar(ticket.status),
+        step=_routing_scalar(ticket.step),
+        owner=_routing_scalar(ticket.owner),
+        agent=_routing_scalar(ticket.agent),
+        step_roles=roles,
+    )
+
+
+def _lifecycle_state_summary(state: TicketRoutingState) -> str:
+    return (
+        f"status={state.status!r}, step={state.step!r}, "
+        f"owner={state.owner!r}, agent={state.agent!r}, "
+        f"step_roles={list(state.step_roles)!r}"
+    )
 
 
 def _pending_launch_admission_reason(

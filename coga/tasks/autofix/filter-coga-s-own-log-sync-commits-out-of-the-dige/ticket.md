@@ -1,13 +1,8 @@
 ---
-slug: autofix/filter-coga-s-own-log-sync-commits-out-of-the-dige
 title: 'Filter Coga''s own Log: sync commits out of the digest'
 status: active
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-self-review
   steps:
@@ -29,7 +24,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

@@ -97,8 +97,8 @@ gate, not your say-so.
    `## Dev`, run `coga bump <slug>` to hand off to the next step. The bump's
    `requires: pr` gate will pass because the URL is now recorded. In the
    single-checkout layout that gate also republishes the just-committed
-   post-transition ticket state to the PR branch, keeping its `step:` /
-   `assignee:` copy identical to control and mergeable. When this agent session
+   post-transition ticket state to the PR branch, keeping its `step:` copy
+   identical to control and mergeable. When this agent session
    exits, launch also publishes its trailing usage-log commit to that already-open
    branch, so the local and PR tips do not diverge after the gated bump.
 
@@ -204,5 +204,6 @@ Fix the cause and re-run it — it is idempotent:
   in a queue run — and let the human redirect or relaunch as appropriate.
 - Resolve merge conflicts with the base — the peer-review / self-qa step handles
   mergeability before this step runs.
-- Edit `assignee:` by hand. The workflow's per-step `assignee:` handles the role
-  rewrite on bump.
+- Hand-edit routing metadata. There is none to edit: who holds a ticket is
+  derived from the current workflow step's `assignee:` role every time it is
+  read.

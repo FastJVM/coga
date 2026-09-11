@@ -11,7 +11,7 @@ steps:
     assignee: agent
     requires: pr
   - name: approve
-    assignee: human
+    assignee: owner
   - name: merge
     assignee: owner
 ---

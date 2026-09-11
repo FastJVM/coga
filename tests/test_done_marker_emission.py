@@ -57,8 +57,11 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         description: tiny.
         steps:
           - name: implement
+            assignee: agent
           - name: pr
+            assignee: agent
           - name: merge
+            assignee: agent
         ---
 
         ## implement
@@ -84,9 +87,13 @@ def _make_task(
         # so the workflow-less bump-error test constructs that shape on disk.
         return _write_workflow_less_task(repo, status=status)
     ref = create_task(
-        cfg=cfg, title="Work", workflow_name=workflow,
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status=status,
+        cfg=cfg,
+        title="Work",
+        workflow_name=workflow,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status=status,
     )
     return ref["slug"], ref["path"]
 
@@ -98,15 +105,10 @@ def _write_workflow_less_task(
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(dedent(f"""
         ---
-        slug: {slug}
         title: Work
         status: {status}
         owner: marc
-        human: marc
         agent: claude
-        assignee: claude
-        contexts: []
-        skills: []
         workflow: null
         ---
 

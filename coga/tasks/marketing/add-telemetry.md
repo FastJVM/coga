@@ -1,15 +1,9 @@
 ---
-slug: marketing/add-telemetry
 title: add-telemetry
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
-secrets: null
 ---
 
 ## Description

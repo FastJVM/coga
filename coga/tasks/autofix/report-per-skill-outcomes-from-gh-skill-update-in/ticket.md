@@ -1,13 +1,8 @@
 ---
-slug: autofix/report-per-skill-outcomes-from-gh-skill-update-in
 title: Report per-skill outcomes from gh skill update in skill-update
 status: active
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-self-review
   steps:
@@ -29,7 +24,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

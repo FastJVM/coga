@@ -1,11 +1,8 @@
 ---
-slug: v2/cleanup-core-commands/read-report-commands-as-ticket-workflows
 title: Classify read and report commands under the small-core rule
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: codex
-assignee: codex
 contexts:
   - coga/principles
   - coga/architecture
@@ -15,10 +12,7 @@ contexts:
   - coga/project-stage
   - coga/cli
   - dev/code
-skills: []
 workflow: code/design-then-implement
-secrets: null
-script: null
 ---
 
 ## Description

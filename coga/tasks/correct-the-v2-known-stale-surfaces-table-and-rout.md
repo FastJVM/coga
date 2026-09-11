@@ -1,15 +1,9 @@
 ---
-slug: correct-the-v2-known-stale-surfaces-table-and-rout
 title: Correct the v2 known-stale-surfaces table and route future Dream gap findings
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: code/with-review
-secrets: null
 ---
 
 ## Description

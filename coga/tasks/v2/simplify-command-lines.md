@@ -1,13 +1,8 @@
 ---
-slug: v2/simplify-command-lines
 title: simplify command lines
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
 ---
 

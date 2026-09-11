@@ -1,13 +1,8 @@
 ---
-slug: coga-build
 title: coga-build
 status: active
 owner: new-user
-human: new-user
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: build/onboarding
   steps:
@@ -17,7 +12,6 @@ workflow:
   - name: generate-batch
     skills: []
     assignee: agent
-secrets: null
 step: 1 (gather-and-spec)
 ---
 

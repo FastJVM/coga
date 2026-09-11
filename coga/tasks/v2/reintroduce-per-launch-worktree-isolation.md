@@ -1,16 +1,9 @@
 ---
-slug: v2/reintroduce-per-launch-worktree-isolation
 title: Reintroduce per-launch worktree isolation
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
-secrets: null
-script: null
 ---
 
 ## Description

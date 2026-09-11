@@ -1,16 +1,12 @@
 ---
-slug: v2/add-dev-testing-setup-skill
 title: Add dev testing setup skill
 status: paused
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
 contexts:
 - coga/codebase
 - coga/project-stage
 - dev/code
-skills: []
 workflow:
   name: code/with-review
   steps:

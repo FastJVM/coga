@@ -110,7 +110,6 @@ def _seed_repo(root: Path) -> Path:
         title: Broken Context
         status: active
         owner: marc
-        assignee: claude
         contexts:
           - missing/context
         ---

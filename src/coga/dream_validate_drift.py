@@ -237,6 +237,19 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
+    if kind == "removed-ticket-field":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_PR_PROPOSAL,
+            remediation=(
+                "Delete the named keys from the ticket's frontmatter. They are "
+                "metadata the simplified format removed and nothing reads them: "
+                "identity is the task's path, the human of record is `owner:`, "
+                "and the operator is derived from the current workflow step's "
+                "role. Do not translate a stale value into a new field."
+            ),
+        )
+
     if kind == "unresolvable-step-assignee":
         return ClassifiedIssue(
             issue=issue,
@@ -324,7 +337,16 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
-    if kind in {"invalid-status", "unknown-assignee", "unfrozen-workflow"}:
+    if kind in {
+        "invalid-status",
+        "unfrozen-workflow",
+        # Routing inputs: the main-agent choice, and whether an operator can be
+        # derived from the frozen step at all.
+        "missing-main-agent",
+        "unknown-agent",
+        "unresolvable-operator",
+        "unbounded-delegated-workflow",
+    }:
         return ClassifiedIssue(
             issue=issue,
             action=ACTION_HUMAN_NEEDED,

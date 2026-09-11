@@ -1,13 +1,8 @@
 ---
-slug: v2/fail-validation-when-local-user-is-required-for-ex
 title: Fail validation when local user is required for execution
 status: draft
 owner: zach
-human: zach
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -26,8 +21,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-secrets: null
-script: null
 step: 1 (implement)
 ---
 

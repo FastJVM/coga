@@ -5,7 +5,7 @@ steps:
   - name: brief-and-hand-off
     assignee: agent
   - name: human-executes
-    assignee: human
+    assignee: owner
   - name: verify-read-only
     assignee: agent
 ---

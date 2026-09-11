@@ -8,7 +8,7 @@ description: Current sequencing guidance for Coga. Use live task state for the b
 Last updated: 2026-09-02.
 
 This context is sequencing guidance, not a cached board. Run `coga status` for
-the current task set, status, assignee, and step; read ticket bodies for scope.
+the current task set, status, operator, and step; read ticket bodies for scope.
 Do not infer present work from ticket names recorded in an older roadmap.
 
 ## Current sequence

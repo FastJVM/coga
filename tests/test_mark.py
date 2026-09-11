@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 
 from coga import git as git_module
 from coga.blackboard import append_blocker, open_blockers
+from conftest import derived_operator, hold_by_agent, hold_by_owner
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
@@ -56,8 +57,11 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         description: tiny.
         steps:
           - name: implement
+            assignee: agent
           - name: pr
+            assignee: agent
           - name: merge
+            assignee: agent
         ---
 
         ## implement
@@ -77,9 +81,13 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "draft") -> tuple[str, Path]:
     cfg = load_config(repo)
     ref = create_task(
-        cfg=cfg, title="Work", workflow_name=workflow,
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status=status,
+        cfg=cfg,
+        title="Work",
+        workflow_name=workflow,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status=status,
     )
     return ref["slug"], ref["path"]
 
@@ -270,7 +278,7 @@ def test_mark_active_resolves_step_one_assignee(repo: Path) -> None:
     slug, task_path = _make_task(repo, workflow=None, status="draft")
     t = Ticket.read(task_path)
     t.frontmatter["workflow"] = "review"
-    t.frontmatter["assignee"] = "marc"
+    t.frontmatter.pop("agent", None)
     t.write(task_path)
 
     runner = CliRunner()
@@ -279,10 +287,15 @@ def test_mark_active_resolves_step_one_assignee(repo: Path) -> None:
 
     t = Ticket.read(task_path)
     assert t.step == "1 (implement)"
-    assert t.assignee == "claude"
+    # Activation freezes the snapshot, seeds step 1, and selects the configured
+    # default main agent — and writes no assignment, because step 1's `agent`
+    # role is what routes it.
+    assert t.agent == "claude"
+    assert "assignee" not in t.frontmatter
+    assert derived_operator(repo, slug) == "claude"
 
 
-def test_mark_active_refuses_unresolvable_step_one_assignee(repo: Path) -> None:
+def test_mark_active_refuses_an_unresolvable_step_one_role(repo: Path) -> None:
     """A step-1 role token that can't resolve fails loud at activation rather
     than deferring a contradictory refusal to launch."""
     _write(
@@ -307,7 +320,7 @@ def test_mark_active_refuses_unresolvable_step_one_assignee(repo: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
     assert result.exit_code == 2
-    assert "step 1 assignee='other-agent'" in result.output
+    assert "assignee='other-agent'" in result.output
 
     t = Ticket.read(task_path)
     assert t.status == "draft"
@@ -315,9 +328,12 @@ def test_mark_active_refuses_unresolvable_step_one_assignee(repo: Path) -> None:
     assert t.step is None
 
 
-def test_mark_active_leaves_an_existing_step_assignee_alone(repo: Path) -> None:
-    """Nothing re-freezes a ticket that already carries a step — its
-    `assignee:` is left exactly as it stands."""
+def test_mark_active_leaves_an_existing_frozen_step_alone(repo: Path) -> None:
+    """Nothing re-freezes a ticket that already carries a step.
+
+    Its position and its frozen roles are left exactly as they stand, so the
+    derived operator is unchanged by the status flip.
+    """
     _write(
         repo / "workflows" / "review.md",
         """
@@ -339,7 +355,7 @@ def test_mark_active_leaves_an_existing_step_assignee_alone(repo: Path) -> None:
         "steps": [{"name": "implement", "skills": [], "assignee": "agent"}],
     }
     t.frontmatter["step"] = "1 (implement)"
-    t.frontmatter["assignee"] = "marc"
+    hold_by_owner(t)
     t.write(task_path)
 
     runner = CliRunner()
@@ -349,7 +365,8 @@ def test_mark_active_leaves_an_existing_step_assignee_alone(repo: Path) -> None:
     t = Ticket.read(task_path)
     assert t.status == "active"
     assert t.step == "1 (implement)"
-    assert t.assignee == "marc"
+    assert t.current_step()["assignee"] == "owner"
+    assert derived_operator(repo, slug) == "marc"
 
 
 def test_mark_active_refuses_unknown_string_workflow(repo: Path) -> None:
@@ -1139,8 +1156,7 @@ def test_mark_canceled_on_feature_lands_union_evidence_on_control(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     git_repo.checkout_branch("feature/cancel")
@@ -1179,8 +1195,7 @@ def _seed_pushed_task(git_repo, cfg, *, title: str, status: str = "active") -> d
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status=status,
     )
     rel = str(Path(ref["path"]).relative_to(git_repo.root))
@@ -1239,3 +1254,266 @@ def test_transition_refuses_to_bury_terminal_control_copy(
     log = (git_repo.coga_os / "log.md").read_text()
     assert "sync refused" in log
     assert f"terminal status would change from '{landed_status}'" in log
+
+
+# --- main-agent selection timing (the approved activation-time contract) -------
+
+
+def _add_codex(repo: Path, *, first: bool = False) -> None:
+    """Declare a second agent, optionally ahead of claude in declaration order.
+
+    `Config.default_agent()` is the first agent declared in the effective merged
+    configuration, so `first=True` is how a test reorders the default.
+    """
+    toml = repo / "coga.toml"
+    codex = '[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+    text = toml.read_text()
+    if first:
+        text = text.replace("[agents.claude]", codex + "[agents.claude]", 1)
+    else:
+        text = text + "\n" + codex
+    toml.write_text(text)
+
+
+def test_activation_selects_and_freezes_the_default_main_agent(repo: Path) -> None:
+    """A draft defers the choice; activation makes it and every later step keeps it."""
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Work",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        status="draft",
+    )
+    slug, path = created["slug"], created["path"]
+    assert "agent" not in Ticket.read(path).frontmatter
+
+    assert CliRunner().invoke(app, ["mark", "active", slug]).exit_code == 0
+    assert Ticket.read(path).agent == "claude"
+
+    # Reordering the defaults afterwards changes only *future* activations.
+    _add_codex(repo, first=True)
+    assert load_config(repo).default_agent().name == "codex"
+    runner = CliRunner()
+    paused = runner.invoke(app, ["mark", "paused", slug, "--message", "hold"])
+    assert paused.exit_code == 0, paused.output
+    assert Ticket.read(path).agent == "claude"
+    assert runner.invoke(app, ["mark", "active", slug]).exit_code == 0
+    assert Ticket.read(path).agent == "claude"
+
+
+def test_activation_keeps_an_explicit_choice(repo: Path) -> None:
+    _add_codex(repo)
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Work",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="codex",
+        status="draft",
+    )
+    assert CliRunner().invoke(app, ["mark", "active", created["slug"]]).exit_code == 0
+    assert Ticket.read(created["path"]).agent == "codex"
+
+
+def test_activation_refuses_when_the_selected_agent_is_unconfigured(
+    repo: Path,
+) -> None:
+    """Removing a selected agent is an error to fix, not a substitution."""
+    _add_codex(repo)
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Work",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="codex",
+        status="draft",
+    )
+    before = Path(created["path"]).read_bytes()
+    toml = repo / "coga.toml"
+    toml.write_text(toml.read_text().replace(
+        '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n', ""
+    ))
+
+    result = CliRunner().invoke(app, ["mark", "active", created["slug"]])
+
+    assert result.exit_code != 0
+    assert "not a configured agent type" in result.output
+    # A failed preparation writes nothing — not the status, not a new agent.
+    assert Path(created["path"]).read_bytes() == before
+
+
+def test_a_failed_activation_does_not_write_a_newly_chosen_agent(
+    repo: Path,
+) -> None:
+    """Selection commits only with the successful transition."""
+    _write(
+        repo / "coga.toml",
+        (repo / "coga.toml").read_text()
+        + '\n[ticket.fields.tier]\ndescription = "Priority tier"\nrequired = true\n',
+    )
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Work",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        status="draft",
+    )
+    before = Path(created["path"]).read_bytes()
+
+    result = CliRunner().invoke(app, ["mark", "active", created["slug"]])
+
+    assert result.exit_code != 0
+    assert "tier" in result.output
+    assert Path(created["path"]).read_bytes() == before
+    assert "agent" not in Ticket.read(created["path"]).frontmatter
+
+
+def test_main_peer_main_rotation_is_stable(repo: Path) -> None:
+    """With unchanged config, main A -> peer B -> main A."""
+    _add_codex(repo)
+    _write(
+        repo / "workflows" / "peer.md",
+        """
+        ---
+        name: peer
+        steps:
+          - name: build
+            assignee: agent
+          - name: review
+            assignee: other-agent
+          - name: finish
+            assignee: agent
+        ---
+
+        ## build
+        Build it.
+
+        ## review
+        Review it.
+
+        ## finish
+        Finish it.
+        """,
+    )
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Work",
+        workflow_name="peer",
+        contexts=[],
+        owner="marc",
+        status="in_progress",
+    )
+    slug = created["slug"]
+    runner = CliRunner()
+    # Creating live makes the same choice activation would.
+    assert Ticket.read(created["path"]).agent == "claude"
+
+    assert derived_operator(repo, slug) == "claude"
+    assert runner.invoke(app, ["bump", slug]).exit_code == 0
+    assert derived_operator(repo, slug) == "codex"
+    assert runner.invoke(app, ["bump", slug]).exit_code == 0
+    assert derived_operator(repo, slug) == "claude"
+
+
+def test_a_peer_config_edit_reroutes_the_next_peer_step(repo: Path) -> None:
+    """Peers stay live configuration, never frozen ticket metadata."""
+    _add_codex(repo)
+    toml = repo / "coga.toml"
+    # Three agents, so the peer must be declared explicitly. Point claude at
+    # codex before creating the ticket, so its `other-agent` step resolves.
+    toml.write_text(
+        toml.read_text().replace(
+            '[agents.claude]\ncli = "claude"',
+            '[agents.claude]\npeer = "codex"\ncli = "claude"',
+        )
+        + '\n[agents.reviewer]\ncli = "reviewer"\nfile = "AGENTS.md"\n'
+    )
+    _write(
+        repo / "workflows" / "peer.md",
+        """
+        ---
+        name: peer
+        steps:
+          - name: build
+            assignee: agent
+          - name: review
+            assignee: other-agent
+        ---
+
+        ## build
+        Build it.
+
+        ## review
+        Review it.
+        """,
+    )
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Work",
+        workflow_name="peer",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="in_progress",
+    )
+    slug = created["slug"]
+    assert CliRunner().invoke(app, ["bump", slug]).exit_code == 0
+    assert derived_operator(repo, slug) == "codex"
+
+    # Re-point the peer: the *same* frozen ticket now reviews with reviewer.
+    toml.write_text(toml.read_text().replace('peer = "codex"', 'peer = "reviewer"'))
+    assert derived_operator(repo, slug) == "reviewer"
+    assert "assignee" not in Ticket.read(created["path"]).frontmatter
+
+
+def test_no_transition_restores_removed_metadata(repo: Path) -> None:
+    """No writer reintroduces the removed keys across a ticket's whole life."""
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Work",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        status="draft",
+    )
+    slug, path = created["slug"], Path(created["path"])
+    removed = ("slug", "human", "assignee", "watchers", "script")
+
+    def assert_clean(after: str) -> None:
+        frontmatter = Ticket.read(path).frontmatter
+        for key in removed:
+            assert key not in frontmatter, f"{key!r} came back after {after}"
+
+    runner = CliRunner()
+    assert_clean("create")
+    assert runner.invoke(app, ["mark", "active", slug]).exit_code == 0
+    assert_clean("mark active")
+    # `in_progress` is launch's flip, not a `mark` subcommand.
+    started = Ticket.read(path)
+    started.frontmatter["status"] = "in_progress"
+    started.write(path)
+    assert_clean("in_progress")
+
+    for label, command in (
+        ("bump", ["bump", slug]),
+        ("block", ["block", "--task", slug, "--reason", "which ceiling?"]),
+        ("unblock", ["unblock", slug, "--answer", "the default one"]),
+        ("mark paused", ["mark", "paused", slug, "--message", "hold"]),
+        ("mark active again", ["mark", "active", slug]),
+        ("mark done", ["mark", "done", slug]),
+    ):
+        result = runner.invoke(app, command)
+        assert result.exit_code == 0, f"{label}: {result.output}"
+        assert_clean(label)
+    assert Ticket.read(path).status == "done"

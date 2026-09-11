@@ -9,6 +9,7 @@ import typer
 from coga import git
 from coga import pr_assist
 from coga.blackboard import append_blocker
+from coga.commands.common import current_operator
 from coga.config import Config, ConfigError, load_config
 from coga.logfile import log_path
 from coga.mark import mark_blocked
@@ -95,14 +96,18 @@ def block(
                 exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
             )
     rollback = pre_lease_snapshot if assist is not None else None
-    effective_assignee = assist.agent if assist is not None else ticket.assignee
+    effective_agent = (
+        assist.agent
+        if assist is not None
+        else current_operator(cfg, ref, ticket)
+    )
     actor = (
-        f"agent:{effective_assignee}"
-        if effective_assignee
+        f"agent:{effective_agent}"
+        if effective_agent
         else f"human:{cfg.current_user}"
     )
     owner = ticket.owner or cfg.current_user
-    blocker = effective_assignee or cfg.current_user
+    blocker = effective_agent or cfg.current_user
     publication_succeeded = False
 
     def record_publication() -> None:

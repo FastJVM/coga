@@ -270,6 +270,36 @@ the example under "Extend recurring with a task-specific workflow").
   be agent-backed: a bootstrap `ticket.py` target is rejected before creation,
   because deterministic recurring work belongs in the template's own
   `ticket.py`. `coga validate` checks both the template and frozen task.
+
+  **A delegated period is bounded to one agent step.** Its resolved workflow must
+  contain exactly one step, that step must *explicitly* declare
+  `assignee: agent`, and it must carry no `requires:` completion gate. The
+  default `direct/body` satisfies this; a custom workflow may use another name
+  but must have the same shape. The sole step is the period's lifecycle envelope
+  — the bootstrap target remains the source of the executed instructions — and
+  the period must be at step 1 after any prospective activation.
+
+  The bound exists because delegation launches the target and completes the
+  *whole period* on that target's done signal, without advancing the period
+  workflow. Anything the snapshot promised beyond one agent step would therefore
+  be skipped: a second step, a later `owner` gate, a peer (`other-agent`) or
+  omitted role that derives a different operator than the agent actually
+  working, or a completion gate nothing evaluates. A `requires:` is rejected even
+  when it currently *passes*, because whether it passes is run state rather than
+  a property of the contract.
+
+  It is checked on the resolved template workflow before materialization, and on
+  the frozen period workflow before every retry, direct launch, and sentinel
+  completion — after each existing ticket/config reload, under the existing
+  exact-ticket and generation leases — so a workflow edited while the child runs
+  cannot slip a gate past completion. A refusal spawns no target, advances or
+  completes nothing, and persists no new agent choice. `coga validate` reports
+  the same violation on templates and stored periods
+  (`unbounded-delegated-workflow`).
+
+  Jobs that genuinely need multiple steps, peer review, or a completion gate run
+  through ordinary recurring execution, without `delegate:`. Role-aware,
+  step-aware delegation is deliberately out of scope.
 - `period_generation` is runner-owned materialized-task state, not a template
   input. The creator stamps it once per new stable-path generation; templates
   or ordinary tasks that declare it are rejected rather than accepting a stale
@@ -279,8 +309,14 @@ the example under "Extend recurring with a task-specific workflow").
   one-step `direct/body` workflow, which runs the ticket body's ordered
   phases directly as the prompt; Dream is the canonical example. (The task is
   still workflow-carrying and bumpable — `direct/body` is the workflow.)
-- `owner`, `assignee`, `watchers`, `contexts`, `secrets` — passed through to
-  the created period task.
+- `owner`, `agent`, `contexts`, `secrets` — passed through to the created
+  period task. `agent` is the template's optional main-agent choice; promotion
+  retains it and every period task inherits it.
+- Top-level `slug`, `human`, `assignee`, and `watchers` are rejected when a
+  template is loaded, before period creation or reuse. Validation names the
+  offending fields as a `bad-recurring-template` error. Remove those fields
+  and declare any main-agent preference with `agent:`; the template cannot
+  silently discard an old assignment and run the configured default instead.
 
 ## Recurring runs start on the control branch
 
@@ -512,10 +548,10 @@ What promote does to the ticket, and why:
 - The blackboard is **reset**. A task blackboard is one run's scratch; a
   template blackboard is durable cross-run state (run cursors). The old
   text stays in git history.
-- `status:`, `step:`, `slug:`, `human:`, and `agent:` are dropped — per-run and
-  per-launch fields the creator re-derives for every period task. `title`,
-  `owner`, `assignee`, `watchers`, `contexts`, and `secrets` pass
-  through. A frozen `workflow:` snapshot collapses back to its name so the
+- `status:` and `step:` are dropped — per-run state the creator re-derives for
+  every period task. `title`, `owner`, `agent`, `contexts`, and `secrets` pass
+  through; `agent:` is a real preference, so promotion keeps it rather than
+  making every future period re-pick the default. A frozen `workflow:` snapshot collapses back to its name so the
   creator re-freezes it each period; a ticket with no workflow stays that way
   and creates with `direct/body`.
 - Ticket-level `skills:` are dropped, with a warning: they are never copied
@@ -550,7 +586,7 @@ task creator. That path resolves and freezes the named `workflow:`, validates
 its step-skill and `contexts:` references, copies the template body into the
 period task, and appends `coga/period-task` to its contexts. The resulting
 `coga/tasks/recurring/<name>/` ticket uses the normal lifecycle, per-step
-assignee, blocker, and completion machinery. The sweep selects an explicit
+routing, blocker, and completion machinery. The sweep selects an explicit
 deterministic half before falling back to an ordinary agent launch, and adds
 post-launch handling for unfinished runs as described below.
 
@@ -561,8 +597,9 @@ To schedule a task-specific workflow:
 2. Create a non-underscore directory such as
    `coga/recurring/weekly-deliverability/` with a `ticket.md` — copy an
    existing template (e.g. `skill-update/`) or start from the example below.
-3. Set the template's `schedule:`, explicit `workflow:`, `contexts:`, and role
-   fields, then replace its `## Description` with the per-firing instructions.
+3. Set the template's `schedule:`, explicit `workflow:`, `contexts:`, `owner:`,
+   and optional `agent:`, then replace its `## Description` with the per-firing
+   instructions.
 4. Run `coga validate --json`, then use
    `coga recurring launch weekly-deliverability` for an explicit real run or
    `coga recurring` for the scheduled sweep.
@@ -575,7 +612,7 @@ schedule: "0 9 * * 1"
 title: "Weekly deliverability review"
 workflow: deliverability/weekly-review
 owner: nick
-assignee: claude
+agent: claude
 contexts:
   - email/deliverability
   - customers/current-campaigns
@@ -753,9 +790,11 @@ task, which carries that rule.
   drafts to triage. Because every active task must carry a workflow, a
   template that declares none creates with `direct/body` (it would otherwise
   be un-activatable and `coga validate` would flag it as a stuck task).
-- `assignee` defaults to the repo's configured **default agent** when the
-  recurring task omits it — never the human `owner`, which `coga launch`
-  cannot resolve to an agent type.
+- `agent` defaults to the repo's configured **default agent** when the template
+  omits it. Period tasks create straight into a live status, so they perform the
+  same main-agent selection activation would — a workflow-less template like
+  Dream is therefore launchable the moment it materializes. Who actually holds
+  the period is still derived from its workflow step's role.
 - `coga validate` resolves every workflow-step skill referenced by each
   materialized recurring template, before a period task exists. Missing refs
   report the local and bundled paths checked; the removed bundled

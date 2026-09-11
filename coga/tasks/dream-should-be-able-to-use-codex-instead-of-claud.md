@@ -1,15 +1,9 @@
 ---
-slug: dream-should-be-able-to-use-codex-instead-of-claud
 title: dream should be able to use codex instead of claude
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
-secrets: null
 ---
 
 ## Description

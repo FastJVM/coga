@@ -1,13 +1,8 @@
 ---
-slug: v2/op-service-account-auth-to-skip-op-read-prompt
 title: Support 1Password service-account token to skip the per-`op read` prompt
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
 ---
 

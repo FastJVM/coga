@@ -1,13 +1,8 @@
 ---
-slug: v2/let-notification-webhooks-resolve-1password-refere
 title: Let notification webhooks resolve 1Password references
 status: draft
 owner: zach
-human: zach
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -26,8 +21,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-secrets: null
-script: null
 step: 1 (implement)
 ---
 

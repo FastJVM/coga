@@ -6,6 +6,7 @@ from textwrap import dedent
 
 import pytest
 
+from conftest import hold_by_agent, hold_by_owner
 from coga.cli import app
 from coga.compose import compose_prompt
 from coga.config import load_config
@@ -95,9 +96,8 @@ def test_megalaunch_runs_active_agent_task(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
 
     monkeypatch.setattr(
@@ -138,9 +138,8 @@ def test_megalaunch_spawns_with_materialized_preflight_inputs(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr(
         "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
@@ -199,9 +198,8 @@ def test_megalaunch_step_env_proves_single_checkout_owns_live_ticket(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr(
         "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
@@ -258,9 +256,8 @@ def test_megalaunch_step_env_refuses_stale_step_bump(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr(
         "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
@@ -313,9 +310,8 @@ def test_megalaunch_records_cancellation_as_distinct_outcome(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr(
         "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
@@ -359,9 +355,8 @@ def test_megalaunch_skips_task_deleted_mid_sweep(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     doomed = create_task(
         cfg=cfg,
@@ -369,9 +364,8 @@ def test_megalaunch_skips_task_deleted_mid_sweep(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
 
     monkeypatch.setattr(
@@ -436,9 +430,8 @@ def test_megalaunch_chains_agent_owned_steps(
         workflow_name="two-agent",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr(
         "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
@@ -457,7 +450,7 @@ def test_megalaunch_chains_agent_owned_steps(
         seen_steps.append(updated.step or "")
         if updated.step == "1 (implement)":
             updated.frontmatter["step"] = "2 (verify)"
-            updated.frontmatter["assignee"] = "claude"
+            hold_by_agent(updated)
             updated.frontmatter.pop("launch_generation", None)
         else:
             updated.frontmatter["status"] = "done"
@@ -487,9 +480,8 @@ def test_megalaunch_agent_override_launches_regardless_of_assignee(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     codex_ref = create_task(
         cfg=cfg,
@@ -497,9 +489,8 @@ def test_megalaunch_agent_override_launches_regardless_of_assignee(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="codex",
+        agent="codex",
         status="active",
-        watchers=[],
     )
 
     monkeypatch.setattr(
@@ -514,8 +505,9 @@ def test_megalaunch_agent_override_launches_regardless_of_assignee(
 
     def fake_spawn(cfg, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
         launched.append((ref_obj.id_slug, agent.cli))
-        assignee_on_disk = Ticket.read(ref_obj.ticket_path).assignee
-        assert assignee_on_disk == ticket.assignee, "override must not rewrite assignee"
+        on_disk = Ticket.read(ref_obj.ticket_path)
+        assert on_disk.agent == ticket.agent, "override must not rewrite `agent:`"
+        assert "assignee" not in on_disk.frontmatter
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
         updated.frontmatter.pop("step", None)
@@ -550,9 +542,8 @@ def test_megalaunch_only_sweeps_current_users_tickets(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     theirs = create_task(
         cfg=cfg,
@@ -560,9 +551,8 @@ def test_megalaunch_only_sweeps_current_users_tickets(
         workflow_name="code",
         contexts=[],
         owner="dora",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
 
     monkeypatch.setattr(
@@ -629,9 +619,8 @@ def test_megalaunch_agent_override_applies_to_first_step_only(
         workflow_name="two-agent",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
 
@@ -676,9 +665,8 @@ def test_megalaunch_cli_accepts_agent_override(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
 
     monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
@@ -724,12 +712,11 @@ def test_megalaunch_agent_override_keeps_human_gate(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket = Ticket.read(ref["path"])
-    ticket.frontmatter["assignee"] = "marc"
+    hold_by_owner(ticket)
     ticket.write(ref["path"])
 
     def fail_spawn(*args, **kwargs):  # type: ignore[no-untyped-def]
@@ -756,9 +743,8 @@ def test_megalaunch_directory_scopes_the_sweep(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
         directory="marketing",
     )
     outside = create_task(
@@ -767,9 +753,8 @@ def test_megalaunch_directory_scopes_the_sweep(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
 
     monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
@@ -819,9 +804,8 @@ def test_megalaunch_cli_accepts_directory(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
         directory="marketing",
     )
     outside = create_task(
@@ -830,9 +814,8 @@ def test_megalaunch_cli_accepts_directory(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
 
     monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
@@ -893,9 +876,8 @@ def test_megalaunch_spawns_llm_with_liveness_backstop(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
 
@@ -964,9 +946,8 @@ def test_megalaunch_timeout_teardown_names_exact_limit(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
 
@@ -1000,9 +981,8 @@ def test_megalaunch_skips_open_blocker(repo: Path) -> None:
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     result = CliRunner().invoke(
         app,
@@ -1045,9 +1025,8 @@ def test_megalaunch_reapplies_sweep_gates_to_exact_ticket_bytes(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket_path = Path(created["path"])
     real_candidate = megalaunch_module._candidate_result
@@ -1115,9 +1094,8 @@ def test_megalaunch_late_park_does_not_consume_attempt_budget(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     second = create_task(
         cfg=cfg,
@@ -1125,9 +1103,8 @@ def test_megalaunch_late_park_does_not_consume_attempt_budget(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     real_candidate = megalaunch_module._candidate_result
     parked = False
@@ -1172,9 +1149,8 @@ def test_megalaunch_drains_blocker_after_dependency_finishes(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     dependency = create_task(
         cfg=cfg,
@@ -1182,9 +1158,8 @@ def test_megalaunch_drains_blocker_after_dependency_finishes(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     append_blocker(
         Path(blocked["path"]),
@@ -1239,9 +1214,8 @@ def test_megalaunch_drain_keeps_ask_open_when_activation_refuses(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     dependency = create_task(
         cfg=cfg,
@@ -1249,9 +1223,8 @@ def test_megalaunch_drain_keeps_ask_open_when_activation_refuses(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     append_blocker(
         Path(blocked["path"]),
@@ -1302,9 +1275,8 @@ def test_megalaunch_redrains_ticket_that_blocked_during_main_sweep(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     dependency = create_task(
         cfg=cfg,
@@ -1312,9 +1284,8 @@ def test_megalaunch_redrains_ticket_that_blocked_during_main_sweep(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
     launched: list[str] = []
@@ -1365,9 +1336,8 @@ def test_megalaunch_drain_preserves_prior_launch_on_pre_spawn_retry_skip(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     dependency = create_task(
         cfg=cfg,
@@ -1375,9 +1345,8 @@ def test_megalaunch_drain_preserves_prior_launch_on_pre_spawn_retry_skip(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
     launched: list[str] = []
@@ -1399,7 +1368,7 @@ def test_megalaunch_drain_preserves_prior_launch_on_pre_spawn_retry_skip(
             updated.frontmatter["status"] = "blocked"
             # Make the satisfied retry fail the candidate check before another
             # session starts, after the task already launched once.
-            updated.frontmatter["assignee"] = "marc"
+            hold_by_owner(updated)
         else:
             updated.frontmatter["status"] = "done"
             updated.frontmatter.pop("step", None)
@@ -1433,9 +1402,8 @@ def test_megalaunch_dependency_drain_reaches_fixed_point(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     middle = create_task(
         cfg=cfg,
@@ -1443,9 +1411,8 @@ def test_megalaunch_dependency_drain_reaches_fixed_point(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     first = create_task(
         cfg=cfg,
@@ -1453,9 +1420,8 @@ def test_megalaunch_dependency_drain_reaches_fixed_point(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     for ref, dependency in ((last, middle), (middle, first)):
         append_blocker(
@@ -1490,9 +1456,8 @@ def test_megalaunch_drain_treats_dependency_deleted_mid_sweep_as_finished(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     reaper = create_task(
         cfg=cfg,
@@ -1500,9 +1465,8 @@ def test_megalaunch_drain_treats_dependency_deleted_mid_sweep_as_finished(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     dependency = create_task(
         cfg=cfg,
@@ -1510,9 +1474,8 @@ def test_megalaunch_drain_treats_dependency_deleted_mid_sweep_as_finished(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     append_blocker(
         Path(blocked["path"]),
@@ -1566,9 +1529,8 @@ def test_megalaunch_drain_relists_blocked_tickets_created_mid_run(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
     launched: list[str] = []
@@ -1591,9 +1553,8 @@ def test_megalaunch_drain_relists_blocked_tickets_created_mid_run(
                 workflow_name="code",
                 contexts=[],
                 owner="marc",
-                assignee="claude",
+                agent="claude",
                 status="active",
-                watchers=[],
             )
             created.update(late)
             append_blocker(
@@ -1628,9 +1589,8 @@ def test_megalaunch_drain_shares_max_tasks_budget(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     dependency = create_task(
         cfg=cfg,
@@ -1638,9 +1598,8 @@ def test_megalaunch_drain_shares_max_tasks_budget(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     append_blocker(
         Path(blocked["path"]),
@@ -1675,9 +1634,8 @@ def test_megalaunch_drain_late_park_does_not_consume_attempt_budget(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     dependency_ticket = Ticket.read(dependency["path"])
     dependency_ticket.frontmatter["status"] = "done"
@@ -1692,9 +1650,8 @@ def test_megalaunch_drain_late_park_does_not_consume_attempt_budget(
             workflow_name="code",
             contexts=[],
             owner="marc",
-            assignee="claude",
+            agent="claude",
             status="active",
-            watchers=[],
         )
         append_blocker(
             Path(created["path"]),
@@ -1756,9 +1713,8 @@ def test_megalaunch_drain_matches_complete_task_slug_not_substring(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     dependency_ticket = Ticket.read(dependency["path"])
     dependency_ticket.frontmatter["status"] = "done"
@@ -1770,9 +1726,8 @@ def test_megalaunch_drain_matches_complete_task_slug_not_substring(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     append_blocker(
         Path(blocked["path"]),
@@ -1809,9 +1764,8 @@ def test_megalaunch_drain_does_not_match_short_slug_inside_dotted_ref(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     short_ticket = Ticket.read(short["path"])
     short_ticket.frontmatter["status"] = "done"
@@ -1824,9 +1778,8 @@ def test_megalaunch_drain_does_not_match_short_slug_inside_dotted_ref(
         workflow_name="code",
         contexts=[],
         owner="lea",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     blocked = create_task(
         cfg=cfg,
@@ -1834,9 +1787,8 @@ def test_megalaunch_drain_does_not_match_short_slug_inside_dotted_ref(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     append_blocker(
         Path(blocked["path"]),
@@ -1874,9 +1826,8 @@ def test_megalaunch_drain_normalizes_trailing_slash_directory_scope(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     dependency_ticket = Ticket.read(dependency["path"])
     dependency_ticket.frontmatter["status"] = "done"
@@ -1889,9 +1840,8 @@ def test_megalaunch_drain_normalizes_trailing_slash_directory_scope(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     append_blocker(
         Path(blocked["path"]),
@@ -1923,9 +1873,8 @@ def test_megalaunch_explicit_selection_does_not_expand_into_dependency_drain(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     dependency = create_task(
         cfg=cfg,
@@ -1933,9 +1882,8 @@ def test_megalaunch_explicit_selection_does_not_expand_into_dependency_drain(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     append_blocker(
         Path(blocked["path"]),
@@ -1968,9 +1916,8 @@ def test_megalaunch_drain_never_relaunches_same_ticket_twice(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     dependency_ticket = Ticket.read(dependency["path"])
     dependency_ticket.frontmatter["status"] = "done"
@@ -1982,9 +1929,8 @@ def test_megalaunch_drain_never_relaunches_same_ticket_twice(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     append_blocker(
         Path(blocked["path"]),
@@ -2043,9 +1989,8 @@ def test_megalaunch_ignores_non_active_tickets(
             workflow_name="code",
             contexts=[],
             owner="marc",
-            assignee="claude",
+            agent="claude",
             status="active",
-            watchers=[],
         )
         ticket = Ticket.read(ref["path"])
         ticket.frontmatter["status"] = status
@@ -2077,9 +2022,8 @@ def test_megalaunch_sweep_resumes_in_progress_tickets(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket = Ticket.read(ref["path"])
     ticket.frontmatter["status"] = "in_progress"
@@ -2106,12 +2050,11 @@ def test_megalaunch_human_assignee_is_human_gate(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket = Ticket.read(ref["path"])
-    ticket.frontmatter["assignee"] = "marc"
+    hold_by_owner(ticket)
     ticket.write(ref["path"])
 
     def fail_spawn(*args, **kwargs):  # type: ignore[no-untyped-def]
@@ -2146,9 +2089,8 @@ def test_megalaunch_services_tasks_oldest_first(
             workflow_name="code",
             contexts=[],
             owner="marc",
-            assignee="claude",
+            agent="claude",
             status="active",
-            watchers=[],
         )
     # Rewrite the log so beta's create line is a day older than alpha's.
     log_path(cfg).write_text(
@@ -2194,9 +2136,8 @@ def test_megalaunch_services_numbered_subdir_in_number_order(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     for slug in ("1-schema", "2-migrate", "3-cutover"):
         create_task(
@@ -2207,9 +2148,8 @@ def test_megalaunch_services_numbered_subdir_in_number_order(
             workflow_name="code",
             contexts=[],
             owner="marc",
-            assignee="claude",
+            agent="claude",
             status="active",
-            watchers=[],
         )
     # Created newest-number-first, so age ordering alone would drain 3, 2, 1.
     log_path(cfg).write_text(
@@ -2307,9 +2247,8 @@ def test_megalaunch_selection_resumes_in_progress(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket = Ticket.read(ref["path"])
     ticket.frontmatter["status"] = "in_progress"
@@ -2335,9 +2274,8 @@ def test_megalaunch_selection_reports_unlaunchable_picks(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket = Ticket.read(done["path"])
     ticket.frontmatter["status"] = "done"
@@ -2349,9 +2287,8 @@ def test_megalaunch_selection_reports_unlaunchable_picks(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="canceled",
-        watchers=[],
     )
     workflowless = create_task(
         cfg=cfg,
@@ -2359,9 +2296,8 @@ def test_megalaunch_selection_reports_unlaunchable_picks(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     ticket = Ticket.read(workflowless["path"])
     ticket.frontmatter["workflow"] = None
@@ -2394,9 +2330,8 @@ def test_megalaunch_selection_launches_other_owners_ticket(
         workflow_name="code",
         contexts=[],
         owner="lea",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
 
     launched = _done_on_spawn(monkeypatch)
@@ -2418,9 +2353,8 @@ def test_megalaunch_selection_activates_draft_and_paused(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     paused = create_task(
         cfg=cfg,
@@ -2428,9 +2362,8 @@ def test_megalaunch_selection_activates_draft_and_paused(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket = Ticket.read(paused["path"])
     ticket.frontmatter["status"] = "paused"
@@ -2459,22 +2392,25 @@ def _log_lines_for(cfg, slug: str, needle: str) -> list[str]:
 
 @pytest.mark.parametrize("agent_override", [None, "codex"])
 @pytest.mark.parametrize(
-    ("role", "prior_assignee", "resolved_assignee"),
+    ("role", "resolved_operator"),
     [
-        ("agent", "marc", "claude"),
-        ("other-agent", "claude", "codex"),
-        ("owner", "claude", "marc"),
-        ("human", "claude", "marc"),
+        ("agent", "claude"),
+        ("other-agent", "codex"),
+        ("owner", "marc"),
     ],
 )
-def test_megalaunch_selection_routes_from_resolved_step_one_assignee(
+def test_megalaunch_selection_routes_from_the_prepared_step_one_role(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
     agent_override: str | None,
     role: str,
-    prior_assignee: str,
-    resolved_assignee: str,
+    resolved_operator: str,
 ) -> None:
+    """A picked draft routes from its *prepared activation*, not from the draft.
+
+    Activation freezes the bare workflow ref and seeds step 1, so step 1's role
+    is what decides both the worker and whether megalaunch's human gate fires.
+    """
     cfg = load_config(repo)
     workflow_path = repo / "workflows" / "code.md"
     workflow_path.write_text(
@@ -2486,11 +2422,8 @@ def test_megalaunch_selection_routes_from_resolved_step_one_assignee(
         workflow_name=None,
         contexts=[],
         owner="marc",
-        human="marc",
         agent="claude",
-        assignee=prior_assignee,
         status="draft",
-        watchers=[],
     )
     ticket_path = Path(draft["path"])
     ticket = Ticket.read(ticket_path)
@@ -2507,7 +2440,7 @@ def test_megalaunch_selection_routes_from_resolved_step_one_assignee(
         termination_kind = "natural"
 
     def fake_spawn(cfg_, ref_obj, launched, agent, **kwargs):  # type: ignore[no-untyped-def]
-        calls.append((agent.name, launched.assignee))
+        calls.append((agent.name, launched.current_step()["assignee"]))
         assert launched.step == "1 (implement)"
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
@@ -2521,16 +2454,21 @@ def test_megalaunch_selection_routes_from_resolved_step_one_assignee(
         cfg, selection=[draft["slug"]], agent_override=agent_override
     )
 
-    if resolved_assignee in cfg.agents:
-        assert calls == [(agent_override or resolved_assignee, resolved_assignee)]
-        assert run.counts["completed"] == 1
-        assert Ticket.read(ticket_path).assignee == resolved_assignee
-    else:
+    if role == "owner":
+        # Megalaunch keeps its own human gate even under `--agent`.
         assert calls == []
         assert run.counts["skipped-human-gate"] == 1
-        assert run.results[0].agent == resolved_assignee
+        assert run.results[0].agent == resolved_operator
         assert ticket_path.read_bytes() == before
         assert _log_lines_for(cfg, draft["slug"], "activated") == []
+    else:
+        assert calls == [(agent_override or resolved_operator, role)]
+        assert run.counts["completed"] == 1
+        # The override never writes routing: the frozen role is unchanged and no
+        # assignment was stored.
+        after = Ticket.read(ticket_path)
+        assert "assignee" not in after.frontmatter
+        assert after.agent == "claude"
 
 
 def test_megalaunch_selection_does_not_activate_pick_refused_by_preflight(
@@ -2549,9 +2487,8 @@ def test_megalaunch_selection_does_not_activate_pick_refused_by_preflight(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     healthy = create_task(
         cfg=cfg,
@@ -2559,9 +2496,8 @@ def test_megalaunch_selection_does_not_activate_pick_refused_by_preflight(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     ticket = Ticket.read(refused["path"])
     # Mapping-form `secrets:` is malformed — `build_launch_env` refuses it in
@@ -2598,9 +2534,8 @@ def test_megalaunch_selection_does_not_activate_pick_without_agent_cli(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     before = Path(draft["path"]).read_bytes()
     monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: None)
@@ -2626,9 +2561,8 @@ def test_megalaunch_selection_preserves_peer_edit_during_preflight(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     launched = _done_on_spawn(monkeypatch)
     peer_bytes: bytes | None = None
@@ -2673,9 +2607,8 @@ def test_megalaunch_selection_commits_the_preflighted_workflow_snapshot(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     ticket = Ticket.read(draft["path"])
     ticket.frontmatter["workflow"] = "code"
@@ -2748,9 +2681,8 @@ def test_megalaunch_selection_preserves_peer_edit_during_activation_sync(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     monkeypatch.setattr(
         "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
@@ -2798,9 +2730,8 @@ def test_megalaunch_refuses_peer_edit_during_start_sync(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr(
         "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
@@ -2848,9 +2779,8 @@ def test_megalaunch_does_not_compensate_over_an_ordinary_resume(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr(
         "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
@@ -2911,9 +2841,8 @@ def test_megalaunch_does_not_reclaim_a_published_session_claim(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr(
         "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
@@ -2985,9 +2914,8 @@ def test_megalaunch_dependency_drain_publishes_resolution_before_claim(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     dependency = create_task(
         cfg=cfg,
@@ -2995,9 +2923,8 @@ def test_megalaunch_dependency_drain_publishes_resolution_before_claim(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     append_blocker(
         Path(blocked["path"]),
@@ -3076,9 +3003,8 @@ def test_megalaunch_deferred_activation_cas_uses_exact_control_ticket(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     monkeypatch.setattr("coga.megalaunch._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr(
@@ -3143,9 +3069,8 @@ def test_megalaunch_launch_claim_cas_excludes_a_second_checkout(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     from coga import git as git_module
 
@@ -3232,9 +3157,8 @@ def test_megalaunch_revalidates_control_claim_at_final_spawn_boundary(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     git_module.sync_task_state(
         cfg, Path(active["path"]), message="Seed final spawn claim"
@@ -3339,9 +3263,8 @@ def test_megalaunch_final_refusal_keeps_audit_out_of_peer_state_commit(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket_path = Path(active["path"])
     ticket_rel = str(ticket_path.relative_to(git_repo.root))
@@ -3491,9 +3414,8 @@ def test_megalaunch_revalidates_after_the_deferred_audit_append(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket_path = Path(active["path"])
     git_module.sync_task_state(
@@ -3562,9 +3484,8 @@ def test_megalaunch_claim_cannot_be_replaced_after_final_control_check(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket_path = Path(active["path"])
     ticket_rel = str(ticket_path.relative_to(git_repo.root))
@@ -3658,9 +3579,8 @@ def test_pending_claim_blocks_remote_lifecycle_between_final_fetch_and_gate(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket_path = Path(active["path"])
     ticket_rel = str(ticket_path.relative_to(git_repo.root))
@@ -3786,9 +3706,8 @@ def test_failed_post_release_admission_retains_released_recovery_witness(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ref = resolve_target(cfg, active["slug"])
     assert isinstance(ref, TaskRef)
@@ -3840,9 +3759,8 @@ def test_megalaunch_selection_does_not_reactivate_pick_started_during_earlier_la
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     started_elsewhere = create_task(
         cfg=cfg,
@@ -3850,9 +3768,8 @@ def test_megalaunch_selection_does_not_reactivate_pick_started_during_earlier_la
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
     launched: list[str] = []
@@ -3900,9 +3817,8 @@ def test_megalaunch_selection_recomputes_blocked_resume_after_earlier_launch(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     newly_blocked = create_task(
         cfg=cfg,
@@ -3910,9 +3826,8 @@ def test_megalaunch_selection_recomputes_blocked_resume_after_earlier_launch(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket = Ticket.read(newly_blocked["path"])
     ticket.frontmatter["status"] = "paused"
@@ -3972,9 +3887,8 @@ def test_megalaunch_selection_reclassifies_captured_blocker_state(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket_path = Path(blocked["path"])
     append_blocker(ticket_path, actor="claude", reason="Which region?")
@@ -4029,9 +3943,8 @@ def test_megalaunch_selection_refuses_invalid_status_before_spawn(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket = Ticket.read(malformed["path"])
     ticket.frontmatter["status"] = "unexpected"
@@ -4063,9 +3976,8 @@ def test_megalaunch_selection_leaves_picks_beyond_max_tasks_unactivated(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     second = create_task(
         cfg=cfg,
@@ -4073,9 +3985,8 @@ def test_megalaunch_selection_leaves_picks_beyond_max_tasks_unactivated(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     before = Path(second["path"]).read_bytes()
 
@@ -4106,9 +4017,8 @@ def test_megalaunch_selection_late_gate_does_not_consume_attempt_budget(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     second = create_task(
         cfg=cfg,
@@ -4116,9 +4026,8 @@ def test_megalaunch_selection_late_gate_does_not_consume_attempt_budget(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     real_candidate = megalaunch_module._candidate_result
     changed = False
@@ -4169,9 +4078,8 @@ def test_megalaunch_selection_logs_activation_before_start(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
 
     launched = _done_on_spawn(monkeypatch)
@@ -4202,9 +4110,8 @@ def test_megalaunch_selection_authors_drafts_before_any_launch(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     second = create_task(
         cfg=cfg,
@@ -4212,9 +4119,8 @@ def test_megalaunch_selection_authors_drafts_before_any_launch(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     # Strip both workflows so they are genuinely not-ready; the stubbed
     # interview writes one back, standing in for a real authoring session.
@@ -4280,9 +4186,8 @@ def test_megalaunch_selection_without_opt_in_skips_authoring(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
 
     def boom(  # type: ignore[no-untyped-def]
@@ -4312,9 +4217,8 @@ def test_megalaunch_selection_draft_unready_after_authoring_is_reported(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     t = Ticket.read(draft["path"])
     t.frontmatter["workflow"] = None
@@ -4347,9 +4251,8 @@ def test_author_draft_without_bootstrap_is_noop(repo: Path) -> None:
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     ref = resolve_task(cfg, draft["slug"])
     before = Ticket.read(draft["path"]).frontmatter
@@ -4374,15 +4277,14 @@ def test_author_draft_prefers_megalaunch_agent_override(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     ref = resolve_task(cfg, draft["slug"])
     captured: dict[str, object] = {}
 
     # Reusing the draft as the bootstrap ref gives the fallback path a Claude
-    # assignee. The explicit Codex override must still win.
+    # main agent. The explicit Codex override must still win.
     monkeypatch.setattr(
         "coga.megalaunch.resolve_bootstrap", lambda cfg_, name: ref
     )
@@ -4398,8 +4300,9 @@ def test_author_draft_prefers_megalaunch_agent_override(
         agent_override="codex",
     )
 
-    assert captured["launch_assignee"] == "codex"
-    assert Ticket.read(draft["path"]).assignee == "claude"
+    assert captured["launch_agent"] == "codex"
+    # `--agent` selects the interviewer only; it never lands on the edited draft.
+    assert Ticket.read(draft["path"]).agent == "claude"
 
 
 def test_megalaunch_selection_resumes_blocked_and_reblocks_unresolved(
@@ -4415,9 +4318,8 @@ def test_megalaunch_selection_resumes_blocked_and_reblocks_unresolved(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     append_blocker(Path(ref["path"]), actor="claude", reason="Which region?")
     ticket = Ticket.read(ref["path"])
@@ -4473,9 +4375,8 @@ def test_megalaunch_selection_blocked_resume_resolves_and_completes(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     append_blocker(Path(ref["path"]), actor="claude", reason="Which region?")
     ticket = Ticket.read(ref["path"])
@@ -4530,9 +4431,8 @@ def test_launchable_candidates_offers_any_owner_any_non_terminal_status(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     running = create_task(
         cfg=cfg,
@@ -4540,22 +4440,21 @@ def test_launchable_candidates_offers_any_owner_any_non_terminal_status(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket = Ticket.read(running["path"])
     ticket.frontmatter["status"] = "in_progress"
     ticket.write(running["path"])
-    draft = create_task(  # draft with a workflow — offered (activates inline)
+    draft = create_task(
+        # draft with a workflow — offered (activates inline)
         cfg=cfg,
         title="Still a draft",
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     foreign = create_task(  # someone else's — offered (explicit picks launch it)
         cfg=cfg,
@@ -4563,9 +4462,8 @@ def test_launchable_candidates_offers_any_owner_any_non_terminal_status(
         workflow_name="code",
         contexts=[],
         owner="lea",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     paused = create_task(
         cfg=cfg,
@@ -4573,59 +4471,62 @@ def test_launchable_candidates_offers_any_owner_any_non_terminal_status(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket = Ticket.read(paused["path"])
     ticket.frontmatter["status"] = "paused"
     ticket.write(paused["path"])
-    done = create_task(  # done — never offered
+    # done — never offered
+    done = create_task(
         cfg=cfg,
         title="Finished",
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket = Ticket.read(done["path"])
     ticket.frontmatter["status"] = "done"
     ticket.frontmatter.pop("step", None)
     ticket.write(done["path"])
-    canceled = create_task(  # canceled — never offered
+    # canceled — never offered
+    canceled = create_task(
         cfg=cfg,
         title="Declined",
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="canceled",
-        watchers=[],
     )
-    human = create_task(  # human-assigned — still offered; the picker no longer
-        cfg=cfg,           # pre-filters launchability, the run reports the gate.
+    # Owner-held — still offered; the picker no longer pre-filters
+    # launchability, the run reports the gate. The handoff comes from the
+    # workflow step's role, which is the only way a ticket is owner-held now.
+    human = create_task(
+        cfg=cfg,
         title="Human work",
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="marc",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket = Ticket.read(human["path"])
-    ticket.frontmatter["assignee"] = "marc"
+    assert isinstance(ticket.workflow, dict)
+    ticket.workflow["steps"][0]["assignee"] = "owner"
     ticket.write(human["path"])
-    workflowless = create_task(  # draft with no workflow — still offered:
-        cfg=cfg,                  # the prepare phase authors it into shape.
+    # Draft with no workflow — still offered: the prepare phase authors it into
+    # shape.
+    workflowless = create_task(
+        cfg=cfg,
         title="Shapeless draft",
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="draft",
-        watchers=[],
     )
     ticket = Ticket.read(workflowless["path"])
     ticket.frontmatter["workflow"] = None
@@ -4664,9 +4565,8 @@ def test_launchable_candidates_blocked_needs_open_asks(repo: Path) -> None:
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     append_blocker(Path(with_ask["path"]), actor="claude", reason="Which region?")
     ticket = Ticket.read(with_ask["path"])
@@ -4678,9 +4578,8 @@ def test_launchable_candidates_blocked_needs_open_asks(repo: Path) -> None:
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     ticket = Ticket.read(askless["path"])
     ticket.frontmatter["status"] = "blocked"
@@ -4711,9 +4610,8 @@ def test_launchable_candidates_ordered_like_status_updated_first(
             workflow_name="code",
             contexts=[],
             owner="marc",
-            assignee="claude",
+            agent="claude",
             status="active",
-            watchers=[],
         )
     # Rewrite the log: stale was created first but touched earlier than fresh,
     # and silent has no log line at all (and no git fallback in a non-git tmp
@@ -4947,9 +4845,8 @@ def test_megalaunch_cli_picker_launches_checked_tasks(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     second = create_task(
         cfg=cfg,
@@ -4957,9 +4854,8 @@ def test_megalaunch_cli_picker_launches_checked_tasks(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
 
     monkeypatch.setattr(
@@ -5007,9 +4903,8 @@ def test_megalaunch_cli_pick_prompts_before_authoring_drafts(
             workflow_name="code",
             contexts=[],
             owner="marc",
-            assignee="claude",
+            agent="claude",
             status="draft",
-            watchers=[],
         )
         authored: list[str] = []
         monkeypatch.setattr(
@@ -5042,9 +4937,8 @@ def test_megalaunch_cli_pick_ready_work_is_not_prompted(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr(
         "coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True
@@ -5077,9 +4971,8 @@ def test_megalaunch_cli_picker_moves_and_toggles(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     second = create_task(
         cfg=cfg,
@@ -5087,9 +4980,8 @@ def test_megalaunch_cli_picker_moves_and_toggles(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr(
         "coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True
@@ -5124,9 +5016,8 @@ def test_megalaunch_cli_picker_resize_keeps_state(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr(
         "coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True
@@ -5157,9 +5048,8 @@ def test_megalaunch_cli_quit_launches_nothing(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr(
         "coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True
@@ -5188,9 +5078,8 @@ def test_megalaunch_cli_pick_scopes_to_directory(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
         directory="marketing",
     )
     outside = create_task(
@@ -5199,9 +5088,8 @@ def test_megalaunch_cli_pick_scopes_to_directory(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     monkeypatch.setattr(
         "coga.commands.megalaunch._interactive_stdio_has_tty", lambda: True
@@ -5234,9 +5122,8 @@ def test_megalaunch_cli_relaunch_replays_saved_selection(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     other = create_task(
         cfg=cfg,
@@ -5244,9 +5131,8 @@ def test_megalaunch_cli_relaunch_replays_saved_selection(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     save_selection(cfg, [saved["slug"], "since-deleted-task"])
     monkeypatch.setattr(
@@ -5305,9 +5191,8 @@ def test_megalaunch_disappeared_activation_ticket_fails_only_its_task(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="paused",
-        watchers=[],
     )
     second = create_task(
         cfg=cfg,
@@ -5315,9 +5200,8 @@ def test_megalaunch_disappeared_activation_ticket_fails_only_its_task(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     first_path = Path(first["path"])
     real_capture = git_module.FileMutationRollback.capture
@@ -5362,9 +5246,8 @@ def test_megalaunch_disappeared_prompt_layer_fails_only_its_task(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     second = create_task(
         cfg=cfg,
@@ -5372,9 +5255,8 @@ def test_megalaunch_disappeared_prompt_layer_fails_only_its_task(
         workflow_name="code",
         contexts=[],
         owner="marc",
-        assignee="claude",
+        agent="claude",
         status="active",
-        watchers=[],
     )
     missing = str(repo / "contexts" / "vanished" / "SKILL.md")
     real_compose = megalaunch_module.compose_prompt
@@ -5440,9 +5322,8 @@ def test_megalaunch_missing_packaged_prompt_fails_task_not_sweep(
             workflow_name="code",
             contexts=[],
             owner="marc",
-            assignee="claude",
+            agent="claude",
             status="active",
-            watchers=[],
         )
 
     monkeypatch.setattr(

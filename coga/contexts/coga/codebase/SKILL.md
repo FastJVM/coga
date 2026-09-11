@@ -45,7 +45,11 @@ review bars.
   handoffs. `commands/megalaunch.py` is the manual drain entrypoint;
   reusable drain logic lives in `megalaunch.py` and the drain order (age plus
   numbered sub-directories) in `service_order.py`. `bump.py` advances
-  workflow steps. `validate.py` checks repo consistency. `mark.py` owns the
+  workflow steps and owns the one shared, pure operator resolver
+  (`resolve_operator`) that every routing consumer reads — launch, transitions,
+  script handoffs, status/show, notifications, and sweep eligibility. Nothing
+  caches its answer: there is no stored assignment, so a new consumer must call
+  the resolver rather than reading a field. `validate.py` checks repo consistency. `mark.py` owns the
   status transitions and splits each at one seam: `prepare_active` is the pure
   preparation boundary (validate the ticket, freeze its workflow ref, mutate an
   in-memory copy to `active`, write nothing) and `mark_active` is the durable
@@ -53,10 +57,13 @@ review bars.
   exception ladder divides along that seam, and the tuple
   `megalaunch._PREPARE_ACTIVE_ERRORS` encodes the division:
   `WorkflowMissing`, `WorkflowError`,
-  `RequiredExtensionMissing`, and `BlackboardNeedsSynthesis` are prepare-side
+  `RequiredExtensionMissing`, `BlackboardNeedsSynthesis`, and
+  `MainAgentUnavailable` are prepare-side
   refusals raised before any byte is written, while `TaskValidationError` comes
   from the post-write `assert_task_valid` and therefore belongs to the commit
-  half alone. Two constraints a new caller must keep: megalaunch prepares on a
+  half alone. `prepare_active` also selects the main agent and re-derives the
+  operator, so both land on the prepare side: a failed activation never writes a
+  newly chosen agent to a real ticket. Two constraints a new caller must keep: megalaunch prepares on a
   *throwaway* copy (`_prepare_for_launch`), preflights the prompt, env, and
   agent off that prospective view, commits only after every refusal has passed,
   and then recaptures the ticket bytes and refuses if they moved — so a

@@ -190,7 +190,7 @@ def test_autoclose_recurring_template_creates_idempotently(tmp_path: Path) -> No
     assert (refs[0].path / "ticket.py").read_text() == entry.read_text()
     assert "\nscript:" not in (refs[0].path / "ticket.md").read_text()
     assert "\nrecipe:" not in (refs[0].path / "ticket.md").read_text()
-    assert ticket.assignee == "claude"
+    assert ticket.agent == "claude"
     assert ticket.workflow["name"] == "autoclose-merged/sweep"
     assert ticket.workflow["steps"][0]["skills"] == ["coga/autoclose/sweep"]
     assert "coga/period-task" in ticket.contexts

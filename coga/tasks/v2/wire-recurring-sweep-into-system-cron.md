@@ -1,13 +1,8 @@
 ---
-slug: v2/wire-recurring-sweep-into-system-cron
 title: Wire recurring sweep into system cron
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
 ---
 

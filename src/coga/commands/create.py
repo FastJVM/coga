@@ -18,8 +18,8 @@ so add a `workflow:` before activating, or pass `--workflow` up front.
 `--description` and `--owner` are optional too, so one command can scaffold a
 described, correctly-owned draft. `--description` fills the ticket's
 `## Description` section; `--owner` sets `owner:` to a coga name instead of
-the local `user` (and, through `create_task`, seeds `human:` and a
-workflow-less `assignee:`). A description carrying a level-2 heading line or
+the local `user`, which is also the operator every human-role step derives.
+A description carrying a level-2 heading line or
 the blackboard fence line is refused before anything is written, since either
 would break the ticket's section/fence structure.
 """
@@ -73,8 +73,8 @@ def create(
         None,
         "--owner",
         help=(
-            "Coga name to own the ticket (also seeds human:). Defaults to "
-            "`user` from coga.local.toml."
+            "Coga name to own the ticket. Defaults to `user` from "
+            "coga.local.toml."
         ),
     ),
 ) -> None:
@@ -140,8 +140,6 @@ def create_draft(
             workflow_name=workflow,
             contexts=[],
             owner=owner,
-            assignee=None,
-            watchers=[],
             status="draft",
             directory=directory,
             description=description,

@@ -21,6 +21,7 @@ from coga.commands.launch import (
 )
 from coga.compose import ComposeError
 from coga.repl_supervisor import AgentCliNotFound
+from coga.bump import OperatorResolutionError, resolve_main_agent
 from coga.config import Config, ConfigError, load_config
 from coga.dependencies import agent_cli_missing_message
 from coga.tasks import (
@@ -89,20 +90,26 @@ def ticket(
         ref, source_ticket, created = _resolve_or_create_target(cfg, target)
         kickoff = AUTHORING_KICKOFF_NEW if created else AUTHORING_KICKOFF_EDIT
 
-    launch_assignee = (
-        agent_override
-        or bootstrap_ticket.assignee
-        or source_ticket.agent
-        or source_ticket.assignee
-    )
-    if not launch_assignee:
-        _bail("No authoring agent configured; pass --agent <nickname>.")
+    # Interviewer selection: explicit `--agent`, then `bootstrap/ticket`'s own
+    # explicit agent, then the edited ticket's explicit agent, then the
+    # configured default. `--agent` selects the *interviewer* only — the
+    # interview never writes an agent onto the ticket it is editing; the human
+    # chooses that through the authoring allowlist.
+    try:
+        launch_agent = agent_override or resolve_main_agent(
+            cfg,
+            bootstrap_ticket.agent or source_ticket.agent,
+            allow_prospective_default=True,
+        )
+    except OperatorResolutionError as exc:
+        _bail(f"No authoring agent available: {exc}")
+        return
 
     _run_authoring_session(
         cfg=cfg,
         ref=ref,
         ticket=_authoring_ticket(source_ticket),
-        launch_assignee=launch_assignee,
+        launch_agent=launch_agent,
         kickoff=kickoff,
         bootstrap_title=bootstrap_ticket.title or "",
     )
@@ -181,7 +188,7 @@ def _run_authoring_session(
     cfg: Config,
     ref: TaskRef | BootstrapRef,
     ticket: Ticket,
-    launch_assignee: str,
+    launch_agent: str,
     kickoff: str = AUTHORING_KICKOFF,
     bootstrap_title: str,
 ) -> None:
@@ -192,7 +199,7 @@ def _run_authoring_session(
         )
 
     try:
-        agent = cfg.agent_type(launch_assignee)
+        agent = cfg.agent_type(launch_agent)
     except ConfigError as exc:
         _bail(str(exc))
 
@@ -201,7 +208,7 @@ def _run_authoring_session(
         _bail(agent_cli_missing_message(agent.cli))
 
     typer.echo(
-        f"Ticket: authoring {ref.id_slug} with {launch_assignee} -> {agent.name}"
+        f"Ticket: authoring {ref.id_slug} with {launch_agent} -> {agent.name}"
     )
     before_authoring = snapshot_authoring_state(cfg)
 
@@ -219,7 +226,7 @@ def _run_authoring_session(
             actor=f"human:{cfg.current_user}",
             log_message=(
                 "ticket authoring launched "
-                f"(assignee={launch_assignee}, agent={agent.name})"
+                f"(interviewer={launch_agent}, agent={agent.name})"
             ),
             discussion=True,
             kickoff=kickoff,

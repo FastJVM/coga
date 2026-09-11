@@ -18,7 +18,6 @@ A **ticket** is one durable unit of work. It's a markdown file with three parts:
 
 ```
 ---
-slug: add-a-health-check-endpoint
 title: Add a health-check endpoint
 status: in_progress
 owner: marc
@@ -41,7 +40,12 @@ branch: health-check
 - **Frontmatter** — canonical fields (`status`, `owner`, `agent`, `workflow`,
   `step`, `contexts`, and a few more). CLI commands own the lifecycle fields; you
   hand-edit only `contexts` and the body. A repo can declare extra fields (say, a
-  `priority` tier) in `coga.toml`.
+  `priority` tier) in `coga.toml`. It stays short on purpose: the task's **path**
+  is its identity, so there is no `slug:` to drift from it; `owner` is the human
+  of record; nothing stores *who holds the ticket right now*, because that is
+  derived from the current step (below); and an empty `contexts` / `skills` /
+  `secrets` is simply not written — absence is empty. A newly created draft is
+  four lines plus its body.
 - **Body** — the source of truth for *what the task is*: `## Description` and an
   optional inline `## Context`. This is yours to write.
 - **Blackboard** — everything after the `<!-- coga:blackboard -->` fence. See
@@ -135,12 +139,26 @@ such knob; they are process knowledge for agents, not prose for humans.
 
 A **workflow** is an ordered list of steps. `code/with-review`, for example, is
 `implement → peer-review → open-pr → review`. Each step can name the skills it
-needs and an **assignee** role — `agent`, `other-agent`, `human`, or `owner`.
-When a step advances, the role resolves against the ticket's people/agent fields:
-`other-agent` uses the ticket agent's configured `peer` when present, otherwise
-it infers the only other configured type. That keeps two-agent repos automatic;
-with three or more types, each agent that uses `other-agent` declares its own
-one-directional peer or validation fails loud instead of guessing.
+needs and an **assignee** role — `agent`, `other-agent`, or `owner`.
+
+**The role *is* the routing.** Coga derives who holds a ticket from the current
+step's role every time it needs to know, and writes nothing back: `owner` is a
+human handoff to the ticket's `owner:`, `agent` is the ticket's `agent:` (its
+main-agent choice), and `other-agent` uses that agent's configured `peer` when
+present, otherwise it infers the only other configured type. That keeps
+two-agent repos automatic; with three or more types, each agent that uses
+`other-agent` declares its own one-directional peer or validation fails loud
+instead of guessing. Because nothing is cached, a stored nickname can never
+disagree with the workflow that owns the handoff.
+
+A step that omits `assignee:` inherits the nearest *preceding* declared role;
+before any declaration the role is `owner`. So a workflow that declares no roles
+at all is an owner-held workflow end to end.
+
+`agent:` is optional and is the ticket's *main-agent choice*, not its current
+operator. A draft leaves it out; the first `coga mark active` picks the
+configured default and freezes it there, so a `main → peer → main` rotation
+stays stable even if you later reorder `[agents.*]`.
 
 The critical property: a workflow is **frozen into the ticket** when it's
 attached — at creation if you pass `--workflow`, otherwise at activation for a
@@ -190,7 +208,7 @@ orphan-cleanup tax of a real mutex.
 `coga launch` decides between the two from the ticket directory alone. A
 reserved `ticket.py` sibling is the ticket's deterministic half and runs as a
 plain subprocess — no prompt, no agent, no TTY. Without one, launch composes a
-prompt and spawns the assignee's agent CLI in a live REPL. A ticket can have
+prompt and spawns the current operator's agent CLI in a live REPL. A ticket can have
 both: the script runs first and the agent continues the same step. Nothing
 declares which — no mode field, no `recipe:`, no autonomy flag; the file's
 presence is the whole signal, and any other attachment stays an ordinary

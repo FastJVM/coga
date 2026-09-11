@@ -1,13 +1,8 @@
 ---
-slug: v2/enforce-a-prompt-token-budget-in-compose
 title: Enforce a prompt token budget in compose
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
 ---
 

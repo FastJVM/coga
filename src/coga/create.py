@@ -8,9 +8,9 @@ from typing import Any
 
 from coga import git
 from coga.blackboard import render_blackboard
-from coga.bump import AssigneeResolutionError, resolve_first_step_assignee
+from coga.bump import OperatorResolutionError, resolve_main_agent, resolve_operator
 from coga.config import Config
-from coga.lifecycle import TERMINAL_STATUSES
+from coga.lifecycle import MAIN_AGENT_REQUIRED_STATUSES, TERMINAL_STATUSES
 from coga.logfile import append_log
 from coga.paths import (
     missing_skill_message,
@@ -39,10 +39,7 @@ def create_task(
     workflow_name: str | None,
     contexts: list[str],
     owner: str | None,
-    assignee: str | None,
-    watchers: list[str],
     status: str | None,
-    human: str | None = None,
     agent: str | None = None,
     skills: list[str] | None = None,
     delegate: str | None = None,
@@ -64,6 +61,14 @@ def create_task(
     appended when the verbatim body lacks one. `body` takes precedence over
     `description`.
 
+    `agent` is the optional main-agent choice, not the current operator: who
+    holds the task is derived from its frozen workflow step (see
+    `coga.bump.resolve_operator`). An explicit choice is validated against
+    `[agents.*]` and kept. Left absent, it stays absent on a draft and is filled
+    in with the configured default when a caller creates straight into a live
+    status — the same selection `coga mark active` performs, so a task that is
+    already routable always names the agent it routes to.
+
     `directory` lands the task in a sub-directory under `tasks/` (`v2`,
     `marketing/social`); the default (None) is the top level. The sub-directory
     is created if missing, and slug uniqueness becomes per-directory — a leaf
@@ -75,14 +80,10 @@ def create_task(
 
     owner = owner or cfg.current_user
     status = status or cfg.default_status
-    human = human or owner
-    agent = agent or _default_agent_for(cfg, assignee)
-    if not agent:
-        raise ValueError(
-            "No default agent configured; declare at least one `[agents.*]` "
-            "table in coga.toml or coga.local.toml "
-            "(e.g. `[agents.claude]`)."
-        )
+    try:
+        agent = _select_main_agent(cfg, agent, status=status)
+    except OperatorResolutionError as exc:
+        raise ValueError(str(exc)) from exc
 
     contexts = _dedupe(contexts)
     missing_ctx = [c for c in contexts if resolve_context_path(cfg, c) is None]
@@ -110,25 +111,6 @@ def create_task(
                 for ref in missing_step_skills
             )
             raise ValueError(details)
-
-    # Initial assignee: if step 1 declares a role, resolve against the
-    # ticket's role fields (or, for `other-agent`, the peer agent from
-    # config). Otherwise honor the explicit `assignee` arg or fall back to
-    # the owner.
-    role_fields = {"owner": owner, "human": human, "agent": agent}
-    if wf and wf.steps[0].assignee:
-        try:
-            assignee = resolve_first_step_assignee(
-                cfg,
-                wf.steps[0].assignee,
-                workflow_name=workflow_name,
-                roles=role_fields,
-                agent=agent,
-            )
-        except AssigneeResolutionError as exc:
-            raise ValueError(str(exc)) from exc
-    else:
-        assignee = assignee or owner
 
     directory = _normalize_create_dir(cfg, directory)
     base_slug = slug_override or slugify(title)
@@ -165,37 +147,57 @@ def create_task(
         ticket_path.parent.mkdir(parents=True, exist_ok=True)
         result_path = ticket_path
 
-    # The TaskRef discovery will report for this new task — its `id_slug` is the
-    # canonical task reference, recorded on the ticket as `slug:` so the file is
-    # self-describing. A sub-directory create qualifies the slug with it.
+    # The TaskRef discovery will report for this new task. Its `id_slug` is the
+    # canonical task reference; the path is the only identity, so nothing is
+    # copied into frontmatter to drift from it. A sub-directory create qualifies
+    # the slug with it.
     qualified_slug = slug if directory is None else f"{directory}/{slug}"
     created_ref = _task_ref_for_created(qualified_slug, result_path, file_form=file_form)
 
-    # Canonical frontmatter order. Every key is always present so tasks have
-    # a single legible shape on disk, even when contexts / skills / workflow
-    # are empty.
+    # Canonical frontmatter order. Optional declarations are written only when
+    # they say something: an empty `contexts`/`skills`/`secrets` list is
+    # indistinguishable from an absent one, so the minimal draft is four lines
+    # plus its workflow rather than a screen of empty scaffolding.
     fm: dict[str, Any] = {
-        "slug": created_ref.id_slug,
         "title": title,
         "status": status,
         "owner": owner,
-        "human": human,
-        "agent": agent,
-        "assignee": assignee,
-        "contexts": list(contexts),
-        "skills": list(skills),
     }
+    if agent is not None:
+        fm["agent"] = agent
+    if contexts:
+        fm["contexts"] = list(contexts)
+    if skills:
+        fm["skills"] = list(skills)
     if delegate is not None:
         fm["delegate"] = delegate
     if period_generation is not None:
         fm["period_generation"] = period_generation
     fm["workflow"] = wf.freeze() if wf else None
-    fm["secrets"] = secrets
+    if secrets:
+        fm["secrets"] = secrets
     if wf and status not in TERMINAL_STATUSES:
         first_step = wf.steps[0].name
         fm["step"] = f"1 ({first_step})"
-    if watchers:
-        fm["watchers"] = list(watchers)
+
+    # Fail loud here if step 1's role cannot resolve against this machine's
+    # `[agents.*]` — an ambiguous `other-agent` is a config fact the new ticket
+    # cannot fix, and deferring it would hand the operator a task that refuses
+    # at launch instead. Nothing is persisted: the answer is discarded, and
+    # every later read derives it again from the frozen snapshot.
+    if wf and status not in TERMINAL_STATUSES:
+        try:
+            resolve_operator(
+                cfg,
+                created_ref,
+                Ticket(frontmatter=fm, body=""),
+                step_index=1,
+                allow_prospective_default=True,
+            )
+        except OperatorResolutionError as exc:
+            raise ValueError(
+                f"Workflow {workflow_name!r} step 1: {exc}"
+            ) from exc
 
     # Repo-declared extension fields (`[ticket.fields.<name>]`). Seeded
     # with the declared default (or "" if none). Required-but-empty is fine
@@ -303,21 +305,25 @@ def _task_ref_for_created(slug: str, path: Path, *, file_form: bool) -> TaskRef:
     return TaskRef(slug=slug, path=path, file_form=file_form)
 
 
-def _default_agent_for(cfg: Config, assignee: str | None) -> str | None:
-    """Best-effort default for the new ticket's `agent:` field.
+def _select_main_agent(cfg: Config, agent: str | None, *, status: str) -> str | None:
+    """The `agent:` value a newly created ticket should carry, or None.
 
-    If the explicit `assignee` arg names a known agent type, use it. Else
-    use the first-declared agent type in `[agents]`. TOML preserves
-    declaration order, so the team's default agent is whichever block
-    appears first.
+    An explicit choice is validated against `[agents.*]` and kept — including a
+    choice that happens to equal today's default, which is a decision, not a
+    coincidence. Without one, a draft keeps the field absent and defers the
+    decision to activation, while a create straight into a live status performs
+    that same selection now: `Config.default_agent()` is the first agent
+    declared in the effective merged configuration (TOML preserves declaration
+    order), so the team's default is whichever block appears first.
 
-    Returns None when no agent types are declared; the caller rejects that
-    before writing invalid canonical frontmatter.
+    Raises `OperatorResolutionError` for an unconfigured explicit choice, or
+    when a live create finds no agents declared at all.
     """
-    if assignee and assignee in cfg.agents:
-        return assignee
-    default = cfg.default_agent()
-    return default.name if default else None
+    if agent is not None:
+        return resolve_main_agent(cfg, agent)
+    if status not in MAIN_AGENT_REQUIRED_STATUSES:
+        return None
+    return resolve_main_agent(cfg, None, allow_prospective_default=True)
 
 
 def _dedupe(items: list[str]) -> list[str]:

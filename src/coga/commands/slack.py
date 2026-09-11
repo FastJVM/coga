@@ -14,6 +14,8 @@ import sys
 
 import typer
 
+from coga.bump import OperatorResolutionError, resolve_main_agent
+from coga.commands.common import current_operator
 from coga.config import ConfigError, load_config
 from coga.logfile import append_log
 from coga.notification import post
@@ -54,15 +56,26 @@ def slack(
         _bail(str(exc))
 
     ticket = read_ticket(ref)
-    actor = f"agent:{ticket.assignee}" if ticket.assignee else f"human:{cfg.current_user}"
+    if isinstance(ref, BootstrapRef):
+        try:
+            operator = resolve_main_agent(
+                cfg,
+                ticket.agent,
+                task_label=ref.id_slug,
+                allow_prospective_default="agent" not in ticket.frontmatter,
+            )
+        except OperatorResolutionError as exc:
+            _bail(str(exc))
+    else:
+        operator = current_operator(cfg, ref, ticket)
+    actor = f"agent:{operator}" if operator else f"human:{cfg.current_user}"
 
     post(
         cfg,
-        f"💬 {ticket.assignee or cfg.current_user} on *{ref.id_slug}* "
+        f"💬 {operator or cfg.current_user} on *{ref.id_slug}* "
         f"\"{ticket.title}\": {message}",
         task_path=ref.path,
         owner=ticket.owner or cfg.current_user,
-        watchers=ticket.watchers,
         important=important,
     )
     append_log(cfg, ref.id_slug, actor, f"slack: {message}")

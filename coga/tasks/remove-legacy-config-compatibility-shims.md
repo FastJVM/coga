@@ -1,15 +1,11 @@
 ---
-slug: remove-legacy-config-compatibility-shims
 title: Remove legacy config compatibility shims
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
 contexts:
 - coga/project-stage
 - coga/sync
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -29,7 +25,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

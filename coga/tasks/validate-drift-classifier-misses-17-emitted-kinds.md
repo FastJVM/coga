@@ -1,13 +1,8 @@
 ---
-slug: validate-drift-classifier-misses-17-emitted-kinds
 title: Validate-drift classifier misses 16 emitted kinds
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +22,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

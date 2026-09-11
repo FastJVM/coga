@@ -103,10 +103,9 @@ channels = []
 #     "https://media.giphy.com/media/<id-b>/giphy.gif",
 #   ]
 #
-# Optional: map a coga name (the token used in a ticket's `owner` /
-# `watchers` fields) to a Slack member ID. With a mapping, that person
-# gets a real `<@…>` ping on posts about their ticket — owners inline,
-# watchers cc'd. Without one they're still named, just in plain text (no
+# Optional: map a coga name (the token used in a ticket's `owner` field) to a
+# Slack member ID. With a mapping, that person gets a real `<@…>` ping on posts
+# about their ticket. Without one they're still named, just in plain text (no
 # ping). An incoming webhook can't look an ID up itself, so it has to be
 # listed here. Grab an ID from Slack: profile → ⋮ (More) → Copy member ID.
 #   [notification.slack.users]

@@ -1,14 +1,8 @@
 ---
-slug: v2/autotrigger-ticket-type
 title: autotrigger ticket type
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills:
-- bootstrap/ticket
 workflow:
   name: draft-for-human
   steps:
@@ -17,7 +11,7 @@ workflow:
     assignee: agent
   - name: human-owns-and-finishes
     skills: []
-    assignee: human
+    assignee: owner
   - name: report-to-relay
     skills: []
     assignee: agent

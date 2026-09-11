@@ -1,14 +1,10 @@
 ---
-slug: scrub-the-service-account-token-from-the-launch-ch
 title: Scrub the service-account token from the launch child environment
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
 contexts:
 - coga/secrets
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -29,7 +25,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

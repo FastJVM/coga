@@ -1,16 +1,12 @@
 ---
-slug: v2/dream-recurring-persist-done-stop-inline-delete
 title: Recurring runs persist as done; stop inline deletion
 status: paused
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
 contexts:
 - coga/recurring
 - coga/architecture
 - coga/current-direction
-skills: []
 workflow:
   name: code/with-review
   steps:

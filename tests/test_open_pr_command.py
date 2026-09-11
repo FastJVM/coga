@@ -101,23 +101,18 @@ def _write_ticket(coga_os: Path, slug: str, *, branch: str, worktree: Path | Non
         dev_lines.append(f"worktree: {worktree}")
     frontmatter = (
         "---\n"
-        f"slug: {slug}\n"
         "title: Ship the change\n"
         "status: in_progress\n"
         "owner: marc\n"
-        "human: marc\n"
         "agent: claude\n"
-        "assignee: claude\n"
-        "contexts: []\n"
-        "skills: []\n"
         "workflow:\n"
         "  name: code/with-review\n"
         "  steps:\n"
         "    - name: open-pr\n"
+        "      assignee: agent\n"
         "    - name: review\n"
+        "      assignee: agent\n"
         "step: 1 (open-pr)\n"
-        "secrets: null\n"
-        "script: null\n"
         "---\n"
     )
     body = (

@@ -1,14 +1,9 @@
 ---
-slug: recurring-last-serviced-period-compares-as-a-strin
 title: 'recurring: last_serviced_period compares as a string, so a non-period value
   suppresses a template forever'
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +22,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-secrets: null
 ---
 
 ## Description

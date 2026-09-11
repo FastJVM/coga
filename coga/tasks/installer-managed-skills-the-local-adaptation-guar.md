@@ -1,14 +1,9 @@
 ---
-slug: installer-managed-skills-the-local-adaptation-guar
 title: 'Installer-managed skills: the local-adaptation guard misses github-backed
   packs'
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -29,7 +24,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

@@ -1,19 +1,23 @@
 ---
-slug: _template
 title: Replace with a one-line task title
 status: draft
 owner: replace-with-human-name
-human: replace-with-human-name
-agent: replace-with-agent-nickname
-assignee: replace-with-human-or-agent-nickname
-contexts: []
-skills: []
+# Optional. The task's main-agent choice — not the current operator, which coga
+# derives from the current workflow step's role every time it is read. Leave it
+# out and `coga mark active` selects the configured default at activation.
+# agent: replace-with-agent-nickname
+# Optional. Absence is empty, so an empty list is simply not written.
+# contexts:
+#   - namespace/some-context
+# skills:
+#   - namespace/some-skill
 workflow: null
-# Secrets this task needs, declared inline — one `- NAME: <ref>` list entry per
-# secret, where `<ref>` is an `op://vault/item/field` 1Password reference or an
-# `env:VAR` indirection. Absent / `null` / `[]` inject nothing; a list injects
-# only those keys (and fails loud at launch if any ref is unset).
-secrets: null
+# Optional. Secrets this task needs, declared inline — one `- NAME: <ref>` list
+# entry per secret, where `<ref>` is an `op://vault/item/field` 1Password
+# reference or an `env:VAR` indirection. An absent declaration injects nothing;
+# a list injects only those keys (and fails loud at launch if any ref is unset).
+# secrets:
+#   - SOME_TOKEN: env:SOME_TOKEN
 # --- extensions ---
 # Repo-declared fields (see `[ticket.fields.<name>]` in coga.toml) are
 # injected by `coga create` / `coga ticket` below this marker. No

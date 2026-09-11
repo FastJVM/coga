@@ -1,13 +1,8 @@
 ---
-slug: megalaunch-only-shows-one-page
 title: megalaunch-only-shows-one-page
 status: done
 owner: zach
-human: zach
 agent: claude
-assignee: zach
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +22,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

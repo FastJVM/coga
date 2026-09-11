@@ -1,13 +1,8 @@
 ---
-slug: cleanup/quiet-the-first-run-noise-from-recurring-jobs-and
 title: Quiet the first-run noise from recurring jobs and managed skills
 status: draft
 owner: nicktoper
-human: nick
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/design-then-implement
   steps:
@@ -32,7 +27,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (design)
 ---
 

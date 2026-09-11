@@ -1,13 +1,8 @@
 ---
-slug: v2/make-agent-sandboxes-reach-user-local-tooling-with
 title: Make agent sandboxes reach user-local tooling without per-path config
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/design-then-implement
   steps:
@@ -30,8 +25,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-secrets: null
-script: null
 step: 1 (design)
 ---
 

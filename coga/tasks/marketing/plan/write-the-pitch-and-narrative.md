@@ -1,15 +1,9 @@
 ---
-slug: marketing/plan/write-the-pitch-and-narrative
 title: Write the pitch and narrative
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow: draft-for-human
-secrets: null
 ---
 
 ## Description

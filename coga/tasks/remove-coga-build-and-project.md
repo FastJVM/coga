@@ -1,13 +1,8 @@
 ---
-slug: remove-coga-build-and-project
 title: remove-coga-build-and-project
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -26,7 +21,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-secrets: null
 ---
 
 ## Description

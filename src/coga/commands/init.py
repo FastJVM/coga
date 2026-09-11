@@ -232,17 +232,18 @@ def _prune_onboarding_tickets(coga_os: Path) -> list[str]:
     return pruned
 
 
-# Matches an owner/human/assignee line whose value is exactly the `new-user`
-# placeholder. Deliberately does NOT match `replace-with-human-name` (the
-# `_template`/recurring token, owned by `create_task`/recurring) — only the
-# placeholder that would otherwise ship as a live value.
-_NEW_USER_LINE = re.compile(r"^(owner|human|assignee):[ \t]*new-user[ \t]*$", re.M)
+# Matches an `owner:` line whose value is exactly the `new-user` placeholder.
+# `owner` is now the only human field a ticket carries. Deliberately does NOT
+# match `replace-with-human-name` (the `_template`/recurring token, owned by
+# `create_task`/recurring) — only the placeholder that would otherwise ship as a
+# live value.
+_NEW_USER_LINE = re.compile(r"^(owner):[ \t]*new-user[ \t]*$", re.M)
 
 
 def _stamp_user_into_delivered_tickets(coga_os: Path, name: str) -> list[str]:
     """Replace the `new-user` placeholder with `name` in every delivered ticket.
 
-    Rewrites `owner:`/`human:`/`assignee:` lines that read `new-user` across
+    Rewrites `owner:` lines that read `new-user` across
     every delivered task ticket — both file-form `tasks/<slug>.md` and
     directory-form `tasks/**/ticket.md` — so the placeholder never ships as a
     live owner. Returns the slugs that were stamped.

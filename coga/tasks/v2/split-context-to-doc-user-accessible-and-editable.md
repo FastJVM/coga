@@ -1,17 +1,13 @@
 ---
-slug: v2/split-context-to-doc-user-accessible-and-editable
 title: 'split context to doc: user accessible and editable'
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
 contexts:
 - coga/architecture
 - coga/principles
 - coga/codebase
 - coga/project-stage
-skills: []
 workflow:
   name: code/design-then-implement
   steps:

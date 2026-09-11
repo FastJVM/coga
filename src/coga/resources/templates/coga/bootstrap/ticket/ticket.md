@@ -2,7 +2,7 @@
 title: Create a new ticket
 skills:
   - bootstrap/ticket
-assignee: claude
+agent: claude
 ---
 
 ## Description

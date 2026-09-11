@@ -21,7 +21,7 @@ ROUTER_SKILL = (
 def test_browser_automation_launcher_is_stateless_and_skill_backed() -> None:
     ticket = Ticket.read(LAUNCHER)
 
-    assert set(ticket.frontmatter) == {"title", "assignee", "contexts", "skills"}
+    assert set(ticket.frontmatter) == {"title", "agent", "contexts", "skills"}
     assert ticket.contexts == ["browser/api-first"]
     assert ticket.skills == ["browser/build-automation"]
     assert ticket.status == ""

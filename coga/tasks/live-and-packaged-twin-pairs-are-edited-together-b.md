@@ -1,14 +1,9 @@
 ---
-slug: live-and-packaged-twin-pairs-are-edited-together-b
 title: Live and packaged twin pairs are edited together by convention but not enforced
   by any test
 status: done
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

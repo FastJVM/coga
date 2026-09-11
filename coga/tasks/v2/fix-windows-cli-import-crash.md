@@ -1,17 +1,11 @@
 ---
-slug: v2/fix-windows-cli-import-crash
 title: 'Windows: guard Unix-only imports so the CLI runs; decide full Windows-support path'
 status: draft
 owner: zach
-human: zach
 agent: claude
-assignee: claude
 contexts:
 - dev/code
-skills: []
 workflow: code/design-then-implement
-secrets: null
-script: null
 ---
 
 ## Description

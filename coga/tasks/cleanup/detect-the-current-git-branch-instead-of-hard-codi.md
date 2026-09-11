@@ -1,13 +1,8 @@
 ---
-slug: cleanup/detect-the-current-git-branch-instead-of-hard-codi
 title: Detect the current git branch instead of hard-coding control branch main
 status: done
 owner: nicktoper
-human: nick
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 ---
 
 ## Description

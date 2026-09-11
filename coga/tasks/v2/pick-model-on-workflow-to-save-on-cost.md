@@ -1,16 +1,9 @@
 ---
-slug: v2/pick-model-on-workflow-to-save-on-cost
 title: pick model on workflow to save on cost
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
-secrets: null
-script: null
 ---
 
 ## Description

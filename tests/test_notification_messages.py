@@ -52,15 +52,10 @@ def _write_workflow_less_task(
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(dedent(f"""
         ---
-        slug: {slug}
         title: Work
         status: {status}
         owner: marc
-        human: marc
         agent: claude
-        assignee: {assignee}
-        contexts: []
-        skills: []
         workflow: null
         ---
 
@@ -102,8 +97,11 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         description: tiny.
         steps:
           - name: implement
+            assignee: agent
           - name: pr
+            assignee: agent
           - name: merge
+            assignee: agent
         ---
 
         ## implement
@@ -140,9 +138,12 @@ def _make_task(
         ref = {"slug": slug, "path": path}
     else:
         ref = create_task(
-            cfg=cfg, title="Work", workflow_name=workflow,
-            contexts=[], owner="marc", assignee=assignee,
-            watchers=[], status=status,
+            cfg=cfg,
+            title="Work",
+            workflow_name=workflow,
+            contexts=[],
+            owner="marc",
+            status=status,
             force_directory=force_directory,
         )
     path = ref["path"]
@@ -238,7 +239,9 @@ def test_mark_done_workflowless_collapses_transition(
     result = CliRunner().invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
     msg = _body(posts, "🎉")
-    assert msg == f"🎉 claude finished *{slug}* \"Work\""
+    # A workflow-less ticket has no step to route from, so it sits with its
+    # owner — there is no stored assignment left to name an agent instead.
+    assert msg == f"🎉 marc finished *{slug}* \"Work\""
     assert "→ done" not in msg
 
 

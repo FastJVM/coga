@@ -1,11 +1,8 @@
 ---
-slug: v2/cleanup-core-commands/work-orchestration-commands-to-tickets
 title: Move work orchestration commands to tickets
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: codex
-assignee: codex
 contexts:
   - coga/principles
   - coga/architecture
@@ -15,10 +12,7 @@ contexts:
   - coga/project-stage
   - coga/cli
   - dev/code
-skills: []
 workflow: code/design-then-implement
-secrets: null
-script: null
 ---
 
 ## Description

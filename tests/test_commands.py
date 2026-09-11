@@ -11,8 +11,9 @@ from typer.testing import CliRunner
 
 from coga import git as git_module
 from coga.blackboard import append_blocker
-from coga.bump import AssigneeResolutionError, resolve_other_agent
+from coga.bump import OperatorResolutionError, resolve_other_agent
 from coga.commands import delete as delete_cmd
+from conftest import derived_operator
 from coga.cli import app
 from coga.create import create_task
 from coga.config import load_config
@@ -23,6 +24,7 @@ from coga.repl_supervisor import EXPECTED_STEP_ENV, EXPECTED_TASK_ENV, SENTINEL_
 from coga.taskfile import join_task_body, read_blackboard, replace_blackboard
 from coga.tasks import list_tasks, resolve_task
 from coga.ticket import Ticket
+from coga.workflow import WorkflowError
 
 
 def _log_text(repo: Path, ref: str) -> str:
@@ -65,8 +67,11 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         description: tiny.
         steps:
           - name: implement
+            assignee: agent
           - name: pr
+            assignee: agent
           - name: merge
+            assignee: agent
         ---
 
         ## implement
@@ -92,9 +97,14 @@ def _make_task(
 ) -> tuple[str, Path]:
     cfg = load_config(repo)
     ref = create_task(
-        cfg=cfg, title="Work", workflow_name=workflow,
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status=status, force_directory=force_directory,
+        cfg=cfg,
+        title="Work",
+        workflow_name=workflow,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status=status,
+        force_directory=force_directory,
     )
     # File form: `ref["path"]` is the `tasks/<slug>.md` ticket file (it *is* the
     # ticket). Directory form (`force_directory=True`): it is the task
@@ -119,15 +129,10 @@ def _write_workflow_less_task(
     ticket_path = tasks / f"{slug}.md"
     ticket_path.write_text(dedent(f"""
         ---
-        slug: {slug}
         title: Work
         status: {status}
         owner: marc
-        human: marc
         agent: claude
-        assignee: claude
-        contexts: []
-        skills: []
         workflow: null
         ---
 
@@ -357,10 +362,7 @@ def _make_human_rewind_task(repo: Path, role: str) -> tuple[str, Path]:
         workflow_name="human-rewind",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        human="marc",
         agent="claude",
-        watchers=[],
         status="in_progress",
     )
     slug = created["slug"]
@@ -372,11 +374,10 @@ def _make_human_rewind_task(repo: Path, role: str) -> tuple[str, Path]:
 
 
 @pytest.mark.parametrize("status", ["active", "paused"])
-@pytest.mark.parametrize("role", ["human", "owner"])
 def test_bump_rewind_refuses_non_in_progress_human_target(
-    repo: Path, status: str, role: str
+    repo: Path, status: str
 ) -> None:
-    slug, task_path = _make_human_rewind_task(repo, role)
+    slug, task_path = _make_human_rewind_task(repo, "owner")
     ticket = Ticket.read(task_path)
     ticket.frontmatter["status"] = status
     ticket.write(task_path)
@@ -389,15 +390,12 @@ def test_bump_rewind_refuses_non_in_progress_human_target(
     ticket = Ticket.read(task_path)
     assert ticket.status == status
     assert ticket.step == "2 (implement)"
-    assert ticket.assignee == "claude"
+    assert derived_operator(repo, slug) == "claude"
     assert "rewound" not in _log_text(repo, slug)
 
 
-@pytest.mark.parametrize("role", ["human", "owner"])
-def test_bump_rewind_allows_in_progress_human_target(
-    repo: Path, role: str
-) -> None:
-    slug, task_path = _make_human_rewind_task(repo, role)
+def test_bump_rewind_allows_in_progress_human_target(repo: Path) -> None:
+    slug, task_path = _make_human_rewind_task(repo, "owner")
 
     result = CliRunner().invoke(app, ["bump", slug, "--backward"])
 
@@ -405,7 +403,37 @@ def test_bump_rewind_allows_in_progress_human_target(
     ticket = Ticket.read(task_path)
     assert ticket.status == "in_progress"
     assert ticket.step == "1 (review)"
-    assert ticket.assignee == "marc"
+    assert derived_operator(repo, slug) == "marc"
+
+
+def test_workflow_rejects_the_retired_human_role(repo: Path) -> None:
+    """`human` is rejected, not kept as a second spelling of `owner`."""
+    _write(
+        repo / "workflows" / "legacy-human.md",
+        """
+        ---
+        name: legacy-human
+        description: Uses the retired role token.
+        steps:
+          - name: review
+            assignee: human
+        ---
+
+        ## review
+        Review the change.
+        """,
+    )
+    cfg = load_config(repo)
+    with pytest.raises(WorkflowError, match="`human` was renamed to `owner`"):
+        create_task(
+            cfg=cfg,
+            title="Legacy",
+            workflow_name="legacy-human",
+            contexts=[],
+            owner="marc",
+            agent="claude",
+            status="in_progress",
+        )
 
 
 def test_bump_supervised_prints_handoff_hint_when_assignee_changes(repo: Path) -> None:
@@ -448,11 +476,13 @@ def test_bump_supervised_prints_chain_hint_on_agent_rotation(repo: Path) -> None
     _write_peer_review_workflow(repo)
     cfg = load_config(repo)
     ref = create_task(
-        cfg=cfg, title="W", workflow_name="peer",
+        cfg=cfg,
+        title="W",
+        workflow_name="peer",
         contexts=[],
-        owner="marc", assignee="claude",
-        human="marc", agent="claude",
-        watchers=[], status="in_progress",
+        owner="marc",
+        agent="claude",
+        status="in_progress",
     )
     slug = ref["slug"]
     runner = CliRunner()
@@ -514,15 +544,10 @@ def test_bump_supervised_allows_unfrozen_workflow_without_step(repo: Path) -> No
     ticket_path.write_text(dedent(
         """
         ---
-        slug: legacy
         title: Legacy
         status: in_progress
         owner: marc
-        human: marc
         agent: claude
-        assignee: claude
-        contexts: []
-        skills: []
         workflow: code
         ---
 
@@ -995,9 +1020,13 @@ def test_unblock_refuses_other_statuses(repo: Path) -> None:
 def _make_named_task(repo: Path, title: str) -> tuple[str, Path]:
     cfg = load_config(repo)
     ref = create_task(
-        cfg=cfg, title=title, workflow_name="code",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="in_progress",
+        cfg=cfg,
+        title=title,
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="in_progress",
     )
     return ref["slug"], ref["path"]
 
@@ -1175,8 +1204,7 @@ def test_task_creation_waits_until_held_child_release(
                 workflow_name="code",
                 contexts=[],
                 owner="marc",
-                assignee="claude",
-                watchers=[],
+                agent="claude",
                 status="active",
             )
         except BaseException as exc:
@@ -1305,6 +1333,71 @@ def test_slack_important_forwards_to_notification_post(
     assert "fee window closes" in calls[0]["message"]
 
 
+@pytest.mark.parametrize(
+    ("agent_field", "expected_agent"),
+    [("", "claude"), ("agent: codex\n", "codex")],
+)
+def test_bootstrap_slack_completion_attributes_configured_agent(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    agent_field: str,
+    expected_agent: str,
+) -> None:
+    config_path = repo / "coga.toml"
+    config_path.write_text(
+        config_path.read_text()
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+    )
+    ticket_path = repo / "bootstrap" / "completion-check" / "ticket.md"
+    _write(ticket_path, f"---\ntitle: Completion check\n{agent_field}---\n\nDone.\n")
+    before = ticket_path.read_bytes()
+    sentinel = repo / "bootstrap-command.done"
+    monkeypatch.setenv(SENTINEL_ENV, str(sentinel))
+    posts: list[str] = []
+    monkeypatch.setattr(
+        "coga.commands.slack.post",
+        lambda cfg, message, **kwargs: posts.append(message),
+    )
+
+    result = CliRunner().invoke(
+        app, ["slack", "--task", "bootstrap/completion-check", "--message", "finished"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert len(posts) == 1
+    assert f"{expected_agent} on *bootstrap/completion-check*" in posts[0]
+    assert f"[agent:{expected_agent}] slack: finished" in _log_text(
+        repo, "bootstrap/completion-check"
+    )
+    assert sentinel.read_text() == "bootstrap/completion-check\n"
+    assert ticket_path.read_bytes() == before
+
+
+@pytest.mark.parametrize("agent_field", ["agent: null", 'agent: ""', "agent: removed"])
+def test_bootstrap_slack_refuses_invalid_agent_without_completing(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, agent_field: str
+) -> None:
+    ticket_path = repo / "bootstrap" / "completion-check" / "ticket.md"
+    _write(ticket_path, f"---\ntitle: Completion check\n{agent_field}\n---\n\nDone.\n")
+    before = ticket_path.read_bytes()
+    sentinel = repo / "bootstrap-command.done"
+    monkeypatch.setenv(SENTINEL_ENV, str(sentinel))
+    monkeypatch.setattr(
+        "coga.commands.slack.post",
+        lambda *args, **kwargs: pytest.fail("invalid agent reached notification"),
+    )
+
+    result = CliRunner().invoke(
+        app, ["slack", "--task", "bootstrap/completion-check", "--message", "finished"]
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "agent" in result.output
+    assert not sentinel.exists()
+    assert _log_text(repo, "bootstrap/completion-check") == ""
+    assert ticket_path.read_bytes() == before
+
+
 # --- bump --message -----------------------------------------------------------
 
 
@@ -1351,7 +1444,7 @@ def test_bump_rejects_empty_message(repo: Path) -> None:
     assert result.exit_code == 2
 
 
-# --- bump assignee handoff ----------------------------------------------------
+# --- bump operator handoff ----------------------------------------------------
 
 
 def _write_assignee_workflow(repo: Path) -> None:
@@ -1366,7 +1459,7 @@ def _write_assignee_workflow(repo: Path) -> None:
           - name: implement
             assignee: agent
           - name: review
-            assignee: human
+            assignee: owner
           - name: signoff
             assignee: owner
         ---
@@ -1383,75 +1476,128 @@ def _write_assignee_workflow(repo: Path) -> None:
     )
 
 
-def test_bump_resolves_role_token_to_ticket_field(repo: Path) -> None:
+def test_bump_derives_the_operator_from_each_step_role(repo: Path) -> None:
     _write_assignee_workflow(repo)
     cfg = load_config(repo)
     ref = create_task(
-        cfg=cfg, title="W", workflow_name="review",
+        cfg=cfg,
+        title="W",
+        workflow_name="review",
         contexts=[],
-        owner="marc", assignee="claude",
-        human="marc", agent="claude",
-        watchers=[], status="in_progress",
+        owner="marc",
+        agent="claude",
+        status="in_progress",
     )
     slug = ref["slug"]
     task_path = ref["path"]
 
-    # Step 1 declared `assignee: agent` → resolved at create time.
-    t = Ticket.read(task_path)
-    assert t.assignee == "claude"
+    # Step 1 declares `assignee: agent` → the ticket's main agent.
+    assert derived_operator(repo, slug) == "claude"
 
-    # Bump into step 2 (assignee: human) → ticket.assignee = ticket.human.
+    # Bump into step 2 (`assignee: owner`) → the ticket's owner.
     runner = CliRunner()
     result = runner.invoke(app, ["bump", slug])
     assert result.exit_code == 0, result.output
     t = Ticket.read(task_path)
     assert t.step == "2 (review)"
-    assert t.assignee == "marc"
+    assert derived_operator(repo, slug) == "marc"
+    # Nothing was written to say so: the operator is derived on every read.
+    assert "assignee" not in t.frontmatter
     log = _log_text(repo, slug)
-    assert "→ assigned to marc" in log
+    assert "→ marc" in log
 
-    # Bump into step 3 (assignee: owner) → ticket.assignee = ticket.owner.
+    # Bump into step 3 (also `assignee: owner`) → same operator, no handoff.
     result = runner.invoke(app, ["bump", slug])
     assert result.exit_code == 0, result.output
-    t = Ticket.read(task_path)
-    assert t.assignee == "marc"  # owner == marc, no change → no handoff line
+    assert derived_operator(repo, slug) == "marc"
     log = _log_text(repo, slug)
-    # Only one handoff line so far (the human→owner step is a no-op handoff).
-    assert log.count("→ assigned to") == 1
+    assert log.count("→ marc") == 1
 
 
-def test_bump_no_assignee_declared_leaves_assignee_unchanged(repo: Path) -> None:
-    # The default `code` workflow in this fixture has no assignee declarations.
-    slug, task_path = _make_task(repo)
+def test_bump_omitted_role_inherits_the_preceding_declaration(repo: Path) -> None:
+    """A step without `assignee:` inherits the nearest preceding declaration.
+
+    Before any declaration the role is `owner`, so a wholly role-less workflow
+    is an owner-held workflow end to end.
+    """
+    _write(
+        repo / "workflows" / "inherit.md",
+        """
+        ---
+        name: inherit
+        description: Roles are declared once and then inherited.
+        steps:
+          - name: triage
+          - name: build
+            assignee: agent
+          - name: keep-building
+          - name: sign-off
+            assignee: owner
+        ---
+
+        ## triage
+        Decide what to do.
+
+        ## build
+        Build it.
+
+        ## keep-building
+        Keep building it.
+
+        ## sign-off
+        Sign off.
+        """,
+    )
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg,
+        title="Inherited roles",
+        workflow_name="inherit",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="in_progress",
+    )
+    slug = created["slug"]
     runner = CliRunner()
-    result = runner.invoke(app, ["bump", slug])
-    assert result.exit_code == 0, result.output
-    t = Ticket.read(task_path)
-    assert t.assignee == "claude"  # unchanged
-    log = _log_text(repo, slug)
-    assert "→ assigned to" not in log
+
+    # Step 1 precedes every declaration → owner.
+    assert derived_operator(repo, slug) == "marc"
+    # Step 2 declares `agent`.
+    assert runner.invoke(app, ["bump", slug]).exit_code == 0
+    assert derived_operator(repo, slug) == "claude"
+    # Step 3 omits its role and inherits step 2's `agent` — not a memory of who
+    # ran last, a scan of the frozen steps.
+    assert runner.invoke(app, ["bump", slug]).exit_code == 0
+    assert derived_operator(repo, slug) == "claude"
+    # Step 4 declares `owner` again.
+    assert runner.invoke(app, ["bump", slug]).exit_code == 0
+    assert derived_operator(repo, slug) == "marc"
+    assert "assignee" not in Ticket.read(created["path"]).frontmatter
 
 
-def test_bump_role_token_with_missing_field_fails_loud(repo: Path) -> None:
+def test_bump_role_token_with_missing_owner_fails_loud(repo: Path) -> None:
     _write_assignee_workflow(repo)
     cfg = load_config(repo)
     ref = create_task(
-        cfg=cfg, title="W", workflow_name="review",
+        cfg=cfg,
+        title="W",
+        workflow_name="review",
         contexts=[],
-        owner="marc", assignee="claude",
-        human="marc", agent="claude",
-        watchers=[], status="in_progress",
+        owner="marc",
+        agent="claude",
+        status="in_progress",
     )
-    # Hand-edit the ticket to remove the `human` field, then bump into the
-    # human step. Bump must refuse rather than silently skip.
+    # Hand-edit the ticket to remove `owner:`, then bump into the owner step.
+    # Bump must refuse rather than silently skip the human gate.
     t = Ticket.read(ref["path"])
-    del t.frontmatter["human"]
+    del t.frontmatter["owner"]
     t.write(ref["path"])
 
     runner = CliRunner()
     result = runner.invoke(app, ["bump", ref["slug"]])
     assert result.exit_code == 2, result.output
-    assert "human" in result.output
+    assert "owner" in result.output
 
 
 def _add_codex_agent(repo: Path) -> None:
@@ -1503,17 +1649,18 @@ def test_other_agent_resolves_to_the_peer_on_bump(repo: Path) -> None:
     _write_peer_review_workflow(repo)
     cfg = load_config(repo)
     ref = create_task(
-        cfg=cfg, title="W", workflow_name="peer",
+        cfg=cfg,
+        title="W",
+        workflow_name="peer",
         contexts=[],
-        owner="marc", assignee="claude",
-        human="marc", agent="claude",
-        watchers=[], status="in_progress",
+        owner="marc",
+        agent="claude",
+        status="in_progress",
     )
     slug, task_path = ref["slug"], ref["path"]
 
     # Step 1 `assignee: agent` → the coder (claude).
-    t = Ticket.read(task_path)
-    assert t.assignee == "claude"
+    assert derived_operator(repo, slug) == "claude"
 
     # Bump into peer-review (`assignee: other-agent`) → codex, the agent
     # that is not the ticket's `agent: claude`.
@@ -1522,20 +1669,23 @@ def test_other_agent_resolves_to_the_peer_on_bump(repo: Path) -> None:
     assert result.exit_code == 0, result.output
     t = Ticket.read(task_path)
     assert t.step == "2 (peer-review)"
-    assert t.assignee == "codex"
-    assert "→ assigned to codex" in _log_text(repo, slug)
+    assert derived_operator(repo, slug) == "codex"
+    assert "assignee" not in t.frontmatter
+    assert "→ codex" in _log_text(repo, slug)
 
 
-def test_bump_rewind_resolves_target_step_assignee(repo: Path) -> None:
+def test_bump_rewind_rederives_the_target_step_operator(repo: Path) -> None:
     _add_codex_agent(repo)
     _write_peer_review_workflow(repo)
     cfg = load_config(repo)
     ref = create_task(
-        cfg=cfg, title="W", workflow_name="peer",
+        cfg=cfg,
+        title="W",
+        workflow_name="peer",
         contexts=[],
-        owner="marc", assignee="claude",
-        human="marc", agent="claude",
-        watchers=[], status="in_progress",
+        owner="marc",
+        agent="claude",
+        status="in_progress",
     )
     slug, task_path = ref["slug"], ref["path"]
 
@@ -1544,15 +1694,17 @@ def test_bump_rewind_resolves_target_step_assignee(repo: Path) -> None:
     assert result.exit_code == 0, result.output
     t = Ticket.read(task_path)
     assert t.step == "2 (peer-review)"
-    assert t.assignee == "codex"
+    assert derived_operator(repo, slug) == "codex"
 
     result = runner.invoke(app, ["bump", slug, "--to", "1"])
     assert result.exit_code == 0, result.output
     t = Ticket.read(task_path)
     assert t.step == "1 (implement)"
-    assert t.assignee == "claude"
+    # A rewind restores the position; routing follows from the frozen role
+    # again, so there is no copied assignment left to go stale.
+    assert derived_operator(repo, slug) == "claude"
     log = _log_text(repo, slug)
-    assert "rewound to step 1 (implement) → assigned to claude" in log
+    assert "rewound to step 1 (implement) → claude" in log
 
 
 def test_other_agent_flips_with_the_coder(repo: Path) -> None:
@@ -1562,20 +1714,21 @@ def test_other_agent_flips_with_the_coder(repo: Path) -> None:
     _write_peer_review_workflow(repo)
     cfg = load_config(repo)
     ref = create_task(
-        cfg=cfg, title="W", workflow_name="peer",
+        cfg=cfg,
+        title="W",
+        workflow_name="peer",
         contexts=[],
-        owner="marc", assignee="codex",
-        human="marc", agent="codex",
-        watchers=[], status="in_progress",
+        owner="marc",
+        agent="codex",
+        status="in_progress",
     )
     runner = CliRunner()
     result = runner.invoke(app, ["bump", ref["slug"]])
     assert result.exit_code == 0, result.output
-    t = Ticket.read(ref["path"])
-    assert t.assignee == "claude"
+    assert derived_operator(repo, ref["slug"]) == "claude"
 
 
-def test_other_agent_step_one_resolves_at_create_time(repo: Path) -> None:
+def test_other_agent_step_one_resolves_from_the_frozen_role(repo: Path) -> None:
     _add_codex_agent(repo)
     _write(
         repo / "workflows" / "peer-first.md",
@@ -1594,29 +1747,40 @@ def test_other_agent_step_one_resolves_at_create_time(repo: Path) -> None:
     )
     cfg = load_config(repo)
     ref = create_task(
-        cfg=cfg, title="W", workflow_name="peer-first",
+        cfg=cfg,
+        title="W",
+        workflow_name="peer-first",
         contexts=[],
-        owner="marc", assignee="claude",
-        human="marc", agent="claude",
-        watchers=[], status="in_progress",
+        owner="marc",
+        agent="claude",
+        status="in_progress",
     )
-    t = Ticket.read(ref["path"])
-    assert t.assignee == "codex"
+    assert derived_operator(repo, ref["slug"]) == "codex"
 
 
 def test_other_agent_fails_loud_without_an_inferred_peer(repo: Path) -> None:
     # The base fixture configures only `claude`, so there is no peer to pick.
     _write_peer_review_workflow(repo)
     cfg = load_config(repo)
-    with pytest.raises(AssigneeResolutionError, match="exactly two configured"):
+    with pytest.raises(OperatorResolutionError, match="exactly two configured"):
         resolve_other_agent(cfg, "claude")
 
 
 def test_other_agent_malformed_ticket_agent_fails_loud(repo: Path) -> None:
     _add_codex_agent(repo)
     cfg = load_config(repo)
-    with pytest.raises(AssigneeResolutionError, match="exactly two configured"):
+    with pytest.raises(OperatorResolutionError, match="non-empty agent name"):
         resolve_other_agent(cfg, ["claude"])  # type: ignore[arg-type]
+
+
+def test_other_agent_unconfigured_main_agent_fails_loud(repo: Path) -> None:
+    # `other-agent` is resolved *relative to* the ticket's main agent, so a main
+    # agent configuration no longer declares is a routing error to fix — never a
+    # reason to pick some other peer.
+    _add_codex_agent(repo)
+    cfg = load_config(repo)
+    with pytest.raises(OperatorResolutionError, match="not a configured agent type"):
+        resolve_other_agent(cfg, "gone")
 
 
 def test_other_agent_uses_declared_peer_with_three_agents(repo: Path) -> None:
@@ -1632,13 +1796,17 @@ def test_other_agent_uses_declared_peer_with_three_agents(repo: Path) -> None:
     cfg = load_config(repo)
     _write_peer_review_workflow(repo)
     ref = create_task(
-        cfg=cfg, title="W", workflow_name="peer", contexts=[],
-        owner="marc", assignee="claude", human="marc", agent="claude",
-        watchers=[], status="in_progress",
+        cfg=cfg,
+        title="W",
+        workflow_name="peer",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="in_progress",
     )
     result = CliRunner().invoke(app, ["bump", ref["slug"]])
     assert result.exit_code == 0, result.output
-    assert Ticket.read(ref["path"]).assignee == "codex"
+    assert derived_operator(repo, ref["slug"]) == "codex"
 
 
 def test_other_agent_three_agents_names_peer_fix(repo: Path) -> None:
@@ -1650,7 +1818,7 @@ def test_other_agent_three_agents_names_peer_fix(repo: Path) -> None:
     )
     cfg = load_config(repo)
     with pytest.raises(
-        AssigneeResolutionError,
+        OperatorResolutionError,
         match=r'add peer = "<type>" to \[agents\.claude\]',
     ):
         resolve_other_agent(cfg, "claude")
@@ -1681,9 +1849,13 @@ def _strand_on_a_third_agent(repo: Path) -> tuple[str, Path]:
     _write_peer_review_workflow(repo)
     cfg = load_config(repo)
     ref = create_task(
-        cfg=cfg, title="W", workflow_name="peer", contexts=[],
-        owner="marc", assignee="claude", human="marc", agent="claude",
-        watchers=[], status="in_progress",
+        cfg=cfg,
+        title="W",
+        workflow_name="peer",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="in_progress",
     )
     slug, task_path = ref["slug"], ref["path"]
     result = CliRunner().invoke(app, ["bump", slug])
@@ -1713,7 +1885,6 @@ def test_unresolvable_peer_refuses_bump_without_advancing_the_ticket(
 
     t = Ticket.read(task_path)
     assert t.step == "2 (peer-review)"
-    assert t.assignee == "codex"
     assert "3 (signoff)" not in _log_text(repo, slug)
 
 
@@ -1737,15 +1908,10 @@ def test_bump_freezes_bare_string_workflow_then_advances(repo: Path) -> None:
     (legacy / "ticket.md").write_text(dedent(
         """
         ---
-        slug: legacy
         title: Legacy
         status: in_progress
         owner: marc
-        human: marc
         agent: claude
-        assignee: claude
-        contexts: []
-        skills: []
         workflow: code
         ---
 
@@ -1766,17 +1932,19 @@ def test_bump_handoff_appears_in_slack_text(repo: Path) -> None:
     _write_assignee_workflow(repo)
     cfg = load_config(repo)
     ref = create_task(
-        cfg=cfg, title="W", workflow_name="review",
+        cfg=cfg,
+        title="W",
+        workflow_name="review",
         contexts=[],
-        owner="marc", assignee="claude",
-        human="marc", agent="claude",
-        watchers=[], status="in_progress",
+        owner="marc",
+        agent="claude",
+        status="in_progress",
     )
     runner = CliRunner()
     result = runner.invoke(app, ["bump", ref["slug"]])
     assert result.exit_code == 0, result.output
     # Echo to stdout includes the same handoff phrasing as the slack text.
-    assert "→ assigned to marc" in result.output
+    assert "→ marc" in result.output
 
 
 # --- show ---------------------------------------------------------------------
@@ -1864,9 +2032,14 @@ def test_status_narrow_terminal_keeps_each_task_on_one_line(
 ) -> None:
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="anything", workflow_name="code",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="active", slug_override="t1",
+        cfg=cfg,
+        title="anything",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+        slug_override="t1",
     )
     monkeypatch.setenv("COLUMNS", "60")
     runner = CliRunner()
@@ -1898,14 +2071,24 @@ def _write_recurring_template(repo: Path, name: str = "foo") -> None:
 def test_status_renders_recurring_tasks_as_normal_rows(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="Normal", workflow_name="code", contexts=[],
-        owner="marc", assignee="claude",
-        watchers=[], status="active", slug_override="normal-task",
+        cfg=cfg,
+        title="Normal",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+        slug_override="normal-task",
     )
     create_task(
-        cfg=cfg, title="Recurring", workflow_name="code", contexts=[],
-        owner="marc", assignee="claude",
-        watchers=[], status="active", slug_override="recurring/foo",
+        cfg=cfg,
+        title="Recurring",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+        slug_override="recurring/foo",
     )
     _write_recurring_template(repo, "foo")
     result = CliRunner().invoke(app, ["status"])
@@ -1938,9 +2121,14 @@ def test_status_shows_templates_even_without_instantiated_tasks(repo: Path) -> N
 def test_status_hides_templates_footer_outside_recurring_scope(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="Other", workflow_name="code", contexts=[],
-        owner="marc", assignee="claude",
-        watchers=[], status="active", slug_override="marketing/other",
+        cfg=cfg,
+        title="Other",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+        slug_override="marketing/other",
     )
     _write_recurring_template(repo, "foo")
     result = CliRunner().invoke(app, ["status", "marketing"])
@@ -1954,9 +2142,14 @@ def test_status_hides_templates_footer_outside_recurring_scope(repo: Path) -> No
 def test_status_does_not_show_title_column(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="A distinctive ticket title", workflow_name="code",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="active", slug_override="t1",
+        cfg=cfg,
+        title="A distinctive ticket title",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+        slug_override="t1",
     )
     runner = CliRunner()
     result = runner.invoke(app, ["status"])
@@ -2043,14 +2236,24 @@ def test_status_shows_done_tasks_with_all(repo: Path) -> None:
 def test_status_hides_done_by_default_without_deleting(repo: Path) -> None:
     cfg = load_config(repo)
     active = create_task(
-        cfg=cfg, title="Active", workflow_name="code", contexts=[],
-        owner="marc", assignee="claude",
-        watchers=[], status="active", slug_override="active-task",
+        cfg=cfg,
+        title="Active",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+        slug_override="active-task",
     )
     done = create_task(
-        cfg=cfg, title="Finished", workflow_name="code", contexts=[],
-        owner="marc", assignee="claude",
-        watchers=[], status="done", slug_override="finished-task",
+        cfg=cfg,
+        title="Finished",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="done",
+        slug_override="finished-task",
     )
     runner = CliRunner()
 
@@ -2068,9 +2271,14 @@ def test_status_hides_done_by_default_without_deleting(repo: Path) -> None:
 def test_status_all_includes_done_tasks(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="Finished", workflow_name="code", contexts=[],
-        owner="marc", assignee="claude",
-        watchers=[], status="done", slug_override="finished-task",
+        cfg=cfg,
+        title="Finished",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="done",
+        slug_override="finished-task",
     )
 
     result = CliRunner().invoke(app, ["status", "--all"])
@@ -2084,18 +2292,33 @@ def test_status_hides_canceled_by_default_and_all_reports_terminal_totals(
 ) -> None:
     cfg = load_config(repo)
     create_task(
-        cfg=cfg, title="Active", workflow_name="code", contexts=[],
-        owner="marc", assignee="claude", watchers=[], status="active",
+        cfg=cfg,
+        title="Active",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
         slug_override="active-task",
     )
     done = create_task(
-        cfg=cfg, title="Finished", workflow_name="code", contexts=[],
-        owner="marc", assignee="claude", watchers=[], status="done",
+        cfg=cfg,
+        title="Finished",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="done",
         slug_override="finished-task",
     )
     canceled = create_task(
-        cfg=cfg, title="Declined", workflow_name="code", contexts=[],
-        owner="marc", assignee="claude", watchers=[], status="canceled",
+        cfg=cfg,
+        title="Declined",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="canceled",
         slug_override="declined-task",
     )
     runner = CliRunner()
@@ -2145,14 +2368,24 @@ def test_status_includes_updated_column(repo: Path) -> None:
 def test_status_default_orders_by_updated_desc(repo: Path) -> None:
     cfg = load_config(repo)
     older = create_task(
-        cfg=cfg, title="older", workflow_name="code",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="active", slug_override="aaa-old",
+        cfg=cfg,
+        title="older",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+        slug_override="aaa-old",
     )
     newer = create_task(
-        cfg=cfg, title="newer", workflow_name="code",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="active", slug_override="zzz-new",
+        cfg=cfg,
+        title="newer",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+        slug_override="zzz-new",
     )
     _set_log_timestamp(repo, older["slug"], "2026-01-01 09:00")
     _set_log_timestamp(repo, newer["slug"], "2026-04-30 17:00")
@@ -2169,9 +2402,14 @@ def test_status_order_by_slug_is_alphabetical(repo: Path) -> None:
     cfg = load_config(repo)
     for slug in ("zeta", "alpha", "mu"):
         create_task(
-            cfg=cfg, title=slug, workflow_name="code",
-            contexts=[], owner="marc", assignee="claude",
-            watchers=[], status="active", slug_override=slug,
+            cfg=cfg,
+            title=slug,
+            workflow_name="code",
+            contexts=[],
+            owner="marc",
+            agent="claude",
+            status="active",
+            slug_override=slug,
         )
     runner = CliRunner()
     result = runner.invoke(app, ["status", "--order-by", "slug"])
@@ -2186,9 +2424,14 @@ def test_status_reverse_flips_order(repo: Path) -> None:
     cfg = load_config(repo)
     for slug in ("alpha", "zeta"):
         create_task(
-            cfg=cfg, title=slug, workflow_name="code",
-            contexts=[], owner="marc", assignee="claude",
-            watchers=[], status="active", slug_override=slug,
+            cfg=cfg,
+            title=slug,
+            workflow_name="code",
+            contexts=[],
+            owner="marc",
+            agent="claude",
+            status="active",
+            slug_override=slug,
         )
     runner = CliRunner()
     result = runner.invoke(app, ["status", "--order-by", "slug", "--reverse"])
@@ -2206,14 +2449,24 @@ def test_status_rejects_unknown_order_by(repo: Path) -> None:
 def test_status_tasks_without_log_sort_to_end(repo: Path) -> None:
     cfg = load_config(repo)
     has_log = create_task(
-        cfg=cfg, title="logged", workflow_name="code",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="active", slug_override="zzz-logged",
+        cfg=cfg,
+        title="logged",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+        slug_override="zzz-logged",
     )
     no_log = create_task(
-        cfg=cfg, title="no log", workflow_name="code",
-        contexts=[], owner="marc", assignee="claude",
-        watchers=[], status="active", slug_override="aaa-nolog",
+        cfg=cfg,
+        title="no log",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+        slug_override="aaa-nolog",
     )
     _set_log_timestamp(repo, has_log["slug"], "2026-04-30 17:00")
     # Strip every global-log line tagged for the no-log task, so it has no
@@ -2237,3 +2490,37 @@ def test_status_tasks_without_log_sort_to_end(repo: Path) -> None:
     result = runner.invoke(app, ["status", "--reverse"])
     assert result.exit_code == 0, result.output
     assert result.output.index("zzz-logged") < result.output.index("aaa-nolog")
+
+
+def test_an_override_does_not_change_who_other_agent_is_relative_to(
+    repo: Path,
+) -> None:
+    """The retained tradeoff: `other-agent` is relative to the *ticket's* agent.
+
+    An ephemeral `--agent codex` selects the worker for a launch; it never
+    becomes the ticket's main-agent choice. So a Claude-main ticket reviewed by
+    `other-agent` still routes that review to Codex — which is why
+    `--agent codex` can produce Codex -> Codex -> Claude. A human who wants Codex
+    to be the main agent chooses `agent: codex` through authoring.
+    """
+    _add_codex_agent(repo)
+    _write_peer_review_workflow(repo)
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="W",
+        workflow_name="peer",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="in_progress",
+    )
+    slug, path = ref["slug"], ref["path"]
+
+    assert derived_operator(repo, slug) == "claude"
+    assert CliRunner().invoke(app, ["bump", slug]).exit_code == 0
+    # Step 2 is `other-agent`, resolved against the ticket's own `agent: claude`.
+    assert derived_operator(repo, slug) == "codex"
+    ticket = Ticket.read(path)
+    assert ticket.agent == "claude"
+    assert "assignee" not in ticket.frontmatter

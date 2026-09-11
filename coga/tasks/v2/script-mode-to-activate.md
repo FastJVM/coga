@@ -1,13 +1,8 @@
 ---
-slug: v2/script-mode-to-activate
 title: script mode to activate
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
 ---
 

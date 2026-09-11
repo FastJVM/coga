@@ -1,13 +1,8 @@
 ---
-slug: ticket-specs-should-cite-symbols-not-line-numbers
 title: Ticket specs should cite symbols, not line numbers
 status: in_progress
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: codex
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -27,7 +22,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 2 (peer-review)
 ---
 

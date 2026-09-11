@@ -96,12 +96,12 @@ def retire(
     checkout = _cleanup_checkout(cfg, ref)
 
     try:
-        assignee = agent or _default_agent(cfg)
-        agent_type = cfg.agent_type(assignee)
+        main_agent = agent or _default_agent(cfg)
+        agent_type = cfg.agent_type(main_agent)
     except ConfigError as exc:
         _bail(str(exc))
     typer.echo(
-        f"Retire: using assignee {assignee} "
+        f"Retire: using main agent {main_agent} "
         f"(agent type {agent_type.name})"
     )
 
@@ -119,8 +119,7 @@ def retire(
             workflow_name="direct/body",
             contexts=[],
             owner=cfg.current_user,
-            assignee=assignee,
-            watchers=[],
+            agent=main_agent,
             status="active",
             slug_override=slug_override,
             description=_retire_body(ref.id_slug, checkout),

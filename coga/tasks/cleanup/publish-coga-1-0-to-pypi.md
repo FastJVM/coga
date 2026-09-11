@@ -1,13 +1,8 @@
 ---
-slug: cleanup/publish-coga-1-0-to-pypi
 title: Publish coga 1.0 to PyPI
 status: draft
 owner: nicktoper
-human: nick
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: brief-for-human
   steps:
@@ -16,11 +11,10 @@ workflow:
     assignee: agent
   - name: human-executes
     skills: []
-    assignee: human
+    assignee: owner
   - name: verify-read-only
     skills: []
     assignee: agent
-secrets: null
 step: 1 (brief-and-hand-off)
 ---
 

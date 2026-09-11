@@ -49,7 +49,6 @@ def post(
     *,
     task_path: Path | None = None,
     owner: str | None = None,
-    watchers: list[str] | None = None,
     image_url: str | None = None,
     important: bool = False,
     fatal: bool = True,
@@ -100,7 +99,6 @@ def post(
                 message,
                 task_path=task_path,
                 owner=owner,
-                watchers=watchers,
                 image_url=image_url,
                 important=important,
                 record_failure=record_failure,
@@ -134,7 +132,6 @@ def notify(
     *,
     kind: str,
     owner: str | None = None,
-    watchers: list[str] | None = None,
     task_path: Path | None = None,
     image_url: str | None = None,
     important: bool = False,
@@ -149,8 +146,8 @@ def notify(
     broadcaster.
 
     Everything else forwards to `post` unchanged: `important` picks the alert
-    destination, `image_url` and `owner`/`watchers` drive the `[project]
-    [owner]` formatting, and `fatal` keeps its `post` meaning. The outcome
+    destination, `image_url` and `owner` drive the `[project] [owner]`
+    formatting, and `fatal` keeps its `post` meaning. The outcome
     callers (`mark done` / `mark canceled`, and the recurring scan-error
     summary) announce something already written to disk or already reported,
     so they pass `fatal=False` and neither a delivery miss nor an unresolved
@@ -168,7 +165,6 @@ def notify(
         slack_text,
         task_path=task_path,
         owner=owner,
-        watchers=watchers,
         image_url=image_url,
         important=important,
         fatal=fatal,

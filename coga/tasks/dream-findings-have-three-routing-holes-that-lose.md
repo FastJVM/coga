@@ -1,13 +1,8 @@
 ---
-slug: dream-findings-have-three-routing-holes-that-lose
 title: Dream findings have three routing holes that lose work every run
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -28,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

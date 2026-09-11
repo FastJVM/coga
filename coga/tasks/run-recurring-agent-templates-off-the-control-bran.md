@@ -1,13 +1,8 @@
 ---
-slug: run-recurring-agent-templates-off-the-control-bran
 title: Run recurring agent templates off the control branch
 status: blocked
 owner: nicktoper
-human: nick
 agent: claude
-assignee: nick
-contexts: []
-skills: []
 workflow:
   name: code/design-then-implement
   steps:
@@ -36,7 +31,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (design)
 ---
 

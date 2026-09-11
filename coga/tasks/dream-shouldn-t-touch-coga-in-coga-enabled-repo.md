@@ -1,15 +1,9 @@
 ---
-slug: dream-shouldn-t-touch-coga-in-coga-enabled-repo
 title: dream shouldn't touch coga in coga enabled repo
 status: canceled
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
-secrets: null
 ---
 
 ## Description

@@ -12,7 +12,7 @@ import typer
 
 from coga.config import ConfigError, load_config
 from coga.tasks import UnknownDirectoryError
-from coga.views import ORDER_BY_CHOICES, ViewError, render_status
+from coga.views import ORDER_BY_ALIASES, ORDER_BY_CHOICES, ViewError, render_status
 
 
 def status(
@@ -38,7 +38,12 @@ def status(
         "updated",
         "--order-by",
         "-o",
-        help=f"Sort column. One of: {', '.join(ORDER_BY_CHOICES)}.",
+        help=(
+            f"Sort column. One of: {', '.join(ORDER_BY_CHOICES)} "
+            f"(aliases: {', '.join(ORDER_BY_ALIASES)}). `operator` sorts the "
+            "column derived from each ticket's current workflow step — it is a "
+            "read-only view, not an assignment."
+        ),
     ),
     reverse: bool = typer.Option(
         False, "--reverse", "-r", help="Reverse sort order."

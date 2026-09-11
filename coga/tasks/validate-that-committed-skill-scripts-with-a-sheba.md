@@ -1,15 +1,9 @@
 ---
-slug: validate-that-committed-skill-scripts-with-a-sheba
 title: Validate that committed skill scripts with a shebang are executable
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow: code/with-review
-secrets: null
 ---
 
 ## Description

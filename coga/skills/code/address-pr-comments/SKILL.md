@@ -56,9 +56,10 @@ Confirm `gh auth status` succeeds. In the recorded worktree:
    linked worktree, or independent fallback clone), it first proves the open
    PR's actual head repository and OID, then fast-forwards a merely-behind
    checkout *before* activation and its final
-   ticket/config/prompt reads and assignee classification. Draft, paused, and
+   ticket/config/prompt reads and operator classification. Draft, paused, and
    blocked activation waits for all preflights; the committed feature ticket's
-   `(status, step, assignee)` must exactly match fresh control state, and the
+   status and persisted routing inputs (`owner`, `agent`, the frozen step roles,
+   and the current position) must exactly match fresh control state, and the
    combined lifecycle commit is built on the verified tip and moves the local
    branch with an expected-old-OID ref CAS; its captured OID is pushed only if
    both the control-state and exact remote-tip leases hold. A refusal

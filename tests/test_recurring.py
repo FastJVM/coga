@@ -20,7 +20,7 @@ from coga import recurring as recurring_module
 from coga import recurring_runner as recurring_cmd
 from coga.cli import app
 from coga.commands.launch import RecurringPeriodLaunchResult
-from coga.config import Config, load_config
+from coga.config import Config, load_config, parse_inline_secrets
 from coga.create import create_task
 from coga.logfile import append_log, task_log_lines
 from coga.paths import log_path, tasks_dir
@@ -45,7 +45,7 @@ from coga.ticket import Ticket
 from coga.validate import Issue, TaskValidationError
 from coga.workspace_discovery import discover_coga_repos
 
-from conftest import init_git_repo
+from conftest import derived_operator, init_git_repo
 
 
 def read_serviced_period(template_ticket: Path) -> str | None:
@@ -319,7 +319,6 @@ def _write_recurring_agent(
         schedule: "{schedule}"
         title: "{title}"
         workflow: {_AGENT_WORKFLOW}
-        assignee: claude
         owner: marc{extra_block}
         ---
 
@@ -419,7 +418,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         ---
         schedule: "0 9 * * 1"
         title: "Weekly deliverability check"
-        assignee: claude
         owner: marc
         ---
 
@@ -1150,7 +1148,6 @@ def test_recurring_all_services_one_checkout_per_remote(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -1545,7 +1542,6 @@ def test_create_does_not_duplicate_explicit_period_task_context(
         ---
         schedule: "0 9 * * 1"
         title: "Already lists period-task"
-        assignee: claude
         owner: marc
         contexts:
           - coga/period-task
@@ -1577,7 +1573,6 @@ def test_create_preserves_non_description_template_sections(repo: Path) -> None:
         ---
         schedule: "0 9 * * 1"
         title: "Has run config"
-        assignee: claude
         owner: marc
         state_keys:
         - cursor
@@ -1610,6 +1605,11 @@ def test_create_preserves_non_description_template_sections(repo: Path) -> None:
 
 
 def test_create_preserves_recurring_template_secrets(repo: Path) -> None:
+    """An explicitly empty template declaration reaches the period as "none".
+
+    Absent, `null`, and `[]` all mean "no secrets declared", so the period task
+    simply does not carry the key — and injects nothing either way.
+    """
     _write_recurring(
         repo,
         "locked-down",
@@ -1630,7 +1630,44 @@ def test_create_preserves_recurring_template_secrets(repo: Path) -> None:
     scan = scan_due(cfg, now=datetime(2026, 4, 27, 9, 0), allow_interactive=True)
     task = next(t for t in scan.tasks if t.template == "locked-down")
     ticket = Ticket.read(task.ref.path / "ticket.md")
-    assert ticket.secrets == []
+    assert "secrets" not in ticket.frontmatter
+    assert parse_inline_secrets(ticket.secrets) == []
+
+
+def test_create_preserves_a_nonempty_recurring_template_secret_list(
+    repo: Path,
+) -> None:
+    """A real declaration passes through with its ordering and refs intact."""
+    _write_recurring(
+        repo,
+        "needs-a-token",
+        """
+        ---
+        title: "Needs a token"
+        schedule: "0 9 * * 1"
+        secrets:
+          - REPORT_TOKEN: env:REPORT_TOKEN
+          - VAULT_KEY: op://vault/item/field
+        ---
+
+        ## Description
+
+        Run the report.
+        """,
+    )
+
+    cfg = load_config(repo)
+    scan = scan_due(cfg, now=datetime(2026, 4, 27, 9, 0), allow_interactive=True)
+    task = next(t for t in scan.tasks if t.template == "needs-a-token")
+    ticket = Ticket.read(task.ref.path / "ticket.md")
+    assert ticket.secrets == [
+        {"REPORT_TOKEN": "env:REPORT_TOKEN"},
+        {"VAULT_KEY": "op://vault/item/field"},
+    ]
+    assert parse_inline_secrets(ticket.secrets) == [
+        ("REPORT_TOKEN", "env:REPORT_TOKEN"),
+        ("VAULT_KEY", "op://vault/item/field"),
+    ]
 
 
 def test_scan_due_idempotent(repo: Path) -> None:
@@ -1670,7 +1707,6 @@ def test_scan_due_replaces_prior_period_done_task(repo: Path) -> None:
         ---
         schedule: "0 9 * * 1"
         title: "Weekly deliverability check"
-        assignee: claude
         owner: marc
         state_keys:
         - cursor
@@ -1946,7 +1982,6 @@ def test_due_orders_dream_last(repo: Path) -> None:
             ---
             schedule: "0 9 * * 1"
             title: "{name}"
-            assignee: claude
             owner: marc
             ---
 
@@ -1976,7 +2011,6 @@ def test_due_resuming_orphan_runs_before_fresh_dream(repo: Path) -> None:
             ---
             schedule: "0 9 * * 1"
             title: "{name}"
-            assignee: claude
             owner: marc
             ---
 
@@ -2421,6 +2455,64 @@ def test_template_rejects_delegate_combined_with_script(repo: Path) -> None:
         Template.load(repo / "recurring" / "delegate-check")
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("assignee", "codex"),
+        ("human", "marc"),
+        ("slug", "weekly-check"),
+        ("watchers", "[]"),
+    ],
+)
+def test_recurring_templates_reject_removed_metadata_before_creation(
+    repo: Path, field: str, value: str
+) -> None:
+    from coga.validate import run
+
+    config_path = repo / "coga.toml"
+    config_path.write_text(
+        config_path.read_text()
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+    )
+    _write_recurring(repo, "weekly-check", f"""
+        ---
+        schedule: "0 9 * * 1"
+        title: Weekly check
+        owner: marc
+        {field}: {value}
+        ---
+
+        ## Description
+
+        Check the weekly report.
+
+        <!-- coga:blackboard -->
+    """)
+    template_dir = repo / "recurring" / "weekly-check"
+    before = (template_dir / "ticket.md").read_bytes()
+    cfg = load_config(repo)
+    now = datetime(2026, 9, 7, 10)
+
+    with pytest.raises(RecurringError, match=field):
+        Template.load(template_dir, now=now)
+    with pytest.raises(RecurringError, match=field):
+        create_named(cfg, "weekly-check", now=now)
+
+    scan = scan_due(cfg, now=now, allow_interactive=True)
+    assert scan.tasks == []
+    assert len(scan.errors) == 1
+    assert scan.errors[0][0] == "weekly-check"
+    assert field in scan.errors[0][1]
+    issue = next(i for i in run(cfg).issues if i.kind == "bad-recurring-template")
+    assert issue.task == "recurring/weekly-check"
+    assert issue.severity == "error"
+    assert field in issue.message
+    assert "simplified ticket format removed" in issue.message
+    assert not (tasks_dir(cfg) / "recurring" / "weekly-check").exists()
+    assert not log_path(cfg).exists()
+    assert (template_dir / "ticket.md").read_bytes() == before
+
+
 def test_headless_scan_refuses_delegating_template_at_admission(
     repo: Path, capsys
 ) -> None:
@@ -2854,8 +2946,7 @@ def test_delegated_start_control_cas_rejects_a_remote_generation_race(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         slug_override="recurring/delegate-check",
         force_directory=True,
@@ -3027,8 +3118,7 @@ def test_delegated_completion_publishes_parent_cross_run_state(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         slug_override="recurring/delegate-check",
         force_directory=True,
@@ -3088,8 +3178,7 @@ def test_delegated_completion_refuses_a_concurrent_parent_state_edit(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         slug_override="recurring/delegate-check",
         force_directory=True,
@@ -3266,8 +3355,7 @@ def test_delegated_completion_control_cas_rejects_a_remote_generation_race(
         workflow_name="direct/body",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
         slug_override="recurring/delegate-check",
         force_directory=True,
@@ -3641,8 +3729,7 @@ def test_launch_due_tasks_skips_a_later_period_reaped_by_an_earlier_child(
             workflow_name="direct/body",
             contexts=[],
             owner="marc",
-            assignee="claude",
-            watchers=[],
+            agent="claude",
             status="active",
             slug_override=f"recurring/{name}",
             force_directory=True,
@@ -3704,7 +3791,6 @@ def test_script_backed_delegate_is_rejected_before_period_creation(
         """
         ---
         title: Scripted command
-        assignee: claude
         ---
 
         Run deterministically.
@@ -3920,6 +4006,7 @@ def test_scan_due_explains_removed_megalaunch_skill(repo: Path) -> None:
           - name: run
             skills:
               - coga/megalaunch/run
+            assignee: agent
         ---
         """,
     )
@@ -3931,7 +4018,6 @@ def test_scan_due_explains_removed_megalaunch_skill(repo: Path) -> None:
         schedule: "0 9 * * *"
         title: "Megalaunch"
         workflow: megalaunch
-        assignee: claude
         owner: marc
         ---
 
@@ -3959,7 +4045,6 @@ def test_scan_due_skips_malformed_schedule(repo: Path, capsys) -> None:
         ---
         schedule: "not a cron"
         title: "Bad cron"
-        assignee: claude
         owner: marc
         ---
 
@@ -3988,7 +4073,6 @@ def test_scan_due_rejects_non_five_field_year_scoped_schedule(
         ---
         schedule: "0 0 1 1 * * 2026"
         title: "Year-scoped"
-        assignee: claude
         owner: marc
         ---
 
@@ -4047,7 +4131,6 @@ def test_scan_due_ignores_leftover_mode_key(repo: Path, capsys) -> None:
         schedule: "0 9 * * *"
         title: "Daily auto"
         mode: auto
-        assignee: claude
         owner: marc
         ---
 
@@ -4173,7 +4256,6 @@ def test_scan_due_template_without_script_deduces_agent(
         ---
         schedule: "0 9 * * *"
         title: "No mode"
-        assignee: claude
         owner: marc
         ---
 
@@ -4202,7 +4284,6 @@ def test_template_deduction_unresolvable_workflow_is_agent(
         schedule: "0 9 * * *"
         title: "Ghost workflow"
         workflow: does/not-exist
-        assignee: claude
         owner: marc
         ---
 
@@ -4667,15 +4748,14 @@ def test_a_create_dropped_at_admission_launches_on_the_next_sweep(
     assert launched == ["recurring/weekly-check"]
 
 
-def test_watchdog_reminders_ping_ticket_owner_and_watchers(
+def test_watchdog_reminders_ping_the_ticket_owner(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg, ref = _in_progress_period(repo)
     ticket = Ticket.read(ref.ticket_path)
     ticket.frontmatter["owner"] = "nina"
-    ticket.frontmatter["watchers"] = ["lee"]
     ticket.write(ref.ticket_path)
-    cfg.slack_users.update({"nina": "U_OWNER", "lee": "U_WATCHER"})
+    cfg.slack_users.update({"nina": "U_OWNER"})
     recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
     messages: list[tuple[str, str]] = []
 
@@ -4699,7 +4779,8 @@ def test_watchdog_reminders_ping_ticket_owner_and_watchers(
     for url, message in messages:
         assert url == IMPORTANT_WEBHOOK
         assert "<@U_OWNER>" in message
-        assert "<@U_WATCHER>" in message
+        # The owner is the only person a post addresses; there is no cc trailer.
+        assert "(cc " not in message
         assert f"coga launch {ref.id_slug}" in message
 
 
@@ -4835,7 +4916,6 @@ def test_recurring_launch_syncs_period_task_and_high_water(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -4950,7 +5030,6 @@ def test_recurring_scan_replaces_stale_done_task_on_control(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -5025,7 +5104,6 @@ def test_recurring_scan_launches_a_create_that_autocrlf_rewrote_on_disk(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -5080,7 +5158,6 @@ def test_recurring_scan_replaces_a_stale_done_task_autocrlf_rewrote_on_disk(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -5147,7 +5224,6 @@ def test_recurring_launch_lands_create_without_ff_noise(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -5193,7 +5269,6 @@ def test_feature_branch_landing_preserves_remote_ledger_entries(git_repo) -> Non
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -5264,7 +5339,6 @@ def test_feature_branch_landing_does_not_publish_feature_only_template_log(
         ---
         schedule: "0 9 * * 1"
         title: "New weekly"
-        assignee: claude
         owner: marc
         ---
 
@@ -5309,7 +5383,6 @@ def test_recurring_launch_preserves_remote_ledger_entries_on_stale_main(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -5368,7 +5441,6 @@ def test_recurring_launch_does_not_resurrect_remote_deleted_period_from_stale_ma
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -5439,7 +5511,6 @@ def test_recurring_launch_explicit_rerun_bypasses_handled_period_ledger(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -5495,7 +5566,6 @@ def test_recurring_create_sync_restores_control_ledger_for_handled_period(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -5551,7 +5621,6 @@ def test_recurring_create_sync_failure_after_removing_stale_task_is_soft(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -5608,7 +5677,6 @@ def test_recurring_sweep_skips_task_removed_by_create_sync(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -5669,7 +5737,6 @@ def test_recurring_launch_does_not_revert_remote_done_period_from_stale_main(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -5740,7 +5807,6 @@ def test_recurring_launch_preserves_unpushed_control_branch_commits(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -5816,7 +5882,6 @@ def test_feature_branch_landing_preserves_midflight_remote_ledger_race(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -5888,7 +5953,6 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -5958,7 +6022,6 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -6032,7 +6095,6 @@ def test_named_launch_replaces_a_done_task_control_still_tracks(
         schedule: "0 9 * * 1"
         title: "Weekly check"
         owner: marc
-        assignee: claude
         ---
 
         ## Description
@@ -6097,7 +6159,6 @@ def test_named_replacement_does_not_launch_a_concurrent_generation(
         schedule: "0 9 * * 1"
         title: "Weekly check"
         owner: marc
-        assignee: claude
         ---
 
         ## Description
@@ -6192,7 +6253,6 @@ def test_recurring_launch_preserves_local_commit_when_control_fetch_fails(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -6230,13 +6290,13 @@ def test_recurring_launch_preserves_local_commit_when_control_fetch_fails(
     assert "title: Weekly check" in git_repo.git("show", f"HEAD:{ticket_rel}")
 
 
-def test_recurring_launch_defaults_assignee_to_default_agent(
+def test_recurring_launch_defaults_the_main_agent_to_the_configured_default(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A recurring task (Dream) with no template `assignee:` defaults to the
-    repo's default agent, not the human owner — otherwise `coga launch` cannot
-    resolve the assignee to an agent type. (The `direct/body` step's
-    `assignee: agent` resolves to that same default agent.)"""
+    """A recurring task (Dream) with no template `agent:` selects the repo's
+    configured default at creation — period tasks create straight into a live
+    status, so they make the same choice activation would, and `direct/body`'s
+    `assignee: agent` step then derives that agent."""
     monkeypatch.setattr(
         "coga.commands.launch.launch_recurring_period", lambda *a, **k: None
     )
@@ -6246,7 +6306,8 @@ def test_recurring_launch_defaults_assignee_to_default_agent(
     refs = list_tasks(cfg)
     ticket = Ticket.read(refs[0].path / "ticket.md")
     assert ticket.workflow["name"] == "direct/body"
-    assert ticket.assignee == "claude"
+    assert ticket.agent == "claude"
+    assert derived_operator(dream_repo, refs[0].id_slug) == "claude"
 
 
 def test_recurring_launch_is_idempotent(
@@ -6753,7 +6814,6 @@ def test_scan_due_force_defers_existing_done_period_until_launch(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly deliverability check"
-        assignee: claude
         owner: marc
         state_keys:
         - cursor
@@ -6804,7 +6864,6 @@ def test_scan_due_force_does_not_advance_live_prior_period_task(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly deliverability check"
-        assignee: claude
         owner: marc
         state_keys:
         - cursor
@@ -7001,7 +7060,6 @@ def test_recurring_force_restores_clean_stale_existing_task_from_control(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         state_keys:
         - cursor
@@ -7074,7 +7132,6 @@ def test_recurring_force_preserves_existing_local_task_state_during_force_sync(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -7131,7 +7188,6 @@ def test_recurring_force_snapshot_does_not_block_control_restore(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         state_keys:
         - cursor
@@ -7376,7 +7432,6 @@ def test_recurring_force_syncs_forced_existing_period_state(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -7572,8 +7627,10 @@ def test_recurring_launch_passes_ephemeral_agent_override(
 
     assert result.exit_code == 0, result.output
     assert seen == ["codex"]
+    # The override selects the worker for that one launch; the ticket's own
+    # main-agent choice is untouched.
     ticket = Ticket.read(dream_repo / "tasks" / "recurring" / "dream" / "ticket.md")
-    assert ticket.assignee == "claude"
+    assert ticket.agent == "claude"
 
 
 def test_recurring_rejects_unknown_agent_even_when_nothing_is_due(
@@ -7807,7 +7864,6 @@ def test_bare_recurring_skips_malformed_schedule_and_continues(
         ---
         schedule: "not a cron"
         title: "Bad cron"
-        assignee: claude
         owner: marc
         ---
 
@@ -7823,7 +7879,6 @@ def test_bare_recurring_skips_malformed_schedule_and_continues(
         ---
         schedule: "0 9 * * *"
         title: "Agent check"
-        assignee: claude
         owner: marc
         ---
 
@@ -7885,7 +7940,6 @@ def test_bare_recurring_continues_past_unfinished_interactive_task(
         ---
         schedule: "0 9 * * 1"
         title: "Second weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -8617,21 +8671,13 @@ def test_promote_moves_task_into_a_valid_recurring_template(
         "deliverability-review",
         """
         ---
-        slug: deliverability-review
         title: Deliverability review
         status: draft
         owner: marc
-        human: marc
         agent: claude
-        assignee: claude
-        watchers:
-        - dana
         contexts:
         - coga/period-task
-        skills: []
         workflow: null
-        secrets: null
-        script: null
         ---
 
         ## Description
@@ -8666,10 +8712,11 @@ def test_promote_moves_task_into_a_valid_recurring_template(
     assert template.schedule == "0 9 * * 1"
     assert template.frontmatter["title"] == "Deliverability review"
     assert template.frontmatter["owner"] == "marc"
-    assert template.frontmatter["assignee"] == "claude"
-    assert template.frontmatter["watchers"] == ["dana"]
-    # Task-only fields never reach a template; the creator re-derives them.
-    for dropped in ("slug", "status", "step", "human", "agent", "skills"):
+    # A main-agent choice is a real preference, so promotion keeps it rather
+    # than making every future period re-pick the configured default.
+    assert template.frontmatter["agent"] == "claude"
+    # Per-run state never reaches a template; the creator re-derives it.
+    for dropped in ("status", "step", "skills", "assignee", "human", "watchers"):
         assert dropped not in template.frontmatter
     # An empty/`null` passthrough is omitted rather than written as `null`.
     assert "workflow" not in template.frontmatter
@@ -8692,11 +8739,9 @@ def test_promote_reports_the_move_and_what_it_dropped(
         "weekly-audit",
         """
         ---
-        slug: weekly-audit
         title: Weekly audit
         status: active
         owner: marc
-        assignee: claude
         skills:
         - infra/tests
         workflow:
@@ -8705,6 +8750,7 @@ def test_promote_reports_the_move_and_what_it_dropped(
           - name: implement
             skills:
             - code/implement
+            assignee: agent
         step: 1 (implement)
         ---
 
@@ -8742,7 +8788,6 @@ def test_promote_names_template_and_preserves_attachments(
         repo / "tasks" / "old-slug" / "ticket.md",
         """
         ---
-        slug: old-slug
         title: Nightly drain
         status: draft
         owner: marc
@@ -8791,7 +8836,6 @@ def test_promote_preserves_sibling_symlinks_without_reading_their_targets(
         source / "ticket.md",
         """
         ---
-        slug: linked-task
         title: Linked task
         status: draft
         owner: marc
@@ -8840,7 +8884,6 @@ def test_promote_refuses_a_missing_collapsed_workflow_before_deleting_source(
         "stale-workflow",
         """
         ---
-        slug: stale-workflow
         title: Stale workflow
         status: done
         owner: marc
@@ -8849,6 +8892,7 @@ def test_promote_refuses_a_missing_collapsed_workflow_before_deleting_source(
           steps:
           - name: run
             skills: []
+            assignee: agent
         ---
 
         ## Description
@@ -8885,7 +8929,6 @@ def test_promote_refuses_an_existing_template_and_leaves_the_task(
         "weekly-check",
         """
         ---
-        slug: weekly-check
         title: Weekly check
         status: draft
         owner: marc
@@ -8930,7 +8973,6 @@ def test_promote_validates_the_cron_before_moving_anything(
         "bad-cron",
         """
         ---
-        slug: bad-cron
         title: Bad cron
         status: draft
         owner: marc
@@ -8967,7 +9009,6 @@ def test_promote_refuses_a_live_run(
         "mid-flight",
         """
         ---
-        slug: mid-flight
         title: Mid flight
         status: in_progress
         owner: marc
@@ -9002,11 +9043,9 @@ def test_promoted_template_creates_a_real_period_task(
         "monthly-report",
         """
         ---
-        slug: monthly-report
         title: Monthly report
         status: draft
         owner: marc
-        assignee: claude
         ---
 
         ## Description
@@ -9029,7 +9068,7 @@ def test_promoted_template_creates_a_real_period_task(
     assert outcome.ref.id_slug == "recurring/monthly-report"
     assert ticket.frontmatter["title"] == "Monthly report"
     assert ticket.frontmatter["status"] == "active"
-    assert ticket.frontmatter["assignee"] == "claude"
+    assert ticket.frontmatter["agent"] == "claude"
     assert "coga/period-task" in ticket.contexts
     assert "Write the monthly report." in ticket.body
     assert (
@@ -9056,7 +9095,6 @@ def test_serviced_period_survives_a_blackboard_rewrite(repo: Path) -> None:
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -9089,7 +9127,6 @@ def test_repeated_scans_in_one_period_service_it_once(repo: Path) -> None:
         ---
         schedule: "0 9 * * *"
         title: "Daily report"
-        assignee: claude
         owner: marc
         ---
 
@@ -9423,7 +9460,6 @@ def test_scan_due_reports_malformed_period_and_continues(
         ---
         schedule: "0 9 * * *"
         title: "Daily check"
-        assignee: claude
         owner: marc
         ---
 
@@ -9484,7 +9520,6 @@ def test_scan_due_compares_serviced_periods_after_schedule_change(repo: Path) ->
         ---
         schedule: "0 9 1 * *"
         title: "Monthly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -9641,7 +9676,6 @@ def test_feature_branch_landing_keeps_malformed_control_ledger_blocked_on_retry(
         schedule: "0 9 * * 1"
         title: "Weekly check"
         owner: marc
-        assignee: claude
         ---
 
         ## Description
@@ -9699,7 +9733,6 @@ def test_feature_branch_sweep_revalidates_malformed_control_ledger_on_retry(
         schedule: "0 9 * * 1"
         title: "Weekly check"
         owner: marc
-        assignee: claude
         ---
 
         ## Description
@@ -9771,7 +9804,6 @@ def test_feature_branch_create_lands_the_ledger_on_control(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -9812,7 +9844,6 @@ def test_control_ledger_landing_preserves_a_peer_append(git_repo, monkeypatch) -
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -10745,7 +10776,6 @@ def test_control_worktree_parks_hybrid_before_its_agent_handoff(
         schedule: "* * * * *"
         title: "Hybrid check"
         owner: marc
-        assignee: claude
         ---
 
         ## Description
@@ -10977,3 +11007,169 @@ def test_recurring_all_summary_omits_a_failed_off_control_repo(
 
     assert result.exit_code == 1
     assert "serviced from a temporary control worktree" not in result.output
+
+
+# --- the approved delegated-workflow bound ------------------------------------
+#
+# A delegated period represents *one bootstrap agent job*: the runner launches
+# the frozen target and completes the whole period on that target's done signal,
+# without advancing the period workflow. So its workflow must promise nothing
+# more — exactly one step, explicitly `assignee: agent`, no completion gate.
+
+
+def _write_delegated_shape_workflow(company: Path, steps: list[str]) -> None:
+    """Write a one-off workflow whose steps are given as raw YAML lines."""
+    lines = "\n".join(f"  {line}" for line in steps)
+    sections = "".join(
+        f"\n## {line.split(': ', 1)[1]}\n\nDo it.\n"
+        for line in steps
+        if line.startswith("- name: ")
+    )
+    (company / "workflows").mkdir(parents=True, exist_ok=True)
+    (company / "workflows" / "delegated-shape.md").write_text(
+        "---\nname: delegated-shape\n"
+        "description: A candidate workflow for a delegated period.\n"
+        f"steps:\n{lines}\n---\n{sections}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("steps", "reason"),
+    [
+        pytest.param(
+            ["- name: execute", "  assignee: other-agent"],
+            "assignee='other-agent'",
+            id="peer-step",
+        ),
+        pytest.param(
+            ["- name: execute", "  assignee: owner"],
+            "assignee='owner'",
+            id="owner-step",
+        ),
+        pytest.param(["- name: execute"], "assignee=omitted", id="omitted-role"),
+        pytest.param(
+            [
+                "- name: execute",
+                "  assignee: agent",
+                "- name: approve",
+                "  assignee: owner",
+            ],
+            "has 2 steps",
+            id="later-owner-gate",
+        ),
+        pytest.param(
+            [
+                "- name: execute",
+                "  assignee: agent",
+                "- name: again",
+                "  assignee: agent",
+            ],
+            "has 2 steps",
+            id="extra-agent-step",
+        ),
+        pytest.param(
+            ["- name: execute", "  assignee: agent", "  requires: pr"],
+            "requires='pr'",
+            id="completion-gate",
+        ),
+    ],
+)
+def test_delegated_template_refuses_an_unbounded_workflow_before_creation(
+    repo: Path, steps: list[str], reason: str
+) -> None:
+    """A refusal must leave no period task on disk to roll back."""
+    _write_delegated_shape_workflow(repo, steps)
+    _write_delegating_template(repo, "delegate-check")
+    template_path = repo / "recurring" / "delegate-check" / "ticket.md"
+    template_path.write_text(
+        template_path.read_text().replace(
+            "delegate: bootstrap/resolve-conflicts",
+            "delegate: bootstrap/resolve-conflicts\nworkflow: delegated-shape",
+        )
+    )
+
+    cfg = load_config(repo)
+    with pytest.raises(RecurringError) as excinfo:
+        create_named(cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0))
+    assert reason in str(excinfo.value)
+    assert "exactly one step" in str(excinfo.value)
+    assert not any(
+        ref.id_slug == "recurring/delegate-check" for ref in list_tasks(cfg)
+    )
+
+
+def test_delegated_template_accepts_a_custom_one_step_agent_workflow(
+    repo: Path,
+) -> None:
+    """The bound is a shape, not a name — `direct/body` is just the default."""
+    _write_delegated_shape_workflow(
+        repo, ["- name: sweep", "  assignee: agent"]
+    )
+    _write_delegating_template(repo, "delegate-check")
+    template_path = repo / "recurring" / "delegate-check" / "ticket.md"
+    template_path.write_text(
+        template_path.read_text().replace(
+            "delegate: bootstrap/resolve-conflicts",
+            "delegate: bootstrap/resolve-conflicts\nworkflow: delegated-shape",
+        )
+    )
+
+    cfg = load_config(repo)
+    outcome = create_named(cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0))
+
+    assert outcome.created is True
+    ticket = Ticket.read(outcome.ref.ticket_path)
+    assert ticket.workflow["name"] == "delegated-shape"
+    assert ticket.step == "1 (sweep)"
+
+
+def test_delegated_period_refuses_an_edited_snapshot_before_dispatch(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A snapshot edited after materialization is caught before any spawn."""
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0))
+    ticket = Ticket.read(outcome.ref.ticket_path)
+    assert isinstance(ticket.workflow, dict)
+    # Slip in a later owner gate the whole-period completion would skip.
+    ticket.workflow["steps"].append({"name": "approve", "assignee": "owner"})
+    ticket.write(outcome.ref.ticket_path)
+
+    launched: list[str] = []
+    monkeypatch.setattr(
+        "coga.commands.launch.launch_with_before_spawn",
+        lambda *a, **k: launched.append("spawned") or "done",
+    )
+
+    result = recurring_cmd._run_delegated_task(
+        cfg, outcome.ref, continue_after_timeout=False
+    )
+
+    assert (result.exit_code, result.kind) == (2, "refused")
+    assert launched == [], "no target may be spawned by a refused period"
+    # Untouched: no advance, no completion.
+    after = Ticket.read(outcome.ref.ticket_path)
+    assert after.status == "active"
+    assert after.step == "1 (execute)"
+
+
+def test_validate_reports_an_unbounded_delegated_period(repo: Path) -> None:
+    """The same violation is visible in a sweep, not only at dispatch."""
+    from coga.validate import run as validate_run
+
+    _write_delegating_template(repo, "delegate-check")
+    cfg = load_config(repo)
+    outcome = create_named(cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0))
+    ticket = Ticket.read(outcome.ref.ticket_path)
+    assert isinstance(ticket.workflow, dict)
+    ticket.workflow["steps"][0]["requires"] = "pr"
+    ticket.write(outcome.ref.ticket_path)
+
+    issue = next(
+        issue
+        for issue in validate_run(cfg).issues
+        if issue.kind == "unbounded-delegated-workflow"
+    )
+    assert issue.severity == "error"
+    assert issue.task == "recurring/delegate-check"

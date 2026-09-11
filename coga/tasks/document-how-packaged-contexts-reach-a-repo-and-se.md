@@ -1,14 +1,9 @@
 ---
-slug: document-how-packaged-contexts-reach-a-repo-and-se
 title: Document how packaged contexts reach a repo, and settle the packaged-only cli
   context
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -29,7 +24,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

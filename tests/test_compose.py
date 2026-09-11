@@ -16,6 +16,7 @@ from coga.compose import (
     compose_prompt_report,
     write_prompt_file,
 )
+from conftest import hold_by_agent, hold_by_owner
 from coga.config import load_config
 from coga.tasks import list_tasks, read_ticket, resolve_bootstrap
 from coga.ticket import Ticket
@@ -40,15 +41,10 @@ def _write_workflow_less_task(
     # blackboard.md / log.md (history lives in the repo-global log).
     (task_dir / "ticket.md").write_text(dedent(f"""
         ---
-        slug: {slug}
         title: {title}
         status: {status}
         owner: marc
-        human: marc
         agent: claude
-        assignee: claude
-        contexts: []
-        skills: []
         workflow: null
         ---
 
@@ -92,7 +88,9 @@ def repo(tmp_path: Path) -> Path:
           - name: implement
             skills:
               - infra/testing-conventions
+            assignee: agent
           - name: pr
+            assignee: agent
         ---
 
         ## pr
@@ -119,8 +117,7 @@ def test_compose_includes_all_sections(repo: Path) -> None:
         workflow_name="code/with-review",
         contexts=["email/payment-flow"],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     ref = list_tasks(cfg)[0]
@@ -160,8 +157,7 @@ def _conduct_step_task(repo: Path) -> tuple[object, object, object]:
         workflow_name="code/with-review",
         contexts=["email/payment-flow"],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     ref = list_tasks(cfg)[0]
@@ -331,8 +327,7 @@ def test_bundled_code_review_step_composes_address_pr_comments_skill(
         workflow_name=workflow_name,
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     ref = list_tasks(cfg)[0]
@@ -347,7 +342,7 @@ def test_bundled_code_review_step_composes_address_pr_comments_skill(
     assert review_step["skills"] == ["code/address-pr-comments"]
 
     ticket.frontmatter["step"] = f"{review_index} (review)"
-    ticket.frontmatter["assignee"] = "marc"
+    hold_by_owner(ticket)
     ticket.write(ref.ticket_path)
     prompt = compose_prompt(cfg, ref, read_ticket(ref))
 
@@ -366,8 +361,7 @@ def test_design_workflow_routes_a_cold_peer_review_before_owner_approval(
         workflow_name="code/design-then-implement",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     ref = list_tasks(cfg)[0]
@@ -384,7 +378,7 @@ def test_design_workflow_routes_a_cold_peer_review_before_owner_approval(
     assert steps[2]["assignee"] == "owner"
 
     ticket.frontmatter["step"] = "2 (evaluate-design)"
-    ticket.frontmatter["assignee"] = "codex"
+    hold_by_agent(ticket, "other-agent")
     ticket.write(ref.ticket_path)
     prompt = compose_prompt(cfg, ref, read_ticket(ref))
 
@@ -405,8 +399,7 @@ def test_design_prompts_remain_accurate_for_pre_evaluator_snapshots(
         workflow_name="code/design-then-implement",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     ref = list_tasks(cfg)[0]
@@ -424,7 +417,7 @@ def test_design_prompts_remain_accurate_for_pre_evaluator_snapshots(
 
     ticket = read_ticket(ref)
     ticket.frontmatter["step"] = "2 (review-design)"
-    ticket.frontmatter["assignee"] = "marc"
+    hold_by_owner(ticket)
     ticket.write(ref.ticket_path)
     owner_prompt = " ".join(
         compose_prompt(cfg, ref, read_ticket(ref)).split()
@@ -484,8 +477,7 @@ def test_stock_step_prompt_escalates_per_launch_mode(
         workflow_name=workflow_name,
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     ref = list_tasks(cfg)[0]
@@ -558,8 +550,7 @@ def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:
         workflow_name="code/with-review",
         contexts=[],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     ref = list_tasks(cfg)[0]
@@ -605,8 +596,7 @@ def test_compose_prompt_report_tracks_layers_and_refs(repo: Path) -> None:
         workflow_name="code/with-review",
         contexts=["email/payment-flow"],
         owner="marc",
-        assignee="claude",
-        watchers=[],
+        agent="claude",
         status="active",
     )
     ref = list_tasks(cfg)[0]
@@ -680,8 +670,6 @@ def test_compose_inline_step_instructions(repo: Path) -> None:
         workflow_name="code/with-review",
         contexts=[],
         owner=None,
-        assignee=None,
-        watchers=[],
         status="active",
     )
     ref = list_tasks(cfg)[0]

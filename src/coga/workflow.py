@@ -18,13 +18,21 @@ _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
 _HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
 
 
-# Role tokens a workflow step may declare under `assignee:`. `owner` /
-# `human` / `agent` resolve against the matching ticket field; `other-agent`
-# resolves to the ticket agent's explicit peer, or infers the only other
-# configured type when exactly one candidate remains. Ambiguity fails loud
-# rather than guessing (see coga.bump.resolve_other_agent).
+# Role tokens a workflow step may declare under `assignee:`. This is the whole
+# routing vocabulary: the frozen step's role, not a stored nickname, decides who
+# holds a ticket (see coga.bump.resolve_operator).
+#
+# - `owner` is a human handoff, resolving to the ticket's `owner:`.
+# - `agent` is the ticket's main-agent choice.
+# - `other-agent` is that agent's configured peer, or the only other configured
+#   type when exactly one candidate remains. Ambiguity fails loud rather than
+#   guessing (see coga.bump.resolve_other_agent).
+#
+# A step may also omit `assignee:`, which inherits the nearest preceding
+# declared role. The retired `human` token is rejected rather than kept as a
+# second spelling of `owner`; literal nicknames were never valid.
 VALID_ASSIGNEE_ROLES: frozenset[str] = frozenset(
-    {"owner", "human", "agent", "other-agent"}
+    {"owner", "agent", "other-agent"}
 )
 
 
@@ -123,9 +131,14 @@ def _parse_step(raw: Any, source: Path) -> WorkflowStep:
             )
     assignee = raw.get("assignee")
     if assignee is not None and assignee not in VALID_ASSIGNEE_ROLES:
+        hint = (
+            " — `human` was renamed to `owner`"
+            if assignee == "human"
+            else " (role token only — literal nicknames not allowed)"
+        )
         raise WorkflowError(
             f"{source}: step {name!r} assignee {assignee!r} must be one of "
-            f"{sorted(VALID_ASSIGNEE_ROLES)} (role token only — literal nicknames not allowed)"
+            f"{sorted(VALID_ASSIGNEE_ROLES)}{hint}"
         )
     requires = raw.get("requires")
     if requires is not None:

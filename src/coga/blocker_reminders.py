@@ -40,7 +40,6 @@ class BlockerReminder:
     status: str
     step: str
     owner: str | None
-    watchers: list[str]
     blocker: Blocker
     fingerprint: str
     reminded: bool
@@ -84,7 +83,6 @@ def scan_blocker_reminders(
                     status=ticket.status or "-",
                     step=ticket.step or "-",
                     owner=ticket.owner,
-                    watchers=ticket.watchers,
                     blocker=blocker,
                     fingerprint=fingerprint,
                     reminded=fingerprint in reminded,
@@ -154,7 +152,6 @@ def remind_blocked_tasks(cfg: Config, *, now: datetime | None = None) -> int:
             ),
             task_path=reminder.task_path,
             owner=owner,
-            watchers=reminder.watchers,
         )
         if record_reminder(
             cfg,

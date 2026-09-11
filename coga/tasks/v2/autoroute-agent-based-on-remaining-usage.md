@@ -1,13 +1,8 @@
 ---
-slug: v2/autoroute-agent-based-on-remaining-usage
 title: autoroute agent based on remaining usage
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
 ---
 

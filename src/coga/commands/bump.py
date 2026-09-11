@@ -8,10 +8,11 @@ import sys
 import typer
 
 from coga import git, pr_assist
+from coga.commands.common import current_operator
 from coga.bump import (
-    AssigneeResolutionError,
+    OperatorResolutionError,
     advance_step,
-    resolve_step_assignee,
+    resolve_operator,
     rewind_status_error,
 )
 from coga.config import Config, ConfigError, load_config
@@ -272,10 +273,11 @@ def bump(
         publication_succeeded = True
 
     if finish:
-        effective_assignee = assist.agent if assist is not None else ticket.assignee
-        finisher = effective_assignee or cfg.current_user
+        operator = current_operator(cfg, ref, ticket)
+        effective_agent = assist.agent if assist is not None else operator
+        finisher = effective_agent or cfg.current_user
         actor = (
-            f"agent:{effective_assignee}"
+            f"agent:{effective_agent}"
             if assist is not None
             else f"human:{cfg.current_user}"
         )
@@ -370,37 +372,42 @@ def bump(
         steps[current_idx - 1]["name"] if current_idx >= 1 else f"step {current_idx}"
     )
 
-    role = new_step.get("assignee")
-    new_assignee: str | None = None
-    target_assignee = ticket.assignee
-    if role is not None:
-        try:
-            resolved = resolve_step_assignee(cfg, ticket, role)
-        except AssigneeResolutionError as exc:
-            _bail(str(exc))
-        target_assignee = resolved
-        if resolved != ticket.assignee:
-            new_assignee = resolved
+    # Derive both the current and the prospective next operator before moving.
+    # Refusing here keeps a role that cannot resolve on this machine from
+    # advancing the ticket on disk with no audit entry and no sync — and the
+    # answer is only reported, never written: `advance_step` has no assignment
+    # to persist.
+    holder = current_operator(cfg, ref, ticket)
+    try:
+        next_operator = resolve_operator(cfg, ref, ticket, step_index=next_step)
+    except OperatorResolutionError as exc:
+        _bail(str(exc))
+        return
+    next_agent = next_operator.name if next_operator is not None else None
 
     # An active/paused rewind must still be resumable with `coga launch`.
-    # Normal launch intentionally refuses a human or unassigned handoff, while
-    # a forward bump intentionally requires `in_progress`; accepting this
-    # combination would therefore strand the target step. An already
-    # in-progress human handoff remains valid and can be completed normally.
+    # Normal launch intentionally refuses an owner handoff, while a forward bump
+    # intentionally requires `in_progress`; accepting this combination would
+    # therefore strand the target step. An already in-progress human handoff
+    # remains valid and can be completed normally.
     if (
         rewind
         and ticket.status in {"active", "paused"}
-        and (not target_assignee or target_assignee not in cfg.agents)
+        and (next_operator is None or next_operator.is_human)
     ):
-        target = repr(target_assignee) if target_assignee else "unassigned"
+        target = "unrouted" if next_operator is None else repr(next_operator.name)
         _bail(
             f"Cannot rewind {ref.id_slug} from {ticket.status!r} to step "
             f"{next_step} ({new_step_name}): the target is not agent-owned "
             f"({target}). Only an in_progress ticket can rewind to a human "
-            "or unassigned handoff."
+            "handoff."
         )
 
-    handoff = f" → assigned to {new_assignee}" if new_assignee else ""
+    handoff = (
+        f" → {next_agent}"
+        if next_agent is not None and next_agent != holder
+        else ""
+    )
 
     if rewind:
         actor = f"human:{cfg.current_user}"
@@ -411,14 +418,13 @@ def bump(
         finisher = assist.agent
         verb = "advanced"
     else:
-        actor = f"agent:{ticket.assignee}" if ticket.assignee else f"human:{cfg.current_user}"
-        finisher = ticket.assignee or cfg.current_user
+        actor = (
+            f"agent:{holder}"
+            if holder
+            else f"human:{cfg.current_user}"
+        )
+        finisher = holder or cfg.current_user
         verb = "advanced"
-
-    # The assignee the supervisor will see after this bump: the freshly
-    # resolved one if the step changed it, else the unchanged current assignee.
-    # Captured before `advance_step` so it can't be perturbed by the write.
-    next_assignee = new_assignee if new_assignee is not None else ticket.assignee
 
     try:
         advance_step(
@@ -432,7 +438,6 @@ def bump(
                 f"{prev_step_name} → {new_step_name} "
                 f"(step {next_step}/{total}){handoff}{suffix}"
             ),
-            new_assignee=new_assignee,
             notify_slack=message is not None,
             echo=f"{ref.id_slug}: step {next_step} ({new_step_name}){handoff}",
             rewind=rewind,
@@ -491,21 +496,17 @@ def bump(
     # surprising.
     if os.environ.get("COGA_SUPERVISED"):
         # Mirror `_harness_stop_reason` (launch.py): the supervisor chains
-        # whenever the next step's assignee is a configured agent — including an
-        # agent *rotation* (e.g. claude -> codex for peer review) — and only
-        # returns control to the caller when the next step hands off to a human
-        # (an assignee that is not a configured agent type) or is unassigned.
-        # The old `new_assignee is None` check wrongly framed every rotation as
-        # a stop, so a claude -> codex bump printed "will stop" while the
-        # supervisor actually chained.
-        will_chain = bool(next_assignee) and next_assignee in cfg.agents
-        if will_chain:
+        # whenever the next step routes to an agent — including a main <-> peer
+        # rotation — and only returns control to the caller when the next step
+        # hands off to the owner. The discriminator is the derived operator's
+        # role, so a claude -> codex rotation correctly reads as "will chain".
+        if next_operator is not None and next_operator.is_agent:
             hint = (
                 "Supervised launch: step done. coga launch will spawn "
                 "a fresh agent session for the next step."
             )
         else:
-            who = next_assignee or "an unassigned step"
+            who = "an unrouted step" if next_operator is None else next_operator.name
             hint = (
                 f"Supervised launch: step done. Next step hands off to {who} "
                 "— coga launch will stop and return to the caller."

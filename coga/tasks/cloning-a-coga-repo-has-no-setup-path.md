@@ -1,15 +1,11 @@
 ---
-slug: cloning-a-coga-repo-has-no-setup-path
 title: Cloning a coga repo has no setup path
 status: draft
 owner: nicktoper
-human: nick
 agent: claude
-assignee: claude
 contexts:
   - coga/cli
   - coga/codebase
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -30,7 +26,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 

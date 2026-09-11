@@ -1,13 +1,8 @@
 ---
-slug: v2/issue-inbox-slack
 title: issue-inbox-slack
 status: paused
 owner: zach
-human: zach
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:

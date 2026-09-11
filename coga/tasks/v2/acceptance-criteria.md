@@ -1,13 +1,8 @@
 ---
-slug: v2/acceptance-criteria
 title: acceptance-criteria
 status: paused
 owner: zach
-human: zach
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow:
   name: code/design-then-implement
   steps:

@@ -1,15 +1,9 @@
 ---
-slug: where-have-code-review-disappeared
 title: where have code review disappeared?
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
-secrets: null
 ---
 
 ## Description

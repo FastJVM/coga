@@ -1,13 +1,8 @@
 ---
-slug: v2/in-general-relay-files-should-be-easier-to-access
 title: in general relay files should be easier to access
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
 ---
 

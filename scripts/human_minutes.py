@@ -346,16 +346,16 @@ def parse_task(path: Path, *, tasks_dir: Path) -> TaskInfo:
         if path.name == "ticket.md"
         else relative.with_suffix("").as_posix()
     )
-    slug = frontmatter.get("slug") or fallback_slug
+    slug = fallback_slug
     dev_match = _DEV_SECTION_RE.search(text)
     dev = dev_match.group(1) if dev_match else ""
     pr_url = parse_pr_url(text)
     artifact = _parse_dev_url(_ARTIFACT_LINE_RE, dev) or pr_url
     branch = _parse_branch(dev)
+    # `owner` is the only human a ticket names now — the retired `human:` field
+    # always duplicated it.
     humans = tuple(
-        value
-        for key in ("human", "owner")
-        if (value := frontmatter.get(key))
+        value for key in ("owner",) if (value := frontmatter.get(key))
     )
     return TaskInfo(
         slug=slug,
@@ -375,7 +375,7 @@ def _frontmatter_scalars(text: str) -> dict[str, str]:
         return {}
     values: dict[str, str] = {}
     for line in text[4:end].splitlines():
-        match = re.match(r"^(slug|human|owner):\s*(.*?)\s*$", line)
+        match = re.match(r"^(owner):\s*(.*?)\s*$", line)
         if not match:
             continue
         value = match.group(2).strip().strip("\"'")

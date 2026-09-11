@@ -1,15 +1,9 @@
 ---
-slug: implement-the-include-allowlist-that-url-skill-upd
 title: Implement the include allowlist that url skill updates already promise
 status: draft
 owner: nicktoper
-human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
-skills: []
 workflow: null
-secrets: null
 ---
 
 ## Description

@@ -26,16 +26,11 @@ def _write(path: Path, text: str) -> None:
 
 TICKET = """
 ---
-slug: fix-retry-logic
 title: X
 status: draft
 mode: agent
 owner: marc
-human: marc
 agent: claude
-assignee: claude
-contexts: []
-skills: []
 workflow: null
 ---
 

@@ -51,10 +51,10 @@ generic end-of-command Coga subtree sweep is disabled on success and failure;
 only an exact assist publisher may commit child state. Before every agent
 spawn, launch rebuilds the environment from the fresh ticket's secret
 declarations; after each child boundary it reloads config, target, and ticket
-again before classifying the handoff. An explicit override assisting a human
-step expires when the script advances to a configured agent-owned step, so the
-durable assignee selects and is credited for that next deterministic or agent
-phase; the aligned checkout's strict publication capability continues through
+again before classifying the handoff. An explicit override assisting an owner-held
+step expires when the script advances the workflow to an agent step, so that
+step's derived operator selects and is credited for the next deterministic or
+agent phase; the aligned checkout's strict publication capability continues through
 that configured-agent chain.
 
 ### Recorded checkout, PR head, and the publication lease
@@ -78,7 +78,7 @@ cannot give a same-named fork head a feature-only publication transaction.
 A merely-behind recorded checkout is then fast-forwarded before the final
 config, ticket, skill-view, secrets, expected-step, and prompt reads for every
 resumable status, including paused and blocked tickets; launch reloads that
-state from the aligned tree before classifying its assignee, while preserving
+state from the aligned tree before deriving its operator, while preserving
 the exact task slug originally resolved from any user-supplied prefix. Every
 behind-checkout fast-forward rechecks the active branch and sampled HEAD
 immediately before merging, so a concurrent checkout switch cannot redirect
@@ -119,8 +119,14 @@ same revision. It rechecks the bytes after the network-backed publication
 lease is acquired,
 re-proves that the exact recorded PR URL authorized during alignment is
 unchanged and open at the exact leased remote OID, and requires the committed
-feature ticket's `(status, step, assignee)` lifecycle tuple to match a freshly
-fetched control copy. The lease also records the exact control-side task object
+feature ticket's `TicketRoutingState` — status plus the persisted routing
+inputs (`owner`, the main-agent choice, the frozen workflow's role
+declarations, and the current position) — to match a freshly fetched control
+copy. There is no cached assignment left to compare, so the lease compares what
+the assignment used to be derived from; a changed owner, main-agent choice, or
+role therefore still invalidates a same-step lease. It is computed from committed
+bytes without loading mutable config, so two checkouts of the same bytes cannot
+disagree because their `coga.local.toml` differs. The lease also records the exact control-side task object
 (ticket blob, or the directory tree including attachments), and every
 publication attempt requires that object to remain unchanged; even a
 same-lifecycle owner prose or attachment edit forces a fresh launch instead of
@@ -229,8 +235,8 @@ allowing required in-session state commands such as the blocked-resume
 `coga bump` or `coga mark paused/done/canceled` to acquire a fresh
 feature/control lease
 and re-prove the same PR is open immediately before their generated push,
-while attributing a blocker to the assisting agent rather than the human ticket
-assignee, without granting it to nested ordinary launches. If that resumed session exits
+while attributing a blocker to the assisting agent rather than the ticket's
+owner, without granting it to nested ordinary launches. If that resumed session exits
 with its ask still open, launch obtains a fresh lease and republishes the
 automatic `blocked` transition before notifying the owner; a lost reblock lease
 restores the prior ticket and log bytes. That fresh lease admits a retained
@@ -441,7 +447,7 @@ branches, but still rejects any divergent blob; lifecycle-only task/log commits
 do not satisfy the single-checkout branch's non-empty implementation guard.
 After the command, the successful `requires: pr` transition lands the updated
 ticket on control and republishes that transition commit to the PR branch, so
-its `step:` / `assignee:` state cannot conflict at merge. Launch teardown then
+its `step:` state cannot conflict at merge. Launch teardown then
 publishes the trailing usage-log commit to the already-open branch, keeping its
 remote and local tips aligned.
 

@@ -43,27 +43,12 @@ class SlackChannel:
     def __init__(self, cfg: Config) -> None:
         self.cfg = cfg
 
-    def render_text(
-        self,
-        message: str,
-        *,
-        owner: str | None = None,
-        watchers: list[str] | None = None,
-    ) -> str:
-        """Add Coga's project/owner prefix and mapped watcher cc trailer."""
+    def render_text(self, message: str, *, owner: str | None = None) -> str:
+        """Add Coga's project/owner prefix."""
         prefix = f"[{self.cfg.project_name}]"
         if owner:
             prefix += f" [{mention(self.cfg, owner)}]"
-        full_message = f"{prefix} {message}"
-        if watchers:
-            cc = [
-                f"<@{self.cfg.slack_users[w]}>"
-                for w in watchers
-                if w in self.cfg.slack_users
-            ]
-            if cc:
-                full_message += f" (cc {' '.join(cc)})"
-        return full_message
+        return f"{prefix} {message}"
 
     def webhook_for(self, *, important: bool) -> str | None:
         """The webhook an important / routine post should go to.
@@ -117,13 +102,12 @@ class SlackChannel:
         *,
         task_path: Path | None = None,
         owner: str | None = None,
-        watchers: list[str] | None = None,
         image_url: str | None = None,
         important: bool = False,
         record_failure: bool = True,
     ) -> None:
         """Post a message through Slack, or crash trying."""
-        full_message = self.render_text(message, owner=owner, watchers=watchers)
+        full_message = self.render_text(message, owner=owner)
 
         if not self.cfg.slack_enabled:
             sys.stderr.write(f"[slack] disabled (post suppressed): {full_message}\n")
