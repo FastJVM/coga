@@ -221,10 +221,19 @@ def bump(
                     else None
                 )
 
-    if assist_requested and (finish or message is not None):
+    # Every bump that will post live — the terminal outcome, or a step advance
+    # carrying --message — validates the notification configuration *before*
+    # the mutation. `mark_done` / `bump_step` announce with `fatal=False`, so
+    # an unresolved webhook found after the write is reported and dropped, not
+    # a crash; the only place it can still refuse is here. A recorded assist
+    # additionally exits with the no-sweep code so the strict checkout is left
+    # untouched.
+    if finish or message is not None:
         try:
             preflight_post(cfg)
         except typer.Exit:
+            if not assist_requested:
+                raise
             _bail(
                 f"Could not advance {ref.id_slug} from the recorded assist: "
                 "notification configuration must be valid before strict "

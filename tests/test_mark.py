@@ -678,6 +678,57 @@ def test_mark_paused_already_paused_errors(repo: Path) -> None:
 # --- mark done ----------------------------------------------------------------
 
 
+def _unset_selected_webhook(repo: Path) -> None:
+    """Keep Slack selected but make its webhook unresolvable.
+
+    `env:UNSET_SLACK_WEBHOOK` resolves to None, which is the shape of a repo
+    that selected Slack and forgot to export the variable.
+    """
+    config_path = repo / "coga.toml"
+    config_path.write_text(
+        config_path.read_text().replace(
+            "env:SLACK_WEBHOOK_URL", "env:UNSET_SLACK_WEBHOOK"
+        )
+    )
+
+
+def test_mark_done_preflights_notification_before_mutation(repo: Path) -> None:
+    """An ordinary `mark done` refuses a misconfigured live channel up front.
+
+    The outcome posts live with `fatal=False`, so a missing webhook found
+    after the write would be reported and dropped. The preflight is the only
+    gate that can still refuse, and it must not be reserved for assist paths.
+    """
+    slug, task_path = _make_task(repo, status="active")
+    _unset_selected_webhook(repo)
+    before = task_path.read_bytes()
+
+    result = CliRunner().invoke(app, ["mark", "done", slug])
+
+    assert result.exit_code == 1, result.output
+    assert "no webhook is configured" in result.output
+    assert task_path.read_bytes() == before
+    assert "task done" not in _read_log(repo)
+
+
+def test_mark_canceled_preflights_notification_before_mutation(
+    repo: Path,
+) -> None:
+    slug, task_path = _make_task(repo, status="active")
+    _unset_selected_webhook(repo)
+    before = task_path.read_bytes()
+
+    result = CliRunner().invoke(
+        app, ["mark", "canceled", slug, "--message", "Owner declined"]
+    )
+
+    assert result.exit_code == 1, result.output
+    assert "no webhook is configured" in result.output
+    assert task_path.read_bytes() == before
+    assert "canceled" not in _read_log(repo)
+
+
+
 def test_mark_done_from_active_clears_step(repo: Path) -> None:
     slug, task_path = _make_task(repo, status="active")
     runner = CliRunner()

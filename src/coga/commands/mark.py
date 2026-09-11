@@ -211,7 +211,7 @@ def done(
     )
     _require_message_nonempty(message)
     _check_transition(ref.id_slug, ticket.status, _DONE_FROM, "done")
-    _preflight_assist_outcome(cfg, ref, rollback)
+    _preflight_outcome(cfg, ref, rollback)
     assist = _acquire_assist_transition(cfg, ref, rollback)
 
     suffix = f" — {message}" if message else ""
@@ -337,7 +337,7 @@ def canceled(
     if not reason:
         _bail("--message cannot be empty")
     _check_transition(ref.id_slug, ticket.status, _CANCELED_FROM, "canceled")
-    _preflight_assist_outcome(cfg, ref, rollback)
+    _preflight_outcome(cfg, ref, rollback)
     assist = _acquire_assist_transition(cfg, ref, rollback)
 
     canceler = assist.agent if assist is not None else cfg.current_user
@@ -485,17 +485,25 @@ def _acquire_assist_transition(
     return assist
 
 
-def _preflight_assist_outcome(
+def _preflight_outcome(
     cfg: Config,
     ref: TaskRef,
     rollback: git.FileMutationRollback | None,
 ) -> None:
-    """Validate the live outcome channel before any publication lease."""
-    if rollback is None:
-        return
+    """Validate the live outcome channel before the mutation.
+
+    `done` and `canceled` post their outcome live with `fatal=False`, so an
+    unresolved webhook discovered after the write is reported and dropped
+    rather than crashing the session-ending command. This is therefore the
+    one place a misconfigured channel can still refuse — for every outcome
+    command, not only a recorded assist. The assist path exits with the
+    no-sweep code so the strict checkout stays untouched.
+    """
     try:
         preflight_post(cfg)
     except typer.Exit:
+        if rollback is None:
+            raise
         _bail(
             f"Could not complete {ref.id_slug} from the recorded assist: "
             "notification configuration must be valid before strict state "

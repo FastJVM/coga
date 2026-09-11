@@ -591,6 +591,71 @@ def test_bump_on_final_step_uses_mark_done_notification_shape(
     assert kwargs["task_path"] == task_path
 
 
+def _unset_selected_webhook(repo: Path) -> None:
+    """Keep Slack selected but make its webhook unresolvable.
+
+    `env:UNSET_SLACK_WEBHOOK` resolves to None, which is the shape of a repo
+    that selected Slack and forgot to export the variable.
+    """
+    config_path = repo / "coga.toml"
+    config_path.write_text(
+        config_path.read_text().replace(
+            "env:SLACK_WEBHOOK_URL", "env:UNSET_SLACK_WEBHOOK"
+        )
+    )
+
+
+def test_bump_final_step_preflights_notification_before_mutation(
+    repo: Path,
+) -> None:
+    """A terminal bump posts its outcome live, so it preflights like `mark done`."""
+    slug, task_path = _make_task(repo)
+    runner = CliRunner()
+    runner.invoke(app, ["bump", slug])
+    runner.invoke(app, ["bump", slug])
+    _unset_selected_webhook(repo)
+    before = task_path.read_bytes()
+
+    result = runner.invoke(app, ["bump", slug])
+
+    assert result.exit_code == 1, result.output
+    assert "no webhook is configured" in result.output
+    assert task_path.read_bytes() == before
+    assert Ticket.read(task_path).status == "in_progress"
+    assert "task done" not in _log_text(repo, slug)
+
+
+def test_bump_with_message_preflights_notification_before_mutation(
+    repo: Path,
+) -> None:
+    """`--message` is a live post on a step advance and preflights the same way."""
+    slug, task_path = _make_task(repo)
+    _unset_selected_webhook(repo)
+    before = task_path.read_bytes()
+
+    result = CliRunner().invoke(
+        app, ["bump", slug, "--message", "PR opened: https://example/142"]
+    )
+
+    assert result.exit_code == 1, result.output
+    assert "no webhook is configured" in result.output
+    assert task_path.read_bytes() == before
+    assert "advanced to step 2" not in _log_text(repo, slug)
+
+
+def test_bump_silent_step_advance_does_not_preflight_notification(
+    repo: Path,
+) -> None:
+    """A bare step advance posts nothing, so a missing webhook cannot refuse it."""
+    slug, task_path = _make_task(repo)
+    _unset_selected_webhook(repo)
+
+    result = CliRunner().invoke(app, ["bump", slug])
+
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(task_path).step == "2 (pr)"
+
+
 def test_bump_supervised_final_step_prints_terminal_hint(repo: Path) -> None:
     slug, task_path = _make_task(repo)
     runner = CliRunner()
