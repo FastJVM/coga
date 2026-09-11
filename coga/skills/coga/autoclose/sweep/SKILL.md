@@ -51,8 +51,8 @@ Two surfaces, both silent when the sweep stranded nothing:
   beside the recurring template. Until that lands, read both surfaces as a
   notification, not a backlog;
 - one trailing Slack line for the whole sweep. The per-ticket `🎉 ... merged`
-  line is left alone: it announces a lifecycle event and normally lands in the
-  daily digest, while a retire hint is an operational to-do.
+  line is left alone: it announces a lifecycle event, while a retire hint is
+  an operational to-do.
 
 Run it directly with `coga run autoclose`. Live notification configuration is
 preflighted before each affected ticket closes. Later `gh` or task-validation

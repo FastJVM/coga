@@ -11,7 +11,7 @@ a foundational **local** data primitive
 — JSONL lines in the repo, nothing sent off-machine — and is **not** the
 phone-home telemetry `coga/principles` #5 forbids (that ban is about
 external/anonymized install or usage pings; this records only into the repo's own
-git-tracked files). Its consumers (agent autorouting, digest/report views) are
+git-tracked files). Its consumers (agent autorouting, report views) are
 separate tickets; this primitive ships the records and the reader, and
 deliberately defines no budget cap or "remaining".
 
@@ -59,7 +59,7 @@ launches, and megalaunch all emit exactly one record per agent process.
 It is gated tightly:
 
 - **Only real agent sessions.** Deterministic recipe/script iterations (Dream
-  workers, autoclose, digest, skill-update — no transcript) and the
+  workers, autoclose, skill-update — no transcript) and the
   `FileNotFoundError` spawn-failure path (no session ran) write **nothing**.
 - **Never raises.** Missing or unparseable transcript data leaves the affected
   usage/content fields unknown/null, not an exception — capture can never break

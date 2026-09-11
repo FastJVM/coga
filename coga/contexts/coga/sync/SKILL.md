@@ -19,28 +19,22 @@ channel shared across many projects and tickets drowns in lifecycle chatter —
 humans tune it out, which defeats the point. Coga therefore makes two
 independent routing decisions:
 
-- **Cadence** — post live with `notification.post`, batch through
-  `notification.notify`, or stay silent. Live events are delivered when they
-  happen; outcome/error events collapse into a daily digest. When that digest
-  is not installed, `notify` falls back to a live post.
+- **Surface** — post, or stay silent. Urgent events and explicit FYIs go
+  through `notification.post`; ticket outcomes and recurring errors go through
+  `notification.notify`, which admits only those event kinds and posts them
+  live the moment they happen. Everything else is silent.
 - **Destination** — deliver to the ordinary flow webhook or the important
   webhook. Flow is the operating feed; important is the action-needed queue
   defined by `coga/important`.
 
-Cadence is chosen first. An important destination does not make a digest event
-live, and a spooled record carries no destination. The digest command owns the
-aggregate's destination (flow today), while an event's `important=True` choice
-is forwarded only if `notify` takes its no-digest live fallback.
+There is no batching tier. Outcomes used to collapse into a once-a-day digest
+fed by a spool file; that was removed because the queue, its consumer, and
+its merge contract cost more than a low-volume rollup earned (see
+`coga/patterns` for the rules it left behind). Commits that reach `main`
+without a Done ticket are no longer announced anywhere — `git log` and GitHub
+are the record.
 
-The outcome digest is collapsed into **one daily post**: each outcome/error
-appends a structured JSONL record to the dedicated `recurring/digest/spool.md`
-file (its `## Spool (pending)` section), and the digest recurring ticket
-flushes the spool once a day via `coga digest` (read unconsumed → fetch
-`origin/main` → render Done + Canceled + Also merged → post one message →
-drain (advance the watermark + trim the consumed prefix) → record a git
-high-water mark).
-
-Live cadence surface — posts immediately to the named destination:
+Live surface (`post`) — posts immediately to the named destination:
 
 - `coga block` — blocker, owner named; flow.
 - `recurring/blocker-reminders` — unresolved blocked-task reminders, owner
@@ -73,19 +67,17 @@ Live cadence surface — posts immediately to the named destination:
 - the Dream validate-drift summary — bounded maintenance result; flow.
 - the megalaunch drain summary — non-empty aggregate result; flow.
 - the `autoclose-merged` sweep's retire-pending summary — the sweep closed
-  tickets whose worktrees still need `coga retire`; flow. Deliberately a live
-  `post` rather than a spool record: `notify` restricts the event *kind*
-  (`done` / `canceled` / `recurring-error`), not the scope — its `ticket`
-  argument is optional, and a sweep-level `recurring-error` is spooled without
-  one. There is simply no retire-followup kind in that set, so this summary
-  arrives with the sweep instead of a day later.
+  tickets whose worktrees still need `coga retire`; flow. A plain `post`
+  rather than a `notify` outcome: `notify` restricts the event *kind*
+  (`done` / `canceled` / `recurring-error`), and there is no retire-followup
+  kind in that set.
 - recurring autofix filing a ticket for a problem it diagnosed in a recurring
   run — not only a failed one: a run that exits zero but whose blackboard shows
   it silently did nothing, or recorded real errors, is classified a problem too.
   Both the sweep's own `run_autofix` and the `coga run autofix-analyze` recipe;
   flow.
 
-Outcome digest surface — spooled into the daily digest (live fallback below):
+Outcome surface (`notify`) — posted live, one message per event:
 
 - `coga mark done` — done tickets, including manual completions that have no
   PR number.
@@ -101,17 +93,14 @@ Outcome digest surface — spooled into the daily digest (live fallback below):
   `recurring-error`. Manual pauses and non-timeout unfinished pauses stay
   silent.
 
-Both recurring-error producers append one delivery-neutral record when the
-digest is installed, and the daily aggregate stays in flow. With no digest,
-their `notify(..., important=True)` fallback posts live to important. There is
-never both a spool record and a live post for one event. The scan-error summary
-sends that fallback `fatal=False`: it runs in `_broadcast_scan`, before the
-launch loop, and every skipped template it names has already been printed to
-stderr and to the scan table, so neither an undeliverable post nor an
-unresolved `important_webhook` may abort a sweep whose period tasks have not
-run yet.
+Done and canceled outcomes keep the flow destination; both recurring-error
+producers pass `important=True` and land in important. The scan-error summary
+posts `fatal=False`: it runs in `_broadcast_scan`, before the launch loop, and
+every skipped template it names has already been printed to stderr and to the
+scan table, so neither an undeliverable post nor an unresolved
+`important_webhook` may abort a sweep whose period tasks have not run yet.
 
-Silent lifecycle surface — no notification post, no spool record:
+Silent lifecycle surface — no notification post at all:
 
 - `coga create` and `coga ticket "<title>"` — neither raw draft creation
   surface posts.
@@ -138,28 +127,20 @@ Silent lifecycle surface — no notification post, no spool record:
   already listed on the live surface, so the recurring entry is silent by
   design rather than by omission.
 
-Those three complete the enumeration: `coga/recurring/` ships seven templates —
-`autoclose-merged`, `blocker-reminders`, `branch-sweep`, `digest`, `dream`,
+Those three complete the enumeration: `coga/recurring/` ships six templates —
+`autoclose-merged`, `blocker-reminders`, `branch-sweep`, `dream`,
 `resolve-conflicts`, `skill-update` — and every one of them is now accounted
 for above. A new template accounted for on none of the three surfaces is an
 unreviewed cadence decision, not a neutral default.
 
 **This is an accounting of events, not a partition of templates.** A template
 may legitimately span surfaces, and two already do: `autoclose-merged` posts
-its retire-pending summary live *and* spools its `done` outcomes to the digest,
-and `resolve-conflicts` is silent as a period template while the
-`bootstrap/resolve-conflicts` delegate it runs posts its roll-up through the
-live `coga slack` escape hatch. A cadence audit should ask whether each *event
-kind* a template emits has a reviewed surface, not whether the template name
-appears exactly once.
-
-The digest is **opt-in by installing the `recurring/digest/` ticket**. When
-that ticket is absent, `notification.notify` degrades to a live `post` for the
-same outcome/error events. Done and canceled outcomes keep the flow
-destination; recurring scan errors and watchdog timeouts use important. It
-does not revive the silent lifecycle surface. Owners ping as `<@ID>` and
-watchers cc exactly as a live post does — the digest reuses Slack-channel
-mention rendering.
+its retire-pending summary through `post` *and* its per-ticket `done`
+outcomes through `notify`, and `resolve-conflicts` is silent as a period
+template while the `bootstrap/resolve-conflicts` delegate it runs posts its
+roll-up through the live `coga slack` escape hatch. A cadence audit should ask
+whether each *event kind* a template emits has a reviewed surface, not whether
+the template name appears exactly once.
 
 Notifications are not an "FYI nice-to-have" — they are the synchronization
 point between async agents and the people approving, unblocking, or watching
@@ -251,7 +232,7 @@ trail.
 **One carve-out: a broadcast that announces an already-committed state
 change.** The lifecycle transitions — `bump`, `mark done` / `canceled` /
 `in_progress` / `paused`, and `block` — call
-`post(..., fatal=False)` (`notify(..., fatal=False)` on the digest path). The
+`post(..., fatal=False)` (`notify(..., fatal=False)` for outcomes). The
 delivery miss is reported *identically* — same stderr line, same `coga/log.md`
 entry — it just no longer aborts the command, because the ticket write already
 happened and the command has work left that must not be skipped. Concretely:
@@ -336,8 +317,8 @@ a name itself. Member IDs aren't secret, so the table lives in shared
 
 ## Message format conventions
 
-Every **per-ticket** notification rendered for Slack (live or spooled) follows
-one uniform shape.
+Every **per-ticket** notification rendered for Slack follows one uniform
+shape.
 When adding or editing a call site, match these rules instead of inventing a
 new string:
 
@@ -359,11 +340,6 @@ new string:
   `autoclose.py`) — `advance_step`/`mark_done` receive finished `slack_text`,
   and `post()`/`notify()` never reformat. `tests/test_notification_messages.py`
   snapshots the formats; extend it when a string changes.
-- **Keep the live text and the digest detail in step.** A call site that uses
-  `notify` posts the live string only as a fallback; the spooled record's
-  `detail` line must carry the same transition and PR link, or digest users
-  see a poorer message than live users (the merged-PR auto-close regressed
-  exactly this way once).
 
 ## Notification implementation pointers
 
@@ -380,19 +356,13 @@ new string:
 - `src/coga/notification/slack.py::SlackChannel` — the Slack backend. It owns
   Slack text rendering (project/owner prefix, watcher cc, image attachment),
   mention rendering, and the webhook POST.
-- `src/coga/notification/__init__.py::notify(cfg, slack_text, *, kind, detail, ticket=None,
+- `src/coga/notification/__init__.py::notify(cfg, slack_text, *, kind,
   owner=None, watchers=None, task_path=None, image_url=None, important=False,
-  fatal=True, record_failure=True)` — the **outcome digest** path. `important`
-  and `fatal` are forwarded only to the live-post fallback. It accepts only `done`, `canceled`, and `recurring-error`
-  records. When `digest_spool_path(cfg)` is non-None (the
-  `recurring/digest/spool.md` file is installed), it appends a structured record
-  to the spool without a destination field; otherwise it falls back to
-  `post(slack_text, …)`. `kind` is the event tag; `detail` is the digest
-  one-liner.
-- `src/coga/notification/__init__.py::render_digest(cfg, records, *, date_label,
-  also_merged=None)` — renders Done owner sections, a Canceled section, an
-  optional "Also merged (no ticket)" section, and recurring errors (no
-  `[project]` prefix — `coga digest` hands it to `post`, which adds it).
+  fatal=True, record_failure=True)` — the **outcome** path. It accepts only
+  `done`, `canceled`, and `recurring-error` (`OUTCOME_EVENT_KINDS`) and
+  forwards everything else to `post(slack_text, …)` unchanged; the `kind`
+  gate is what keeps it an outcome channel rather than a second general
+  broadcaster.
 - `[notification].channels = ["slack"]` selects the enabled backend list.
   Unknown channel names fail config load until their backend exists.
 - `[notification.slack].webhook` in `coga.toml` (or `coga.local.toml`) — the
@@ -405,9 +375,9 @@ new string:
 - `[notification.slack].important_webhook` — a second webhook, pointing at the
   coga-important channel. Posts that need a human to go act route here: an
   explicit `coga slack --important`, a recurring script failure, a stale
-  declared-period-state warning, and the no-digest fallback for recurring scan
-  errors or watchdog timeouts. Ordinary lifecycle notifications, Dream and
-  megalaunch summaries, and the daily digest stay on `webhook`. Resolved by
+  declared-period-state warning, and the recurring scan-error and watchdog
+  timeout outcomes. Ordinary lifecycle notifications and Dream and megalaunch
+  summaries stay on `webhook`. Resolved by
   `config._resolve_notification_slack_important_webhook` with the same `env:`
   indirection and local-overrides-shared rule. Unset resolves to None and
   `SlackChannel.webhook_for`
@@ -444,8 +414,7 @@ new string:
   `autoclose.py::_report_retire_followups` (the retire-pending sweep summary,
   flow, `fatal=False`); `recurring_autofix.py` on both its ticket-filing paths
   (`run_autofix` and `run_autofix_analyze_recipe`, flow); and
-  `commands/megalaunch.py` (flow). `commands/digest.py` is the flow delivery
-  consumer for the outcome aggregate. The `commands/*` module fronting a
+  `commands/megalaunch.py` (flow). The `commands/*` module fronting a
   lifecycle transition contributes the `preflight_post(cfg)` configuration
   check and the rendered `slack_text`, not the delivery — `commands/block.py`,
   `commands/bump.py`, and `commands/launch.py` each preflight and hand a
@@ -485,105 +454,31 @@ new string:
   body before it reaches a detail string. Route new Slack diagnostics through
   those two functions; a third rendering path is the mistake to avoid.
 
-## The daily digest — a blackboard producer/consumer
+## Control-branch contention and `merge=union`
 
-The digest collapses outcomes into one notification message a day. It is a
-**producer → blackboard + git high-water → consumer** pipeline with no side
-mechanism:
-
-- **Producer.** `notification.notify` appends one JSONL record per outcome/error to the
-  dedicated `recurring/digest/spool.md` file's `## Spool (pending)` section. The
-  record is self-describing — a unique `id`, `ts`, `project`, `kind`, `detail`,
-  and (when present) `ticket`, `owner`, `watchers`. JSONL so `detail` can hold
-  any text (arrows, pipes, emoji) with no escaping. Captured at event time, so
-  a task deleted later the same day is already recorded.
-- **Git high-water.** `coga digest` also fetches the configured control branch
-  (`origin/main` by default), scans commits since the `### Digest State`
-  `last_commit`, and falls back to the last 24 hours on the first run or when
-  the recorded commit is unavailable. Merge commits whose PR number already
-  appears in a Done record are attributed to that ticket and omitted from
-  "Also merged"; remaining non-Coga-state commits render under "Also merged
-  (no ticket)." Coga's own state-sync commits are filtered by subject:
-  `Sync task state: …` and `Ticket: <slug> — <status>`.
-- **The spool is a real, dedicated file.** `recurring/digest/spool.md` is
-  git-tracked, human-readable, never a hidden dotfile — consistent with coga's
-  no-hidden-state rule. It is kept *separate* from the digest ticket and marked
-  `merge=union` (`.gitattributes`) so concurrent producer appends merge without
-  ever touching the ticket's YAML frontmatter. The git high-water mark
-  (`### Digest State`) lives in the ticket, not the spool, because it is
-  single-writer consumer state that must not ride union semantics.
-- **Consumer.** The `recurring/digest/` ticket (a script-backed task, daily
-  `schedule:`) fires through the normal `coga recurring` scan. Its period task
-  carries the template's `ticket.py`, which calls
-  `commands/digest.run_digest_recipe`: read the **unconsumed** records,
-  fetch/scan git, render via `render_digest`, `post` one message, **drain**
-  (advance the watermark + trim the consumed prefix), and update
-  `### Digest State`. Records are de-duped by content before rendering, so the
-  same event recorded by two clones posts once. Empty spool is not enough to
-  skip posting; new merged commits can still produce a digest. The command posts
-  nothing only when there are no Done records, no Canceled records, no
-  recurring errors, and no post-filter new commits.
-- **The primitive.** `src/coga/spool.py::append_record(path, record)` /
-  `read_unconsumed(path)` / `drain(path)` / `read_records(path)` operate on the
-  spool file's `## Spool (pending)` JSONL section via
-  `atomicio.atomic_write_text`. There is no lock and no "one process at a time"
-  assumption (there never was — two clones against one origin routinely race):
-  the spool is mergeable **by construction**, the contract documented next. The
-  primitive is deliberately notification-agnostic; the digest is its first
-  caller.
-
-### Why the spool is a contended file, and how it stays mergeable
-
-State-plane writes — ticket transitions, the digest spool, recurring markers,
+State-plane writes — ticket transitions, audit-log lines, recurring markers,
 dream logs — are committed **directly to the configured control ref**
 (`[git].remote` + `[git].control_branch`) by `sync_task_state` /
 `_push_control_branch`, with no branch and no PR. (Only `(#NN)` commits go
 through PRs; those are the code plane.) So any number of coga processes — in
 this repo, in another clone, on another machine — push state straight to that
-same control branch. The digest spool (`recurring/digest/spool.md`'s
-`## Spool (pending)`) is the hottest such file: every done/canceled/error event
-appends to it, and the daily `coga digest` drains it. Two writers therefore
-routinely collide on it during a rejected-push → `rebase --autostash` recovery.
+same control branch, and two writers routinely collide during a rejected-push
+→ rebase recovery.
 
 git resolves a 3-way merge cleanly only when the two sides' changed line ranges
-don't touch. The spool is engineered around that one fact, with **two** distinct
-concurrency cases and a different mechanism for each:
-
-1. **Append vs append** (two producers each add a record at the bottom). Plain
-   git conflicts — both insert at the same EOF anchor. This is resolved by
-   marking the spool file `merge=union` in `.gitattributes`: union keeps
-   **both** sides' lines. It is *safe here precisely because both sides only
-   add* — there is nothing to resurrect. Records carry a unique `id`, so the
-   ours-then-theirs order union picks is harmless (the digest de-dups by
-   content, and orders by `ts`/`id`, not file position).
-
-2. **Drain vs append** (the digest consumes while a producer adds). This is the
-   dangerous case, and `merge=union` makes it *worse*: if union ever sees a hunk
-   where one side **deleted** lines, it keeps them — resurrecting just-consumed
-   records (the historical `e66c302 "restore PR #368 spool record"` bug; stale
-   records lingering for days). The fix is structural, not a merge driver:
-
-   - Producers **append only at the bottom**, never touching the watermark or
-     existing records.
-   - A `consumed_through: <id>` watermark in a fixed slot names the last record
-     the digest has posted.
-   - The digest **drains by compacting the consumed *prefix*** — it deletes the
-     run of already-posted records from the **top**, but always **keeps the
-     newest record in place as an anchor** (and never empties the tail).
-
-   Now the delete (top) and any concurrent append (bottom) are separated by the
-   anchor — disjoint hunks — so git auto-merges them with **no conflict and no
-   resurrection**, and `merge=union` is never invoked on a delete. The watermark
-   stops the retained anchor being re-posted next run. Size stays bounded to
-   ~one digest interval of records plus the anchor.
-
-**The invariant, stated once:** deletes only at the top, appends only at the
-bottom, always an untouched anchor between them. `merge=union` is the *backstop*
-for the pure-append collision (case 1); prefix-compaction is what guarantees
-union never has to touch a delete (case 2). The original `drain` violated this
-by rewriting the whole section to empty — deleting the very region producers
-append to — which was the entire root cause of the recurring conflict markers
-and orphaned `autostash` stashes.
+don't touch. The one file every writer appends to is the repo-global
+`coga/log.md`, and it is the one file `.gitattributes` marks `merge=union`:
+union keeps **both** sides' lines, which is *safe there precisely because
+every writer only appends* — there is nothing to resurrect. That safety is
+conditional. If union ever sees a hunk where one side **deleted** lines, it
+keeps them, resurrecting the deletion; a file that is compacted, trimmed, or
+rewritten by any writer must never carry the attribute. (Coga learned this the
+hard way on a since-removed outcome spool that one consumer drained while
+producers appended; `coga/patterns` keeps the rules that fell out of it.)
+`git.py::_union_merge_paths` asks `git check-attr` rather than hardcoding the
+file name, so adding a new append-only file to `.gitattributes` is enough to
+keep it out of the cross-branch overlay — and adding a non-append-only one is
+the mistake to avoid.
 
 The same-branch push retry that triggers all this (`git.py::_rebase_onto_remote`)
 is itself hardened to never leave the wound behind: it stashes dirty changes
@@ -592,12 +487,11 @@ to the pre-sync tip and re-applies the stash there — so a failed recovery leav
 no conflict markers and no orphaned stash, only a reported sync miss.
 
 (Process-level races within a single clone — a recurring sweep and an agent's
-`coga mark`/`bump` both `rebase --autostash`-ing one working tree — remain a
-known limitation: launches run in the shared checkout, so concurrent agents in
-one clone share a single `.git/index` / stash stack. Run concurrent sessions
-from separate clones or worktrees, or sequentially — `coga megalaunch` is
-strictly sequential and unaffected. coga stays intentionally lock-free; this
-spool contract is what keeps the sync safe across clones.)
+`coga mark`/`bump` both rebasing one working tree — remain a known limitation:
+launches run in the shared checkout, so concurrent agents in one clone share a
+single `.git/index` / stash stack. Run concurrent sessions from separate clones
+or worktrees, or sequentially — `coga megalaunch` is strictly sequential and
+unaffected. coga stays intentionally lock-free.)
 
 ## Git — durable task-state sync
 
@@ -647,11 +541,10 @@ detached commit so later broad sync cannot replay already-published bytes.
 Cancellation is the deliberate feature-branch exception for union files. A
 canceled ticket's branch may never merge by definition, so `mark_canceled`
 calls `sync_paths(..., land_union_files_to_control=True)`: the task still lands
-through the scoped overlay, while `coga/log.md` and an installed digest spool
-are three-way unioned into the same control-branch tree immediately. The
-compare-and-swap retry below rebuilds that union on a newly fetched tip, so the
-required reason and outcome cannot strand with the abandoned code or overwrite
-concurrent audit/digest appends.
+through the scoped overlay, while `coga/log.md` is three-way unioned into the
+same control-branch tree immediately. The compare-and-swap retry below rebuilds
+that union on a newly fetched tip, so the required reason and outcome cannot
+strand with the abandoned code or overwrite concurrent audit appends.
 
 The push to `refs/heads/<control>` is a compare-and-swap: if the control branch
 moved under us (another coga process, a teammate), the
@@ -882,7 +775,7 @@ The per-transition syncs above each commit the *one* file a command intended to
 change, with a human-readable message. But two classes of write land *past* the
 last per-command sync and would otherwise sit dirty forever:
 
-- **Machine side-effects.** The digest spool and stray log lines appended
+- **Machine side-effects.** Stray log lines appended
   past a command's own sync. (The per-session usage record used to be the
   dominant case; it now lands in `log.md` and the launch teardown commits it
   directly with the narrower `sync_log`, so it never waits for a sweep.)
@@ -921,7 +814,7 @@ OS-state line the "Scope is narrow" rule draws, so product code (`src/`,
 deletions under the most recent former contexts root are included without
 adopting unrelated files left there. Branch handling and the
 `merge=union` split reuse the same machinery as `sync_paths` (union files —
-`log.md`, the digest spool — committed locally + union-merged onto the control
+`log.md` — committed locally + union-merged onto the control
 branch, never landed via the wholesale-replace overlay from a feature branch).
 On detached HEAD, where there is no durable local branch commit, those union
 files are three-way union-merged directly into the control-branch commit. Union
@@ -931,7 +824,7 @@ sweep that can't reach the control branch is surfaced (stderr + `coga/log.md`),
 never a crash.
 
 It is wired at one boundary, *in addition to* — never replacing — the
-per-transition syncs, which keep the readable git history and digest filtering:
+per-transition syncs, which keep the readable git history:
 
 - **The CLI dispatch boundary** (`cli.py::main` around `app()`), for mutating
   commands only. It reloads config after the command so a context relocation
@@ -949,8 +842,8 @@ coga command**, not the instant they save. Lazy, on-access convergence — the
 working tree is the source of truth and git catches up at the next invocation.
 This is the deliberate no-daemon alternative to instant commits (`coga/
 architecture`: "no database, no daemon, no in-memory state"). The sweep's commit
-subject (`Sync coga state`) is filtered out of the daily digest's "Also merged"
-section alongside the per-transition state-sync subjects.
+subject (`Sync coga state`) is fixed so readers of `git log` can tell a
+backstop sweep from an attributed per-transition state commit.
 
 **Never run a repo-mutating verification experiment in a checkout whose sweep
 can reach the real remote.** Because the sweep fires at the dispatch boundary
@@ -1134,13 +1027,13 @@ fetched — but it turns the silently stale table into a labeled one.
 ## Design rule for new features
 
 If a new command changes state that other team members need to know about, it
-must reach the sync layer. Choose cadence first: `post` for an event needed
-within minutes, `notify` for an outcome or scheduled-work error that belongs in
-the daily digest, or silence for lifecycle audit noise that belongs only in the
-repo-global `coga/log.md` and git. Then choose destination at delivery: flow for
-operating awareness and aggregates, important only when a human must act and no
-durable human-owned ticket already holds the ask. Never encode that destination
-in a spool record. Don't add silent state mutations that bypass both layers
+must reach the sync layer. Choose the surface first: `post` for an urgent event
+or explicit FYI, `notify` for a ticket outcome or scheduled-work error (it
+admits only those kinds), or silence for lifecycle audit noise that belongs
+only in the repo-global `coga/log.md` and git. Then choose destination at
+delivery: flow for operating awareness and aggregates, important only when a
+human must act and no durable human-owned ticket already holds the ask. Don't
+add silent state mutations that bypass both layers
 when the team needs awareness. Conversely, don't emit chatter that doesn't
 represent an outcome, urgent exception, or explicit FYI — notifications are the
 sync surface, not a debug stream.
@@ -1152,8 +1045,7 @@ boundary where the file write, validation, log append, and notification post
 have all finalized. A meaningful per-transition sync is still required even
 though the CLI-dispatch `sync_coga_state` sweep would eventually catch the
 files — the sweep is a backstop with a generic message, not a substitute for the
-readable, individually-attributed state commit (and the digest's commit-subject
-filter relies on those per-transition subjects).
+readable, individually-attributed state commit.
 
 When the post needs to describe state that has *just* changed, the
 command echoes the local outcome to stdout *before* calling

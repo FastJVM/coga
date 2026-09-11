@@ -1,6 +1,6 @@
 ---
 schedule: "0 8 * * *"
-schedule_comment: "Every day at 8am - close merged final-step tickets before the 9am digest"
+schedule_comment: "Every day at 8am - close merged final-step tickets the team forgot to mark done"
 title: "Autoclose merged tickets"
 # The reserved `ticket.py` sibling is this task's deterministic half: `coga
 # launch` runs it directly, with no agent and no composed prompt. The one-step
@@ -14,9 +14,8 @@ Close Coga tickets whose linked GitHub PR has already merged and whose Coga
 workflow is at its final step.
 
 Tickets can get stuck `in_progress` after the owner merges the PR on GitHub but
-forgets to run `coga mark done`. Once a day this recurring task fires before
-the daily digest. Its `ticket.py` runs the existing merged-ticket sweep,
-which:
+forgets to run `coga mark done`. Once a day this recurring task fires. Its
+`ticket.py` runs the existing merged-ticket sweep, which:
 
 1. scans active and in-progress tickets,
 2. reads the `pr:` line under each ticket blackboard's `## Dev` section,
@@ -36,16 +35,16 @@ This sweep is the sole trigger for auto-closing merged tickets — there is
 no manual `automerge` command. The recurring task only changes when the
 sweep runs; it does not change which tickets are safe to close.
 
-Done events produced by the sweep go through `coga mark done`, so they are
-spooled into the daily digest when `recurring/digest/` is installed. Running at
-8am keeps those closures visible in the same day's 9am digest. A quiet day with
-no merged final-step tickets exits successfully and changes nothing.
+Done events produced by the sweep go through the shared `mark_done` finalizer,
+so each closure posts live to Slack exactly as a manual `coga mark done` would.
+A quiet day with no merged final-step tickets exits successfully and changes
+nothing.
 
 <!-- coga:blackboard -->
 
 This blackboard persists across every run of this recurring task. The
 `autoclose` sweep keeps no durable state here - every run's output
-is the tickets it marks done and the resulting digest spool records.
+is the tickets it marks done and the live Done posts they produce.
 
 The one thing a run appends is a `## Autoclose Sweep: retire follow-ups`
 section, and only when it closed a ticket that still records a feature

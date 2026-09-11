@@ -88,19 +88,15 @@ kinds of code**:
    use a fixed alias are necessary to rule out alias sugar, but do not by
    themselves choose core over a command ticket or external CLI.
 
-`coga digest` is a registered `coga run` recipe — `"digest": run_digest_recipe`
-in `runner.RECIPES`, implemented at `commands/digest.py` — so exception 2
-already settles where its implementation lives. What stays open for it is
-narrower than "unclassified": it is *also* `app.command("digest")` in
-`src/coga/cli.py`, while `open-pr` and `delete-task` carry no Typer command at
-all and are reached only as `coga run <name>`. `coga megalaunch`
-(`megalaunch.py`) has no `RECIPES` entry and is the genuinely unclassified one.
-Both questions are deferred to a **parked** design, not an active one:
-`coga/tasks/v2/cleanup-core-commands/` is one paused ticket
-(`launch-decomposition.md`) plus five drafts, and `coga/tasks/v2/README.md`
-defines everything under it as real work deliberately off the current execution
-path. Until that design is pulled forward, both commands stay in core — read
-this as recorded status, not as a migration in flight.
+`coga megalaunch` (`megalaunch.py`) has no `RECIPES` entry and is the one
+genuinely unclassified in-package implementation. Its placement is deferred to
+a **parked** design, not an active one: `coga/tasks/v2/cleanup-core-commands/`
+is one paused ticket (`launch-decomposition.md`) plus five drafts, and
+`coga/tasks/v2/README.md` defines everything under it as real work deliberately
+off the current execution path. Until that design is pulled forward,
+`megalaunch` stays in core — read this as recorded status, not as a migration
+in flight. (The daily digest, which used to share this open question, was
+removed outright; outcomes now post live through `notification.notify`.)
 
 **Everything else stays at the edge.** A single-consumer helper may live beside
 the ticket or skill that uses it and import **only shared core infra**. An agent
@@ -305,10 +301,10 @@ the packaged `bootstrap/workflows/<name>.md`. This repo has **no live
 `coga/workflows/code/`**, so every `code/*` workflow — `design-then-implement`,
 `with-review`, `with-self-review` — resolves to
 `src/coga/resources/templates/coga/bootstrap/workflows/code/*.md`, and that is
-the file `mark_active` freezes into Coga's own future tickets. The live
-`coga/workflows/digest/post.md` shows the other direction: it shadows the
-packaged copy of the same name, so editing the packaged one changes nothing
-here. General rule, and it holds for skills and contexts too: **a live
+the file `mark_active` freezes into Coga's own future tickets. The other
+direction holds too: a live `coga/workflows/<name>.md` shadows a packaged copy
+of the same name, so editing the packaged one changes nothing here. General
+rule, and it holds for skills and contexts too: **a live
 `coga/<kind>/<name>` overrides the bundled copy, and where no live copy exists
 the packaged file *is* what this repo resolves and freezes.** Check which side
 is live before assuming an edit is downstream-only.
@@ -484,7 +480,7 @@ wrong checkout silently produces wrong results in both directions:
   `recurring --all` (the parent dispatcher owns no repo state; each child
   sweeps its own repo), `secret` in every form, and any `skill` / `mark` /
   `recurring` subcommand outside its sweeping set. So `launch`, `megalaunch`,
-  `run`, `create`, `digest`, a plain `bump`, and the mutating `mark` /
+  `run`, `create`, a plain `bump`, and the mutating `mark` /
   `skill` / `recurring` subcommands sweep — but a dirty `coga/` edit left
   around one of the excluded invocations stays local.
 - **`coga launch <target> --prompt-report` is not read-only, despite reading

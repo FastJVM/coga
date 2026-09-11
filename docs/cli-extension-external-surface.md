@@ -38,9 +38,9 @@ it is not. `secret get` is movable; injecting scoped secret values into a task
 process is not.
 
 This document does not settle the still-active verb-by-verb migration. In
-particular, `digest` and `megalaunch` remain current in-package implementations,
-not ratified examples of the co-versioning exception; the command-cleanup design
-ticket must still prove whether their behavior belongs in core or can move.
+particular, `megalaunch` remains a current in-package implementation, not a
+ratified example of the co-versioning exception; the command-cleanup design
+ticket must still prove whether its behavior belongs in core or can move.
 
 For Coga-authored stateless capabilities outside the kernel and ticket model,
 the first-class surface is a local external CLI. For the lead case, the skill

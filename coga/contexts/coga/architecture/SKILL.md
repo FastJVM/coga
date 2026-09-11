@@ -63,9 +63,8 @@ no in-memory state.
   only, never persists it on the ticket.
 - **Workflows** are ordered step definitions. A repo's own workflows live in
   `coga/workflows/`; package-backed reusable workflows (the core `code/*`
-  loop, `code/with-self-review`, `docs/create-google-doc`,
-  `docs/with-review`, and `digest/post`) live in
-  package `bootstrap/workflows/` resources.
+  loop, `code/with-self-review`, `docs/create-google-doc`, and
+  `docs/with-review`) live in package `bootstrap/workflows/` resources.
   Resolution is local-first, exactly like skills and contexts: a local
   `workflows/<ref>.md` overrides a bundled `bootstrap/workflows/<ref>.md`.
   Frozen into a ticket's frontmatter at creation, or when a bare workflow ref
@@ -1257,8 +1256,8 @@ is not plugged into bootstrap Dream.
 - Where files live in source / how to test (see `coga/codebase`).
 - The "why" / philosophy (see `coga/principles`).
 - Current iteration's open decisions (see `coga/current-direction`).
-- Reusable compositions of these primitives — e.g. the spool, a blackboard
-  used as a producer/consumer queue (see `coga/patterns`).
+- Reusable compositions of these primitives and the rules for designing new
+  ones (see `coga/patterns`).
 - The strict publication invariants behind launch, the recurring runner, and
   the `requires: pr` gate — recorded-checkout and PR-head proofs, leases,
   compare-and-set publication, compensation, admission generations (see

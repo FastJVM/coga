@@ -85,10 +85,9 @@ remaining argv passes through unchanged.
 | `retire` | built-in | No | Scaffolds a one-shot `retire-<slug>` task straight to `active` + launches it. |
 | `block` / `unblock` | built-in | No | Records/resolves concrete blocker asks, owns blocked-state transitions, syncs state, and notifies. |
 | `slack` | built-in | No | Posts FYI to Slack. |
-| `digest` | built-in | No | Spool read → git fetch → render → post → state update. (See digest disambiguation.) |
 | `usage` | built-in | No | Reads token-usage records from the repo-global log and rolls them up by task/model/agent/step. Logic, not a passthrough. |
 | `validate` | built-in | No | Static repo/config diagnostic, `--fix` creates missing files. |
-| `run` | thin built-in + fixed `coga.runner.RECIPES` table | No | Forwards ordinary trailing argv to one of eleven explicit importable core recipes (`autoclose`, `digest`, `blocker-reminders`, `branch-sweep`, `validate-drift`, `cleanup-orphan-markers`, `recurring-scan`, `autofix-analyze`, `skill-update`, `open-pr`, `delete-task`); no env translation, entry-point discovery, or skill plugins. |
+| `run` | thin built-in + fixed `coga.runner.RECIPES` table | No | Forwards ordinary trailing argv to one of ten explicit importable core recipes (`autoclose`, `blocker-reminders`, `branch-sweep`, `validate-drift`, `cleanup-orphan-markers`, `recurring-scan`, `autofix-analyze`, `skill-update`, `open-pr`, `delete-task`); no env translation, entry-point discovery, or skill plugins. |
 | `skill` (group) | built-in | No | `gh skill` wrapper: install/update/remove/status, provenance, digests. |
 | `mark` (group) | built-in | No | Status transitions + Slack + workflow gating + post-write validate. |
 | `recurring` (group) | thin built-in scan head + registered `recurring-scan` recipe / `coga.recurring_runner` | No | The public head converts flags to ordinary argv; the runner does schedule scan, get-or-create, lifecycle bookkeeping, and the dedup high-water mark, then hands every template to one `coga launch` call that classifies it. |
@@ -124,7 +123,6 @@ task. There is no mode field.
 | `resolve-conflicts` | agent | explicit `recurring launch resolve-conflicts` | **No — the name is taken** | The template carries only the weekly schedule; the work is the `bootstrap/resolve-conflicts` command ticket, and the `resolve-conflicts` default alias already points at `launch bootstrap/resolve-conflicts`. |
 | `skill-update` | script | `skill-update` default alias → `recurring launch skill-update` | Yes — already aliased | Pure passthrough. |
 | `autoclose-merged` | script | `autoclose` default alias → `recurring launch autoclose-merged` | Yes — already aliased | Pure passthrough under the shorter public name. |
-| `digest` | script | name occupied by `coga digest` built-in | **No — disqualified by name collision** | `recurring launch digest` *is* a pure passthrough, but the natural alias name `digest` is already a built-in (a different operation). See below. |
 | `blocker-reminders` | script | explicit `recurring launch blocker-reminders` | Not currently | No default alias; scheduled execution runs the template's `ticket.py`. |
 | `branch-sweep` | script | explicit `recurring launch branch-sweep` | Not currently | No default alias; scheduled execution runs the template's `ticket.py`. |
 
@@ -139,30 +137,14 @@ task. There is no mode field.
 `bootstrap/browser-automation` remains available only through its explicit
 launch spelling; it is orchestration rather than a stable top-level verb.
 
-### The third candidate, and why it's disqualified
+### The third candidate, since removed
 
-The ticket asked me to record any third candidate the audit surfaced or
-disqualified. There is one: **`digest`**.
-
-`recurring launch digest` is, mechanically, just as pure a passthrough as
-`skill-update` and `autoclose-merged`. But it **cannot be aliased under its
-natural name**, because `digest` is already a built-in command — and crucially
-that built-in is a *different operation*:
-
-- **`coga digest`** (built-in, `src/coga/commands/digest.py`) is the
-  **consumer** half of the daily-digest pipeline: read the spool → fetch
-  `origin/main` → render Done + Also-merged → post via webhook → empty the
-  spool → record the git high-water mark. Its recipe function is what the
-  digest recurring task's **`ticket.py`** calls
-  (`recurring/digest/ticket.py` → `commands/digest.run_digest_recipe`), not a
-  workflow step.
-- **`recurring launch digest`** would *scaffold and launch the recurring
-  digest task* — a launch wrapper, not the post logic.
-
-`_validate_aliases` would reject a `digest` alias outright (name collides with
-a built-in), so it is disqualified by **name collision**, not by needing
-pre/post logic. Tickets 2/3 should **not** attempt to alias `digest`; the
-pure-passthrough set for aliasing is exactly the two named above.
+At audit time a third pure-passthrough launch target existed — the daily
+digest's recurring template — and was disqualified from aliasing by a name
+collision with the `coga digest` built-in that drained its spool. Both the
+template and the built-in have since been removed outright (outcomes post live
+through `notification.notify` instead), so the pure-passthrough set for
+aliasing is exactly the two named above and the collision no longer exists.
 
 ## Gotchas
 
@@ -192,9 +174,9 @@ pure-passthrough set for aliasing is exactly the two named above.
 
 The flat "alias-able? yes/no" framing above is too coarse — it hides that
 "needs logic" does **not** imply "needs a hand-written built-in." Logic can live
-outside a hand-written built-in (`autoclose-merged/sweep` and `digest/post`
-already prove command-grade logic runs fine behind a recurring template's own
-`ticket.py`, which imports core and is subprocessed by path). The refined
+outside a hand-written built-in (`autoclose-merged/sweep` already proves
+command-grade logic runs fine behind a recurring template's own `ticket.py`,
+which imports core and is subprocessed by path). The refined
 conclusion: the surface collapses to **three homes for logic, plus sugar**.
 
 1. **Kernel** — small tested Python that can't be anything else.
@@ -221,14 +203,14 @@ the useful test remains: does `launch` call it *while running* (kernel), or does
 a human/cron call it *to start* a launch (movable)? Two narrow exceptions keep
 real command contracts in core: the closed `coga run` recipe table, and a
 command whose reviewed contract names the package-private invariant or atomic
-transaction that requires it to be versioned with core. `coga digest` and
-`coga megalaunch` currently occupy that in-package shape, but the active
-command-cleanup design ticket still owns the decision: it must record that
-co-versioning proof or migrate them. Python logic and inability to use an alias
+transaction that requires it to be versioned with core. `coga megalaunch`
+currently occupies that in-package shape, but the command-cleanup design ticket
+still owns the decision: it must record that co-versioning proof or migrate it.
+Python logic and inability to use an alias
 do not distinguish a package command from an edge command.
 
-**Current built-ins mix kernel candidates with thin command heads.** `digest`,
-`megalaunch`, and `ticket` remain Python command implementations pending their
+**Current built-ins mix kernel candidates with thin command heads.**
+`megalaunch` and `ticket` remain Python command implementations pending their
 assigned cleanup reviews; this inventory records their current home rather than
 prejudging migration. `delete` fronts the fixed `delete-task` recipe. The
 current `coga ticket` split puts its authoring conversation in the
@@ -268,10 +250,9 @@ the audit's path to it.
 - Alias registration and argv rewrite: `src/coga/cli.py`.
 - Command registration: `src/coga/cli.py`.
 - `coga ticket` promotion rationale: `src/coga/commands/ticket.py`.
-- digest consumer: `src/coga/commands/digest.py`.
 - autoclose sweep + module: `coga/workflows/autoclose-merged/sweep.md`,
   `coga.autoclose.sweep_merged`.
 - Bootstrap tickets: package
   `bootstrap/{browser-automation,orient,resolve-conflicts,ticket}/ticket.md`.
-- Recurring templates: `coga/recurring/{autoclose-merged,blocker-reminders,branch-sweep,digest,dream,resolve-conflicts,skill-update}/`.
+- Recurring templates: `coga/recurring/{autoclose-merged,blocker-reminders,branch-sweep,dream,resolve-conflicts,skill-update}/`.
 - Alias test coverage (not `coga validate`): `tests/test_aliases.py`.
