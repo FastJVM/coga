@@ -36,8 +36,7 @@ context. The git high-water mark lives separately in the digest ticket's
 
 
 
-consumed_through: 090e9fa2dbc6
-{"id":"090e9fa2dbc6","ts":"2026-09-10T09:55","project":"coga","kind":"done","detail":"claude finished: sweep → done ✅","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
-{"id":"65e3f9fdfc73","ts":"2026-09-10T09:55","project":"coga","kind":"done","detail":"claude finished: flush → done ✅","ticket":"recurring/digest","owner":"nicktoper"}
-{"id":"1b413db12095","ts":"2026-09-11T10:00","project":"coga","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/coga/pull/783|PR #783> merged ✅","ticket":"allow-description-and-owner-on-create","owner":"zach"}
+
+consumed_through: 6c689b9912a4
 {"id":"6c689b9912a4","ts":"2026-09-11T10:00","project":"coga","kind":"done","detail":"claude finished: sweep → done ✅","ticket":"recurring/autoclose-merged","owner":"nicktoper"}
+{"id":"78b657cdb09a","ts":"2026-09-11T10:00","project":"coga","kind":"done","detail":"claude finished: flush → done ✅","ticket":"recurring/digest","owner":"nicktoper"}
