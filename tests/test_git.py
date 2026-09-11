@@ -292,9 +292,14 @@ def test_sync_log_scopes_commit_to_the_log_only(git_repo):
     assert "STRAY.txt" in git_repo.git("status", "--porcelain")
 
 
-def test_sync_log_commits_locally_only_on_feature_branch(git_repo):
-    """On a feature branch the log is committed locally (not dirty) but never
-    overlaid onto the control branch — it reaches it union-safely via PR merge."""
+def test_sync_log_union_lands_audit_appends_from_a_feature_branch(git_repo):
+    """Audit history is canonical on the control branch, not review payload.
+
+    The append is committed locally so the checkout is clean, union-landed on
+    the control branch so it is durable there, and then reconciled out of the
+    feature branch's review payload. Landing before reconciling is what makes
+    that safe: the line leaves the payload only because control already has it.
+    """
     cfg = load_config(git_repo.coga_os)
     git_repo.checkout_branch("feature/x")
     append_log(cfg, "bootstrap/orient", "human:nick", "launched")
@@ -302,9 +307,15 @@ def test_sync_log_commits_locally_only_on_feature_branch(git_repo):
     git.sync_log(cfg, message="Log: bootstrap/orient")
 
     assert "log.md" not in git_repo.git("status", "--porcelain")
-    assert "Log: bootstrap/orient" in git_repo.git("log", "--format=%s", "feature/x")
-    # Not landed on the control branch (no overlay that could clobber appends).
-    assert not git_repo.origin_tracks("coga/log.md")
+    assert git_repo.origin_tracks("coga/log.md")
+    assert "launched" in git_repo.git(
+        "show", "main:coga/log.md", cwd=git_repo.origin
+    )
+    # The append is in the checkout but not in the branch's review payload.
+    assert "launched" in git_repo.git("show", "HEAD:coga/log.md")
+    assert git_repo.git(
+        "diff", "--name-only", "origin/main...HEAD"
+    ).strip() == ""
     assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "feature/x"
 
 
@@ -2124,10 +2135,13 @@ def test_sync_coga_state_root_layout_keeps_product_code_out(tmp_path, real_git):
     assert origin_ticket
 
 
-def test_sync_coga_state_lands_nonunion_on_main_keeps_union_local_on_feature(git_repo):
-    """From a feature branch: non-union coga/ state lands on origin/main via the
-    overlay, but a `merge=union` file (log.md) is committed locally only — never
-    landed via the wholesale-replace overlay that would drop concurrent lines."""
+def test_sync_coga_state_lands_both_overlay_and_union_from_a_feature_branch(git_repo):
+    """From a feature branch the whole swept state reaches the control branch.
+
+    Non-union state rides the wholesale overlay; a `merge=union` file rides the
+    three-way union land, which never replaces a concurrently appended line.
+    Both are canonical on control, so neither belongs in the review payload.
+    """
     cfg = load_config(git_repo.coga_os)
     git_repo.checkout_branch("feature/x")
     _task_dir(git_repo.coga_os)
@@ -2137,12 +2151,16 @@ def test_sync_coga_state_lands_nonunion_on_main_keeps_union_local_on_feature(git
 
     # The whole subtree is committed locally — clean feature tree.
     assert "coga/" not in git_repo.git("status", "--porcelain")
-    # Non-union ticket landed on the shared control branch...
     assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
-    # ...but the union log.md did NOT ride the overlay onto origin/main...
-    assert not git_repo.origin_tracks("coga/log.md")
-    # ...while it IS committed on the feature branch (reaches main via PR merge).
+    assert git_repo.origin_tracks("coga/log.md")
+    assert "hand note" in git_repo.git(
+        "show", "main:coga/log.md", cwd=git_repo.origin
+    )
+    # The checkout still reads current state, and carries none of it as payload.
     assert "hand note" in git_repo.git("show", "HEAD:coga/log.md")
+    assert git_repo.git(
+        "diff", "--name-only", "origin/main...HEAD"
+    ).strip() == ""
 
 
 def test_sync_coga_state_refuses_detached_step_regression(git_repo, capsys, tmp_path):
@@ -7228,3 +7246,369 @@ def test_sync_coga_state_removes_old_root_after_new_config_already_landed(git_re
     assert git_repo.origin_tracks("docs/new-contexts/team/style/SKILL.md")
     assert not git_repo.origin_tracks("docs/old-contexts/team/style/SKILL.md")
     assert git_repo.git("status", "--porcelain") == ""
+
+
+# --- the feature-branch publication boundary -----------------------------------
+
+
+def test_feature_payload_keeps_product_commits_and_drops_generated_state(git_repo):
+    """A branch with real work merges control instead of adopting it.
+
+    The review payload must end up as exactly the product change: the ticket
+    state landed on the control branch and left the payload, while the branch's
+    own commit is untouched.
+    """
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed demo ticket")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/x")
+    (git_repo.root / "product.txt").write_text("real work\n")
+    git_repo.git("add", "product.txt")
+    git_repo.git("commit", "-m", "feature: real work")
+
+    (task / "ticket.md").write_text("---\ntitle: demo\nstatus: in_progress\n---\n\nbody\n")
+    git.sync_task_state(cfg, task, message="Ticket: demo — in_progress")
+
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert "status: in_progress" in git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+    # The checkout still reads the current ticket...
+    assert "status: in_progress" in git_repo.git("show", "HEAD:coga/tasks/demo/ticket.md")
+    # ...and the payload is only the product change.
+    assert git_repo.git(
+        "diff", "--name-only", "origin/main...HEAD"
+    ).split() == ["product.txt"]
+    assert "feature: real work" in git_repo.git("log", "--format=%s")
+
+
+def test_feature_payload_adopts_control_when_the_branch_carried_only_state(git_repo):
+    """No lifecycle commit is stranded when there was nothing else to preserve.
+
+    Control committed exactly these bytes onto history the branch descends
+    from, so the branch takes that commit rather than keeping a duplicate. This
+    is also what makes the outcome independent of whether the two `commit-tree`
+    calls happened to land in the same second and produce the same OID.
+    """
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed demo ticket")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/x")
+    (task / "ticket.md").write_text("---\ntitle: demo\nstatus: active\n---\n\nbody\n")
+    git.sync_task_state(cfg, task, message="Ticket: demo — active")
+
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert git_repo.git("rev-list", "--count", "origin/main..HEAD").strip() == "0"
+    assert "status: active" in git_repo.git("show", "HEAD:coga/tasks/demo/ticket.md")
+
+
+def test_feature_payload_reconciliation_preserves_authored_coga_edits(git_repo):
+    """Hand-authored Coga files are ordinary feature work, not generated state.
+
+    Reconciliation may never overwrite or delete them to make the payload
+    check pass — they stay in the diff, which is the point.
+    """
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed demo ticket")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/x")
+    context = git_repo.coga_os / "contexts" / "demo" / "SKILL.md"
+    context.parent.mkdir(parents=True)
+    context.write_text("---\nname: demo\n---\n\nauthored knowledge\n")
+    git_repo.git("add", "--", "coga/contexts/demo/SKILL.md")
+    git_repo.git("commit", "-m", "docs: author the demo context")
+
+    (task / "ticket.md").write_text("---\ntitle: demo\nstatus: in_progress\n---\n\nbody\n")
+    git.sync_task_state(cfg, task, message="Ticket: demo — in_progress")
+
+    assert git_repo.git(
+        "diff", "--name-only", "origin/main...HEAD"
+    ).split() == ["coga/contexts/demo/SKILL.md"]
+    assert "authored knowledge" in git_repo.git(
+        "show", "HEAD:coga/contexts/demo/SKILL.md"
+    )
+
+
+def test_catch_all_sweep_reconciles_the_hand_edit_it_landed_on_control(git_repo):
+    """A hand-edit the catch-all swept is reconciled because control has it.
+
+    `sync_coga_state` commits every dirty `coga/` path and lands the non-union
+    ones on the control branch from any branch — its pre-existing contract.
+    Its manifest is therefore its whole commit: once control holds the swept
+    context, keeping it in the review payload would show the PR changing a
+    file `main` already has. A hand-edit that must go through review is
+    committed by hand first (the previous test), not left for the sweep.
+    """
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed demo ticket")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/x")
+    (git_repo.root / "product.txt").write_text("feature work\n")
+    git_repo.git("add", "product.txt")
+    git_repo.git("commit", "-m", "feature: product work")
+    context = git_repo.coga_os / "contexts" / "demo" / "SKILL.md"
+    context.parent.mkdir(parents=True)
+    context.write_text("---\nname: demo\n---\n\nswept knowledge\n")
+
+    git.sync_coga_state(cfg, message="Sync coga state")
+
+    # The sweep landed the hand-edit on control itself...
+    assert "swept knowledge" in git_repo.git(
+        "show", "main:coga/contexts/demo/SKILL.md", cwd=git_repo.origin
+    )
+    # ...the checkout keeps it, clean...
+    assert "swept knowledge" in git_repo.git(
+        "show", "HEAD:coga/contexts/demo/SKILL.md"
+    )
+    assert "coga/" not in git_repo.git("status", "--porcelain")
+    # ...and the review payload is only the product work.
+    assert git_repo.git(
+        "diff", "--name-only", "origin/main...HEAD"
+    ).split() == ["product.txt"]
+
+
+def test_feature_payload_reconciliation_fails_closed_on_a_conflict(git_repo, capsys):
+    """Concurrent material drift leaves the branch alone and says so.
+
+    The control landing already succeeded, so this reports rather than crashes,
+    and it never resolves the conflict by discarding either side.
+    """
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
+    (git_repo.root / "product.txt").write_text("base\n")
+    git_repo.git("add", "coga/tasks/demo/ticket.md", "product.txt")
+    git_repo.git("commit", "-m", "seed demo ticket")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/x")
+    (git_repo.root / "product.txt").write_text("branch side\n")
+    git_repo.git("add", "product.txt")
+    git_repo.git("commit", "-m", "feature: branch side")
+    git_repo.push_competing_commit("product.txt", "control side\n")
+
+    (task / "ticket.md").write_text("---\ntitle: demo\nstatus: in_progress\n---\n\nbody\n")
+    git.sync_task_state(cfg, task, message="Ticket: demo — in_progress")
+
+    err = capsys.readouterr().err
+    assert "feature payload not reconciled" in err
+    # The state still reached the control branch...
+    assert "status: in_progress" in git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+    # ...and the branch is intact: no merge, no conflict markers, nothing dirty.
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert "branch side" in git_repo.git("show", "HEAD:product.txt")
+    subjects = git_repo.git("log", "--format=%s").splitlines()
+    assert "feature: branch side" in subjects
+    assert not any(subject.startswith("Merge main state") for subject in subjects)
+    # The refused reconciliation is why the state commit is still on the branch.
+    assert subjects[0] == "Ticket: demo — in_progress"
+
+
+def test_feature_payload_stays_clean_across_repeated_lifecycle_syncs(git_repo):
+    """The boundary repeats, because the writes that dirty the branch repeat.
+
+    `open-pr` records the PR and the gated bump advances the step afterwards, so
+    a one-time cleanup would be undone by the very next lifecycle publication.
+    """
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed demo ticket")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/x")
+    (git_repo.root / "product.txt").write_text("real work\n")
+    git_repo.git("add", "product.txt")
+    git_repo.git("commit", "-m", "feature: real work")
+
+    for step in ("1 (implement)", "2 (open-pr)", "3 (review)"):
+        (task / "ticket.md").write_text(
+            f"---\ntitle: demo\nstatus: in_progress\nstep: {step}\n---\n\nbody\n"
+        )
+        append_log(cfg, "demo", "agent:claude", f"advanced to {step}")
+        git.sync_task_state(cfg, task, message=f"Ticket: demo — step {step}")
+
+        assert git_repo.git("status", "--porcelain").strip() == ""
+        assert git_repo.git(
+            "diff", "--name-only", "origin/main...HEAD"
+        ).split() == ["product.txt"]
+
+    assert "step: 3 (review)" in git_repo.git(
+        "show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin
+    )
+    control_log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+    for step in ("1 (implement)", "2 (open-pr)", "3 (review)"):
+        assert f"advanced to {step}" in control_log
+
+
+def test_feature_payload_refusal_unwinds_its_own_merge(git_repo, capsys, monkeypatch):
+    """A refusal leaves the branch as it was — including the boundary's merge.
+
+    Git can complete the merge and the manifest check still find a generated
+    path in the payload. Reporting that while keeping the merge commit would
+    make "leaves the branch exactly as it was" false, and would re-merge on
+    every later sync.
+    """
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed demo ticket")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/x")
+    (git_repo.root / "product.txt").write_text("real work\n")
+    git_repo.git("add", "product.txt")
+    git_repo.git("commit", "-m", "feature: real work")
+    tip_before = git_repo.git("rev-parse", "HEAD").strip()
+
+    # The merge itself succeeds; the verification diff is what refuses.
+    original = git._run_git
+
+    def fail_the_manifest_check(root, *args, **kwargs):
+        is_manifest_check = args[:2] == ("diff", "--name-only") and any(
+            "..." in str(arg) for arg in args
+        )
+        if is_manifest_check:
+            return "coga/tasks/demo/ticket.md\x00"
+        return original(root, *args, **kwargs)
+
+    monkeypatch.setattr(git, "_run_git", fail_the_manifest_check)
+
+    (task / "ticket.md").write_text("---\ntitle: demo\nstatus: in_progress\n---\n\nbody\n")
+    git.sync_task_state(cfg, task, message="Ticket: demo — in_progress")
+    monkeypatch.undo()
+
+    err = capsys.readouterr().err
+    assert "feature payload not reconciled" in err
+    assert "coga/tasks/demo/ticket.md" in err
+    # The branch tip is the command's own state commit, not a merge.
+    subjects = git_repo.git("log", "--format=%s").splitlines()
+    assert subjects[0] == "Ticket: demo — in_progress"
+    assert not any(subject.startswith("Merge main state") for subject in subjects)
+    assert git_repo.git("rev-parse", "HEAD^").strip() == tip_before
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+def test_feature_payload_reports_the_base_sync_it_performed(git_repo, capsys):
+    """A lifecycle sync that fast-forwards product files says which ones.
+
+    The reconciliation merge is a real base sync of the control branch, so it
+    can rewrite files the session is working against. Principle 6 does not let
+    that happen silently.
+    """
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed demo ticket")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/x")
+    (git_repo.root / "product.txt").write_text("real work\n")
+    git_repo.git("add", "product.txt")
+    git_repo.git("commit", "-m", "feature: real work")
+    git_repo.push_competing_commit("app.py", "VERSION = 2\n")
+
+    (task / "ticket.md").write_text("---\ntitle: demo\nstatus: in_progress\n---\n\nbody\n")
+    git.sync_task_state(cfg, task, message="Ticket: demo — in_progress")
+
+    err = capsys.readouterr().err
+    assert "base-synced 'feature/x' onto 'main'" in err
+    assert "app.py" in err
+    # The integration really happened, which is why it is reported.
+    assert (git_repo.root / "app.py").read_text() == "VERSION = 2\n"
+    assert git_repo.git(
+        "diff", "--name-only", "origin/main...HEAD"
+    ).split() == ["product.txt"]
+
+
+def test_feature_payload_names_state_that_never_reached_control(git_repo, capsys):
+    """An un-landed generated path is reported, not demanded forever.
+
+    Without the `merge=union` attribute the audit log reaches the control
+    branch by no route at all. Keeping it in the manifest would refuse on every
+    sync and re-merge each time; dropping it silently would hide a real
+    misconfiguration.
+    """
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
+    attributes = git_repo.coga_os / ".gitattributes"
+    if attributes.exists():
+        attributes.unlink()
+        git_repo.git("rm", "--cached", "--", "coga/.gitattributes")
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed demo ticket")
+    git_repo.git("push", "origin", "main")
+
+    git_repo.checkout_branch("feature/x")
+    (git_repo.root / "product.txt").write_text("real work\n")
+    git_repo.git("add", "product.txt")
+    git_repo.git("commit", "-m", "feature: real work")
+
+    (task / "ticket.md").write_text("---\ntitle: demo\nstatus: in_progress\n---\n\nbody\n")
+    append_log(cfg, "demo", "agent:claude", "an audit append")
+    git.sync_task_state(cfg, task, message="Ticket: demo — in_progress")
+
+    err = capsys.readouterr().err
+    assert "not landed on 'main'" in err
+    assert "coga/log.md" in err
+    assert "merge=union" in err
+    # The ticket still left the payload; only the unreachable log stayed.
+    assert git_repo.git(
+        "diff", "--name-only", "origin/main...HEAD"
+    ).split() == ["coga/log.md", "product.txt"]
+    # It reports the unreachable path rather than refusing the reconciliation
+    # it *can* complete, and keeps doing so on the next sync instead of
+    # accumulating an unsatisfiable demand.
+    assert "feature payload not reconciled" not in err
+    (task / "ticket.md").write_text("---\ntitle: demo\nstatus: done\n---\n\nbody\n")
+    git.sync_task_state(cfg, task, message="Ticket: demo — done")
+    assert "feature payload not reconciled" not in capsys.readouterr().err
+    assert git_repo.git(
+        "diff", "--name-only", "origin/main...HEAD"
+    ).split() == ["coga/log.md", "product.txt"]
+
+
+def test_sync_log_reconciles_before_publishing_to_an_open_pr_branch(git_repo):
+    """The gated handoff takes the boundary too, or it undoes the gated bump.
+
+    `requires: pr` teardown pushes the session-usage append to the already-open
+    PR branch. Publishing it unreconciled puts `coga/log.md` straight back into
+    the payload the gated bump just cleared — the original symptom this ticket
+    was filed for.
+    """
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    (git_repo.root / "product.txt").write_text("real work\n")
+    git_repo.git("add", "product.txt")
+    git_repo.git("commit", "-m", "feature: real work")
+    append_log(cfg, "ship-it", "system", '{"tokens": 1}')
+
+    git.sync_log(cfg, message="Log: ship-it", publish_current_branch=True)
+
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    # Durable on control...
+    assert '{"tokens": 1}' in git_repo.git(
+        "show", "main:coga/log.md", cwd=git_repo.origin
+    )
+    # ...readable in the checkout, and out of the review payload.
+    assert '{"tokens": 1}' in git_repo.git("show", "HEAD:coga/log.md")
+    assert git_repo.git(
+        "diff", "--name-only", "origin/main...HEAD"
+    ).split() == ["product.txt"]
+    # The PR branch got the reconciled tip, so the two stay in lockstep.
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
+    ).strip()

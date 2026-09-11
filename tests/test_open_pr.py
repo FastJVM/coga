@@ -30,7 +30,13 @@ from coga.logfile import append_log
 from coga.taskfile import read_blackboard
 from coga.ticket import Ticket
 
-from coga.open_pr import OpenPrError, open_pr, set_dev_pr
+from coga import git as coga_git
+from coga.open_pr import (
+    OpenPrError,
+    _single_checkout_publishable_paths,
+    open_pr,
+    set_dev_pr,
+)
 
 
 # --- fixtures / helpers -------------------------------------------------------
@@ -259,9 +265,15 @@ def test_open_pr_commits_and_pushes_record_in_single_checkout(
 
     assert url == "https://github.com/acme/repo/pull/12"
     assert repo.git("status", "--porcelain").strip() == ""
-    assert repo.git("log", "-1", "--format=%s").strip() == (
-        "Ticket: single-checkout-record — PR opened"
+    assert "Ticket: single-checkout-record — PR opened" in repo.git(
+        "log", "--format=%s"
     )
+    # The generated `pr:` record and the launch audit line reached the control
+    # branch and were then reconciled out of the branch's review payload, so
+    # the PR shows only the implementation.
+    assert repo.git(
+        "diff", "--name-only", "origin/main...HEAD"
+    ).split() == ["coga/change.txt"]
     published_ticket = repo.git(
         "show",
         "refs/heads/single-checkout-record:coga/tasks/single-checkout-record/ticket.md",
@@ -390,8 +402,10 @@ def test_open_pr_rejects_single_checkout_with_only_generated_state(
         message="Ticket: state-only-single-checkout — step 2 (open-pr)",
     )
 
-    assert repo.git("rev-list", "--count", "main..HEAD").strip() != "0"
-    with pytest.raises(OpenPrError, match="outside generated Coga task/log state"):
+    # The branch strands no lifecycle commit at all: it carried nothing but
+    # generated state, so it adopted the control commit that accepted it.
+    assert repo.git("rev-list", "--count", "main..HEAD").strip() == "0"
+    with pytest.raises(OpenPrError, match="no commits ahead of"):
         open_pr(
             cfg,
             slug="state-only-single-checkout",
@@ -401,6 +415,48 @@ def test_open_pr_rejects_single_checkout_with_only_generated_state(
 
     assert not log.exists() or "pr create" not in log.read_text()
     assert parse_pr_url(read_blackboard(ticket)) is None
+
+
+def test_open_pr_rejects_single_checkout_with_unreconciled_generated_state(
+    tmp_path, monkeypatch, real_git
+):
+    """A commit that reconciliation could not remove is still not an implementation.
+
+    Reconciliation fails closed, so a branch can legitimately keep a generated
+    commit. The publishability classifier is the second line: a `merge=union`
+    audit append is machine state whether or not the boundary reached it.
+    """
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _install_fake_gh(monkeypatch, bin_dir)
+
+    ticket = _write_ticket(
+        repo.coga_os,
+        "unreconciled-single-checkout",
+        branch="unreconciled-single-checkout",
+        worktree=repo.root,
+    )
+    repo.git("add", "--", "coga/tasks/unreconciled-single-checkout/ticket.md")
+    repo.git("commit", "-m", "ticket: seed unreconciled task")
+    repo.git("push", "origin", "main")
+
+    repo.checkout_branch("unreconciled-single-checkout")
+    (repo.coga_os / "log.md").write_text("stranded audit line\n")
+    repo.git("add", "--", "coga/log.md")
+    repo.git("commit", "-m", "Log: unreconciled-single-checkout")
+    cfg = load_config(repo.coga_os)
+
+    assert repo.git("rev-list", "--count", "main..HEAD").strip() == "1"
+    with pytest.raises(OpenPrError, match="outside generated Coga task/log state"):
+        open_pr(
+            cfg,
+            slug="unreconciled-single-checkout",
+            blackboard_path=ticket,
+            single_checkout=True,
+        )
+
+    assert not log.exists() or "pr create" not in log.read_text()
 
 
 def test_open_pr_rejects_divergent_ticket_overlap_in_single_checkout(
@@ -435,6 +491,12 @@ def test_open_pr_rejects_divergent_ticket_overlap_in_single_checkout(
         message="Ticket: divergent-post-bump — step 2 (open-pr)",
     )
 
+    # Generated state no longer strands on the branch, so make the overlap the
+    # real thing the gate is for: deliberate ticket prose committed here while
+    # another process edits the same ticket on the control branch.
+    ticket.write_text(ticket.read_text() + "\nbranch-authored prose\n")
+    repo.git("add", "--", "coga/tasks/divergent-post-bump/ticket.md")
+    repo.git("commit", "-m", "docs: rewrite the divergent-post-bump ticket")
     repo.push_competing_commit(
         "coga/tasks/divergent-post-bump/ticket.md",
         ticket.read_text() + "\ncontrol-only change\n",
@@ -625,8 +687,8 @@ def test_open_pr_commits_single_checkout_record_from_nested_recorded_path(
 
     assert url == "https://github.com/acme/repo/pull/14"
     assert repo.git("status", "--porcelain").strip() == ""
-    assert repo.git("log", "-1", "--format=%s").strip() == (
-        "Ticket: nested-recorded-path — PR opened"
+    assert "Ticket: nested-recorded-path — PR opened" in repo.git(
+        "log", "--format=%s"
     )
 
 
@@ -1005,3 +1067,149 @@ def test_open_pr_skill_has_no_executable_entrypoint() -> None:
     assert not (_LIVE_SKILL / "recipe.py").exists()
     assert not (_PACKAGED_SKILL / "run.py").exists()
     assert not (_PACKAGED_SKILL / "recipe.py").exists()
+
+
+def test_publishable_paths_counts_deliberate_ticket_prose(tmp_path):
+    """Rewriting a ticket's description is reviewable work, not lifecycle churn.
+
+    The blanket `coga/tasks/**` exclusion this replaces refused exactly this
+    PR: a change whose whole implementation is the ticket's own prose.
+    """
+    repo = init_git_repo(tmp_path)
+    ticket = _write_ticket(
+        repo.coga_os, "prose-only", branch="prose-only", worktree=repo.root
+    )
+    repo.git("add", "--", "coga/tasks/prose-only/ticket.md")
+    repo.git("commit", "-m", "ticket: seed prose-only")
+
+    repo.checkout_branch("prose-only")
+    ticket.write_text(
+        ticket.read_text().replace(
+            "The change we are shipping.", "A materially rewritten description."
+        )
+    )
+    repo.git("add", "--", "coga/tasks/prose-only/ticket.md")
+    repo.git("commit", "-m", "docs: rewrite the prose-only description")
+
+    assert _single_checkout_publishable_paths(
+        base_ref="main",
+        checkout_root=repo.root,
+        coga_root=repo.coga_os,
+    ) == ["coga/tasks/prose-only/ticket.md"]
+
+
+def test_publishable_paths_ignores_lifecycle_fields_blackboard_and_union_files(
+    tmp_path,
+):
+    """Everything Coga writes is invisible, decided by ownership of the bytes.
+
+    A ticket Coga only advanced, a blackboard it filled in, and a `merge=union`
+    audit append are all machine state — the last one because git says the file
+    takes the union driver, not because it is named here.
+    """
+    repo = init_git_repo(tmp_path)
+    ticket = _write_ticket(
+        repo.coga_os, "state-only", branch="state-only", worktree=repo.root
+    )
+    repo.git("add", "--", "coga/tasks/state-only/ticket.md")
+    repo.git("commit", "-m", "ticket: seed state-only")
+
+    repo.checkout_branch("state-only")
+    ticket.write_text(
+        ticket.read_text()
+        .replace("status: in_progress", "status: done")
+        .replace("step: 1 (open-pr)", "step: 2 (review)")
+        .replace("assignee: claude", "assignee: marc")
+        + "\nagent notes written during the step\n"
+    )
+    (repo.coga_os / "log.md").write_text("an audit append\n")
+    repo.git(
+        "add", "--", "coga/tasks/state-only/ticket.md", "coga/log.md"
+    )
+    repo.git("commit", "-m", "Ticket: state-only — done")
+
+    assert (
+        _single_checkout_publishable_paths(
+            base_ref="main",
+            checkout_root=repo.root,
+            coga_root=repo.coga_os,
+        )
+        == []
+    )
+
+
+def test_publishable_paths_keeps_the_extension_marker_out_of_the_signature(
+    tmp_path,
+):
+    """A dropped key takes its continuation lines — and nothing else.
+
+    `Ticket.render` writes `launch_generation` immediately before the
+    `# --- extensions ---` marker. That marker has no colon, so a state machine
+    that carried the drop across it would swallow the marker on the head side
+    only and make a ticket Coga merely advanced look hand-authored — defeating
+    the gate for every repo that declares `[ticket.fields.*]`.
+    """
+    repo = init_git_repo(tmp_path)
+    ticket = _write_ticket(
+        repo.coga_os, "extended", branch="extended", worktree=repo.root
+    )
+    with_extensions = ticket.read_text().replace(
+        "script: null\n",
+        "script: null\nlaunch_generation: abc123\n# --- extensions ---\narea: infra\n",
+    )
+    ticket.write_text(with_extensions)
+    repo.git("add", "--", "coga/tasks/extended/ticket.md")
+    repo.git("commit", "-m", "ticket: seed extended")
+
+    repo.checkout_branch("extended")
+    ticket.write_text(
+        with_extensions.replace("launch_generation: abc123\n", "").replace(
+            "status: in_progress", "status: done"
+        )
+    )
+    repo.git("add", "--", "coga/tasks/extended/ticket.md")
+    repo.git("commit", "-m", "Ticket: extended — done")
+
+    assert (
+        _single_checkout_publishable_paths(
+            base_ref="main",
+            checkout_root=repo.root,
+            coga_root=repo.coga_os,
+        )
+        == []
+    )
+
+
+def test_publishable_paths_fails_loud_when_git_attributes_cannot_be_read(
+    tmp_path, monkeypatch
+):
+    """A failed `check-attr` must not read as "no union files".
+
+    Answering "no union files" on error flips this gate from refusing a
+    state-only branch to opening an empty PR, silently — the failure mode
+    `coga/principles` #6 rules out.
+    """
+    repo = init_git_repo(tmp_path)
+    _write_ticket(repo.coga_os, "probe-fails", branch="probe-fails", worktree=repo.root)
+    repo.git("add", "--", "coga/tasks/probe-fails/ticket.md")
+    repo.git("commit", "-m", "ticket: seed probe-fails")
+    repo.checkout_branch("probe-fails")
+    (repo.coga_os / "log.md").write_text("an audit append\n")
+    repo.git("add", "--", "coga/log.md")
+    repo.git("commit", "-m", "Log: probe-fails")
+
+    real_run_git = coga_git._run_git
+
+    def refuse_check_attr(root, *args, **kwargs):
+        if args and args[0] == "check-attr":
+            raise coga_git.GitError("`git check-attr` failed: fatal: nope")
+        return real_run_git(root, *args, **kwargs)
+
+    monkeypatch.setattr(coga_git, "_run_git", refuse_check_attr)
+
+    with pytest.raises(OpenPrError, match="could not read git attributes"):
+        _single_checkout_publishable_paths(
+            base_ref="main",
+            checkout_root=repo.root,
+            coga_root=repo.coga_os,
+        )
