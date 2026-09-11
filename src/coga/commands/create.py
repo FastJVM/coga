@@ -14,10 +14,19 @@ means a top-level create.
 intermediate, it just can't be activated. `coga mark active` refuses a
 ticket with no workflow (workflow-less tickets can never be `coga bump`ed),
 so add a `workflow:` before activating, or pass `--workflow` up front.
+
+`--description` and `--owner` are optional too, so one command can scaffold a
+described, correctly-owned draft. `--description` fills the ticket's
+`## Description` section; `--owner` sets `owner:` to a coga name instead of
+the local `user` (and, through `create_task`, seeds `human:` and a
+workflow-less `assignee:`). A description carrying a level-2 heading line or
+the blackboard fence line is refused before anything is written, since either
+would break the ticket's section/fence structure.
 """
 
 from __future__ import annotations
 
+import re
 import sys
 
 import typer
@@ -25,7 +34,13 @@ import typer
 from coga import git
 from coga.config import ConfigError, load_config
 from coga.create import create_task
+from coga.taskfile import BLACKBOARD_FENCE, fence_count
 from coga.validate import TaskValidationError
+
+# The line shape compose reads as a body section heading (`_SECTION_HEADING_RE`
+# in compose.py): `##` then whitespace. A bare `##` line counts too, because
+# `\s+` there also matches the newline. `###` and deeper stay inside a section.
+_SECTION_HEADING_LINE_RE = re.compile(r"^##(?:\s|$)", re.MULTILINE)
 
 
 def create(
@@ -46,15 +61,38 @@ def create(
             "one is added."
         ),
     ),
+    description: str | None = typer.Option(
+        None,
+        "--description",
+        help=(
+            "Short text for the new ticket's '## Description' section. May "
+            "not contain a '## ' heading line or the blackboard fence line."
+        ),
+    ),
+    owner: str | None = typer.Option(
+        None,
+        "--owner",
+        help=(
+            "Coga name to own the ticket (also seeds human:). Defaults to "
+            "`user` from coga.local.toml."
+        ),
+    ),
 ) -> None:
     """Create a new raw draft ticket."""
-    create_draft(title=title, workflow=workflow)
+    create_draft(
+        title=title,
+        workflow=workflow,
+        description=description,
+        owner=owner,
+    )
 
 
 def create_draft(
     *,
     title: str,
     workflow: str | None = None,
+    description: str | None = None,
+    owner: str | None = None,
 ) -> dict[str, object]:
     """Create a raw draft ticket from a (possibly path-qualified) title.
 
@@ -69,10 +107,26 @@ def create_draft(
     intermediate — `coga mark active` is the gate that refuses to activate
     a ticket with no workflow, since a workflow-less ticket can never be
     `coga bump`ed.
+
+    `description` (optional) becomes the `## Description` text; `None` or empty
+    leaves the section blank. `owner` (optional) is stripped and must not be
+    empty; `None` keeps the local `user`. Both are checked before anything is
+    written, so a rejected create leaves nothing on disk.
     """
     directory, leaf_title = _split_create_path(title)
     if not leaf_title.strip():
         _bail("title cannot be empty")
+    if owner is not None:
+        owner = owner.strip()
+        if not owner:
+            _bail("owner cannot be empty")
+    if description is not None:
+        # Check exactly what `create_task` writes: it strips the description,
+        # which would turn an indented first line into a real heading or fence.
+        description = description.strip()
+        problem = _description_structure_problem(description)
+        if problem:
+            _bail(problem)
 
     try:
         cfg = load_config()
@@ -85,11 +139,12 @@ def create_draft(
             title=leaf_title,
             workflow_name=workflow,
             contexts=[],
-            owner=cfg.current_user,
+            owner=owner,
             assignee=None,
             watchers=[],
             status="draft",
             directory=directory,
+            description=description,
         )
     except (TaskValidationError, ValueError) as exc:
         _bail(str(exc))
@@ -98,6 +153,31 @@ def create_draft(
     typer.echo(f"{slug}: created (draft)")
     git.sync_task_state(cfg, result["path"], message=f"Ticket: {slug} — created")
     return result
+
+
+def _description_structure_problem(description: str) -> str | None:
+    """Why `description` would break the ticket's structure, or None.
+
+    Pass the stripped description, as written under `## Description`. A level-2
+    heading line would end that section early (compose would read the rest as
+    another section), and a blackboard fence on its own line would split the
+    body from the blackboard — `split_body` then sees two fences. An inline
+    mention of the fence string is harmless and allowed, as are `###`
+    subheadings.
+    """
+    if _SECTION_HEADING_LINE_RE.search(description):
+        return (
+            "description cannot contain a level-2 heading line ('## ...'): "
+            "it would split the ticket's '## Description' section. Use '###' "
+            "or deeper, or edit the ticket body after create."
+        )
+    if fence_count(description):
+        return (
+            f"description cannot contain the blackboard fence line "
+            f"({BLACKBOARD_FENCE!r}): it would split the ticket body from its "
+            "blackboard."
+        )
+    return None
 
 
 def _split_create_path(positional: str) -> tuple[str | None, str]:

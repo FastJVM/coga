@@ -71,11 +71,10 @@ explicit override follows the onboarding workflow's directly consecutive
 `assignee: agent` steps, so both steps use Codex without rewriting the seeded
 ticket.
 
-## coga create "\<title\>" [--workflow \<name\>]
+## coga create "\<title\>" [--workflow \<name\>] [--description \<text\>] [--owner \<name\>]
 
-Scaffold a new raw `draft` ticket and post `✨` when a notification channel
-is selected (a fresh repo selects none, so this is silent out of the box).
-Does not launch an agent. Step one of the boot path: `coga create` → edit the
+Scaffold a new raw `draft` ticket. It does not post to Slack and does not
+launch an agent. Step one of the boot path: `coga create` → edit the
 body / workflow / contexts as needed → `coga launch <slug>`. Launch activates
 a draft inline; use `coga mark active <slug>` only when you want to
 approve/queue without launching. This is the raw-create path — no guided
@@ -107,6 +106,19 @@ ticket with an error pointing at `--workflow` or `coga ticket`, and
 ticket as an `active-no-workflow` **error** (a stuck task no `coga bump` can
 advance). Once a ticket leaves `draft`, a workflow is mandatory. For guided
 authoring that fills the workflow in for you, use `coga ticket`.
+
+`--description <text>` and `--owner <name>` are optional too, so one command
+can scaffold a described, correctly-owned draft without opening the file or
+running the `coga ticket` interview. `--description` fills the new ticket's
+`## Description` section; omitted or empty, the section stays blank. It fails
+loud, before anything is written, on a level-2 heading line (`## ...`) or the
+blackboard fence on its own line, since either would break the ticket's
+section/fence structure; `###` subheadings are fine. `--owner` sets `owner:`
+to that coga name instead of `user` from `coga.local.toml`, and the default
+cascade follows it: `human:` takes the same name, as does `assignee:` on a
+workflow-less draft (with a workflow, step 1's role resolves against the
+owner). Any non-empty name is accepted; surrounding whitespace is stripped and
+an empty `--owner` fails loud.
 
 The deliberate separation keeps the moment of authorship distinct from
 the moment of starting work. Tickets you mean to draft now and start

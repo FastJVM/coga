@@ -15,7 +15,7 @@ from coga.config import load_config
 from coga.logfile import task_log_lines
 from coga.paths import log_path
 from coga.recurring import local_period_lease
-from coga.taskfile import fence_count, read_blackboard
+from coga.taskfile import BLACKBOARD_FENCE, fence_count, read_blackboard
 from coga.tasks import list_tasks
 from coga.ticket import Ticket
 from coga.validate import Issue, TaskValidationError
@@ -852,6 +852,146 @@ def test_cli_create_rejects_empty_title(repo: Path, monkeypatch: pytest.MonkeyPa
     runner = CliRunner()
     result = runner.invoke(app, ["create", "   "])
     assert result.exit_code == 2
+
+
+# --- --description / --owner ------------------------------------------------
+
+
+def test_cli_create_description_lands_in_description_section(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--description` fills `## Description`, stripped, ahead of `## Context`."""
+    monkeypatch.chdir(repo)
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        ["create", "Retry webhooks", "--description", "  Back off on 429s.\n"],
+    )
+    assert result.exit_code == 0, result.output
+    ticket_path = repo / "tasks" / "retry-webhooks.md"
+    t = Ticket.read(ticket_path)
+    assert "## Description\n\nBack off on 429s.\n\n## Context\n" in t.body
+    assert fence_count(ticket_path.read_text()) == 1
+
+
+@pytest.mark.parametrize("owner", ["nicktoper", " nicktoper "])
+def test_cli_create_owner_sets_owner_and_human(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, owner: str
+) -> None:
+    """`--owner` (stripped) replaces the local user; `human:` (and a
+    workflow-less `assignee:`) cascade from it."""
+    monkeypatch.chdir(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["create", "Owned elsewhere", "--owner", owner])
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(repo / "tasks" / "owned-elsewhere.md")
+    assert t.owner == "nicktoper"
+    assert t.human == "nicktoper"
+    assert t.assignee == "nicktoper"
+
+
+def test_cli_create_without_description_or_owner_keeps_defaults(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Neither flag: local user owns the ticket and `## Description` is blank."""
+    monkeypatch.chdir(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["create", "Plain draft"])
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(repo / "tasks" / "plain-draft.md")
+    assert t.owner == "marc"
+    assert t.human == "marc"
+    assert t.assignee == "marc"
+    assert "## Description\n\n\n\n## Context\n" in t.body
+
+
+def test_cli_create_description_and_owner_compose_with_path_and_workflow(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "create",
+            "v2/Build the flow",
+            "--workflow",
+            "code/with-review",
+            "--description",
+            "Ship the v2 flow.",
+            "--owner",
+            "nicktoper",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(repo / "tasks" / "v2" / "build-the-flow.md")
+    assert t.frontmatter["slug"] == "v2/build-the-flow"
+    assert t.title == "Build the flow"
+    assert t.workflow is not None
+    assert t.workflow["name"] == "code/with-review"
+    assert t.owner == "nicktoper"
+    assert t.human == "nicktoper"
+    assert "## Description\n\nShip the v2 flow.\n\n## Context\n" in t.body
+
+
+@pytest.mark.parametrize("owner", ["", "   "])
+def test_cli_create_rejects_empty_owner(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, owner: str
+) -> None:
+    monkeypatch.chdir(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["create", "No owner", "--owner", owner])
+    assert result.exit_code == 2
+    combined = result.output + (result.stderr or "")
+    assert "owner cannot be empty" in combined
+    assert not list(repo.glob("tasks/**/*.md"))
+
+
+@pytest.mark.parametrize(
+    ("description", "message"),
+    [
+        ("Intro.\n## Context\nSmuggled section.", "level-2 heading"),
+        ("## Notes", "level-2 heading"),
+        ("Intro.\n##\nBare heading.", "level-2 heading"),
+        (f"Intro.\n{BLACKBOARD_FENCE}\nStray blackboard.", "blackboard fence"),
+        # Indented first lines: the stripped text written would be structural.
+        ("  ## Context\nSmuggled section.", "level-2 heading"),
+        (f"\t{BLACKBOARD_FENCE}\nStray blackboard.", "blackboard fence"),
+    ],
+)
+def test_cli_create_rejects_structure_breaking_description(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, description: str, message: str
+) -> None:
+    """A description that would break the section/fence structure is refused
+    before the ticket is written."""
+    monkeypatch.chdir(repo)
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["create", "Broken body", "--description", description]
+    )
+    assert result.exit_code == 2
+    combined = result.output + (result.stderr or "")
+    assert message in combined
+    assert "created (draft)" not in combined
+    assert not list(repo.glob("tasks/**/*.md"))
+
+
+def test_cli_create_description_allows_subheadings_and_inline_fence_mention(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only structure-breaking lines are refused: `###` and an inline mention of
+    the fence string stay inside `## Description`."""
+    monkeypatch.chdir(repo)
+    description = f"### Scope\nDocument the `{BLACKBOARD_FENCE}` marker."
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["create", "Fence docs", "--description", description]
+    )
+    assert result.exit_code == 0, result.output
+    ticket_path = repo / "tasks" / "fence-docs.md"
+    assert fence_count(ticket_path.read_text()) == 1
+    t = Ticket.read(ticket_path)
+    assert f"## Description\n\n{description}\n\n## Context\n" in t.body
 
 
 # --- workflow always required ------------------------------------------------

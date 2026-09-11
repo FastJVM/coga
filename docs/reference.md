@@ -37,6 +37,13 @@ place it there: `coga create "marketing/social/relaunch"` nests under
 
 - `--workflow <name>` — attach a workflow (a name under `coga/workflows/`).
   Optional, but a workflow-less draft can't be activated until one is added.
+- `--description <text>` — write the text into the ticket's `## Description`
+  section. Refused, with nothing written, if it contains a `## ` heading line
+  or the blackboard fence line, either of which would break the ticket's
+  structure.
+- `--owner <name>` — set `owner:` to this coga name instead of `user` from
+  `coga.local.toml`. `human:` follows it, as does `assignee:` on a
+  workflow-less draft. Surrounding whitespace is stripped; empty is refused.
 
 ### `coga ticket [TARGET]`
 Run the guided authoring interview (the `bootstrap/ticket` skill). `TARGET` is an
