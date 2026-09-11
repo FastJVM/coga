@@ -4896,3 +4896,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-11 15:31 [no-context-records-the-ci-posture-publish-only-rel] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-09-11 15:56 [no-context-records-the-ci-posture-publish-only-rel] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-11 15:56 [no-context-records-the-ci-posture-publish-only-rel] [human:nicktoper] started (active → in_progress) via coga launch
+2026-09-11 15:56 [no-context-records-the-ci-posture-publish-only-rel] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-11 16:00 [no-context-records-the-ci-posture-publish-only-rel] [agent:claude] advanced to step 2 (peer-review) → codex
