@@ -24,7 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -154,11 +154,68 @@ Commit `79d23488` on `ci-posture`, rebased on `origin/main` (already up to date)
 - `coga validate --json` from the worktree → 204 ok; only issue is
   `missing-user` (no `coga.local.toml` in the worktree), unrelated.
 
-## Adjacent finding (not fixed here)
+## Implement-time environment finding (resolved during peer review)
 
-`test_wheel_includes_bootstrap_batteries` fails on this machine because the
-`.venv` was created without `pip` (likely `uv venv`). The context already
-documents the hatchling-missing variant of this trap; the pip-missing variant
-reads the same way (environment noise that looks like a packaging regression).
-Fix is environment-side (`uv pip install pip` or `python -m ensurepip`), or the
-test could shell out via `uv build`. No follow-up ticket exists that I know of.
+`test_wheel_includes_bootstrap_batteries` failed during implementation because
+the project `.venv` lacked `pip`; peer review also found the declared
+`hatchling` dependency missing. Both were installed locally during peer review,
+and the complete suite now passes. No source or test change was needed.
+
+## Peer review
+
+2026-09-11, Codex in `/home/n/Code/claude/coga-ci-posture` on `ci-posture`.
+
+- Ran `git fetch origin main` and `git rebase FETCH_HEAD` unconditionally;
+  rebase succeeded without conflicts onto `9074b67f`, producing `644fff69`.
+- Ran `codex review --base main` outside the sandbox. **The review returned**
+  (exit 0) with no findings. Its packaging check used the ambient Python and
+  reported 10 passed / 1 failed because that interpreter lacks `hatchling`.
+- Independent review corrected one factual overstatement in both context
+  copies: the wheel collision has no automatic PR/push gate, but the release
+  build can catch it before uploading. The wording now distinguishes that late
+  build from earlier verification and covers manual dispatch as well as a
+  published Release. This preserves the ticket's warning without claiming a
+  failing build can upload artifacts.
+- Repaired only the local test environment: ran
+  `/home/n/Code/claude/coga/.venv/bin/python -m ensurepip`, then
+  `/home/n/Code/claude/coga/.venv/bin/python -m pip install --disable-pip-version-check 'hatchling>=1.18'`.
+  No dependency manifest or test code changed. Before the wording correction,
+  `PYTHONPATH=$PWD/src /home/n/Code/claude/coga/.venv/bin/python -m pytest tests/test_packaging.py`
+  returned **11 passed** (two sandbox cache-write warnings).
+- `cmp coga/contexts/coga/codebase/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/codebase/SKILL.md`
+  and `git diff --check` from the feature worktree both returned exit 0.
+- Source-pinned repo validation from the feature worktree:
+  `PYTHONPATH=$PWD/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --json`
+  returned **204 ok, 23 warnings, 5 errors** (exit 1). The same command on
+  primary `main` returned **204 ok, 22 warnings, the same 5 errors**; the extra
+  feature-worktree warning is `missing-user`. Existing errors are the removed
+  `coga/digest/flush` skill referenced by `recurring/digest` and unsynthesized
+  blackboards in four v2 drafts (`autotrigger-ticket-type`,
+  `measure-relay-prompt-scope-and-agent-precision`,
+  `split-context-to-doc-user-accessible-and-editable`,
+  `use-worktree-when-starting-a-dev-task`). These are unrelated to this diff.
+- Task-specific validation from the primary checkout:
+  `PYTHONPATH=$PWD/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --json --task no-context-records-the-ci-posture-publish-only-rel`
+  returned **1 ok, 0 issues** (exit 0).
+- Final full suite after the rebase and wording correction, from the feature
+  worktree outside the sandbox:
+  `PYTHONPATH=$PWD/src /home/n/Code/claude/coga/.venv/bin/python -m pytest`
+  returned **2435 passed in 168.84s** (exit 0), including all 11 packaging tests.
+- Committed the correction as `1c1e5255` (`peer-review: clarify release build
+  timing`). `git status --short --branch` confirms a clean `ci-posture` worktree;
+  `git rev-list --left-right --count main...HEAD` returns `0 2`. The branch
+  changes only the two context copies. Peer review is complete and ready for
+  the mechanical `open-pr` step.
+
+## PR
+
+Record the repository's actual CI posture in `coga/codebase` and its packaged
+twin: `release.yml` builds, checks metadata, and publishes on a published
+GitHub Release or manual dispatch, with no PR/push test job. Point to
+`docs/releasing.md`, require exact local verification commands and counts,
+and explain that a clean-checkout wheel collision has no PR/push gate even
+though the release build can catch it before upload.
+
+Test plan: feature worktree `PYTHONPATH=$PWD/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` — **2435 passed**; `cmp coga/contexts/coga/codebase/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/codebase/SKILL.md` — identical; primary checkout `PYTHONPATH=$PWD/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --json --task no-context-records-the-ci-posture-publish-only-rel` — **1 ok, 0 issues**.
+
+Repo-wide `PYTHONPATH=$PWD/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --json` reports **204 ok, 5 existing errors** on both the feature branch and `main` (23 and 22 warnings respectively; the extra worktree warning is its missing local user). Codex review returned with no findings; independent review clarified the release-build timing.
