@@ -863,3 +863,48 @@ command, no new `requires:` token, no `STEP_GATES` change.
    bump-side warning fires before any rebase, so it mitigates the path in
    practice, but the exit itself is untouched. **Flagged, not proposed** —
    `evaluate-design`/owner should say whether it wants its own ticket.
+
+## Adjacent failure mode — stranded bump after transport failure (2026-09-11)
+
+Observed on this very ticket plus three others (`add-an-agent-picker-for-recurring`,
+`agent-usage-report`, `document-the-ticket-blackboard-writer-s-contract`), all
+codex megalaunch sessions that ended with a legitimate `coga bump` (step 2 → 3):
+
+- The bump wrote the ticket (step advanced, `assignee:` re-resolved,
+  `launch_generation` cleared, blackboard appended) and appended its audit
+  line, then its strict publication failed on the network:
+  `[git] sync failed: git fetch --no-write-fetch-head ... failed (exit 128)`.
+- `coga/log.md` is union-merged, so the `advanced to step 3` lines reached
+  control on a later command. The ticket writes stayed dirty. Control kept
+  step 2 + the megalaunch claim, so log and control disagreed for ~24h.
+- Every subsequent command's catch-all sweep (`sync_coga_state`) refused the
+  batch at `git.py::_ticket_launch_claim_change_reason` — "published launch
+  claim would be cleared without an authorized session-ending lifecycle
+  transition". Only the per-transition `guard_ticket_state` passes
+  `allow_launch_claim_release=True`; the broad sweep never does, by design.
+  The refusal also held back unrelated dirty state in the same batch (the
+  digest spool + `### Digest State` watermark).
+- No Coga command reconciles this: re-running `coga bump` would advance to
+  step 4, `coga launch` refuses the (now human-assigned) step before any
+  sync, and the contexts only say "retained for explicit reconciliation".
+  Recovery was a hand `git add`/`commit`/`push` of the six files
+  (`df57673b`), after checking HEAD == origin/main and that HEAD's ticket
+  copies were exactly what the bumps had read.
+
+Why it belongs here: it is the same class — a ticket write that reached disk
+but not control, invisible until something else trips over it — but it is
+**single-checkout**, not cross-checkout, so the `## Dev` / worktree-pointer
+hard parts do not apply. Candidate closers, for the owner to weigh:
+
+1. `coga validate` (and/or the sweep refusal message) should recognise the
+   shape "working-tree ticket clears a claim *and* `log.md` already carries
+   the matching `advanced to step N` / status line for this ref" and name the
+   reconciliation — today the refusal repeats every command with no remedy.
+2. Let the sweep authorise the release when that audit witness is present,
+   turning the retry into an ordinary landing. Sharper edge: the sweep would
+   then be trusting a log line as the lease, which the launch-claim design
+   deliberately avoided; keep it a proposal until `coga/launch-internals`
+   says whether an audit line is an acceptable witness.
+3. Cheapest: bump retries its own strict publication on a transport failure
+   before giving up, since the audit line is already committed to the log
+   by then and the pair is what has to land together.
