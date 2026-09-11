@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nick
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -176,6 +176,7 @@ for outcomes or merged commits.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/786
 branch: remove-digest
 worktree: /home/n/Code/claude/coga-remove-digest
 
@@ -231,6 +232,15 @@ review findings or design decisions remain.
 
 `git fetch origin main && git rebase FETCH_HEAD` completed cleanly in the
 feature worktree, onto `7127b7a5`, before the fix and final test run.
+
+## Open-PR
+
+First `coga open-pr` attempt refused: branch stale against `origin/main`
+(overlaps on `docs/reference.md` and the bundled `cli/SKILL.md` from #783).
+Rebased cleanly onto `c844f9a0` in the feature worktree (no conflicts, nothing
+to commit); overlap files carry only checksum-terminology `digest` hits.
+`python -m pytest` on the rebased branch: **2359 passed** (#783 added tests).
+Second attempt opened PR #786.
 
 ## Verification
 
