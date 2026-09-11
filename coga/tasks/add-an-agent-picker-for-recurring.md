@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: nicktoper
 contexts:
 - dev/code
 skills: []
@@ -38,8 +38,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (evaluate-design)
-launch_generation: 98a37dbd-75df-4ef2-8f71-67fbc293fafb
+step: 3 (review-design)
 ---
 
 ## Description
@@ -415,6 +414,108 @@ packaged `coga/cli` context has a twin to sync today. Re-confirm both at
 implement time before editing them.
 
 <!-- coga:blackboard -->
+
+## Evaluator review
+
+2026-09-10 — **Needs the three clarifications below before implementation.**
+The shared resolver, machine-local setting, and command-local picker form one
+coherent PR. The two current precedence chains, create-time `agent:` default,
+local-first bootstrap resolution, and absence of the two packaging twins match
+the source. The frozen workflow correctly hands this evaluation to the owner;
+this review does not approve the design or change its scope.
+
+### Must resolve before implementation
+
+1. **P2 — Preserve the diagnostic when megalaunch catches `ConfigError`.**
+   Proposed shape 4 says to widen `_author_draft`'s catch and return. Today
+   `src/coga/commands/ticket.py::_run_authoring_session` calls `_bail`, which
+   prints the error before raising `SystemExit`; a resolver that only raises
+   `ConfigError` has printed nothing. Catching both exceptions and returning
+   would silently discard an invalid env/config/ticket default, contradicting
+   the fail-loud criterion and `coga/principles` section 6. Phase 2 of
+   `src/coga/megalaunch.py::_run_selection` only checks launchability: an already
+   ready draft can still launch, so its result need not reveal the skipped
+   interview. Require an authoring diagnostic naming the task, winning source,
+   and override remedy before returning, while preserving best-effort
+   continuation. Test stderr, untouched draft bytes at helper return, and batch
+   continuation together; checking only that no exception escapes misses this.
+
+2. **P2 — Reconcile the singleton promise with an unresolved picker default.**
+   Proposed shape 3 tolerates a default-resolution error by passing `None`, then
+   tells `_pick_authoring_agent(...)->str` to return `current` when there are
+   fewer than two agents. That can return `None` and fail the final resolution,
+   despite the acceptance criterion promising to echo the single agent and
+   proceed. Concrete supported setup: only `[agents.codex]` is configured and
+   the packaged bootstrap still has `assignee: claude`; bare `--pick-agent`
+   has no valid `current`. A stale env/local choice produces the same case.
+   `src/coga/config.py::load_config` also accepts zero agents. Define zero-agent
+   failure, whether a singleton auto-selects or preserves the invalid-default
+   error, and what empty input does when a multi-agent picker has no valid
+   default. Align the criterion and helper return contract, with tests for
+   those cases; do not leave an implicit fallback to the implementer.
+
+3. **P2 — Specify how `--agent` and `--pick-agent` combine.** The criterion
+   says the picker marks the agent that would resolve without the flag, but
+   proposed shape 3 explicitly resolves that default with
+   `agent_override=None`. With a Claude default,
+   `coga ticket --agent codex --pick-agent` therefore marks Claude and Enter
+   replaces the explicit Codex override with Claude. The first-precedence term
+   lists both inputs without defining their interaction. Either reject the
+   combination explicitly or define it and pass the existing override into
+   default resolution when appropriate. Pin the combined-flags/empty-answer
+   result in `tests/test_ticket.py`; this is a new interaction with the existing
+   `src/coga/commands/ticket.py::ticket` option, not an argument to redesign it.
+
+### Optional recommendations
+
+- Correct the dependency premise in Context and design notes: both
+  `pyproject.toml` (`project.dependencies`) and `requirements.txt` already list
+  `tomli-w>=1`. There is still no existing local-config editing routine beyond
+  `src/coga/commands/init.py::render_local_toml` and initial file creation, so
+  keeping persistence out of scope remains a defensible choice.
+- Use `COGA_AUTHORING_AGENT=codex coga megalaunch --pick` for the batched-draft
+  example. `src/coga/commands/megalaunch.py::megalaunch` offers authoring only
+  for an explicit selection (`--pick` or `--relaunch`); bare megalaunch sweeps
+  active/in-progress work. In the bootstrap prose, also scope the new defaults
+  to `coga ticket`/picked-draft authoring: the separately advertised
+  `coga launch bootstrap/ticket` path remains outside this resolver.
+- Add environment isolation for the new variable in the relevant test fixtures
+  (see `tests/conftest.py`'s existing environment guards), so running tests from
+  a quota-fallback shell does not change their expected default. Cover the
+  explicit picker criteria beyond a successful answer: declaration order,
+  Enter, invalid-input retry, sticky hint/no config write, and parser rejection
+  of non-string/empty values. Also test that a human `source_ticket.assignee`
+  is never an authoring fallback.
+
+### Verification and baseline
+
+The following targeted current-behavior tests passed, unmodified: **7 passed**.
+
+```bash
+PYTHONPATH=/home/n/Code/claude/coga/src .venv/bin/python -m pytest -q \
+  tests/test_ticket.py::test_ticket_agent_override_codex_gets_kickoff \
+  tests/test_ticket.py::test_ticket_without_target_launches_bootstrap_interview \
+  tests/test_ticket.py::test_ticket_requires_tty_before_spawning \
+  tests/test_megalaunch.py::test_author_draft_prefers_megalaunch_agent_override \
+  tests/test_megalaunch.py::test_megalaunch_selection_draft_unready_after_authoring_is_reported \
+  tests/test_config.py::test_local_only_agent_is_appended_without_changing_default \
+  tests/test_config.py::test_default_agent_is_first_declared
+```
+
+Temporary-fixture probes confirmed that zero-agent config loads, a Codex-only
+config cannot resolve the shipped bootstrap's Claude assignee, and today's
+`_author_draft` prints an unknown-agent diagnostic before swallowing the exit.
+No agent session was spawned.
+
+`coga validate --json` currently exits 1: 29 warnings and four existing
+`unsynthesized-draft-blackboard` errors, on `v2/autotrigger-ticket-type`,
+`v2/measure-relay-prompt-scope-and-agent-precision`,
+`v2/split-context-to-doc-user-accessible-and-editable`, and
+`v2/use-worktree-when-starting-a-dev-task`. No issue names this ticket. Treat
+these as the baseline or arrange separate cleanup; do not silently expand this
+PR into unrelated draft edits to satisfy the global "clean" criterion.
+
+No ticket-body edits, branch, implementation, or PR were produced.
 
 ## Design notes — 2026-09-10
 

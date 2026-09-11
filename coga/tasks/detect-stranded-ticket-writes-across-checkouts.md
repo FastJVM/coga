@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: nicktoper
 contexts:
 - dev/code
 skills: []
@@ -38,8 +38,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (evaluate-design)
-launch_generation: a62faa7d-5fce-4ccb-996e-596c961f659f
+step: 3 (review-design)
 ---
 
 ## Description
@@ -634,6 +633,162 @@ Repo conventions:
 
 
 <!-- coga:blackboard -->
+
+## Evaluator review
+
+Cold review, 2026-09-09. **Needs revision before implementation.** The
+residual-2-only scope, report-only behavior, and two-consumer helper are a
+reasonable-sized PR. The proposed repair does not get the separate-checkout
+operator past the existing gate, and the proposed predicate is not proof that
+control lacks the branch's work. Findings below are for the owner's
+`review-design` gate; no design approval or implementation was performed.
+
+Body-only ambiguities: Proposed shape 3 says to append to the existing
+"Commit or stash" instruction while claiming to remove that instruction;
+Proposed shape 4 promises three Git calls while shape 1 loops over paths; and
+branch-name equality is described as the existing checkout resolver's rule.
+The source checks below do not resolve these in the spec's favor.
+
+### Must resolve before implementation
+
+1. **P1 — The advertised repair still fails in the target layout.**
+   In `src/coga/github_preflight.py::check_branch_contains_control`,
+   byte-identical overlaps are exempted only when
+   `allow_identical_coga_state_overlaps=True`.
+   `src/coga/open_pr.py::open_pr` passes `single_checkout`, so the separate
+   layout rejects *all* overlapping paths, including identical ticket blobs.
+   Real-Git reproduction: commit competing ticket edits on control and feature,
+   run the freshness check, restore the feature ticket with
+   `git checkout main -- <ticket>` and commit, then check again. Both checks
+   fail; the second still says "Rebase or merge" although the tips' ticket
+   bytes are identical. The proposed comparator would now return no path and
+   select that generic message. Thus "restore and amend/commit", "never
+   recommend rebase for this case", and "change only the message, never whether
+   it fails" do not form a working recovery contract. Specify a repair that
+   actually succeeds under the chosen gate semantics, and require an
+   end-to-end refusal → prescribed repair → successful open-pr test. Keep
+   inspection and preservation of useful branch-only content ahead of any
+   discard instruction, as the owner's report-only decision requires.
+
+2. **P1 — Reclassification must use the refusal's actual ref and cause.**
+   `open_pr::open_pr` chooses `base_ref` before freshness, preferring local
+   `main`; `github_preflight::check_branch_contains_control` fetches and
+   compares `FETCH_HEAD`. Fetching does not advance local `main`. The proposed
+   comparator and restore command can therefore use an older ticket than the
+   check which refused publication. A local reproduction kept `main` at the
+   merge base while fetched control contained the newer competing ticket.
+   Also, `freshness.ok == False` includes fetch/probe failures and material
+   source drift, not just own-ticket overlap. A second reproduction changed
+   the ticket only on feature and a source file only on control: the actual
+   overlap was empty, but the proposed condition still selected the
+   stranded-ticket message. It would hide the source problem; the same
+   condition can hide a fetch failure. Carry the compared control identity and
+   actual unsafe-overlap/probe outcome into classification, and preserve
+   unrelated failure reasons. Add stale-local-ref, failed-fetch, and mixed
+   source/task cases. For path identity, resolve the live ticket relative to
+   its **primary Git checkout root**: the suggested single-checkout
+   `blackboard_path.relative_to(recorded_checkout_root)` pattern raises in a
+   separate worktree or independent clone.
+
+3. **P1 — Branch change plus unequal tips also identifies successfully synced,
+   subsequently stale state.** A feature-side bump may commit ticket version
+   B locally and land B on control through the separate plumbing history;
+   control later advances B to C. Both comparator conjuncts hold even when C
+   retains every finding from B. Reproduced this exact history: the predicate
+   reported a stranded path while the exact feature blob appeared in control
+   history and all its lines remained in control's current blob. This is
+   supported behavior, not speculative coverage: the parent's blackboard
+   `Design step / Reproduction / Variant B` permits bumping from the feature
+   checkout, and `src/coga/git.py::_refresh_committed_divergence_reason` already
+   distinguishes an absorbed blob from unabsorbed content.
+   `tests/test_git.py::test_refresh_updates_committed_ticket_after_control_absorbed_it`
+   pins the case. Either specify the needed discriminator or explicitly narrow
+   the diagnostic to *possible committed-state divergence*, with appropriate
+   operator choice; unequal tips do not justify asserting an accidental edit
+   or inevitable rebase conflict. The no-normal-staleness acceptance needs this
+   fixture as well as the easier never-touched-on-feature case.
+
+4. **P2 — The cleanliness advice needs an explicit layout and path contract.**
+   Appending "stash/reconcile" after the unchanged instruction to commit *all*
+   dirt leaves contradictory directions for the exact incident being fixed.
+   Specify separate wording for ticket dirt and remaining source dirt. Apply
+   the duplicate warning only where a separate ticket copy exists: in the
+   single-checkout layout `dev/code / Checkout boundary` makes this feature
+   ticket the live copy, so committing it is not inherently stranding a
+   duplicate. Keep the cleanliness refusal, but do not tell that operator to
+   discard live state in favor of an older control copy. Define membership for
+   both `.md` tickets and directory tickets, including nested task paths and
+   attachments. Plain porcelain-line slicing does not account for quoted
+   paths or both rename endpoints; `src/coga/git.py::_changed_paths_under` uses
+   NUL-delimited status records and records both endpoints. Tests should cover
+   ticket-only dirt, mixed dirt, the single-checkout message, and path handling.
+
+5. **P2 — There is no matching branch comparison to extract from
+   `open_pr::_checkout_mode`.** Its single-checkout decision requires
+   `same_git_checkout`, a non-linked primary checkout, and an exact
+   `COGA_EXPECTED_TASK` ownership witness. Its later branch comparison is to
+   the **control** branch; it does not take the recorded branch as an input.
+   Conversely, `commands/launch.py::_recorded_single_checkout_assist_branch`
+   also checks the recorded branch but permits linked worktrees and clones
+   and requires PR linkage. Decide whether bump intentionally uses the simpler
+   current-branch-equals-recorded-branch diagnostic exemption or shares a
+   particular resolver's full rules. They are different contracts; an
+   implementer cannot satisfy the current "reuse the existing resolver rules"
+   criterion by extracting the comparison the spec names. Exercise the chosen
+   behavior with real Git checkouts; the cited bump linkage tests use a
+   non-Git fixture and cannot prove this distinction.
+
+6. **P2 — The claimed invocation cost is not the proposed algorithm's cost.**
+   For N candidate paths, the listed merge-base, changed-paths, per-path diff,
+   `_coga_root_prefix`, and current-branch probes require N + 4 subprocesses,
+   before any fuller checkout resolver. This scans every changed task/log path,
+   not just this ticket, on every eligible forward bump. `_run` has a 20-second
+   timeout *per call*. Batch the path comparison or replace the three-call
+   promise with an explicit justified budget; include a multi-path cost test.
+   Keep optional blackboard reads and layout probes inside the advisory error
+   boundary too, so "never raises" covers the whole new check.
+
+### Recommendations and owner decisions
+
+- The cited `test_open_pr_rejects_overlapping_coga_state_drift` is **not** the
+  proposed positive own-ticket fixture: it opens `tasks/overlap/ticket.md` but
+  overlaps `tasks/shared.md`. Under the stated scope it should keep the generic
+  message. Add a separate own-ticket fixture and retain this one as a negative
+  control; do not extend it to demand the new message without changing its
+  setup.
+- Add `coga/launch-internals` to implementation's context inputs, as
+  `coga/codebase / Source layout` requires for open-pr changes. Name the matching
+  behavioral-document updates and their packaged twins in the implementation
+  scope; a Python module docstring alone does not document the new user-facing
+  bump/open-pr contract.
+- Warning-only bump is reasonable for a bounded diagnostic. However, the
+  severity rationale must not promise that ignoring it only wastes one step:
+  the acknowledged ancestor early exit can still let an already-rebased branch
+  pass open-pr. Explicitly retain that coverage limit and give it an owner
+  disposition; broadening this PR to another guard is not required by this
+  review. Printing an executable diff command is sufficient, provided it names
+  the correct checkout, compared control revision, feature ref, and task path.
+- Keep residual 1 and linkage freshness out of this PR, consistent with the
+  owner's steer. Assign the residual-1 draft follow-up at owner review; none was
+  created here. The frozen workflow fits this task and has `requires: branch`
+  on implement already; its body statement that workflow is still an unfrozen
+  string is stale. The comparator's **two proposed callers** satisfy the
+  microkernel rule; the host module's existing consumers alone would not.
+
+### Verification
+
+Read the ticket independently, checked the parent, canonical repository
+contexts, the packaged frozen-workflow source, gate/comparator/checkout/sync
+implementations, and their fixtures. Four temporary bare-remote/linked-worktree
+Git probes verified the repair loop, stale local ref, already-absorbed version,
+and reclassification of unrelated material drift; all scratch repositories
+were outside the checkout. No source, ticket-body, branch, or PR changes.
+
+Baseline command (8 passed):
+
+```sh
+python -m pytest -q tests/test_open_pr.py::test_open_pr_rejects_overlapping_coga_state_drift tests/test_open_pr.py::test_open_pr_rejects_divergent_ticket_overlap_in_single_checkout tests/test_open_pr.py::test_open_pr_accepts_identical_generated_state_overlaps_from_preceding_bumps tests/test_open_pr.py::test_open_pr_accepts_non_overlapping_coga_state_drift tests/test_open_pr.py::test_open_pr_rejects_task_rename_overlapping_feature_edit tests/test_git.py::test_refresh_updates_committed_ticket_after_control_absorbed_it tests/test_commands.py::test_bump_branch_gate_blocks_until_dev_linkage_recorded tests/test_commands.py::test_bump_branch_gate_accepts_single_checkout_layout
+```
 
 ## Design pass — 2026-09-09
 

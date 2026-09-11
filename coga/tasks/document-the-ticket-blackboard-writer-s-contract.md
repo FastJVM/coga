@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -24,8 +24,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 2 (peer-review)
-launch_generation: c1ee353a-a195-4986-8b45-ccf545c4d4fc
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -209,3 +208,36 @@ enforcement is named as a separate job.
   partial list and does not include the new packaged context — nor does it list
   `patterns`, `period-task`, `launch-internals`, or `cli`. Left alone for scope;
   a separate ticket could either complete the list or derive it.
+
+---
+
+## Peer review (step 2)
+
+Reviewed the changed Markdown against `main` and spot-checked the load-bearing
+claims against shipped source and canonical contexts. Premise is sound; no
+remaining must-fix findings. Commit `2a15d11f` on `blackboard-writer-contract`
+corrects both copies of the new context:
+
+- Authoring cleanup is explicit work before activation. Draft cleanup preserves
+  every superseded-design entry and resets the rest; non-draft authoring removes
+  only used authoring sections and preserves unrelated working state. Activation
+  checks readiness without synthesizing or clearing notes. A live evaluator
+  review remains working state (`bootstrap/ticket`, `mark.prepare_active`,
+  `coga/current-direction`).
+- Existing fence/readiness/size validation is acknowledged. This ticket adds no
+  checks or writer behavior (`validate.py`, `blackboard.py`).
+- Description and Context compose alongside the blackboard; the audit log is
+  CLI-owned lifecycle history, not storage for arbitrary observations or every
+  manual Dev edit (`compose.py`, base prompt, `dev/code`).
+- Fence details include leading-indentation rejection, code-block own-line
+  matches, EOF, and the optional bootstrap reader. Programmatic appends name
+  the barrier-owning helper explicitly; low-level splices do not acquire it
+  (`taskfile.py`, `blackboard.py`, `blocker_reminders.py`, `open_pr.py`).
+
+Verification: `git diff --check main` passed. Direct `cmp` checks passed for
+both architecture and blackboard twins. A read-only Python check using the
+feature source resolved all seven context refs, `bootstrap/ticket`, and the
+named deferred task, and confirmed byte identity for both pairs. No pytest:
+only prose changed, as required by this review step. The four intended docs
+are the complete feature diff against the merge base; task/log differences
+in `git diff main` are newer control-branch state, not feature deletions.

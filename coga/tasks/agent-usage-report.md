@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -37,8 +37,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 2 (evaluate-design)
-launch_generation: 91e7a801-89d8-4b08-8b69-556751f30f69
+step: 3 (review-design)
 ---
 
 ## Description
@@ -419,3 +418,138 @@ launch for it.
 4. **Is Monday 08:00 right?** Chosen to land after the 07:00 Monday branch
    sweep and before the 09:00 daily digest, so a Monday doesn't open with
    three separate Coga posts competing for attention. Easy to move.
+
+## Evaluator review
+
+**Verdict: needs revision before implementation.** Reviewed cold against the
+ticket body, then checked the source, contracts, dependency ticket, and tests.
+The edge-only implementation, live-only rollout, and token-only fallback are
+one coherent PR. The frozen `code/design-then-implement` workflow correctly
+hands these findings to the owner; the unfinished pricing dependency need not
+block shipping. The following decisions must be made explicit in the spec.
+
+### Must resolve before implementation
+
+1. **P1 — The confident plan verdict needs a matching spending population.**
+   A floor on *all repo usage* is not necessarily a floor on usage covered by
+   the *declared plans*. `src/coga/usage.py::UsageRecord` records provider but
+   no payer, subscription, or authentication mode;
+   `src/coga/ticket.py::Ticket.human` names the ticket's human worker, not the
+   session's billed account. The actual log contains both Anthropic and OpenAI
+   usage and a `zach` attribution, while the example roster declares only
+   Nick's `max-20x` plan. Hypothetically, $250 of another person's/provider's
+   usage can satisfy the comparison against a declared $200 plan without
+   proving that plan pays for itself. Specify the population and what each
+   `monthly_usd` includes, including multiple subscriptions per person, and
+   confirm the actual roster at owner review. Where that correspondence is
+   unprovable, restrict the verdict to the arithmetic comparison of recorded
+   API-equivalent value with declared spend. It must not become proof that a
+   particular tier should be kept. This can be resolved through scope and
+   wording without absorbing the excluded attribution-schema work.
+
+2. **P1 — Specify how the materialized script reaches its implementation.**
+   `src/coga/recurring.py::_create_at_slug` copies **only `ticket.py`** into
+   `coga/tasks/recurring/usage-report/`; all other siblings stay at the
+   template. This is explicitly asserted by
+   `tests/test_recurring_shims.py::test_period_task_runs_its_shim_headlessly_and_closes_its_own_step`.
+   A sibling `import report` or lookup of `plans.toml` beside the copied
+   script therefore fails. Define a template lookup/import rooted in the
+   active checkout's Coga root (`src/coga/task_env.py::build_task_env` exports
+   `COGA_COGA_OS_ROOT`), including how `cost.py` resolves. Preserve the
+   no-core-change boundary. Require a test that materializes and executes the
+   copied shim, with posting stubbed, through its completion handoff; renderer
+   unit tests alone cannot establish the scheduled acceptance criterion.
+
+3. **P1 — Define the comparison arithmetic and its unavailable cases.**
+   The inputs are monthly prices and arbitrary windows, but the spec does not
+   say whether a week's value covers a fraction of a full month's spend or
+   is compared with prorated spend. Those produce different percentages and
+   verdicts; windows longer than a month make the distinction unavoidable.
+   State the denominator, any calendar proration, a numeric threshold for
+   "well below", and the result between that threshold and break-even. Also
+   specify that an absent/empty roster or zero total declared cost has no
+   usable comparison baseline: it must not divide by zero or satisfy the
+   confident branch through `0 >= 0`. `load_plans` currently promises an
+   empty roster without defining these consequences. Add expected results
+   for weekly/monthly/custom windows, threshold boundaries, missing/empty
+   plans, and an empty usage window.
+
+4. **P2 — Pin calendar boundaries and the inputs to reproducibility.**
+   `src/coga/usage.py::_parse_filter_ts` treats date-only bounds as UTC and
+   expands `until` through that day's end; `_record_matches` includes an
+   exact end timestamp too. The advertised August preview therefore includes
+   all of September 1 when forwarded unchanged. Define timezone, endpoint
+   inclusion, and the last-completed-week calculation, then test both
+   boundaries and adjacent weeks. Separately, the same dates do not preserve
+   output after a ticket is retired, its owner changes, or plans/prices are
+   edited. Narrow determinism to identical input snapshots, or specify how
+   historical inputs are selected. The pure
+   `build_report(records, roster, since, until)` also lacks the output of the
+   filesystem-reading `attribute`: pass resolved attribution into the pure
+   builder rather than concealing ticket IO inside it. Assert that all
+   per-person counts and coverage shares use the selected window.
+
+5. **P2 — The proposed upstream pricing API is not an agreed contract.**
+   `coga/tasks/define-the-api-equivalent-cost-proxy-and-price-tab.md`, under
+   `Description` and `Context`, explicitly leaves the implementation's home
+   undecided and asks for a table-vintage/staleness policy. It promises neither
+   `coga.usage.price_rollup_row` nor the proposed return shape; the current
+   `src/coga/usage.py` exports no such function. Either settle that contract
+   at owner review or describe this as a provisional adapter requiring later
+   wiring and verification, not integration completed merely by deleting a
+   fallback. Keep the null pricer as the valid shipping state. Define and
+   test the distinction between an absent proxy, an available proxy with no
+   priced models, and mixed priced/unpriced models; expose any upstream
+   validity information needed before calling a value trustworthy.
+
+6. **P2 — Reconcile guaranteed posting with best-effort completion.**
+   `src/coga/notification/__init__.py::post(fatal=False)` returns normally
+   after delivery/configuration failures and provides no success result. The
+   proposed shim then bumps to done, and recurring has already recorded the
+   serviced period (`src/coga/recurring.py::_advance_serviced_period`). Thus
+   the described implementation can complete with zero delivered reports.
+   Define acceptance as one report-post attempt per run if that loss policy
+   is intentional, or change the completion policy; add a failed-delivery
+   test. Explain how a missed historical report is reposted if Slack recovery
+   is intended: the only dated entrypoint currently specified is stdout-only,
+   and `ticket.py` receives no operands. No cursor or new core command is
+   required just to document an explicit manual repost procedure.
+
+### Optional recommendations and factual corrections
+
+- Reject ambiguous alias ownership and malformed/negative plan prices rather
+  than silently inventing a roster; distinguish a missing file from invalid
+  operator input. Label per-person results as attribution by current ticket
+  human/owner, and include undeclared identities among unattributed reasons.
+- Correct the accessor to `Rollup.overall.unknown_sessions`. There are **five**
+  existing recipe-backed recurring shims (`SHIMMED_TEMPLATES` in
+  `tests/test_recurring_shims.py`), not four. The sample's 2026-09-01 is a
+  Tuesday, and its 1.02B-token person row exceeds its 496M-token repo total;
+  replace it with a consistent, single-window example.
+- Scope the one-message count to the report payload: the final bump also
+  emits a normal done outcome through `src/coga/mark.py::mark_done`, which
+  enters the digest when installed and otherwise posts live.
+
+### Evidence and verification
+
+- Read the product thesis and relevant principles, architecture, codebase,
+  current-direction, project-stage, usage, and recurring contracts. Checked
+  the branch-sweep template/workflow/skill, packaged design workflow, pricing
+  draft, notification implementation, and packaging twin rule. No new paired
+  template is required for the proposed live-only files.
+- Re-ran the proposed live-ticket join using `load_records`, `Ticket.read`,
+  and `rollup`: **510 records, 3,396,776,851 tokens; 143 records / 38.18% of
+  tokens join to a human/owner; 60 unknown sessions**. The design's earlier
+  snapshot is substantively supported. Nick's two aliases account for
+  1,285,810,122 tokens; `zach` adds 11,068,675. The fixture-independent date
+  probe confirmed September 1 records are included by the advertised bounds.
+- `.venv/bin/python -m pytest -q tests/test_usage.py tests/test_recurring_shims.py`
+  — **22 passed**. No implementation was produced; the full implementation
+  suite remains for the implementation step.
+- `coga validate --json` — **exit 1**, with four existing
+  `unsynthesized-draft-blackboard` errors outside this task:
+  `v2/autotrigger-ticket-type`, `v2/measure-relay-prompt-scope-and-agent-precision`,
+  `v2/split-context-to-doc-user-accessible-and-editable`, and
+  `v2/use-worktree-when-starting-a-dev-task`. Other findings were warnings.
+  Record this baseline rather than expanding this report's scope to repair
+  parked tickets.
