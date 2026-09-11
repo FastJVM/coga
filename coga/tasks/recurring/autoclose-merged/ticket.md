@@ -1,7 +1,7 @@
 ---
 slug: recurring/autoclose-merged
 title: Autoclose merged tickets
-status: done
+status: active
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -9,7 +9,7 @@ assignee: claude
 contexts:
 - coga/period-task
 skills: []
-period_generation: 39f8160e-82fe-455d-80d4-e184cdf13ef2
+period_generation: f94b57ee-988d-47cb-acfc-c2019f888ef7
 workflow:
   name: autoclose-merged/sweep
   steps:
@@ -18,6 +18,7 @@ workflow:
     - coga/autoclose/sweep
     assignee: agent
 secrets: null
+step: 1 (sweep)
 ---
 
 ## Description
@@ -58,13 +59,3 @@ no merged final-step tickets exits successfully and changes nothing.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Autoclose Sweep: retire follow-ups
-
-Generated: 2026-09-10T16:55:17+00:00
-Task: `recurring/autoclose-merged`
-
-2 auto-closed ticket(s) still have a recorded feature checkout. Autoclose never removes one — `coga retire` owns the worktree and branch safety proofs:
-
-- `a-slack-repo-without-important-webhook-can-abort-t` "A Slack repo without important_webhook can abort the recurring scan phase": worktree `/home/n/Code/claude/coga-scan-alert-nonfatal`, branch `scan-alert-nonfatal` — `coga retire a-slack-repo-without-important-webhook-can-abort-t`
-- `activation-does-not-resolve-step-1-s-assignee-role` "Activation does not resolve step 1's assignee role token": worktree `/home/n/Code/claude/coga-resolve-step-one-assignee`, branch `resolve-step-one-assignee` — `coga retire activation-does-not-resolve-step-1-s-assignee-role`

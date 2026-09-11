@@ -4870,3 +4870,11 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-10 21:51 [detect-stranded-ticket-writes-across-checkouts] [git] sync refused: coga/tasks/detect-stranded-ticket-writes-across-checkouts.md: published launch claim would be cleared without an authorized session-ending lifecycle transition
 2026-09-10 21:51 [document-the-ticket-blackboard-writer-s-contract] [git] sync refused: coga/tasks/document-the-ticket-blackboard-writer-s-contract.md: published launch claim would be cleared without an authorized session-ending lifecycle transition
 2026-09-10 21:51 [bootstrap/orient] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-09-11 10:00 [recurring/autoclose-merged] [system] created (status=active)
+2026-09-11 10:00 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-09-11
+2026-09-11 10:00 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-09-11
+2026-09-11 10:00 [recurring/blocker-reminders] [system] created (status=active)
+2026-09-11 10:00 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-09-11
+2026-09-11 10:00 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-09-11
+2026-09-11 10:00 [recurring/digest] [system] created (status=active)
+2026-09-11 10:00 [recurring/digest] [system] created recurring/digest for 2026-09-11
