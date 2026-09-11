@@ -1,11 +1,11 @@
 ---
 title: Cloning a coga repo has no setup path
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 contexts:
-  - coga/cli
-  - coga/codebase
+- coga/cli
+- coga/codebase
 workflow:
   name: code/with-review
   steps:
