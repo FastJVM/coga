@@ -56,7 +56,7 @@ def main(
         help="Force a real, full run of EVERY template: bypass the schedule "
         "and the already-serviced/done/paused status filter, then get-or-create "
         "and launch each template's real `recurring/<name>` task. Identical to a "
-        "bare `coga recurring` (real Slack, spool drain, git sync, "
+        "bare `coga recurring` (real Slack, git sync, "
         "serviced-period ledger advance) — just forced. A template that already "
         "ran this period is re-launched. A canceled period task is refused; "
         "delete it before starting a fresh run.",

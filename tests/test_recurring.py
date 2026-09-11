@@ -16,7 +16,6 @@ from typer.testing import CliRunner
 
 from coga import git as coga_git
 from coga import launch_script
-from coga import spool
 from coga import recurring as recurring_module
 from coga import recurring_runner as recurring_cmd
 from coga.cli import app
@@ -1935,11 +1934,11 @@ def test_due_orders_dream_last(repo: Path) -> None:
     due template, so Dream's retro pass reaps this sweep's freshly-`done`
     period tickets instead of trailing them by a full sweep.
 
-    Alphabetically `dream` sorts between `digest` and `weekly-summary`; the
+    Alphabetically `dream` sorts between `audit` and `weekly-summary`; the
     layered `due` key (`is_cleanup` leading) overrides that so it lands last.
     """
     # Three due weekly templates whose names bracket `dream` alphabetically.
-    for name in ("digest", "dream", "weekly-summary"):
+    for name in ("audit", "dream", "weekly-summary"):
         _write_recurring(
             repo,
             name,
@@ -1962,14 +1961,14 @@ def test_due_orders_dream_last(repo: Path) -> None:
 
     order = [t.template for t in scan.due]
     assert order[-1] == "dream"
-    assert set(order) == {"digest", "dream", "weekly-summary", "weekly-check"}
+    assert set(order) == {"audit", "dream", "weekly-summary", "weekly-check"}
 
 
 def test_due_resuming_orphan_runs_before_fresh_dream(repo: Path) -> None:
     """Dream-last leads the sort key, but resume-first still holds *among the
     non-cleanup templates*: a stuck `in_progress` orphan is picked up before a
     fresh Dream launch."""
-    for name in ("digest", "dream"):
+    for name in ("audit", "dream"):
         _write_recurring(
             repo,
             name,
@@ -1989,16 +1988,16 @@ def test_due_resuming_orphan_runs_before_fresh_dream(repo: Path) -> None:
 
     cfg = load_config(repo)
     first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
-    # Strand the digest period task as a dead-sweep orphan.
-    digest_ref = next(t.ref for t in first.tasks if t.template == "digest")
-    ticket = Ticket.read(digest_ref.path / "ticket.md")
+    # Strand the audit period task as a dead-sweep orphan.
+    audit_ref = next(t.ref for t in first.tasks if t.template == "audit")
+    ticket = Ticket.read(audit_ref.path / "ticket.md")
     ticket.frontmatter["status"] = "in_progress"
-    ticket.write(digest_ref.path / "ticket.md")
+    ticket.write(audit_ref.path / "ticket.md")
 
     scan = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0))  # week 18
     order = [t.template for t in scan.due]
-    # Resumed digest orphan first; Dream still last.
-    assert order[0] == "digest"
+    # Resumed audit orphan first; Dream still last.
+    assert order[0] == "audit"
     assert order[-1] == "dream"
 
 
@@ -3149,66 +3148,6 @@ def test_delegated_completion_refuses_a_concurrent_parent_state_edit(
     assert "cursor: concurrent" in remote_parent
     assert "status: in_progress" in remote_period
     assert completion_notifications == []
-
-
-def test_delegated_completion_publishes_digest_event_with_done_state(
-    git_repo, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The strict completion transaction includes its configured digest event."""
-    coga_os = git_repo.coga_os
-    _write_delegating_template(coga_os, "delegate-check")
-    digest_spool = coga_os / "recurring" / "digest" / "spool.md"
-    _write(
-        digest_spool,
-        "# Digest spool\n\n## Spool (pending)\n\nconsumed_through:\n",
-    )
-    cfg = load_config(coga_os)
-    outcome = create_named(
-        cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
-    )
-    git_repo.git("add", "-A")
-    git_repo.git("commit", "-m", "seed delegated period with digest spool")
-    git_repo.git("push", "origin", "main")
-
-    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
-        kwargs["before_spawn"]()
-        kwargs["revalidate_before_spawn"]()
-        return "done"
-
-    monkeypatch.setattr(
-        "coga.commands.launch._preflight_push_auth",
-        lambda *args, **kwargs: True,
-    )
-    monkeypatch.setattr(
-        "coga.commands.launch.launch_with_before_spawn", fake_launch
-    )
-
-    delegated = recurring_cmd._run_delegated_task(
-        cfg,
-        outcome.ref,
-        idle_timeout=900.0,
-        max_session=None,
-        continue_after_timeout=True,
-    )
-
-    ticket_rel = outcome.ref.ticket_path.relative_to(git_repo.root).as_posix()
-    spool_rel = digest_spool.relative_to(git_repo.root).as_posix()
-    remote_ticket = git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
-    remote_spool = git_repo.git("show", f"main:{spool_rel}", cwd=git_repo.origin)
-    ticket_commit = git_repo.git(
-        "log", "-1", "--format=%H", "main", "--", ticket_rel,
-        cwd=git_repo.origin,
-    ).strip()
-    spool_commit = git_repo.git(
-        "log", "-1", "--format=%H", "main", "--", spool_rel,
-        cwd=git_repo.origin,
-    ).strip()
-
-    assert delegated == recurring_cmd.DelegatedRunResult(0, "done")
-    assert "status: done" in remote_ticket
-    assert '"kind":"done"' in remote_spool
-    assert '"ticket":"recurring/delegate-check"' in remote_spool
-    assert ticket_commit == spool_commit
 
 
 def test_delegated_completion_retains_state_when_publication_is_uncertain(
@@ -8182,45 +8121,6 @@ def test_watchdog_timeout_uses_important_live_fallback(
     assert Ticket.read(ref.ticket_path).status == "paused"
 
 
-def test_watchdog_timeout_spools_once_without_live_post(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    digest_spool = repo / "recurring" / "digest" / "spool.md"
-    _write(
-        digest_spool,
-        "# Digest spool\n\n## Spool (pending)\n\nconsumed_through:\n",
-    )
-    cfg, ref = _in_progress_period(repo)
-    urls: list[str] = []
-
-    def capture(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
-        urls.append(url)
-
-        class Response:
-            status_code = 200
-            text = "ok"
-
-        return Response()
-
-    monkeypatch.setattr("coga.notification.slack.requests.post", capture)
-
-    recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
-
-    assert urls == []
-    records = spool.read_records(digest_spool)
-    assert len(records) == 1
-    assert set(records[0]) == {
-        "id",
-        "ts",
-        "project",
-        "kind",
-        "detail",
-        "ticket",
-        "owner",
-    }
-    assert records[0]["kind"] == "recurring-error"
-
-
 def test_non_timeout_unfinished_pause_stays_silent(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -9144,10 +9044,10 @@ def test_promoted_template_creates_a_real_period_task(
 def test_serviced_period_survives_a_blackboard_rewrite(repo: Path) -> None:
     """The bug this design replaced: a co-writer erasing the template state.
 
-    The digest run rewrites its `### Digest State` section, which used to
-    swallow a `last_serviced_period` mark appended after it. Every subsequent
+    A run that rewrites its `### Run State` section used to swallow a
+    `last_serviced_period` mark appended after it. Every subsequent
     `coga recurring` then treated the period as unserviced, deleted the
-    completed task, and reran the digest — reposting it each time.
+    completed task, and reran the job — reposting its result each time.
     """
     _write_recurring(
         repo,
@@ -9184,18 +9084,18 @@ def test_repeated_scans_in_one_period_service_it_once(repo: Path) -> None:
     """Three `coga recurring` invocations inside one period, one run."""
     _write_recurring(
         repo,
-        "daily-digest",
+        "daily-report",
         """
         ---
         schedule: "0 9 * * *"
-        title: "Daily digest"
+        title: "Daily report"
         assignee: claude
         owner: marc
         ---
 
         ## Description
 
-        Post the digest.
+        Post the report.
         """,
     )
     cfg = load_config(repo)
@@ -9204,10 +9104,10 @@ def test_repeated_scans_in_one_period_service_it_once(repo: Path) -> None:
         scan = scan_due(cfg, now=datetime(2026, 4, 22, hour, 0, 0))
         if scan.tasks[0].created or scan.tasks[0].replaced_done:
             created += 1
-            _finish_period_task(repo, "recurring/daily-digest")
+            _finish_period_task(repo, "recurring/daily-report")
 
     assert created == 1
-    log = "\n".join(task_log_lines(cfg, "recurring/daily-digest"))
+    log = "\n".join(task_log_lines(cfg, "recurring/daily-report"))
     assert log.count("for 2026-04-22") == 1
 
 
@@ -9219,17 +9119,17 @@ def test_serviced_log_format_is_pinned() -> None:
     every period re-fires — so the exact spelling is pinned here.
     """
     assert (
-        format_serviced_log("created", "recurring/digest", "2026-08-13")
-        == "created recurring/digest for 2026-08-13"
+        format_serviced_log("created", "recurring/report", "2026-08-13")
+        == "created recurring/report for 2026-08-13"
     )
     assert (
         format_serviced_log("reused", "recurring/dream", "2026-W33")
         == "reused recurring/dream for 2026-W33"
     )
     with pytest.raises(ValueError):
-        format_serviced_log("advanced", "recurring/digest", "2026-08-13")
+        format_serviced_log("advanced", "recurring/report", "2026-08-13")
     with pytest.raises(ValueError, match="invalid period key 'none'"):
-        format_serviced_log("created", "recurring/digest", "none")
+        format_serviced_log("created", "recurring/report", "none")
 
 
 @pytest.mark.parametrize(

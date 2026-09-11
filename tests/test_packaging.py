@@ -54,8 +54,6 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md",
     "coga/resources/templates/coga/recurring/autoclose-merged/ticket.md",
     "coga/resources/templates/coga/recurring/blocker-reminders/ticket.md",
-    "coga/resources/templates/coga/recurring/digest/ticket.md",
-    "coga/resources/templates/coga/recurring/digest/spool.md",
     "coga/resources/templates/coga/recurring/resolve-conflicts/ticket.md",
     "coga/resources/templates/coga/recurring/skill-update/ticket.md",
     "coga/resources/templates/coga/workflows/autoclose-merged/sweep.md",
@@ -66,7 +64,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/workflows/skill-update/run.md",
     # Bundled reusable workflows ship under bootstrap/workflows/ (local-first
     # fallback) so a fresh repo can run the core code loop, the docs flow, the
-    # Dream workflow and the digest battery without hand-copying.
+    # Dream workflow without hand-copying.
     "coga/resources/templates/coga/bootstrap/workflows/code/"
     "with-review.md",
     "coga/resources/templates/coga/bootstrap/workflows/code/"
@@ -77,8 +75,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "create-google-doc.md",
     "coga/resources/templates/coga/bootstrap/workflows/docs/"
     "with-review.md",
-    "coga/resources/templates/coga/bootstrap/workflows/digest/post.md",
-    # …and the code/* and digest-flush skills those workflows reference.
+    # …and the code/* skills those workflows reference.
     "coga/resources/templates/coga/bootstrap/skills/code/design/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/review-design/"
     "SKILL.md",
@@ -88,8 +85,6 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md",
-    "coga/resources/templates/coga/bootstrap/skills/coga/digest/flush/"
-    "SKILL.md",
     "coga/resources/templates/coga/skills/_template/SKILL.md",
     "coga/resources/templates/coga/contexts/.gitignore",
     "coga/resources/templates/coga/skills/direct/body/SKILL.md",
@@ -156,14 +151,6 @@ INTENTIONALLY_DIVERGENT_TWINS = {
     "coga/log.md": (
         "The live copy is this repo's append-only audit trail; the packaged "
         "copy is the empty log a fresh repo starts with."
-    ),
-    "coga/recurring/digest/spool.md": (
-        "The live copy holds real spooled events and a `consumed_through` "
-        "cursor; the packaged copy is an empty spool."
-    ),
-    "coga/recurring/digest/ticket.md": (
-        "The live copy carries this repo's `owner`/`assignee` and its accrued "
-        "Digest State; the packaged copy ships those fields blank."
     ),
 }
 

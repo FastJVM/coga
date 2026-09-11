@@ -5775,20 +5775,6 @@ def test_recorded_assist_script_republishes_nested_mark_done(
     git_repo,
 ) -> None:
     """An in-script terminal transition is strict and leaves no split refs."""
-    spool_path = git_repo.coga_os / "recurring" / "digest" / "spool.md"
-    _write(
-        spool_path,
-        """
-        # Daily digest spool
-
-        ## Spool (pending)
-
-        consumed_through:
-        """,
-    )
-    git_repo.git("add", str(spool_path.relative_to(git_repo.root)))
-    git_repo.git("commit", "-m", "digest: seed outcome spool")
-    git_repo.git("push", "origin", "main")
     created, ticket_path = _seed_single_checkout_human_review(
         git_repo,
         title="Finish deterministic review",
@@ -5872,13 +5858,6 @@ def test_recorded_assist_script_republishes_nested_mark_done(
         )
         assert published.status == "done"
         assert published.step is None
-        published_spool = git_repo.git(
-            "show",
-            f"refs/heads/{branch}:{spool_path.relative_to(git_repo.root)}",
-            cwd=git_repo.origin,
-        )
-        assert '"kind":"done"' in published_spool
-        assert f'"ticket":"{created["slug"]}"' in published_spool
     assert git_repo.git("status", "--porcelain").strip() == ""
 
 
@@ -5903,22 +5882,7 @@ def test_recorded_assist_period_completion_publishes_parent_without_ignored_file
         cursor: old
         """,
     )
-    spool_path = git_repo.coga_os / "recurring" / "digest" / "spool.md"
-    _write(
-        spool_path,
-        """
-        # Daily digest spool
-
-        ## Spool (pending)
-
-        consumed_through:
-        """,
-    )
-    git_repo.git(
-        "add",
-        str(parent_ticket.relative_to(git_repo.root)),
-        str(spool_path.relative_to(git_repo.root)),
-    )
+    git_repo.git("add", str(parent_ticket.relative_to(git_repo.root)))
     git_repo.git("commit", "-m", "recurring: seed period state")
     git_repo.git("push", "origin", "main")
 

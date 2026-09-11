@@ -33,7 +33,7 @@ from coga.mark import mark_canceled as _mark_canceled
 from coga.mark import mark_done as _mark_done
 from coga.mark import mark_paused as _mark_paused
 from coga.repl_supervisor import emit_done_marker
-from coga.notification import digest_spool_target_path, preflight_post
+from coga.notification import preflight_post
 from coga.period_state import parent_ticket_path, read_snapshot
 from coga.tasks import TaskNotFoundError, TaskRef, read_ticket, resolve_task
 from coga.ticket import Ticket
@@ -122,7 +122,6 @@ def paused(
     ticket, rollback = _capture_assist_transition(
         cfg,
         ref,
-        include_spool=False,
         include_period_parent=False,
     )
     _require_message_nonempty(message)
@@ -208,7 +207,6 @@ def done(
     ticket, rollback = _capture_assist_transition(
         cfg,
         ref,
-        include_spool=True,
         include_period_parent=True,
     )
     _require_message_nonempty(message)
@@ -247,7 +245,6 @@ def done(
             actor=actor,
             log_message=log_message,
             slack_text=slack_text,
-            digest_detail=f"{finisher} finished{transition or ' → done'} ✅{suffix}",
             image_url=cfg.gif_for("done"),
             echo=f"{ref.id_slug}: done",
             force=force,
@@ -334,7 +331,6 @@ def canceled(
     ticket, rollback = _capture_assist_transition(
         cfg,
         ref,
-        include_spool=True,
         include_period_parent=False,
     )
     reason = message.strip()
@@ -366,7 +362,6 @@ def canceled(
                 f"🚫 {canceler} canceled *{ref.id_slug}* "
                 f'"{ticket.title}": {reason}'
             ),
-            digest_detail=f"{canceler} canceled — {reason}",
             image_url=cfg.gif_for("canceled"),
             echo=f"{ref.id_slug}: canceled — {reason}",
             feature_publication=(assist.lease if assist is not None else None),
@@ -435,7 +430,6 @@ def _capture_assist_transition(
     cfg: Config,
     ref: TaskRef,
     *,
-    include_spool: bool,
     include_period_parent: bool,
 ) -> tuple[Ticket, git.FileMutationRollback | None]:
     """Pin exact lifecycle inputs before a possible inherited assist lease."""
@@ -444,11 +438,6 @@ def _capture_assist_transition(
 
     paths = [log_path(cfg)]
     union_paths = [log_path(cfg)]
-    if include_spool:
-        spool_path = digest_spool_target_path(cfg)
-        if spool_path is not None:
-            paths.append(spool_path)
-            union_paths.append(spool_path)
     if include_period_parent:
         snapshot = read_snapshot(ref.path)
         if snapshot is not None:
@@ -501,8 +490,8 @@ def _preflight_assist_outcome(
     ref: TaskRef,
     rollback: git.FileMutationRollback | None,
 ) -> None:
-    """Validate a strict live outcome channel before any publication lease."""
-    if rollback is None or digest_spool_target_path(cfg) is not None:
+    """Validate the live outcome channel before any publication lease."""
+    if rollback is None:
         return
     try:
         preflight_post(cfg)

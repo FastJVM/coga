@@ -33,29 +33,29 @@ from tests.test_recurring import (  # noqa: F401 — shared repo fixture
 def test_parses_a_clean_problem_reply() -> None:
     analysis = parse_analysis(
         "VERDICT: problem\n"
-        "TITLE: Fix the digest recipe's timezone handling\n"
+        "TITLE: Fix the branch-sweep recipe's timezone handling\n"
         "---\n"
-        "The `digest` recipe exited 1 with a `ZoneInfoNotFoundError`.\n"
+        "The `branch-sweep` recipe exited 1 with a `ZoneInfoNotFoundError`.\n"
     )
     assert analysis.verdict == "problem"
-    assert analysis.title == "Fix the digest recipe's timezone handling"
-    assert analysis.body.startswith("The `digest` recipe exited 1")
+    assert analysis.title == "Fix the branch-sweep recipe's timezone handling"
+    assert analysis.body.startswith("The `branch-sweep` recipe exited 1")
     assert "---" not in analysis.body
 
 
 def test_parses_ok_and_duplicate_verdicts() -> None:
     assert parse_analysis("VERDICT: ok\n").verdict == "ok"
-    dup = parse_analysis("VERDICT: duplicate\nDUPLICATE: autofix/digest-tz\n")
+    dup = parse_analysis("VERDICT: duplicate\nDUPLICATE: autofix/branch-sweep-tz\n")
     assert dup.verdict == "duplicate"
-    assert dup.duplicate_of == "autofix/digest-tz"
+    assert dup.duplicate_of == "autofix/branch-sweep-tz"
 
 
 def test_unparseable_reply_surfaces_as_a_problem() -> None:
     """A broken analyst must not silently swallow the run it was hired to read."""
-    analysis = parse_analysis("the digest recipe blew up and I forgot the format")
+    analysis = parse_analysis("the branch-sweep recipe blew up and I forgot the format")
     assert analysis.verdict == "problem"
-    assert analysis.title == "the digest recipe blew up and I forgot the format"
-    assert "digest recipe blew up" in analysis.body
+    assert analysis.title == "the branch-sweep recipe blew up and I forgot the format"
+    assert "branch-sweep recipe blew up" in analysis.body
 
 
 def test_long_titles_are_clipped_to_one_line() -> None:
@@ -430,15 +430,15 @@ def test_a_disarmed_budget_leaves_the_whole_fallback_unbounded(
 
 def _record() -> RunRecord:
     record = RunRecord(started=datetime(2026, 8, 24, 9, 0, 0), repo="coga")
-    record.scan_lines = ["digest              ready (Mon 09:00)      launch"]
+    record.scan_lines = ["branch-sweep        ready (Mon 09:00)      launch"]
     record.add(
         TaskOutcome(
-            template="digest",
-            slug="recurring/digest",
+            template="branch-sweep",
+            slug="recurring/branch-sweep",
             result="failed",
             exit_code=1,
             final_status="in_progress",
-            blackboard="## Digest\n\nTraceback...\nZoneInfoNotFoundError\n",
+            blackboard="## Branch sweep\n\nTraceback...\nZoneInfoNotFoundError\n",
         )
     )
     record.add(
@@ -454,9 +454,9 @@ def _record() -> RunRecord:
 
 def test_record_renders_outcomes_and_flags_problems() -> None:
     record = _record()
-    assert [o.slug for o in record.problems] == ["recurring/digest"]
+    assert [o.slug for o in record.problems] == ["recurring/branch-sweep"]
     text = record.render()
-    assert "recurring/digest — failed" in text
+    assert "recurring/branch-sweep — failed" in text
     assert "exit code: 1" in text
     assert "ZoneInfoNotFoundError" in text
     assert "recurring/dream — completed" in text
@@ -499,10 +499,10 @@ def test_an_on_demand_run_is_not_labelled_a_sweep() -> None:
 def test_prompt_lists_open_autofix_tickets_for_dedupe() -> None:
     prompt = build_prompt(
         "run record here",
-        [("autofix/digest-tz", "Fix the digest timezone", "active")],
+        [("autofix/branch-sweep-tz", "Fix the branch-sweep timezone", "active")],
     )
     assert "run record here" in prompt
-    assert "autofix/digest-tz" in prompt
+    assert "autofix/branch-sweep-tz" in prompt
     assert "VERDICT:" in prompt
 
 
@@ -804,9 +804,9 @@ def test_run_autofix_creates_an_active_ticket_in_the_autofix_directory(
     calls = _fake_agent_reply(
         monkeypatch,
         "VERDICT: problem\n"
-        "TITLE: Fix the digest recipe timezone crash\n"
+        "TITLE: Fix the branch-sweep recipe timezone crash\n"
         "---\n"
-        "`digest` exited 1 with ZoneInfoNotFoundError.\n",
+        "`branch-sweep` exited 1 with ZoneInfoNotFoundError.\n",
     )
     posts: list[str] = []
     monkeypatch.setattr(autofix, "post", lambda cfg, msg, **kw: posts.append(msg))
@@ -819,7 +819,7 @@ def test_run_autofix_creates_an_active_ticket_in_the_autofix_directory(
     assert len(created) == 1
     ticket = (created[0] / "ticket.md").read_text()
     assert "status: active" in ticket
-    assert "Fix the digest recipe timezone crash" in ticket
+    assert "Fix the branch-sweep recipe timezone crash" in ticket
     assert "code/with-self-review" in ticket
     # The run that produced the finding travels with the ticket.
     assert "ZoneInfoNotFoundError" in (created[0] / "run-log.md").read_text()
@@ -838,7 +838,7 @@ def test_run_autofix_creates_nothing_for_an_already_ticketed_problem(
     cfg_repo, monkeypatch: pytest.MonkeyPatch, autofix_enabled
 ) -> None:
     _fake_agent_reply(
-        monkeypatch, "VERDICT: duplicate\nDUPLICATE: autofix/digest-tz\n"
+        monkeypatch, "VERDICT: duplicate\nDUPLICATE: autofix/branch-sweep-tz\n"
     )
     autofix.run_autofix(cfg_repo, _record())
     assert not (cfg_repo.repo_root / "tasks" / "autofix").exists()
@@ -1061,13 +1061,13 @@ def test_recipe_analyzes_the_latest_run_log_by_default(
     runs = cfg_repo.repo_root / ".coga" / "recurring-runs"
     runs.mkdir(parents=True)
     (runs / "20260101T000000.md").write_text("older run\n")
-    (runs / "20260824T090000.md").write_text("digest exited 1\n")
+    (runs / "20260824T090000.md").write_text("branch-sweep exited 1\n")
     calls = _fake_agent_reply(monkeypatch, "VERDICT: ok\n")
 
     from coga.runner import run_recipe
 
     assert run_recipe(cfg_repo, "autofix-analyze", []) == 0
-    assert "digest exited 1" in calls[0][-1]
+    assert "branch-sweep exited 1" in calls[0][-1]
 
 
 def test_recipe_dry_run_reports_without_creating_a_ticket(
@@ -1075,16 +1075,16 @@ def test_recipe_dry_run_reports_without_creating_a_ticket(
 ) -> None:
     log = cfg_repo.repo_root / ".coga" / "recurring-runs" / "run.md"
     log.parent.mkdir(parents=True)
-    log.write_text("digest exited 1\n")
+    log.write_text("branch-sweep exited 1\n")
     _fake_agent_reply(
         monkeypatch,
-        "VERDICT: problem\nTITLE: Fix digest\n---\nIt crashed.\n",
+        "VERDICT: problem\nTITLE: Fix branch-sweep\n---\nIt crashed.\n",
     )
 
     from coga.runner import run_recipe
 
     assert run_recipe(cfg_repo, "autofix-analyze", [str(log), "--dry-run"]) == 0
-    assert "Fix digest" in capfd.readouterr().out
+    assert "Fix branch-sweep" in capfd.readouterr().out
     assert not (cfg_repo.repo_root / "tasks" / "autofix").exists()
 
 

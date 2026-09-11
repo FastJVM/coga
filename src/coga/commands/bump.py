@@ -17,7 +17,7 @@ from coga.bump import (
 from coga.config import Config, ConfigError, load_config
 from coga.logfile import log_path
 from coga.mark import StrandedProductCode, mark_done
-from coga.notification import digest_spool_target_path, preflight_post
+from coga.notification import preflight_post
 from coga.paths import resolve_workflow_path
 from coga.period_state import parent_ticket_path, read_snapshot
 from coga.step_gate import gate_publishes_current_branch, gate_unmet_reason
@@ -207,10 +207,9 @@ def bump(
                 _bail(reason)
             publish_current_branch = gate_publishes_current_branch(requires)
 
-    # Only terminal bump delegates to an outcome writer that may append the
-    # digest spool. Add that possible leaf to the original snapshot now — still
+    # Only terminal bump delegates to an outcome writer that also owns the
+    # period parent's state. Add that leaf to the original snapshot now — still
     # before the network lease — without making ordinary step advances own it.
-    spool_path = None
     if finish and assist_requested:
         state_snapshot = read_snapshot(ref.path)
         if state_snapshot is not None:
@@ -221,18 +220,8 @@ def bump(
                     if parent_ticket.is_file()
                     else None
                 )
-        spool_path = digest_spool_target_path(cfg)
-        if spool_path is not None:
-            pre_lease_snapshot.originals[spool_path] = (
-                spool_path.read_bytes() if spool_path.is_file() else None
-            )
-            pre_lease_snapshot.union_paths = frozenset(
-                (*pre_lease_snapshot.union_paths, spool_path)
-            )
 
-    if assist_requested and (
-        (finish and spool_path is None) or (not finish and message is not None)
-    ):
+    if assist_requested and (finish or message is not None):
         try:
             preflight_post(cfg)
         except typer.Exit:
@@ -293,9 +282,6 @@ def bump(
                 slack_text=(
                     f"🎉 {finisher} finished *{ref.id_slug}* "
                     f'"{ticket.title}"{transition}{suffix}'
-                ),
-                digest_detail=(
-                    f"{finisher} finished{transition or ' → done'} ✅{suffix}"
                 ),
                 image_url=cfg.gif_for("done"),
                 echo=f"{ref.id_slug}: done",
@@ -435,10 +421,6 @@ def bump(
             slack_text=(
                 f"👉 {finisher} {verb} *{ref.id_slug}* \"{ticket.title}\": "
                 f"{prev_step_name} → {new_step_name} "
-                f"(step {next_step}/{total}){handoff}{suffix}"
-            ),
-            digest_detail=(
-                f"{finisher} {verb}: {prev_step_name} → {new_step_name} "
                 f"(step {next_step}/{total}){handoff}{suffix}"
             ),
             new_assignee=new_assignee,

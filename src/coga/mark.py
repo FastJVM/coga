@@ -2,7 +2,7 @@
 
 These finalizers mutate ticket frontmatter, append a repo-global `log.md`
 line (tagged by task ref), and echo
-the local outcome. Terminal outcomes still enter Slack through the digest path;
+the local outcome. Terminal outcomes post live to Slack as they happen;
 routine active/paused transitions are intentionally local-only noise. The CLI
 commands and the auto-merge scanner all reuse the same helpers so the on-disk
 shape stays identical regardless of who triggered the transition.
@@ -30,7 +30,7 @@ from coga.period_state import (
     read_snapshot,
     stale_keys,
 )
-from coga.notification import digest_spool_path, notify, post
+from coga.notification import notify, post
 from coga.tasks import TaskRef
 from coga.ticket import Ticket
 from coga.validate import assert_task_valid
@@ -107,33 +107,6 @@ def _state_guard(cfg: Config, ref: TaskRef) -> Callable[[str], None]:
     return git.ticket_state_guard(cfg, ref.ticket_path)
 
 
-def _prepare_outcome_spool(
-    cfg: Config,
-    mutation_snapshot: git.FileMutationRollback | None,
-) -> Path | None:
-    """Resolve/migrate the digest spool and arm a strict expected creation."""
-    spool_path = digest_spool_path(cfg)
-    if mutation_snapshot is None or spool_path is None:
-        return spool_path
-    if spool_path not in mutation_snapshot.originals:
-        raise git.FeaturePublicationError(
-            f"strict outcome snapshot does not cover digest spool {spool_path}"
-        )
-    original = mutation_snapshot.originals[spool_path]
-    current = spool_path.read_bytes()
-    if current == original:
-        mutation_snapshot.require_unchanged(spool_path)
-    elif original is None:
-        # Legacy migration created the new spool after the command acquired
-        # its lease; the pre-lease snapshot explicitly covered that absence.
-        mutation_snapshot.arm({spool_path: current})
-    else:
-        raise git.FeaturePublicationError(
-            f"digest spool changed before strict outcome publication: {spool_path}"
-        )
-    return spool_path
-
-
 def mark_done(
     cfg: Config,
     ref: TaskRef,
@@ -142,7 +115,6 @@ def mark_done(
     actor: str,
     log_message: str,
     slack_text: str,
-    digest_detail: str,
     image_url: str | None = None,
     echo: str | None = None,
     force: bool = False,
@@ -158,9 +130,7 @@ def mark_done(
     """Flip a ticket to `done`: write frontmatter, log, notify.
 
     `done` is the routine outcome Slack still needs, so it routes through
-    `notification.notify`: spooled into the daily digest when that ticket is
-    installed, else posted live as `slack_text` (image and all).
-    `digest_detail` is the one-liner shown under this ticket in the digest.
+    `notification.notify`, which posts `slack_text` live (image and all).
 
     `echo` is the stdout line printed before the notify (so the local outcome
     is visible even if a live post crashes). Pass `None` to suppress — used by
@@ -173,8 +143,8 @@ def mark_done(
     A completion gate may set `publish_current_branch=True` so the terminal
     task-state commit is also published to the current feature branch. A
     recorded-assist caller supplies ``feature_publication`` plus an armed
-    ``mutation_snapshot`` to publish the terminal ticket, audit, and any
-    digest-spool append as one strict feature/control transition. A recurring
+    ``mutation_snapshot`` to publish the terminal ticket and audit line as one
+    strict feature/control transition. A recurring
     delegator instead supplies an exact ``state_guard`` with
     ``strict_state_guard=True`` and ``strict_state_sync=True``: guard and Git
     transport failures then propagate, and completion is published before it
@@ -184,7 +154,6 @@ def mark_done(
     if not force:
         _assert_no_stranded_product_code(cfg, ref, ticket)
     owner = ticket.owner or cfg.current_user
-    spool_path = _prepare_outcome_spool(cfg, mutation_snapshot)
     # Validate the prospective close before committing it, the way
     # `mark canceled` already does. An `other-agent` step that cannot resolve
     # against this machine's `[agents.*]` is a config fact rather than
@@ -207,16 +176,11 @@ def mark_done(
     if mutation_snapshot is not None:
         mutation_snapshot.arm_append(log_path(cfg), audit_append)
 
-    notification_spooled = False
-
     def announce() -> None:
-        nonlocal notification_spooled
         notify(
             cfg,
             slack_text,
             kind="done",
-            detail=digest_detail,
-            ticket=ref.id_slug,
             owner=owner,
             watchers=ticket.watchers,
             task_path=ref.path,
@@ -226,23 +190,7 @@ def mark_done(
             fatal=False,
             record_failure=feature_publication is None,
         )
-        if spool_path is not None:
-            notification_spooled = True
-            if mutation_snapshot is not None:
-                mutation_snapshot.arm({spool_path: spool_path.read_bytes()})
 
-    # A digest event is local union-safe state, so strict publication includes
-    # it in the same exact generated commit. A live notification waits until
-    # the feature/control transition is durable.
-    if spool_path is not None and (
-        feature_publication is not None or strict_state_sync
-    ):
-        if mutation_snapshot is None:
-            raise git.FeaturePublicationError(
-                "strict done publication is missing its mutation snapshot"
-            )
-        mutation_snapshot.require_unchanged(spool_path)
-        announce()
     snapshot = read_snapshot(ref.path)
 
     def sync_state() -> None:
@@ -258,14 +206,10 @@ def mark_done(
             state_guard=state_guard,
             raise_state_regression=strict_state_guard,
             raise_git_error=strict_state_sync,
-            spool_path=(
-                spool_path
-                if notification_spooled
-                and (feature_publication is not None or strict_state_sync)
-                else None
-            ),
         )
 
+    # A live notification waits until the strict feature/control transition
+    # is durable; the ordinary path announces before syncing.
     if feature_publication is not None or strict_state_guard or strict_state_sync:
         sync_state()
         if (
@@ -277,8 +221,7 @@ def mark_done(
             after_sync()
         if echo is not None:
             typer.echo(echo)
-        if not notification_spooled:
-            announce()
+        announce()
     else:
         if echo is not None:
             typer.echo(echo)
@@ -306,7 +249,6 @@ def mark_canceled(
     actor: str,
     reason: str,
     slack_text: str,
-    digest_detail: str,
     image_url: str | None = None,
     echo: str | None = None,
     feature_publication: git.FeaturePublicationLease | None = None,
@@ -332,7 +274,6 @@ def mark_canceled(
 
     prior_status = ticket.status
     owner = ticket.owner or cfg.current_user
-    spool_path = _prepare_outcome_spool(cfg, mutation_snapshot)
     prospective = Ticket(frontmatter=dict(ticket.frontmatter), body=ticket.body)
     prospective.frontmatter["status"] = "canceled"
     prospective.frontmatter.pop("step", None)
@@ -359,16 +300,11 @@ def mark_canceled(
     if mutation_snapshot is not None:
         mutation_snapshot.arm_append(log_path(cfg), audit_append)
 
-    notification_spooled = False
-
     def announce() -> None:
-        nonlocal notification_spooled
         notify(
             cfg,
             slack_text,
             kind="canceled",
-            detail=digest_detail,
-            ticket=ref.id_slug,
             owner=owner,
             watchers=ticket.watchers,
             task_path=ref.path,
@@ -376,25 +312,8 @@ def mark_canceled(
             fatal=False,
             record_failure=feature_publication is None,
         )
-        if spool_path is not None:
-            notification_spooled = True
-            if mutation_snapshot is not None:
-                mutation_snapshot.arm({spool_path: spool_path.read_bytes()})
-
-    if feature_publication is not None and spool_path is not None:
-        if mutation_snapshot is None:
-            raise git.FeaturePublicationError(
-                "strict canceled publication is missing its mutation snapshot"
-            )
-        mutation_snapshot.require_unchanged(spool_path)
-        announce()
 
     def sync_state() -> None:
-        strict_spool = (
-            spool_path
-            if notification_spooled and feature_publication is not None
-            else None
-        )
         git.sync_task_state(
             cfg,
             ref.path,
@@ -408,26 +327,23 @@ def mark_canceled(
                 if mutation_snapshot is not None
                 else None
             ),
-            extra_paths=([strict_spool] if strict_spool is not None else []),
-            land_union_files_to_control=strict_spool is not None,
         )
 
     if feature_publication is not None:
         sync_state()
         if echo is not None:
             typer.echo(echo)
-        if not notification_spooled:
-            announce()
+        announce()
     else:
         if echo is not None:
             typer.echo(echo)
         announce()
-        # Preserve cancellation's established immediate union landing for the
-        # digest spool on ordinary branches.
+        # Cancellation's branch may never merge, so its audit evidence is
+        # union-landed onto control immediately rather than riding the PR.
         git.sync_paths(
             cfg,
             ref.path,
-            [ref.path, *([spool_path] if spool_path is not None else [])],
+            [ref.path],
             message=f"Ticket: {ref.id_slug} — canceled",
             land_union_files_to_control=True,
             guard=_state_guard(cfg, ref),
@@ -447,7 +363,6 @@ def _sync_done_state(
     state_guard: Callable[[str], None] | None = None,
     raise_state_regression: bool = False,
     raise_git_error: bool = False,
-    spool_path: Path | None = None,
 ) -> None:
     message = f"Ticket: {ref.id_slug} — done"
     guard = state_guard or _state_guard(cfg, ref)
@@ -468,20 +383,11 @@ def _sync_done_state(
             else {}
         )
         if snapshot is None:
-            spool_sync_kwargs = (
-                {
-                    "extra_paths": [spool_path],
-                    "land_union_files_to_control": True,
-                }
-                if spool_path is not None
-                else {}
-            )
             git.sync_task_state(
                 cfg,
                 ref.path,
                 message=message,
                 guard=guard,
-                **spool_sync_kwargs,
                 **strict_state_kwargs,
                 **(
                     {"raise_state_regression": True}
@@ -496,20 +402,12 @@ def _sync_done_state(
         parent_ticket = parent_ticket_path(cfg, snapshot)
         if parent_ticket.parent.is_dir():
             paths.append(parent_ticket)
-        if spool_path is not None:
-            paths.append(spool_path)
-        spool_sync_kwargs = (
-            {"land_union_files_to_control": True}
-            if spool_path is not None
-            else {}
-        )
         git.sync_paths(
             cfg,
             ref.path,
             paths,
             message=message,
             guard=guard,
-            **spool_sync_kwargs,
             **strict_state_kwargs,
             **(
                 {"raise_state_regression": True}
@@ -532,8 +430,6 @@ def _sync_done_state(
             and parent_ticket in mutation_snapshot.originals
         ):
             extra_paths.append(parent_ticket)
-    if spool_path is not None:
-        extra_paths.append(spool_path)
     git.sync_task_state(
         cfg,
         ref.path,
@@ -549,7 +445,6 @@ def _sync_done_state(
             else None
         ),
         extra_paths=extra_paths,
-        land_union_files_to_control=spool_path is not None,
         **(
             {"raise_state_regression": True}
             if raise_state_regression
@@ -1032,7 +927,6 @@ def mark_paused(
     actor: str,
     log_message: str,
     slack_text: str | None = None,
-    digest_detail: str | None = None,
     echo: str | None = None,
     feature_publication: git.FeaturePublicationLease | None = None,
     feature_publication_guard: Callable[[str], None] | None = None,
@@ -1045,13 +939,11 @@ def mark_paused(
     """Flip a ticket to `paused`: write frontmatter and log.
 
     Most pauses are silent on Slack (a human `mark paused`, the interactive
-    recurring-cleanup path): they pass neither `slack_text` nor `digest_detail`
-    and nothing is broadcast. The one broadcasting caller is the recurring
-    liveness watchdog, which pauses a wedged run and needs the team to see it —
-    a recurring run that timed out is a `recurring-error`, so when `slack_text`
-    is given the pause routes through `notification.notify` (digest-spooled when the
-    ticket is installed, else posted live to important); `digest_detail` is its
-    one-liner.
+    recurring-cleanup path): they pass no `slack_text` and nothing is
+    broadcast. The one broadcasting caller is the recurring liveness watchdog,
+    which pauses a wedged run and needs the team to see it — a recurring run
+    that timed out is a `recurring-error`, so when `slack_text` is given the
+    pause routes through `notification.notify`, posted live to important.
     """
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "paused"
@@ -1105,8 +997,6 @@ def mark_paused(
             cfg,
             slack_text,
             kind="recurring-error",
-            detail=digest_detail or slack_text,
-            ticket=ref.id_slug,
             owner=owner,
             watchers=ticket.watchers,
             task_path=ref.path,

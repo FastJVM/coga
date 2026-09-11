@@ -366,11 +366,9 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
     (coga_os / "coga.local.toml").write_text('user = "marc"\n')
     (root / ".gitignore").write_text("coga/coga.local.toml\n")
     # Mirror the live repo's union-merge marking so `git check-attr merge`
-    # resolves `log.md` / the digest spool as `merge=union` (the subtree sweep's
-    # union split, and the spool's mergeable contract, depend on it).
-    (coga_os / ".gitattributes").write_text(
-        "**/log.md merge=union\n**/spool.md merge=union\n"
-    )
+    # resolves `log.md` as `merge=union` (the subtree sweep's union split
+    # depends on it).
+    (coga_os / ".gitattributes").write_text("**/log.md merge=union\n")
     workflows = coga_os / "workflows"
     workflows.mkdir()
     (workflows / "code.md").write_text(

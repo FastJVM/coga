@@ -1249,8 +1249,8 @@ def _create_at_slug(
             cfg=cfg,
             title=title,
             # Recurring tasks create straight to `active`, and every task past
-            # `draft` carries a workflow. A template that declares its own (e.g.
-            # digest) keeps it; a workflow-less one (e.g. Dream, whose process is
+            # `draft` carries a workflow. A template that declares its own
+            # keeps it; a workflow-less one (e.g. Dream, whose process is
             # its body's ordered phases) runs through the one-step `direct/body`
             # workflow so it is activatable, bumpable, and valid like any task.
             workflow_name=template.frontmatter.get("workflow") or "direct/body",
@@ -1288,8 +1288,8 @@ def _create_at_slug(
         raise RecurringError(f"created task disappeared: {ref['slug']}")
 
     # A template's deterministic half travels with the period task it creates.
-    # Only the reserved name: every other sibling (the digest's `spool.md`, a
-    # note, a fixture) belongs to the template and stays there.
+    # Only the reserved name: every other sibling (a note, a fixture) belongs
+    # to the template and stays there.
     entry = template.script_entry_point
     if entry is not None:
         # `force_directory=True` above guarantees the companion directory; say
@@ -1432,8 +1432,9 @@ def _period_key(cron: str, fire_time: datetime) -> str:
 # "Has this period already run?" is answered from the repo-global append-only
 # log, not from a mark in the template blackboard. The blackboard is shared
 # free text, so any co-writer that rewrites a region of it can destroy a mark
-# living there — the digest run did exactly that, and every `coga recurring`
-# then re-fired an already-serviced period and reposted the digest. An appended
+# living there — a recurring run rewriting its own state section did exactly
+# that, and every `coga recurring` then re-fired an already-serviced period
+# and reposted its result. An appended
 # line cannot be clobbered that way, it outlives the period task (Dream reaps
 # those), and it is union-merged across checkouts.
 #

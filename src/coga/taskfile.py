@@ -24,7 +24,7 @@ Two write paths share one file without clobbering each other:
   `coga.ticket.Ticket`, which re-renders the YAML and treats the whole body
   (fence + blackboard included) as opaque bytes — so a status write preserves
   the blackboard verbatim.
-- **Blackboard writers** (`append_to_section`, the spool, recurring
+- **Blackboard writers** (`append_to_section`, recurring
   high-water) call `replace_blackboard`, which byte-splices only the region
   after the fence and leaves the frontmatter + body bytes above it untouched —
   so a blackboard write never reformats the frontmatter. The primitive remains

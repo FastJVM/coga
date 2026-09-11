@@ -19,7 +19,6 @@ from coga.aliases import (
 from coga.commands import block as block_cmd
 from coga.commands import create as create_cmd
 from coga.commands import delete as delete_cmd
-from coga.commands import digest as digest_cmd
 from coga.commands import init as init_cmd
 from coga.commands import launch as launch_cmd
 from coga.commands import mark as mark_cmd
@@ -88,7 +87,6 @@ app.command("unblock")(unblock_cmd.unblock)
 app.command("delete")(delete_cmd.delete)
 app.command("retire")(retire_cmd.retire)
 app.command("slack")(slack_cmd.slack)
-app.command("digest")(digest_cmd.digest)
 app.command("usage")(usage_cmd.usage)
 app.command("validate")(validate_cmd.validate)
 app.add_typer(skill_cmd.app, name="skill")
@@ -125,7 +123,6 @@ _SWEEPING_COMMANDS = frozenset(
         "delete",
         "retire",
         "slack",
-        "digest",
         "run",
     }
 )

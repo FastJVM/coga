@@ -784,7 +784,6 @@ def test_shared_mark_canceled_requires_reason_before_mutating(repo: Path) -> Non
             actor="human:marc",
             reason="   ",
             slack_text="unused",
-            digest_detail="unused",
         )
 
     assert Ticket.read(task_path).status == "active"
@@ -1093,33 +1092,13 @@ def test_mark_canceled_on_feature_lands_union_evidence_on_control(
         watchers=[],
         status="active",
     )
-    spool = git_repo.coga_os / "recurring" / "digest" / "spool.md"
-    _write(
-        spool,
-        """
-        # Digest spool
-
-        ## Spool (pending)
-
-        consumed_through:
-        """,
-    )
-    git_repo.git("add", "coga/recurring/digest/spool.md")
-    git_repo.git("commit", "-m", "seed digest spool")
-    git_repo.git("push", "origin", "main")
     git_repo.checkout_branch("feature/cancel")
 
-    # Move origin/main under the feature checkout with concurrent union-file
-    # appends. The cancellation sync must retry and preserve both writers.
+    # Move origin/main under the feature checkout with a concurrent union-file
+    # append. The cancellation sync must retry and preserve both writers.
     local_log = (git_repo.coga_os / "log.md").read_text()
     git_repo.push_competing_commit(
         "coga/log.md", local_log + "2026-01-01 00:00 rival: unrelated event\n"
-    )
-    local_spool = spool.read_text()
-    git_repo.push_competing_commit(
-        "coga/recurring/digest/spool.md",
-        local_spool
-        + '{"id":"rival","kind":"done","ticket":"other"}\n',
     )
 
     result = CliRunner().invoke(
@@ -1133,18 +1112,10 @@ def test_mark_canceled_on_feature_lands_union_evidence_on_control(
         git_repo.git("show", f"main:{task_rel}", cwd=git_repo.origin)
     )
     control_log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
-    control_spool = git_repo.git(
-        "show",
-        "main:coga/recurring/digest/spool.md",
-        cwd=git_repo.origin,
-    )
     assert control_ticket.status == "canceled"
     assert control_ticket.step is None
     assert "canceled (active → canceled): Owner declined" in control_log
     assert "rival: unrelated event" in control_log
-    assert '"kind":"canceled"' in control_spool
-    assert "Owner declined" in control_spool
-    assert '"id":"rival"' in control_spool
     assert git_repo.git("branch", "--show-current").strip() == "feature/cancel"
     assert git_repo.git("status", "--short") == ""
 

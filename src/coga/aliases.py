@@ -25,7 +25,6 @@ BUILTIN_COMMANDS: frozenset[str] = frozenset(
         "delete",
         "retire",
         "slack",
-        "digest",
         "usage",
         "skill",
         "mark",

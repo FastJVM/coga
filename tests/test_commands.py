@@ -588,11 +588,7 @@ def test_bump_on_final_step_uses_mark_done_notification_shape(
         " — shipped and verified"
     )
     assert kwargs["kind"] == "done"
-    assert (
-        kwargs["detail"]
-        == "claude finished: merge → done ✅ — shipped and verified"
-    )
-    assert kwargs["ticket"] == slug
+    assert kwargs["task_path"] == task_path
 
 
 def test_bump_supervised_final_step_prints_terminal_hint(repo: Path) -> None:

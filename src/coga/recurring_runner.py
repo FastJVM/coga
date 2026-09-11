@@ -83,7 +83,7 @@ from coga.mark import (
     mark_paused,
     prepare_active,
 )
-from coga.notification import digest_spool_path, notify
+from coga.notification import notify
 from coga.repl_supervisor import _TIMEOUT_EXIT_CODE
 from coga.tasks import TaskRef, read_ticket
 from coga.ticket import Ticket, TicketError
@@ -1495,9 +1495,9 @@ def run_recurring_scan(
     `done`/`paused` ones (the runner reactivates them). Canceled tasks are
     included in discovery but refused rather than reactivated; the sweep
     reports each refusal, continues with later templates, and returns non-zero
-    after the remaining work finishes. Everything else — Slack, the digest
-    spool, git task-state sync, and the serviced-period ledger advance —
-    is identical to a normal run.
+    after the remaining work finishes. Everything else — Slack, git task-state
+    sync, and the serviced-period ledger advance — is identical to a normal
+    run.
 
     `agent_override` temporarily selects the configured agent for agent-backed
     tasks. It never rewrites the ticket, and a period task carrying `ticket.py`
@@ -1639,8 +1639,6 @@ def run_recurring_scan(
             cfg,
             f"⚠️ *{task.ref.id_slug}*: {detail}",
             kind="recurring-error",
-            detail=detail,
-            ticket=task.ref.id_slug,
             owner=paused_ticket.owner or cfg.current_user,
             watchers=paused_ticket.watchers,
             task_path=task.ref.path,
@@ -2407,10 +2405,6 @@ def _period_mutation_snapshot(
             parent_ticket = parent_ticket_path(cfg, state_snapshot)
             if parent_ticket.parent.is_dir():
                 paths.append(parent_ticket)
-        spool_path = digest_spool_path(cfg)
-        if spool_path is not None:
-            paths.append(spool_path)
-            union_paths.append(spool_path)
     try:
         rollback = git.FileMutationRollback.capture(
             paths, union_paths=union_paths
@@ -2915,7 +2909,6 @@ def _run_delegated_task(
                 f"✅ delegated run completed *{ref.id_slug}* "
                 f"\"{after_delegate.title}\""
             ),
-            digest_detail=f"→ done (delegate: {delegate})",
             echo=f"{ref.id_slug}: done",
             mutation_snapshot=rollback,
             after_sync=record_completion_publication,
@@ -3406,7 +3399,7 @@ def _sync_recurring_create(
     # (appended by `_record_run`), which never rides the cross-branch overlay —
     # so this sync reconciles no scheduler state at all. The template ticket
     # stays in the overlay only for the *run* cursors it carries
-    # (`state_keys` values, the digest's `### Digest State`).
+    # (`state_keys` values).
     template_ticket = template_dir / "ticket.md"
     original_ticket = template_ticket.read_text() if template_ticket.is_file() else ""
     local_ticket = original_ticket
@@ -3719,7 +3712,7 @@ def _control_template_or_local(
 
     The template no longer carries scheduler state — the serviced-period ledger
     is the repo-global log — but it still carries *run* cursors
-    (`state_keys` values, the digest's `### Digest State`). Control wins because
+    (`state_keys` values). Control wins because
     its copy holds whichever cursor advanced most recently, so a stale checkout
     adopts it instead of re-running from a stale cursor.
     """
@@ -4505,7 +4498,6 @@ def _stop_if_unfinished_after_launch(
                 slack_text=(
                     f"⏱️ *{ref.id_slug}* \"{ticket.title}\" timed out — {suffix}"
                 ),
-                digest_detail=f"→ paused (timeout) — {suffix}",
                 echo=None,
                 mutation_snapshot=rollback,
                 after_sync=(
@@ -4906,7 +4898,6 @@ def _broadcast_scan(
         n = len(scan.errors)
         plural = "" if n == 1 else "s"
         bullets = "\n".join(f"• {name}: {msg}" for name, msg in scan.errors)
-        inline = "; ".join(f"{name} ({msg})" for name, msg in scan.errors)
         # `fatal=False`: every skipped template above is already on stderr and
         # in the scan table, so this alert is a second channel for a report
         # that has already landed. It runs before the launch loop, so letting a
@@ -4916,7 +4907,6 @@ def _broadcast_scan(
             cfg,
             f"⚠️ recurring scan skipped {n} template{plural}\n{bullets}",
             kind="recurring-error",
-            detail=f"⚠️ recurring scan skipped {n} template{plural}: {inline}",
             important=True,
             fatal=False,
         )

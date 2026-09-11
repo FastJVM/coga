@@ -1208,7 +1208,7 @@ def test_unclaimed_detached_state_guard_uses_local_control_before_fetch(
 def test_sync_detached_head_union_merges_log_to_control_branch(git_repo, tmp_path):
     """Detached HEAD has no local branch commit for `merge=union` files to ride.
 
-    The cross-branch land must therefore union-merge dirty log/spool-style files
+    The cross-branch land must therefore union-merge dirty log-style files
     directly into the control commit instead of leaving only local log appends.
     """
     path = tmp_path / "detached-union-log"
