@@ -1,7 +1,7 @@
 ---
 slug: remov-digest-in-recurring
 title: Remove the daily digest
-status: active
+status: in_progress
 owner: nicktoper
 human: nick
 agent: claude
