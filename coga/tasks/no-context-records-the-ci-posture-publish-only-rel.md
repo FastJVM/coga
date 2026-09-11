@@ -1,7 +1,7 @@
 ---
 title: 'No context records the CI posture: publish-only release workflow, no test
   gate'
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
