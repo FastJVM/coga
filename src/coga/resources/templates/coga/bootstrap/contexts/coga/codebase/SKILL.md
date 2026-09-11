@@ -441,11 +441,12 @@ plans start from the real premise.
   `PYTHONPATH=$PWD/src python3.12 -m pytest` → `N passed, M skipped` — rather
   than "tests pass". A verification claim with no command and no count is not
   evidence here, since no CI log exists to fall back on.
-- **The clean-checkout-only wheel collision above is never caught
-  automatically.** `release.yml` does build from a pristine checkout, but only
-  at publish time, after the tag exists; no earlier workflow builds the wheel
-  from a fresh clone. Verify packaging changes against a fresh
-  `git clone` / `git worktree` by hand before tagging.
+- **The clean-checkout-only wheel collision above has no automatic PR or
+  push gate.** `release.yml` builds from a pristine checkout and can catch the
+  collision before uploading, but it runs only when a GitHub Release is
+  published or the workflow is manually dispatched. There is no automatic
+  build on a PR, push, or tag to catch it earlier. Verify packaging changes
+  against a fresh `git clone` / `git worktree` by hand before tagging.
 
 `coga/tasks/v2/minimal-ci-run-pytest-on-prs-and-tags.md` is the parked design
 that would change this posture. When it lands, update this subsection.
