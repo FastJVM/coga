@@ -170,7 +170,6 @@ def advance_step(
     actor: str,
     log_message: str,
     slack_text: str,
-    digest_detail: str,
     new_assignee: str | None = None,
     notify_slack: bool = False,
     echo: str | None = None,

@@ -5399,6 +5399,60 @@ def _seed_single_checkout_human_review(
     return created, ticket_path
 
 
+def test_recorded_assist_cancellation_lands_reason_on_control(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An abandoned assist branch cannot strand its cancellation audit."""
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Cancel reviewed work",
+        status="in_progress",
+    )
+    _allow_recorded_assist_pr(monkeypatch)
+    audit = git_repo.coga_os / "log.md"
+    git_repo.push_competing_commit(
+        "coga/log.md",
+        audit.read_text() + "2026-01-01 00:00 rival: unrelated event\n",
+    )
+    posts: list[str] = []
+    monkeypatch.setattr(
+        "coga.notification.slack.requests.post",
+        lambda url, json=None, timeout=None: _capture_slack(posts, json),
+    )
+    child_env = {
+        ASSIST_AGENT_ENV: "claude",
+        ASSIST_BRANCH_ENV: "feature/review",
+        ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
+        EXPECTED_TASK_ENV: str(ticket_path.resolve()),
+    }
+
+    result = CliRunner().invoke(
+        app,
+        ["mark", "canceled", created["slug"], "--message", "Owner declined"],
+        env=child_env,
+    )
+
+    assert result.exit_code == 0, result.output
+    ticket_rel = ticket_path.relative_to(git_repo.root).as_posix()
+    for branch in ("feature/review", "main"):
+        published = Ticket.parse(git_repo.git(
+            "show", f"{branch}:{ticket_rel}", cwd=git_repo.origin,
+        ))
+        assert published.status == "canceled"
+        assert published.step is None
+    control_log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+    assert "canceled (in_progress → canceled): Owner declined" in control_log
+    assert "rival: unrelated event" in control_log
+    assert len(posts) == 1
+    assert "Owner declined" in posts[0]
+    assert git_repo.git(
+        "ls-tree", "--name-only", "main", "--", "implementation.txt",
+        cwd=git_repo.origin,
+    ) == ""
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
 def test_recorded_assist_script_publishes_direct_task_output(
     git_repo,
 ) -> None:
@@ -5775,20 +5829,6 @@ def test_recorded_assist_script_republishes_nested_mark_done(
     git_repo,
 ) -> None:
     """An in-script terminal transition is strict and leaves no split refs."""
-    spool_path = git_repo.coga_os / "recurring" / "digest" / "spool.md"
-    _write(
-        spool_path,
-        """
-        # Daily digest spool
-
-        ## Spool (pending)
-
-        consumed_through:
-        """,
-    )
-    git_repo.git("add", str(spool_path.relative_to(git_repo.root)))
-    git_repo.git("commit", "-m", "digest: seed outcome spool")
-    git_repo.git("push", "origin", "main")
     created, ticket_path = _seed_single_checkout_human_review(
         git_repo,
         title="Finish deterministic review",
@@ -5872,13 +5912,6 @@ def test_recorded_assist_script_republishes_nested_mark_done(
         )
         assert published.status == "done"
         assert published.step is None
-        published_spool = git_repo.git(
-            "show",
-            f"refs/heads/{branch}:{spool_path.relative_to(git_repo.root)}",
-            cwd=git_repo.origin,
-        )
-        assert '"kind":"done"' in published_spool
-        assert f'"ticket":"{created["slug"]}"' in published_spool
     assert git_repo.git("status", "--porcelain").strip() == ""
 
 
@@ -5903,22 +5936,7 @@ def test_recorded_assist_period_completion_publishes_parent_without_ignored_file
         cursor: old
         """,
     )
-    spool_path = git_repo.coga_os / "recurring" / "digest" / "spool.md"
-    _write(
-        spool_path,
-        """
-        # Daily digest spool
-
-        ## Spool (pending)
-
-        consumed_through:
-        """,
-    )
-    git_repo.git(
-        "add",
-        str(parent_ticket.relative_to(git_repo.root)),
-        str(spool_path.relative_to(git_repo.root)),
-    )
+    git_repo.git("add", str(parent_ticket.relative_to(git_repo.root)))
     git_repo.git("commit", "-m", "recurring: seed period state")
     git_repo.git("push", "origin", "main")
 

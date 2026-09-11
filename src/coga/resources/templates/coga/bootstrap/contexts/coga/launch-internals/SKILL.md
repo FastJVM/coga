@@ -403,8 +403,7 @@ the exact parent recurring ticket named by the period state snapshot against
 control. Delegated completion consumes that same parent input in its strict
 transaction, so a concurrent parent edit refuses instead of being
 overwritten and `done` cannot land without the child's cross-run cursor
-update. When a digest spool is installed, its completion event joins
-that transaction; a live notification waits for durable publication. An
+update. The live completion notification waits for durable publication. An
 unaccepted generated local commit is unwound before
 caller-owned file rollback. An ambiguous control push is probed by exact
 candidate OID across every effective push destination; disagreement or

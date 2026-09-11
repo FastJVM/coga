@@ -13,7 +13,6 @@ from coga.runner import RECIPES, run_recipe
 
 EXPECTED_RECIPES = (
     "autoclose",
-    "digest",
     "blocker-reminders",
     "branch-sweep",
     "validate-drift",
@@ -61,7 +60,6 @@ def test_no_arg_recipes_reject_unexpected_tokens() -> None:
 
     for name in (
         "autoclose",
-        "digest",
         "blocker-reminders",
         "branch-sweep",
         "cleanup-orphan-markers",
@@ -116,7 +114,7 @@ def test_run_command_preserves_output_and_exit_code(monkeypatch) -> None:
 
     monkeypatch.setattr(run_command, "run_recipe", fake_run_recipe)
 
-    result = CliRunner().invoke(app, ["run", "digest"])
+    result = CliRunner().invoke(app, ["run", "autoclose"])
 
     assert result.exit_code == 7
     assert result.stdout == "recipe stdout\n"
@@ -131,7 +129,7 @@ def test_run_command_leaves_unexpected_exceptions_loud(monkeypatch) -> None:
 
     monkeypatch.setattr(run_command, "run_recipe", fail)
 
-    result = CliRunner().invoke(app, ["run", "digest"])
+    result = CliRunner().invoke(app, ["run", "autoclose"])
 
     assert result.exit_code == 1
     assert isinstance(result.exception, RuntimeError)

@@ -35,8 +35,7 @@ Last updated: 2026-09-02.
   suppression, orphan reaping, fold-back-to-template-log) is gone. `--force` now
   get-or-creates and launches each template's real `recurring/<name>` task,
   bypassing only the schedule and the status filter — every other effect (Slack,
-  spool drain, git sync, serviced-period record) is identical to a bare
-  sweep.
+  git sync, serviced-period record) is identical to a bare sweep.
 
 - **`coga recurring --all <path>` is the one-entry scheduler surface.** It
   discovers Coga repos below the explicit parent path, pruning dependency/tool

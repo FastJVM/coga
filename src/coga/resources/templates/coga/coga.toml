@@ -51,10 +51,10 @@ discussion = "-c developer_instructions={prompt}"
 # run draft/mark/launch/bump without configuring anything. Turn it on when you
 # start coordinating with other people.
 #
-# Slack is the first channel: urgent/manual events post through the Slack
-# webhook, while outcome events may spool into the daily digest before that
-# digest posts to Slack. Relaunching an already-in-progress ticket does not
-# post. Once Slack is selected it is fail-loud — a missing/revoked/unreachable
+# Slack is the first channel: urgent/manual events and ticket outcomes (done,
+# canceled, recurring errors) post live through the Slack webhook as they
+# happen. Relaunching an already-in-progress ticket does not post. Once Slack
+# is selected it is fail-loud — a missing/revoked/unreachable
 # webhook crashes the command rather than dropping the message silently.
 #
 # To opt in, select the channel and point it at a webhook. Use `env:`

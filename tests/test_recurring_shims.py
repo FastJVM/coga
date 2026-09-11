@@ -33,7 +33,6 @@ SHIMMED_TEMPLATES = (
     ("autoclose-merged", "autoclose"),
     ("blocker-reminders", "blocker-reminders"),
     ("branch-sweep", "branch-sweep"),
-    ("digest", "digest"),
     ("skill-update", "skill-update"),
 )
 

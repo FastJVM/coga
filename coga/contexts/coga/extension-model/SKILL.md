@@ -80,20 +80,14 @@ common case, not its whole extent. Python logic only proves that a verb is not
 an alias. Operands, validation, Coga-file access, or an implementation already
 living in `src/coga/` do not distinguish a kernel command from a command ticket
 or independently versioned external CLI. A verb whose whole body starts a
-launch is still an alias however it is spelled. `coga digest` is no longer an
-open case under this second exception, because the *first* one now places it:
-it is a registered recipe, `"digest": run_digest_recipe` in `runner.RECIPES`,
-implemented at `commands/digest.py`. What remains unresolved for digest is only
-its CLI spelling — it is still `app.command("digest")` in `src/coga/cli.py`,
-whereas `open-pr` and `delete-task` carry no Typer command at all and are
-reached solely as `coga run <name>`. `coga megalaunch` (`megalaunch.py`) has no
-`RECIPES` entry and is the one genuinely unclassified in-package
-implementation. Both questions sit with a **parked** design rather than an
-active ticket: `coga/tasks/v2/cleanup-core-commands/` is one paused ticket plus
-five drafts, and `coga/tasks/v2/README.md` defines that directory's contents as
-real work deliberately off the current execution path. Until it is pulled
-forward, both commands stay in the kernel and this is settled status, not work
-in flight.
+launch is still an alias however it is spelled. `coga megalaunch`
+(`megalaunch.py`) has no `RECIPES` entry and is the one genuinely unclassified
+in-package implementation. Its placement sits with a **parked** design rather
+than an active ticket: `coga/tasks/v2/cleanup-core-commands/` is one paused
+ticket plus five drafts, and `coga/tasks/v2/README.md` defines that directory's
+contents as real work deliberately off the current execution path. Until it is
+pulled forward, `megalaunch` stays in the kernel and this is settled status,
+not work in flight.
 
 What that closure contains, and why each is there:
 
@@ -261,11 +255,9 @@ current `src/coga/` verb as a permanent kernel member. `block` and `unblock`
 are listed above because they are core blocked-state transitions — registered in
 `src/coga/cli.py` and named as state-machine commands by `coga/architecture` —
 not because the table is exhaustive. The one live verb still genuinely under
-classification is `megalaunch`; `digest`'s implementation is already placed by
-the recipe registry and only its Typer spelling is open (above). Both are
-deferred to the parked `cleanup-core-commands` design, so no migration ticket is
-currently authoritative about them. `docs/cli-extension-audit.md` holds the
-verb-by-verb inventory.
+classification is `megalaunch`, deferred to the parked `cleanup-core-commands`
+design, so no migration ticket is currently authoritative about it.
+`docs/cli-extension-audit.md` holds the verb-by-verb inventory.
 
 ## Migration rule, not a redesign
 

@@ -22,7 +22,6 @@ import pytest
 from typer.testing import CliRunner
 
 from coga import autoclose as am
-from coga import spool
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
@@ -343,34 +342,6 @@ def test_automerge_workflowless_collapses_and_links(
     )
 
 
-def test_automerge_digest_preserves_transition_and_pr_link(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    url = "https://github.com/o/r/pull/7"
-    slug, _ = _make_task(repo, status="active", on_final=True, pr_url=url)
-    monkeypatch.setattr(am, "pr_state", lambda u: "MERGED")
-    posts = _capture(monkeypatch)
-    # The digest spool is now a dedicated, `merge=union` `spool.md` file, kept
-    # separate from the digest ticket so concurrent appends never touch its YAML.
-    digest_spool = repo / "recurring" / "digest" / "spool.md"
-    _write(
-        digest_spool,
-        "# Digest spool\n\n## Spool (pending)\n\nconsumed_through:\n",
-    )
-
-    result = am.sweep_merged(load_config(repo), quiet=True)
-
-    assert len(result.closed) == 1
-    assert posts == []
-    records = spool.read_records(digest_spool)
-    assert len(records) == 1
-    assert records[0]["ticket"] == slug
-    assert records[0]["kind"] == "done"
-    assert records[0]["detail"] == (
-        f"auto-bumped: merge → done — <{url}|PR #7> merged ✅"
-    )
-
-
 # --- recurring create -------------------------------------------------------
 
 
@@ -407,7 +378,7 @@ def test_recurring_create_is_silent(
     assert posts == []
 
 
-def test_recurring_scan_error_uses_important_live_fallback(
+def test_recurring_scan_error_posts_live_to_important(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from coga.recurring import DueScan
@@ -454,29 +425,3 @@ def test_recurring_scan_error_without_important_webhook_does_not_abort(
     assert posts == []
     assert urls == []
     assert "important_webhook" in capsys.readouterr().err
-
-
-def test_recurring_scan_error_spools_once_without_live_post(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from coga.recurring import DueScan
-    from coga.recurring_runner import _broadcast_scan
-
-    digest_spool = repo / "recurring" / "digest" / "spool.md"
-    _write(
-        digest_spool,
-        "# Digest spool\n\n## Spool (pending)\n\nconsumed_through:\n",
-    )
-    urls: list[str] = []
-    posts = _capture(monkeypatch, urls=urls)
-    _broadcast_scan(
-        load_config(repo),
-        DueScan(tasks=[], errors=[("bad", "invalid schedule")]),
-    )
-
-    assert posts == []
-    assert urls == []
-    records = spool.read_records(digest_spool)
-    assert len(records) == 1
-    assert set(records[0]) == {"id", "ts", "project", "kind", "detail"}
-    assert records[0]["kind"] == "recurring-error"

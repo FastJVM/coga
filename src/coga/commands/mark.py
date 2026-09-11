@@ -33,7 +33,7 @@ from coga.mark import mark_canceled as _mark_canceled
 from coga.mark import mark_done as _mark_done
 from coga.mark import mark_paused as _mark_paused
 from coga.repl_supervisor import emit_done_marker
-from coga.notification import digest_spool_target_path, preflight_post
+from coga.notification import preflight_post
 from coga.period_state import parent_ticket_path, read_snapshot
 from coga.tasks import TaskNotFoundError, TaskRef, read_ticket, resolve_task
 from coga.ticket import Ticket
@@ -122,7 +122,6 @@ def paused(
     ticket, rollback = _capture_assist_transition(
         cfg,
         ref,
-        include_spool=False,
         include_period_parent=False,
     )
     _require_message_nonempty(message)
@@ -208,12 +207,11 @@ def done(
     ticket, rollback = _capture_assist_transition(
         cfg,
         ref,
-        include_spool=True,
         include_period_parent=True,
     )
     _require_message_nonempty(message)
     _check_transition(ref.id_slug, ticket.status, _DONE_FROM, "done")
-    _preflight_assist_outcome(cfg, ref, rollback)
+    _preflight_outcome(cfg, ref, rollback)
     assist = _acquire_assist_transition(cfg, ref, rollback)
 
     suffix = f" — {message}" if message else ""
@@ -247,7 +245,6 @@ def done(
             actor=actor,
             log_message=log_message,
             slack_text=slack_text,
-            digest_detail=f"{finisher} finished{transition or ' → done'} ✅{suffix}",
             image_url=cfg.gif_for("done"),
             echo=f"{ref.id_slug}: done",
             force=force,
@@ -334,14 +331,13 @@ def canceled(
     ticket, rollback = _capture_assist_transition(
         cfg,
         ref,
-        include_spool=True,
         include_period_parent=False,
     )
     reason = message.strip()
     if not reason:
         _bail("--message cannot be empty")
     _check_transition(ref.id_slug, ticket.status, _CANCELED_FROM, "canceled")
-    _preflight_assist_outcome(cfg, ref, rollback)
+    _preflight_outcome(cfg, ref, rollback)
     assist = _acquire_assist_transition(cfg, ref, rollback)
 
     canceler = assist.agent if assist is not None else cfg.current_user
@@ -366,7 +362,6 @@ def canceled(
                 f"🚫 {canceler} canceled *{ref.id_slug}* "
                 f'"{ticket.title}": {reason}'
             ),
-            digest_detail=f"{canceler} canceled — {reason}",
             image_url=cfg.gif_for("canceled"),
             echo=f"{ref.id_slug}: canceled — {reason}",
             feature_publication=(assist.lease if assist is not None else None),
@@ -435,7 +430,6 @@ def _capture_assist_transition(
     cfg: Config,
     ref: TaskRef,
     *,
-    include_spool: bool,
     include_period_parent: bool,
 ) -> tuple[Ticket, git.FileMutationRollback | None]:
     """Pin exact lifecycle inputs before a possible inherited assist lease."""
@@ -444,11 +438,6 @@ def _capture_assist_transition(
 
     paths = [log_path(cfg)]
     union_paths = [log_path(cfg)]
-    if include_spool:
-        spool_path = digest_spool_target_path(cfg)
-        if spool_path is not None:
-            paths.append(spool_path)
-            union_paths.append(spool_path)
     if include_period_parent:
         snapshot = read_snapshot(ref.path)
         if snapshot is not None:
@@ -496,17 +485,25 @@ def _acquire_assist_transition(
     return assist
 
 
-def _preflight_assist_outcome(
+def _preflight_outcome(
     cfg: Config,
     ref: TaskRef,
     rollback: git.FileMutationRollback | None,
 ) -> None:
-    """Validate a strict live outcome channel before any publication lease."""
-    if rollback is None or digest_spool_target_path(cfg) is not None:
-        return
+    """Validate the live outcome channel before the mutation.
+
+    `done` and `canceled` post their outcome live with `fatal=False`, so an
+    unresolved webhook discovered after the write is reported and dropped
+    rather than crashing the session-ending command. This is therefore the
+    one place a misconfigured channel can still refuse — for every outcome
+    command, not only a recorded assist. The assist path exits with the
+    no-sweep code so the strict checkout stays untouched.
+    """
     try:
         preflight_post(cfg)
     except typer.Exit:
+        if rollback is None:
+            raise
         _bail(
             f"Could not complete {ref.id_slug} from the recorded assist: "
             "notification configuration must be valid before strict state "

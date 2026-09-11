@@ -246,10 +246,9 @@ the example under "Extend recurring with a task-specific workflow").
   verifies that input on control. Completion consumes the same parent lease in
   its strict publication, so a concurrent parent/cursor edit refuses instead
   of being overwritten, and the child's cross-run cursor update cannot remain
-  local while the period reaches `done` on control. If the digest spool is
-  installed, the completion event is
-  appended first and joins that transaction; a live notification waits until
-  publication succeeds. Strict lifecycle publication unwinds an unaccepted
+  local while the period reaches `done` on control. The live completion
+  notification waits until publication succeeds. Strict lifecycle publication
+  unwinds an unaccepted
   local feature/control commit before restoring runner-owned files. If a push
   reply is lost, it probes the exact control candidate across every effective push
   destination: confirmed acceptance succeeds, while disagreement or any other
@@ -717,10 +716,10 @@ task, which carries that rule.
   `coga recurring launch <name>` (and aliases like `coga dream`) bypass this
   skip: it's the explicit override.
 - **Why the log and not the template.** A mark in the template blackboard is
-  reachable by every other writer of that region. The digest run rewrites
-  its `### Digest State` section, which swallowed a mark appended after it —
-  and each erasure made the next `coga recurring` delete the completed task
-  and repost the digest. An appended line cannot be clobbered that way, is
+  reachable by every other writer of that region. A run that rewrote its
+  own state section swallowed a mark appended after it — and each erasure
+  made the next `coga recurring` delete the completed task and re-run the
+  job, reposting its result. An appended line cannot be clobbered that way, is
   union-merged across checkouts, and outlives the task Dream reaps. Dedup
   therefore *does* parse the log, so the line's wording is a contract with one
   writer and one shared parser (`format_serviced_log` /
@@ -841,7 +840,7 @@ The output is unchanged; the loop is what got added after it
    renders the pending-retire report and `_append_blackboard_report` writes it
    to the period task, so that run does give the analyst more than the seeded
    placeholder. A sweep that closed nothing, or nothing needing retire, still
-   leaves only the placeholder. `branch-sweep`, `digest` and
+   leaves only the placeholder. `branch-sweep` and
    `blocker-reminders` hand the analyst a period blackboard holding nothing but
    the seeded placeholder (the committed run records under
    `coga/tasks/autofix/` show exactly that). So for those runs the analyst can

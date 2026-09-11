@@ -44,7 +44,7 @@ from pathlib import Path
 from coga.blackboard import append_blackboard_report
 from coga.mark import mark_done
 from coga.config import Config
-from coga.notification import digest_spool_path, post, preflight_post
+from coga.notification import post, preflight_post
 from coga.task_env import blackboard_from_env
 from coga.taskfile import (
     TaskFileError,
@@ -406,7 +406,6 @@ def _try_bump_one(
     # A workflow-less ticket has no current step, so collapse the transition.
     prev = ticket.current_step()
     transition = f": {prev['name']} → done" if prev else " finished"
-    digest_transition = f"{prev['name']} → done" if prev else "finished"
     slack_text = (
         f"🎉 *{ref.id_slug}* \"{ticket.title}\"{transition} — {pr_link} merged"
     )
@@ -430,7 +429,6 @@ def _try_bump_one(
             actor=actor,
             log_message=log_message,
             slack_text=slack_text,
-            digest_detail=f"auto-bumped: {digest_transition} — {pr_link} merged ✅",
             image_url=cfg.gif_for("done"),
             echo=echo,
         )
@@ -533,14 +531,13 @@ def _append_blackboard_report(
 
 
 def _preflight_recipe_notifications(cfg: Config, closed: ClosedTicket) -> None:
-    """Fail before closing when this ticket will require a live post.
+    """Fail before closing: every close posts a live per-ticket Done line.
 
-    Checkout debt always produces the live sweep summary. A ticket without
-    checkout debt still needs a live per-ticket Done post when no digest spool
-    is installed. Both use the default notification destination.
+    Checkout debt additionally produces the live sweep summary. Both use the
+    default notification destination.
     """
-    if closed.branch or closed.worktree or digest_spool_path(cfg) is None:
-        preflight_post(cfg)
+    del closed
+    preflight_post(cfg)
 
 
 def render_retire_report(
@@ -594,12 +591,11 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> None:
     one trailing Slack line for the whole sweep.
 
     The per-ticket `🎉 ... merged` line is deliberately left alone. It
-    announces a lifecycle event and normally lands in the daily digest, while a
-    retire hint is an operational to-do with a different audience — repeating
-    it on every Done row turns that digest section into a command list and
-    buries the action item. Accepted tradeoff: this summary is a live post (the
-    `notify` digest kinds are per-ticket outcomes, which a sweep-level summary
-    is not), so it arrives with the sweep rather than with the digest.
+    announces a lifecycle event, while a retire hint is an operational to-do
+    with a different audience — repeating it on every Done line turns the
+    outcome feed into a command list and buries the action item. This summary
+    is a plain live `post` rather than a `notify` outcome: the `notify` kinds
+    are per-ticket outcomes, which a sweep-level summary is not.
     """
     pending = result.retire_pending
     if not pending:

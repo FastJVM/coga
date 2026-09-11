@@ -760,7 +760,7 @@ def sync_task_state(
     byte snapshot; strict commits overlay only those exact leaves on the leased
     feature tree, so later worktree edits and unchanged attachments cannot be
     swept into the transaction. ``extra_paths`` lets a lifecycle transaction
-    include explicitly owned siblings such as the digest spool; callers set
+    include explicitly owned siblings such as a period's parent ticket; callers set
     ``land_union_files_to_control`` when those merge=union leaves must reach
     control in the same durable boundary.
     ``commit_detached`` advances a detached HEAD with a commit containing only
@@ -1362,7 +1362,7 @@ def _sync_paths_without_barrier(
         # branch appended concurrently. Instead they are folded into the local
         # commit and ordinarily reach control through a same-branch push or the
         # feature PR. Cancellation is the exception: its branch may never merge,
-        # so the caller asks us to union-land the audit/digest evidence now.
+        # so the caller asks us to union-land the audit evidence now.
         log_rel = _relative_worktree_file_to_root(root, log_path(cfg))
         local_rels = rels + [log_rel] if log_path(cfg).exists() else rels
         local_rels = list(dict.fromkeys(local_rels))
@@ -1520,8 +1520,7 @@ def _sync_coga_state_without_barrier(
     command *intended* to change, with a human-readable per-transition message;
     this sweep mops up the rest of the `coga/` subtree so the working tree never
     accumulates dirty OS state. Two structural sources motivate it: machine
-    side-effects written *past* the last per-command sync (the digest spool and
-    stray log lines) and human hand-edits to tickets/blackboards/contexts that
+    side-effects written *past* the last per-command sync (stray log lines) and human hand-edits to tickets/blackboards/contexts that
     no command touched. Per-session usage records are not part of this sweep:
     launch appends them to `log.md` and commits that file directly with
     `sync_log`. The remaining side effects and hand-edits converge on git at the
@@ -1537,7 +1536,7 @@ def _sync_coga_state_without_barrier(
     deletions, renames, and new untracked files are captured.
 
     Branch and union-file handling mirror `sync_paths`: the `merge=union` files
-    (`log.md`, the digest spool) are committed locally + union-merged onto the
+    (`log.md`) are committed locally + union-merged onto the
     control branch, never landed via the wholesale overlay (which would drop
     concurrently-appended lines). Detached HEAD has no durable local branch
     commit, so it performs that union merge directly while building the control
@@ -1589,7 +1588,7 @@ def _sync_coga_state_without_barrier(
                 checkout_ticket_bytes=checkout_ticket_bytes,
             )
 
-        # `merge=union` files (log.md, the digest spool) must stay out of the
+        # `merge=union` files (log.md) must stay out of the
         # cross-branch overlay set — same reason `sync_paths` keeps the log out:
         # the overlay replaces a file wholesale on the control tip and would drop
         # lines another branch appended. They ride the local commit and reach the
@@ -3433,7 +3432,7 @@ def _union_merge_paths(root: Path, rels: list[str]) -> set[str]:
     """Subset of `rels` carrying the `merge=union` git attribute.
 
     Asked of git directly (`git check-attr merge -z`) rather than hardcoding
-    `log.md` / the spool, so any file `.gitattributes` marks `merge=union`
+    `log.md`, so any file `.gitattributes` marks `merge=union`
     automatically stays out of the cross-branch overlay. `-z` keeps path/value
     parsing robust against special characters.
     """
@@ -4624,7 +4623,7 @@ def _rebase_onto_remote(
     stash and the rebase: when the popped changes conflict with the integrated
     remote move, its abort path fails to re-apply the autostash, leaving
     **conflict markers in the working tree AND an undropped stash** — the exact
-    wound this command was hardened against (a contended digest spool, popped
+    wound this command was hardened against (a contended `merge=union` file, popped
     back over a moved `origin/main`, re-conflicting on every `rebase --abort`).
 
     Here the stash is explicit and every failure exit restores the pre-sync
@@ -5365,7 +5364,7 @@ def _merge_union_path(
     This is the temp-index equivalent of the `merge=union` driver used when a
     local branch commit later merges through Git. It is only used for detached
     checkouts, where there is no durable local branch commit for `log.md`
-    / `spool.md` appends to ride.
+    appends to ride.
     """
     working = (
         _tree_bytes(root, other_rev, rel)

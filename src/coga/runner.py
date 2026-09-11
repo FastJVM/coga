@@ -7,7 +7,6 @@ from typing import Protocol
 from coga.autoclose import run_autoclose_recipe
 from coga.blocker_reminders import run_blocker_reminders_recipe
 from coga.branchsweep import run_branch_sweep_recipe
-from coga.commands.digest import run_digest_recipe
 from coga.config import Config
 from coga.delete_task import run_delete_task_recipe
 from coga.dream_cleanup_orphan_markers import (
@@ -26,7 +25,6 @@ class RecipeFn(Protocol):
 
 RECIPES: dict[str, RecipeFn] = {
     "autoclose": run_autoclose_recipe,
-    "digest": run_digest_recipe,
     "blocker-reminders": run_blocker_reminders_recipe,
     "branch-sweep": run_branch_sweep_recipe,
     "validate-drift": run_validate_drift_recipe,

@@ -161,7 +161,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
         ## Description
 
-        Post the daily digest.
+        Post the dev update.
 
         <!-- coga:blackboard -->
 

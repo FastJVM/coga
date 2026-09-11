@@ -40,9 +40,9 @@ discussion = "-c developer_instructions={prompt}"
 
 # --- Notification channels ---
 # Coga's notification system is the team sync point. Slack is the first
-# channel: urgent/manual events post through the Slack webhook, while outcome
-# events may spool into the daily digest before that digest posts to Slack.
-# Relaunching an already-in-progress ticket does not post.
+# channel: urgent/manual events and ticket outcomes (done, canceled, recurring
+# errors) post live through the Slack webhook as they happen. Relaunching an
+# already-in-progress ticket does not post.
 #
 # Use `env:` indirection so
 # the URL (a bearer token) stays out of this committed file — each user exports

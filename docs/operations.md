@@ -15,11 +15,12 @@ reaches it. Events fall into three tiers:
   in_progress`), a `coga block`, blocker reminders, and explicit FYIs
   (`coga slack`, `coga bump --message`), plus recurring script failures and
   warnings that declared recurring state did not advance.
-- **Outcome digest** — done and canceled tickets, `autoclose-merged`
-  completions, recurring-scan errors, and recurring watchdog timeouts are
-  spooled and posted together on a schedule by `coga digest`. Cancellation
-  entries retain their required reason. If the digest ticket isn't installed,
-  these fall back to a live post.
+- **Outcomes** — done and canceled tickets, `autoclose-merged` completions,
+  recurring-scan errors, and recurring watchdog timeouts also post live, one
+  message per event, through the outcome-only `notify` path. Cancellation
+  entries carry their required reason. There is no batched rollup, and
+  commits that reach `main` without a Done ticket are not announced — `git
+  log` and GitHub are the record for those.
 - **Silent** — routine lifecycle churn posts nothing at all: draft creation,
   `mark active`, manual or non-timeout `mark paused`, message-less `coga bump`,
   successful recurring creates, and relaunching an already-`in_progress`
@@ -28,12 +29,11 @@ reaches it. Events fall into three tiers:
 Agents and humans add one-line FYIs on top with `coga slack` (see the
 [reference](reference.md#coga-slack---task-target---message-text)).
 
-Cadence is separate from destination. The ordinary flow webhook carries
-operating awareness and the daily digest. The important webhook carries
+Surface is separate from destination. The ordinary flow webhook carries
+operating awareness and ticket outcomes. The important webhook carries
 action-needed alerts: explicit `coga slack --important`, recurring script
-failures, stale declared period state, and the no-digest live fallback for scan
-errors or watchdog timeouts. A spooled record is delivery-neutral, so installing
-the digest never creates a duplicate live post.
+failures, stale declared period state, recurring scan errors, and watchdog
+timeouts.
 
 A fresh `coga init` selects **no** channels, so a brand-new repo is silent until
 you turn a channel on. Once Slack is configured and enabled, delivery failures
@@ -106,15 +106,6 @@ from the new tree; it does not erase earlier commits. Rewriting published Git
 history and force-pushing is a separate destructive operation that must be
 explicitly approved and coordinated with collaborators, and it still cannot
 retract credentials from existing copies or logs.
-
-## The digest
-
-Instead of posting every completed ticket the instant it merges, Coga can spool
-outcome events and post them together on a schedule. `coga digest` drains the
-spool — posting Done tickets and other merged commits — and updates digest state.
-On an empty spool it stays silent unless you pass `--announce-empty`. The digest
-is itself a recurring template (see below), so it typically runs on a schedule
-rather than by hand.
 
 ## Git sync
 

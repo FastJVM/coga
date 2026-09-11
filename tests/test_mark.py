@@ -678,6 +678,57 @@ def test_mark_paused_already_paused_errors(repo: Path) -> None:
 # --- mark done ----------------------------------------------------------------
 
 
+def _unset_selected_webhook(repo: Path) -> None:
+    """Keep Slack selected but make its webhook unresolvable.
+
+    `env:UNSET_SLACK_WEBHOOK` resolves to None, which is the shape of a repo
+    that selected Slack and forgot to export the variable.
+    """
+    config_path = repo / "coga.toml"
+    config_path.write_text(
+        config_path.read_text().replace(
+            "env:SLACK_WEBHOOK_URL", "env:UNSET_SLACK_WEBHOOK"
+        )
+    )
+
+
+def test_mark_done_preflights_notification_before_mutation(repo: Path) -> None:
+    """An ordinary `mark done` refuses a misconfigured live channel up front.
+
+    The outcome posts live with `fatal=False`, so a missing webhook found
+    after the write would be reported and dropped. The preflight is the only
+    gate that can still refuse, and it must not be reserved for assist paths.
+    """
+    slug, task_path = _make_task(repo, status="active")
+    _unset_selected_webhook(repo)
+    before = task_path.read_bytes()
+
+    result = CliRunner().invoke(app, ["mark", "done", slug])
+
+    assert result.exit_code == 1, result.output
+    assert "no webhook is configured" in result.output
+    assert task_path.read_bytes() == before
+    assert "task done" not in _read_log(repo)
+
+
+def test_mark_canceled_preflights_notification_before_mutation(
+    repo: Path,
+) -> None:
+    slug, task_path = _make_task(repo, status="active")
+    _unset_selected_webhook(repo)
+    before = task_path.read_bytes()
+
+    result = CliRunner().invoke(
+        app, ["mark", "canceled", slug, "--message", "Owner declined"]
+    )
+
+    assert result.exit_code == 1, result.output
+    assert "no webhook is configured" in result.output
+    assert task_path.read_bytes() == before
+    assert "canceled" not in _read_log(repo)
+
+
+
 def test_mark_done_from_active_clears_step(repo: Path) -> None:
     slug, task_path = _make_task(repo, status="active")
     runner = CliRunner()
@@ -784,7 +835,6 @@ def test_shared_mark_canceled_requires_reason_before_mutating(repo: Path) -> Non
             actor="human:marc",
             reason="   ",
             slack_text="unused",
-            digest_detail="unused",
         )
 
     assert Ticket.read(task_path).status == "active"
@@ -1093,33 +1143,13 @@ def test_mark_canceled_on_feature_lands_union_evidence_on_control(
         watchers=[],
         status="active",
     )
-    spool = git_repo.coga_os / "recurring" / "digest" / "spool.md"
-    _write(
-        spool,
-        """
-        # Digest spool
-
-        ## Spool (pending)
-
-        consumed_through:
-        """,
-    )
-    git_repo.git("add", "coga/recurring/digest/spool.md")
-    git_repo.git("commit", "-m", "seed digest spool")
-    git_repo.git("push", "origin", "main")
     git_repo.checkout_branch("feature/cancel")
 
-    # Move origin/main under the feature checkout with concurrent union-file
-    # appends. The cancellation sync must retry and preserve both writers.
+    # Move origin/main under the feature checkout with a concurrent union-file
+    # append. The cancellation sync must retry and preserve both writers.
     local_log = (git_repo.coga_os / "log.md").read_text()
     git_repo.push_competing_commit(
         "coga/log.md", local_log + "2026-01-01 00:00 rival: unrelated event\n"
-    )
-    local_spool = spool.read_text()
-    git_repo.push_competing_commit(
-        "coga/recurring/digest/spool.md",
-        local_spool
-        + '{"id":"rival","kind":"done","ticket":"other"}\n',
     )
 
     result = CliRunner().invoke(
@@ -1133,18 +1163,10 @@ def test_mark_canceled_on_feature_lands_union_evidence_on_control(
         git_repo.git("show", f"main:{task_rel}", cwd=git_repo.origin)
     )
     control_log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
-    control_spool = git_repo.git(
-        "show",
-        "main:coga/recurring/digest/spool.md",
-        cwd=git_repo.origin,
-    )
     assert control_ticket.status == "canceled"
     assert control_ticket.step is None
     assert "canceled (active → canceled): Owner declined" in control_log
     assert "rival: unrelated event" in control_log
-    assert '"kind":"canceled"' in control_spool
-    assert "Owner declined" in control_spool
-    assert '"id":"rival"' in control_spool
     assert git_repo.git("branch", "--show-current").strip() == "feature/cancel"
     assert git_repo.git("status", "--short") == ""
 

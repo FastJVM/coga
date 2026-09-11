@@ -40,3 +40,12 @@ applicable.
   excluding `create`, `launch` substrate, and `skill *`.
 - `v2/cleanup-core-commands/residual-command-surfaces` — `init`, `ticket`, `delete`,
   `skill *`, bare `recurring`, `recurring launch <name>`, and default aliases.
+
+## Status note (2026-09-10)
+
+The daily digest was removed outright (ticket `remov-digest-in-recurring`):
+`coga digest`, its `runner.RECIPES` entry, the spool, and the recurring
+template are gone, and outcomes post live through `notification.notify`. The
+half of this design that was going to decide `coga digest`'s CLI spelling is
+therefore moot; `megalaunch` is the one remaining unclassified in-package
+command. The drafts above are left as written.

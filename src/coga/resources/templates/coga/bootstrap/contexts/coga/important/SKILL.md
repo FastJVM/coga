@@ -8,9 +8,8 @@ description: The coga-important Slack channel — what earns a notification ther
 `coga-important` is the Slack channel for notifications that need a human to
 act. Nothing else goes there. Normal Coga sync traffic stays on the regular
 path described by `coga/sync`: routine lifecycle churn is silent audit-log/git
-state, explicit FYIs and urgent exceptions are live, and outcomes go through the
-daily digest path. None of that becomes an important alert just because Coga
-sent it.
+state, while explicit FYIs, urgent exceptions, and ticket outcomes post live.
+None of that becomes an important alert just because Coga sent it.
 
 The two channels split by what the message asks of the reader, not by urgency
 or by who sent it. coga-flow is the ordinary operating feed: read it for
@@ -30,10 +29,9 @@ throw at it is not a safety net.
 Unattended machine failures qualify under the same action-needed test when the
 only ticket is a generated recurring period task that no human treats as their
 queue. Coga therefore routes script failures and unadvanced recurring state
-here immediately. Recurring scan errors and watchdog timeouts keep their
-existing digest cadence; they select this destination only on the no-digest
-live fallback. Importance chooses where a delivered alert goes, not when it is
-delivered.
+here immediately. Recurring scan errors and watchdog timeouts post live and
+select this destination. Importance chooses where a delivered alert goes, not
+when it is delivered.
 
 ## Triage
 
@@ -72,7 +70,7 @@ channel.
 
 ## What this context does NOT cover
 
-- How notifications reach Slack at all, the live/digest tiers, and git sync —
+- How notifications reach Slack at all, the live/silent tiers, and git sync —
   `coga/sync`.
 - Configuring the channel. The `important_webhook` coga.toml key routes these
   posts to coga-important; see `coga/sync`.

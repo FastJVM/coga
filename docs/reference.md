@@ -81,7 +81,7 @@ untouched. Trailing `ARGS` arrive as ordered values in an appended
 ### `coga run RECIPE [ARGS...]`
 
 Run one deterministic Coga recipe from the fixed core registry. The known
-names are `autoclose`, `digest`, `blocker-reminders`, `branch-sweep`,
+names are `autoclose`, `blocker-reminders`, `branch-sweep`,
 `validate-drift`, `cleanup-orphan-markers`, `recurring-scan`,
 `autofix-analyze`, `skill-update`, `open-pr`, and `delete-task`; unknown names
 exit 2 and list that set.
@@ -483,12 +483,6 @@ advance or end their workflow.
 
 - `--important` — route to the important notification destination (the
   human-action channel) instead of the default.
-
-### `coga digest`
-Post Done tickets and other merged commits, then update digest state.
-
-- `--announce-empty` / `--quiet-empty` — on an empty spool, print a one-line note
-  or stay silent (default quiet).
 
 ## Skills and secrets
 

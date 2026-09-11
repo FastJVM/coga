@@ -303,7 +303,7 @@ guardrail and task-to-task comparison, not exact provider billing.
 ## coga run \<recipe\> [args...]
 
 Invoke one deterministic core recipe through Coga's fixed registry. The
-registered names are `autoclose`, `digest`, `blocker-reminders`,
+registered names are `autoclose`, `blocker-reminders`,
 `branch-sweep`, `validate-drift`, `cleanup-orphan-markers`,
 `recurring-scan`, `autofix-analyze`, `skill-update`, `open-pr`, and
 `delete-task`. Unknown names
@@ -450,7 +450,7 @@ recorded after one.
 
 Finish the current step of a workflow-bound task. It updates `step:` and
 appends a log entry when another step follows; on the final step it marks the
-ticket `done` through the same log, notification, digest, and sync path as
+ticket `done` through the same log, notification, and sync path as
 `coga mark done`. Requires `status: in_progress`. The workflow is frozen into
 the ticket at create time, so step semantics don't drift mid-task.
 
@@ -857,41 +857,6 @@ Once Slack is selected it is fail-loud (see `coga/sync`): commands crash if
 `$SLACK_WEBHOOK_URL` is unset and the user hasn't opted out via
 `[notification.slack].enabled = false`.
 
-## coga digest [--announce-empty | --quiet-empty]
-
-Post one outcome-focused daily digest through the configured notification
-channel, then record what it covered. This is the **consumer** half of the
-digest pipeline: `done`/`canceled` events and recurring scan errors spool
-structured records into `coga/recurring/digest/spool.md` as they happen instead
-of posting live, and once a day the `recurring/digest` task fires and runs the
-registered `digest` recipe. `coga digest` is the hand-run spelling of that same
-pass — reach for it to flush the spool now instead of waiting for the schedule.
-
-One pass reads the unconsumed spool records, fetches the configured control
-branch, renders `Done:` / `Canceled:` / recurring-error sections from those
-records plus an `Also merged (no ticket):` section from commits landed since
-the last recorded high-water mark, posts, then advances both watermarks.
-Coga's own state-sync commits and commits whose PR already appears under
-`Done:` are filtered out, so the digest reports outcomes rather than churn.
-
-The two watermarks live in different files on purpose. The spool is
-*compacted*, not emptied — the consumed prefix is trimmed and the newest record
-stays as an anchor, so a concurrent producer append lands in a disjoint merge
-hunk of that union-merged file. The git high-water mark is single-writer
-consumer state and lives in the digest template's `### Digest State` block in
-`coga/recurring/digest/ticket.md`.
-
-Idempotent and safe to re-run: with no outcome records and no new commits it
-posts nothing, and a failed post leaves the records and the git high-water mark
-intact for the next run. An empty spool alone is not enough to skip — the
-control-branch scan still runs.
-
-- `--announce-empty` / `--quiet-empty` — on an empty pass, print a one-line note
-  or stay silent (default `--quiet-empty`).
-
-Unlike the read-only views, `digest` writes state and posts, so it does trigger
-the end-of-command `coga/` state sweep.
-
 ## coga secret get \<ref>
 
 Resolve one secret **reference** on demand and print its value to stdout — a
@@ -1058,7 +1023,7 @@ force reports a controlled refusal, continues through later templates, and
 exits non-zero after the sweep; the operator must delete the canceled task
 before starting a fresh run.
 Everything else is identical to a normal run: real Slack,
-real digest-spool drain, real git task-state sync, and the real
+real git task-state sync, and the real
 serviced-period ledger advance. There are no `-dbg-` scratch dirs, no
 slug-based suppression, no orphan reaping, and no fold-back-to-template-log
 step. Use it to force this period's work to re-run without waiting for the
@@ -1271,8 +1236,6 @@ only; they don't accept their own flags.
 - Reading a single task without opening the file → `coga show <slug>`.
 - Accounting for agent token spend after the fact → `coga usage`
   (`--by model|agent|step` to re-slice, `--json` to pipe).
-- Flushing the pending daily digest now instead of waiting for its
-  schedule → `coga digest`.
 - Surfacing a non-blocker note tied to a step transition → `coga bump --message`.
 - Surfacing a non-blocker note tied to a status transition → `coga mark <state> --message`.
 - Surfacing a non-blocker note that doesn't fit a transition → `coga slack`.
