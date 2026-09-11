@@ -1,7 +1,7 @@
 ---
 title: 'No context records the CI posture: publish-only release workflow, no test
   gate'
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
@@ -80,6 +80,22 @@ being taken up at the same time, fold this into it rather than landing both.
 `coga/contexts/coga/codebase/SKILL.md` is an enforced byte-identical twin with
 `src/coga/resources/templates/coga/bootstrap/contexts/coga/codebase/SKILL.md`
 (`IDENTICAL_LIVE_PACKAGED_PAIRS` in `tests/test_packaging.py`) — edit both.
+
+**Review notes (evaluator, verified against the repo):**
+
+- Leave the three stale v2 tickets as they are. `coga/tasks/v2/README.md` defines
+  them as dated records, not specs; `release.yml` landed 2026-06-25 and they were
+  drafted at or after that, so they are stale, not to be corrected here.
+- `release.yml` also runs `twine check` on the built artifacts before publishing —
+  the one automated check that exists. Mention it in the subsection.
+- "A verifier must state the exact commands and counts they ran" is a new norm this
+  subsection introduces, not an existing fact. The owner accepted carrying it in
+  `coga/codebase`.
+- `IDENTICAL_LIVE_PACKAGED_PAIRS` is derived from `_discover_live_packaged_twins()`
+  filtered by `INTENTIONALLY_DIVERGENT_TWINS`; it is not a registry to append to.
+  Just edit both files identically and run `pytest tests/test_packaging.py`.
+- No contexts attached on purpose: the ticket edits `coga/codebase`, which the
+  agent opens first thing regardless.
 
 Filed by Dream 2026-W36, Phase 2 knowledge scan (shard `ks-07`), classified `gap`.
 
