@@ -4839,3 +4839,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-10 18:14 [document-the-ticket-blackboard-writer-s-contract] [git] sync refused: coga/tasks/document-the-ticket-blackboard-writer-s-contract.md: published launch claim would be cleared without an authorized session-ending lifecycle transition
 2026-09-10 18:15 [remov-digest-in-recurring] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-10 18:15 [remov-digest-in-recurring] [human:nicktoper] started (active → in_progress) via coga launch
+2026-09-10 18:15 [remov-digest-in-recurring] [human:nicktoper] launched (assignee=claude, agent=claude)
