@@ -4910,3 +4910,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-11 16:16 [cloning-a-coga-repo-has-no-setup-path] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
 2026-09-11 16:18 [cloning-a-coga-repo-has-no-setup-path] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-11 16:18 [cloning-a-coga-repo-has-no-setup-path] [human:nicktoper] started (active → in_progress) via coga launch
+2026-09-11 16:19 [cloning-a-coga-repo-has-no-setup-path] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-11 16:28 [cloning-a-coga-repo-has-no-setup-path] [agent:claude] advanced to step 2 (peer-review) → codex — implement done: init-clone-setup @16e275f6 — coga init --user now sets up a clone's machine-local half

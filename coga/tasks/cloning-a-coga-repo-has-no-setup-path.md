@@ -26,7 +26,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -209,11 +209,76 @@ then confirm a command that needs `current_user` (e.g. `coga ticket`) runs.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Open decision for the implementer
+## Dev
 
-Whether `coga init` on a clone should also vendor `.coga/`. See the
-"What a clone is actually missing" table — decide, implement, and record the
-reason here rather than leaving it implicit.
+branch: init-clone-setup
+worktree: /home/n/Code/claude/coga-init-clone-setup
+(separate linked worktree off `main`; primary checkout stays on `main` and runs `coga bump`)
+
+## Implement (step 1) — done
+
+Commit `16e275f6` on `init-clone-setup` (rebased on `origin/main` `ffeb1e5b`,
+nothing new came in).
+
+**Decision — `.coga/` vendoring: moot, not skipped.** Current `main`'s init
+installs no software ("Init installs no software" in `coga/cli`; `_do_init`
+has no venv/vendoring step, only stale "slow clone/venv" comments). The
+ticket's four-row table describes 0.3.1. On this tree a clone is missing
+three things — `coga.local.toml`, the `.claude/.codex` skill symlinks, and
+`.agent-skills/` — and the new path creates all three (`_link_skills_for_agents`
+calls `refresh_agent_skill_view`, so the self-healing one is covered too).
+The success message therefore does not mention `.coga/`; there is no command
+that would create it.
+
+**What changed.** `src/coga/commands/init.py`: `_do_init`'s initialized branch
+now calls `_setup_initialized_clone`, which reads `coga.local.toml` through
+`tomllib` (`_local_toml_user`, same non-empty test `load_config` applies) and
+splits three ways — user set → refusal verbatim (`test_init_refuses_existing_coga_os`
+still asserts every remedy, now with a `user` in the fixture); user unset +
+`--user` → `_require_user_name` (so `_clean_user_name` is the single rule) →
+`_write_local_user` (absent file: `render_local_toml`; present file: replace
+the first top-level `user = ...` line or append one, preserving other keys
+and comments) → `_link_skills_for_agents` (already idempotent; re-checked) →
+exit 0; user unset, no `--user` → exit 2 naming `--user NAME`. An unparseable
+existing `coga.local.toml` is refused, not guessed at. No git staging or
+commit; `ensure_host_gitignore` deliberately not called on this path because
+it can modify the tracked `.gitignore`. `coga.toml`-missing branch untouched.
+`src/coga/config.py`: message now ends "Run `coga init --user <name>` to write
+it."; comment names the command for both shapes.
+
+**Docs.** Packaged `coga/cli` context `coga init` section (package-only, no
+live twin — verified again), `docs/getting-started.md` "Joining a repo" (the
+`echo > coga.local.toml` hack replaced by `git clone` → `coga init --user`),
+`docs/reference.md` init section, README install paragraph. The "no separate
+`coga setup`" line in the context is unchanged.
+
+**Tests.** `tests/test_init.py`: refusal test split as specified plus clone
+setup, idempotent rerun, no-`--user`, invalid name, in-place edit (both the
+`user = ""` template shape and a file with no `user` line), unparseable file.
+`tests/test_config.py::test_missing_user_fails_loud` updated to assert the
+unconditional pointer and the absence of "fresh repo".
+
+**Verification.** `PYTHONPATH=$PWD/src python3.12 -m pytest`: 2440 passed,
+1 failed — `test_packaging.py::test_wheel_includes_bootstrap_batteries`, the
+documented no-`hatchling` environment noise (bare python3.12); re-run with the
+repo `.venv` interpreter that has hatchling: 11/11 packaging tests pass.
+`coga validate --json`: 28 warnings, all pre-existing (stale in_progress,
+unfrozen v2 drafts, oversized blackboards). Manual end-to-end on a real
+`git clone` of this repo in the scratchpad: no `coga.local.toml`/symlinks/
+`.agent-skills` → `coga create` hits the missing-user error with the new
+pointer → `coga init` (no flag) exits 2 naming `--user NAME` → `coga init
+--user nicktoper` exits 0, writes all three, `git status` clean,
+`load_config().current_user == "nicktoper"` → rerun with any name exits 2
+with the upgrade/uninstall refusal.
+
+**For review.** Two judgment calls worth a look: (1) `_write_local_user`'s
+in-place edit is a regex on the first `^user\s*=` line rather than a TOML
+re-serialize — chosen to keep comments; a `user` key inside a table would not
+match, which is the right outcome since `load_config` reads top-level `user`.
+(2) On the clone path a `--user` that is *given* when `user` is already set is
+refused rather than treated as "change my name" — the ticket asked for the
+refusal verbatim and the file untouched; editing `coga.local.toml` by hand
+remains the way to rename.
 
 ## Origin
 
