@@ -420,6 +420,37 @@ Two non-obvious requirements:
   `PYTHONPATH=$PWD/src python3.12 -m pytest`, rather than relying on `python3`
   (which is often 3.9 on these machines).
 
+### CI posture: publish-only release workflow, no test gate
+
+Do not re-derive this from `.github/`; it is recorded here so verification
+plans start from the real premise.
+
+- **The only GitHub Actions workflow is `.github/workflows/release.yml`, and it
+  is publish-only.** It triggers on a published GitHub Release or a manual
+  `workflow_dispatch`, runs `uv build`, runs `twine check` on the built
+  artifacts, and publishes to PyPI (or TestPyPI for a manual dry run) via
+  Trusted Publishing. `twine check` is the one automated check that exists,
+  and it checks package metadata, not behavior. One-time setup and the
+  release procedure are in `docs/releasing.md`.
+- **There is no PR or push test job.** Nothing runs `pytest` or
+  `coga validate` on any branch, PR, or tag. The local suite plus
+  `coga validate --json` *are* the release gate: a release tag ships whatever
+  the publisher's local run happened to cover. Because of that, a verifier
+  (self-QA, peer review, or a release cut) must state the exact commands they
+  ran and the resulting counts — for example
+  `PYTHONPATH=$PWD/src python3.12 -m pytest` → `N passed, M skipped` — rather
+  than "tests pass". A verification claim with no command and no count is not
+  evidence here, since no CI log exists to fall back on.
+- **The clean-checkout-only wheel collision above has no automatic PR or
+  push gate.** `release.yml` builds from a pristine checkout and can catch the
+  collision before uploading, but it runs only when a GitHub Release is
+  published or the workflow is manually dispatched. There is no automatic
+  build on a PR, push, or tag to catch it earlier. Verify packaging changes
+  against a fresh `git clone` / `git worktree` by hand before tagging.
+
+`coga/tasks/v2/minimal-ci-run-pytest-on-prs-and-tags.md` is the parked design
+that would change this posture. When it lands, update this subsection.
+
 ## Installed-versus-source skew warning
 
 `coga launch` and `coga validate` perform a warn-only diagnostic when they
