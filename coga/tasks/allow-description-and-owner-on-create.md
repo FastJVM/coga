@@ -1,7 +1,7 @@
 ---
 slug: allow-description-and-owner-on-create
 title: Allow --description and --owner on coga create
-status: in_progress
+status: done
 owner: zach
 human: zach
 agent: claude
@@ -31,7 +31,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
