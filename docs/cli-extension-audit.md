@@ -137,15 +137,6 @@ task. There is no mode field.
 `bootstrap/browser-automation` remains available only through its explicit
 launch spelling; it is orchestration rather than a stable top-level verb.
 
-### The third candidate, since removed
-
-At audit time a third pure-passthrough launch target existed — the daily
-digest's recurring template — and was disqualified from aliasing by a name
-collision with the `coga digest` built-in that drained its spool. Both the
-template and the built-in have since been removed outright (outcomes post live
-through `notification.notify` instead), so the pure-passthrough set for
-aliasing is exactly the two named above and the collision no longer exists.
-
 ## Gotchas
 
 - **Merged-ticket auto-close has a single surface now.** The standalone

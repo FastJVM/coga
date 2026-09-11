@@ -10,13 +10,8 @@ enough to be worth naming, so a new feature reaches for the established shape
 instead of re-deriving it — or worse, inventing a hidden `.queue` dotfile that
 breaks Coga's no-hidden-state rule.
 
-No shipped feature currently composes the primitives into a named pattern. The
-one that did — a git-backed producer/consumer spool feeding a once-a-day Slack
-rollup — was removed in favor of posting outcomes live as they happen: a
-second write-contended `merge=union` file, a consumer watermark, and a
-migration shim were more machinery than a low-volume rollup earned. The rules
-it was built on still hold, and are what a future pattern should be measured
-against.
+Use these rules when a feature needs to collect events or carry state across
+runs.
 
 ## Rules of thumb for a new composition
 

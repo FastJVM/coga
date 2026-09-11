@@ -95,8 +95,7 @@ is one paused ticket (`launch-decomposition.md`) plus five drafts, and
 `coga/tasks/v2/README.md` defines everything under it as real work deliberately
 off the current execution path. Until that design is pulled forward,
 `megalaunch` stays in core — read this as recorded status, not as a migration
-in flight. (The daily digest, which used to share this open question, was
-removed outright; outcomes now post live through `notification.notify`.)
+in flight.
 
 **Everything else stays at the edge.** A single-consumer helper may live beside
 the ticket or skill that uses it and import **only shared core infra**. An agent

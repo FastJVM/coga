@@ -319,6 +319,8 @@ def mark_canceled(
             ref.path,
             message=f"Ticket: {ref.id_slug} — canceled",
             guard=_state_guard(cfg, ref),
+            # The abandoned branch may never merge its cancellation reason.
+            land_union_files_to_control=True,
             feature_publication=feature_publication,
             feature_publication_guard=feature_publication_guard,
             after_strict_publication=after_sync,

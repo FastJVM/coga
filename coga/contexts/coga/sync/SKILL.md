@@ -27,12 +27,9 @@ independent routing decisions:
   webhook. Flow is the operating feed; important is the action-needed queue
   defined by `coga/important`.
 
-There is no batching tier. Outcomes used to collapse into a once-a-day digest
-fed by a spool file; that was removed because the queue, its consumer, and
-its merge contract cost more than a low-volume rollup earned (see
-`coga/patterns` for the rules it left behind). Commits that reach `main`
-without a Done ticket are no longer announced anywhere — `git log` and GitHub
-are the record.
+Outcomes post immediately because the notification volume is low. Commits
+that reach `main` without a Done ticket are intentionally absent from Slack;
+`git log` and GitHub are the record.
 
 Live surface (`post`) — posts immediately to the named destination:
 
@@ -472,9 +469,7 @@ union keeps **both** sides' lines, which is *safe there precisely because
 every writer only appends* — there is nothing to resurrect. That safety is
 conditional. If union ever sees a hunk where one side **deleted** lines, it
 keeps them, resurrecting the deletion; a file that is compacted, trimmed, or
-rewritten by any writer must never carry the attribute. (Coga learned this the
-hard way on a since-removed outcome spool that one consumer drained while
-producers appended; `coga/patterns` keeps the rules that fell out of it.)
+rewritten by any writer must never carry the attribute.
 `git.py::_union_merge_paths` asks `git check-attr` rather than hardcoding the
 file name, so adding a new append-only file to `.gitattributes` is enough to
 keep it out of the cross-branch overlay — and adding a non-append-only one is
@@ -540,9 +535,11 @@ detached commit so later broad sync cannot replay already-published bytes.
 
 Cancellation is the deliberate feature-branch exception for union files. A
 canceled ticket's branch may never merge by definition, so `mark_canceled`
-calls `sync_paths(..., land_union_files_to_control=True)`: the task still lands
-through the scoped overlay, while `coga/log.md` is three-way unioned into the
-same control-branch tree immediately. The compare-and-swap retry below rebuilds
+passes `land_union_files_to_control=True` for both ordinary and recorded-assist
+cancellations: the task still lands through the scoped overlay, while
+`coga/log.md` is three-way unioned into the same control-branch tree immediately.
+Strict publication completes before the live outcome post. The
+compare-and-swap retry below rebuilds
 that union on a newly fetched tip, so the required reason and outcome cannot
 strand with the abandoned code or overwrite concurrent audit appends.
 
