@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -738,15 +739,26 @@ def test_init_into_non_empty_dir_is_fine(tmp_path: Path, fake_vendor) -> None:
     assert (target / "README.md").read_text() == "hi"
 
 
-def test_init_refuses_existing_coga_os(tmp_path: Path, fake_vendor) -> None:
-    """The refusal names the actual remedies — `--update` is gone, so the
-    message must say what re-running init was probably reaching for: upgrade
-    the CLI with its owning installer, recover a broken coga/ by fixing/removing
-    it, or run `coga uninstall` from inside the target to drop the footprint."""
-    target = tmp_path / "occupied"
-    target.mkdir()
+def _make_initialized_clone(target: Path) -> Path:
+    """Shape a fresh clone of a Coga repo: the committed `coga/coga.toml` is
+    there, but nothing the coga-managed `.gitignore` blocks came with it — no
+    `coga.local.toml`, no agent skill symlinks, no `.agent-skills/` view."""
+    _make_git_repo(target)
     (target / "coga").mkdir()
     (target / "coga" / "coga.toml").write_text("version = 1\n")
+    return target
+
+
+def test_init_refuses_existing_coga_os(tmp_path: Path, fake_vendor) -> None:
+    """A repo whose machine-local half is already set up is the genuine
+    re-init: the refusal names the actual remedies — `--update` is gone, so
+    the message must say what re-running init was probably reaching for:
+    upgrade the CLI with its owning installer, recover a broken coga/ by
+    fixing/removing it, or run `coga uninstall` from inside the target to drop
+    the footprint. `coga.local.toml` is left untouched."""
+    target = _make_initialized_clone(tmp_path / "occupied")
+    local_toml = target / "coga" / "coga.local.toml"
+    local_toml.write_text('user = "marc"\nextra = 1\n')
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 2
@@ -756,6 +768,140 @@ def test_init_refuses_existing_coga_os(tmp_path: Path, fake_vendor) -> None:
     assert "coga uninstall" in result.output
     assert f"from inside {target}" in result.output
     assert "remove the dir" in result.output
+    assert local_toml.read_text() == 'user = "marc"\nextra = 1\n'
+    assert not (target / ".claude").exists()
+
+
+def test_init_sets_up_clone_of_initialized_repo(
+    tmp_path: Path, fake_vendor, fake_managed_skill_sync
+) -> None:
+    """The clone shape — `coga.toml` present, `coga.local.toml` absent — is
+    not a re-init. `coga init --user NAME` writes the gitignored machine-local
+    half (`coga.local.toml`, agent skill symlinks, the `.agent-skills/` view),
+    exits 0, and commits nothing: nothing under the committed tree changes and
+    the fresh-init steps (template copy, managed skills, git commit) never run."""
+    target = _make_initialized_clone(tmp_path / "clone")
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+    assert "already initialized" in result.output
+    assert 'with user = "tester"' in result.output
+    assert "Nothing was committed" in result.output
+
+    local_toml = target / "coga" / "coga.local.toml"
+    assert local_toml.is_file()
+    assert 'user = "tester"' in local_toml.read_text()
+    assert (target / ".claude" / "skills" / "coga").is_symlink()
+    assert (target / ".codex" / "skills" / "coga").is_symlink()
+    assert (target / "coga" / ".agent-skills").is_dir()
+    # The committed tree is untouched: no template copy, no managed-skill
+    # install, no agent guides, no commit.
+    assert (target / "coga" / "coga.toml").read_text() == "version = 1\n"
+    assert not (target / "coga" / "tasks").exists()
+    assert not (target / "CLAUDE.md").exists()
+    assert not (target / ".gitignore").exists()
+    assert fake_managed_skill_sync.install_calls == []
+    assert "Initialized coga repo" not in result.output
+
+
+def test_init_clone_setup_is_idempotent(tmp_path: Path, fake_vendor) -> None:
+    """Re-running the clone setup with the same name after it succeeded is a
+    clean no-op: the machine-local half exists, so init takes the ordinary
+    already-initialized refusal without rewriting or relinking anything."""
+    target = _make_initialized_clone(tmp_path / "clone")
+    first = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert first.exit_code == 0, first.output
+    local_toml = target / "coga" / "coga.local.toml"
+    before = local_toml.read_text()
+    link = target / ".claude" / "skills" / "coga"
+    link_before = os.readlink(link)
+
+    second = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert second.exit_code == 2
+    assert "repo is already initialized" in second.output
+    assert local_toml.read_text() == before
+    assert os.readlink(link) == link_before
+
+
+def test_init_on_clone_without_user_names_the_flag(
+    tmp_path: Path, fake_vendor
+) -> None:
+    """An initialized repo with no machine-local half and no `--user` fails
+    loud with the right remedy — `--user NAME` — not the upgrade/uninstall
+    menu, which is the wrong entry for a teammate who just cloned."""
+    target = _make_initialized_clone(tmp_path / "clone")
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 2
+    assert "--user NAME" in result.output
+    assert "does not set your name" in result.output
+    assert "uv tool upgrade coga" not in result.output
+    assert "coga uninstall" not in result.output
+    assert not (target / "coga" / "coga.local.toml").exists()
+    assert not (target / ".claude").exists()
+
+
+def test_init_on_clone_rejects_invalid_user(tmp_path: Path, fake_vendor) -> None:
+    """The clone path validates `--user` through the same rule as a fresh
+    init (`_clean_user_name`): a quote or backslash is refused before any
+    write."""
+    target = _make_initialized_clone(tmp_path / "clone")
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", 'a"b'])
+    assert result.exit_code == 2
+    assert "quotes or backslashes" in result.output
+    assert not (target / "coga" / "coga.local.toml").exists()
+
+
+def test_init_on_clone_edits_userless_local_toml_in_place(
+    tmp_path: Path, fake_vendor
+) -> None:
+    """An existing `coga.local.toml` with other keys but no usable `user` is
+    edited in place, never re-rendered from the template: the other keys and
+    comments survive and `user` is set. Both the empty-`user` template shape
+    and a file with no `user` line at all are covered."""
+    empty_user = _make_initialized_clone(tmp_path / "empty-user")
+    local_toml = empty_user / "coga" / "coga.local.toml"
+    local_toml.write_text(
+        "# my notes\n"
+        'user = ""\n'
+        "\n"
+        "[agents.claude]\n"
+        'argv = "claude --dangerously-skip-permissions"\n'
+    )
+    result = CliRunner().invoke(app, ["init", str(empty_user), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+    assert local_toml.read_text() == (
+        "# my notes\n"
+        'user = "tester"\n'
+        "\n"
+        "[agents.claude]\n"
+        'argv = "claude --dangerously-skip-permissions"\n'
+    )
+    assert "Updated" in result.output
+
+    no_user_line = _make_initialized_clone(tmp_path / "no-user-line")
+    local_toml = no_user_line / "coga" / "coga.local.toml"
+    local_toml.write_text("extra = 1")
+    result = CliRunner().invoke(app, ["init", str(no_user_line), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+    assert local_toml.read_text() == 'extra = 1\nuser = "tester"\n'
+    assert tomllib.loads(local_toml.read_text()) == {"extra": 1, "user": "tester"}
+
+
+def test_init_on_clone_refuses_unparseable_local_toml(
+    tmp_path: Path, fake_vendor
+) -> None:
+    """A broken `coga.local.toml` is not guessed at: init fails loud naming
+    the file and leaves it alone."""
+    target = _make_initialized_clone(tmp_path / "clone")
+    local_toml = target / "coga" / "coga.local.toml"
+    local_toml.write_text("user = \n")
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 2
+    assert "could not be read as TOML" in result.output
+    assert local_toml.read_text() == "user = \n"
 
 
 def test_init_does_not_misidentify_unrelated_coga_path(

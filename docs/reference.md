@@ -19,6 +19,12 @@ Create `coga/` from the package templates. `PATH` is the target directory
 - `--user <name>` — your name, written as `user` in `coga.local.toml`; the name
   tickets and agents refer to you by.
 
+On a clone of a repo that already has `coga/` committed, `coga init --user
+<name>` sets up the gitignored machine-local half instead of refusing: it writes
+`coga.local.toml` (editing an existing one in place rather than replacing it)
+and the `.claude/skills/coga` / `.codex/skills/coga` symlinks, and commits
+nothing. Once `coga.local.toml` names a `user`, `coga init` refuses as before.
+
 ### `coga uninstall`
 Remove this repo's Coga footprint, including a configured contexts directory
 outside `coga/` (and optionally the global package).

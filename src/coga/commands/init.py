@@ -1,8 +1,11 @@
-"""`coga init` — create a new coga repo.
+"""`coga init` — create a new coga repo, or finish setting up a clone of one.
 
-`coga init` writes everything from scratch into `<path>/coga/` and refuses to
-overwrite if it already exists. Templates come from the installed coga package.
-It builds the self-contained venv that backs the `coga` console script.
+`coga init` writes everything from scratch into `<path>/coga/`. Templates come
+from the installed coga package; init installs no software. On a repo whose
+`coga/` already exists it refuses — unless the gitignored machine-local half
+(`coga.local.toml` with a `user`, the agent skill symlinks) is missing, which
+is what a fresh clone looks like: then `coga init --user NAME` creates only
+that half and commits nothing.
 """
 
 from __future__ import annotations
@@ -92,7 +95,10 @@ def _require_user_name(user: str | None) -> str:
     tokens written into tickets, so init fails loud when it is omitted rather
     than deriving one. `coga init --user NAME` is the one blessed way to set the
     name, and because init writes `user` before anything reads config it still
-    works on a bare clone. An invalid `--user` value is also a hard error.
+    works on a bare clone: an already-initialized repo whose gitignored
+    `coga.local.toml` is missing takes the `_setup_initialized_clone` path
+    instead of the re-init refusal. An invalid `--user` value is also a hard
+    error.
     """
     if user is None:
         typer.secho(
@@ -428,11 +434,12 @@ def init(
         "--user",
         help=(
             "Your name — becomes `user` in coga.local.toml, the name tickets "
-            "and agents refer to you by (e.g. marc)."
+            "and agents refer to you by (e.g. marc). On a clone of an "
+            "already-initialized repo this is all init writes."
         ),
     ),
 ) -> None:
-    """Create `coga/` from package templates."""
+    """Create `coga/` from package templates, or set up a clone's machine-local half."""
     _check_external_dependencies()
     _do_init(path or Path("."), user=user)
 
@@ -715,24 +722,132 @@ def _pin_control_branch(coga_os: Path, branch: str, default: str) -> None:
     config_path.write_text(text)
 
 
+def _local_toml_user(local_toml: Path) -> str | None:
+    """Return the `user` value `coga.local.toml` currently sets, or None.
+
+    None covers both "file absent" and "file present but `user` missing or
+    empty" — the same test `load_config` applies before refusing to act as
+    anyone. An unparseable file is a hard error: init will not guess whether a
+    broken machine-local file still names someone.
+    """
+    if not local_toml.is_file():
+        return None
+    try:
+        data = tomllib.loads(local_toml.read_text())
+    except (tomllib.TOMLDecodeError, OSError) as exc:
+        typer.secho(
+            f"{local_toml} could not be read as TOML ({exc}). Fix or remove "
+            "it, then re-run `coga init --user NAME`.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+    user = data.get("user")
+    return user if isinstance(user, str) and user else None
+
+
+_LOCAL_TOML_USER_LINE = re.compile(r"^user\s*=.*$", re.MULTILINE)
+
+
+def _write_local_user(local_toml: Path, name: str) -> str:
+    """Set `user = "<name>"` in `coga.local.toml`, creating the file if absent.
+
+    A missing file gets the full template via `render_local_toml`. An existing
+    file is edited in place — its first top-level `user = ...` line is
+    replaced, or one is appended when none exists — so any other machine-local
+    overrides and comments survive; re-rendering the template here would
+    destroy them. Returns "wrote" or "updated" for the caller's report.
+    """
+    if not local_toml.is_file():
+        local_toml.write_text(render_local_toml(name))
+        return "wrote"
+    text = local_toml.read_text()
+    line = f'user = "{name}"'
+    if _LOCAL_TOML_USER_LINE.search(text):
+        text = _LOCAL_TOML_USER_LINE.sub(line, text, count=1)
+    else:
+        if text and not text.endswith("\n"):
+            text += "\n"
+        text += line + "\n"
+    local_toml.write_text(text)
+    return "updated"
+
+
+def _setup_initialized_clone(target: Path, coga_os: Path, user: str | None) -> None:
+    """`coga init --user NAME` on an already-initialized repo.
+
+    A clone of a Coga repo carries the committed `coga/` but none of what the
+    coga-managed `.gitignore` blocks: `coga.local.toml`, the agent skill
+    symlinks, and the generated `coga/.agent-skills/` view. This is the
+    supported way to create that machine-local half. It writes only gitignored
+    state — nothing is staged or committed — and is idempotent: a second run
+    finds the same user and takes the ordinary refusal below.
+    """
+    local_toml = coga_os / "coga.local.toml"
+    if _local_toml_user(local_toml) is not None:
+        # The machine-local half is already there, so re-running init was
+        # reaching for something else: upgrading the CLI, repairing a broken
+        # coga/, or removing Coga. Refuse with that menu.
+        typer.secho(
+            f"{coga_os} already exists — this repo is already initialized.\n"
+            "To upgrade the CLI, use the installer that owns it: "
+            "`uv tool upgrade coga` for uv, or run "
+            "`pip install --upgrade coga` in its Python environment. "
+            "Batteries resolve from the installed package, so no re-init "
+            "is needed.\n"
+            f"If {coga_os} is broken or partial, fix the cause or remove "
+            "the dir, then re-run `coga init`.\n"
+            f"To remove Coga from this repo entirely, run `coga uninstall` "
+            f"from inside {target}.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+
+    if user is None:
+        typer.secho(
+            f"{coga_os} is already initialized, but {local_toml} does not set "
+            "your name (a clone never carries this gitignored, machine-local "
+            "file). Run `coga init --user NAME` (e.g. `coga init --user marc`) "
+            "to create it and wire the agent skill links; coga does not guess "
+            "the name.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+    name = _require_user_name(user)
+
+    verb = _write_local_user(local_toml, name)
+    wired_agents, blocked_agents = _link_skills_for_agents(target, coga_os)
+
+    typer.echo("")
+    typer.echo(f"Set up machine-local Coga state for {coga_os} (already initialized).")
+    typer.echo(
+        f'{verb.capitalize()} {local_toml} (machine-local config — gitignored) '
+        f'with user = "{name}".'
+    )
+    if wired_agents:
+        names = ", ".join(wired_agents)
+        typer.echo(f"Wired skill discovery for {names} (symlinked into their skill dirs).")
+    for label, path in blocked_agents:
+        typer.secho(
+            f"Skipped {label} skill wiring — {path} exists but isn't a directory. "
+            f"Remove or convert it so skill wiring can complete.",
+            fg=typer.colors.YELLOW,
+        )
+    typer.echo("Nothing was committed: this path writes only gitignored state.")
+
+
 def _do_init(path: Path, *, user: str | None = None) -> None:
     target = path.resolve()
     coga_os = target / "coga"
 
     if coga_os.exists():
         if (coga_os / "coga.toml").is_file():
-            message = (
-                f"{coga_os} already exists — this repo is already initialized.\n"
-                "To upgrade the CLI, use the installer that owns it: "
-                "`uv tool upgrade coga` for uv, or run "
-                "`pip install --upgrade coga` in its Python environment. "
-                "Batteries resolve from the installed package, so no re-init "
-                "is needed.\n"
-                f"If {coga_os} is broken or partial, fix the cause or remove "
-                "the dir, then re-run `coga init`.\n"
-                f"To remove Coga from this repo entirely, run `coga uninstall` "
-                f"from inside {target}."
-            )
+            # Initialized repo. Either a clone missing its machine-local half
+            # (set it up) or a genuine re-init (refuse with the upgrade menu).
+            _setup_initialized_clone(target, coga_os, user)
+            return
         else:
             message = (
                 f"{coga_os} already exists, but it does not look like an "

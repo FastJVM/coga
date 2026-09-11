@@ -769,8 +769,10 @@ def test_extra_local_field_retired(repo: Path) -> None:
 
 def test_missing_user_fails_loud(tmp_path: Path) -> None:
     """A missing/empty `user` is a hard error on every command — coga reads the
-    operator's name from config and never guesses it. The message points at the
-    existing-repo edit remedy."""
+    operator's name from config and never guesses it. The message points at
+    `coga init --user` unconditionally — that command sets the name on a fresh
+    repo and on a clone of an initialized one alike, so no "fresh repo"
+    qualifier may send a clone down the wrong path."""
     _write(
         tmp_path / "coga.toml",
         """
@@ -787,7 +789,8 @@ def test_missing_user_fails_loud(tmp_path: Path) -> None:
     assert 'Add `user = "<name>"`' in message
     assert "coga.local.toml" in message
     assert "gitignored" in message
-    assert "fresh repo" in message
+    assert "Run `coga init --user <name>`" in message
+    assert "fresh repo" not in message
 
 
 def test_missing_user_tolerated_when_not_required(tmp_path: Path) -> None:
