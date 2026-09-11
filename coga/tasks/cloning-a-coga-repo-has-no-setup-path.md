@@ -1,6 +1,6 @@
 ---
 title: Cloning a coga repo has no setup path
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 contexts:
