@@ -5104,7 +5104,6 @@ def test_recurring_scan_launches_a_create_that_autocrlf_rewrote_on_disk(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 
@@ -5159,7 +5158,6 @@ def test_recurring_scan_replaces_a_stale_done_task_autocrlf_rewrote_on_disk(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        assignee: claude
         owner: marc
         ---
 

@@ -906,19 +906,20 @@ def test_cli_create_description_lands_in_description_section(
 
 
 @pytest.mark.parametrize("owner", ["nicktoper", " nicktoper "])
-def test_cli_create_owner_sets_owner_and_human(
+def test_cli_create_owner_sets_owner_and_derived_operator(
     repo: Path, monkeypatch: pytest.MonkeyPatch, owner: str
 ) -> None:
-    """`--owner` (stripped) replaces the local user; `human:` (and a
-    workflow-less `assignee:`) cascade from it."""
+    """`--owner` (stripped) replaces the local user; a workflow-less draft
+    derives its operator from that owner, and nothing else is written."""
     monkeypatch.chdir(repo)
     runner = CliRunner()
     result = runner.invoke(app, ["create", "Owned elsewhere", "--owner", owner])
     assert result.exit_code == 0, result.output
     t = Ticket.read(repo / "tasks" / "owned-elsewhere.md")
     assert t.owner == "nicktoper"
-    assert t.human == "nicktoper"
-    assert t.assignee == "nicktoper"
+    assert derived_operator(repo, "owned-elsewhere") == "nicktoper"
+    for removed in ("slug", "human", "assignee", "watchers"):
+        assert removed not in t.frontmatter
 
 
 def test_cli_create_without_description_or_owner_keeps_defaults(
@@ -931,8 +932,7 @@ def test_cli_create_without_description_or_owner_keeps_defaults(
     assert result.exit_code == 0, result.output
     t = Ticket.read(repo / "tasks" / "plain-draft.md")
     assert t.owner == "marc"
-    assert t.human == "marc"
-    assert t.assignee == "marc"
+    assert derived_operator(repo, "plain-draft") == "marc"
     assert "## Description\n\n\n\n## Context\n" in t.body
 
 
@@ -956,12 +956,12 @@ def test_cli_create_description_and_owner_compose_with_path_and_workflow(
     )
     assert result.exit_code == 0, result.output
     t = Ticket.read(repo / "tasks" / "v2" / "build-the-flow.md")
-    assert t.frontmatter["slug"] == "v2/build-the-flow"
+    assert "slug" not in t.frontmatter
     assert t.title == "Build the flow"
     assert t.workflow is not None
     assert t.workflow["name"] == "code/with-review"
     assert t.owner == "nicktoper"
-    assert t.human == "nicktoper"
+    assert derived_operator(repo, "v2/build-the-flow") == "claude"
     assert "## Description\n\nShip the v2 flow.\n\n## Context\n" in t.body
 
 
