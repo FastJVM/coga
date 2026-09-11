@@ -540,9 +540,10 @@ Coga state and audit history are canonical on the control branch; a feature
 checkout holds them so the session reads current state, and nothing more. Left
 alone, the mirror strands a duplicate: the same ticket bytes committed twice,
 once on control and once on the branch, so the PR's file list carries
-`coga/tasks/**`, `coga/log.md`, the digest spool, and mixed-purpose files like
-the digest ticket's `### Digest State` cursor — and the branch pays a base-sync
-merge that resolves no product conflict at all.
+`coga/tasks/**`, `coga/log.md`, and mixed-purpose files like a period ticket
+whose `## Blocker reminders` watermark sits beside its authored prose (the
+retired digest's `### Digest State` cursor was the original case) — and the
+branch pays a base-sync merge that resolves no product conflict at all.
 
 Rebase does not clean that up. Commits touching only `coga/tasks/**` are
 patch-equivalent against the fetched tip and drop, but an append to a
@@ -621,8 +622,8 @@ tree, parent, message, and second produce the *same* commit, so without it a
 branch sometimes needed a merge and sometimes did not.
 
 `open-pr`'s publishability classifier shares that byte-level ownership. It asks
-git which paths take the `merge=union` driver rather than naming `log.md` and
-the spool, and it treats a ticket as generated-only when its authored half —
+git which paths take the `merge=union` driver rather than naming `log.md`,
+and it treats a ticket as generated-only when its authored half —
 frontmatter minus the lifecycle fields Coga writes, plus the body above the
 blackboard fence — is byte-identical on both sides. The blanket
 `coga/tasks/**` exclusion it replaces refused a valid PR whose whole

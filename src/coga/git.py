@@ -5273,8 +5273,8 @@ def _generated_commit_rels(
     ``before..generated_oid`` changed is what this command wrote, and nothing
     under the same directory that it did not touch is swept in. Neither form
     classifies by `coga/**` pathspec or by commit subject, so a new state
-    writer is covered the moment it writes, and a mixed-purpose file (the
-    digest ticket's `### Digest State` cursor beside its authored prose) is
+    writer is covered the moment it writes, and a mixed-purpose file (a
+    command-written blackboard section beside a ticket's authored prose) is
     owned exactly to the extent this command changed it.
 
     The catch-all `sync_coga_state` takes the delta route, and its delta can
