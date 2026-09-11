@@ -4840,3 +4840,8 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-10 18:15 [remov-digest-in-recurring] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-10 18:15 [remov-digest-in-recurring] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-10 18:15 [remov-digest-in-recurring] [human:nicktoper] launched (assignee=claude, agent=claude)
+2026-09-10 18:43 [add-an-agent-picker-for-recurring] [git] sync refused: coga/tasks/add-an-agent-picker-for-recurring.md: published launch claim would be cleared without an authorized session-ending lifecycle transition
+2026-09-10 18:43 [agent-usage-report] [git] sync refused: coga/tasks/agent-usage-report.md: published launch claim would be cleared without an authorized session-ending lifecycle transition
+2026-09-10 18:43 [detect-stranded-ticket-writes-across-checkouts] [git] sync refused: coga/tasks/detect-stranded-ticket-writes-across-checkouts.md: published launch claim would be cleared without an authorized session-ending lifecycle transition
+2026-09-10 18:43 [document-the-ticket-blackboard-writer-s-contract] [git] sync refused: coga/tasks/document-the-ticket-blackboard-writer-s-contract.md: published launch claim would be cleared without an authorized session-ending lifecycle transition
+2026-09-10 18:45 [remov-digest-in-recurring] [agent:claude] advanced to step 2 (peer-review) → assigned to codex

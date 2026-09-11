@@ -5,7 +5,7 @@ status: in_progress
 owner: nicktoper
 human: nick
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -174,4 +174,101 @@ for outcomes or merged commits.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: remove-digest
+worktree: /home/n/Code/claude/coga-remove-digest
+
+## Plan (2026-09-10)
+
+Producer-first, per the ticket's ordering hint:
+
+1. `notify` → kind gate + live `post`; delete `spool.py` and the digest block
+   in `notification/__init__.py`; strip spool arming from `mark.py`,
+   `commands/mark.py`, `commands/bump.py`, `recurring_runner.py`,
+   `autoclose.py`; drop `**/spool.md merge=union` from both `.gitattributes`.
+2. Delete the consumer: `commands/digest.py`, `RECIPES["digest"]`,
+   `app.command("digest")`, alias reservation, `tests/test_digest.py`, the
+   job dir, workflow, skill, `.agent-skills` install, and packaged twins.
+3. Rework spool-seeding tests.
+4. Docs/contexts sweep (live + twin), `CLAUDE.md`, `coga.toml` comment,
+   note in `v2/cleanup-core-commands/README.md`.
+5. `coga delete recurring/digest` from the primary checkout (control branch,
+   outside the PR).
+
+## Decisions
+
+- **`digest_detail=` / `notify(detail=)` dropped, not renamed.** Owner
+  confirmed in-session. Every caller's detail was a paraphrase of
+  `slack_text`; with nothing spooling, `notify` never read it, so renaming
+  would thread a dead kwarg through 7 call sites.
+- `notify` survives as the outcome entry point with the kind gate renamed
+  `OUTCOME_EVENT_KINDS` ("only outcomes go through notify").
+- `mark_done` no longer passes `land_union_files_to_control` (it was tied to
+  spool presence; the no-digest fallback never union-landed). `mark_canceled`'s
+  ordinary-branch path keeps `land_union_files_to_control=True` — that was
+  unconditional and also covers `log.md`.
+- Pending spool at removal time held one record (the digest's own
+  `flush → done`). Nothing worth flushing before deletion.
+
+## What changed (implement, 2026-09-10)
+
+Two commits on `remove-digest`, rebased onto `origin/main` at `0445c9af`:
+
+1. `Remove the daily digest and post outcomes live` — deletes
+   `commands/digest.py`, `spool.py`, `tests/test_digest.py`, the
+   `recurring/digest/` job, `workflows/digest/post.md`, `skills/coga/digest/flush`,
+   and all packaged twins; drops `**/spool.md merge=union` from every
+   `.gitattributes` (live, packaged, `example/`, `tests/conftest.py`);
+   unregisters `digest` from `cli.py`, `runner.RECIPES`, `aliases.py`.
+   `notify` → kind gate (`OUTCOME_EVENT_KINDS`) + `post`. `mark_done` /
+   `mark_canceled` / `mark_paused` / `advance_step` lose `digest_detail=`;
+   `notify` loses `detail=` and `ticket=`. `commands/mark.py` loses
+   `include_spool`; `commands/bump.py`'s pre-lease snapshot no longer arms a
+   spool leaf; `recurring_runner._capture_period_mutation` and
+   `autoclose._preflight_recipe_notifications` no longer consult a spool.
+   `git.py` changes are comment-only.
+2. `Drop digest references from contexts, docs, and templates` — see the
+   commit body. Notable rewrites: `coga/sync` notifications section
+   (two surfaces + silence; spool section replaced by a `merge=union`
+   contract for `log.md`), `coga/patterns` reduced to design rules,
+   `docs/cli-extension-audit.md`'s "third candidate" section rewritten as
+   "since removed". Status note appended to `v2/cleanup-core-commands/README.md`.
+
+Control-branch side (outside the PR): `coga delete recurring/digest` from
+the primary checkout landed as `0445c9af` on `origin/main`. The generated
+`coga/.agent-skills/coga/digest` install was `rm -rf`'d (gitignored).
+
+## Verification
+
+- `python -m pytest` in the feature worktree: 2343 passed, 1 deselected
+  (`tests/test_packaging.py::test_wheel_includes_bootstrap_batteries` —
+  fails identically on unmodified `main` because `.venv` has no `pip`;
+  environment, not this change).
+- `coga validate --json` in the worktree: no digest-related issue; the 4
+  remaining `error`s are the same `v2/*` `unsynthesized-draft-blackboard`
+  errors `main` already has.
+- Remaining `grep -ri digest` hits in `src/ coga/ docs/ tests/` are
+  checksums (`hexdigest`, `*_tree_digest`), arbitrary fixture slugs
+  (`tests/test_{create,tasks}.py`, `test_skill_manager.py:1459`), the
+  `google-agents-cli-eval` reference's `news_digest`, and three deliberate
+  "was removed, here's why" notes (`coga/sync`, `coga/codebase`,
+  `coga/patterns`, `docs/cli-extension-audit.md`) that carry the owner's
+  "no replacement for Also-merged" decision durably.
+
+## Adjacent observations (not fixed here)
+
+- The primary checkout carries dirty launch-claim edits on four other tickets
+  (`add-an-agent-picker-for-recurring`, `agent-usage-report`,
+  `detect-stranded-ticket-writes-across-checkouts`,
+  `document-the-ticket-blackboard-writer-s-contract`); every catch-all sweep
+  from this checkout reports `sync refused` for them. Pre-existing; not
+  touched.
+- `tests/test_commands.py` imports `join_task_body` without using it
+  (pre-existing on `main`).
+
+## Notes
+
+- GitHub was unreachable at session start (connect timeout); branched from
+  local `origin/main` == `main` (`a875a231`). Network returned mid-session;
+  the branch was rebased onto the post-delete `origin/main` (`0445c9af`).
