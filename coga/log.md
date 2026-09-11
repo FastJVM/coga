@@ -4889,3 +4889,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-11 10:00 [recurring/digest] [system] script exited with code 0
 2026-09-11 10:00 [recurring/blocker-reminders] [system] started (active → in_progress) via coga launch
 2026-09-11 10:00 [recurring/blocker-reminders] [system] launched as a script (ticket.py)
+2026-09-11 10:01 [recurring/blocker-reminders] [human:nicktoper] task done
