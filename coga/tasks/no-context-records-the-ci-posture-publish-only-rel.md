@@ -24,7 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -220,3 +220,12 @@ though the release build can catch it before upload.
 Test plan: feature worktree `PYTHONPATH=$PWD/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` — **2435 passed**; `cmp coga/contexts/coga/codebase/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/codebase/SKILL.md` — identical; primary checkout `PYTHONPATH=$PWD/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --json --task no-context-records-the-ci-posture-publish-only-rel` — **1 ok, 0 issues**.
 
 Repo-wide `PYTHONPATH=$PWD/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --json` reports **204 ok, 5 existing errors** on both the feature branch and `main` (23 and 22 warnings respectively; the extra worktree warning is its missing local user). Codex review returned with no findings; independent review clarified the release-build timing.
+
+## Open-PR — 2026-09-11
+
+Confirmed the peer-review note records the Codex review as returned (no
+findings) before publishing. Ran `coga open-pr` from the primary control
+checkout on `main`; it reported `origin/main` advanced only through
+non-overlapping task/log state, pushed `ci-posture` at `1c1e5255`, and opened
+https://github.com/FastJVM/coga/pull/787. `pr:` recorded under `## Dev`;
+primary checkout clean afterwards. Next step is the owner's merge decision.
