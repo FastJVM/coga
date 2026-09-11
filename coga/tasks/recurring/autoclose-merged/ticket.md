@@ -1,7 +1,7 @@
 ---
 slug: recurring/autoclose-merged
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 human: nicktoper
 agent: claude
@@ -18,7 +18,6 @@ workflow:
     - coga/autoclose/sweep
     assignee: agent
 secrets: null
-step: 1 (sweep)
 ---
 
 ## Description
@@ -59,3 +58,12 @@ no merged final-step tickets exits successfully and changes nothing.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-09-11T17:00:31+00:00
+Task: `recurring/autoclose-merged`
+
+1 auto-closed ticket(s) still have a recorded feature checkout. Autoclose never removes one — `coga retire` owns the worktree and branch safety proofs:
+
+- `allow-description-and-owner-on-create` "Allow --description and --owner on coga create": worktree `/home/zach2179/dev/coga-create-description-owner`, branch `create-description-owner` — `coga retire allow-description-and-owner-on-create`
