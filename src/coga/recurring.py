@@ -95,6 +95,33 @@ def local_period_lease(cfg: Config, ref: TaskRef) -> PeriodLease:
     )
 
 
+def same_ticket_bytes(left: bytes | None, right: bytes | None) -> bool:
+    """Compare two ticket snapshots, ignoring only CRLF vs LF line endings.
+
+    A checkout with `core.autocrlf` holds a ticket CRLF on disk while its Git
+    blob stays LF, and every restore from a control ref rewrites the working
+    copy. Normalize at comparison time, never in a stored lease: those bytes
+    also feed exact CASes against raw disk reads.
+    """
+    if left is None or right is None:
+        return left is right
+    return left.replace(b"\r\n", b"\n") == right.replace(b"\r\n", b"\n")
+
+
+def same_period_lease(left: PeriodLease, right: PeriodLease) -> bool:
+    """True when both leases name the same generation and ticket content.
+
+    Every "did this period move?" check uses this instead of `==`. A raw byte
+    comparison reads an untouched period that a line-ending-converting checkout
+    rewrote as replaced, and the sweep drops the task. Generation and the full
+    ticket must still both match, so a paused, closed, or edited
+    same-generation ticket remains a different lease.
+    """
+    return left.generation == right.generation and same_ticket_bytes(
+        left.ticket_bytes, right.ticket_bytes
+    )
+
+
 def _normalize_delegate(value: Any) -> str:
     """Return one canonical bootstrap delegate or fail on its declaration."""
     if not isinstance(value, str) or not value.strip():
@@ -371,6 +398,12 @@ class DueScan:
     ledger_periods: dict[str, str] = field(default_factory=dict, repr=False)
     ledger_errors: dict[str, str] = field(default_factory=dict, repr=False)
     period_targets: dict[str, str] = field(default_factory=dict, repr=False)
+    # Periods this scan created that the runner then refused at admission, with
+    # the reason. Kept out of `tasks` so nothing launches them, but rendered as a
+    # skip so the scan table and run record never lose a period it created.
+    admission_skips: list[tuple[DueTask, str]] = field(
+        default_factory=list, repr=False
+    )
 
     @property
     def due(self) -> list[DueTask]:
@@ -1713,6 +1746,8 @@ __all__ = [
     "SERVICED_LOG_VERBS",
     "PeriodLease",
     "local_period_lease",
+    "same_period_lease",
+    "same_ticket_bytes",
     "period_generation_from_ticket_bytes",
     "RecurringError",
 ]

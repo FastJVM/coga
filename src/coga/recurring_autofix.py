@@ -927,4 +927,7 @@ def scan_lines_for_record(scan, *, force: bool = False) -> list[str]:
         else:
             action = f"skip ({task.status})"
         lines.append(f"{task.template:<20} {when:<26} {action}")
+    for task, reason in scan.admission_skips:
+        when = _firing_label(task.last_fire, now)
+        lines.append(f"{task.template:<20} {when:<26} skip ({reason})")
     return lines
