@@ -1,6 +1,6 @@
 ---
 title: Recurring runs persist as done; stop inline deletion
-status: paused
+status: canceled
 owner: nicktoper
 agent: claude
 contexts:
@@ -24,7 +24,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
