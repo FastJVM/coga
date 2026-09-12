@@ -137,7 +137,10 @@ touchpoints, and list the exact commands you ran to verify.
 
 Keep durable explanation where it belongs: if a change alters behavior, update
 the matching context or spec doc in the *same* PR rather than leaving the
-explanation in chat or a PR comment. Coga is meant to stay legible — a change
+explanation in chat or a PR comment. Which of the two owns the fact is decided
+by `Where a fact lives: docs vs contexts` in
+`coga/contexts/coga/architecture/SKILL.md` — one owner per fact, and the PR
+that changes the owner also fixes any summary of it on the other surface. Coga is meant to stay legible — a change
 that hides state, moves logic into an opaque service, or blurs the
 human-correction loop is usually the wrong direction.
 

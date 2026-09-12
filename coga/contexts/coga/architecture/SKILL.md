@@ -1,6 +1,6 @@
 ---
 name: coga/architecture
-description: Mental model for coga — primitives, planes, composition. What an agent needs to know to reason about how coga works as a system.
+description: Mental model for coga — primitives, planes, composition, and which surface (docs vs contexts) owns a fact. What an agent needs to know to reason about how coga works as a system.
 ---
 
 # Coga architecture
@@ -955,6 +955,87 @@ match the launched task's session id, there is nothing in the composed prompt
 or PTY byte stream to trip: an agent that reads, greps, or quotes a teardown
 string at runtime cannot end its own (or a parent's) session, so the composer
 returns the assembled prompt verbatim with no defusal step.
+
+## Where a fact lives: docs vs contexts
+
+Coga explains itself on two surfaces — `docs/*.md` and the contexts under
+`coga/contexts/**/SKILL.md` — and the boundary between them is a property of
+how each is read, not of who it is "for":
+
+- **A context is eager knowledge.** Everything in it is composed into the
+  prompt of every launch that attaches it (layer 4 above). It costs tokens on
+  each launch whether or not that session needs the fact, and it is the only
+  way to guarantee an agent *has* a fact without being told to go look.
+- **A doc is lazy knowledge.** It costs nothing until someone opens it, and a
+  markdown link is not composition: a context that names
+  `docs/cli-extension-audit.md` does not load it. The agent reads the file on
+  disk, when a context, `CLAUDE.md`, or the ticket points it there.
+
+`docs/vision.md` (the product thesis `CLAUDE.md` names) and
+`docs/cli-extension-audit.md` (the verb-by-verb inventory behind
+`coga/extension-model`) are load-bearing for agents *and* live in `docs/`. That
+is not a leak across the boundary; it is the lazy side working as designed.
+"Docs are for humans" is the wrong test. The test is whether an agent must
+have the fact in-prompt to do a step correctly.
+
+**One owner per fact.** Every fact has exactly one owning file, and the owner
+is the copy that is right when two disagree. Deciding the owner for a new
+fact, in order:
+
+1. **Would a launched step go wrong if this were absent from the prompt?**
+   Behavioral rules, invariants source and tests enforce, edge cases and
+   gotchas that surprise an agent, and anything an agent must not have to
+   discover. → **A context owns it.** Pick the context whose subject already
+   covers the neighbouring facts and whose `## What this context does NOT
+   cover` list does not exclude it; when two candidates both fit, the more
+   narrowly attached one wins, because the fact then costs tokens only where
+   it is needed.
+2. **Otherwise, does a human need it to understand, operate, or contribute?**
+   Onboarding and tours (`docs/getting-started.md`, `docs/concepts.md`),
+   essays and thesis (`docs/vision.md`, `docs/market-thesis.md`), reference
+   generated from the CLI (`docs/reference.md`), dated audits and evidence
+   (`docs/cli-extension-audit.md`, `docs/velocity-report.md`), and
+   human-only procedures (`docs/releasing.md`, `docs/migrating-to-coga.md`).
+   → **A doc owns it.** Any context that depends on it names the path so an
+   agent can open it; bulky reference an agent needs only sometimes belongs
+   here precisely so it is not paid for on every launch.
+3. **Is it the same fact stated for a second audience?** Then it is not a new
+   fact and gets no second owner. Write a pointer or a summary (below).
+
+**What may legitimately appear on both surfaces: pointers and summaries,
+never the specification.** A doc may give a prose tour of a rule a context
+owns, provided it links to the owner and carries no specification-grade
+detail — no ordered lists, exact names, counts, or field lists that can drift
+on their own. "Launch stacks a fixed set of layers, conduct before task
+material and the ticket last; the exact order is in `coga/architecture`" is a
+summary. Restating the six layers is a second copy of the specification, and
+two copies of one fact drift independently: Dream 2026-W36 found the
+composition order stated in `docs/concepts.md` and in this context, both
+stale and stale differently. The same rule holds *within* the context layer.
+A context that needs another's facts names the owner ("see
+`coga/launch-internals`; attach it") rather than inlining them — inlined
+copies drift exactly as doc copies do, and a ticket author attaches the owner
+when the step needs it in-prompt.
+
+**The sync rule.** When an owning file changes, the same PR greps the other
+surface for the fact and fixes or deletes the restatement; `CLAUDE.md`'s "update
+the matching context or source doc in the same PR" means this. There is no
+mechanical check across the docs/contexts boundary — the two can never be
+byte-identical the way `tests/test_packaging.py` requires of a live context
+and its packaged twin — so the authoring rule is the enforcement and Dream's
+knowledge scan is the backstop that catches what slips through.
+
+Two boundaries this does not move:
+
+- **Live vs packaged copies are the same fact, not two surfaces.** A bundled
+  context with a live counterpart is byte-identical by test; a package-only
+  context such as `coga/cli` (resolved through the bootstrap fallback in
+  `paths.resolve_context_path`, with no live copy) is still a single owner.
+  The rule requires one owner, not a live one.
+- **`CLAUDE.md` / `AGENTS.md` are not a third surface.** The agent CLI loads
+  them in every session, launched or not, so they carry pointers into the
+  contexts plus only the rules an agent needs when it is *not* running under
+  `coga launch` — never an owning statement of a fact a context or doc owns.
 
 ## Status is the signal
 

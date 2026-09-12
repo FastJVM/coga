@@ -32,6 +32,16 @@ Then, as you need them:
   command, directories, and config.
 - **[Releasing](releasing.md)** — cutting a Coga release (contributor-facing).
 
+## Docs versus contexts
+
+These pages are the human tour. The rules agents operate under live in the
+contexts (`coga/contexts/**/SKILL.md`), which `coga launch` composes into every
+prompt. A fact has one owner: a page here may summarize a rule and link to the
+context that owns it, but never restates the specification, and a context
+never inlines a page — it names the path. The full rule, including how to
+decide for a new fact, is the `Where a fact lives: docs vs contexts` section of
+[`coga/contexts/coga/architecture/SKILL.md`](../coga/contexts/coga/architecture/SKILL.md).
+
 ## The shortest possible summary
 
 You adopt Coga into a Git repo with `coga init`. Work becomes **tickets** —
