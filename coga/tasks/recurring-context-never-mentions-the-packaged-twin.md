@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -136,3 +136,30 @@ refresh. The bullet is worded against the current shape.
 **Verification:** `.venv/bin/python -m pytest` in the feature worktree — 2435 passed.
 `diff -q` of the two recurring context copies — identical. Branch rebased on
 `origin/main` (already up to date). No push, no PR.
+
+## Peer review
+
+`codex review --base main` ran from the recorded feature worktree and **returned**
+on 2026-09-12 with no actionable findings. Both changed context copies remain
+synchronized. The review's 10 non-wheel packaging checks passed; its wheel test
+could not build because the default Python environment lacks `hatchling`.
+No review-fix commit is needed.
+
+Ran `git fetch origin main` then `git rebase FETCH_HEAD` in the feature worktree.
+Rebase completed without conflicts onto `037f987d`; the branch's one commit is
+now `c16e34cf`. The two reviewed files are unchanged by the rebase, `diff -q`
+confirms the twins are identical, and `git diff --check origin/main...HEAD` passes.
+The full suite **passed: 2435 tests in 171.30s**, including the wheel build, with
+the primary checkout's Python 3.12 test environment (which has `hatchling`) and
+an absolute `PYTHONPATH` naming the feature source. Exact command is in `## PR`.
+The feature worktree is clean and committed, one commit ahead of fetched `main`;
+no feature push or PR was opened in this step. Ready for the `open-pr` handoff.
+
+## PR
+
+Recurring-template authors lacked a reminder to update the packaged copy shipped
+by `coga init`. Add the twin locations, explain how drift changes downstream run
+instructions and scripts, and point to the existing all-twin packaging checks in
+both copies of the recurring context.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-recurring-twin-note/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` — 2435 passed, including wheel packaging.
