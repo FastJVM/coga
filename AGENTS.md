@@ -10,7 +10,7 @@ Canonical Coga contexts:
 - `codebase/SKILL.md` defines source layout and test expectations.
 - `current-direction/SKILL.md` and `project-stage/SKILL.md` capture live product posture.
 
-Do not leave the durable explanation only in chat, PR comments, or task notes when it belongs in a context, template, README, or spec.
+Do not leave the durable explanation only in chat, PR comments, or task notes when it belongs in a context, template, README, or spec. Which surface owns a fact — a composed context or a `docs/` page — is decided by the `Where a fact lives: docs vs contexts` section of `coga/contexts/coga/architecture/SKILL.md`: one owner per fact, docs may summarize and link but never restate the specification, and the same PR that changes the owner fixes the other surface.
 
 ## Project Structure & Module Organization
 Core code lives in `src/coga/`. Keep CLI entrypoints thin in `src/coga/commands/` and move reusable behavior into focused modules such as `config.py`, `compose.py`, `tasks.py`, and `validate.py`. Prompt/protocol templates live in `src/coga/resources/`. Tests live in `tests/`. Use `example/coga/` as the seeded fixture for end-to-end behavior.
