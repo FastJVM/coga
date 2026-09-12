@@ -218,7 +218,14 @@ checkout; never symlink, snapshot, stage, or commit it. The skill verifies the
 checkout boundary before reading evidence, loads the snapshot/corpus once,
 carries one running delta, and partitions coherent PR batches within the hard
 limits (≤5 source tickets, ≤3 knowledge files, ≤1 new context/skill file, one
-theme).
+theme). It also appends `progress.md` in the evidence-snapshot directory as it
+goes — one line per classified ticket, per opened PR, per landed direct delete,
+and a final `complete` line. Read that file when the subagent returns, and
+before the snapshot is removed: a `read` line with no later `pr` or `deleted`
+line names a ticket still on disk, and no `complete` line means the run died
+mid-way after possibly changing the remote — report the phase as `partial`
+with the file's contents, never as finished on the strength of a final message
+that a dead subagent does not send.
 
 Every processed done ticket is deleted: a ticket that contributed durable
 knowledge is deleted in its theme's knowledge PR, which also records its

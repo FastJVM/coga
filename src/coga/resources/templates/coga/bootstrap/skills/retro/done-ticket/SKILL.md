@@ -77,6 +77,12 @@ checkout.
 - Output: one coherent PR per knowledge theme, each with knowledge edits and
   the source-task deletion for the tickets that contributed new knowledge;
   no-durable-knowledge tickets removed by direct `coga delete` with no PR.
+- Progress: an append-only `progress.md` beside the evidence snapshot (the
+  caller-owned directory, never the isolated checkout's diff), carrying one
+  line per source task as it is classified, one per PR as it is pushed and
+  opened, one per direct delete as it lands, and a final completion line. The
+  caller reads it to tell a run that finished from one that died — see
+  **Progress on disk** below.
 
 ## Scope
 
@@ -240,6 +246,41 @@ Do not:
 If a fact is present in the current file on disk, it is covered. If another
 ticket already added the fact to this run's running delta, it is covered for
 the rest of the run. Otherwise it is not covered. That is the only test.
+
+## Progress on disk
+
+This is the one Dream phase that deletes things, and until this rule existed it
+was also the only phase with no on-disk progress contract: the scans append
+findings and completion lines to shared files as they go (`scan-protocol`), so
+a shard that dies mid-run leaves a legible partial result, while Retro's whole
+outcome lived in the subagent's final message. A Retro run that stops
+after pushing two of three knowledge branches, or after three of seven direct
+deletes, has already changed the remote — and the caller could not tell that
+from a run that never started, except by re-deriving it from `git log` and
+`gh pr list`. One run only survived because its agent happened to keep an
+ad-hoc progress log; that hedge is now the contract.
+
+Append to `<snapshot-dir>/progress.md` — the caller-created evidence-snapshot
+directory, which is outside every checkout and never part of a PR diff — with
+`>>`, one line per event, at the moment the event happens and not batched at
+the end:
+
+```
+read <slug> — <extract | delete>
+pr <theme> — <url> — <slug>[, <slug> ...]
+deleted <slug>
+complete — <N> PRs, <M> direct deletes, <K> tickets
+```
+
+`read` is written when a ticket's classification is settled (step 6); `pr`
+when its branch is pushed and the PR exists (step 11), naming every source
+task it deletes; `deleted` after each direct `coga delete` lands (step 9);
+`complete` as the run's last action before its final message. A `read` line
+with no later `pr` or `deleted` naming that slug means the run stopped between
+classification and disposal, and that ticket is still on disk. A missing
+`complete` line means the run died; the caller must not report the phase as
+finished from the final message alone, because a died subagent returns none.
+The final message repeats the completion line's numbers.
 
 ## Inputs
 
