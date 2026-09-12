@@ -24,7 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -148,3 +148,45 @@ worktree: /home/n/Code/claude/coga-doc-context-boundary
   gate) proposes a `coga/knowledge` context; if approved, this section moves
   there. `coga/tasks/v2/document-contexts-as-prompt-payload-not-tags-princ`
   overlaps with the eager/lazy framing and may be closable against it.
+
+## Peer review
+
+- `codex review --base main` **returned** successfully against `3860f406` in
+  the recorded feature worktree. The first attempt could not initialize its
+  app-server on the sandbox's read-only filesystem; the escalated rerun
+  completed. It reported one P2: the starter names a repo-local architecture
+  path that is absent after normal initialization.
+- Fixed the P2 in both starter copies: name the logical `coga/architecture`
+  context and explain how attaching it resolves the local or packaged owner.
+  Manual review also removed the full layer enumeration still present in the
+  `docs/concepts.md` prose, linked its summary to the owning section, and
+  corrected `docs/README.md` to say contexts compose when attached.
+- Ran `git fetch origin main && git rebase FETCH_HEAD` unconditionally in the
+  feature worktree; it completed without conflicts onto `f85c0e40`, rewriting
+  the implementation commit as `56a4df24`. All three changed live/package
+  pairs and `AGENTS.md`/`CLAUDE.md` still match byte-for-byte. A fresh-scaffold
+  smoke check confirmed that the starter's logical ref resolves the packaged
+  ownership rule while the repo-local architecture file is absent.
+- `coga validate --task the-human-doc-vs-agent-context-boundary-is-decided
+  --json` passed with no issues. The review's targeted tests had 130 passes
+  and one environment failure because the ambient Python lacks `hatchling`.
+  The full suite with the repo's declared test tools supersedes that failure:
+  `PYTHONPATH=/home/n/Code/claude/coga-doc-context-boundary/src /home/n/Code/claude/coga/.venv/bin/python -m pytest`
+  passed **2435 tests**, including the wheel build, after the rebase and fixes.
+- Committed the corrections as `e90557b9` (`peer-review: apply documentation
+  findings`). The feature worktree is clean, `git diff --check` passes, and the
+  branch has two commits ahead of `origin/main`. No must-fix findings remain.
+
+## PR
+
+`coga/architecture` now defines one owner per fact: contexts carry knowledge
+needed in the prompt, while docs hold material read on demand. The rule covers
+permitted summaries and links, same-PR synchronization, overlap between
+contexts, and package-only owners.
+
+Author entrypoints and the context starter point to this rule, and
+`docs/concepts.md` links to the canonical prompt-composition specification
+instead of maintaining a layer list. The starter works with packaged contexts;
+all changed live and packaged copies stay synchronized.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-doc-context-boundary/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` (2435 passed); `coga validate --task the-human-doc-vs-agent-context-boundary-is-decided --json` (no issues); fresh-scaffold fallback and byte-identity checks passed.
