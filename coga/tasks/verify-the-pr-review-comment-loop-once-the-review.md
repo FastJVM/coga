@@ -30,17 +30,31 @@ one PR in owner review. Waiting for it measured nothing; see the blackboard.
 Instead, fix a closed window and work only inside it:
 
 - **Window start:** 2026-08-17, the date of the `## Context` snapshot.
-- **Window end:** the merge date of the PR that landed this phase-0 rewrite
-  (`git log -1 --format=%cs -- coga/tasks/verify-the-pr-review-comment-loop-once-the-review.md`
-  on `main` gives it), or an earlier date if the run needs a smaller set.
+- **Window end:** the actual merge timestamp of the PR that landed this phase-0
+  rewrite. Read `pr:` under `## Dev` on
+  `four-parked-tickets-carry-premises-that-have-since`, then query
+  `gh pr view <pr-url> --json mergedAt,mergeCommit`. If that source ticket has
+  been retired, recover its PR link from git history. Use the PR's `mergedAt`,
+  not the date of the latest commit touching this verification ticket:
+  unblocking, launching, and reminder updates also commit changes to it.
+  An earlier fixed cutoff is allowed if the run needs a smaller set.
 
-Record both dates on the blackboard, then compute the input set for phases
-1–3: every ticket whose `## Dev` `pr:` **merged inside the window**, whether
-the ticket is now `done`, still parked on `review` awaiting `autoclose`, or
-already deleted by retro (recover those from `coga/log.md` and `gh pr list
---state merged`). Tickets whose PR opened after the window end are out of
-scope by construction — that is what replaces the drained-queue precondition.
-Do not wait for the live queue to empty, and do not block on it.
+Record the start date, chosen cutoff, and source PR URL on the blackboard
+before sampling; retain and reuse them on relaunch. Then build two input sets:
+
+- **Phases 1–2 — merged PRs:** every ticket whose `## Dev` `pr:` **merged
+  inside the window**, whether the ticket is now `done`, still parked on
+  `review` awaiting `autoclose`, or already deleted by retro. Recover deleted
+  tickets from git history; use `coga/log.md` and merged-PR queries to locate
+  their PRs, paging through the full window.
+- **Phase 3 — created tickets:** every ticket **created inside the window**
+  that carries a frozen `code/with-review` snapshot, regardless of status or
+  PR state. Include frozen drafts and tickets with open PRs or no PR. Derive
+  creation dates from `coga/log.md` and git history, recovering deleted ticket
+  snapshots from history too; do not filter this set by PR merge date.
+
+These fixed populations replace the drained-queue precondition. Do not wait
+for the live queue to empty, and do not block on it.
 
 ### Phases 1–4 — the verification
 
@@ -56,11 +70,9 @@ record the result:
    window's input set, check its PR for `isResolved: false` threads that
    got no reply and no code change. One dropped comment is already recorded
    below (PR 696).
-3. **Newly frozen `review` steps carry `code/address-pr-comments`.** Live
-   review steps are not a useful population (the queue is never empty and
-   never the same twice), so check the frozen snapshots instead: for every
-   ticket created inside the window that carries a
-   `code/with-review` snapshot, confirm its `review` step lists
+3. **Newly frozen `review` steps carry `code/address-pr-comments`.** Check
+   every snapshot in phase 3's creation-based input set, including frozen
+   drafts and tickets with open PRs or no PR. Confirm its `review` step lists
    `code/address-pr-comments` rather than `skills: []`. Two tickets had the
    empty shape when this was written (#698 — snapshots freeze at creation and
    never refresh), so the assist path composed no skill layer for them. The
@@ -260,3 +272,9 @@ meta-finding's cheap fix: phase 0 now fixes a closed measurement window
 waiting for an empty queue. Phases 1–4 are unchanged in substance. Once that PR
 merges, the open blocker can be resolved with `coga unblock` and the ticket
 relaunched; it should then run to completion without touching the live queue.
+
+Peer-review clarification (2026-09-12): use the landing PR's actual `mergedAt`
+and retain the cutoff across runs; lifecycle commits cannot redefine it.
+Only phases 1–2 use the merged-PR population. Phase 3 independently includes
+all window-created frozen `code/with-review` snapshots, including drafts and
+unmerged work.
