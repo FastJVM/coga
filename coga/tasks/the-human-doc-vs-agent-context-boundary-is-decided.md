@@ -24,7 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -81,4 +81,70 @@ Filed by Dream 2026-W36, Phase 2 knowledge scan (shard `ks-12`), classified `gap
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: doc-context-boundary
+worktree: /home/n/Code/claude/coga-doc-context-boundary
+
+## Findings (implement, 2026-09-11)
+
+- Nothing today names an owner for a fact. `CLAUDE.md` says "update the
+  matching context *or* source doc"; `docs/concepts.md` calls itself "the
+  human-readable tour of the same ideas" — both license the duplication that
+  drifted.
+- The only mechanical sync rule (`tests/test_packaging.py` byte-identity) is
+  live↔package. Docs↔context can never be byte-identical, so that boundary
+  must be an authoring rule; Dream's knowledge scan is the backstop that found
+  the drift in the first place.
+- Markdown links are not composition: a context naming `docs/cli-extension-audit.md`
+  does not load it; the agent reads it on disk. So a context is *eager*
+  knowledge (paid on every launch) and a doc is *lazy* knowledge (paid when
+  opened, by human or agent). That makes the "load-bearing docs" cases
+  consistent with a docs/contexts split rather than exceptions to it.
+- `coga/tasks/redo-documentation-dir-and-merge-it-with-context-b.md` is
+  `in_progress` at its owner `review-design` gate and proposes collapsing the
+  two surfaces into one `docs/contexts/**` library with a `coga/knowledge`
+  context. If that lands, the rule written here re-homes there.
+
+## Decisions (owner, attended session 2026-09-11)
+
+- Write the rule for **today's layout** (`docs/` + `coga/contexts/`); do not
+  presume the redo-documentation merge. The eager/lazy framing carries over if
+  it lands.
+- Overlap policy: a human doc may **summarize and link**, never carry
+  specification-grade detail (ordered lists, exact names/numbers). One owner
+  per fact; the same-PR grep is the sync rule.
+- Home: new `## Where a fact lives: docs vs contexts` section in
+  `coga/architecture` after `## Prompt composition`; pointer lines in
+  `CLAUDE.md`/`AGENTS.md`, `coga/contexts/_template/SKILL.md`,
+  `docs/README.md`, `docs/development.md`, and `coga/codebase`.
+
+## What changed (commit `3860f406` on `doc-context-boundary`)
+
+- `coga/contexts/coga/architecture/SKILL.md` (+ packaged twin): new section
+  `## Where a fact lives: docs vs contexts` after `## Prompt composition`.
+  Eager (context) vs lazy (doc) framing; one owner per fact; three-step
+  decision procedure; "pointers and summaries, never the specification" as
+  the only legitimate overlap, applied within the context layer too; same-PR
+  grep as the sync rule with Dream's scan as backstop; package-only contexts
+  (`coga/cli`) and `CLAUDE.md`/`AGENTS.md` placed explicitly. Frontmatter
+  `description` widened so the section is discoverable.
+- Pointers: `CLAUDE.md`/`AGENTS.md` Read First, `coga/contexts/_template`
+  (+ twin), `docs/README.md` (new `## Docs versus contexts`),
+  `docs/development.md`, `coga/codebase` file list (+ twin).
+- Rule applied to the cited drift: `docs/concepts.md` prompt-composition
+  section is now a summary + link; its "tour of the same ideas" framing now
+  says the contexts own the rules.
+- Verification: `python -m pytest` → 2435 passed; `coga validate --json`
+  issues are the same pre-existing task-state warnings as on `main`
+  (none touch changed files).
+
+## Follow-ups (not done here)
+
+- `coga/contexts/coga/extension-model/SKILL.md` still inlines material
+  `coga/launch-internals` owns (ticket's second instance). Rewriting it to a
+  pointer is a separate cleanup now that the rule names the fix.
+- `coga/tasks/redo-documentation-dir-and-merge-it-with-context-b.md` (owner
+  gate) proposes a `coga/knowledge` context; if approved, this section moves
+  there. `coga/tasks/v2/document-contexts-as-prompt-payload-not-tags-princ`
+  overlaps with the eager/lazy framing and may be closable against it.
