@@ -14,7 +14,27 @@ This context is just the operator's reference.
 
 Scaffold `coga/` in `PATH` (default `.`).
 
-- `coga init mycompany` — fresh scaffold; refuses if `coga/` exists.
+- `coga init mycompany` — fresh scaffold. If `coga/` already exists, init
+  refuses — with one exception, below.
+- `coga init --user <name>` on a **clone of an already-initialized repo** —
+  the teammate-joins-a-repo path. A clone carries the committed `coga/` but
+  none of what the coga-managed `.gitignore` blocks, so `coga.local.toml`
+  (your name), the `.claude/skills/coga` and `.codex/skills/coga` symlinks,
+  and the generated `coga/.agent-skills/` view are all absent. When
+  `coga.local.toml` is missing or sets no `user`, init writes exactly that
+  machine-local half and exits 0. It commits and stages nothing — nothing
+  under the committed tree changes — and it never overwrites an existing
+  `coga.local.toml`: one that already carries other keys is edited in place
+  so machine-local overrides and comments survive. The name is a top-level
+  TOML key; table entries also named `user` are left intact. If agent skill
+  wiring fails, init exits non-zero and leaves the local config unchanged:
+  fix the reported path or permissions, then re-run the same command. Correct
+  links left by an earlier attempt are reused. Without `--user` on that shape, init
+  fails loud naming the flag. A second run with the name already set takes
+  the ordinary refusal: once `coga.local.toml` names a `user`, re-running
+  init is the genuine "you meant to upgrade the CLI" case and the refusal says
+  so (upgrade with the owning installer, fix/remove a broken `coga/`, or
+  `coga uninstall`).
 - `PATH` must be inside a git work tree, but doesn't have to be the git
   root: `coga init tools/ops` inside a monorepo scaffolds a nested
   `tools/ops/coga/` committed into the host repo. A nested coga repo is

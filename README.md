@@ -152,8 +152,10 @@ deliberately skips that blank-slate interview and points you at `coga ticket
 or review gate. You need an authenticated
 [Claude Code](https://claude.com/claude-code) or
 [Codex](https://github.com/openai/codex) CLI before either agent-backed path.
-Installation troubleshooting and adopting an existing Coga repository are
-covered in [Getting started](docs/getting-started.md).
+Joining a repo that already uses Coga is the same command on your clone —
+`coga init --user <your-name>` writes only your gitignored machine-local
+setup. Installation troubleshooting and adopting an existing Coga repository
+are covered in [Getting started](docs/getting-started.md).
 
 ## Docs
 

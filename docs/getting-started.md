@@ -106,14 +106,26 @@ SHA); push it when you're ready, like any other project change.
 
 ### Joining a repo that already uses Coga
 
-`coga init` is only for repos that don't have a `coga/` yet. If you cloned a repo
-that already uses Coga, the shared `coga.toml` came with the clone, but
-`coga.local.toml` — the machine-local file holding **your** name — is gitignored,
-so every clone makes its own. Create it next to `coga.toml`:
+If you cloned a repo that already uses Coga, the shared `coga/` came with the
+clone, but the machine-local half is gitignored, so every clone makes its own:
+`coga.local.toml` (the file holding **your** name) and the skill symlinks that
+let Claude Code and Codex see Coga's skills. The same command creates them:
 
 ```sh
-echo 'user = "<your-name>"' > coga/coga.local.toml
+git clone <repo> && cd <repo>
+coga init --user <your-name>
 ```
+
+On an already-initialized repo, `coga init --user` writes only that gitignored
+half and commits nothing; it never overwrites a `coga.local.toml` that is
+already there (one with other settings but no `user` is edited in place). Once
+your name is set, re-running `coga init` refuses, since there is nothing left
+for it to do.
+
+Existing TOML tables, nested keys, and comments are preserved when adding your
+name. If agent skill wiring fails, init reports the path to repair and leaves
+your local config unchanged. Fix the cause and re-run the same command; links
+that were already created can be reused.
 
 Coga never guesses your name from Git or `$USER`: tickets reference people by
 these names, and a wrong guess fails quietly. Read-only commands (`coga status`,
