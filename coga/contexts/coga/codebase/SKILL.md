@@ -136,6 +136,19 @@ directory, which is exactly the anti-pattern this rule forbids. The registered
 core for the different reason above: they are fixed `coga run` commands. Their
 skills are invocation contracts and contain no executable Python.
 
+**Duplicate private copies are not "≥2 real consumers".** `append_report`
+exists as three byte-identical private helpers — in `skill_update.py`,
+`dream_validate_drift.py`, and `dream_cleanup_orphan_markers.py` — and the
+naive reading of the rule ("three consumers, therefore promote") gives the wrong
+answer. Each copy has exactly one caller; promoting a fourth single-consumer
+copy into shared infra while the three real consumers stay unmigrated adds a
+fifth spelling of the same function and makes the future consolidation harder,
+not easier. Peer review rejected exactly that move when the autoclose sweep
+needed the same atomic append. The rule: a helper earns a shared home when the
+change that adds it *migrates the existing duplicates onto it* in the same PR;
+until someone does that consolidation, a new single-consumer copy stays beside
+its recipe. Count callers of one symbol, not copies of one body.
+
 PR #517 first exposed the line by moving open-pr's former edge implementation
 out of core. PR #585 later turned `open-pr` into a registered command implementation,
 so the same test placed it back in core under exception 2, and it now lives
@@ -606,6 +619,42 @@ wrong checkout silently produces wrong results in both directions:
   in `INTENTIONALLY_DIVERGENT_TWINS` with its reason, and the
   suite fails if that entry outlives the divergence. That catches the drift
   after the fact; it does not catch it during the rebase, so still re-diff.
+
+- **Prompt resources under `src/coga/resources/prompt*.md` are the only
+  version of a rule most agents ever see.** `prompt.md` and the session-conduct
+  resources compose into *every* launch; `coga/codebase`, `coga/architecture`
+  and the other contexts attach per ticket. So an abridged restatement inside a
+  prompt resource is not a summary of the context — for an agent launched
+  without that context it *is* the rule. Two authoring consequences, both from
+  the base-prompt rewrite: (1) an abridgement that drops a carve-out (the
+  rewrite lost the `runner.RECIPES` exception from the microkernel summary)
+  contradicts the context it abridges for every launch that does not attach
+  it — restate a rule in a prompt resource completely or point at the context
+  instead, never halfway; (2) a guard split across two resources — half a
+  sentence in `prompt.md`, the matching half in a conduct resource — can be
+  deleted wholesale in one tightening commit with the suite still green,
+  because each half read as redundant on its own. The attended-session
+  escalation guard went that way and would have regressed PR #622. When a
+  prompt rule has a companion sentence in another resource, pin *both* halves
+  in `tests/test_compose.py`, and when trimming, grep the other resources for
+  the rule before calling a sentence redundant.
+
+- **Every writer of a `ticket.md` blackboard goes through the fence-aware
+  API.** `taskfile.read_blackboard` / `replace_blackboard` and
+  `blackboard.append_blackboard_report` / `append_to_section` are the only
+  correct ways to persist state below `<!-- coga:blackboard -->` — from a
+  `ticket.py`, a recipe, or a reminder helper alike. The fence regex matches
+  the marker on a line of its own, so a bare `open(path, "a").write(text)`
+  onto a file whose last line is the fence (a fresh template blackboard, or one
+  a previous writer left ending at the marker) glues the new text onto that
+  line, `fence_count` drops to zero, and every reader — composition, `coga
+  bump`, `coga show`, the recurring scan — raises `TaskFileError` on that task
+  at once. A whole-file search for a marker is the same class of bug from the
+  read side: body prose above the fence gets mistaken for state, and a
+  rewrite overwrites it. The reminder-engine review hit both. The fence-aware
+  calls also write atomically and take `expected_bytes` for compare-and-set,
+  and `append_blackboard_report` holds the state-publication barrier — none of
+  which a bare append does.
 
 - **A recorded "rebases clean" has an expiry.** A design step that measured
   drift (`git diff --stat <merge-base>..main` over the branch-touched files, and
