@@ -83,6 +83,7 @@ Filed by Dream 2026-W36, Phase 2 knowledge scan (shard `ks-12`), classified `gap
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/790
 branch: doc-context-boundary
 worktree: /home/n/Code/claude/coga-doc-context-boundary
 
