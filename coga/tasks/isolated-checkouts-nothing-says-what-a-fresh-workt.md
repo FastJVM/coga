@@ -1,6 +1,6 @@
 ---
 title: 'Isolated checkouts: nothing says what a fresh worktree lacks'
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
