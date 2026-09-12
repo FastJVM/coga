@@ -113,7 +113,8 @@ Single-checkout layout: branch created in place in the primary checkout.
 - Rule placed in all three homes, full text once: the full "Citing code in
   `## Context`" section lives in `bootstrap/ticket` (after the context
   selection contract); `code/design` step 3 and the ticket `_template`
-  `## Context` placeholder carry a one-sentence form pointing back to it.
+  `## Context` placeholder carry concise reminders, with `code/design`
+  pointing back to the full rule.
   Reason: the second offending ticket was line-pinned from an implement step,
   which only the template would have reached.
 - Range example uses a real symbol, `git.sync_task_state` (git.py is ~7,000
@@ -123,3 +124,33 @@ Single-checkout layout: branch created in place in the primary checkout.
 - Commit `c4086d73`. Verified with
   `.venv/bin/python -m pytest tests/test_bootstrap_ticket_skill_template.py tests/test_packaging.py`
   (19 passed) and the full `.venv/bin/python -m pytest` (2436 passed).
+
+## Peer review
+
+- `codex review --base main` **returned** with exit code 0 and no actionable
+  findings. The reviewer reported 111 passing authoring, packaging, creation,
+  and composition tests. No review fixes or design changes are needed.
+- `git fetch origin main` returned successfully; fetched `main` is
+  `c76a838a`. `git rebase --autostash FETCH_HEAD` returned successfully without
+  conflicts and restored the generated launch-log entry and review notes.
+  Implementation commit `c4086d73` is now `0efdeac8`; the reviewed material
+  diff is unchanged. Both live/packaged pairs remain byte-identical (`cmp`),
+  and `git diff --check main` passed.
+- The full post-rebase `.venv/bin/python -m pytest` **returned** with
+  **2436 passed** in 175.33 seconds.
+- `.venv/bin/python -m coga.cli validate --task no-rule-says-ticket-context-must-cite-symbols-not --json`
+  returned with one valid ticket and no issues. The branch is ready for the
+  mechanical `open-pr` step after this handoff is committed.
+
+## PR
+
+Ticket Context citations can go stale before implementation when they rely on
+source line numbers. Add a rule to `bootstrap/ticket` requiring module plus
+symbol citations, optional ranges marked as navigation aids, and an explanation
+of the code relationship that makes each fact relevant.
+
+Repeat concise citation guidance in `code/design` and the ticket template so
+authors encounter it beyond the initial interview. Keep their live and
+packaged copies synchronized and add a guard test for the full rule.
+
+Test plan: `.venv/bin/python -m pytest` (2436 passed); `.venv/bin/python -m coga.cli validate --task no-rule-says-ticket-context-must-cite-symbols-not --json` (no issues).
