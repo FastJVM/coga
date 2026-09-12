@@ -12,7 +12,13 @@ can author and edit these files directly.
 
 Contexts are domain knowledge. No process, no scripts. Tickets attach to
 contexts via the `contexts:` field; `coga launch` inlines this file
-into the prompt at launch time.
+into the prompt at launch time. That makes a context *eager* knowledge,
+paid for on every launch that attaches it: put a fact here when a step
+would go wrong without it in-prompt, and point at a `docs/` page (a
+link is not composition) for bulky reference an agent needs only
+sometimes. One owner per fact — see `Where a fact lives: docs vs
+contexts` in `coga/contexts/coga/architecture/SKILL.md` before copying
+text in from a doc or another context.
 
 Keep a context as short as its domain allows, and no shorter. A
 narrowly scoped context really is two or three sections and about a
