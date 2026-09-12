@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -124,3 +124,73 @@ Filed by Dream 2026-W36, Phase 2 knowledge scan (shards `ks-01`, `ks-04`), class
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: fresh-checkout-lacks
+worktree: /home/n/Code/claude/coga-fresh-checkout-lacks
+
+## Implement — 2026-09-11
+
+**Design decision (the split the ticket asked for).** "What you must *do*"
+lives in `dev/code` (a bootstrap context attached to every code ticket in any
+repo); "what you must *know*" lives in `coga/codebase` (where the
+recurring-from-a-worktree designers already read). Putting `git.sync_log`
+internals in `dev/code` would bloat a generic context; putting the copy rule
+only in `coga/codebase` would hide it from the agents that create checkouts.
+
+**Landed (commit `bdc1534e`, six files, all packaged twins byte-identical):**
+
+- `coga/contexts/dev/code/SKILL.md` — new `### Seed the machine-local config`
+  subsection under "Checkout boundary", between the `/tmp` fallback paragraph
+  and "Keep the feature checkout durable": exit-2 symptom, when the copy is
+  needed at all (never in the two standard layouts), the copy rule, and the
+  retire consequence.
+- `coga/skills/code/implement/SKILL.md` — one paragraph at the end of step 3's
+  fallback block pointing at that rule; no second copy of it.
+- `coga/contexts/coga/codebase/SKILL.md` — new bullet block closing
+  `### Which checkout you invoke coga from`: per-path failure mode
+  (`coga.local.toml` hard error / `.agent-skills/` self-heals / `.coga/` on
+  demand / `.venv`, `.env*`, `.secrets/` not needed), one-branch-one-checkout,
+  detached-HEAD sync refusal.
+
+**Facts verified in source before writing (symbols, not line numbers):**
+
+- `config.load_config(require_user=True)` raises `ConfigError`; `cli` exits 2.
+  Read-only surfaces per the comment in `load_config`: `status`, `show`,
+  `validate`, `usage`, `skill status`, `recurring list`, `secret get`.
+- No `COGA_LOCAL_CONFIG` / `COGA_USER` env override exists in `src/coga/` —
+  the env handoff the reuse-the-existing-control-worktree ticket asked for
+  never landed. `v2/propagate-local-coga-config-into-worktrees` is `draft`
+  (v2 is off the execution path), so the written convention is the only
+  mechanism today.
+- Fourth precedent, in code: `recurring_runner`'s temporary control worktree
+  does `shutil.copyfile` + `chmod(0o600)` into the mirrored Coga OS dir. That
+  is the source for the 0600 rule.
+- `branchcleanup.REGENERABLE_IGNORED_DIRS` = `__pycache__`, `.pytest_cache`,
+  `.ruff_cache`, `.mypy_cache` only → a copied `coga.local.toml` or a
+  launch-rebuilt `.agent-skills/` left in a feature worktree makes
+  `coga retire` refuse. Documented as a consequence in both contexts.
+- `.agent-skills/`: `commands.init` builds, `launch._refresh_agent_skills_for_launch`
+  rebuilds. `.coga/`: `recurring-runs/` (`recurring_autofix`, `recurring_runner`),
+  `megalaunch-selection.json` (`megalaunch`); `_persist_control_worktree_run_logs`
+  moves temp-worktree ledgers back.
+- `git.sync_log` docstring: detached HEAD → skip local commit, still land
+  task dir on control. `recurring_runner` docstring: that is why the temp
+  worktree checks control *out* and why `git worktree add` doubles as the
+  concurrency lock.
+
+**Testing.** `PYTHONPATH=$PWD/src .venv/bin/python -m pytest` from the feature
+worktree: 2435 passed. (`python3` on this machine is 3.9 and the uv-tool
+interpreter lacks pytest — the primary checkout's `.venv` is the one that works;
+`coga/codebase` "Daily commands" already warns about the interpreter.)
+`test_packaging.py` twin check passes with the three bootstrap copies synced.
+
+**Adjacent observation, not fixed here.** `coga/codebase` "Daily commands" says
+`python -m pytest` from a feature worktree imports the primary checkout's
+package via the editable `.pth`. `pyproject.toml` sets
+`[tool.pytest.ini_options] pythonpath = ["src"]`, which prepends the
+worktree's own `src` — so the plain command may already resolve correctly and
+the `PYTHONPATH` advice may be belt-and-braces rather than required. Not
+verified end-to-end (would need a deliberate divergence between checkouts);
+left the existing text alone and used the explicit `PYTHONPATH` spelling.
