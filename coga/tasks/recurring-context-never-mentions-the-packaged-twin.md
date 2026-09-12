@@ -1,6 +1,6 @@
 ---
 title: Recurring context never mentions the packaged twin every template has
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
