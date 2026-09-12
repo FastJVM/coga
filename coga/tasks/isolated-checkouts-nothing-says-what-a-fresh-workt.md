@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -238,6 +238,15 @@ passed from the primary checkout: `All good (1 tasks checked).`
 
 Peer review is complete. The next action is the single workflow bump from the
 primary checkout; the PR body below is ready for the mechanical open-pr step.
+
+## Open PR
+
+2026-09-11 — `coga open-pr` run from the primary control checkout (legacy
+separate-worktree layout); reported origin/main advanced only through
+non-overlapping task/log state. Opened
+https://github.com/FastJVM/coga/pull/789 from `fresh-checkout-lacks`
+(`d4f754ee`, two commits ahead of `main`); `pr:` recorded under `## Dev`.
+Bumping to the owner's review/merge gate.
 
 ## PR
 
