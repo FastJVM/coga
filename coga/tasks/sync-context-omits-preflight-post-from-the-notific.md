@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -83,3 +83,51 @@ Filed by Dream 2026-W36, Phase 2 knowledge scan (shard `ks-08`), classified `gap
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: sync-context-preflight
+worktree: /home/n/Code/claude/coga-sync-context-preflight
+
+## Findings (implement)
+
+- Dream PR #738 (live-producer list, `slack_response.py` boundary) and #767 have
+  both merged; no rebase conflict. Live and packaged `coga/sync` twins were
+  byte-identical at start and remain so after the edit.
+- The ticket's call-site list is stale. `grep -rn preflight_post src/coga/`
+  finds **seven call sites in six modules**: the five listed plus
+  `commands/launch.py::_launch` twice (script-assist setup path; before assist
+  lifecycle state is published on a non-`in_progress` ticket). Documented all
+  seven, not five.
+- No caller passes `important=True`. The important-routed producers
+  (`launch_script.py` script failure, `mark.py` stale-period warning,
+  `recurring_runner._broadcast_scan`) rely on `fatal=False` dropping the alert
+  loudly rather than preflighting the important route. Documented the form and
+  stated plainly that it has no consumer today.
+
+## Changes
+
+`coga/contexts/coga/sync/SKILL.md` (+ packaged twin), three edits:
+1. "Design rule for new features": first paragraph rewritten as a numbered
+   three-element contract — surface, destination, preflight — with the rule
+   that a `fatal=False` producer calls `preflight_post(cfg)` before its write,
+   gated like `bump` on whether the invocation will actually post live.
+2. "Notification implementation pointers": new `preflight_post` bullet after
+   the `post` bullet naming the seven call sites with enclosing functions and
+   gating conditions, the assist `_bail` vs re-raise split, and the
+   `important=True` form.
+3. Fail-loud section: the "`commands/*` module runs it" aside now points at the
+   pointer bullet and spells out the half-applied outcome the gate prevents.
+
+Tests: full suite 2435 passed (`.venv/bin/python -m pytest`); packaging twin
+test green. No code change, no fixture change needed.
+
+## Adjacent finding (not fixed here)
+
+Important-routed `fatal=False` producers do not preflight the important route,
+so a repo with `webhook` set but `important_webhook` unset silently loses the
+script-failure and stale-period alerts (loud on stderr, never delivered).
+That is the documented behavior since #761 and a deliberate choice for the
+scan sweep; whether the per-ticket script-failure alert should preflight
+`important=True` instead is a design question, not a doc gap. No follow-up
+ticket exists.
