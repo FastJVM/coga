@@ -104,3 +104,65 @@ instead of to a proposal PR.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Triage session 2026-09-12 (attended)
+
+Re-verified each inversion against current `main` before proposing a verdict.
+Related tickets checked for overlap: `triage-the-v2-parking-area-empty-descriptions-prem`
+is `canceled`; `adjudicate-parked-and-active-tickets-whose-premise` and
+`adjudicate-the-eight-premise-dead-v2-drafts` are drafts that do not name #1, #2 or #4.
+The eight-drafts ticket does name `dev-loop-git-hygiene` as "asserted with no recorded
+evidence — find the evidence or downgrade"; the evidence below discharges that ask, so
+the closing message must carry the pointers.
+
+### Evidence
+
+1. `v2/dream-recurring-persist-done-stop-inline-delete` — confirmed inverted. Period tasks
+   live at `coga/tasks/recurring/<name>/` (live dirs: `autoclose-merged`, `blocker-reminders`,
+   `digest`, `dream`); `coga/contexts/coga/period-task/SKILL.md` says the period is *not*
+   in the slug and that the sweep get-or-creates the stable path, logging
+   `created|reused <ref> for <period>` in `coga/log.md`. `_task_with_slug` and
+   `_live_task_for_template` are still the dedup gates in `src/coga/recurring.py`
+   (`scan_due`, `create_template`) — the ticket asks to delete them. `create_debug_run`,
+   `_reap_debug_orphans`, `_finalize_debug_run` no longer exist (debug-run removal done).
+   Sibling `dream-sweeps-done-recurring-period-tickets` does not exist in `coga/tasks/`.
+   Subject (stop inline deletion, persist `done`) is solved by a different design.
+   → **cancel**, reason names the shipped design.
+
+2. `v2/automerge-ticket` — the workflow `code/optimistic-merge` and skill `code/merge-pr`
+   were never built; the surfaces it mirrors still exist. Packaging claim is inverted:
+   `src/coga/resources/templates/coga/bootstrap/workflows/code/` holds
+   `design-then-implement.md`, `with-review.md`, `with-self-review.md`; `coga/workflows/code/`
+   does not exist. Per `coga/architecture`, a repo-local `workflows/<ref>.md` *overrides* the
+   bundled `bootstrap/workflows/<ref>.md`, so following the ticket literally would put the
+   new workflow in the override layer. Dead surfaces: `relay panic` → `coga block`,
+   `relay slack` → `coga slack` (still the live path), `relay automerge` → the
+   `autoclose` alias (`coga recurring launch autoclose-merged`), `relay-os/skills/…` →
+   packaged `bootstrap/skills/…`. The recorded evaluator "correct and verified" is stale.
+   Passes both README premise questions (subject not gone) → **rewrite down to the
+   residual delta** if the owner still wants an optimistic-merge workflow; else cancel.
+
+3. `v2/dev-loop-git-hygiene-lift-sync-with-main-into-code` — both halves shipped. Change 1:
+   `coga/skills/code/implement/SKILL.md` step 8 "Freshen against `main` before handing off"
+   (inherited by all three `code/*` workflows), and `coga open-pr`
+   (`src/coga/open_pr.py`) refuses a branch with unsafe drift from `<remote>/<base>`.
+   Change 2: `coga/workflows/branch-sweep/sweep.md` + `src/coga/branchsweep.py` +
+   `src/coga/branchcleanup.py`. Status is `draft`, so `coga mark done` is not allowed
+   directly (needs `mark active` first) → **close as already-satisfied**.
+   Residue: `## pr` inline-body de-duplication in `with-self-review.md` — no ticket found
+   on disk for the "dead inline body" issue Dream W36 raised (grep of `coga/tasks/*.md`
+   hits only this ticket); note it in the closing message.
+
+4. `verify-the-pr-review-comment-loop-once-the-review` — the description's "precondition
+   now satisfied" is **no longer true**: the phase-0 gate (`grep '^step: .*(review)$'`)
+   returns 10 rows today, all `in_progress`, with 7 open PRs (787–793). PR 761 (the open
+   blocker's named ask) merged 2026-09-09. The blackboard's meta-finding stands: the
+   zero-row gate has failed on four sampled dates. → owner decision: relax phase 0 (the
+   phases are retrospective and do not need a quiet queue) and unblock, or cancel.
+
+### Mechanics
+
+Verdict application is CLI state (`coga mark canceled/active/done`, `coga unblock`) on
+the control branch. The only PR-able work is ticket prose: the #2 rewrite and, if chosen,
+the #4 phase-0 relaxation. `coga open-pr` treats ticket-body rewrites as publishable
+(`_publishable_changes` in `src/coga/open_pr.py`), so that satisfies `requires: pr`.
