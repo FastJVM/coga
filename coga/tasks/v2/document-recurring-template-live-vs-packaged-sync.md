@@ -1,6 +1,6 @@
 ---
 title: Document recurring template live-vs-packaged sync rule
-status: draft
+status: canceled
 owner: nicktoper
 agent: claude
 workflow:
@@ -20,7 +20,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
