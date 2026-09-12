@@ -1,6 +1,6 @@
 ---
 title: Four parked tickets carry premises that have since inverted
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
