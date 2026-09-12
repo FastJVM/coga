@@ -24,7 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
-launch_generation: pending:8f02ed15-8210-474a-bd26-d6cb4630dfcd
+launch_generation: 8f02ed15-8210-474a-bd26-d6cb4630dfcd
 ---
 
 ## Description
