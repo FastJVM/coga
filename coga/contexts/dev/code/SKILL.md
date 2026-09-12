@@ -54,6 +54,21 @@ will not open a PR; and syncs its own generated `pr:` write to the feature branc
 run's freshness gate. The `coga/sync` and `coga/launch-internals` contexts carry
 the publishing rules in full.
 
+**Nothing places the agent in the feature checkout; the agent moves itself.**
+`coga launch` never chooses a working directory: `spawn_agent_session` calls
+`run_with_done_marker`, which takes no `cwd`, and there is no `os.chdir`
+anywhere in `src/coga/`. The launched session inherits the supervisor's cwd —
+the checkout `coga launch` was typed in — by omission. `launch` does read
+`worktree:`, but only to *authorize* the single-checkout assist
+(`_recorded_single_checkout_assist_branch` requires the recorded path to be
+this same Git checkout); it never uses the line to put a process anywhere.
+Every "change into the feature worktree" in a step skill is therefore an
+instruction the agent must carry out and verify itself, and every write it
+makes before doing so lands in the control checkout. Keeping it that way is
+deliberate: placing the agent in the recorded worktree would invert this
+boundary for every step, and the bump and `open-pr` would then run from the
+feature checkout, which is the stranding bug in the other direction.
+
 When an agent sandbox mounts the primary checkout's `.git` metadata read-only,
 `git worktree add` cannot create its branch lock. In that case an independent
 `git clone --no-hardlinks` under `/tmp`, repointed to the real remote and
@@ -186,6 +201,25 @@ When to write each:
   you are standing on — so the same rule resolves to writing and bumping in
   place. The gate checks presence, not freshness — on a retried implement,
   confirm the recorded lines describe the current attempt.
+
+  Know what the gate does and does not buy. It raises the cost of the wrong
+  path and moves the failure in-session; it does not make the wrong path
+  impossible. Two holes are named so nobody rediscovers them as surprises.
+  *Presence, not freshness:* on a relaunch or retry the primary copy already
+  carries usable lines from the earlier attempt, so the gate passes on those
+  while this attempt's write strands — and the retry is exactly where stranding
+  is most likely. *Cheaply satisfiable:* a refused agent's cheapest move is to
+  hand-copy the two lines into the primary copy, which passes the gate without
+  moving the stranded write. That duplicate then resurfaces one step later —
+  uncommitted, as `coga open-pr`'s "Recorded worktree has uncommitted changes"
+  refusal; committed, as a `ticket.md` (or `coga/log.md`) merge conflict on the
+  PR against a control branch whose copy has since moved. So when a
+  `coga/tasks/` or `coga/log.md` change shows up dirty *in the feature
+  checkout*, it is a stranded control-plane write, not implementation work:
+  copy anything still needed into the primary checkout's ticket, then discard
+  it there (`git checkout -- coga/tasks/<...> coga/log.md`). Never commit it
+  onto the feature branch and never stash it to satisfy the clean-tree gate —
+  a stash hides the same duplicate for the next agent to pop.
 - **`pr:`** — the full PR URL, one line. A trailing annotation after the URL
   is fine (`pr: <url> (no CI configured on the repo)`) — and unlike the two
   fields above, `pr:` needs no backticks around the value to make one safe,

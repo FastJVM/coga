@@ -503,8 +503,10 @@ def open_pr(
     if dirty.stdout.strip():
         raise OpenPrError(
             f"Recorded worktree {worktree!r} has uncommitted changes. The "
-            "implement/peer-review steps must commit before open-pr. Commit or "
-            "stash them, then relaunch."
+            "implement/peer-review steps must commit implementation work before "
+            "open-pr. A dirty `coga/tasks/` or `coga/log.md` path there is a "
+            "stranded control-plane write: carry it into the primary checkout's "
+            "ticket and discard it here rather than committing it. Then relaunch."
         )
 
     # Commits ahead of the base branch. Resolve the base as the local ref first
