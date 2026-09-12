@@ -122,6 +122,11 @@ already there (one with other settings but no `user` is edited in place). Once
 your name is set, re-running `coga init` refuses, since there is nothing left
 for it to do.
 
+Existing TOML tables, nested keys, and comments are preserved when adding your
+name. If agent skill wiring fails, init reports the path to repair and leaves
+your local config unchanged. Fix the cause and re-run the same command; links
+that were already created can be reused.
+
 Coga never guesses your name from Git or `$USER`: tickets reference people by
 these names, and a wrong guess fails quietly. Read-only commands (`coga status`,
 `coga show`, `coga validate`, `--help`) work without it; anything that creates or

@@ -25,7 +25,11 @@ Scaffold `coga/` in `PATH` (default `.`).
   machine-local half and exits 0. It commits and stages nothing — nothing
   under the committed tree changes — and it never overwrites an existing
   `coga.local.toml`: one that already carries other keys is edited in place
-  so machine-local overrides survive. Without `--user` on that shape, init
+  so machine-local overrides and comments survive. The name is a top-level
+  TOML key; table entries also named `user` are left intact. If agent skill
+  wiring fails, init exits non-zero and leaves the local config unchanged:
+  fix the reported path or permissions, then re-run the same command. Correct
+  links left by an earlier attempt are reused. Without `--user` on that shape, init
   fails loud naming the flag. A second run with the name already set takes
   the ordinary refusal: once `coga.local.toml` names a `user`, re-running
   init is the genuine "you meant to upgrade the CLI" case and the refusal says

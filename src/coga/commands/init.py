@@ -23,6 +23,7 @@ import textwrap
 import tomllib
 from pathlib import Path
 
+import tomlkit
 import typer
 
 from coga.agent_skills import refresh_agent_skill_view
@@ -746,31 +747,26 @@ def _local_toml_user(local_toml: Path) -> str | None:
     return user if isinstance(user, str) and user else None
 
 
-_LOCAL_TOML_USER_LINE = re.compile(r"^user\s*=.*$", re.MULTILINE)
-
-
 def _write_local_user(local_toml: Path, name: str) -> str:
     """Set `user = "<name>"` in `coga.local.toml`, creating the file if absent.
 
     A missing file gets the full template via `render_local_toml`. An existing
-    file is edited in place — its first top-level `user = ...` line is
-    replaced, or one is appended when none exists — so any other machine-local
-    overrides and comments survive; re-rendering the template here would
-    destroy them. Returns "wrote" or "updated" for the caller's report.
+    file is edited as TOML so `user` stays at the root and other machine-local
+    overrides and comments survive, including nested keys also named `user`.
+    Validate the rendered document with the config reader before writing it.
+    Returns "wrote" or "updated" for the caller's report.
     """
     if not local_toml.is_file():
-        local_toml.write_text(render_local_toml(name))
-        return "wrote"
-    text = local_toml.read_text()
-    line = f'user = "{name}"'
-    if _LOCAL_TOML_USER_LINE.search(text):
-        text = _LOCAL_TOML_USER_LINE.sub(line, text, count=1)
+        text = render_local_toml(name)
+        verb = "wrote"
     else:
-        if text and not text.endswith("\n"):
-            text += "\n"
-        text += line + "\n"
+        document = tomlkit.parse(local_toml.read_text())
+        document["user"] = name
+        text = tomlkit.dumps(document)
+        verb = "updated"
+    tomllib.loads(text)
     local_toml.write_text(text)
-    return "updated"
+    return verb
 
 
 def _setup_initialized_clone(target: Path, coga_os: Path, user: str | None) -> None:
@@ -817,8 +813,41 @@ def _setup_initialized_clone(target: Path, coga_os: Path, user: str | None) -> N
         sys.exit(2)
     name = _require_user_name(user)
 
-    verb = _write_local_user(local_toml, name)
-    wired_agents, blocked_agents = _link_skills_for_agents(target, coga_os)
+    # A saved user is the completed-setup guard on the next invocation. Keep
+    # the local config unchanged until every agent link is ready, so failures
+    # and interruptions can be retried without hitting the re-init refusal.
+    try:
+        wired_agents, blocked_agents = _link_skills_for_agents(target, coga_os)
+    except OSError as exc:
+        typer.secho(
+            f"Could not prepare agent skills for {coga_os}: {exc}. "
+            "Your name has not been saved. Fix the path or its permissions, "
+            "then re-run `coga init --user NAME`.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+    if blocked_agents:
+        for label, path in blocked_agents:
+            typer.secho(
+                f"Could not wire {label} skills at {path}. Fix this path or "
+                "its permissions, then re-run `coga init --user NAME`. "
+                "Your name has not been saved.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+        sys.exit(2)
+
+    try:
+        verb = _write_local_user(local_toml, name)
+    except (OSError, tomllib.TOMLDecodeError, tomlkit.exceptions.ParseError) as exc:
+        typer.secho(
+            f"Could not update {local_toml}: {exc}. Fix the cause, then "
+            "re-run `coga init --user NAME`.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
 
     typer.echo("")
     typer.echo(f"Set up machine-local Coga state for {coga_os} (already initialized).")
@@ -829,12 +858,6 @@ def _setup_initialized_clone(target: Path, coga_os: Path, user: str | None) -> N
     if wired_agents:
         names = ", ".join(wired_agents)
         typer.echo(f"Wired skill discovery for {names} (symlinked into their skill dirs).")
-    for label, path in blocked_agents:
-        typer.secho(
-            f"Skipped {label} skill wiring — {path} exists but isn't a directory. "
-            f"Remove or convert it so skill wiring can complete.",
-            fg=typer.colors.YELLOW,
-        )
     typer.echo("Nothing was committed: this path writes only gitignored state.")
 
 

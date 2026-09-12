@@ -904,6 +904,155 @@ def test_init_on_clone_refuses_unparseable_local_toml(
     assert local_toml.read_text() == "user = \n"
 
 
+@pytest.mark.parametrize(
+    "contents",
+    [
+        '[agents.claude]\ncli = "claude"\nfile = "claude {prompt}"\n',
+        '[notification.slack.users]\nuser = "U12345678"\n',
+        '  user = ""\n[git]\nenabled = false\n',
+        '"user" = ""\n',
+        "'user' = ''\n",
+        '"us\\u0065r" = ""\n',
+        'user = """\n"""\n',
+        "user = '''\n'''\n",
+        'user = "" # keep the name note\n[git]\nenabled = false\n',
+        '[agents.codex]\ncli = "codex"\nfile = """codex {prompt}\nuser = ""\n"""\n',
+    ],
+    ids=[
+        "table-only", "nested-user", "indented-key", "quoted-key",
+        "literal-key", "escaped-key", "multiline-basic", "multiline-literal",
+        "inline-comment", "user-text-in-string",
+    ],
+)
+def test_init_clone_preserves_toml_structure(
+    tmp_path: Path, fake_vendor, contents: str
+) -> None:
+    """Only the root user changes, even when its spelling or context varies."""
+    target = _make_initialized_clone(tmp_path / "clone")
+    local_toml = target / "coga" / "coga.local.toml"
+    local_toml.write_text("# machine settings\n" + contents)
+    before = tomllib.loads(local_toml.read_text())
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+
+    assert result.exit_code == 0, result.output
+    rendered = local_toml.read_text()
+    assert tomllib.loads(rendered) == {**before, "user": "tester"}
+    assert "# machine settings\n" in rendered
+    if "# keep the name note" in contents:
+        assert "# keep the name note" in rendered
+    assert load_config(target / "coga").current_user == "tester"
+
+
+@pytest.mark.parametrize("existing_local", [None, '# keep me\n[git]\nenabled = false\n'])
+@pytest.mark.parametrize("error", [OSError("skill view is not writable"), KeyboardInterrupt()])
+def test_init_clone_retries_after_skill_view_failure(
+    tmp_path: Path,
+    fake_vendor,
+    monkeypatch: pytest.MonkeyPatch,
+    existing_local: str | None,
+    error: BaseException,
+) -> None:
+    """A failed or interrupted setup must not trip the saved-user guard."""
+    target = _make_initialized_clone(tmp_path / "clone")
+    local_toml = target / "coga" / "coga.local.toml"
+    if existing_local is not None:
+        local_toml.write_text(existing_local)
+
+    def fail_refresh(_root: Path) -> None:
+        raise error
+
+    with monkeypatch.context() as patch:
+        patch.setattr(init_cmd, "refresh_agent_skill_view", fail_refresh)
+        failed = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert failed.exit_code != 0
+    if existing_local is None:
+        assert not local_toml.exists()
+    else:
+        assert local_toml.read_text() == existing_local
+
+    retry = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert retry.exit_code == 0, retry.output
+    assert load_config(target / "coga").current_user == "tester"
+    for agent in (".claude", ".codex"):
+        assert (target / agent / "skills" / "coga").is_symlink()
+
+
+def test_init_clone_retries_after_blocked_agent_link(
+    tmp_path: Path, fake_vendor
+) -> None:
+    """A partial wiring success is retryable and keeps existing correct links."""
+    target = _make_initialized_clone(tmp_path / "clone")
+    blocker = target / ".codex" / "skills" / "coga"
+    blocker.parent.mkdir(parents=True)
+    blocker.write_text("operator-owned file\n")
+
+    first = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert first.exit_code == 2, first.output
+    assert str(blocker) in first.output
+    assert "re-run `coga init --user NAME`" in first.output
+    assert not (target / "coga" / "coga.local.toml").exists()
+    assert blocker.read_text() == "operator-owned file\n"
+    claude_link = target / ".claude" / "skills" / "coga"
+    assert claude_link.is_symlink()
+    original_link = claude_link.lstat()
+
+    blocker.unlink()
+    retry = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert retry.exit_code == 0, retry.output
+    assert blocker.is_symlink()
+    assert claude_link.lstat().st_ino == original_link.st_ino
+    assert claude_link.lstat().st_mtime_ns == original_link.st_mtime_ns
+    assert load_config(target / "coga").current_user == "tester"
+
+
+def test_init_real_clone_preserves_head_index_and_working_tree(
+    tmp_path: Path, fake_vendor: Path
+) -> None:
+    """Clone setup writes only ignored files, including with unrelated work staged."""
+    source = _make_initialized_clone(tmp_path / "source")
+    subprocess.run(["git", "init", "-q", "-b", "main", str(source)], check=True)
+    shutil.copyfile(fake_vendor / ".gitignore", source / "coga" / ".gitignore")
+    update_cmd.ensure_host_gitignore(source)
+    (source / "README.md").write_text("committed project\n")
+    subprocess.run(["git", "-C", str(source), "add", "."], check=True)
+    subprocess.run(
+        [
+            "git", "-C", str(source), "-c", "user.name=Tester",
+            "-c", "user.email=tester@example.com", "commit", "-qm", "seed",
+        ],
+        check=True,
+    )
+    target = tmp_path / "clone"
+    subprocess.run(
+        ["git", "clone", "-q", "--no-hardlinks", str(source), str(target)],
+        check=True,
+    )
+    (target / "staged.txt").write_text("unrelated staged work\n")
+    subprocess.run(["git", "-C", str(target), "add", "staged.txt"], check=True)
+    (target / "README.md").write_text("unrelated unstaged work\n")
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(target), *args],
+            capture_output=True, text=True, check=True,
+        ).stdout
+
+    probes = [
+        ("rev-parse", "HEAD"),
+        ("ls-files", "--stage"),
+        ("diff",),
+        ("status", "--porcelain=v1", "--untracked-files=all"),
+    ]
+    before = [git(*probe) for probe in probes]
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+    assert [git(*probe) for probe in probes] == before
+    assert load_config(target / "coga").current_user == "tester"
+    for agent in (".claude", ".codex"):
+        assert (target / agent / "skills" / "coga").is_symlink()
+
+
 def test_init_does_not_misidentify_unrelated_coga_path(
     tmp_path: Path, fake_vendor
 ) -> None:
