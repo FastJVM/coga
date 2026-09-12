@@ -26,7 +26,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -279,6 +279,53 @@ match, which is the right outcome since `load_config` reads top-level `user`.
 refused rather than treated as "change my name" — the ticket asked for the
 refusal verbatim and the file untouched; editing `coga.local.toml` by hand
 remains the way to rename.
+
+## Peer review
+
+`codex review --base main` **returned** (exit 0) from the recorded feature
+worktree. It found two P2 issues: the regex editor corrupts valid TOML or sets
+`user` inside a table, and persisting the name before skill wiring makes a
+failed/interrupted setup refuse retries. Independent reproductions confirmed
+both. No design reversal was needed.
+
+The attending human approved TOMLKit as a runtime dependency. The corrections
+use it to edit only the root `user`, preserve nested keys/comments, and check
+the rendered TOML with `tomllib` before writing. Skill wiring now precedes the
+config write; exceptions and obstructed links leave the previous config intact
+and permit a retry after repair. Regression coverage includes varied TOML key
+spellings, multiline values, interrupts, partial wiring, and a real clone with
+unrelated staged/unstaged work. The packaged CLI context (no live twin) and
+getting-started guide document the recovery behavior.
+
+`git fetch origin main` and `git rebase FETCH_HEAD` completed without conflicts
+onto `48083942`; implementation commit is now `e110359e`. Review fixes are in
+commit `237aadd5` (`peer-review: preserve clone config and allow setup retries`).
+The final fetch/rebase found no newer base changes. The feature branch is clean
+with two product commits ahead of `main`.
+
+**Verification:**
+
+- `PYTHONPATH=/home/n/Code/claude/coga-init-clone-setup/src /home/n/Code/claude/coga/.venv/bin/python -m pytest -q` — **2457 passed**, including all packaging checks. Initial failures were two incomplete new agent fixtures (missing required `file`), corrected before this passing run.
+- `PYTHONPATH=/home/n/Code/claude/coga-init-clone-setup/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --json` — 5 errors and 23 warnings. Re-running the same validator against the same feature-worktree task files with `PYTHONPATH=/home/n/Code/claude/coga/src` produced the identical `(kind, task, severity)` set: pre-existing missing `coga/digest/flush`, four unsynthesized v2 draft blackboards, and existing warnings. No task-model regression.
+- `PYTHONPATH=/home/n/Code/claude/coga-init-clone-setup/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --task cloning-a-coga-repo-has-no-setup-path --json` from the primary checkout — clean.
+- `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/home/n/Code/claude/coga-init-clone-setup/src /home/n/Code/claude/coga/.venv/bin/python /tmp/coga_clone_setup_e2e.py` — passed on real clone `/tmp/coga-clone-setup-e2e-74k90o09/clone`: missing-name remedy, setup, correct agent links, unchanged HEAD/index and clean working tree after init, unchanged repeat refusal, then `coga create` produced a draft owned by `clone-check`. All Git publication used a disposable local bare remote.
+- `git diff --check` — clean. Packaged `coga/cli` still has no live twin; no override was created.
+
+## PR
+
+Cloning a repo with committed Coga files now has a supported setup path:
+`coga init --user NAME` creates the gitignored local config, generated skill
+view, and Claude Code/Codex discovery links without staging or committing
+project files. TOMLKit preserves existing settings and comments when adding the
+root user. Skill wiring completes before saving the name, so failed or
+interrupted setup can be retried after repair. Repos that already name a user
+keep the existing refusal and upgrade remedies.
+
+Updates the missing-user diagnostic, README, getting-started guide, reference,
+and packaged CLI context. Adds coverage for clone setup, TOML preservation,
+retry behavior, and unchanged Git state with unrelated work staged.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-init-clone-setup/src /home/n/Code/claude/coga/.venv/bin/python -m pytest -q` (2457 passed); `PYTHONPATH=/home/n/Code/claude/coga-init-clone-setup/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --task cloning-a-coga-repo-has-no-setup-path --json` (clean, primary checkout); `PYTHONPATH=/home/n/Code/claude/coga-init-clone-setup/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --json` (5 existing errors/23 warnings, identical to main); real-clone `coga init --user clone-check` then `coga create "Clone setup smoke check"` (passed).
 
 ## Origin
 
