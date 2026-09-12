@@ -71,10 +71,15 @@ A fresh checkout — linked worktree or independent clone alike — has no
 `coga.local.toml`: the file is gitignored, so Git never carries it. Every Coga
 command that acts *as* someone (`bump`, `block`, `create`, `mark`, `launch`,
 `run`, `slack`, ...) loads config with `require_user=True` and fails with
-exit 2 before doing anything; only the read-only views (`status`, `show`,
-`validate`, `usage`) tolerate the missing file. No environment variable or
-flag substitutes for it. The `coga/codebase` context lists what else a fresh
-checkout lacks and which of it self-heals.
+exit 2 before performing the requested action; the read-only views (`status`,
+`show`, `validate`, `usage`) tolerate the missing file. No environment
+variable or flag substitutes for it. The `coga/codebase` context lists what
+else a fresh checkout lacks and which of it self-heals.
+
+The CLI's exit sweep can still commit and publish dirty `coga/` files after
+that failure. Commit in-flight Coga context, skill, and other OS edits on
+the feature branch before invoking a mutating Coga command there, even when
+the local config is missing.
 
 In the two standard layouts you never need the copy: the separate-checkout
 layout runs every control-plane command in the primary checkout, and the

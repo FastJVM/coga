@@ -518,10 +518,13 @@ wrong checkout silently produces wrong results in both directions:
   so far did.
   - `coga.local.toml` — **hard error.** `load_config(require_user=True)`
     raises `ConfigError` when the file or its `user` is missing, and the CLI
-    exits 2 before the command runs; only the read-only surfaces
-    (`status`, `show`, `validate`, `usage`, and the `skill status` /
-    `recurring list` / `secret get` views) pass `require_user=False`. No
-    environment variable substitutes for the file. The written rule is
+    exits 2 before performing the requested action. The exit sweep still
+    loads with `require_user=False` and can publish dirty Coga state after
+    this failure, so the pre-command commit rule above still applies.
+    Read-only surfaces (`status`, `show`, `validate`, `usage`, and the
+    `skill status` / `recurring list` / `secret get` views) also pass
+    `require_user=False`. No environment variable substitutes for the
+    file. The written rule is
     `dev/code` › "Seed the machine-local config": an ordinary 0600 copy at
     the same repo-relative path, never symlinked, staged, or committed.
     `recurring_runner`'s temporary control worktree does exactly that in code
@@ -555,12 +558,17 @@ wrong checkout silently produces wrong results in both directions:
     sweep fails loudly instead of racing) and also why a create-only design
     cannot serve the layout `dev/code` recommends, where control is already
     checked out in the primary checkout.
-  - **A detached worktree cannot publish.** `git.sync_log` skips the local
-    commit on a detached HEAD (only the cross-branch landing of the task
-    directory still runs), so generated state written there — the
-    serviced-period ledger in particular — never reaches control and the next
-    sweep re-fires the period. A worktree that runs Coga must have the control
-    branch checked *out*, not `--detach`ed at its tip.
+  - **Recurring servicing requires control checked out.** Recurring launch
+    admission refuses detached HEAD and feature branches, so the temporary
+    control worktree must check out the configured control branch, even if
+    a detached checkout points at the same commit. General Coga publication
+    has a different contract: `git.sync_log` refuses its narrow log-only
+    publication from detached HEAD, while `sync_task_state` and
+    `sync_coga_state` can land state and union-merge logs onto control.
+    Strict lifecycle publishers can also create scoped detached commits.
+    `_sync_recurring_create_paths` skips its detached local commit, but its
+    cross-branch landing still publishes the task and serviced-period
+    record. A skipped local commit does not imply a publication failure.
 
 ## Gotchas when editing coga's own code
 
