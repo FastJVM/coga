@@ -18,31 +18,43 @@ step: 1 (execute)
 Verification-only ticket. Runs as a single `direct/body` step: this body is the
 spec, and its phases execute in order.
 
-### Phase 0 — precondition gate (run first, stop if it fails)
+### Phase 0 — fix the measurement window (run first)
 
-**Do not start phases 1–4 until the `code/with-review` review queue has
-drained.** This ticket exists to check the *steady state*; running it against a
-live backlog measures the backlog instead and produces a false result.
+**Phases 1–4 are retrospective**: they read *retired* tickets and *merged* PRs.
+They do not need a quiet review queue, and this gate no longer waits for one.
+The original zero-row gate ("no live ticket parked on a review step") failed on
+every sampled date — 2026-08-20, 2026-08-26, 2026-09-09, 2026-09-12 — with a
+different set of tickets each time, because normal throughput keeps at least
+one PR in owner review. Waiting for it measured nothing; see the blackboard.
 
-Run the check:
+Instead, fix a closed window and work only inside it:
 
-```
-grep -rn '^step: .*(review)$' coga/tasks/*.md coga/tasks/*/ticket.md
-```
+- **Window start:** 2026-08-17, the date of the `## Context` snapshot.
+- **Window end:** the actual merge timestamp of the PR that landed this phase-0
+  rewrite. Read `pr:` under `## Dev` on
+  `four-parked-tickets-carry-premises-that-have-since`, then query
+  `gh pr view <pr-url> --json mergedAt,mergeCommit`. If that source ticket has
+  been retired, recover its PR link from git history. Use the PR's `mergedAt`,
+  not the date of the latest commit touching this verification ticket:
+  unblocking, launching, and reminder updates also commit changes to it.
+  An earlier fixed cutoff is allowed if the run needs a smaller set.
 
-The gate is satisfied when that returns **no rows** whose ticket status is
-`active`, `in_progress`, `blocked`, or `paused` — i.e. no live ticket is parked
-on a review step. (Two were parked when this gate was written:
-`put-build-back` on `step: 4 (review)` and `recurring-recipe-question` on
-`step: 5 (review)`. Both must be closed out or moved off review first.)
+Record the start date, chosen cutoff, and source PR URL on the blackboard
+before sampling; retain and reuse them on relaunch. Then build two input sets:
 
-If the gate is **not** satisfied: record the current queue in the blackboard,
-stop, and escalate per launch mode — ask the attending human, or `coga block`
-with the remaining tickets named as the reason. Do not proceed to phase 1, and
-do not mark the ticket done.
+- **Phases 1–2 — merged PRs:** every ticket whose `## Dev` `pr:` **merged
+  inside the window**, whether the ticket is now `done`, still parked on
+  `review` awaiting `autoclose`, or already deleted by retro. Recover deleted
+  tickets from git history; use `coga/log.md` and merged-PR queries to locate
+  their PRs, paging through the full window.
+- **Phase 3 — created tickets:** every ticket **created inside the window**
+  that carries a frozen `code/with-review` snapshot, regardless of status or
+  PR state. Include frozen drafts and tickets with open PRs or no PR. Derive
+  creation dates from `coga/log.md` and git history, recovering deleted ticket
+  snapshots from history too; do not filter this set by PR merge date.
 
-If the gate **is** satisfied: note in the blackboard which tickets retired since
-2026-08-17 (that set is the input to phase 2), then continue.
+These fixed populations replace the drained-queue precondition. Do not wait
+for the live queue to empty, and do not block on it.
 
 ### Phases 1–4 — the verification
 
@@ -54,15 +66,13 @@ record the result:
    merged. Snapshot below shows six merged PRs whose tickets were still
    `in_progress` on step 4 — confirm that backlog cannot recur, or that the
    sweep simply had not run yet.
-2. **No review thread was merged unaddressed.** For each ticket retired since
-   this ticket was written, check its PR for `isResolved: false` threads that
+2. **No review thread was merged unaddressed.** For each ticket in the
+   window's input set, check its PR for `isResolved: false` threads that
    got no reply and no code change. One dropped comment is already recorded
    below (PR 696).
-3. **Newly frozen `review` steps carry `code/address-pr-comments`.** Note that
-   phase 0 guarantees no ticket is *currently* parked on a review step, so
-   checking live review steps would be vacuous. Check the frozen snapshots
-   instead: for every ticket created since 2026-08-17 that carries a
-   `code/with-review` snapshot, confirm its `review` step lists
+3. **Newly frozen `review` steps carry `code/address-pr-comments`.** Check
+   every snapshot in phase 3's creation-based input set, including frozen
+   drafts and tickets with open PRs or no PR. Confirm its `review` step lists
    `code/address-pr-comments` rather than `skills: []`. Two tickets had the
    empty shape when this was written (#698 — snapshots freeze at creation and
    never refresh), so the assist path composed no skill layer for them. The
@@ -250,3 +260,21 @@ must be recomputed then.
 - 3c1149d09e4e last_reminded: 2026-09-02 11:59
 
 - 154e15295e36 last_reminded: 2026-09-11 10:00
+
+## Phase 0 rewritten (2026-09-12)
+
+`four-parked-tickets-carry-premises-that-have-since` (Dream 2026-W36, shard `ks-03`)
+re-ran the original gate on 2026-09-12: **10** tickets on a review step, all
+`in_progress`, 7 PRs open (787–793) — a fourth failure with a fourth distinct set.
+PR 761, the one named in the open blocker, merged 2026-09-09. The owner chose the
+meta-finding's cheap fix: phase 0 now fixes a closed measurement window
+(2026-08-17 → the merge date of the PR that landed this rewrite) instead of
+waiting for an empty queue. Phases 1–4 are unchanged in substance. Once that PR
+merges, the open blocker can be resolved with `coga unblock` and the ticket
+relaunched; it should then run to completion without touching the live queue.
+
+Peer-review clarification (2026-09-12): use the landing PR's actual `mergedAt`
+and retain the cutoff across runs; lifecycle commits cannot redefine it.
+Only phases 1–2 use the merged-PR population. Phase 3 independently includes
+all window-created frozen `code/with-review` snapshots, including drafts and
+unmerged work.
