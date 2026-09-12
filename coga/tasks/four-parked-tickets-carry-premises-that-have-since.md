@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -262,3 +262,17 @@ PYTHONPATH=$PWD/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli valida
 PYTHONPATH=/home/n/Code/claude/coga-triage-inverted-premises/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --json
 git diff --check
 ```
+
+## Open-pr
+
+2026-09-12: `coga open-pr` opened PR #794 from the recorded worktree branch
+(3 commits ahead, base drift was only this ticket's own step-3 task/log
+commits — reported safe). The primary checkout was parked on
+`cite-symbols-rule`, so it was borrowed per the skill: launch log line stashed,
+`git switch main`, run, switch back, stash popped — no commits to that branch's
+own work. The `pr:` record landed on `main` as `2d2e8ec6`; `main` was then
+merged into `cite-symbols-rule` (the same state merge the lifecycle machinery
+performs) so the bump gate could read it from the primary checkout.
+
+Owner follow-ups after merge: `coga unblock verify-the-pr-review-comment-loop-once-the-review`
+and relaunch it; the #2 optimistic-merge rewrite stays parked in v2.
