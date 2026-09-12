@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -166,3 +166,34 @@ Verdict application is CLI state (`coga mark canceled/active/done`, `coga unbloc
 the control branch. The only PR-able work is ticket prose: the #2 rewrite and, if chosen,
 the #4 phase-0 relaxation. `coga open-pr` treats ticket-body rewrites as publishable
 (`_publishable_changes` in `src/coga/open_pr.py`), so that satisfies `requires: pr`.
+
+### Decisions (owner confirmed, 2026-09-12)
+
+| ticket | verdict | applied |
+| --- | --- | --- |
+| #1 `v2/dream-recurring-persist-done-stop-inline-delete` | cancel | `coga mark canceled` on `main` (reason names the shipped period-task design) |
+| #2 `v2/automerge-ticket` | rewrite to residual delta | body rewritten + dated blackboard note, on the feature branch |
+| #3 `v2/dev-loop-git-hygiene-lift-sync-with-main-into-code` | close as already satisfied | `coga mark active` → `coga mark done` on `main`, message carries the evidence and the `## pr` de-dup residue |
+| #4 `verify-the-pr-review-comment-loop-once-the-review` | relax phase 0, then unblock | phase 0 rewritten to a closed window (2026-08-17 → merge date of this PR) on the feature branch; **owner resolves the open blocker with `coga unblock` and relaunches after the PR merges** |
+
+Notes for the reviewer:
+- #2 reopens exactly one recorded decision — *what* the "CI green" gate checks — because
+  the repo has no PR test job (`release.yml` only). The rewrite says the gate is the local
+  `pytest` + `coga validate` until `v2/minimal-ci-run-pytest-on-prs-and-tags` ships. Name,
+  hard-stop, and loud-post decisions are untouched.
+- #2's skill needs a live twin under `coga/skills/code/merge-pr/` (the other `code/*`
+  skills have one and `tests/test_packaging.py` enforces byte-identity); the workflow
+  does not (no live `coga/workflows/code/`).
+- #4's ticket status stays `blocked` until the owner unblocks; nothing here changed its
+  frontmatter.
+
+## Dev
+
+branch: triage-inverted-premises
+worktree: /home/n/Code/claude/coga-triage-inverted-premises
+
+Two commits of ticket prose (`v2/automerge-ticket.md`, `verify-the-pr-review-comment-loop-once-the-review.md`),
+rebased on `main` after the #1/#3 state commits landed. `python -m pytest` (venv 3.11+
+interpreter): 2435 passed. `coga validate --json`: no issues on either edited ticket;
+pre-existing errors (`recurring/digest` broken-skill, three v2 unsynthesized blackboards)
+are untouched and unrelated.
