@@ -1,7 +1,7 @@
 ---
 title: 'Dev-loop git hygiene: lift sync-with-main into code/open-pr + add recurring
   merged-branch cleanup'
-status: active
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -24,7 +24,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
