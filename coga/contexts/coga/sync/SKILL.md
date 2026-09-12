@@ -249,15 +249,15 @@ carve-out: it crashes on the default `fatal=True` path — a rerun reproduces it
 identically, so the crash is the fix — and under `fatal=False` it is reported on
 stderr and returned, exactly like a delivery miss. What `fatal=False` never buys
 is a *reroute*: an important post with no `important_webhook` is dropped, never
-sent to flow. The fail-fast configuration gate is `preflight_post(cfg)`, which
-every command that will broadcast with `fatal=False` runs *before* the
-mutation (the call sites are listed under *Notification implementation
-pointers*); by the time a `fatal=False` post runs, crashing can only skip work
-that the already-committed write still needs done. Without the preflight the
-same unresolved webhook would flip the ticket, append the audit line, sync the
-control branch, and only then die inside `SlackChannel` — the half-applied
-outcome `fatal=False` exists to prevent, reached through the configuration
-branch instead of the delivery branch.
+sent to flow. The fail-fast configuration gate is `preflight_post(cfg)`:
+callers use it *before* the mutation to refuse an unusable selected route
+while the ticket still holds its previous state. Existing coverage and its
+conditions are listed under *Notification implementation pointers*; not every
+`fatal=False` producer preflights. Without that gate, a command can write the
+ticket and audit line, then report and drop the undeliverable announcement
+under `fatal=False` while finishing its remaining sync and session work.
+Preflight preserves refusal before the write; `fatal=False` prevents a
+notification failure discovered after the write from aborting completion.
 
 The strict single-checkout assist path has one narrower exception after it has
 published lifecycle state under an exact feature lease: a live delivery failure
@@ -362,8 +362,7 @@ new string:
   repo whose webhook does not resolve refuses the command with nothing
   half-applied. It is the only place an unresolved webhook can still refuse a
   `fatal=False` producer; after the write, `post` reports and drops. Seven
-  call sites in six modules, each gated on whether the command will actually
-  post live: `commands/bump.py::bump` (terminal bump, or a step advance with
+  call sites in six modules, with these admission conditions: `commands/bump.py::bump` (terminal bump, or a step advance with
   `--message`); `commands/mark.py::_preflight_outcome`, called from `done` and
   `canceled` (every outcome command, not only a recorded assist);
   `commands/block.py::block` (a recorded assist, before strict publication);
@@ -372,16 +371,18 @@ new string:
   `launch_script.py::run_script_phase` (strict assist, before `ticket.py`
   publishes a started lifecycle); and
   `autoclose.py::_preflight_recipe_notifications`, the `before_close` hook of
-  `run_autoclose_recipe` (every close posts a live per-ticket Done line). The
-  assist callers convert the exit into a `_bail` with the no-sweep exit code so
-  the strict checkout is left untouched; the rest re-raise. `important=True`
-  checks the alert route (`important_webhook`) instead of the default one: pass
-  it when the post that follows the write routes to important. No current
-  caller does — the important-routed producers (`launch_script.py` script
-  failure, the stale-period warning in `mark.py`, the scan-error summary) all
-  drop the alert loudly under `fatal=False` rather than preflighting it. A new
-  command that broadcasts an important alert after its write is the first
-  consumer of that form.
+  `run_autoclose_recipe` (every close posts a live per-ticket Done line).
+  Ordinary `block` and launch paths do not preflight; their gates above are
+  specific to recorded assists. Assist refusals ultimately use `_bail` with
+  the no-sweep exit code; `run_script_phase` first wraps the refusal in
+  `ScriptPublicationError` for its launch caller. Other callers let the
+  configuration exit propagate. `important=True` checks the alert route
+  (`important_webhook`) instead of the default one: pass it when the post that
+  follows the write routes to important. No current caller passes that form.
+  Existing important alerts retain their post-write failure handling: script
+  failures, scan-error summaries, and watchdog outcomes use `fatal=False`;
+  `mark.py::_warn_if_state_not_advanced` uses the default `fatal=True` inside
+  an advisory exception guard. None preflights the important route.
 - `src/coga/notification/slack.py::SlackChannel` — the Slack backend. It owns
   Slack text rendering (project/owner prefix, image attachment),
   mention rendering, and the webhook POST.
@@ -1180,14 +1181,15 @@ state-changing command wires all three:
 3. **Preflight.** A command that announces its write with `fatal=False` — the
    only correct setting for a post that follows a committed transition — calls
    `notification.preflight_post(cfg)` *before* the mutation, passing
-   `important=True` when the broadcast routes to important. `fatal=False`
-   moves the configuration crash from before the write to after it; the
-   preflight is what moves it back. Skip it and an unresolved webhook flips
-   the ticket, appends the audit line, syncs the control branch, and then
-   dies — and the omission is invisible in every repo whose webhook resolves,
-   so no local run will catch it. Gate the call the way `bump` does, on
-   whether this invocation will actually post live, so a silent step advance
-   does not demand a webhook it will never use.
+   `important=True` when the broadcast routes to important. Preflight keeps
+   an unresolved webhook from allowing the mutation in the first place;
+   `fatal=False` reports and drops configuration or delivery failures found
+   after the write so the command can finish. Omitting preflight therefore
+   allows the state change to complete without its announcement, rather than
+   refusing it up front. Runs with a resolved webhook do not expose the
+   omission. Gate the call the way `bump` does, on whether this invocation will
+   actually post live, so a silent step advance does not demand a webhook it
+   will never use.
 
 Don't add silent state mutations that bypass both layers
 when the team needs awareness. Conversely, don't emit chatter that doesn't
