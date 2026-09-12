@@ -212,6 +212,13 @@ the example under "Extend recurring with a task-specific workflow").
   the REPL supervisor; `ticket.py` templates run headlessly. A leftover
   `recipe:` key from the old format is inert — it selects nothing and is not a
   validation error.
+  A `ticket.py`-backed template's workflow step still declares
+  `assignee: agent`, and that is not a lie to fix: `VALID_ASSIGNEE_ROLES` has
+  no script token, and adding one would be the execution-mode field this
+  design deliberately refuses. The step *is* the derived agent step — launch
+  runs the deterministic phase first and falls through to that agent only if
+  the script leaves the step open. `example/coga/workflows/deterministic/
+  check.md` ships the same shape on purpose.
 - `delegate` — optional `bootstrap/<name>` command-ticket ref, mutually
   exclusive with a `ticket.py` sibling. It does not select deterministic-vs-
   agent execution — that stays deduced from the file. It declares *which*
@@ -571,6 +578,30 @@ Promote refuses rather than guessing:
 
 Then `coga validate --json` and, for an explicit first run,
 `coga recurring launch <name>`.
+
+**A new template fires retroactively on its first sweep.** The scan takes the
+schedule's *last* firing before now (`_last_firing`), buckets it into a period
+key, and creates the period task unless `coga/log.md` already holds a
+`created|reused` line at or after that period. A brand-new template has no
+line, so an annual reminder dropped in September is serviced for the March
+that already passed. Do not try to pre-empt that by seeding a mark: the old
+template field `last_serviced_period:` no longer exists, and the failure it
+invited — an agent wrote `none` because it read as more honest than inventing
+a period, and string comparison then suppressed the template forever while
+`coga status` showed `ran this period` — is why the mark moved into the
+append-only log with a validated shape. There is no seeding path, nothing to
+hand-edit, and no create-only sweep: the first bare `coga recurring` records
+the period and launches it in one pass. So suppress the firing by *timing*,
+not by state — drop an annual or monthly template before its next firing date
+rather than after the last one, or land it with the parked `_` prefix and
+rename it when the retroactive period is one you actually want run. When that
+is impossible, write the body so the run tolerates an already-handled period
+(read the ledger and the parent's cursor, then no-op — the `coga/period-task`
+shape). If an unwanted retroactive run already happened, the period is
+serviced regardless; do not `coga mark canceled` its task to say so — a
+`canceled` task at the stable path is returned as the existing task on the next
+period and refused, so the template stays stuck until that task is deleted
+(see `--force` above).
 
 ## Extend recurring with a task-specific workflow
 
