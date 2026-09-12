@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -91,4 +91,48 @@ Filed by Dream 2026-W36, Phase 2 knowledge scan (shard `ks-11`), classified `gap
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: recurring-twin-note
+worktree: /home/n/Code/claude/coga-recurring-twin-note
+
+## Implement (2026-09-12)
+
+**Part 1 — done.** One Gotchas bullet added to `coga/contexts/coga/recurring/SKILL.md`
+(bold lead, matching the neighbouring bullets): every `coga/recurring/<name>/` template
+has a packaged twin under `src/coga/resources/templates/coga/recurring/<name>/`; the
+packaged copy is what a fresh `coga init` ships and nothing refreshes it afterwards; the
+`ticket.md` body is the run prompt, so drift changes what a downstream repo runs; the
+same goes for `ticket.py`; `tests/test_packaging.py` enforces byte-identity; pointer to
+`coga/codebase` for the rule and the rebase hazard. Commit `edc7e8af`.
+
+The recurring context now *has* a packaged twin
+(`src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md`) —
+the ticket's "no packaged twin" note is stale — so the bullet went into both copies.
+
+**Part 2 — already satisfied by other work; no edit.** The registration rule the ticket
+asks for has been decided mechanically: `tests/test_packaging.py` derives
+`IDENTICAL_LIVE_PACKAGED_PAIRS` from the packaged tree (every packaged file with a live
+counterpart under `templates/coga/<path>` -> `coga/<path>` or
+`templates/coga/bootstrap/{contexts,skills,workflows}/<path>` -> `coga/<area>/<path>`
+must be byte-identical; only exceptions are registered, in
+`INTENTIONALLY_DIVERGENT_TWINS`, and a stale exception fails the suite). The
+`coga/codebase` context states exactly that in its rebase-hazard bullet ("a new twin is
+covered the moment it exists and there is nothing to register") and CLAUDE.md repeats
+it. Landed via `live-and-packaged-twin-pairs-are-edited-together-b` (status: done). So
+"all twins" is the answer and no test extension is needed. Left the statement inside the
+rebase bullet rather than lifting it into a standalone principle — agreed with the
+operator as acceptable given CLAUDE.md carries it prominently.
+
+**Superseded draft:** `v2/document-recurring-template-live-vs-packaged-sync` canceled
+via `coga mark canceled` on `main` (commit `63185f0a`) with the reason recorded in
+`coga/log.md`.
+
+**Ticket facts that moved since filing:** six templates, not seven (`digest` removed);
+`coga init --update` no longer exists (`docs/cli-extension-external-surface.md`), which
+makes drift worse, not better — a repo initialized while the copies differ never gets a
+refresh. The bullet is worded against the current shape.
+
+**Verification:** `.venv/bin/python -m pytest` in the feature worktree — 2435 passed.
+`diff -q` of the two recurring context copies — identical. Branch rebased on
+`origin/main` (already up to date). No push, no PR.

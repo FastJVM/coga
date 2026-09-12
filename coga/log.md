@@ -4956,3 +4956,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-12 09:46 [recurring-context-never-mentions-the-packaged-twin] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-12 09:46 [recurring-context-never-mentions-the-packaged-twin] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-09-12 10:22 [v2/document-recurring-template-live-vs-packaged-sync] [human:nicktoper] canceled (draft → canceled): Superseded by recurring-context-never-mentions-the-packaged-twin: the Gotchas bullet it asked for lands there, and the codebase context already states the derived-pairs rule.
+2026-09-12 10:22 [recurring-context-never-mentions-the-packaged-twin] [agent:claude] advanced to step 2 (peer-review) → codex
