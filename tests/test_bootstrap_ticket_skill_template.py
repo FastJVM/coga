@@ -116,3 +116,19 @@ def test_bootstrap_ticket_skill_authors_agent_tasks_only() -> None:
     assert "Execution: agent" in text
     assert "convert it to directory form only when it needs\nattachments" in text
     assert "coga launch <slug> --prompt-report" in text
+
+
+def test_bootstrap_ticket_context_cites_symbols_not_line_numbers() -> None:
+    """Code facts copied into `## Context` must cite module plus symbol, never
+    a bare line number — lines drift within days, and the relationship that
+    makes a fact load-bearing is what survives a refactor."""
+    text = BOOTSTRAP_TICKET_SKILL.read_text()
+    normalized = " ".join(text.split())
+
+    assert "## Citing code in `## Context`" in text
+    assert "Cite module plus symbol, never a bare line number." in normalized
+    assert "name the symbol first and mark the range as an aid" in normalized
+    assert (
+        "State the relationship that makes the fact load-bearing, not its "
+        "coordinates." in normalized
+    )

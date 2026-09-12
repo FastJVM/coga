@@ -37,7 +37,9 @@ below the fence composes separately as the blackboard layer.
 
 Task-specific knowledge that isn't a reusable skill or context file.
 One-off details: where in the codebase, what to watch out for, what not
-to touch.
+to touch. Cite code as module plus symbol (`git.sync_task_state`), never
+a bare line number — lines drift within days; if a range helps, name the
+symbol first and mark the range as an aid.
 
 <!-- coga:blackboard -->
 

@@ -37,7 +37,12 @@ build, and it should not have to re-derive intent.
      - *Out of scope* — what this ticket deliberately does *not* do,
        so the implement step doesn't scope-creep.
    - `## Context` — codebase facts, file paths, and references the
-     implementer needs that are not the spec itself.
+     implementer needs that are not the spec itself. Cite code as module
+     plus symbol (`git.sync_task_state`), never a bare line number — lines
+     drift before the implement step runs. If a range helps, name the
+     symbol first and mark the range as an aid. State the relationship
+     that makes a fact load-bearing, not its coordinates; see "Citing code
+     in `## Context`" in `bootstrap/ticket` for the full rule.
 
    Do not park spec content in a fourth `##` section and assume the
    next step will see it. If it isn't under `## Description`,
