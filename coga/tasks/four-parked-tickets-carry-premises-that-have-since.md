@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -192,8 +192,72 @@ Notes for the reviewer:
 branch: triage-inverted-premises
 worktree: /home/n/Code/claude/coga-triage-inverted-premises
 
-Two commits of ticket prose (`v2/automerge-ticket.md`, `verify-the-pr-review-comment-loop-once-the-review.md`),
-rebased on `main` after the #1/#3 state commits landed. `python -m pytest` (venv 3.11+
-interpreter): 2435 passed. `coga validate --json`: no issues on either edited ticket;
-pre-existing errors (`recurring/digest` broken-skill, three v2 unsynthesized blackboards)
-are untouched and unrelated.
+Three committed ticket-prose changes, ending at `54c695fb` (`peer-review: fix
+retrospective audit cutoff and populations`), rebased on fetched `main`
+`7ec1e0c0`. Only `v2/automerge-ticket.md` and
+`verify-the-pr-review-comment-loop-once-the-review.md` differ from the base.
+Final verification: **2435 passed**; both edited tickets validate. The full
+validator's five unrelated errors are detailed below.
+
+## Peer review
+
+2026-09-12: `git fetch origin main` and `git rebase FETCH_HEAD` completed in the
+recorded feature worktree without conflicts. **`codex review --base main` returned**
+(exit 0). It found two P2 issues, both in the verification ticket, both corrected:
+
+- The latest commit touching the ticket can be an unblock/launch/reminder update,
+  so it cannot identify the rewrite's merge date. The cutoff now comes from the
+  landing PR's actual `mergedAt`, is recorded with its PR URL, and survives relaunch.
+- A merged-PR cohort omits frozen drafts and unmerged tickets from phase 3. Only
+  phases 1–2 now use that cohort; phase 3 independently covers every window-created
+  frozen `code/with-review` snapshot, including drafts and work without a PR.
+
+No design rethink or finding on #2. The review subprocess's focused test run used
+the ambient Python and failed because that interpreter lacks `hatchling.build`;
+the full run below uses the declared test environment and passed packaging.
+
+Full `python -m pytest` returned **2435 passed** both before and after the prose
+fixes, using the primary checkout's Python 3.12 venv and an explicit
+feature-checkout `PYTHONPATH`. The final run used a cache under `/tmp` and had no
+warnings. Exact verification commands are in `## PR`. Both edited tickets pass
+`validate --task <ref> --json`; the full validator reports five unrelated errors
+(missing `recurring/digest` skill; unsynthesized draft blackboards on
+`v2/autotrigger-ticket-type`, `v2/measure-relay-prompt-scope-and-agent-precision`,
+`v2/split-context-to-doc-user-accessible-and-editable`, and
+`v2/use-worktree-when-starting-a-dev-task`). Scoped validation only warns about
+the feature checkout's absent local `user`; both commands exit 0.
+Both edited tickets' frontmatter is byte-identical to `main`; #1 is `canceled`
+and #3 is `done` on `main`.
+The final `git fetch origin main` found no newer base, and `git rebase FETCH_HEAD`
+after the fix commit returned "up to date". No review remains in flight and both
+returned findings are addressed.
+The primary checkout is on `cite-symbols-rule`; its existing dirty `coga/log.md`
+line is this task's launch audit entry. Blackboard updates and the final bump stay
+in that primary checkout, as required by the separate-worktree contract.
+
+## PR
+
+Two parked specifications still described obsolete Coga behavior. Rewrite
+`v2/automerge-ticket` around the bundled workflow location, live/packaged skill
+twins, current Coga commands, and returned-review evidence. Record the local
+verification gate needed while this repo has no PR test job. Replace the
+review-loop verification ticket's drained-queue prerequisite with a fixed cutoff
+from this PR's `mergedAt`: phases 1–2 cover merged PRs, while phase 3 independently
+covers window-created frozen snapshots, including drafts and unmerged work.
+
+The recurring-persistence ticket was already canceled and the git-hygiene ticket
+closed as already satisfied through CLI state changes. The optimistic-merge
+implementation stays parked; the verification ticket remains blocked until the
+owner unblocks and relaunches it after this PR merges.
+
+Test plan: **2435 tests passed**, both edited tickets validate (exit 0), and `git diff --check` passes; full-repo validation retains five unrelated existing errors.
+
+Commands run from the feature worktree (Python 3.12; explicit source path):
+
+```sh
+PYTHONPATH=$PWD/src /home/n/Code/claude/coga/.venv/bin/python -m pytest -o cache_dir=/tmp/coga-triage-inverted-premises-pytest-cache
+PYTHONPATH=/home/n/Code/claude/coga-triage-inverted-premises/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --task v2/automerge-ticket --json
+PYTHONPATH=$PWD/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --task verify-the-pr-review-comment-loop-once-the-review --json
+PYTHONPATH=/home/n/Code/claude/coga-triage-inverted-premises/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --json
+git diff --check
+```
