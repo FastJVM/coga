@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -155,6 +155,13 @@ the primary checkout's Python 3.12 test environment (which has `hatchling`) and
 an absolute `PYTHONPATH` naming the feature source. Exact command is in `## PR`.
 The feature worktree is clean and committed, one commit ahead of fetched `main`;
 no feature push or PR was opened in this step. Ready for the `open-pr` handoff.
+
+## Open PR (2026-09-12)
+
+`coga open-pr` run from the primary control checkout (`main`), with the feature
+worktree clean and one commit (`c16e34cf`) ahead. The command reported
+`origin/main` had advanced only through non-overlapping task/log state, pushed
+`recurring-twin-note`, and opened PR #792. `pr:` recorded under `## Dev`.
 
 ## PR
 
