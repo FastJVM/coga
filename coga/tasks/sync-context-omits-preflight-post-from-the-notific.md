@@ -1,6 +1,6 @@
 ---
 title: Sync context omits preflight_post from the notification contract
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
