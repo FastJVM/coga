@@ -180,6 +180,27 @@ The exception is `bootstrap/orient`, which is the orientation ticket itself; it
 intentionally attaches broad coga contexts so an ad-hoc oriented session has
 the operator reference loaded.
 
+## Citing code in `## Context`
+
+Code facts copied into `## Context` are read days or weeks later, against a
+tree that has moved on. Cite them in the form that survives that:
+
+- **Cite module plus symbol, never a bare line number.** Write
+  `git.sync_task_state` or `step_gate.gate_unmet_reason`, not
+  `src/coga/git.py:214`. Line numbers drift within days; one ticket's cold
+  evaluator counted nine stale citations against source ten days newer, one
+  pointing at the wrong module entirely.
+- **When a range genuinely helps, name the symbol first and mark the range
+  as an aid** — `git.sync_task_state` (near line 700 as of this writing) —
+  so a reader hunting through a 7,000-line module still has a starting
+  point, and knows the number is expected to rot.
+- **State the relationship that makes the fact load-bearing, not its
+  coordinates.** "The gate-checked copy and the synced copy are the same
+  `TaskRef`, so they cannot disagree" survives a refactor; "see line 87"
+  does not. The relationship is what the implementer actually needs.
+
+This is the same rule `code/review-design` applies to evaluator findings.
+
 ## Step 3 — Interview the human
 
 Cover these, in this order, in plain conversation. Stop pulling once you
