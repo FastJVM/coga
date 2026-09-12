@@ -1,6 +1,6 @@
 ---
 title: 'Dream 2026-W36 extract backlog: 18 findings Phase 4 could not consume'
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
