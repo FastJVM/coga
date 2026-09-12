@@ -1,6 +1,6 @@
 ---
 title: No rule says ticket Context must cite symbols, not line numbers
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
