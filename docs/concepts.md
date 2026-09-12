@@ -236,14 +236,11 @@ workflow.
 
 ## Composition: how a prompt is built
 
-`coga launch` builds one prompt, fresh, every time, by stacking a fixed set of
-layers: the package's base prompt and exactly one session-conduct resource
-first, so the agent reads how to operate before any task material; then this
-repo's context, the ticket's attached contexts, and its skills; and the ticket
-itself last, as one contiguous block. The exact layer order, which regions of
-the ticket compose, and what is deliberately left out are specified in the
-`Prompt composition` section of `coga/contexts/coga/architecture/SKILL.md` —
-that context owns the list, and this page does not repeat it.
+`coga launch` rebuilds the prompt from the current repo and ticket files.
+Operating instructions precede task material, and the selected ticket content
+stays together at the end. The
+[Prompt composition section of `coga/architecture`](../coga/contexts/coga/architecture/SKILL.md#prompt-composition)
+owns the exact layers, their order, and which ticket regions compose.
 
 For a launch with no trailing positional arguments, that's the whole input.
 When arguments are supplied, launch appends one explicit `## Launch arguments`
