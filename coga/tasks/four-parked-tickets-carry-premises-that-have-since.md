@@ -189,6 +189,7 @@ Notes for the reviewer:
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/794
 branch: triage-inverted-premises
 worktree: /home/n/Code/claude/coga-triage-inverted-premises
 
