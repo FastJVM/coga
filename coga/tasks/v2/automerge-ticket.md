@@ -33,73 +33,84 @@ final human `review` step with an **agent** step that merges the PR
 optimistically. The premise is speed: most reviewed-and-peer-checked
 changes are fine, so an agent merges them without waiting on the human,
 and the human stays a post-hoc safety net to catch and revert the rare
-mess-up. This is the inverse of the existing `relay automerge` (which only
-auto-*bumps a ticket to done* after a human merges); here an agent does the
-merging.
+mess-up. This is the inverse of the existing `autoclose-merged` recurring
+sweep (the `coga autoclose` alias), which only marks a ticket `done` after a
+human merges; here an agent does the merging.
 
 ## Context
 
+**Premise re-checked 2026-09-12** by `four-parked-tickets-carry-premises-that-have-since`.
+The subject was never built and the workflow it mirrors still exists, so the ticket
+stands — but every file location and command below was rewritten against the current
+tree. The `## Evaluator review` on the blackboard verified the *old* layout; treat its
+"correct and verified" packaging claim as stale.
+
 **Mirror, don't reinvent.** Copy the shape of
-`relay-os/workflows/code/with-review.md`. Keep steps 1–3 identical:
-`implement` (`code/implement`), `peer-review` (`assignee: other-agent`,
-flips to the non-coder agent — two agent types `claude`/`codex` are
-configured so `other-agent` resolves cleanly), `open-pr` (`code/open-pr`,
-which already ensures the PR is mergeable vs `main`). Only the final step
-changes.
+`src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md`. Keep
+steps 1–3 identical, including their `requires:` gates: `implement`
+(`code/implement`, `requires: branch`), `peer-review` (`assignee: other-agent`, which
+resolves to the main agent's configured peer — see `src/coga/bump.py`), `open-pr`
+(`code/open-pr`, `requires: pr`; the `coga open-pr` recipe already refuses a branch
+with unsafe drift from the control branch). Only the final step changes.
+
+**Where the files go — this is the inverted part.** The `code/` workflow namespace
+**is** shipped in the packaged template, and only there: the three `code/*`
+workflows live under `src/coga/resources/templates/coga/bootstrap/workflows/code/`
+and the live tree has no `coga/workflows/code/` directory. Per `coga/architecture`,
+a repo-local `coga/workflows/<ref>.md` *overrides* the bundled
+`bootstrap/workflows/<ref>.md`, so a live copy would sit in the override layer, not
+beside its siblings. Therefore:
+
+- the workflow is `src/coga/resources/templates/coga/bootstrap/workflows/code/optimistic-merge.md`
+  with **no** live twin;
+- the new skill is `src/coga/resources/templates/coga/bootstrap/skills/code/merge-pr/SKILL.md`
+  **and** its live twin `coga/skills/code/merge-pr/SKILL.md`, because the other
+  `code/*` skills have live twins and `tests/test_packaging.py` requires every
+  packaged/live pair to be byte-identical.
 
 **New final step = agent merge.** Replace the `review` step
-(`assignee: owner`) with an agent step `assignee: agent` (the coder — by
-this point `open-pr` has flipped the assignee back to the coder, so the
-merging agent is the original author; that's fine). This needs a **new
-skill** — create `relay-os/skills/code/merge-pr/SKILL.md` (process
-knowledge for the merge), because `code/open-pr` explicitly states deciding
-whether to merge is the human's job, so it cannot be reused for this. The
-merge skill should: read `pr:` from the blackboard `## Dev` section (the
-`dev/code` convention — attached as a context; see also `code/open-pr`),
-**require CI to be green before merging** (`gh pr checks` / `gh pr view
---json statusCheckRollup`) and `relay panic` if CI is red or not yet
-passing, run `gh pr merge`, then run `relay mark done <slug>` itself.
+(`assignee: owner`, `code/address-pr-comments`) with `assignee: agent` (by this
+point `open-pr` has routed back to the main agent, so the merging agent is the
+original author; that's fine). This needs the **new skill** `code/merge-pr` —
+`code/open-pr` cannot be reused: its remit is the deterministic push/open/record
+command, and its worked case (PR #723, in that skill) records the owner's precedent
+that merging without a returned review is the failure mode to avoid. The merge skill
+should: read `pr:` from the blackboard `## Dev` section (the `dev/code` convention,
+attached as a context); require the `## Peer review` note to record that the review
+**returned** (the same evidence `code/open-pr` gates on); require the verification
+gate below; run `gh pr merge`; then run `coga mark done <slug>` itself. A failed
+gate is a hard stop: `coga block --task <slug> --reason "…"` (the successor of the
+old `panic` command), not a note-and-bump.
 
-  Note this step **deliberately overrides** `code/open-pr`'s policy of
-  "blackboard the CI failure and bump anyway" — here a red/incomplete CI is
-  a hard stop (`panic`), not a note. Don't lean on the existing `relay
-  automerge` auto-bump as a backstop: it only fires for a ticket already on
-  its *final* step, which the merge step is, so it's redundant here — the
-  skill must close the ticket with `relay mark done` directly.
+**Verification gate — re-examine before implementing.** The recorded decision was
+"CI gate = required (hard stop)". This repo has **no PR test job**: the only GitHub
+Actions workflow is the publish-only `release.yml`, so `gh pr checks` has nothing to
+report (see `no-context-records-the-ci-posture-publish-only-rel`, which records this
+in `coga/codebase`). Until `v2/minimal-ci-run-pytest-on-prs-and-tags` ships, "green"
+can only mean the local gate — `python -m pytest` and `coga validate --json` run from
+the rebased feature checkout — and the skill must say so explicitly rather than
+naming a check that does not exist.
 
-**Human safety net = loud post (+ optional watcher).** The owner is *already*
-named and cc'd on every broadcast by virtue of being `owner:`, so the
-load-bearing safety mechanism is a **live, urgent** Slack post on merge:
-`relay slack --task <slug> --message "merged <pr-url> — revert if wrong"` (the
-live path, not a batched digest line) so the owner can review post-hoc and
-revert fast. The merge is optimistic; safety is fast visibility, not a
-blocking gate. Adding the owner to a `watchers:` list is redundant with the
-owner cc and needs no special machinery — if a *second* human should also be
-pinged, that's what `watchers:` is for; otherwise skip it. (`watchers` is a
-plural list field; `relay slack`/`post` cc only watchers that are mapped in
-`[slack.users]`.)
+**Human safety net = loud post.** The owner is cc'd on every broadcast by being
+`owner:`; the `watchers:` field was removed with the simplified ticket format (#784)
+and is not available. The load-bearing mechanism is a **live** Slack post on merge:
+`coga slack --task <slug> --message "merged <pr-url> — revert if wrong"` so the owner
+can review post-hoc and revert fast. The merge is optimistic; safety is fast
+visibility, not a blocking gate.
 
 **Decisions already made (don't re-litigate):** name = `code/optimistic-merge`;
-CI gate = required (hard stop); safety net = loud live post on merge. Naming
-chosen to avoid visual collision with the `relay automerge` command.
+verification gate = required, hard stop; safety net = loud live post on merge. The
+only decision reopened above is *what* the gate checks, because the remote check it
+assumed does not exist.
 
-**Scope / out of scope.** This is a relay-os markdown change (one workflow
-file + one new skill file), plus a short prose section in the workflow body
-documenting the optimistic-merge behavior (mirror how `with-review.md`
-documents its steps). The `code/` workflow namespace is **not** shipped in
-the packaged template (`src/relay/resources/templates/relay-os/`), so no
-dual-copy sync is required — but confirm before assuming. No Python/CLI
-changes are expected; if the merge step turns out to need new CLI support,
-that is a separate ticket — `relay panic` and surface it rather than
-expanding scope here. Because the change is markdown-only there are no unit
-tests to add — validate with `relay validate --json` and a read-through
-rather than expecting `pytest` coverage; the workflow's QA/peer-review steps
-will be a light pass.
-
-**Pointers.** `other-agent` resolution and per-step `assignee:` role
-rewriting live in `src/relay/bump.py`; the `architecture` context documents
-prompt composition, `assignee` role tokens, and the agent-rotation model if
-the implementer needs deeper grounding (read it, don't attach it).
+**Scope / out of scope.** One packaged workflow file, one skill in two copies, plus a
+short human-facing section in the workflow body documenting the optimistic-merge
+step (mirror how `with-review.md` documents `## review`; note that a step declaring
+`skills:` does not compose its inline section). No Python/CLI changes are expected;
+if the merge step needs new CLI support, that is a separate ticket — block and
+surface it rather than expanding scope here. Markdown-only, so validate with
+`python -m pytest` (the packaging twin test) and `coga validate --json` plus a
+read-through; do not run this ticket's own workflow under the new workflow.
 
 <!-- coga:blackboard -->
 
@@ -189,3 +200,30 @@ pointers added; `watcher`→`watchers` corrected and the self-cc redundancy call
 automerge-backstop framing fixed; CI-gate override of open-pr made explicit; markdown-only
 "no pytest" caveat added. Point 2 — workflow heaviness — left as-is per nick's choice of
 `code/with-review`.)
+
+## Premise re-check (2026-09-12)
+
+Rewritten by `four-parked-tickets-carry-premises-that-have-since` (Dream 2026-W36
+finding, shard `ks-10`). What changed since the bootstrap notes and evaluator review
+above were written:
+
+- The packaging claim inverted: `code/*` workflows now ship **only** in the packaged
+  `bootstrap/workflows/code/` tree; there is no live `coga/workflows/code/`. The
+  evaluator's "correct and verified — no `code/`" line described the pre-rename
+  layout and is stale.
+- Pre-rename surfaces mapped: `relay-os/` → packaged `bootstrap/` (workflows) or
+  `coga/` + packaged twin (skills); `relay panic` → `coga block`; `relay slack` →
+  `coga slack` (still the live path); `relay automerge` → the `autoclose-merged`
+  sweep / `coga autoclose` alias; `src/relay/bump.py` → `src/coga/bump.py`.
+- `watchers:` no longer exists (removed with the simplified ticket format, #784);
+  the owner cc is the whole safety-net audience.
+- `code/open-pr` no longer carries a "blackboard the CI failure and bump anyway"
+  policy, so the "deliberate override" framing is moot; and the repo has no PR test
+  job at all, so the CI gate must be restated as the local `pytest` + `coga validate`
+  gate until `v2/minimal-ci-run-pytest-on-prs-and-tags` exists.
+- New precedent to respect: the PR #723 worked case in `code/open-pr` — the owner
+  chose to hold the review gate when a review returned after merge. The merge skill
+  gates on the returned `## Peer review` note for that reason.
+
+The recorded human decisions (name, hard-stop gate, loud post) were kept; only the
+gate's *check* was reopened, because the remote check it assumed does not exist.
