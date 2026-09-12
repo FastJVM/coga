@@ -84,6 +84,15 @@ later `code/open-pr` step does that, after self-review and fixes.
    `coga block --task <slug> --reason "<specific capability or access needed>"`
    instead of merely saying "blocked" and leaving the supervised queue waiting.
 
+   **Whichever way you made it, the new checkout has no `coga.local.toml`.**
+   The file is gitignored, and every user-acting Coga command (`bump`,
+   `block`, `mark`, `create`, ...) exits 2 without it. In both layouts above
+   you never run those commands there, so nothing to do; if a user-acting
+   command *must* run inside the fresh checkout, seed it by the rule in the
+   `dev/code` context ("Seed the machine-local config"): an ordinary 0600 copy
+   at the same repo-relative path, never symlinked, staged, or committed, and
+   removed again before the checkout is retired.
+
    **On a resumed session** where `## Dev` already records a
    `branch:` and `worktree:`, reuse them — and refresh first: from the
    clean feature worktree, `git fetch origin main && git rebase

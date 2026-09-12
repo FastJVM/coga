@@ -510,6 +510,65 @@ wrong checkout silently produces wrong results in both directions:
   from the resulting write; it does not protect your session from the wasted
   run, and a stale `coga/log.md` in that checkout is a live hazard for any sync
   from it.
+- **A fresh linked worktree or `/tmp` clone is missing everything Git
+  ignores, and each missing path fails differently.** The bullets above are
+  about what a wrong checkout *has*; this one is about what a fresh checkout
+  *lacks*, so a design that runs Coga from somewhere other than the operator's
+  checkout does not re-derive it. Every "run recurring from a worktree" ticket
+  so far did.
+  - `coga.local.toml` — **hard error.** `load_config(require_user=True)`
+    raises `ConfigError` when the file or its `user` is missing, and the CLI
+    exits 2 before performing the requested action. The exit sweep still
+    loads with `require_user=False` and can publish dirty Coga state after
+    this failure, so the pre-command commit rule above still applies.
+    Read-only surfaces (`status`, `show`, `validate`, `usage`, and the
+    `skill status` / `recurring list` / `secret get` views) also pass
+    `require_user=False`. No environment variable substitutes for the
+    file. The written rule is
+    `dev/code` › "Seed the machine-local config": an ordinary 0600 copy at
+    the same repo-relative path, never symlinked, staged, or committed.
+    `recurring_runner`'s temporary control worktree does exactly that in code
+    (`shutil.copyfile` + `chmod(0o600)` into its mirrored Coga OS directory)
+    before its inner scan. The command-side complement — Coga seeding its own
+    checkouts — is `v2/propagate-local-coga-config-into-worktrees`, still a
+    draft; until it lands, the copy is the only mechanism.
+  - `.agent-skills/` — **self-heals.** `coga init` builds it and
+    `_refresh_agent_skills_for_launch` rebuilds it on every launch, so a
+    missing copy costs nothing. A *present* one is not free, though: it sits
+    outside `branchcleanup.REGENERABLE_IGNORED_DIRS` (only `__pycache__`,
+    `.pytest_cache`, `.ruff_cache`, `.mypy_cache`), so once a launch has
+    rebuilt it inside a feature worktree, `coga retire` refuses to remove that
+    worktree until it is deleted. The same holds for a copied
+    `coga.local.toml`.
+  - `.coga/` — **created on demand.** It is per-checkout runtime state, not
+    installation: `recurring-runs/` ledgers, `megalaunch-selection.json`,
+    launch worktrees. A fresh checkout starts empty and each writer creates
+    what it needs; the temporary control worktree moves its run records back
+    into the operator's checkout afterwards
+    (`_persist_control_worktree_run_logs`) precisely because they would
+    otherwise die with the temp directory.
+  - `.venv/`, `.env*`, `.secrets/` — **not needed for the CLI.** `coga` on
+    PATH resolves through its own install, not the checkout it runs in (see
+    "Daily commands" for the editable-install trap that implies), and
+    `env:VAR` secret references read the process environment, which the
+    checkout does not own.
+  - **One branch, one checkout.** `git worktree add` refuses to check out a
+    branch that another worktree of the same repository already holds. That is
+    the concurrency lock in the temporary-control-worktree design (a second
+    sweep fails loudly instead of racing) and also why a create-only design
+    cannot serve the layout `dev/code` recommends, where control is already
+    checked out in the primary checkout.
+  - **Recurring servicing requires control checked out.** Recurring launch
+    admission refuses detached HEAD and feature branches, so the temporary
+    control worktree must check out the configured control branch, even if
+    a detached checkout points at the same commit. General Coga publication
+    has a different contract: `git.sync_log` refuses its narrow log-only
+    publication from detached HEAD, while `sync_task_state` and
+    `sync_coga_state` can land state and union-merge logs onto control.
+    Strict lifecycle publishers can also create scoped detached commits.
+    `_sync_recurring_create_paths` skips its detached local commit, but its
+    cross-branch landing still publishes the task and serviced-period
+    record. A skipped local commit does not imply a publication failure.
 
 ## Gotchas when editing coga's own code
 
