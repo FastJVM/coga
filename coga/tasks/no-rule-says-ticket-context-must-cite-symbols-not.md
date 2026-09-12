@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -81,3 +81,45 @@ Filed by Dream 2026-W36, Phase 2 knowledge scan (shard `ks-04`), classified `gap
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Findings (implement, session 1)
+
+- `bootstrap/ticket` SKILL.md exists **only packaged**:
+  `src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md`.
+  No live twin under `coga/skills/`, so one edit; its guard test is
+  `tests/test_bootstrap_ticket_skill_template.py`.
+- `code/design` (`coga/skills/code/design/SKILL.md`) and the ticket template
+  (`coga/tasks/_template/ticket.md`) both have byte-identical packaged twins
+  under `src/coga/resources/templates/coga/...` — any edit must land in both.
+- The ticket's "grep returns nothing" is slightly off: `code/review-design`
+  already says "Cite stable paths and symbol or section names in findings. Do
+  not pin a finding only to a line number that will drift." — but that governs
+  evaluator *findings*, not ticket `## Context`. Reusing its phrasing keeps the
+  two rules recognisably the same rule.
+- The second offending ticket (`detect-stranded-ticket-writes-across-checkouts`)
+  had its line numbers added during an *implement* step (commit `af35b1c1`),
+  not via `bootstrap/ticket`. So a rule that lives only in the interview skill
+  would not have reached that author — an argument for also putting it where
+  every `## Context` author looks (the template placeholder, `code/design`).
+
+## Dev
+
+branch: cite-symbols-rule
+worktree: /home/n/Code/claude/coga
+Single-checkout layout: branch created in place in the primary checkout.
+
+## Decisions
+
+- Rule placed in all three homes, full text once: the full "Citing code in
+  `## Context`" section lives in `bootstrap/ticket` (after the context
+  selection contract); `code/design` step 3 and the ticket `_template`
+  `## Context` placeholder carry a one-sentence form pointing back to it.
+  Reason: the second offending ticket was line-pinned from an implement step,
+  which only the template would have reached.
+- Range example uses a real symbol, `git.sync_task_state` (git.py is ~7,000
+  lines today), so the example itself follows the rule.
+- Phrased to match `code/review-design`'s existing findings rule, and the
+  section says so, so the two read as one rule.
+- Commit `c4086d73`. Verified with
+  `.venv/bin/python -m pytest tests/test_bootstrap_ticket_skill_template.py tests/test_packaging.py`
+  (19 passed) and the full `.venv/bin/python -m pytest` (2436 passed).
