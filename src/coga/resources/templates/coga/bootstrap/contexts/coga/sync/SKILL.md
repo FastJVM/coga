@@ -249,10 +249,15 @@ carve-out: it crashes on the default `fatal=True` path — a rerun reproduces it
 identically, so the crash is the fix — and under `fatal=False` it is reported on
 stderr and returned, exactly like a delivery miss. What `fatal=False` never buys
 is a *reroute*: an important post with no `important_webhook` is dropped, never
-sent to flow. The fail-fast configuration gate is `preflight_post(cfg)`, which
-the `commands/*` module runs *before* the mutation; by the time a `fatal=False`
-post runs, crashing can only skip work that the already-committed write still
-needs done.
+sent to flow. The fail-fast configuration gate is `preflight_post(cfg)`:
+callers use it *before* the mutation to refuse an unusable selected route
+while the ticket still holds its previous state. Existing coverage and its
+conditions are listed under *Notification implementation pointers*; not every
+`fatal=False` producer preflights. Without that gate, a command can write the
+ticket and audit line, then report and drop the undeliverable announcement
+under `fatal=False` while finishing its remaining sync and session work.
+Preflight preserves refusal before the write; `fatal=False` prevents a
+notification failure discovered after the write from aborting completion.
 
 The strict single-checkout assist path has one narrower exception after it has
 published lifecycle state under an exact feature lease: a live delivery failure
@@ -349,6 +354,35 @@ new string:
   channel raises `NotificationDeliveryError` for a delivery miss and
   `typer.Exit(1)` for a configuration refusal; `post` is the single boundary
   where *both* become a crash or a return, per `fatal`.
+- `src/coga/notification/__init__.py::preflight_post(cfg, *, important=False)`
+  — the **fail-fast configuration gate**, the third element of the contract
+  alongside surface and destination. It calls `SlackChannel.require_webhook`
+  for every enabled channel and raises the same `typer.Exit(1)` with the same
+  stderr remedy the post itself would, but *before* any state mutation, so a
+  repo whose webhook does not resolve refuses the command with nothing
+  half-applied. It is the only place an unresolved webhook can still refuse a
+  `fatal=False` producer; after the write, `post` reports and drops. Seven
+  call sites in six modules, with these admission conditions: `commands/bump.py::bump` (terminal bump, or a step advance with
+  `--message`); `commands/mark.py::_preflight_outcome`, called from `done` and
+  `canceled` (every outcome command, not only a recorded assist);
+  `commands/block.py::block` (a recorded assist, before strict publication);
+  `commands/launch.py::_launch` twice (the script-assist setup path, and again
+  before assist lifecycle state is published on a non-`in_progress` ticket);
+  `launch_script.py::run_script_phase` (strict assist, before `ticket.py`
+  publishes a started lifecycle); and
+  `autoclose.py::_preflight_recipe_notifications`, the `before_close` hook of
+  `run_autoclose_recipe` (every close posts a live per-ticket Done line).
+  Ordinary `block` and launch paths do not preflight; their gates above are
+  specific to recorded assists. Assist refusals ultimately use `_bail` with
+  the no-sweep exit code; `run_script_phase` first wraps the refusal in
+  `ScriptPublicationError` for its launch caller. Other callers let the
+  configuration exit propagate. `important=True` checks the alert route
+  (`important_webhook`) instead of the default one: pass it when the post that
+  follows the write routes to important. No current caller passes that form.
+  Existing important alerts retain their post-write failure handling: script
+  failures, scan-error summaries, and watchdog outcomes use `fatal=False`;
+  `mark.py::_warn_if_state_not_advanced` uses the default `fatal=True` inside
+  an advisory exception guard. None preflights the important route.
 - `src/coga/notification/slack.py::SlackChannel` — the Slack backend. It owns
   Slack text rendering (project/owner prefix, image attachment),
   mention rendering, and the webhook POST.
@@ -1134,13 +1168,30 @@ fetched — but it turns the silently stale table into a labeled one.
 ## Design rule for new features
 
 If a new command changes state that other team members need to know about, it
-must reach the sync layer. Choose the surface first: `post` for an urgent event
-or explicit FYI, `notify` for a ticket outcome or scheduled-work error (it
-admits only those kinds), or silence for lifecycle audit noise that belongs
-only in the repo-global `coga/log.md` and git. Then choose destination at
-delivery: flow for operating awareness and aggregates, important only when a
-human must act and no durable human-owned ticket already holds the ask. Don't
-add silent state mutations that bypass both layers
+must reach the sync layer. The notification contract has three elements, and a
+state-changing command wires all three:
+
+1. **Surface.** `post` for an urgent event or explicit FYI, `notify` for a
+   ticket outcome or scheduled-work error (it admits only those kinds), or
+   silence for lifecycle audit noise that belongs only in the repo-global
+   `coga/log.md` and git.
+2. **Destination**, chosen at delivery: flow for operating awareness and
+   aggregates, important only when a human must act and no durable
+   human-owned ticket already holds the ask.
+3. **Preflight.** A command that announces its write with `fatal=False` — the
+   only correct setting for a post that follows a committed transition — calls
+   `notification.preflight_post(cfg)` *before* the mutation, passing
+   `important=True` when the broadcast routes to important. Preflight keeps
+   an unresolved webhook from allowing the mutation in the first place;
+   `fatal=False` reports and drops configuration or delivery failures found
+   after the write so the command can finish. Omitting preflight therefore
+   allows the state change to complete without its announcement, rather than
+   refusing it up front. Runs with a resolved webhook do not expose the
+   omission. Gate the call the way `bump` does, on whether this invocation will
+   actually post live, so a silent step advance does not demand a webhook it
+   will never use.
+
+Don't add silent state mutations that bypass both layers
 when the team needs awareness. Conversely, don't emit chatter that doesn't
 represent an outcome, urgent exception, or explicit FYI — notifications are the
 sync surface, not a debug stream.
