@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -194,3 +194,57 @@ worktree's own `src` — so the plain command may already resolve correctly and
 the `PYTHONPATH` advice may be belt-and-braces rather than required. Not
 verified end-to-end (would need a deliberate divergence between checkouts);
 left the existing text alone and used the explicit `PYTHONPATH` spelling.
+
+## Peer review
+
+2026-09-11 — **`codex review --base main` returned, exit 0**, from the recorded
+feature worktree. The sandboxed invocation could not initialize its app-server
+(read-only filesystem); the unsandboxed retry completed. It reported two P2
+findings:
+
+- Missing local config refuses the requested action but is not a no-write
+  guarantee. `cli.main` still calls `_sweep_coga_state` after ordinary failures,
+  loading with `require_user=False`. The reviewer reproduced `coga bump missing`
+  exiting 2 while publishing a dirty context onto a temporary repository's
+  `origin/main`. Keep the pre-command commit requirement in the copy guidance.
+- Detached HEAD is not a blanket publication refusal. `git.sync_log` refuses
+  its narrow log publication, but `sync_task_state` and `sync_coga_state` can
+  publish state and union-merge logs; strict lifecycle publishers can create
+  scoped detached commits. Recurring admission requires control checked out.
+  `_sync_recurring_create_paths` skips its detached local commit, while
+  `_land_recurring_create_on_control_branch` still lands the task and period
+  ledger. The implementation note's broader detached-HEAD inference is stale.
+
+Source checks confirm the config-copy and retire rules; the propagation
+companion remains draft. The attending human approved both corrections. Applied
+them in `dev/code` and `coga/codebase`, preserving the original documentation
+split, and synchronized their packaged twins. The `code/implement` pointer
+continues to use the corrected `dev/code` rule. All three pairs are byte-identical.
+Committed as `d4f754ee` (`peer-review: correct checkout publication guidance`).
+
+**Freshness.** Ran `git fetch origin main` followed by `git rebase FETCH_HEAD`
+unconditionally in the feature worktree. Rebase completed without conflicts on
+`525fa025`; implementation commit is now `8a60bbcc`. Repeated fetch/rebase after
+the approved fix commit: already up to date. The feature worktree is clean,
+with two commits ahead of `origin/main` and no remaining must-fix findings.
+
+**Validation.** The full post-fix suite passed: **2435 passed in 171.02s**,
+including packaging/twin checks, using the feature checkout's source and the
+primary checkout's Python 3.12 interpreter (exact command under `## PR`).
+`git diff --check main...HEAD` passed in the feature worktree.
+`coga validate --task isolated-checkouts-nothing-says-what-a-fresh-workt`
+passed from the primary checkout: `All good (1 tasks checked).`
+
+Peer review is complete. The next action is the single workflow bump from the
+primary checkout; the PR body below is ready for the mechanical open-pr step.
+
+## PR
+
+Fresh linked worktrees and fallback clones omit gitignored Coga config and
+generated state. Document the ordinary-copy, mode 0600, and cleanup rule in
+`dev/code`, reference it from `code/implement`, and explain omitted state and Git
+checkout constraints in `coga/codebase`. The guidance accounts for the exit
+sweep after missing-config failures and distinguishes recurring admission from
+detached publication; all packaged twins are synchronized.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-fresh-checkout-lacks/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` (2435 passed); `git diff --check main...HEAD` (passed); `coga validate --task isolated-checkouts-nothing-says-what-a-fresh-workt` (1 task passed).
