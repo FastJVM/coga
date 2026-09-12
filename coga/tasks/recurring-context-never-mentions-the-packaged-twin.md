@@ -93,6 +93,7 @@ Filed by Dream 2026-W36, Phase 2 knowledge scan (shard `ks-11`), classified `gap
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/792
 branch: recurring-twin-note
 worktree: /home/n/Code/claude/coga-recurring-twin-note
 
