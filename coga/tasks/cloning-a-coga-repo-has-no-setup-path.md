@@ -211,6 +211,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/788
 branch: init-clone-setup
 worktree: /home/n/Code/claude/coga-init-clone-setup
 (separate linked worktree off `main`; primary checkout stays on `main` and runs `coga bump`)
