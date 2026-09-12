@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -99,11 +99,11 @@ worktree: /home/n/Code/claude/coga-sync-context-preflight
   `commands/launch.py::_launch` twice (script-assist setup path; before assist
   lifecycle state is published on a non-`in_progress` ticket). Documented all
   seven, not five.
-- No caller passes `important=True`. The important-routed producers
-  (`launch_script.py` script failure, `mark.py` stale-period warning,
-  `recurring_runner._broadcast_scan`) rely on `fatal=False` dropping the alert
-  loudly rather than preflighting the important route. Documented the form and
-  stated plainly that it has no consumer today.
+- No caller passes `important=True`. Existing important alerts handle failure
+  after the write: script failure, scan summaries, and watchdog outcomes use
+  `fatal=False`; `mark.py::_warn_if_state_not_advanced` instead uses the default
+  `fatal=True` inside its advisory exception guard (corrected at peer review).
+  Documented the form and stated plainly that it has no consumer today.
 
 ## Changes
 
@@ -117,17 +117,54 @@ worktree: /home/n/Code/claude/coga-sync-context-preflight
    gating conditions, the assist `_bail` vs re-raise split, and the
    `important=True` form.
 3. Fail-loud section: the "`commands/*` module runs it" aside now points at the
-   pointer bullet and spells out the half-applied outcome the gate prevents.
+   caller inventory and distinguishes refusal before mutation from reporting
+   and dropping a failed announcement after mutation.
 
 Tests: full suite 2435 passed (`.venv/bin/python -m pytest`); packaging twin
 test green. No code change, no fixture change needed.
 
 ## Adjacent finding (not fixed here)
 
-Important-routed `fatal=False` producers do not preflight the important route,
-so a repo with `webhook` set but `important_webhook` unset silently loses the
-script-failure and stale-period alerts (loud on stderr, never delivered).
-That is the documented behavior since #761 and a deliberate choice for the
-scan sweep; whether the per-ticket script-failure alert should preflight
-`important=True` instead is a design question, not a doc gap. No follow-up
-ticket exists.
+Existing important alerts do not preflight the important route, so a repo with
+`webhook` set but `important_webhook` unset loses the alert with a stderr
+diagnostic. Script failures, scan summaries, and watchdog outcomes use
+`fatal=False`; the stale-period warning catches failures in its own advisory
+guard. Whether per-ticket script-failure alerts should preflight
+`important=True` is a design question outside this documentation fix. No
+follow-up ticket exists.
+
+## Peer review
+
+- `codex review --base main` **returned** from the recorded feature worktree
+  at `c8e21145`, with one P2 finding: the new prose incorrectly claimed an
+  unresolved webhook crashes after a non-fatal post. Corrected both repeated
+  explanations in both context twins: `fatal=False` reports and drops; the
+  preflight preserves refusal before mutation.
+- Source inspection confirmed seven calls in six modules and no
+  `important=True` consumer. Also narrowed the universal preflight claim to
+  the actual caller conditions and corrected the stale-period warning's
+  advisory guard and the script phase's `ScriptPublicationError` handoff.
+- GitHub confirms Dream PRs #738 and #767 are merged. The review's 69 focused
+  checks passed; its wheel-build check lacked `hatchling` in the default
+  interpreter. The full suite with the repository `.venv` passed all 2435
+  tests, including the wheel build (`/home/n/Code/claude/coga/.venv/bin/python
+  -m pytest`, run from the feature worktree).
+- Committed the corrections, fetched `origin main`, and rebased onto
+  `d7a263ec` without conflicts. The context bytes are unchanged by the rebase,
+  and both twins remain byte-identical. The branch is clean at `ab4d2b8e`,
+  with two commits ahead of `main`; `git diff --check main...HEAD` passes.
+  The required full-suite run after rebase also passed: **2435 passed** in
+  171.86s with the same command. No must-fix findings remain.
+
+## PR
+
+Document `notification.preflight_post` as the third element of the sync
+context's notification contract, alongside surface and destination. Name all
+seven call sites in six modules, their admission conditions, and the
+`important=True` form, which has no current caller.
+
+Clarify that preflight refuses an unresolved webhook before mutation, while
+`fatal=False` reports and drops failures after the write so the command can
+finish. Update the live context and its packaged twin together.
+
+Test plan: `/home/n/Code/claude/coga/.venv/bin/python -m pytest` from the feature worktree — 2435 passed after rebase; `git diff --check main...HEAD` passed.
