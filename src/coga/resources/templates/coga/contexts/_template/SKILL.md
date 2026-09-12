@@ -16,9 +16,11 @@ into the prompt at launch time. That makes a context *eager* knowledge,
 paid for on every launch that attaches it: put a fact here when a step
 would go wrong without it in-prompt, and point at a `docs/` page (a
 link is not composition) for bulky reference an agent needs only
-sometimes. One owner per fact — see `Where a fact lives: docs vs
-contexts` in `coga/contexts/coga/architecture/SKILL.md` before copying
-text in from a doc or another context.
+sometimes. One owner per fact — before copying text from a doc or another
+context, read `Where a fact lives: docs vs contexts` in `coga/architecture`.
+Add that context ref to the authoring ticket's `contexts:` list to load the
+rule. Coga resolves it from the configured contexts directory or the bundled
+package; a repo-local architecture file is not required.
 
 Keep a context as short as its domain allows, and no shorter. A
 narrowly scoped context really is two or three sections and about a
