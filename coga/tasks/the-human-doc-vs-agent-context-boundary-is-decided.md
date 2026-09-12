@@ -1,7 +1,7 @@
 ---
 title: The human-doc vs agent-context boundary is decided per ticket and recorded
   nowhere
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
