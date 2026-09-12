@@ -104,6 +104,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/793
 branch: cite-symbols-rule
 worktree: /home/n/Code/claude/coga
 Single-checkout layout: branch created in place in the primary checkout.
