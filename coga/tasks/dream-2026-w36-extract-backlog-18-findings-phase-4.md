@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: 8f02ed15-8210-474a-bd26-d6cb4630dfcd
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -134,3 +133,162 @@ Filed by Dream 2026-W36, Phase 6 disposition.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: dream-w36-extract-backlog
+worktree: /home/n/Code/claude/coga-dream-w36-extract-backlog
+
+Separate-checkout layout, branched from `origin/main` (`329b8d0b`). The
+primary checkout sits on the `cite-symbols-rule` control branch, which carries
+unrelated in-flight edits, so the feature branch deliberately does not fork
+from it.
+
+## Triage (2026-09-12, implement)
+
+Key fact the ticket predates: Dream's *next* firing (period 2026-09-08) routed
+its `extract` findings into proposal PRs #763–#775 instead of Phase 4, and all
+of them merged on 2026-09-09. That consumed a large share of this backlog.
+Verified item by item against `origin/main`:
+
+**Already landed — no action (8):**
+
+- 2 validate-before-write → `coga/architecture` (PR #769; `ticket_override`
+  idiom, and the four still-write-then-validate writers named).
+- 3 `--prompt-report` is not read-only → `coga/codebase` (PR #773).
+- 4 `PYTHONPATH=$PWD/src` as the default from a feature checkout →
+  `coga/codebase` (PR #773).
+- 11 `--agent` override propagation → `coga/architecture` (PR #769;
+  `consecutive_agent_override` paragraph).
+- 14 mutating experiments publish themselves; `[git] enabled = false` or a
+  throwaway clone → `coga/sync` (PR #767).
+- 17 wait for the ordered review before bumping → `code/with-review`
+  peer-review section and `code/self-qa` step 7 (PR #771).
+- 12 the `init` / `recurring --all` config-error escape hatch → landed in
+  `coga/recurring` (PR #774), but `coga/extension-model` — the ticket's target
+  and the context that owns aliases — still lists no alias-validation failure
+  mode at all. Landing the short missing half there (see below).
+- 8 autofix analyst defects → already its own ticket:
+  `the-autofix-analyst-ticket-closed-without-shipping` (draft) names all three
+  defects, including the third this backlog never captured. Nothing to add.
+
+**Landing here, grouped by target (10):**
+
+- `coga/codebase` (twin pair): 1 consumer-test refinement (`append_report` ×3
+  private copies; consolidate, don't add a fifth), 5 prompt-resource authoring
+  rules, 13 fence-aware blackboard writers (gotcha).
+- `coga/recurring` (twin pair): 6 first-firing suppression — rewritten for the
+  current ledger mechanism (`last_serviced_period:` no longer exists; the mark
+  is a `coga/log.md` line written at period-task creation), 7 why a
+  `ticket.py`-backed step keeps `assignee: agent`.
+- `coga/extension-model` (twin pair): 12 alias-validation failure modes +
+  cross-ref to the recurring escape hatch.
+- `dev/code` (twin pair) + `code/open-pr` skill (twin pair) +
+  `open_pr.py` remediation string: 9 launch never places the agent, 10 the
+  gate is presence-only and cheaply satisfiable; a stranded duplicate is
+  discarded, never committed or stashed.
+- `coga/period-task` (twin pair): 13 cross-run state writers use the
+  fence-aware API.
+- `coga/project-stage` (live only): 15 precedent list — `coga build` removed
+  (#691) then restored (#701); watchers reintroduced then removed again
+  (#784); partial-revert procedure. Also corrects the existing watcher bullet,
+  which stopped being true at #784.
+- `retro/done-ticket` (packaged only) + Dream template (twin pair): 16
+  on-disk progress contract for the destructive phase.
+- `code/self-qa` (twin pair) + `code/with-review` (packaged only): 18 manual
+  sweep gate for surfaces automated tests structurally cannot reach.
+
+**Decision: one PR, one commit per target area** rather than sibling tickets.
+Ten paragraph-sized edits across eight target areas; five more `with-review`
+tickets would cost more workflow overhead than the review of a commit-grouped
+diff. `coga retire` on the source tickets is not used here: they stay on disk
+as retirement debt, and this ticket only copies knowledge out of them.
+
+## Implemented (2026-09-12)
+
+Six commits on `dream-w36-extract-backlog`, one per target area, tip
+`84cd9bcd`, 20 files, +400/−7. Every live/packaged twin was verified identical
+at `origin/main` before editing and copied live → packaged after; the Dream
+template pair was edited in both places.
+
+- `45472c61` `coga/codebase` — items 1, 5, 13 (consumer-test refinement under
+  the microkernel rule; two new gotchas).
+- `e6818856` `coga/recurring` + `coga/extension-model` — items 6, 7, 12.
+- `dd00fb90` `dev/code` + `code/open-pr` skill + `open_pr.py` — items 9, 10.
+  The only code change: the "uncommitted changes" refusal no longer says
+  "commit or stash them"; no test asserted on that string.
+- `b6221cc9` `coga/period-task` + `coga/project-stage` — items 13, 15.
+- `2123817f` `retro/done-ticket` (packaged-only) + Dream template — item 16.
+- `84cd9bcd` `code/self-qa` + `code/with-review` (packaged-only) — item 18.
+
+Decisions worth a reviewer's eye:
+
+- **Item 6 rewritten for current reality, not transcribed.** The source
+  ticket's lesson ("seed a real period key, not `none`") is about a template
+  field that no longer exists; the mark is now a `coga/log.md` line written at
+  period-task creation, and the bare sweep creates and launches in one pass
+  with no create-only mode. The context therefore says: suppress by timing or
+  by parking (`_` prefix), make the body tolerate an already-handled period,
+  and never `coga mark canceled` a period task at the stable path — a canceled
+  task is returned on the next period and refused (`recurring_runner`
+  "left alone" gate), so the template sticks until deleted. Verified against
+  `recurring.py` (`_last_firing`, `_advance_serviced_period`) and
+  `recurring_runner.py`.
+- **Item 15 corrects an existing bullet.** `project-stage` said watchers were
+  "removed once and later reintroduced"; they were removed again in PR #784,
+  which `current-direction` already records. The owner quote for the build
+  restore is verbatim from `coga/log.md`.
+- **Item 16 adds a contract, not just a note.** `retro/done-ticket` gains a
+  `progress.md` beside the evidence snapshot (caller-owned directory, outside
+  every diff) and the Dream template reads it and reports `partial` when the
+  `complete` line is missing. Without the reader the contract would be dead.
+- **Item 18 lands in both `code/self-qa` and the `with-review` peer-review
+  section**: the incident's manual gate sat on peer-review, and this repo's
+  tickets run `with-review`, so the skill alone would not reach them.
+- **Item 12 landed in `extension-model` even though PR #774 covered the
+  recurring side** — that context owns aliases and named no failure mode.
+
+Verification, from the feature worktree with `PYTHONPATH=$PWD/src
+python3.12 -m pytest -p no:cacheprovider`: 2434 passed, 1 failed —
+`tests/test_packaging.py::test_wheel_includes_bootstrap_batteries`, "Cannot
+import 'hatchling.build'", the environment gap Dream's blackboard records as
+failing identically on unmodified `origin/main` (human-needed #5 there). All
+twin-parity assertions pass. `git diff --check` clean. `coga validate --json`
+reports the same 31 repo-wide baseline issues as before (none touch changed
+files). Rebased onto `origin/main` `329b8d0b`; `origin/main` is an ancestor
+of the tip. Not pushed; no PR.
+
+## PR
+
+Land the ten knowledge items from the Dream 2026-W36 extract backlog that the
+2026-09-08 Dream run's proposal PRs (#763–#775) did not already cover, grouped
+one commit per target context or skill:
+
+- `coga/codebase`: duplicate private helper copies are not "≥2 consumers"
+  (consolidate `append_report`'s callers, don't add a fifth copy); prompt
+  resources are the only version of a rule most launches see; every
+  blackboard writer uses the fence-aware API.
+- `coga/recurring`: a new template fires retroactively and there is no
+  seeding path — suppress by timing or parking, never by canceling the period
+  task; why a `ticket.py` step keeps `assignee: agent`.
+- `coga/extension-model`: alias-validation failure modes and the
+  `init` / `uninstall` / `recurring --all` exemption.
+- `dev/code` + `code/open-pr`: `coga launch` never places the agent; the
+  `requires: branch` gate is presence-only and cheaply satisfiable; a stranded
+  control-plane write in the feature checkout is discarded, not committed or
+  stashed. The open-pr refusal text no longer says "commit or stash".
+- `coga/period-task`: fence-aware writers for cross-run state.
+- `coga/project-stage`: `coga build` removed → restored and watchers
+  reintroduced → removed again, plus the partial-revert procedure.
+- `retro/done-ticket` + Dream template: an on-disk `progress.md` contract
+  for the destructive phase, read by Dream to report a died run as `partial`.
+- `code/self-qa` + `code/with-review`: a recorded manual sweep is the gate
+  for surfaces automated tests cannot reach.
+
+Eight of the eighteen items had already landed via #767, #769, #771, #773,
+#774 or are carried by `the-autofix-analyst-ticket-closed-without-shipping`;
+the ticket blackboard records the per-item evidence.
+
+Test plan: `PYTHONPATH=$PWD/src python3.12 -m pytest` — 2434 passed; the one
+failure is the pre-existing `hatchling` wheel-build environment gap. Twin
+parity passes for every edited live/packaged pair.
