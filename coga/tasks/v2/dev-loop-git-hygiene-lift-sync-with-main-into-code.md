@@ -1,11 +1,11 @@
 ---
 title: 'Dev-loop git hygiene: lift sync-with-main into code/open-pr + add recurring
   merged-branch cleanup'
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 contexts:
-  - coga/codebase
+- coga/codebase
 workflow:
   name: code/with-self-review
   steps:
