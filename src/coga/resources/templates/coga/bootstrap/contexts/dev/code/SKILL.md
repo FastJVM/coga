@@ -65,6 +65,39 @@ layout, not the single-checkout one: `_checkout_mode` cannot prove live-ticket
 ownership from a foreign repository, so control-plane writes, `coga bump`, and
 `coga open-pr` still happen in the primary checkout.
 
+### Seed the machine-local config
+
+A fresh checkout — linked worktree or independent clone alike — has no
+`coga.local.toml`: the file is gitignored, so Git never carries it. Every Coga
+command that acts *as* someone (`bump`, `block`, `create`, `mark`, `launch`,
+`run`, `slack`, ...) loads config with `require_user=True` and fails with
+exit 2 before doing anything; only the read-only views (`status`, `show`,
+`validate`, `usage`) tolerate the missing file. No environment variable or
+flag substitutes for it. The `coga/codebase` context lists what else a fresh
+checkout lacks and which of it self-heals.
+
+In the two standard layouts you never need the copy: the separate-checkout
+layout runs every control-plane command in the primary checkout, and the
+single-checkout layout *is* the primary checkout. Seed it only when a
+user-acting command will run inside the fresh checkout — a session launched in
+a linked worktree, an isolated Retro or Dream checkout, or a design that
+services recurring work from a worktree. Then follow the rule the existing
+precedents (`recurring/dream`, `retro/done-ticket`, the retire prompt, and
+`recurring_runner`'s temporary control worktree) already share:
+
+- **Ordinary-copy** the primary checkout's `coga.local.toml` to the same
+  repo-relative path in the new checkout (`coga/coga.local.toml` in this repo)
+  and set it to mode 0600. It carries secret *references*, never values, and
+  machine-local paths — the same capabilities on the same machine.
+- **Never symlink it**, put it in an evidence snapshot, stage it, or commit
+  it. It is ignored, so `git add <path>` is the only way it reaches a commit;
+  do not give Git that path.
+- **Remove the copy when the need ends.** With a disposable checkout, remove
+  it before the checkout goes. With a durable feature worktree, remove it
+  before the ticket reaches `coga retire`: retire preserves a checkout holding
+  any ignored file outside its regenerable-cache carve-out, so a copy left
+  behind turns the checkout's cleanup into a refusal.
+
 ### Keep the feature checkout durable
 
 A `/tmp` checkout survives only until the next reboot, and the sandbox fallback
