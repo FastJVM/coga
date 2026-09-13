@@ -59,6 +59,7 @@ from coga.lifecycle import TERMINAL_STATUSES
 from coga.notification import post
 from coga.taskfile import TaskFileError, read_blackboard
 from coga.tasks import TaskRef, list_tasks, read_ticket
+from coga.text import strip_ansi
 from coga.ticket import TicketError
 
 # The sub-directory under `tasks/` every autofix ticket lands in. A plain
@@ -118,9 +119,6 @@ _CLAUDE_AUTH_FAILURE_MARKERS = (
 # appends its findings, so the newest writing is the relevant writing.
 _MAX_BLACKBOARD_CHARS_PER_TASK = 4000
 _MAX_RECORD_CHARS = 48000
-
-_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
-
 
 class AutofixUnavailable(Exception):
     """The analysis could not run. Loud, but never fatal to the sweep."""
@@ -254,7 +252,7 @@ class RunRecord:
                     lines.append(f"- note: {outcome.detail}")
                 lines.append("")
                 body = _tail(
-                    _strip_ansi(outcome.blackboard), _MAX_BLACKBOARD_CHARS_PER_TASK
+                    strip_ansi(outcome.blackboard), _MAX_BLACKBOARD_CHARS_PER_TASK
                 )
                 if body.strip():
                     lines += [
@@ -272,11 +270,6 @@ class RunRecord:
             lines.append("")
 
         return _tail("\n".join(lines), _MAX_RECORD_CHARS)
-
-
-def _strip_ansi(text: str) -> str:
-    """Drop terminal control sequences captured from a child's colored output."""
-    return _ANSI_RE.sub("", text)
 
 
 def _tail(text: str, limit: int) -> str:

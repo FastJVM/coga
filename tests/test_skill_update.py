@@ -59,19 +59,14 @@ def test_classify_status_buckets_known_statuses() -> None:
     assert classify_status("failed") == GROUP_FOLLOWUP
 
 
-def test_classify_status_no_longer_counts_delegated_as_an_update() -> None:
-    # `delegated` was the one hardcoded row the old bulk `gh skill update`
-    # path emitted with `changed=True`, which made every run read
-    # `1 updated, 0 need follow-up`. The updater now measures each skill; a
-    # bare hand-off claim is follow-up, not an update.
-    assert classify_status("delegated") == GROUP_FOLLOWUP
-
-
 def test_classify_status_routes_conflict_and_unknown_to_followup() -> None:
     # The sibling ticket's future `conflict` status — and any status the
     # updater grows that this worker has not enumerated — must surface as
-    # follow-up, never be silently dropped under a benign heading.
+    # follow-up, never be silently dropped under a benign heading. `delegated`
+    # is such an unknown now: the old bulk path's hardcoded hand-off row is
+    # gone, and a bare hand-off claim is follow-up, not an update.
     assert classify_status("conflict") == GROUP_FOLLOWUP
+    assert classify_status("delegated") == GROUP_FOLLOWUP
     assert classify_status("some-brand-new-status") == GROUP_FOLLOWUP
 
 

@@ -576,9 +576,13 @@ project-local managed skills and emits one result per installed skill that
 has a managed source: GitHub-backed skills are each asked of `gh skill update`
 in turn and report `updated` / `unchanged` / `fetch-failed` / `skipped-pinned`,
 URL-backed skills go through Coga's digest checks, and an installed twin of a
-bundled skill is `skipped-bundled` with the package update path: upgrade the
-`coga` package. Bundled refs the repo never installed, and directories with no
-managed source at all, get no row.
+bundled skill is `skipped-bundled` because the repo copy shadows the packaged
+one and is maintained in the repo (only an uninstalled bundled ref is refreshed
+by upgrading the `coga` package). Bundled refs the repo never installed, and
+directories with no managed source at all, get no row. A GitHub-backed skill
+nested below the root of `coga/skills/` is refused as `failed` before `gh` is
+called: `gh skill update` reinstalls at `coga/skills/<name>` wherever it found
+the skill, so updating `ns/<name>` would silently move it.
 
 The subcommands cover three source types: `install <owner/repo-or-url> [skill]`
 for GitHub, `install-url <url>` for an arbitrary URL downloaded locally first,
