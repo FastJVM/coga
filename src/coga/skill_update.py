@@ -3,9 +3,11 @@
 Wraps `coga skill update --all --pr`: publishes the clean results emitted by
 the GitHub- and URL-backed updater paths in one reviewable PR, and groups their
 reported conflicts, URL local adaptations, or fetch failures as follow-up work
-on the task blackboard. GitHub-backed local edits follow ``gh skill`` overwrite
-semantics. Local-backed and hand-vendored directories emit no update result,
-so this recipe neither updates nor inventories them.
+on the task blackboard. Every installed GitHub-backed skill gets its own
+measured row — `coga skill update` asks ``gh skill update`` about each one in
+turn — and GitHub-backed local edits follow ``gh skill`` overwrite semantics.
+Local-backed and hand-vendored directories emit no update result, so this
+recipe neither updates nor inventories them.
 """
 
 from __future__ import annotations
@@ -31,16 +33,19 @@ from coga.task_env import blackboard_from_env, discover_coga_os_root
 # *raw* status, so a new status (e.g. the `conflict` status a sibling ticket
 # adds) stays distinct from `skipped-local-adaptation` instead of being merged
 # with it. Any emitted status not named here is treated as follow-up so it is
-# never silently swallowed.
+# never silently swallowed. `delegated` is deliberately absent: the updater no
+# longer emits it, and a row that only *asserts* an update was handed to `gh`
+# without measuring the outcome is follow-up, not an update.
 GROUP_UPDATED = "updated"
 GROUP_FOLLOWUP = "followup"
 GROUP_SKIPPED = "skipped"
 
-UPDATED_STATUSES = {"updated", "installed", "delegated"}
+UPDATED_STATUSES = {"updated", "installed"}
 FOLLOWUP_STATUSES = {"conflict", "skipped-local-adaptation", "failed", "fetch-failed"}
 SKIPPED_STATUSES = {
     "unchanged",
     "skipped-bundled",
+    "skipped-pinned",
     "package-backed",
     "local-override",
     "up-to-date",
