@@ -25,6 +25,7 @@ from coga.config import Config
 from coga.github_source import github_owner_repo
 from coga.paths import packaged_template_path
 from coga.skill import Skill
+from coga.text import strip_ansi
 
 
 SOURCE_METADATA = ".coga-source.json"
@@ -308,59 +309,35 @@ def update_skills(
 
     summary = SkillUpdateSummary()
     bundled_refs = _bundled_skill_refs(cfg)
+    root = skills_root(cfg)
     if all_skills:
-        # One result per *installed* skill that has a managed update source:
-        # `gh skill`'s own frontmatter metadata, Coga's URL provenance, or a
-        # package-backed twin. First-party repo skills, `install-local`
-        # directories and hand-vendored packs have no update source and emit
-        # no row. Bundled refs this repo never installed are not this repo's
-        # skills and are not reported as "skipped" either.
-        gh_checked = False
-        for skill_dir in list_installed_skill_dirs(skills_root(cfg)):
-            ref = _skill_ref_from_path(skills_root(cfg), skill_dir)
-            metadata = read_source_metadata(skill_dir)
-            if metadata and metadata.get("source_type") == "url":
-                summary.results.append(
-                    _update_url_skill_dir(
-                        cfg,
-                        skill_dir,
-                        metadata,
-                        downloader=downloader,
-                        now=now,
-                    )
-                )
-            elif gh_skill_metadata(skill_dir) is not None:
-                if not gh_checked:
-                    ensure_gh_skill(runner=runner)
-                    gh_checked = True
-                summary.results.append(
-                    _update_gh_backed_skill(cfg, ref, runner=runner, checked=True)
-                )
-            elif ref in bundled_refs:
-                summary.results.append(_bundled_update_result(ref))
+        # One result per *installed* skill that has a managed update source.
+        # First-party repo skills, `install-local` directories and
+        # hand-vendored packs have no update source and emit no row. Bundled
+        # refs this repo never installed are not this repo's skills and are
+        # not reported as "skipped" either.
+        planned: list[tuple[str, Path, str]] = []
+        for skill_dir in list_installed_skill_dirs(root):
+            ref = _skill_ref_from_path(root, skill_dir)
+            source = _managed_update_source(skill_dir, ref, bundled_refs)
+            if source is not None:
+                planned.append((ref, skill_dir, source))
+        summary.results.extend(
+            _run_planned_updates(
+                cfg, planned, runner=runner, downloader=downloader, now=now
+            )
+        )
         return summary
 
     skill_ref = skill or ""
     target_path = _skill_target(cfg, skill_ref)
     if not target_path.exists() and skill_ref in bundled_refs:
-        summary.results.append(_bundled_update_result(skill_ref))
+        summary.results.append(_bundled_update_result(skill_ref, installed=False))
         return summary
 
     target = resolve_installed_skill_dir(cfg, skill_ref)
-    metadata = read_source_metadata(target)
-    if metadata and metadata.get("source_type") == "url":
-        summary.results.append(
-            _update_url_skill_dir(
-                cfg,
-                target,
-                metadata,
-                downloader=downloader,
-                now=now,
-            )
-        )
-        return summary
-
-    if gh_skill_metadata(target) is None:
+    source = _managed_update_source(target, skill_ref, bundled_refs)
+    if source is None:
         summary.results.append(
             SkillResult(
                 name=skill_ref,
@@ -374,8 +351,67 @@ def update_skills(
             )
         )
         return summary
-    summary.results.append(_update_gh_backed_skill(cfg, skill_ref, runner=runner))
+    summary.results.extend(
+        _run_planned_updates(
+            cfg,
+            [(skill_ref, target, source)],
+            runner=runner,
+            downloader=downloader,
+            now=now,
+        )
+    )
     return summary
+
+
+def _managed_update_source(
+    skill_dir: Path, ref: str, bundled_refs: set[str]
+) -> str | None:
+    """Which updater owns an installed skill: `url`, `github`, `bundled`, or None.
+
+    Coga's own URL provenance wins over `gh skill` frontmatter; a bundled twin
+    is decided by ref, not by anything in the directory.
+    """
+    metadata = read_source_metadata(skill_dir)
+    if metadata and metadata.get("source_type") == "url":
+        return "url"
+    if gh_skill_repo(skill_dir) is not None:
+        return "github"
+    if ref in bundled_refs:
+        return "bundled"
+    return None
+
+
+def _run_planned_updates(
+    cfg: Config,
+    planned: Sequence[tuple[str, Path, str]],
+    *,
+    runner: Runner | None,
+    downloader: Downloader | None,
+    now: Callable[[], str] | None,
+) -> list[SkillResult]:
+    # Fail loud on a missing `gh skill` before any updater writes to disk:
+    # directories sort URL-backed skills ahead of gh-backed ones as easily as
+    # behind, and a run that dies halfway leaves rewritten skills uncommitted
+    # in the checkout. Nested gh-backed refs are refused without reaching gh.
+    if any(source == "github" and "/" not in ref for ref, _dir, source in planned):
+        ensure_gh_skill(runner=runner)
+    results: list[SkillResult] = []
+    for ref, skill_dir, source in planned:
+        if source == "url":
+            results.append(
+                _update_url_skill_dir(
+                    cfg,
+                    skill_dir,
+                    read_source_metadata(skill_dir) or {},
+                    downloader=downloader,
+                    now=now,
+                )
+            )
+        elif source == "github":
+            results.append(_update_gh_backed_skill(cfg, ref, runner=runner))
+        else:
+            results.append(_bundled_update_result(ref, installed=True))
+    return results
 
 
 def status_skills(
@@ -403,19 +439,20 @@ def status_skills(
                 result = _local_override_result(result)
             results.append(result)
             continue
-        source_type = _infer_non_coga_source_type(skill_dir)
-        if source_type == "github":
-            status = "delegated"
-            message = "managed by gh skill metadata"
+        if gh_skill_repo(skill_dir) is not None:
+            result = SkillResult(
+                name=ref,
+                source_type="github",
+                status="delegated",
+                message="managed by gh skill metadata",
+            )
         else:
-            status = "unmanaged"
-            message = "no Coga source metadata"
-        result = SkillResult(
-            name=ref,
-            source_type=source_type,
-            status=status,
-            message=message,
-        )
+            result = SkillResult(
+                name=ref,
+                source_type="unknown",
+                status="unmanaged",
+                message="no Coga source metadata",
+            )
         if ref in bundled_refs:
             result = _local_override_result(result)
         results.append(result)
@@ -632,12 +669,18 @@ def run_gh_skill(
     *,
     runner: Runner | None = None,
     checked: bool = False,
+    check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
+    """Run `gh skill <args>`; with `check`, a non-zero exit raises.
+
+    `check=False` hands the raw `CompletedProcess` back to a caller that
+    classifies gh's exit code and output itself.
+    """
     if not checked:
         ensure_gh_skill(runner=runner)
     command = ["gh", "skill", *args]
     result = (runner or run_subprocess)(command, None)
-    if result.returncode != 0:
+    if check and result.returncode != 0:
         stderr = (result.stderr or result.stdout).strip()
         translated = _translate_gh_skill_error(args, stderr)
         if translated is not None:
@@ -1064,12 +1107,11 @@ GH_SKILL_REPO_KEY = "github-repo"
 # stdout for a success and stderr for everything else. Icons are stripped
 # first: gh prefixes warnings with `!`, failures with `X` and pins with `⊘`,
 # and adds ANSI colour when forced to a TTY.
-_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 _GH_UPDATE_LINE_PREFIX_RE = re.compile(r"^[\s!X✓⊘•]*")
 
 
-def gh_skill_metadata(skill_dir: Path) -> dict[str, str] | None:
-    """Return the `github-*` provenance `gh skill` wrote into SKILL.md, or None.
+def gh_skill_repo(skill_dir: Path) -> str | None:
+    """Return the repository `gh skill` recorded in SKILL.md, or None.
 
     This is the same test `gh skill update` applies: a skill is GitHub-backed
     exactly when its frontmatter `metadata` carries `github-repo`. A first-party
@@ -1085,11 +1127,7 @@ def gh_skill_metadata(skill_dir: Path) -> dict[str, str] | None:
     repo = meta.get(GH_SKILL_REPO_KEY)
     if not isinstance(repo, str) or not repo.strip():
         return None
-    return {
-        key: str(value)
-        for key, value in meta.items()
-        if isinstance(key, str) and key.startswith("github-") and value is not None
-    }
+    return repo
 
 
 def _update_gh_backed_skill(
@@ -1097,7 +1135,6 @@ def _update_gh_backed_skill(
     skill_ref: str,
     *,
     runner: Runner | None = None,
-    checked: bool = False,
 ) -> SkillResult:
     """Run `gh skill update` for one skill and report what gh did to it.
 
@@ -1106,13 +1143,29 @@ def _update_gh_backed_skill(
     repository's ref does not resolve it warns about the first skill from that
     repository and silently skips the rest. Asking about one skill at a time
     turns every outcome into a line this function can classify. `--all` here
-    only suppresses the interactive confirmation.
+    only suppresses the interactive confirmation. The caller has already
+    probed for `gh skill`.
     """
-    if not checked:
-        ensure_gh_skill(runner=runner)
     args = ["update", "--dir", str(skills_root(cfg)), "--all", skill_ref]
     command = ["gh", "skill", *args]
-    completed = (runner or run_subprocess)(command, None)
+    if "/" in skill_ref:
+        # gh reinstalls an updated skill at `--dir/<name>` regardless of where
+        # it found it (verified on gh 2.92: `ns/x` is deleted and `x` created,
+        # printed as a clean `Updated ns/x`). Refuse before gh moves anything
+        # rather than commit a silent rename as a routine update.
+        flat = skill_ref.rsplit("/", 1)[-1]
+        return SkillResult(
+            name=skill_ref,
+            source_type="github",
+            status="failed",
+            message=(
+                f"`gh skill update` reinstalls at the root of the skills tree "
+                f"and would move `{skill_ref}` to `{flat}`; reinstall it at the "
+                f"root before updating"
+            ),
+            details={"command": command, "returncode": None, "stdout": "", "stderr": ""},
+        )
+    completed = run_gh_skill(args, runner=runner, checked=True, check=False)
     return classify_gh_update_output(
         skill_ref,
         returncode=completed.returncode,
@@ -1157,18 +1210,18 @@ def classify_gh_update_output(
         )
 
     lines = [
-        _GH_UPDATE_LINE_PREFIX_RE.sub("", _ANSI_RE.sub("", raw)).strip()
+        _GH_UPDATE_LINE_PREFIX_RE.sub("", strip_ansi(raw)).strip()
         for raw in (stdout + "\n" + stderr).splitlines()
     ]
     lines = [line for line in lines if line]
-    pending = next(
-        (line for line in lines if line.startswith(f"{skill_ref} (")), None
-    )
-    for line in lines:
-        if line == f"Updated {skill_ref}":
-            detail = pending.removeprefix(skill_ref).strip() if pending else ""
-            message = f"updated by gh skill {detail}".strip()
-            return result("updated", message, changed=True)
+    if f"Updated {skill_ref}" in lines:
+        # gh lists the pending change as `<ref> (<repo>) <old> > <new> [<ref>]`
+        # before applying it; carry that into the message when present.
+        pending = next(
+            (line for line in lines if line.startswith(f"{skill_ref} (")), skill_ref
+        )
+        detail = pending.removeprefix(skill_ref).strip()
+        return result("updated", f"updated by gh skill {detail}".strip(), changed=True)
     for line in lines:
         if line.startswith(f"Failed to update {skill_ref}:"):
             reason = line.split(":", 1)[1].strip()
@@ -1180,10 +1233,13 @@ def classify_gh_update_output(
             return result("skipped-pinned", line.removeprefix(f"{skill_ref} ").strip())
     if returncode == 0 and any(line.startswith("All skills are up to date") for line in lines):
         return result("unchanged", "gh skill found it current")
-    output = "\n".join(lines) or "no output"
+    # `message` renders as one report bullet; the full output is in `details`.
+    first_line = lines[0] if lines else "no output"
+    if len(lines) > 1:
+        first_line += f" (+{len(lines) - 1} more lines in details)"
     return result(
         "failed",
-        f"unrecognised `gh skill update` outcome (exit {returncode}): {output}",
+        f"unrecognised `gh skill update` outcome (exit {returncode}): {first_line}",
     )
 
 
@@ -1212,15 +1268,25 @@ def _bundled_status_result(ref: str) -> SkillResult:
     )
 
 
-def _bundled_update_result(ref: str) -> SkillResult:
+def _bundled_update_result(ref: str, *, installed: bool) -> SkillResult:
+    # An installed twin shadows the packaged copy (`coga skill status` calls it
+    # `local-override`), so a package upgrade would not change the directory
+    # this row names; only an uninstalled bundled ref is updated that way.
+    if installed:
+        message = (
+            "repo copy of a package-bundled skill; it shadows the packaged copy "
+            "and is maintained in this repo, so `coga skill update` leaves it alone"
+        )
+    else:
+        message = (
+            "bundled skill updates come from the coga package; run "
+            "`pip install --upgrade coga`"
+        )
     return SkillResult(
         name=ref,
         source_type="bundled",
         status="skipped-bundled",
-        message=(
-            "bundled skill updates come from the coga package; run "
-            "`pip install --upgrade coga`"
-        ),
+        message=message,
     )
 
 
@@ -1646,14 +1712,6 @@ def _url_metadata(
 def _local_adaptation_notes(metadata: dict[str, Any]) -> str:
     notes = metadata.get("local_adaptation_notes", "")
     return notes if isinstance(notes, str) else ""
-
-
-def _infer_non_coga_source_type(skill_dir: Path) -> str:
-    text = (skill_dir / "SKILL.md").read_text(errors="replace")
-    lowered = text.lower()
-    if "github.com" in lowered or "gh skill" in lowered:
-        return "github"
-    return "unknown"
 
 
 def _select_skill_dir(root: Path, selector: str | None) -> Path:

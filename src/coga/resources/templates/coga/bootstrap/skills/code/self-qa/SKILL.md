@@ -109,3 +109,10 @@ this step just makes sure the diff they see is already clean.
 - If `/code-review` and `/simplify` disagree on a specific edit, the
   human reviewer is one step away — leave the code in the safer state
   and note the disagreement on the blackboard.
+- Commit any edit under the live `coga/` tree (contexts, skills, the
+  recurring ticket templates) *before* running a `coga` command from the
+  feature worktree — a smoke run of `coga skill update`, say. Coga's state
+  sync treats every uncommitted `coga/` file as task state: it commits it
+  as `Sync coga state` on the control branch too and pushes, which lands
+  the live twin on `main` ahead of its packaged copy and turns
+  `tests/test_packaging.py` red there until the PR merges.
