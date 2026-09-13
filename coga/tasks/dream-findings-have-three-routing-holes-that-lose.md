@@ -1,6 +1,6 @@
 ---
 title: Dream findings have three routing holes that lose work every run
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:1c417b9e-579c-4660-b5ba-aa9feb93b034
 ---
 
 ## Description
