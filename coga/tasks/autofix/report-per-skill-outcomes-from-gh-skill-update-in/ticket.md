@@ -24,8 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: def53a1b-ad16-4acb-872d-e644d6a00c56
+step: 2 (self-qa)
 ---
 
 ## Description
@@ -155,3 +154,112 @@ transient or already fixed.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: skill-update-per-skill
+worktree: /home/n/Code/claude/coga-skill-update-per-skill
+
+## Diagnosis (confirmed against run-log.md and gh v2.92.0 source)
+
+- The run-log report is exactly what the ticket describes: one synthetic
+  `gh-managed`/`delegated` row plus 14 `skipped-bundled` rows for refs that are
+  `bundled_refs - local_refs` (never installed here). None of the 7 installed
+  `google-agents-cli-*` skills is named. (`clarity`, the URL-backed skill,
+  was installed 2026-09-08, after the 09-02 run, so its absence is expected.)
+- `gh skill update` (v2.92.0, `pkg/cmd/skills/update/update.go`) has no
+  `--json`. Per-skill outcomes exist only as lines: stdout `Updated <name>`;
+  stderr `X Failed to update <name>: <err>`, `! Skipping <name>: <reason>`,
+  `⊘ <name> is pinned to <v> (skipped)`, `! <name> has no GitHub metadata.
+  Reinstall to enable updates`, `All skills are up to date.`. Up-to-date skills
+  are never named individually. Exit is 1 (silent) when any update failed.
+- In bulk mode, a repo whose ref fails to resolve prints one `Skipping <first>`
+  line and silently skips every sibling skill from that repo — so parsing the
+  bulk output cannot give a measured status per skill. Decision: invoke
+  `gh skill update --dir <root> --all <ref>` once per installed gh-backed skill
+  (the ticket's second option). Cost: N calls instead of one; the weekly job
+  is not latency-sensitive and the per-skill status is measured, not asserted.
+- gh identifies a gh-backed skill by `metadata.github-repo` in SKILL.md
+  frontmatter (`internal/skills/source/source.go` `ParseMetadataRepo`). Coga
+  will use the same marker to decide which installed skills to update via gh,
+  instead of `_infer_non_coga_source_type`'s "github.com in the text" guess.
+- Item 4 (first-party skills safe): `gh skill update --dir coga/skills --dry-run`
+  run locally lists `_template`, `code/*`, `direct/body`, `coga/show`,
+  `browser/*`, `clarity`, `marketing/write-post`, `anthropic/skill-creator` as
+  "has no GitHub metadata. Reinstall to enable updates" and never touches them;
+  gh only rewrites skills carrying `github-repo`. With per-skill invocation
+  Coga never even names those to gh. Note gh scans only two directory levels,
+  so `coga/<a>/<b>` skills are invisible to it either way.
+
+## Implemented (commit 04b31874 on `skill-update-per-skill`)
+
+- `src/coga/skill_manager.py`
+  - `gh_skill_metadata(skill_dir)`: a skill is gh-backed iff its SKILL.md
+    frontmatter `metadata` carries `github-repo` (gh's own marker). Replaces
+    the "github.com appears in the text" guess for the update path.
+  - `_update_gh_backed_skill(cfg, ref)`: runs `gh skill update --dir <root>
+    --all <ref>` for one skill. `_update_gh_backed_skills` (bulk + synthetic
+    `gh-managed` row) is gone.
+  - `classify_gh_update_output(...)`: maps gh's per-skill lines to `updated`
+    (changed=True) / `unchanged` / `fetch-failed` (Failed to update, Skipping:
+    could not resolve / discover / invalid metadata) / `skipped-pinned`;
+    anything unrecognised → `failed` with gh's raw output (falls into
+    follow-up). Strips ANSI + gh's `! X ✓ ⊘ •` icons first. `details` carries
+    command, returncode, stdout, stderr.
+  - `update_skills --all`: one row per installed skill with a managed source —
+    URL-backed (existing path), gh-backed (new per-skill path), or installed
+    twin of a bundled ref (`skipped-bundled`). Uninstalled bundled refs get no
+    row (ticket item 3, second option: report `bundled_refs & local_refs`).
+  - Single-skill path uses the same helper (and now passes `--all`, which the
+    old argv lacked — without it gh exits 1 "updates available; re-run with
+    --all" non-interactively when an update exists). A skill with no managed
+    source returns an `unmanaged` row instead of being sent to gh.
+- `src/coga/skill_update.py`: `delegated` removed from `UPDATED_STATUSES`
+  (now falls through to follow-up); `skipped-pinned` added to
+  `SKIPPED_STATUSES`; docstring updated.
+- Tests (`tests/test_skill_manager.py`, `tests/test_skill_update.py`):
+  per-skill argv + row per skill; the ticket's item-5 regression (one updates,
+  one fails → both named, `1 updated, 1 need follow-up`, no `gh-managed`,
+  rendered through `skill_update.render_blackboard_report`); parametrized
+  classifier over every gh line shape incl. forced colour; single-skill and
+  `unmanaged` paths; installed-bundled-twin vs uninstalled-bundled-ref;
+  `delegated` classifies as follow-up.
+- Docs updated in the same commit: `recurring/skill-update/ticket.md`
+  (packaged + live twin), `bootstrap/skill-update/SKILL.md`, `coga/cli`
+  context, `coga/codebase` context (packaged + live twin). Twins verified
+  byte-identical.
+- Verification: `python -m pytest` → 2449 passed. Live smoke in the worktree:
+  `coga skill update --all --json` → 21 rows: 7 `google-agents-cli-*`
+  `unchanged` (gh queried each, ~10s total), 13 installed bundled twins
+  `skipped-bundled`, `clarity` `skipped-local-adaptation`; working tree
+  untouched. Branch rebased on `origin/main` (already current).
+
+## Decisions
+
+- Per-skill `gh skill update <ref>` over parsing one bulk call: gh has no
+  `--json`; bulk output never names up-to-date skills and silently skips a
+  repository's sibling skills after one resolve error, so only the per-skill
+  call yields a *measured* status for every row. Cost is N gh calls (7 here,
+  ~10s); the weekly job is not latency-sensitive.
+- `delegated` dropped from the updated bucket rather than kept for
+  compatibility: nothing emits it any more, and if something did, an asserted
+  hand-off should read as follow-up, not as an update.
+- Installed bundled twins (`code/*`, `coga/*`, `browser/*` in this repo) are
+  reported `skipped-bundled` — the report is now an inventory of installed
+  managed skills, which is what "skipped" means to a reader.
+
+## Adjacent findings (not fixed here)
+
+- `clarity` (URL-backed) reports `skipped-local-adaptation` on a clean
+  checkout: on-disk tree differs from its recorded `installed_tree_digest`.
+  That is a standing follow-up row for every weekly run until someone
+  re-records the digest or reinstalls — exactly the steady-state the
+  `recurring/skill-update` ticket template warns against. Pre-existing.
+- `status_skills` still uses `_infer_non_coga_source_type` (any SKILL.md
+  mentioning github.com reads as `github`/`delegated`), so `coga skill status`
+  labels first-party `code/open-pr` as gh-managed. `gh_skill_metadata` is the
+  right test; `status_skills` was left alone to keep this change scoped.
+- `gh skill update --dir` scans only two directory levels
+  (`scanInstalledSkills`), so a gh-backed skill at `coga/<a>/<b>` would be
+  invisible to it. None exist today; the per-skill call would report it as
+  `failed` ("none of the specified skills are installed") rather than hide it.
