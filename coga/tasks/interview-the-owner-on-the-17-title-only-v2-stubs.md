@@ -1,6 +1,6 @@
 ---
 title: Interview the owner on the 17 title-only v2 stubs
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -32,6 +32,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (design)
+launch_generation: pending:15dc92e3-bb38-40b6-8bab-d36fdb1f04c6
 ---
 
 ## Description
