@@ -24,8 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (self-qa)
-launch_generation: f6a1661a-0f1d-457f-84b9-7e7b2a5de3e5
+step: 3 (pr)
 ---
 
 ## Description
@@ -256,11 +255,82 @@ worktree: /home/n/Code/claude/coga-skill-update-per-skill
   That is a standing follow-up row for every weekly run until someone
   re-records the digest or reinstalls — exactly the steady-state the
   `recurring/skill-update` ticket template warns against. Pre-existing.
-- `status_skills` still uses `_infer_non_coga_source_type` (any SKILL.md
-  mentioning github.com reads as `github`/`delegated`), so `coga skill status`
-  labels first-party `code/open-pr` as gh-managed. `gh_skill_metadata` is the
-  right test; `status_skills` was left alone to keep this change scoped.
+- ~~`status_skills` still uses `_infer_non_coga_source_type`~~ — fixed in
+  self-QA (`b8bfb8bf`): `status_skills` now shares `gh_skill_repo`, so
+  `coga skill status` labels only skills carrying `metadata.github-repo` as
+  gh-managed. See `## Self-QA`.
 - `gh skill update --dir` scans only two directory levels
   (`scanInstalledSkills`), so a gh-backed skill at `coga/<a>/<b>` would be
   invisible to it. None exist today; the per-skill call would report it as
   `failed` ("none of the specified skills are installed") rather than hide it.
+
+## Self-QA
+
+- Reviews **returned** before the bump. `/code-review` (default effort,
+  forked slash command) ran against `skill-update-per-skill` vs `main` and
+  returned five findings (1 medium, 4 low), all applied. `/simplify` ran as
+  four parallel review agents (reuse / simplification / efficiency /
+  altitude) and returned; findings deduped and applied except two noted
+  below. No review is in flight.
+- `/code-review` fixes, in `b8bfb8bf`:
+  1. (medium) `ensure_gh_skill` ran only when the loop reached the first
+     gh-backed dir, after URL-backed skills (`clarity/` sorts before
+     `google-*/`) were already rewritten — a host without `gh skill` would
+     have died mid-run with uncommitted skill edits. The probe now runs once,
+     before any updater writes.
+  2. Single-skill `coga skill update code/x` on an installed bundled twin
+     reported `unmanaged` + "reinstall"; now `skipped-bundled` like `--all`.
+  3. `failed` fallback embedded gh's multi-line output in `message`, which
+     the PR body and blackboard render as one bullet; now first line only,
+     full output stays in `details`.
+  4. Installed-twin `skipped-bundled` said `pip install --upgrade coga`,
+     which cannot change a repo copy that shadows the package; reworded.
+  5. Nested gh-backed refs: **verified on gh 2.92.0** in the scratchpad that
+     `gh skill update --dir d --force --all ns/x` deletes `d/ns/x` and
+     reinstalls `d/x`, printing `Updated ns/x`, exit 0. Coga now refuses
+     `ns/x` as `failed` before calling gh (no probe either). Test fixtures
+     that modelled nested gh-backed skills were flattened — `coga skill
+     install` always lands them flat.
+- `/simplify` applied: one classifier `_managed_update_source` (url / github
+  / bundled / None) + one dispatch `_run_planned_updates` for both paths
+  (`checked=` gone); `run_gh_skill(check=False)` instead of a copied
+  prelude; `gh_skill_metadata` → `gh_skill_repo` (returns the repo string);
+  `status_skills` now uses the same predicate, retiring
+  `_infer_non_coga_source_type` (three of four agents flagged the two
+  disagreeing "is gh-backed" definitions; `coga skill status` no longer
+  labels first-party `code/open-pr` as gh-managed); `coga/text.py`
+  `strip_ansi` shared by `skill_manager` and `recurring_autofix` (2
+  consumers, microkernel rule); classifier `Updated` branch simplified;
+  test helpers deduped. Docs: `coga/cli` + `coga/codebase` contexts follow.
+- `/simplify` skipped (noted, not argued): report installed twins as
+  `local-override` instead of `skipped-bundled` — the ticket already chose
+  the `skipped-bundled` vocabulary and docs say so; and carrying the parsed
+  `.coga-source.json` through the plan tuple to avoid a second tiny read.
+- Verification: `python -m pytest` → 2452 passed (worktree, via
+  `PYTHONPATH=src` and the primary `.venv`, the shell's default python is
+  3.9). Smoke in the worktree: `coga skill update --all --json` still 7
+  `google-agents-cli-*` gh-queried rows + 13 `skipped-bundled` + `clarity`;
+  `coga skill status --json` now 7 `delegated` (exactly the gh-backed
+  ones), first-party skills `unmanaged`/`local-override`. Working tree
+  clean; twins byte-identical (`tests/test_packaging.py` green on branch).
+
+### Needs the human's eye: `main` is red on `test_packaging` until this PR merges
+
+The smoke run above was made with the live `coga/contexts/coga/codebase/
+SKILL.md` edit still uncommitted in the worktree. Coga's state sync treats
+every uncommitted `coga/` file as task state and committed it as
+`Sync coga state` — on the branch (`d7a7edac`, fine) **and on `main`
+(`74692b23`), pushed to `origin/main`**, then merged main into the branch
+(`c121aac5`). `main` now carries the new live context ahead of its packaged
+twin, so `tests/test_packaging.py::test_live_and_packaged_copies_stay_identical`
+fails there. Doc-only; the code on `main` is unchanged.
+
+- I tried `git revert 74692b23` on `main`; the auto-mode permission
+  classifier denied it (shared-resource change), so `main` is left as is.
+- **Merging this PR fixes it** (the packaged twin arrives). Branch and
+  `main` hold identical content for that file, so the merge loses nothing.
+- If you'd rather fix `main` first: revert `74692b23` on `main`, then merge
+  `main` into the branch **and re-apply the branch's version of the file**
+  — a bare revert + merge would make the PR side match the merge base and
+  the doc change would silently drop out at PR merge.
+- Recorded as a gotcha in `code/self-qa` (both twins, in `b8bfb8bf`).
