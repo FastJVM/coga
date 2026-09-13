@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: ff1d4e0d-e23c-4a02-8b98-83cf3f8d60bb
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -215,3 +214,85 @@ For the reviewer, the judgment calls worth pushing on:
   title and description). No new machinery.
 - The fourth observation (gaps decaying in `v2/`) is absorbed as the
   top-level filing rule; nothing spun out.
+
+## Peer review
+
+`codex review --base main` **returned** (2026-09-12) after reviewing the
+recorded feature worktree, rebased without conflicts onto freshly fetched
+`origin/main` (`965ca368`). It found three P2 issues: canceled-source PRs
+need deduplication across runs; hygiene-class routing must honor recorded
+decisions after the owner closes; and config-only `unresolvable-step-assignee`
+failures need the machine-local route. All are accepted for correction.
+
+Independent review also found that a `done` ticket alone cannot suppress a
+still-unfilled gap (the autofix follow-up is the concrete counterexample).
+Require current corpus/PR evidence or an explicit extraction route instead.
+Retirement remains the consumer for checkout-bearing sources; these corrections
+do not change Retro eligibility or require a design restart.
+
+Applied all three returned findings plus the independent completed-ticket
+finding in `7f965367` (`peer-review: preserve Dream routing decisions across
+runs`). These corrections supersede the simpler lookup rules in the implement
+plan:
+
+- Proposal routes inspect existing open tickets and all open PRs, including
+  earlier Phase 6 proposals. Ownership must cover the same fact and target;
+  overlapping paths alone do not count. An overlapping PR that lacks the
+  finding gets a scoped, deduplicated draft carrying the evidence and PR link.
+- Hygiene decisions keep the class tag, rationale, and scope in a context
+  before their owner closes. Later runs apply the decision only to matching
+  issues and route uncovered members normally. Untagged open owners are also
+  recognized by title/description.
+- Config-only `unresolvable-step-assignee` failures use summary-only reporting;
+  frozen-role/shared-workflow corrections retain the hygiene route.
+- `done` is never itself an open gap owner. Check current corpus/PR evidence,
+  route actual unextracted knowledge as `extract`, or preserve an unfilled gap.
+  Top-level create titles explicitly exclude `/` so embedded paths cannot
+  accidentally nest the draft.
+
+The native review returned before any fixes were applied; no second native
+review was launched. Re-read the corrected rules against those findings and
+the Retro contract. No unresolved review finding or design blocker remains.
+
+Final freshness: after committing the fixes, ran `git fetch origin main` and
+`git rebase FETCH_HEAD` in the feature worktree again; already current with
+`965ca368`. Branch `dream-routing-holes` is clean with two commits ahead of
+`main`: `e9d42234` and `7f965367`. The recorded worktree is unchanged.
+
+Verification:
+
+- The rebased pre-fix branch passed all 2436 tests in the native review and
+  in a separate explicit-PYTHONPATH run.
+- `PYTHONPATH=/home/n/Code/claude/coga-dream-routing-holes/src /home/n/Code/claude/coga/.venv/bin/python -m pytest -q -o cache_dir=/tmp/dream-routing-pytest-cache tests/test_dream_worker_templates.py tests/test_packaging.py`
+  — 22 passed after the fixes.
+- `PYTHONPATH=/home/n/Code/claude/coga-dream-routing-holes/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --task dream-findings-have-three-routing-holes-that-lose --json`
+  — one valid task, no task issues; only the existing missing local-user warning.
+- `git diff --check main...HEAD` and
+  `cmp coga/recurring/dream/ticket.md src/coga/resources/templates/coga/recurring/dream/ticket.md`
+  — clean; twins remain byte-identical after the rebase.
+- `PYTHONPATH=/home/n/Code/claude/coga-dream-routing-holes/src /home/n/Code/claude/coga/.venv/bin/python -m pytest -q -o cache_dir=/tmp/dream-routing-pytest-cache`
+  — final run on `7f965367`: 2436 passed in 181.19s, no warnings.
+
+Ready for the mechanical open-pr step. No push or PR was made in peer review.
+
+## PR
+
+Dream left validator decisions in a disposable run blackboard, dropped
+extractions that Retro could not consume, and filed gaps that already had an
+owner. Give each finding an explicit route and check existing ownership before
+creating more work.
+
+- Group repo-state validator issues into one human-decision draft per class;
+  reuse open owners and scoped context decisions, and report machine-local
+  configuration issues separately.
+- Route extracts to Retro, reported retirement debt, or canceled-source
+  knowledge proposals. Reuse existing tickets/PRs and preserve findings that
+  overlap other proposals in scoped drafts.
+- Search the ticket corpus during both gap classification and disposition;
+  require evidence before treating a completed ticket as coverage, and file
+  new drafts at the top level with searchable provenance.
+
+Keep the live and packaged Dream templates in sync and update the bundled
+knowledge-scan and validate-drift guidance. No core recipe changes.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-dream-routing-holes/src /home/n/Code/claude/coga/.venv/bin/python -m pytest -q -o cache_dir=/tmp/dream-routing-pytest-cache` — 2436 passed.
