@@ -188,12 +188,20 @@ coexist under `coga/skills/`:
   for the flat shape — and **init is the only reader**:
   `install_managed_skills` / `reconcile_managed_skills` are called from
   `commands/init.py` alone. `update_skills` enumerates the skill directories
-  that already exist on disk and delegates them to `gh skill update`; it never
-  loads the manifest. A pack whose optional install failed at init (or that was
-  later removed) is therefore **not** restored by `coga skill update --all` or
-  the weekly job — it stays absent until someone reinstalls it explicitly — the directories themselves carry no Coga provenance
-  file, because `gh skill` keeps its own metadata and `coga skill update`
-  delegates their refresh to `gh skill update --dir coga/skills --all`.
+  that already exist on disk and hands each one whose `SKILL.md` frontmatter
+  carries `gh skill`'s `metadata.github-repo` to `gh skill update --dir
+  coga/skills --all <ref>`, one call per skill; it never loads the manifest. A
+  pack whose optional install failed at init (or that was later removed) is
+  therefore **not** restored by `coga skill update --all` or the weekly job —
+  it stays absent until someone reinstalls it explicitly — the directories
+  themselves carry no Coga provenance file, because `gh skill` keeps its own
+  metadata in the frontmatter. `gh skill update` prints no machine-readable
+  result, so `classify_gh_update_output` reads the one line `gh` prints for
+  the named skill into `updated` / `unchanged` / `fetch-failed` /
+  `skipped-pinned`; the per-skill call is what makes every outcome a line
+  about that skill, since the bulk `--all` form names only what it changed or
+  failed and silently skips a repository's remaining skills after one
+  resolve error.
 - **Installer-managed, flat and URL-backed** — `coga skill install-url` lands
   the same flat `coga/skills/<ref>/` placement but marks it with a
   `.coga-source.json` (`schema: coga.skill-source.v1`) recording

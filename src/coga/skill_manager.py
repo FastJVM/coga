@@ -309,10 +309,15 @@ def update_skills(
     summary = SkillUpdateSummary()
     bundled_refs = _bundled_skill_refs(cfg)
     if all_skills:
-        local_skill_dirs = list_installed_skill_dirs(skills_root(cfg))
-        if local_skill_dirs:
-            summary.results.append(_update_gh_backed_skills(cfg, runner=runner))
-        for skill_dir in local_skill_dirs:
+        # One result per *installed* skill that has a managed update source:
+        # `gh skill`'s own frontmatter metadata, Coga's URL provenance, or a
+        # package-backed twin. First-party repo skills, `install-local`
+        # directories and hand-vendored packs have no update source and emit
+        # no row. Bundled refs this repo never installed are not this repo's
+        # skills and are not reported as "skipped" either.
+        gh_checked = False
+        for skill_dir in list_installed_skill_dirs(skills_root(cfg)):
+            ref = _skill_ref_from_path(skills_root(cfg), skill_dir)
             metadata = read_source_metadata(skill_dir)
             if metadata and metadata.get("source_type") == "url":
                 summary.results.append(
@@ -324,12 +329,15 @@ def update_skills(
                         now=now,
                     )
                 )
-        local_refs = {
-            _skill_ref_from_path(skills_root(cfg), skill_dir)
-            for skill_dir in local_skill_dirs
-        }
-        for ref in sorted(bundled_refs - local_refs):
-            summary.results.append(_bundled_update_result(ref))
+            elif gh_skill_metadata(skill_dir) is not None:
+                if not gh_checked:
+                    ensure_gh_skill(runner=runner)
+                    gh_checked = True
+                summary.results.append(
+                    _update_gh_backed_skill(cfg, ref, runner=runner, checked=True)
+                )
+            elif ref in bundled_refs:
+                summary.results.append(_bundled_update_result(ref))
         return summary
 
     skill_ref = skill or ""
@@ -352,18 +360,21 @@ def update_skills(
         )
         return summary
 
-    args = ["update", "--dir", str(skills_root(cfg)), skill_ref]
-    run_gh_skill(args, runner=runner)
-    summary.results.append(
-        SkillResult(
-            name=skill_ref,
-            source_type="github",
-            status="delegated",
-            message=f"delegated {skill} update to gh skill",
-            changed=True,
-            details={"command": ["gh", "skill", *args]},
+    if gh_skill_metadata(target) is None:
+        summary.results.append(
+            SkillResult(
+                name=skill_ref,
+                source_type="unknown",
+                status="unmanaged",
+                message=(
+                    "no managed update source: SKILL.md carries no `gh skill` "
+                    "GitHub metadata and there is no Coga URL provenance; "
+                    "reinstall to enable updates"
+                ),
+            )
         )
-    )
+        return summary
+    summary.results.append(_update_gh_backed_skill(cfg, skill_ref, runner=runner))
     return summary
 
 
@@ -1044,20 +1055,135 @@ def utc_now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
-def _update_gh_backed_skills(
+# The frontmatter key `gh skill` injects into an installed SKILL.md and reads
+# back to decide whether a skill is updatable (`source.ParseMetadataRepo`).
+GH_SKILL_REPO_KEY = "github-repo"
+
+# `gh skill update` has no machine-readable output; these are the exact
+# per-skill lines it prints (gh 2.92, `pkg/cmd/skills/update/update.go`), on
+# stdout for a success and stderr for everything else. Icons are stripped
+# first: gh prefixes warnings with `!`, failures with `X` and pins with `⊘`,
+# and adds ANSI colour when forced to a TTY.
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+_GH_UPDATE_LINE_PREFIX_RE = re.compile(r"^[\s!X✓⊘•]*")
+
+
+def gh_skill_metadata(skill_dir: Path) -> dict[str, str] | None:
+    """Return the `github-*` provenance `gh skill` wrote into SKILL.md, or None.
+
+    This is the same test `gh skill update` applies: a skill is GitHub-backed
+    exactly when its frontmatter `metadata` carries `github-repo`. A first-party
+    skill that merely mentions github.com in its body is not.
+    """
+    try:
+        skill = Skill.load(skill_dir / "SKILL.md")
+    except (OSError, ValueError, yaml.YAMLError):
+        return None
+    meta = skill.frontmatter.get("metadata")
+    if not isinstance(meta, dict):
+        return None
+    repo = meta.get(GH_SKILL_REPO_KEY)
+    if not isinstance(repo, str) or not repo.strip():
+        return None
+    return {
+        key: str(value)
+        for key, value in meta.items()
+        if isinstance(key, str) and key.startswith("github-") and value is not None
+    }
+
+
+def _update_gh_backed_skill(
     cfg: Config,
+    skill_ref: str,
     *,
     runner: Runner | None = None,
+    checked: bool = False,
 ) -> SkillResult:
-    args = ["update", "--dir", str(skills_root(cfg)), "--all"]
-    run_gh_skill(args, runner=runner)
-    return SkillResult(
-        name="gh-managed",
-        source_type="github",
-        status="delegated",
-        message="delegated GitHub-backed skill updates to gh skill",
-        changed=True,
-        details={"command": ["gh", "skill", *args]},
+    """Run `gh skill update` for one skill and report what gh did to it.
+
+    One invocation per skill, not one `--all` for the tree: gh names only the
+    skills it changed or failed, never the ones it found current, and when a
+    repository's ref does not resolve it warns about the first skill from that
+    repository and silently skips the rest. Asking about one skill at a time
+    turns every outcome into a line this function can classify. `--all` here
+    only suppresses the interactive confirmation.
+    """
+    if not checked:
+        ensure_gh_skill(runner=runner)
+    args = ["update", "--dir", str(skills_root(cfg)), "--all", skill_ref]
+    command = ["gh", "skill", *args]
+    completed = (runner or run_subprocess)(command, None)
+    return classify_gh_update_output(
+        skill_ref,
+        returncode=completed.returncode,
+        stdout=completed.stdout or "",
+        stderr=completed.stderr or "",
+        command=command,
+    )
+
+
+def classify_gh_update_output(
+    skill_ref: str,
+    *,
+    returncode: int,
+    stdout: str,
+    stderr: str,
+    command: Sequence[str],
+) -> SkillResult:
+    """Turn one `gh skill update <skill>` run into a measured `SkillResult`.
+
+    Statuses share the URL updater's vocabulary so `skill_update.py` buckets
+    them without a translation table: `updated`, `unchanged`, `fetch-failed`
+    (gh could not resolve, discover, or install the upstream), and
+    `skipped-pinned`. Output this function does not recognise is reported as
+    `failed` carrying gh's own words, so an unexpected gh change lands under
+    follow-up rather than being read as a clean no-op.
+    """
+    details: dict[str, Any] = {
+        "command": list(command),
+        "returncode": returncode,
+        "stdout": stdout.strip(),
+        "stderr": stderr.strip(),
+    }
+
+    def result(status: str, message: str, *, changed: bool = False) -> SkillResult:
+        return SkillResult(
+            name=skill_ref,
+            source_type="github",
+            status=status,
+            message=message,
+            changed=changed,
+            details=details,
+        )
+
+    lines = [
+        _GH_UPDATE_LINE_PREFIX_RE.sub("", _ANSI_RE.sub("", raw)).strip()
+        for raw in (stdout + "\n" + stderr).splitlines()
+    ]
+    lines = [line for line in lines if line]
+    pending = next(
+        (line for line in lines if line.startswith(f"{skill_ref} (")), None
+    )
+    for line in lines:
+        if line == f"Updated {skill_ref}":
+            detail = pending.removeprefix(skill_ref).strip() if pending else ""
+            message = f"updated by gh skill {detail}".strip()
+            return result("updated", message, changed=True)
+    for line in lines:
+        if line.startswith(f"Failed to update {skill_ref}:"):
+            reason = line.split(":", 1)[1].strip()
+            return result("fetch-failed", f"gh skill could not update it: {reason}")
+        if line.startswith(f"Skipping {skill_ref}:"):
+            reason = line.split(":", 1)[1].strip()
+            return result("fetch-failed", f"gh skill skipped it: {reason}")
+        if line.startswith(f"{skill_ref} is pinned to "):
+            return result("skipped-pinned", line.removeprefix(f"{skill_ref} ").strip())
+    if returncode == 0 and any(line.startswith("All skills are up to date") for line in lines):
+        return result("unchanged", "gh skill found it current")
+    output = "\n".join(lines) or "no output"
+    return result(
+        "failed",
+        f"unrecognised `gh skill update` outcome (exit {returncode}): {output}",
     )
 
 

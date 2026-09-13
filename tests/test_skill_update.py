@@ -51,11 +51,20 @@ def _result(name: str, status: str, *, source_type: str = "url", changed: bool =
 
 def test_classify_status_buckets_known_statuses() -> None:
     assert classify_status("updated") == GROUP_UPDATED
-    assert classify_status("delegated") == GROUP_UPDATED
     assert classify_status("skipped-bundled") == GROUP_SKIPPED
+    assert classify_status("skipped-pinned") == GROUP_SKIPPED
     assert classify_status("unchanged") == GROUP_SKIPPED
     assert classify_status("skipped-local-adaptation") == GROUP_FOLLOWUP
+    assert classify_status("fetch-failed") == GROUP_FOLLOWUP
     assert classify_status("failed") == GROUP_FOLLOWUP
+
+
+def test_classify_status_no_longer_counts_delegated_as_an_update() -> None:
+    # `delegated` was the one hardcoded row the old bulk `gh skill update`
+    # path emitted with `changed=True`, which made every run read
+    # `1 updated, 0 need follow-up`. The updater now measures each skill; a
+    # bare hand-off claim is follow-up, not an update.
+    assert classify_status("delegated") == GROUP_FOLLOWUP
 
 
 def test_classify_status_routes_conflict_and_unknown_to_followup() -> None:

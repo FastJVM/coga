@@ -24,17 +24,23 @@ but installation may be skipped or fail and operators may add any source shape
 later. Once a week this ticket fires on its schedule and its `ticket.py` runs
 `coga skill update --all --pr`, which:
 
-1. delegates the installed GitHub-backed skills to `gh skill update --dir
-   coga/skills --all`, then walks in Coga's own code every skill carrying
-   `.coga-source.json` with `source_type = "url"`; local-backed and
-   hand-vendored directories are outside both updater paths,
+1. walks every installed skill under `coga/skills/`: a skill whose
+   `SKILL.md` frontmatter carries `gh skill`'s `metadata.github-repo` is
+   GitHub-backed and gets its own `gh skill update --dir coga/skills --all
+   <ref>` call; a skill carrying `.coga-source.json` with
+   `source_type = "url"` goes through Coga's own URL updater; an installed
+   twin of a package-bundled skill is reported `skipped-bundled`; local-backed
+   and hand-vendored directories are outside every updater path,
 2. for URL-backed skills, rewrites in place only when the upstream digest
-   changed and the local copy is unmodified; the delegated GitHub updater
-   follows its own stored-tree-SHA policy,
+   changed and the local copy is unmodified; the GitHub updater follows
+   `gh skill`'s own stored-tree-SHA policy, and each of its skills reports
+   what `gh` actually did — `updated`, `unchanged`, `fetch-failed`, or
+   `skipped-pinned` — rather than one hardcoded hand-off row,
 3. commits the clean updates onto the dedicated `coga/skill-update` branch
    and opens (or updates) one draft PR, and
-4. appends a `## Skill Update` report to this period task's blackboard,
-   bucketing every result emitted by the GitHub, URL, and bundled paths.
+4. appends a `## Skill Update` report to this period task's blackboard with
+   one row per installed managed skill, bucketed by its emitted status.
+   Bundled refs this repo never installed are not its skills and get no row.
 
 Local-edit protection applies to URL-backed skills: a diverged local copy,
 provenance conflict, or fetch failure is left untouched and listed under the

@@ -572,8 +572,13 @@ and `coga skill install-*` never write into `coga/bootstrap/`; bootstrap
 skills are package-backed batteries. `coga skill status` reports bundled
 bootstrap skills as `package-backed`, and reports a project-local skill with
 the same ref as a `local-override`. `coga skill update --all` updates
-project-local managed skills and skips bundled skills with the package update
-path: upgrade the `coga` package.
+project-local managed skills and emits one result per installed skill that
+has a managed source: GitHub-backed skills are each asked of `gh skill update`
+in turn and report `updated` / `unchanged` / `fetch-failed` / `skipped-pinned`,
+URL-backed skills go through Coga's digest checks, and an installed twin of a
+bundled skill is `skipped-bundled` with the package update path: upgrade the
+`coga` package. Bundled refs the repo never installed, and directories with no
+managed source at all, get no row.
 
 The subcommands cover three source types: `install <owner/repo-or-url> [skill]`
 for GitHub, `install-url <url>` for an arbitrary URL downloaded locally first,
@@ -589,8 +594,10 @@ report does not prove it was checked.
 
 `coga skill` is a thin wrapper around GitHub CLI's `gh skill`, not a new
 package manager. GitHub-backed installs and updates delegate straight to
-`gh skill ... --dir coga/skills`. Constraints that come with that
-substrate:
+`gh skill ... --dir coga/skills`; a skill counts as GitHub-backed exactly when
+its `SKILL.md` frontmatter carries the `metadata.github-repo` key `gh skill`
+writes, which is also the test `gh` itself applies. Constraints that come
+with that substrate:
 
 - `gh skill` is a GitHub CLI public-preview feature and needs `gh` **2.90.0+**.
   When `gh skill` is unavailable Coga fails loud with an actionable upgrade
