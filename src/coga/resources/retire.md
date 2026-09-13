@@ -26,8 +26,10 @@ Run these in order. Stop and ask if any precondition fails — do not improvise.
 1. **Run `retro/done-ticket` against `{slug}`.**
    First copy the source task's complete resolved artifact (its bare Markdown
    file or its whole directory, including sibling attachments), repo-global
-   `coga/log.md`, and current local contexts/skills into a read-only temporary
-   evidence snapshot. Use ordinary copies, not symlinks. Then delegate the
+   `coga/log.md`, and current local contexts/skills into a read-only `evidence/`
+   snapshot inside a unique writable temporary run directory outside every
+   checkout. Create a writable `progress.md` alongside `evidence/`, never
+   inside it. Use ordinary copies, not symlinks. Then delegate the
    complete pass to one subagent inside a dedicated isolated git checkout,
    passing `{slug}`, the snapshot path, and this task's absolute repo root. Use
    native `isolation: worktree` when the
@@ -55,11 +57,20 @@ Run these in order. Stop and ask if any precondition fails — do not improvise.
    without refreshing the operator's checkout, with no PR and no marker.
    Recovery is via `git restore`.
 
-   After the subagent returns, verify the PR branch is pushed or the direct
+   After the subagent returns or terminates, read `progress.md`. Without its
+   `complete` line, record a partial outcome and retain the run directory and
+   isolated checkout. A missing action receipt does not prove the remote was
+   unchanged; follow the skill's reconciliation checks before retrying, and
+   escalate if the outcome cannot be established. Do not mark this retire task
+   done or remove recovery paths on the strength of a final message alone.
+
+   For a completed run, verify the PR branch is pushed or the direct
    deletion is present on the remote control branch, and verify the isolated
    checkout is clean. Remove the copied `coga.local.toml`; then remove the
    linked worktree and its temporary branch, or delete the exact independent
-   clone directory. Delete the temporary snapshot too. Mutating subagents are
+   clone directory. Record the verified outcome on this task's blackboard,
+   then delete the temporary run directory (snapshot and progress file) too.
+   Mutating subagents are
    not guaranteed to auto-clean. If durability or cleanup cannot be verified,
    preserve both paths and block.
 

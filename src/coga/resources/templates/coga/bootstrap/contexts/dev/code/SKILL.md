@@ -59,12 +59,13 @@ the publishing rules in full.
 `run_with_done_marker`, which takes no `cwd`, and there is no `os.chdir`
 anywhere in `src/coga/`. The launched session inherits the supervisor's cwd —
 the checkout `coga launch` was typed in — by omission. `launch` does read
-`worktree:`, but only to *authorize* the single-checkout assist
+`worktree:` to validate checkout and assist scope
 (`_recorded_single_checkout_assist_branch` requires the recorded path to be
 this same Git checkout); it never uses the line to put a process anywhere.
 Every "change into the feature worktree" in a step skill is therefore an
-instruction the agent must carry out and verify itself, and every write it
-makes before doing so lands in the control checkout. Keeping it that way is
+instruction the agent must carry out and verify itself. In the separate-checkout
+layout, an implementation edit made before doing so lands in the control
+checkout. Keeping the inherited cwd is
 deliberate: placing the agent in the recorded worktree would invert this
 boundary for every step, and the bump and `open-pr` would then run from the
 feature checkout, which is the stranding bug in the other direction.
@@ -213,13 +214,19 @@ When to write each:
   moving the stranded write. That duplicate then resurfaces one step later —
   uncommitted, as `coga open-pr`'s "Recorded worktree has uncommitted changes"
   refusal; committed, as a `ticket.md` (or `coga/log.md`) merge conflict on the
-  PR against a control branch whose copy has since moved. So when a
-  `coga/tasks/` or `coga/log.md` change shows up dirty *in the feature
-  checkout*, it is a stranded control-plane write, not implementation work:
-  copy anything still needed into the primary checkout's ticket, then discard
-  it there (`git checkout -- coga/tasks/<...> coga/log.md`). Never commit it
-  onto the feature branch and never stash it to satisfy the clean-tree gate —
-  a stash hides the same duplicate for the next agent to pop.
+  PR against a control branch whose copy has since moved. In the
+  **separate-checkout layout**, inspect a dirty task/log diff before deciding
+  it is stranded. An accidental `## Dev` or blackboard edit to this task is a
+  duplicate only after the needed text is preserved in the primary ticket;
+  an audit-log edit is a duplicate only after its entries are verified in the
+  authoritative log. Discard only those confirmed duplicate hunks in the
+  feature checkout. Never commit or stash them to satisfy the clean-tree gate.
+  Preserve unique audit evidence and escalate its reconciliation; do not
+  hand-edit `coga/log.md`. Intentional ticket-body changes, `ticket.py`, and
+  attachments can be implementation work even under `coga/tasks/` and must
+  stay in the feature diff. This duplicate cleanup never applies to the
+  **single-checkout layout**, where the ticket is the live copy: preserve
+  task/log edits there and commit them separately from implementation work.
 - **`pr:`** — the full PR URL, one line. A trailing annotation after the URL
   is fine (`pr: <url> (no CI configured on the repo)`) — and unlike the two
   fields above, `pr:` needs no backticks around the value to make one safe,

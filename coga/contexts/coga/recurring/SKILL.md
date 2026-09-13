@@ -591,11 +591,14 @@ a period, and string comparison then suppressed the template forever while
 `coga status` showed `ran this period` — is why the mark moved into the
 append-only log with a validated shape. There is no seeding path, nothing to
 hand-edit, and no create-only sweep: the first bare `coga recurring` records
-the period and launches it in one pass. So suppress the firing by *timing*,
-not by state — drop an annual or monthly template before its next firing date
-rather than after the last one, or land it with the parked `_` prefix and
-rename it when the retroactive period is one you actually want run. When that
-is impossible, write the body so the run tolerates an already-handled period
+the period and launches it in one pass. Keep a new template parked with the
+`_` prefix until the firing you want has passed, then rename it so the next
+sweep selects that firing. Enabling it *before* that date does not suppress
+anything: a March 1 annual template enabled on February 28 selects March 1
+of the previous year. `_last_firing` is strictly before the scan time, so
+enable it after the intended firing instant, not at that exact instant. When
+parking is impractical, write the body so the run tolerates an already-handled
+period
 (read the ledger and the parent's cursor, then no-op — the `coga/period-task`
 shape). If an unwanted retroactive run already happened, the period is
 serviced regardless; do not `coga mark canceled` its task to say so — a

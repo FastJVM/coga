@@ -116,7 +116,8 @@ def test_retire_no_launch_creates_task_with_target_slug(
     assert "Do not run Retro in this retire task's checkout" in body_norm
     assert "gitignored `coga.local.toml`" in body_norm
     assert "never symlink, snapshot, stage, or commit it" in body_norm
-    assert "read-only temporary evidence snapshot" in body_norm
+    assert "read-only `evidence/` snapshot" in body_norm
+    assert "writable `progress.md` alongside `evidence/`, never inside it" in body_norm
     assert "including sibling attachments" in body_norm
     assert "--keep-control-checkout" in body_norm
     assert "ordinary `coga delete fix-retry-logic`" in body_norm

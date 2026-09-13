@@ -640,9 +640,9 @@ wrong checkout silently produces wrong results in both directions:
   the rule before calling a sentence redundant.
 
 - **Every writer of a `ticket.md` blackboard goes through the fence-aware
-  API.** `taskfile.read_blackboard` / `replace_blackboard` and
-  `blackboard.append_blackboard_report` / `append_to_section` are the only
-  correct ways to persist state below `<!-- coga:blackboard -->` — from a
+  API.** Use `taskfile.read_blackboard` / `replace_blackboard` or
+  `blackboard.append_blackboard_report` / `append_to_section`
+  to persist state below `<!-- coga:blackboard -->` — from a
   `ticket.py`, a recipe, or a reminder helper alike. The fence regex matches
   the marker on a line of its own, so a bare `open(path, "a").write(text)`
   onto a file whose last line is the fence (a fresh template blackboard, or one
@@ -651,10 +651,18 @@ wrong checkout silently produces wrong results in both directions:
   bump`, `coga show`, the recurring scan — raises `TaskFileError` on that task
   at once. A whole-file search for a marker is the same class of bug from the
   read side: body prose above the fence gets mistaken for state, and a
-  rewrite overwrites it. The reminder-engine review hit both. The fence-aware
-  calls also write atomically and take `expected_bytes` for compare-and-set,
-  and `append_blackboard_report` holds the state-publication barrier — none of
-  which a bare append does.
+  rewrite overwrites it. The reminder-engine review hit both. Pass the captured
+  `expected_bytes` to `read_blackboard` and `replace_blackboard` (or
+  `append_to_section`) to detect changed input. `append_blackboard_report`
+  takes `(cfg, ticket_path, report)`, checks its own captured bytes, and holds
+  the state-publication barrier; it has no `expected_bytes` parameter.
+  The writers replace files atomically, but **preserve the leading newline
+  in the blackboard region**: `replace_blackboard` splices immediately after
+  the marker and does not add a separator. If the file ends at the fence with
+  no newline, both it and `append_blackboard_report` currently glue plain
+  content to the marker too. Start the replacement or report with the file's
+  newline convention in that case. Choosing the API alone does not fix this
+  existing EOF-fence gap.
 
 - **A recorded "rebases clean" has an expiry.** A design step that measured
   drift (`git diff --stat <merge-base>..main` over the branch-touched files, and
