@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
-launch_generation: 62a7c2ba-1860-4177-99cd-f0c0ea643102
+step: 4 (review)
 ---
 
 ## Description
@@ -326,6 +325,15 @@ files, +575/−25. The branch is on the durable recorded sibling worktree and
 has not been pushed; no PR exists yet. The next step only runs the
 deterministic open-pr command and bumps. The review has returned and no
 review process or test run is still in flight.
+
+## Open PR (2026-09-12)
+
+`coga open-pr` ran from the primary checkout on `main` (it was parked clean
+on `cite-symbols-rule`, so it was switched over and returned after). The
+freshness check passed without a rebase: `origin/main` had advanced only
+through this ticket's own lifecycle commits. PR #795 is open (not draft),
+`dream-w36-extract-backlog` → `main`, head `901a9909`; `pr:` is recorded
+under `## Dev` and committed to `main`.
 
 ## PR
 
