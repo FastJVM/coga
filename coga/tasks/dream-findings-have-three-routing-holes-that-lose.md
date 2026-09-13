@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: 1c417b9e-579c-4660-b5ba-aa9feb93b034
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -124,4 +123,94 @@ classified `gap`.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: dream-routing-holes
+worktree: /home/n/Code/claude/coga-dream-routing-holes
+
+## Plan (implement step, 2026-09-12)
+
+Markdown-only change; no recipe code. The deterministic recipe already emits
+`kind` per issue, which is all the new routing needs. Files: the Dream template
+twin pair, `knowledge-scan/SKILL.md`, `validate-drift/SKILL.md`, and the
+template-prose test `tests/test_dream_worker_templates.py`.
+
+**Hole 1 — chosen: one draft ticket per systematic class, with an owner check.**
+Rejected the persistent hygiene ledger: recurring cross-run state does live in
+the parent template blackboard (`coga/period-task`), but Dream's own template
+blackboard opts out ("Dream keeps no durable state here"), and a ledger is
+exactly the hidden-state shape CLAUDE.md warns against. Rule: Phase 6 groups
+`human-needed` issues by validator `kind`; machine-local kinds
+(`missing-user`, `unset-secret-env`, `slack-*`, `github-*`) are summary-only;
+every repo-state kind gets one `brief-for-human` draft, unless an open ticket
+already carries the searchable tag `validate-drift: <kind>` — then the run
+summary reports the delta against that owner instead of refiling. Membership is
+not copied run to run: `coga validate --json` is the live member list.
+`brief-for-human` ships in the same packaged tier as the Dream template.
+
+**Hole 2 — chosen: route `extract` by the source ticket's Retro standing.**
+Shards now record `source:` on every `extract` (`done`, `done+checkout`,
+`canceled`). `done` → Phase 4 as today. `done+checkout` → deferred: no PR, no
+carrier ticket — the source ticket on disk is the durable artifact and
+`coga retire <slug>` runs Retro over it; the run summary lists these under
+retirement debt with area + one line so the human can order retirements by
+knowledge value. `canceled` → Phase 6 opens a `pr-required` knowledge PR
+(same shape as `stale`), citing the source and leaving it on disk; Retro
+refuses non-done tickets so nothing else would ever consume it. Rejected
+extending Phase 4 eligibility (the checkout gate exists so the human-typed
+`coga retire` stays valid) and the hand-filed backlog ticket (a second copy that
+decays; W36's carrier was the right emergency move, not the rule).
+
+**Hole 3 — chosen: both halves.** Shard: before emitting `gap`, grep
+`coga/tasks/` (titles and bodies) for the target path and the finding's
+distinctive terms; an open ticket covering it becomes `owner: <slug>` on the
+finding, and the finding is still written so counts stay honest. Phase 6:
+reconcile every `gap` against open tickets again with the full corpus view
+(shards see one area), create nothing for an owned gap, and report
+"already ticketed as `<slug>`". Dream files every draft at the top level;
+parking under `coga/tasks/v2/` is a human decision (absorbs the fourth
+observation). Every Dream-filed description names the run and shard and the
+target path so later runs can find it by grep.
+
+## Decisions / notes
+
+- `unfrozen-workflow` on a draft "awaiting first launch" reads as a false
+  positive class, not a hygiene problem — the class ticket is where the human
+  decides that; not changed here (out of scope: `validate.py` emitter).
+- Test pin "Every Phase 2 and Phase 3 finding gets a durable home" in
+  `tests/test_dream_worker_templates.py` changes with the body.
+
+## Implement handoff (2026-09-12)
+
+Committed on `dream-routing-holes` as `8809d5a9`
+"Route every Dream finding class to a durable home", rebased on
+`origin/main` (`d10de92b`), working tree clean. No push, no PR.
+
+Files: `coga/recurring/dream/ticket.md` + packaged twin (byte-identical,
+`cmp` verified), `.../bootstrap/dream/scan/knowledge-scan/SKILL.md`,
+`.../bootstrap/dream/tasks/validate-drift/SKILL.md`,
+`tests/test_dream_worker_templates.py` (pinned phrase updated; new
+`test_dream_routes_every_finding_class_to_a_durable_home` pins all three
+rules plus the filing rules).
+
+Verification: `PYTHONPATH=$PWD/src ../coga/.venv/bin/python -m pytest -q`
+in the feature worktree — 2436 passed. `coga validate --json` — 30 issues,
+all pre-existing repo state (`missing-user` is the worktree lacking
+`coga.local.toml`); nothing structural changed.
+
+Not a code change: no recipe or `validate.py` edit. The recipe already
+prints `kind` per issue, which is all Phase 6 needs to group classes.
+
+For the reviewer, the judgment calls worth pushing on:
+- Hole 1 picked draft-per-class over a hygiene ledger (reasons in the plan
+  above). `brief-for-human` is the workflow; it ships in the same packaged
+  tier (`templates/coga/workflows/`) as the Dream template.
+- Hole 2 makes retirement debt a *reported* condition, not a filed one: no
+  carrier ticket like W36's. If that feels too passive, the alternative is
+  Phase 6 opening knowledge PRs for `done+checkout` sources without deleting
+  them — rejected here because W36 alone had 18 and Retro's batching and
+  isolation machinery would be bypassed.
+- Hole 3's owner search is grep-based and judgment-finished (read the hit's
+  title and description). No new machinery.
+- The fourth observation (gaps decaying in `v2/`) is absorbed as the
+  top-level filing rule; nothing spun out.

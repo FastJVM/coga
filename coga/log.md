@@ -5004,3 +5004,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-12 18:46 [dream-findings-have-three-routing-holes-that-lose] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-12 18:46 [dream-findings-have-three-routing-holes-that-lose] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-12 18:46 [dream-findings-have-three-routing-holes-that-lose] [megalaunch] launched via coga megalaunch
+2026-09-12 18:56 [dream-findings-have-three-routing-holes-that-lose] [agent:claude] advanced to step 2 (peer-review) → codex
