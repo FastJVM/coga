@@ -1,6 +1,6 @@
 ---
 title: Report per-skill outcomes from gh skill update in skill-update
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -25,6 +25,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:def53a1b-ad16-4acb-872d-e644d6a00c56
 ---
 
 ## Description
