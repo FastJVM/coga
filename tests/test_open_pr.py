@@ -809,18 +809,59 @@ def test_open_pr_fails_when_worktree_missing(tmp_path, monkeypatch):
         open_pr(cfg, slug="no-wt", blackboard_path=ticket)
 
 
-def test_open_pr_fails_when_worktree_dirty(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "dirty_relpath",
+    ["coga/uncommitted.txt", "coga/tasks/dirty/ticket.py"],
+)
+def test_open_pr_fails_when_worktree_dirty(tmp_path, monkeypatch, dirty_relpath):
     repo = init_git_repo(tmp_path)
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     _install_fake_gh(monkeypatch, bin_dir)
     wt = _feature_worktree(repo, tmp_path, "dirty-branch", commit=True)
-    (wt / "coga" / "uncommitted.txt").write_text("dirty\n")
+    dirty_path = wt / dirty_relpath
+    dirty_path.parent.mkdir(parents=True, exist_ok=True)
+    dirty_path.write_text("uncommitted implementation\n")
     ticket = _write_ticket(repo.coga_os, "dirty", branch="dirty-branch", worktree=wt)
 
     cfg = load_config(repo.coga_os)
-    with pytest.raises(OpenPrError, match="uncommitted changes"):
+    with pytest.raises(OpenPrError, match="uncommitted changes") as exc:
         open_pr(cfg, slug="dirty", blackboard_path=ticket)
+    assert "confirmed duplicate hunks" in str(exc.value)
+    assert "keep intentional ticket or attachment changes" in str(exc.value)
+    assert dirty_path.read_text() == "uncommitted implementation\n"
+
+
+def test_open_pr_dirty_single_checkout_preserves_live_ticket(tmp_path, monkeypatch):
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(monkeypatch, bin_dir)
+    ticket = _write_ticket(
+        repo.coga_os,
+        "dirty-single",
+        branch="dirty-single",
+        worktree=repo.root,
+    )
+    repo.git("add", "--", "coga/tasks/dirty-single/ticket.md")
+    repo.git("commit", "-m", "seed live ticket")
+    repo.git("push", "origin", "main")
+    repo.checkout_branch("dirty-single")
+    ticket.write_text(ticket.read_text() + "\n## Peer review\nFresh results.\n")
+    live_bytes = ticket.read_bytes()
+
+    with pytest.raises(OpenPrError, match="uncommitted changes") as exc:
+        open_pr(
+            load_config(repo.coga_os),
+            slug="dirty-single",
+            blackboard_path=ticket,
+            single_checkout=True,
+        )
+
+    assert "preserve live task/log edits here" in str(exc.value)
+    assert "discard" not in str(exc.value)
+    assert ticket.read_bytes() == live_bytes
+    assert repo.git("branch", "--show-current") == "dirty-single\n"
 
 
 def test_open_pr_fails_with_setup_hint_before_push_when_gh_missing(

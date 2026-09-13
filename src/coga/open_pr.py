@@ -501,10 +501,24 @@ def open_pr(
             f"`git status` failed in {worktree!r}: {dirty.stderr.strip() or 'no output'}"
         )
     if dirty.stdout.strip():
+        if single_checkout:
+            remediation = (
+                "This is the single-checkout layout: preserve live task/log "
+                "edits here and commit them separately from implementation work. "
+            )
+        else:
+            remediation = (
+                "In a separate feature checkout, inspect task/log edits: "
+                "preserve needed blackboard text in the primary ticket and "
+                "verify audit entries in the authoritative log before discarding "
+                "only confirmed duplicate hunks here. Preserve unique audit "
+                "evidence for reconciliation and keep intentional ticket or "
+                "attachment changes that belong to the implementation. "
+            )
         raise OpenPrError(
             f"Recorded worktree {worktree!r} has uncommitted changes. The "
-            "implement/peer-review steps must commit before open-pr. Commit or "
-            "stash them, then relaunch."
+            "implement/peer-review steps must commit implementation work before "
+            f"open-pr. {remediation}Then relaunch."
         )
 
     # Commits ahead of the base branch. Resolve the base as the local ref first

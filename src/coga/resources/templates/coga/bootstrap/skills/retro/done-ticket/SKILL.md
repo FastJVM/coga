@@ -77,6 +77,13 @@ checkout.
 - Output: one coherent PR per knowledge theme, each with knowledge edits and
   the source-task deletion for the tickets that contributed new knowledge;
   no-durable-knowledge tickets removed by direct `coga delete` with no PR.
+- Progress: an append-only `progress.md` beside the read-only `evidence/`
+  snapshot in a unique, writable caller-owned run directory outside every
+  checkout. Verify it is writable before any remote mutation. It carries one
+  line per source task as it is classified, one per PR as it is pushed and
+  opened, one per direct delete as it lands, and a final completion line. The
+  caller reads it to tell a run that finished from one that died — see
+  **Progress on disk** below.
 
 ## Scope
 
@@ -241,11 +248,64 @@ If a fact is present in the current file on disk, it is covered. If another
 ticket already added the fact to this run's running delta, it is covered for
 the rest of the run. Otherwise it is not covered. That is the only test.
 
+## Progress on disk
+
+This is the one Dream phase that deletes things, and until this rule existed it
+was also the only phase with no on-disk progress contract: the scans append
+findings and completion lines to shared files as they go (`scan-protocol`), so
+a shard that dies mid-run leaves a legible partial result, while Retro's whole
+outcome lived in the subagent's final message. A Retro run that stops
+after pushing two of three knowledge branches, or after three of seven direct
+deletes, has already changed the remote — and the caller could not tell that
+from a run that never started, except by re-deriving it from `git log` and
+`gh pr list`. One run only survived because its agent happened to keep an
+ad-hoc progress log; that hedge is now the contract.
+
+The caller creates a unique writable `<run-dir>` outside every checkout,
+containing the read-only snapshot at `<run-dir>/evidence/` and a writable
+`<run-dir>/progress.md` alongside it. Never put the progress file *inside* the
+read-only evidence tree or make the evidence writable to accommodate it.
+Append the `start` line before any remote mutation to verify the progress path
+is writable; stop if that fails. Use `>>`, one line per event as it happens,
+not batched at the end:
+
+```
+start — <slug>[, <slug> ...]
+read <slug> — <extract | delete>
+pr <theme> — <url> — <slug>[, <slug> ...]
+deleted <slug>
+complete — <N> PRs, <M> direct deletes, <K> tickets
+```
+
+`read` is written when a ticket's classification is settled (step 6); `pr`
+when its branch is pushed and the PR exists (step 11), naming every source
+task it deletes; `deleted` after each direct `coga delete` lands (step 9);
+`complete` as the run's last action before its final message, only after every
+selected slug has a verified disposition recorded. The final message repeats
+the completion line's numbers.
+
+These receipts are not atomic with remote mutations: a process can die after
+a delete lands or a branch/PR is published but before appending its receipt.
+A `read` line with no later `pr` or `deleted` naming that slug therefore means
+**unknown disposition**, not proof that the source still exists. Before
+retrying, fetch the configured remote control branch and inspect its source
+path and deletion evidence; check remote branches and PRs for any published
+knowledge batch. Use that inspection only to reconcile actions, not to decide
+which knowledge the corpus already covers. Record verified missing receipts;
+preserve the run directory and isolated checkout and escalate if the outcome
+cannot be established. Do not recreate a missing source or repeat a delete or
+PR creation based only on a missing progress line.
+
+After the subagent returns or terminates, a missing `complete` line means the
+caller reports the run as `partial`, with the progress contents and retained
+paths. A final message alone cannot replace the receipt or justify cleanup.
+
 ## Inputs
 
 This skill is invoked with one or more parameters: exact done ticket slugs. The
 delegation prompt must also carry the caller's absolute repo root and the
-absolute read-only evidence-snapshot path. Work from the isolated repo root.
+absolute read-only evidence-snapshot path at `<run-dir>/evidence/`, with its
+writable sibling `<run-dir>/progress.md`. Work from the isolated repo root.
 Resolve each slug to its actual task path; tasks may be single files or
 directories at any depth under `coga/tasks/`. `coga retire <slug>` passes one
 slug. Dream passes every eligible done ticket in one run; the skill partitions

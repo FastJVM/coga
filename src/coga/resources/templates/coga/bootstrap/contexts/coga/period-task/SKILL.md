@@ -58,6 +58,22 @@ The recurring task's `ticket.md` body names *which* keys it persists
 (e.g. `last_commit`, a cursor section). That's the contract; this
 context covers *where* the state lives.
 
+When the writer is code rather than you — a `ticket.py` phase, a helper
+beside the template, a reminder engine — it must go through the fence-aware
+API: `coga.taskfile.read_blackboard` / `replace_blackboard` to rewrite the
+region, or `coga.blackboard.append_blackboard_report` / `append_to_section`
+to append to it. Never `open(path, "a")` and never search or rewrite the whole
+file. The fence matches only on a line of its own, so a bare append onto a
+file whose last line is the fence glues the new text to the marker and every
+reader of that ticket fails at once; a whole-file search mistakes body prose
+for state. Pass captured `expected_bytes` to `read_blackboard` and
+`replace_blackboard` (or `append_to_section`) to detect changed input;
+`append_blackboard_report(cfg, ticket_path, report)` checks its own captured
+bytes internally. Preserve the region's leading newline when replacing it.
+For a file ending at the fence with no newline, begin the replacement or
+report with the file's newline convention: `replace_blackboard` and
+`append_blackboard_report` currently do not add that missing separator.
+
 If the recurring task declares `state_keys:` in its frontmatter, those
 keys are checked: when you `coga mark done`, any declared key still
 holding the value it had when this period started is flagged (a local

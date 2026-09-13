@@ -194,12 +194,14 @@ settle the ticket — its deletion PR has not merged, so it stays eligible. Do
 not infer completion from branch names, stale comments, or old Dream notes —
 only the on-disk directory and open-PR state count.
 
-Before delegation, copy the live Retro inputs into a read-only temporary
-evidence snapshot: every eligible resolved task artifact (the bare task
+Before delegation, create a unique writable temporary run directory outside
+every checkout. Copy the live Retro inputs into its read-only `evidence/`
+snapshot: every eligible resolved task artifact (the bare task
 Markdown file or the complete task directory, including sibling attachments),
 the repo-global `coga/log.md`, local contexts and skills, and this Dream task's
 current `## Findings`. Use ordinary copies, not symlinks back to Dream's
-mutable checkout. Pass the snapshot path and Dream's absolute repo root to the
+mutable checkout. Create a writable `progress.md` alongside `evidence/`, not
+inside it. Pass the snapshot path and Dream's absolute repo root to the
 subagent so Phases 2–3 and other uncommitted evidence are not lost when the new
 worktree starts from a commit.
 
@@ -218,7 +220,16 @@ checkout; never symlink, snapshot, stage, or commit it. The skill verifies the
 checkout boundary before reading evidence, loads the snapshot/corpus once,
 carries one running delta, and partitions coherent PR batches within the hard
 limits (≤5 source tickets, ≤3 knowledge files, ≤1 new context/skill file, one
-theme).
+theme). It first appends a `start` line to the writable `progress.md`, before
+any remote mutation, then records each classified ticket, opened PR, and landed
+direct delete, and finally `complete`. Read that file when the subagent returns
+or terminates, before removing any paths. A missing `pr` or `deleted` receipt
+means the outcome is unknown: the remote mutation may have succeeded before
+the worker stopped. Follow the skill's reconciliation checks against the fresh
+remote control branch and branch/PR state before retrying. Without `complete`,
+report the phase as `partial` with the file's contents and preserve the run
+directory and isolated checkout for recovery; a final message alone does not
+establish completion.
 
 Every processed done ticket is deleted: a ticket that contributed durable
 knowledge is deleted in its theme's knowledge PR, which also records its
@@ -233,7 +244,9 @@ After the subagent returns, verify every PR branch is pushed, every direct
 delete is present on the remote control branch, and the isolated checkout is
 clean. Remove the copied `coga.local.toml`; then explicitly remove the linked
 worktree and its temporary branch, or delete the exact independent-clone
-directory. Delete the evidence snapshot too. Agent-native cleanup is not
+directory. After recording the verified outcome on Dream's blackboard, delete
+the temporary run directory (snapshot and progress file) too. Agent-native
+cleanup is not
 guaranteed after a mutating run. If durability or cleanup cannot be verified,
 preserve the paths and surface a blocker.
 
