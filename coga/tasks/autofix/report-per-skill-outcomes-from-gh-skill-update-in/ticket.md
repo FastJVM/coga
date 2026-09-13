@@ -24,8 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (pr)
-launch_generation: 474f2004-79c9-4611-b2ea-aeeb9828c3f6
+step: 4 (review)
 ---
 
 ## Description
@@ -158,6 +157,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/796
 branch: skill-update-per-skill
 worktree: /home/n/Code/claude/coga-skill-update-per-skill
 
@@ -335,3 +335,17 @@ fails there. Doc-only; the code on `main` is unchanged.
   — a bare revert + merge would make the PR side match the merge base and
   the doc change would silently drop out at PR merge.
 - Recorded as a gotcha in `code/self-qa` (both twins, in `b8bfb8bf`).
+
+## PR step
+
+- `coga open-pr` run from the primary control checkout (on `main`); the
+  worktree was clean on `skill-update-per-skill`, 4 commits ahead of
+  `origin/main`. Opened https://github.com/FastJVM/coga/pull/796 and recorded
+  `pr:` under `## Dev`.
+- The command's `[git] sync refused` line named
+  `coga/tasks/dream-findings-have-three-routing-holes-that-lose.md` — another
+  ticket's uncommitted drift in the shared checkout, left untouched per the
+  step's "never commit another ticket's drift" rule. Nothing about this PR
+  was affected.
+- Reminder for the merge step: `main` is red on `test_packaging` until #796
+  merges (see `## Self-QA`); the branch carries the packaged twin that fixes it.
