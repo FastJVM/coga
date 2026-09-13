@@ -107,8 +107,12 @@ is its owner; earlier Dream runs file gaps as drafts and name the run, phase,
 and shard in the description, so an owned gap usually greps on its own target.
 Still write the finding — the count must stay honest — but add
 `owner: <slug>` so Phase 6 reports "already ticketed" instead of filing a
-duplicate. A `done` ticket that covers it means the gap is closing or is
-retirement debt; say so in the paragraph and add its slug as `owner:` too.
+duplicate. A `done` ticket is evidence to inspect, not an open owner: verify
+the promised change in the current corpus or an open PR before treating the
+gap as covered, and cite that evidence. If the ticket instead holds
+unextracted durable knowledge, emit `extract` with the `source:` and `area:`
+fields below. If the promised change is still missing, keep the `gap` and
+continue the open-owner search; `status: done` alone must not suppress it.
 If the needed comparison cannot fit in this assignment, finish no finding from
 that candidate: write `incomplete` with the exact extra evidence paths so Dream
 can place them together in a smaller retry shard.

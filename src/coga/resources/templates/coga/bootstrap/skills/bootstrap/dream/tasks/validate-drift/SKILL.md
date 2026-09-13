@@ -101,10 +101,16 @@ silently rely on that fallback; extend the classifier when the test finds one.
 The blackboard section is deleted with the Dream task at the next firing, so
 `human-needed` is a classification, not a destination. Dream's Phase 6 routes
 those issues by validator `kind`, one draft ticket per systematic class rather
-than one per issue: machine-local kinds (`missing-user`, `unset-secret-env`,
-`slack-*`, `github-*`) are reported in the run summary only, and every
-repo-state kind gets a `brief-for-human` draft carrying the tag line
-`validate-drift: <kind>` unless an open ticket already carries that tag. The
-report's per-issue `kind` is what makes that grouping possible; keep it on
-every remediation line. Membership is never copied between runs — this
-recipe's live output is the member list.
+than one per issue. Machine-local kinds (`missing-user`, `unset-secret-env`,
+`slack-*`, `github-*`) and config-only `unresolvable-step-assignee` failures
+whose remedy is a local peer setting are reported in the run summary and
+Slack line. A bad frozen role or shared workflow still needs a repo-state
+decision. Repo-state issues get a `brief-for-human` draft carrying the tag
+line `validate-drift: <kind>` unless an open ticket already owns the class or
+a recorded context decision covers the current issues. Decisions preserve
+the same tag with their rationale and scope in a context before the owner
+closes, so later runs can find and apply them after that ticket is retired;
+an accepted subset does not waive other issues of the same kind. The report's
+per-issue `kind` is what makes grouping possible; keep it on every remediation
+line. Membership is never copied between runs — this recipe's live output is
+the member list.
