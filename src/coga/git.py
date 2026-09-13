@@ -3974,13 +3974,27 @@ def _guard_coga_state_regressions(
         elif working_state is None or committed_state is None:
             continue
         else:
+            checkout_bytes = (
+                _tree_bytes(root, "HEAD", rel)
+                if checkout_ticket_bytes is None
+                else checkout_ticket_bytes.get(rel)
+            )
+            # A session-ending `bump`/`mark` whose own scoped publication
+            # failed (offline remote) leaves its released ticket dirty for the
+            # sweep to converge. That retry is authorized only from a checkout
+            # whose committed baseline is control's claimed copy: a stale
+            # worktree (control rewound and relaunched since its HEAD) never
+            # matches, so it still cannot erase a peer's claim.
+            baseline_is_control = (
+                checkout_bytes is not None and checkout_bytes == committed
+            )
             reason = _ticket_launch_claim_change_reason(
                 rel,
                 committed=committed_state,
                 working=working_state,
                 allow_acquisition=allow_launch_claim_acquisition,
                 allow_admission=allow_launch_claim_admission,
-                allow_release=allow_launch_claim_release,
+                allow_release=allow_launch_claim_release or baseline_is_control,
             )
             if reason is None:
                 reason = _ticket_state_regression_reason(
@@ -3990,11 +4004,6 @@ def _guard_coga_state_regressions(
                     allow_step_rewind=allow_step_rewind,
                     allow_terminal_change=allow_terminal_change,
                 )
-            checkout_bytes = (
-                _tree_bytes(root, "HEAD", rel)
-                if checkout_ticket_bytes is None
-                else checkout_ticket_bytes.get(rel)
-            )
             if (
                 reason is None
                 and (

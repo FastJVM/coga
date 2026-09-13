@@ -752,8 +752,18 @@ on the shared local control branch without any remote (see the no-remote
 soft-skip under the failure model below).
 
 `launch_generation` has a stronger, system-owned rule. The catch-all sweep may
-never add, clear, or replace that claim, including by creating, deleting, or
-making one side of the ticket unreadable. A scoped ticket-state publisher may
+never add or replace that claim, including by creating, deleting, or making
+one side of the ticket unreadable. It may *clear* one in exactly one shape: a
+session-ending transition (`step:` or `status:` changed) from a checkout whose
+committed `HEAD` blob of the ticket is byte-identical to control's claimed
+copy. That is the retry of a `bump`/`mark` whose own scoped publication failed
+— an offline remote at transition time leaves the released ticket dirty, and
+without this allowance no later sweep could ever converge it (the ticket sat
+unpublishable for hours in one incident; a relaunch was blocked too, because
+megalaunch's exact lease saw control's old claim). The baseline equality is
+what keeps the seal: a stale worktree, whose control was rewound and
+relaunched since its `HEAD`, never matches and still cannot erase a peer's
+claim. A scoped ticket-state publisher may
 acquire it only under an exact whole-ticket lease. A Git-backed megalaunch
 acquires `pending:<uuid>` while its child is held. While that form exists on
 control, the explicit-path publisher itself refuses every changed ticket —
