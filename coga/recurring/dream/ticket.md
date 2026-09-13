@@ -83,6 +83,13 @@ or `log.md`, and append-only history goes to the repo-global `coga/log.md`. It
 does not rewrite existing files, synthesize `ticket.md`, freeze workflows, or
 change lifecycle/assignee state.
 
+The recipe's three buckets are inputs to Phase 6, not results. `direct-fix`
+repairs land in the safe-repair pass; `pr-proposal` issues become proposal PRs
+in Phase 6; `human-needed` issues are routed to hygiene draft tickets, one per
+validator `kind`, by the Phase 6 rule below. The `## Dream Skill:
+validate-drift` section is deleted with this task at the next firing, so an
+issue left only there was never reported.
+
 ### Decide-half scan mechanics (Phases 2 and 3)
 
 Both decide-half scans are read-only sweeps over Coga's own corpus, and both run
@@ -151,7 +158,9 @@ skill, following the scan mechanics above. This decide-half scan happens before
 Phase 4 so done-ticket evidence is still available.
 
 Merge the shards' findings into this task's blackboard under `## Findings`;
-Phase 4 reads that section when batching knowledge PRs.
+Phase 4 reads that section when batching knowledge PRs. Keep each `extract`
+finding's `source:` line and each `gap` finding's `owner:` line through the
+merge — Phase 6 routes on them.
 
 ### Phase 3 — contract audit
 
@@ -288,14 +297,74 @@ Result line: `pr-opened` when the PR is opened. If any gate is unclear, write
 
 ### Phase 6 — disposition + run summary
 
-Every Phase 2 and Phase 3 finding gets a durable home. The `## Findings`
-blackboard section is an index of what Dream saw, not where decisions go to
-rest — this task is retired and its blackboard with it.
+Every Phase 1 `human-needed` issue and every Phase 2 and Phase 3 finding gets
+a durable home. The `## Findings` and `## Dream Skill: validate-drift`
+blackboard sections are an index of what Dream saw, not where decisions go to
+rest — this task is retired and its blackboard with it. A finding whose only
+record is this blackboard was lost, not reported.
 
-Route each finding by class:
+**Filing rules for every draft ticket Dream creates.** File at the top level:
+`coga create "<title>" ...` with no path prefix in the title. Dream never files
+under `coga/tasks/v2/` — that directory is the human's parking decision, made
+after reading a draft, and a Dream draft parked there by construction decays
+unread. The `--description` names the Dream run (period, phase, shard) and the
+target path or validator `kind`, so a later run can find the owner by grep.
+Before any `coga create`, search for an existing owner (the per-class rules say
+what to search for): an open ticket — any status but `done` or `canceled` —
+whose title or body already covers the finding is the owner. Create nothing for
+an owned finding; report it as "already ticketed as `<slug>`" in the run
+summary. Dream does not edit another ticket's body or blackboard to add
+members or evidence.
 
-- `extract` — already handled by Phase 4 (a knowledge PR, or — when the ticket
-  carried nothing durable — a direct `coga delete`).
+Route each Phase 1 `human-needed` issue by validator `kind`, one draft ticket
+per **systematic class**, never one per issue:
+
+- Machine-local kinds — `missing-user`, `unset-secret-env`, `slack-*`,
+  `github-*` — describe the operator's environment, not the committed corpus.
+  They get no ticket: list them in the run summary and the Slack line.
+- Every other `human-needed` kind is repo state (lifecycle, routing, or
+  frontmatter of committed tickets) that needs an owner decision. Group the
+  issues by `kind`. For each kind, grep `coga/tasks/` for the exact tag line
+  `validate-drift: <kind>`. If an open ticket carries it, that ticket owns the
+  class: create nothing, and report the class in the run summary as
+  "already ticketed as `<slug>`" with this run's member count and the slugs
+  that are new since the owner was filed. If none does, create one draft:
+  `coga create "validate-drift: <kind> — <one-line class description>"
+  --workflow brief-for-human --description "<...>"` whose description carries
+  the tag line `validate-drift: <kind>` verbatim, the recipe's remediation
+  text, this run's member slugs with their messages, and the instruction that
+  `coga validate --json` is the live member list. Membership is not copied
+  from run to run: the ticket is the durable record that the class needs a
+  decision, the validator is the source of truth for which tickets are in it,
+  and the owner ticket stays open until the class is empty or the decision is
+  recorded in a context. `brief-for-human` is the workflow because the
+  decision is the human's; Dream does not change lifecycle, workflow, or
+  assignee state.
+
+Route each Phase 2 and Phase 3 finding by class:
+
+- `extract` — by the finding's `source:` line, which the knowledge-scan shard
+  records from the source ticket's `status:` and `## Dev` section:
+  - `done` — already handled by Phase 4 (a knowledge PR, or — when the ticket
+    carried nothing durable — a direct `coga delete`). If Phase 4 skipped it
+    because an open PR already edits that ticket, it is in flight; report the
+    PR and do nothing.
+  - `done+checkout` — the source ticket is retirement debt, deliberately left
+    on disk so the human-typed `coga retire <slug>` stays valid. That ticket
+    is the durable artifact and retirement is its consumer: `coga retire`
+    runs Retro over the ticket and extracts what this finding saw. Open no PR
+    and file no carrier ticket — a second copy decays while the source stays
+    fresh. Instead, list the finding under the run summary's retirement-debt
+    section with its slug, area, and one-line summary, so the human can order
+    retirements by the knowledge they unlock. This is a standing condition
+    while the retirement backlog exists; the same findings recur until the
+    tickets are retired, and reporting them again each run is correct.
+  - `canceled` — Retro refuses a ticket that is not `done`, so nothing else
+    will ever consume it. Open a proposal PR that edits the target context or
+    skill with the durable fact, citing the source ticket by slug. The PR is
+    `pr-required` like `stale`, and Dream leaves the canceled ticket on disk.
+    If the target overlaps a context or skill a Phase 4 PR already edits, note
+    the overlap and defer to that PR's review.
 - `stale` — open a proposal PR that edits the named context or skill to match
   reality. The PR is `pr-required`: a human reviews and merges it; Dream never
   auto-merges and never edits a context or skill directly on `main`. If a
@@ -307,18 +376,32 @@ Route each finding by class:
   packaged/live copy pair. Like `stale`, the PR is `pr-required` and Dream
   never auto-merges. If the fix overlaps a context or skill a Phase 4
   knowledge PR already edits, note the overlap and defer to that PR's review.
-- `gap` — create a tracked draft ticket with
-  `coga create "<title>" --workflow code/with-review`. A gap needs human
-  design judgment about whether and how to add the context, skill, or
-  workflow; a draft ticket is where that judgment happens, and unlike a
-  blackboard note it survives this task's retirement.
+- `gap` — reconcile against open tickets before creating anything. The shard
+  already searched its own area and wrote `owner: <slug>` when it found one;
+  Phase 6 repeats the search with the whole corpus in view, because a shard
+  sees one area and the owner is often filed elsewhere. Grep `coga/tasks/`
+  (bare `.md` files and every `ticket.md`, titles and bodies) for the
+  finding's target path and two or three of its distinctive terms, read each
+  hit's title and description, and treat an open ticket that covers the same
+  gap as its owner — including a draft an earlier Dream run filed and one
+  this run created moments ago for a duplicate finding from another shard. A
+  `done` ticket that covers it means the gap is closing or is retirement
+  debt, not a gap: say so and create nothing. For an owned gap, create nothing
+  and report "already ticketed as `<slug>`". Otherwise create a tracked
+  draft ticket with `coga create "<title>" --workflow code/with-review`
+  under the filing rules above. A gap needs human design judgment about
+  whether and how to add the context, skill, or workflow; a draft ticket is
+  where that judgment happens, and unlike a blackboard note it survives this
+  task's retirement.
 
 Then append one top-level `## Dream Run Summary` section to this task's
 blackboard: the generation time, a phase result table using the vocabulary
 `no-op`, `reported`, `partial`, `proposed`, `direct-fixed`, `pr-opened`,
-`human-needed`, the finding counts with one-line summaries, links to every PR opened and draft
-ticket created, and any `human-needed` decisions or review gates. Keep it short
-enough for a human to scan.
+`human-needed`, the finding counts with one-line summaries, links to every PR
+opened and draft ticket created, every `already ticketed as` line, the
+retirement-debt list with the `extract` findings each retirement unlocks, the
+machine-local validator issues, and any `human-needed` decisions or review
+gates. Keep it short enough for a human to scan.
 
 ### Slack
 

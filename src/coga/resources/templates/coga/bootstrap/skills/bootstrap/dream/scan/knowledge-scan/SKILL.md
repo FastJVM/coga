@@ -98,6 +98,17 @@ cross-area target, use the full index to locate it and read a targeted excerpt;
 the index entry alone is not evidence that knowledge is present or absent.
 Before calling a pattern repeated enough for `gap`, search the indexed ticket
 paths and read the matching excerpts from at least two independent tickets.
+Then check whether the gap already has an owner: grep every task Markdown file
+under `coga/tasks/` — bare `.md` files and each `ticket.md`, titles and bodies,
+not only your shard's paths — for the target path and two or three of the
+finding's distinctive terms, and read each hit's title and description. An open
+ticket (any status but `done` or `canceled`) that already covers the same gap
+is its owner; earlier Dream runs file gaps as drafts and name the run, phase,
+and shard in the description, so an owned gap usually greps on its own target.
+Still write the finding — the count must stay honest — but add
+`owner: <slug>` so Phase 6 reports "already ticketed" instead of filing a
+duplicate. A `done` ticket that covers it means the gap is closing or is
+retirement debt; say so in the paragraph and add its slug as `owner:` too.
 If the needed comparison cannot fit in this assignment, finish no finding from
 that candidate: write `incomplete` with the exact extra evidence paths so Dream
 can place them together in a smaller retry shard.
@@ -107,15 +118,32 @@ can place them together in a smaller retry shard.
 Record only a classified findings list; raw ticket and blackboard contents stay
 inside the subagent. Classify each finding as exactly one of:
 
-- `extract` — a done ticket holds durable knowledge that belongs in a context
-  or skill. Record the ticket slug and the context/skill area it touches.
+- `extract` — a done or canceled ticket holds durable knowledge that belongs
+  in a context or skill. Record the ticket slug and the context/skill area it
+  touches, and add a `source:` line that says who can consume it:
+  - `source: done` — `status: done` and the blackboard's `## Dev` section has
+    no real `branch:` or `worktree:` value (absent, empty, or a placeholder
+    such as `(not yet created)`). Phase 4 Retro extracts it this run.
+  - `source: done+checkout` — `status: done` with a real `## Dev` checkout.
+    This is retirement debt: Retro does not touch it, and `coga retire <slug>`
+    is what will. Phase 6 lists it under retirement debt instead of losing it.
+  - `source: canceled` — `status: canceled`. Retro refuses non-done tickets,
+    so Phase 6 opens the knowledge PR itself. A canceled ticket's abandoned
+    design is not durable knowledge; only a reusable fact it discovered along
+    the way — a gotcha, a verified behavior, a measured limit — qualifies.
+
+  Read `status:` and `## Dev` from the ticket itself; the index entry alone is
+  not evidence. A ticket in any other status holds working state, not
+  extractable knowledge.
 - `stale` — an existing context or skill contradicts current repo reality.
   Name the file and state the contradiction.
 - `gap` — a repeated pattern (recurring task knowledge, repeated process
   struggle, or an ad-hoc workflow sequence) with no context, skill, or
-  workflow to carry it.
+  workflow to carry it. Add `owner: <slug>` when the owner search above found
+  an existing ticket for it.
 
-Include draft content when a new file is proposed. Set the `area:` field on
-every `extract` finding. Group the `extract` findings by the context/skill area
-they touch: Dream applies that grouping when it merges the shards into the Dream
-task's blackboard `## Findings`, and Phase 4 uses it to batch coherent PRs.
+Include draft content when a new file is proposed. Set the `area:` and
+`source:` fields on every `extract` finding. Group the `extract` findings by
+the context/skill area they touch: Dream applies that grouping when it merges
+the shards into the Dream task's blackboard `## Findings`, and Phase 4 uses it
+to batch coherent PRs.
