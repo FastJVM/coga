@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: 694a728a-2edb-4573-bae8-afeeba6a6f4f
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -152,7 +151,7 @@ its `extract` findings into proposal PRs #763–#775 instead of Phase 4, and all
 of them merged on 2026-09-09. That consumed a large share of this backlog.
 Verified item by item against `origin/main`:
 
-**Already landed — no action (8):**
+**Already covered or separately ticketed — no action (7):**
 
 - 2 validate-before-write → `coga/architecture` (PR #769; `ticket_override`
   idiom, and the four still-write-then-validate writers named).
@@ -165,15 +164,11 @@ Verified item by item against `origin/main`:
   throwaway clone → `coga/sync` (PR #767).
 - 17 wait for the ordered review before bumping → `code/with-review`
   peer-review section and `code/self-qa` step 7 (PR #771).
-- 12 the `init` / `recurring --all` config-error escape hatch → landed in
-  `coga/recurring` (PR #774), but `coga/extension-model` — the ticket's target
-  and the context that owns aliases — still lists no alias-validation failure
-  mode at all. Landing the short missing half there (see below).
 - 8 autofix analyst defects → already its own ticket:
   `the-autofix-analyst-ticket-closed-without-shipping` (draft) names all three
   defects, including the third this backlog never captured. Nothing to add.
 
-**Landing here, grouped by target (10):**
+**Landing here, grouped by target (11, including partially covered item 12):**
 
 - `coga/codebase` (twin pair): 1 consumer-test refinement (`append_report` ×3
   private copies; consolidate, don't add a fifth), 5 prompt-resource authoring
@@ -183,7 +178,8 @@ Verified item by item against `origin/main`:
   is a `coga/log.md` line written at period-task creation), 7 why a
   `ticket.py`-backed step keeps `assignee: agent`.
 - `coga/extension-model` (twin pair): 12 alias-validation failure modes +
-  cross-ref to the recurring escape hatch.
+  cross-ref to the recurring escape hatch. PR #774 covered the recurring half
+  already; the alias-owning context still needed this half.
 - `dev/code` (twin pair) + `code/open-pr` skill (twin pair) +
   `open_pr.py` remediation string: 9 launch never places the agent, 10 the
   gate is presence-only and cheaply satisfiable; a stranded duplicate is
@@ -200,7 +196,7 @@ Verified item by item against `origin/main`:
   sweep gate for surfaces automated tests structurally cannot reach.
 
 **Decision: one PR, one commit per target area** rather than sibling tickets.
-Ten paragraph-sized edits across eight target areas; five more `with-review`
+Eleven findings across eight target areas; five more `with-review`
 tickets would cost more workflow overhead than the review of a commit-grouped
 diff. `coga retire` on the source tickets is not used here: they stay on disk
 as retirement debt, and this ticket only copies knowledge out of them.
@@ -259,37 +255,96 @@ reports the same 31 repo-wide baseline issues as before (none touch changed
 files). Rebased onto `origin/main` `329b8d0b`; `origin/main` is an ancestor
 of the tip. Not pushed; no PR.
 
+## Peer review
+
+`codex review --base origin/main` **returned** on 2026-09-12 (exit 0) from
+`/home/n/Code/claude/coga-dream-w36-extract-backlog`, reviewing `84cd9bcd`
+against the fork from `origin/main`. It found three P2 issues; all are fixed
+in commit `901a9909` after the final rebase; final verification passed:
+
+- The open-pr refusal and its context/skill twins treated every dirty task
+  path as stranded and applied discard advice to single-checkout work. The
+  hint now distinguishes layouts, preserves the live single-checkout ticket
+  and intentional ticket/attachment implementation, and limits disposal to
+  verified duplicate hunks. Regression coverage includes a dirty `ticket.py`
+  and a single checkout carrying fresh review notes.
+- Enabling a recurring template before its next firing still selected the
+  previous firing. Verified a March 1 schedule on February 28 selects the
+  previous year's March 1. Both twins now require parking until after the
+  intended firing instant or an idempotent no-op body.
+- Retro tried to append progress inside its read-only snapshot. Retro, Dream
+  (both twins), and the Retire caller now use a unique writable run directory
+  with read-only `evidence/` and a writable sibling `progress.md`; a `start`
+  append verifies writability before remote mutation.
+
+Additional local review corrections: progress receipts cannot prove that a
+missing event never happened on the remote. The contract now treats that gap
+as unknown disposition, checks fresh remote deletion/branch/PR evidence
+before retrying, and retains recovery paths on incomplete runs. The new
+blackboard guidance also overstated the APIs: `append_blackboard_report` has
+no `expected_bytes` argument, and both it and `replace_blackboard` still glue
+plain content to a fence at EOF with no newline. Reproduced both cases in an
+isolated fixture; documented the required leading separator and the existing
+API limitation in `coga/codebase` and `coga/period-task`, including both twins.
+The underlying EOF-separator bug remains outside this knowledge PR; its
+reproduction and workaround now survive source-ticket retirement.
+
+No interactive terminal or Slack-rendering behavior changes here. Manual
+contract review covered single vs separate checkouts, intentional ticket
+attachments, readonly evidence with a writable sibling log, and termination
+after a remote action but before its receipt.
+
+Final verification (2026-09-12):
+
+- `git fetch origin main` then `git rebase FETCH_HEAD` succeeded without
+  conflicts onto `ce96f2af1086e457a8e71412522dbfcfd7887058`.
+- From the feature worktree:
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src:/tmp/coga-dream-w36-review-deps" python3.12 -m pytest -p no:cacheprovider`
+  — **2437 passed in 177.48s**, including the wheel-build test. `hatchling`
+  and its dependencies were installed only into that temporary directory;
+  the prior environment failure is resolved for this run. Confirmed that
+  `import coga` resolves to this feature checkout's `src/coga/`.
+- `git diff --check origin/main...HEAD` passed. All eight changed
+  live/packaged pairs were separately compared after the rebase and are
+  byte-identical.
+- From the primary checkout:
+  `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src" python3.12 -m coga.cli validate --task dream-2026-w36-extract-backlog-18-findings-phase-4 --json`
+  — one task OK, no issues.
+- Focused checks covered both checkout layouts, dirty ticket attachments,
+  packaged resources, and Dream/Retire callers. Two old literal snapshot
+  assertions were updated to pin the writable-sibling contract; their rerun
+  passed before the commit, and the final full suite includes them.
+- A filesystem probe confirmed read-only `evidence/` rejects writes while
+  sibling `progress.md` accepts the `start` receipt. Manual contract review
+  also covered a remote action succeeding before its receipt is written.
+
+Handoff: feature HEAD `901a9909a038902b42e0b904dbaa1636cec59213`, clean and
+committed, seven commits ahead of fetched `origin/main`; final diff is 24
+files, +575/−25. The branch is on the durable recorded sibling worktree and
+has not been pushed; no PR exists yet. The next step only runs the
+deterministic open-pr command and bumps. The review has returned and no
+review process or test run is still in flight.
+
 ## PR
 
-Land the ten knowledge items from the Dream 2026-W36 extract backlog that the
-2026-09-08 Dream run's proposal PRs (#763–#775) did not already cover, grouped
-one commit per target context or skill:
+Dream 2026-W36 left durable findings on source tickets that its cleanup phase
+could not consume. Preserve the remaining eleven findings in their owning
+contexts and skills. Seven items are already covered or separately ticketed;
+the carrier blackboard records the per-item disposition.
 
-- `coga/codebase`: duplicate private helper copies are not "≥2 consumers"
-  (consolidate `append_report`'s callers, don't add a fifth copy); prompt
-  resources are the only version of a rule most launches see; every
-  blackboard writer uses the fence-aware API.
-- `coga/recurring`: a new template fires retroactively and there is no
-  seeding path — suppress by timing or parking, never by canceling the period
-  task; why a `ticket.py` step keeps `assignee: agent`.
-- `coga/extension-model`: alias-validation failure modes and the
-  `init` / `uninstall` / `recurring --all` exemption.
-- `dev/code` + `code/open-pr`: `coga launch` never places the agent; the
-  `requires: branch` gate is presence-only and cheaply satisfiable; a stranded
-  control-plane write in the feature checkout is discarded, not committed or
-  stashed. The open-pr refusal text no longer says "commit or stash".
-- `coga/period-task`: fence-aware writers for cross-run state.
-- `coga/project-stage`: `coga build` removed → restored and watchers
-  reintroduced → removed again, plus the partial-revert procedure.
-- `retro/done-ticket` + Dream template: an on-disk `progress.md` contract
-  for the destructive phase, read by Dream to report a died run as `partial`.
-- `code/self-qa` + `code/with-review`: a recorded manual sweep is the gate
-  for surfaces automated tests cannot reach.
+- Document the remaining microkernel, prompt-authoring, recurring, alias,
+  period-state, and partial-revert lessons in the live and packaged contexts.
+  Include the existing EOF-fence separator limitation and its workaround.
+- Make open-pr recovery guidance respect checkout ownership: preserve the
+  live ticket in a single checkout, retain intentional task attachments, and
+  discard only verified duplicate task-state edits in a separate checkout.
+- Give Retro, Dream, and Retire a shared progress contract: immutable
+  evidence, writable event receipts, and remote reconciliation after an
+  incomplete run. Preserve recovery paths when completion is unverified.
+- Require recorded manual QA for changed surfaces automated tests cannot
+  reach, in both self-QA and the peer-review workflow.
 
-Eight of the eighteen items had already landed via #767, #769, #771, #773,
-#774 or are carried by `the-autofix-analyst-ticket-closed-without-shipping`;
-the ticket blackboard records the per-item evidence.
+Source tickets remain available for explicit retirement. Native Codex review
+returned; all three P2 findings were addressed before the final rebase.
 
-Test plan: `PYTHONPATH=$PWD/src python3.12 -m pytest` — 2434 passed; the one
-failure is the pre-existing `hatchling` wheel-build environment gap. Twin
-parity passes for every edited live/packaged pair.
+Test plan: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src:/tmp/coga-dream-w36-review-deps" python3.12 -m pytest -p no:cacheprovider` — **2437 passed**, including the wheel build; the temporary path contains the declared hatchling test dependency. Task validation and `git diff --check origin/main...HEAD` pass; all eight edited live/packaged pairs match.
