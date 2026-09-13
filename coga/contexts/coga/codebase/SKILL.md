@@ -30,7 +30,8 @@ review bars.
   record and the post-run analysis call — the one text-only, PTY-less agent
   spawn in the tree, registered as the `autofix-analyze` recipe rather than
   added as a second launch seam. `launch_script.py` classifies and runs the
-  reserved `ticket.py` sibling without importing edge code.
+  reserved `ticket.py` sibling without importing edge code. `text.py` holds
+  the ANSI stripper shared by every module that reads captured child output.
   `commands/launch.py` runs that deterministic phase before deciding whether
   to compose and spawn an agent; trailing launch args remain an ordered agent
   prompt block. Its strict publication invariants — recorded-checkout and
@@ -184,12 +185,26 @@ coexist under `coga/skills/`:
   for the flat shape — and **init is the only reader**:
   `install_managed_skills` / `reconcile_managed_skills` are called from
   `commands/init.py` alone. `update_skills` enumerates the skill directories
-  that already exist on disk and delegates them to `gh skill update`; it never
-  loads the manifest. A pack whose optional install failed at init (or that was
-  later removed) is therefore **not** restored by `coga skill update --all` or
-  the weekly job — it stays absent until someone reinstalls it explicitly — the directories themselves carry no Coga provenance
-  file, because `gh skill` keeps its own metadata and `coga skill update`
-  delegates their refresh to `gh skill update --dir coga/skills --all`.
+  that already exist on disk and hands each one whose `SKILL.md` frontmatter
+  carries `gh skill`'s `metadata.github-repo` (`gh_skill_repo`, the one
+  gh-backed predicate `update_skills` and `status_skills` share) to `gh skill
+  update --dir coga/skills --all <ref>`, one call per skill; it never loads
+  the manifest. A
+  pack whose optional install failed at init (or that was later removed) is
+  therefore **not** restored by `coga skill update --all` or the weekly job —
+  it stays absent until someone reinstalls it explicitly — the directories
+  themselves carry no Coga provenance file, because `gh skill` keeps its own
+  metadata in the frontmatter. `gh skill update` prints no machine-readable
+  result, so `classify_gh_update_output` reads the one line `gh` prints for
+  the named skill into `updated` / `unchanged` / `fetch-failed` /
+  `skipped-pinned`; the per-skill call is what makes every outcome a line
+  about that skill, since the bulk `--all` form names only what it changed or
+  failed and silently skips a repository's remaining skills after one
+  resolve error. `gh` is probed once, before any updater writes, so a missing
+  `gh skill` fails the run with nothing rewritten. A gh-backed skill nested
+  below the tree root (`coga/skills/ns/<name>`) is reported `failed` without
+  calling `gh`: `gh skill update` reinstalls at `coga/skills/<name>` and would
+  move it while printing a clean `Updated ns/<name>`.
 - **Installer-managed, flat and URL-backed** — `coga skill install-url` lands
   the same flat `coga/skills/<ref>/` placement but marks it with a
   `.coga-source.json` (`schema: coga.skill-source.v1`) recording
