@@ -19,35 +19,40 @@ launch_generation: faa425c7-7269-442a-9c95-a950cfd65de7
 Verification-only ticket. Runs as a single `direct/body` step: this body is the
 spec, and its phases execute in order.
 
-### Phase 0 — precondition gate (run first, stop if it fails)
+### Phase 0 — measurement window (record, do not gate)
 
-**Do not start phases 1–4 until the `code/with-review` review queue has
-drained.** This ticket exists to check the *steady state*; running it against a
-live backlog measures the backlog instead and produces a false result.
+**Reshaped 2026-09-13 by owner decision** (see the resolved blocker on the
+blackboard). The original phase 0 required the `code/with-review` review queue
+to return zero live rows before phases 1–4 could start. Four samples over four
+weeks (2026-08-20, 08-26, 09-09, 09-13) each found a different set of tickets
+parked on review — normal throughput keeps at least one PR in owner review at
+every instant — so the zero-row state never occurs and the ticket could not
+run. Phases 1–4 are all retrospective (they read *retired* tickets and *merged*
+PRs), so they never needed a quiet queue.
 
-Run the check:
+The measurement window is **closed: tickets retired between 2026-08-17 and
+2026-09-13 inclusive.** Phases 1–4 read only that population. Tickets whose
+PR is still open, or that retired after the window, are out of scope for this
+run.
+
+Run the queue check anyway and record the result on the blackboard as an
+observation, not a gate:
 
 ```
 grep -rn '^step: .*(review)$' coga/tasks/*.md coga/tasks/*/ticket.md
 ```
 
-The gate is satisfied when that returns **no rows** whose ticket status is
-`active`, `in_progress`, `blocked`, or `paused` — i.e. no live ticket is parked
-on a review step. (Two were parked when this gate was written:
-`put-build-back` on `step: 4 (review)` and `recurring-recipe-question` on
-`step: 5 (review)`. Both must be closed out or moved off review first.)
+For each live row note the PR state. Rows whose PR has **merged** but whose
+ticket is still `in_progress` on review are phase 1 evidence (a sweep that
+has not run, or a sweep that cannot see them); rows whose PR is still open are
+just the live backlog and are not measured.
 
-If the gate is **not** satisfied: record the current queue in the blackboard,
-stop, and escalate per launch mode — ask the attending human, or `coga block`
-with the remaining tickets named as the reason. Do not proceed to phase 1, and
-do not mark the ticket done.
-
-If the gate **is** satisfied: note in the blackboard which tickets retired since
-2026-08-17 (that set is the input to phase 2), then continue.
+Then list on the blackboard the tickets retired inside the window (that set is
+the input to phases 2 and 3) and continue to phase 1.
 
 ### Phases 1–4 — the verification
 
-Once phase 0 passes, verify four things about the review-comment loop and
+With the window fixed by phase 0, verify four things about the review-comment loop and
 record the result:
 
 1. **Merged PRs actually close their tickets.** `coga autoclose` (or the
@@ -55,14 +60,13 @@ record the result:
    merged. Snapshot below shows six merged PRs whose tickets were still
    `in_progress` on step 4 — confirm that backlog cannot recur, or that the
    sweep simply had not run yet.
-2. **No review thread was merged unaddressed.** For each ticket retired since
-   this ticket was written, check its PR for `isResolved: false` threads that
+2. **No review thread was merged unaddressed.** For each ticket retired inside
+   the window, check its PR for `isResolved: false` threads that
    got no reply and no code change. One dropped comment is already recorded
    below (PR 696).
-3. **Newly frozen `review` steps carry `code/address-pr-comments`.** Note that
-   phase 0 guarantees no ticket is *currently* parked on a review step, so
-   checking live review steps would be vacuous. Check the frozen snapshots
-   instead: for every ticket created since 2026-08-17 that carries a
+3. **Newly frozen `review` steps carry `code/address-pr-comments`.** Live
+   review steps are a moving sample, so check the frozen snapshots instead:
+   for every ticket created inside the window that carries a
    `code/with-review` snapshot, confirm its `review` step lists
    `code/address-pr-comments` rather than `skills: []`. Two tickets had the
    empty shape when this was written (#698 — snapshots freeze at creation and
@@ -239,7 +243,8 @@ must be recomputed then.
 - [x] [2026-08-26 21:58] [agent:claude] id=20260826T215802 Phase 0 precondition gate still fails: coga/tasks/fix-the-autofix-analyst.md is in_progress on review with merged PR 724; coga/tasks/reconcile-recurring-wrapper-tty-admission-guidance.md is in_progress on review with merged PR 723; and coga/tasks/rewrite-coga-base-prompt-and-agent-mode-block.md is in_progress on review with open PR 726. The first two need autoclose/bump and the third needs review/merge plus autoclose/bump before this steady-state verification can proceed.
   resolved: [2026-09-09 12:07] [human:nicktoper] Resolved: all three named tickets are now status done and off the review queue — fix-the-autofix-analyst (PR 724 merged), reconcile-recurring-wrapper-tty-admission-guidance (PR 723 merged), and rewrite-coga-base-prompt-and-agent-mode-block (PR 726 merged). The autoclose/bump transitions the ask was waiting on have all landed.
 
-- [ ] [2026-09-09 12:08] [agent:claude] id=20260909T120805 Phase 0 precondition gate fails a third time: coga/tasks/a-slack-repo-without-important-webhook-can-abort-t.md is in_progress on step 4 (review) with PR 761 still OPEN and unreviewed (opened 2026-09-08). Needs owner review+merge, then autoclose/bump. But please also decide the shape question: three attempts over three weeks have each found a different ticket parked on review, so a zero-row queue may never occur. Phases 1-4 are all retrospective (they read retired tickets and merged PRs) and do not actually need a quiet queue — consider relaxing phase 0 to ignore tickets whose PR opened after the measurement window, or scoping phases 1-4 to a closed date range, so this verification can run at all.
+- [x] [2026-09-09 12:08] [agent:claude] id=20260909T120805 Phase 0 precondition gate fails a third time: coga/tasks/a-slack-repo-without-important-webhook-can-abort-t.md is in_progress on step 4 (review) with PR 761 still OPEN and unreviewed (opened 2026-09-08). Needs owner review+merge, then autoclose/bump. But please also decide the shape question: three attempts over three weeks have each found a different ticket parked on review, so a zero-row queue may never occur. Phases 1-4 are all retrospective (they read retired tickets and merged PRs) and do not actually need a quiet queue — consider relaxing phase 0 to ignore tickets whose PR opened after the measurement window, or scoping phases 1-4 to a closed date range, so this verification can run at all.
+  resolved: [2026-09-13 22:25] [human:nicktoper] Resolved 2026-09-13 with the owner. (1) PR 761 merged 2026-09-09 and a-slack-repo-without-important-webhook-can-abort-t is done. (2) Shape decision: phase 0 is no longer a zero-row gate. Four samples over four weeks never found an empty review queue (12 live rows today: PRs 784-786 merged but unswept, 787-795 open), and phases 1-4 are retrospective, so the body now fixes a closed measurement window - tickets retired 2026-08-17..2026-09-13 inclusive - and records the live queue as an observation only. Body rewritten accordingly; phases 1-4 run in this session.
 
 
 ---
