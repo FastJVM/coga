@@ -351,6 +351,29 @@ def test_bundled_code_review_step_composes_address_pr_comments_skill(
     assert "Do not run `coga bump`" in prompt
 
 
+def test_created_ticket_implement_prompt_includes_code_citation_guidance(
+    repo: Path,
+) -> None:
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Implement directly from a raw ticket",
+        workflow_name="code/with-self-review",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    ticket = read_ticket(ref)
+    prompt = compose_prompt(cfg, ref, ticket)
+
+    assert "Current step: implement (skill: code/implement)" in prompt
+    assert "Skill — bootstrap/ticket" not in prompt
+    assert "Skill — code/design" not in prompt
+    assert "Cite module plus symbol, never a bare line number." in prompt
+
+
 def test_design_workflow_routes_a_cold_peer_review_before_owner_approval(
     repo: Path,
 ) -> None:
