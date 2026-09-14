@@ -1,6 +1,6 @@
 ---
 title: Verify the PR review-comment loop once the review queue drains
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -10,8 +10,6 @@ workflow:
     skills:
     - direct/body
     assignee: agent
-step: 1 (execute)
-launch_generation: faa425c7-7269-442a-9c95-a950cfd65de7
 ---
 
 ## Description
@@ -234,6 +232,102 @@ Phases 1–4 still start from a clean slate on relaunch; the retired-since-2026-
 must be recomputed then.
 
 ---
+
+## Run 2026-09-13 — blocker resolved with owner, gate reshaped, phases 1–4 COMPLETE
+
+**Blocker resolution.** PR 761 merged 2026-09-09; its ticket is `done`. The
+shape question went to the owner in-session (blocker-resolution exception);
+decision: **closed measurement window, run now**. Phase 0 rewritten in the body
+as a window (tickets retired 2026-08-17 → 2026-09-13 inclusive, 38 tickets via
+`auto-bumped on merge of PR #N → done` in `coga/log.md`), with the live queue
+recorded as an observation only. Log timestamps are local (UTC−7); GitHub
+`mergedAt` is UTC — all lags below are corrected.
+
+### Phase 0 observation — live queue at 2026-09-13
+
+12 tickets on a review step, the most any of the four samples found. PRs
+784/785/786 merged 2026-09-11 ~19:00Z, two hours *after* the last sweep run
+(09-11 10:00 local = 17:00Z); the sweep has not fired since. PRs 787–795 are
+open, opened 09-11 → 09-13, awaiting owner review. None measured.
+
+### Phase 1 — merged PRs do close their tickets; the backlog is scheduler downtime
+
+- 38/38 in-window merged PRs were auto-bumped to `done`. **0 of 38 survived a
+  sweep run**: every ticket closed on the first `autoclose-merged` run after
+  its merge (PR 701: 6 min).
+- Corrected merge→close lag: median ≈ 23 h, max ≈ 150 h (PRs 723/724, merged
+  08-26, closed 09-01). All long lags are days on which the sweep did not run.
+- The sweep is `schedule: "0 8 * * *"` but is fired by an operator-owned
+  scheduler outside Coga (`coga/contexts/coga/recurring`); it ran on 13 of the
+  window's 28 days (08-17,18,19,21,24,25; 09-02,03,04,08,09,10,11). Gaps:
+  08-20, 08-22/23, 08-26→09-01, 09-05→07, 09-12→13.
+- **Verdict:** the 2026-08-17 six-row snapshot was "the sweep had not run yet",
+  and that *can* recur every time the external scheduler misses a day. The
+  sweep itself has no defect. Not a loop bug; the gap is that the queue check
+  in this ticket counted merged-but-unswept rows as backlog.
+
+### Phase 2 — 7 of 38 merged PRs carried an unanswered review thread
+
+Queried `reviewThreads` on all 38 PRs: 17 unresolved threads. 10 had an owner
+reply (692, 723, 724, 726×5, 758, 759 — "unresolved" only means nobody clicked
+resolve; skill and owner both deliberately never resolve). **7 bot threads had
+no reply, were not outdated (no code change at the flagged line), and merged
+as-is: PRs 696, 699 (P1), 704, 705, 706, 747, 755.** That is 18% of merged
+PRs. Checked each against today's tree:
+
+| PR | thread | state today |
+| --- | --- | --- |
+| 696 | mirror important webhook in seeded example | fixed out-of-band by `a-slack-repo-without-important-webhook-can-abort-t` (PR 761) — found by an orient session, not by the loop |
+| 699 | P1: revalidate control before trusting pre-scan ledger | still as written (`_LEDGER_LOADED = "yes"` set unconditionally under `control_is_fresh`) |
+| 704 | reject context symlinks escaping the checkout | still as written (`path.is_file() or path.is_symlink()`) |
+| 705 | attribute shim completions to `system` | **confirmed live**: `recurring/autoclose-merged` completions log as `[human:nicktoper] task done` (09-10, 09-11) |
+| 706 | metrics parser for annotated PR lines | overtaken incidentally: `scripts/human_minutes.py` PR regex rewritten by PR 784 |
+| 747 | recheck released witness before overwriting | still as written (`FileMutationRollback.capture` after the control fetch) |
+| 755 | keep superseded designs out of the launch blackboard | still as written (`dev/code` moves them below the fence) |
+
+Five standing comments handed to a human via draft
+`triage-five-review-comments-that-merged-unanswered` (brief-for-human).
+
+### Phase 3 — frozen snapshots are all correct; the empty population aged out
+
+113 tickets created in the window; 55 carry a frozen `code/with-review`
+snapshot (48 live files, 7 read from git for Dream-reaped tickets). **55/55
+freeze `code/address-pr-comments` on `review`; 0 empty.** The only
+`skills: []` tickets ever seen were 691 and 697, created before 08-17 and
+retired 08-18. #698's frozen-snapshot behavior is real but has no remaining
+population. Side-check: `code/design-then-implement` and `code/with-self-review`
+also carry the skill on `review`; `docs/with-review` does not (no PR artifact
+expected there — noted, not measured).
+
+### Phase 4 — decision
+
+The assist skill (`code/address-pr-comments`) was launched **once** in four
+weeks (`simplify-ticket-format`, 09-10) against ~40 owner reviews. Phase 3
+shows the skill is always available; phase 2 shows it is almost never used and
+that 18% of merges drop a bot comment. So the PR 696 miss was not the
+frozen-snapshot bug and not a missing skill — it is that **nothing surfaces an
+unanswered thread to the owner**, who merges from the GitHub UI where
+unresolved threads do not block.
+
+**Decision: keep the owner gate; add post-merge detection, not a new trigger.**
+Merge and thread resolution stay human (deliberate, and the skill's own
+contract). The lightest legible fix is in the one place that already touches
+every merged PR: when the `autoclose-merged` sweep closes a ticket, fetch that
+PR's `reviewThreads` once and name every unresolved, non-outdated,
+reply-less thread in its summary and Slack line, exactly as it already names
+the `coga retire` follow-up. Report-only: no resolving, no replying, no
+auto-launch of the review step, no new poller. Fix ticket:
+`autoclose-should-name-unanswered-review-threads-on` (draft, code/with-review).
+
+Rejected: (a) auto-launching the assist on review entry — bot comments arrive
+minutes after open-pr, but the owner gate exists so a human reads them first;
+(b) a merge-blocking check — Coga does not own GitHub merge policy; (c) doing
+nothing — 18% drop rate with a P1 among them is a real, recurring miss.
+
+### Verification only — nothing fixed here
+
+Two drafts opened per the scope note; no product code changed. `direct/body`
+ticket, closing with `coga mark done`.
 
 ## Blockers
 
