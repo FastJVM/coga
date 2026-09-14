@@ -5117,3 +5117,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-14 11:52 [recurring/autoclose-merged] [system] script exited with code 0
 2026-09-14 11:52 [bootstrap/resolve-conflicts] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-09-14 11:52 [recurring/resolve-conflicts] [system] started (active → in_progress) via recurring delegation to bootstrap/resolve-conflicts
+2026-09-14 11:52 [recurring/resolve-conflicts] [system] launched delegated target bootstrap/resolve-conflicts
