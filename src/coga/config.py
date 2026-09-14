@@ -273,7 +273,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         raise ConfigError(
             "[assignees] is no longer supported in coga.toml. Remove the "
             "[assignees.*] tables — ticket `assignee:` now names an agent "
-            "type (e.g. `claude`) or a human directly. See docs/spec.md."
+            "type (e.g. `claude`) or a human directly. See docs/reference.md."
         )
     # `megalaunch` also gets a dedicated migration message ahead of the
     # generic check: the usage-window budget guard was removed, so the whole
