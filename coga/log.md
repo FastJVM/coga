@@ -5134,3 +5134,6 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-14 11:55 [define-the-api-equivalent-cost-proxy-and-price-tab] [git] sync refused: coga/tasks/define-the-api-equivalent-cost-proxy-and-price-tab.md: published launch claim would be cleared without an authorized session-ending lifecycle transition
 2026-09-14 11:55 [recurring/blocker-reminders] [system] script exited with code 0
 2026-09-14 11:55 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
+2026-09-14 11:55 [recurring/dream] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-14 11:56 [define-the-api-equivalent-cost-proxy-and-price-tab] [git] sync refused: coga/tasks/define-the-api-equivalent-cost-proxy-and-price-tab.md: published launch claim would be cleared without an authorized session-ending lifecycle transition
+2026-09-14 12:05 [validate-that-committed-skill-scripts-with-a-sheba] [agent:codex] advanced to step 3 (open-pr) → claude

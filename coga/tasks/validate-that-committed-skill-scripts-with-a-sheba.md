@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: 13d252c7-a18e-498f-953f-390a78a925dd
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -105,63 +104,106 @@ the same script `100755` should not.
 branch: shebang-exec-check
 worktree: /home/n/Code/claude/coga-shebang-exec-check
 
-Separate feature checkout (linked worktree off `origin/main`). Two commits:
-`d6acc70d` restores the modes, `c7ec58d8` adds the check. Rebased on
-`origin/main` at handoff; no push, no PR.
+Clean feature worktree with three commits ahead of `origin/main`:
+`2d245178` restores the four modes; `8d607263` adds validation;
+`7c8cf6bd` applies peer-review fixes. Fetched and rebased successfully onto
+`57e5681c` during peer review. Branch remains local; the next step opens the PR.
 
 ## What changed
 
-- `src/coga/validate.py`: new `_check_shebang_executables` wired into `run()`
-  after the recurring-template check. Scope: `skill_manager.skills_root` plus
-  `bundled_skills_root` (packaged bootstrap skills). Predicate: first two bytes
-  `#!` → must be executable. Emits `non-executable-script`, severity `error`,
-  task label `skills/<rel>` or `bootstrap/skills/<rel>`. Skips symlinks and
-  `.git`/`__pycache__`/`node_modules`/`.venv` dirs.
-- `src/coga/dream_validate_drift.py`: classifies the new kind as a PR
-  proposal (`test_classifier_explicitly_covers_every_emitted_validator_kind`
-  fails otherwise — every emitted kind must be classified).
-- `src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md`:
-  documents the check in the `coga validate` paragraph (no live twin exists
-  for `coga/cli`, so no sync needed).
-- Modes fixed: the ticket's three plus a **fourth** that landed after the
-  survey — `coga/skills/clarity/scripts/validate_package.py` (shebang,
-  100644). Full survey of both trees at branch time: 15 shebanged files, 4
-  wrong, 0 false positives.
-- Tests (`tests/test_validate.py`): fires on a shebanged `0o644` temp skill
-  script and not on its `0o755` copy nor a shebang-less `0o644` module; skips
-  silently with no trustworthy source; reads the git index (real `git_repo`
-  harness, `update-index --chmod`) when the working tree carries no mode.
-  `tests/test_dream_validate_drift.py` gains the kind in the PR-proposal
-  parametrize.
+- `src/coga/validate.py`: `_check_shebang_executables` checks the installed
+  skills root and packaged bootstrap skills during a whole-repo sweep. Any
+  regular file beginning with `#!` needs an executable bit, regardless of
+  extension. Failures are `non-executable-script` errors with an actionable
+  mode-change hint. Import-only modules without a shebang remain valid.
+- A top-down walk prunes `.git`, `__pycache__`, `node_modules`, and `.venv`
+  before descending. Symlinked files and directory contents are skipped.
+- Four committed modes are now `100755`: the ticket's three files plus
+  `coga/skills/clarity/scripts/validate_package.py`, added since the survey.
+- Dream classifies the new issue as a PR proposal. The packaged `coga/cli`
+  context documents the behavior and remediation; it has no live twin.
 
-## Decisions (for the PR body)
+## Mode-source decision
 
-- **Mode source.** POSIX: `Path.stat()` only. It is what `exec` enforces on
-  that machine, a fresh clone sets it from the index, and it keeps default
-  `coga validate` subprocess-free — `test_run_no_github_check_by_default`
-  and the `--check-github` fake-subprocess tests assert that no git runs
-  unless opted in, so the ticket's "consult `git config core.fileMode`"
-  variant was tried and rejected (it broke 10 tests). Non-POSIX (Windows):
-  read `git ls-files --stage` under each root; if git is missing or the root
-  is not in a checkout, skip the check for that root (no false errors).
-  `core.fileMode=false` on POSIX is therefore handled by stat, i.e. by what
-  the mount actually enforces — documented in the function docstring and
-  the `coga/cli` context.
-- Kept it a `_check_*` in `validate.py` per the ticket (not a pytest): the
-  failure is any Coga repo's, not this one's.
+POSIX normally checks `Path.stat().st_mode & 0o111`, including non-Git
+repositories and machines without Git. Local `git config` queries detect
+`core.fileMode=false`; that setting and non-POSIX platforms use
+`git ls-files --stage` instead. A root is skipped when neither mode source is
+trustworthy. Git filenames are decoded explicitly as UTF-8, preserving
+non-ASCII paths on Windows. The queries are local and read-only; network/auth
+probes remain opt-in. Stage mode changes with `git add --chmod=+x` where Git
+ignores filesystem modes.
+
+This supersedes the implement step's decision to always trust POSIX stat.
+The existing GitHub-probe mocks now explicitly allow only the new local mode
+query while still rejecting unexpected network/auth commands.
+
+## Peer review
+
+`codex review --base origin/main` **returned successfully** from the recorded
+feature worktree before any handoff. Its one P2 finding was that
+`sorted(root.rglob("*"))` traversed excluded dependency trees before filtering:
+100,000 excluded files took 3.6 seconds and about 106 MiB extra peak memory.
+Fixed by pruning before descent with `os.walk`.
+
+Additional findings from this peer-review pass: POSIX `core.fileMode=false`
+could both falsely flag index `100755` / stat `0644` and miss index `100644` /
+stat `0755`; Windows locale decoding could silently skip non-ASCII index paths.
+Both are fixed. Regression tests demonstrated all four failures before the
+fixes (two mode-source cases, Unicode paths, and dependency traversal).
+Bundled-root coverage also confirms that packaged scripts are checked.
 
 ## Verification
 
-- `python -m pytest`: 2438 passed, 1 failed — the failure is
-  `tests/test_packaging.py::test_live_and_packaged_copies_stay_identical`
-  and is **pre-existing on `origin/main`** (reproduced with this branch's
-  changes stashed): `coga/contexts/coga/codebase/SKILL.md` has drifted from
-  its packaged twin (the `text.py` sentence and the `update_skills` /
-  `gh skill update` paragraph). Not touched here; needs its own fix.
-- `coga validate --json` from `coga/` in the worktree: zero
-  `non-executable-script` issues (35 pre-existing unrelated drift items:
-  stuck-in-progress, unfrozen-workflow, etc.). `chmod -x` on
-  `playwright_cli.sh` makes it fire with the expected message; restored.
-- `coga validate --json` against `example/coga`: `[]`.
-- Interpreter note: the worktree has no venv; ran with
-  `../coga/.venv/bin/python` (3.12) and pytest's `pythonpath = ["src"]`.
+- Focused validation and Dream tests: **163 passed**.
+- Full suite before the final rebase: **2443 passed, 1 pre-existing failure**.
+- Post-rebase full suite: **2443 passed, the same 1 pre-existing failure**
+  (217.53 seconds). A final fetch confirmed zero commits behind `origin/main`.
+- `coga validate --json` in the feature checkout's `coga/`: **zero
+  non-executable-script issues**, 32 unrelated task/config findings (including
+  missing local user and webhook configuration). Full JSON is at
+  `/tmp/coga-shebang-peer-review-validate-final.json`.
+- `coga validate --json` in `example/coga/`: **zero issues**, exit 0.
+- `coga validate --task validate-that-committed-skill-scripts-with-a-sheba --json`
+  from the primary checkout after the blackboard update: **zero issues**, exit 0.
+- `git diff --check origin/main...HEAD`: passed. Git's index confirms `100755`
+  for all four repaired scripts.
+
+The full-suite failure is
+`tests/test_packaging.py::test_live_and_packaged_copies_stay_identical`:
+`coga/contexts/coga/codebase/SKILL.md` differs from its packaged twin in the
+`text.py` and skill-update paragraphs. Reproduced on the primary `main`
+checkout with the isolated packaging test; this change touches neither file.
+The pending packaged-side repair is recorded under
+`autofix/report-per-skill-outcomes-from-gh-skill-update-in`, PR #796.
+
+Exact feature-suite commands (Python 3.12 from the primary checkout's venv):
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/home/n/Code/claude/coga-shebang-exec-check/src /home/n/Code/claude/coga/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_validate.py tests/test_dream_validate_drift.py --tb=short
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src" ../coga/.venv/bin/python -m pytest -q -p no:cacheprovider --tb=short
+```
+
+From each of the two Coga roots above:
+
+```bash
+env -u SLACK_WEBHOOK_URL -u COGA_IMPORTANT_WEBHOOK_URL PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/home/n/Code/claude/coga-shebang-exec-check/src coga validate --json
+```
+
+The inherited webhook variables were unset only for these read-only checks;
+no configuration files were edited.
+
+## PR
+
+Skill instructions can fail with permission denied when a shebanged script is
+committed without its executable bit. Add `non-executable-script` errors to
+`coga validate` for the installed and packaged bootstrap skill trees, and
+restore `100755` on the four affected scripts. Document the check in the CLI
+context and classify its findings as Dream PR proposals.
+
+Use working-tree modes on POSIX and the Git index on Windows or when
+`core.fileMode=false`; skip roots with no trustworthy mode source. Local Git
+queries keep validation offline. Prune dependency directories before traversal
+and preserve non-ASCII Git paths when reading the index.
+
+Test plan: `python -m pytest -q -p no:cacheprovider --tb=short` with the feature `src` on `PYTHONPATH` (2443 passed, 1 pre-existing failure); `coga validate --json` in `coga/` and `example/coga/` (zero shebang errors; example has zero issues). The full-suite failure is unrelated `coga/codebase` live/packaged drift, also reproduced on `main` and tracked in PR #796.
