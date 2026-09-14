@@ -1,6 +1,6 @@
 ---
 title: Verify the PR review-comment loop once the review queue drains
-status: blocked
+status: active
 owner: nicktoper
 agent: claude
 workflow:
