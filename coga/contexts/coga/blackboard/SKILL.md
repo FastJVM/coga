@@ -1,6 +1,6 @@
 ---
 name: coga/blackboard
-description: The contract for writing to a ticket blackboard — how the fence is located and why only an anchored line match is safe, which sections a pass appends to and which it rewrites in place, what happens to content a later pass replaces, and how concurrent writers stay correct without an ownership mutex. Attach to any ticket whose work writes to a blackboard programmatically.
+description: The contract for writing to a ticket blackboard — how the fence is located and why only an anchored line match is safe, which sections a pass appends to and which it rewrites in place, what happens to content a later pass replaces, and the concurrency limits of shipped writers. Attach to any ticket whose work writes to a blackboard programmatically.
 ---
 
 # Writing to a ticket blackboard
@@ -73,14 +73,13 @@ reverse. Two exceptions, both deliberate:
   writers that must not fail on a hand-authored recurring template predating
   the single-file format. More than one fence still fails loud.
 
-**No edit may match or operate across the fence.** The two write paths share
-one file without clobbering each other precisely because each stays on its own
-side:
+**Scope each edit to its intended region.** The two write paths preserve other
+regions from the version they read; that alone is not a concurrency guarantee:
 
 - **Frontmatter and step writers** (`coga bump`, `coga mark`, …) go through
-  `coga.ticket.Ticket`, which re-renders the YAML and treats the whole body —
-  fence and blackboard included — as opaque bytes, so a status write preserves
-  the blackboard verbatim.
+  `coga.ticket.Ticket`, which re-renders the YAML and retains its loaded body,
+  fence and blackboard included. A status write preserves that loaded
+  blackboard, not necessarily the latest blackboard on disk.
 - **Blackboard writers** call `replace_blackboard`, which byte-splices only the
   region after the fence and leaves the frontmatter and body bytes above it
   untouched, so a blackboard write never reformats the YAML.
@@ -194,6 +193,16 @@ captures the live bytes, and compares them again at replacement via
 `expected_bytes` — raising `TaskFileError` if a comparison detects a change,
 rather than overwriting it. This detects intervening edits even from an editor
 outside the barrier; it does not lock that editor.
+
+Lifecycle writes have a narrower guarantee. `git.write_ticket_under_barrier`
+serializes the write, but compares the live ticket only when its caller supplies
+a `mutation_snapshot`; it does not reread the body. Ordinary `coga mark active`
+loads a `Ticket` before taking that barrier and supplies no snapshot. A
+blackboard update that finishes between that load and the lifecycle write can
+therefore be overwritten by the old `Ticket.body`. Preserving separate regions
+is safe without an intervening edit; concurrent preservation requires the
+read/transform/write to share the barrier or an unchanged-byte check covering
+the read. The ordinary lifecycle path does not yet provide that guarantee.
 
 For a programmatic section append, call `append_to_section_text` with the
 heading and entry inside the transform passed to
