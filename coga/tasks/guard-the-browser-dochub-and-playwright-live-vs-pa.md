@@ -1,6 +1,6 @@
 ---
 title: Guard the browser dochub and playwright live-vs-packaged pair in test_packaging
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -23,8 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: bb670be8-8eee-43aa-9bc2-68400c38112f
 ---
 
 ## Description
@@ -90,3 +88,49 @@ bites by temporarily editing one side and watching the test fail before revertin
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Already satisfied
+
+Closed without a branch: the ticket's premise (a hand-maintained
+`IDENTICAL_LIVE_PACKAGED_PAIRS` allowlist) was retired by PR #758 (`93db7dad`,
+2026-09-08, "Live and packaged twin pairs are edited together by convention but
+not enforced by any test"). `tests/test_packaging.py` now derives every twin
+from the packaged tree via `_discover_live_packaged_twins()`, mapping
+`templates/coga/bootstrap/skills/<path>` -> `coga/skills/<path>`, and
+`IDENTICAL_LIVE_PACKAGED_PAIRS` is the derived, non-exempt subset. Verified
+2026-09-13 in the primary checkout on `main` (`f3c75606`):
+
+- **dochub pair registered** — `coga/skills/browser/dochub/SKILL.md` appears in
+  `IDENTICAL_LIVE_PACKAGED_PAIRS` (printed the tuple from the test module).
+- **playwright pair registered, all nine files** — `SKILL.md`, `LICENSE.txt`,
+  `NOTICE.txt`, `agents/openai.yaml`, `assets/playwright.png`,
+  `assets/playwright-small.svg`, `references/cli.md`,
+  `references/workflows.md`, `scripts/playwright_cli.sh` all appear as pairs.
+  Derivation also covers the "file added to one side only" case the ticket
+  wanted: a new packaged file with a live counterpart becomes a pair on the
+  next walk, no registration needed.
+- **build-automation not paired** — `bootstrap/skills/browser/build-automation/`
+  has no live counterpart and is absent from `LIVE_PACKAGED_TWINS`.
+- **adjacent `recurring/skill-update/ticket.md` pair registered** — present
+  alongside the `ticket.py` pair.
+- **trees byte-identical** — `diff -r` clean for both `dochub` and
+  `playwright` live-vs-packaged trees.
+- **guard bites** — appended a line to
+  `coga/skills/browser/playwright/references/cli.md`, and the pair showed up
+  as drifted in `test_live_and_packaged_copies_stay_identical`; reverted.
+- **no test change needed** — the derivation replaces the allowlist, so the
+  ticket's "two directory-pair constant" alternative is moot; CLAUDE.md already
+  documents the derived rule ("There is no list to register a new twin in").
+
+## Adjacent finding (not fixed here)
+
+`python -m pytest tests/test_packaging.py` currently fails on `main` for an
+unrelated pair: `coga/contexts/coga/codebase/SKILL.md` vs its packaged twin
+under `bootstrap/contexts/coga/codebase/`. Symptom: the live copy carries the
+per-skill `gh skill update` / `classify_gh_update_output` / `text.py` ANSI
+stripper prose that the packaged copy lacks. Cause: `74692b23 Sync coga state`
+(2026-09-12) landed the live side on `main`, while the matching packaged-copy
+edit (22 insertions) still sits on the unmerged `skill-update-per-skill`
+branch (worktree `../coga-skill-update-per-skill`). It resolves when that
+branch merges; if it does not, the packaged twin needs the same 22 lines.
+Not this ticket's pair, so left alone per `code/implement` scoping.
