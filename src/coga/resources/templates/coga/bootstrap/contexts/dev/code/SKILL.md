@@ -90,18 +90,27 @@ services recurring work from a worktree. Then follow the rule the existing
 precedents (`recurring/dream`, `retro/done-ticket`, the retire prompt, and
 `recurring_runner`'s temporary control worktree) already share:
 
-- **Ordinary-copy** the primary checkout's `coga.local.toml` to the same
-  repo-relative path in the new checkout (`coga/coga.local.toml` in this repo)
-  and set it to mode 0600. It carries secret *references*, never values, and
-  machine-local paths — the same capabilities on the same machine.
+- **Treat `coga.local.toml` as secret-bearing.** It can contain literal Slack
+  webhooks or OAuth credentials as well as secret references and machine-local
+  paths. Prefer a minimal local file with the user and settings/references the
+  intended commands need. An ordinary copy of the whole file is appropriate
+  only when the destination checkout and its processes may access every
+  credential it contains; being on the same machine does not establish that
+  boundary. Use the same repo-relative destination (`coga/coga.local.toml` in
+  this repo), verify that it is ignored, and create it with mode 0600 before
+  writing any contents. Keep credential values out of tool output and logs.
 - **Never symlink it**, put it in an evidence snapshot, stage it, or commit
   it. It is ignored, so `git add <path>` is the only way it reaches a commit;
   do not give Git that path.
-- **Remove the copy when the need ends.** With a disposable checkout, remove
-  it before the checkout goes. With a durable feature worktree, remove it
+- **Remove the local file when the need ends.** With a disposable checkout,
+  remove it before the checkout goes. With a durable feature worktree, remove it
   before the ticket reaches `coga retire`: retire preserves a checkout holding
   any ignored file outside its regenerable-cache carve-out, so a copy left
   behind turns the checkout's cleanup into a refusal.
+
+Before launching an agent from that checkout, also restore its ignored skill
+discovery links. Rebuilding `coga/.agent-skills/` does not recreate them; see
+`coga/codebase` for the paths and commands.
 
 ### Keep the feature checkout durable
 

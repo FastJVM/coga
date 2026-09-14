@@ -525,21 +525,36 @@ wrong checkout silently produces wrong results in both directions:
     `skill status` / `recurring list` / `secret get` views) also pass
     `require_user=False`. No environment variable substitutes for the
     file. The written rule is
-    `dev/code` › "Seed the machine-local config": an ordinary 0600 copy at
-    the same repo-relative path, never symlinked, staged, or committed.
-    `recurring_runner`'s temporary control worktree does exactly that in code
+    `dev/code` › "Seed the machine-local config": a minimal 0600 local file,
+    or an ordinary copy only when the destination may access all its potentially
+    literal credentials; never symlinked, staged, or committed.
+    `recurring_runner`'s temporary control worktree copies the whole file in code
     (`shutil.copyfile` + `chmod(0o600)` into its mirrored Coga OS directory)
     before its inner scan. The command-side complement — Coga seeding its own
     checkouts — is `v2/propagate-local-coga-config-into-worktrees`, still a
-    draft; until it lands, the copy is the only mechanism.
-  - `.agent-skills/` — **self-heals.** `coga init` builds it and
-    `_refresh_agent_skills_for_launch` rebuilds it on every launch, so a
-    missing copy costs nothing. A *present* one is not free, though: it sits
+    draft; other fresh checkouts still need explicit local setup.
+  - `.agent-skills/` — **the view rebuilds; discovery links do not.** `coga init`
+    builds the view and `_refresh_agent_skills_for_launch` rebuilds it on every
+    launch. The ignored `.claude/skills/coga` and `.codex/skills/coga` symlinks
+    are separate: `_link_skills_for_agents` creates them during init, and launch
+    only refreshes their target. Before an agent launch in a fresh checkout,
+    recreate the missing links. For this repo's layout, from the checkout root:
+
+    ```sh
+    mkdir -p .claude/skills .codex/skills
+    ln -s ../../coga/.agent-skills .claude/skills/coga
+    ln -s ../../coga/.agent-skills .codex/skills/coga
+    ```
+
+    Use paths relative to each agent's `skills/` directory when the Coga root
+    lives elsewhere. Inspect existing paths instead of overwriting them. The
+    links may initially dangle; launch creates their generated target. That view
+    can affect cleanup: it sits
     outside `branchcleanup.REGENERABLE_IGNORED_DIRS` (only `__pycache__`,
     `.pytest_cache`, `.ruff_cache`, `.mypy_cache`), so once a launch has
     rebuilt it inside a feature worktree, `coga retire` refuses to remove that
     worktree until it is deleted. The same holds for a copied
-    `coga.local.toml`.
+    `coga.local.toml` and the generated agent discovery links.
   - `.coga/` — **created on demand.** It is per-checkout runtime state, not
     installation: `recurring-runs/` ledgers, `megalaunch-selection.json`,
     launch worktrees. A fresh checkout starts empty and each writer creates
