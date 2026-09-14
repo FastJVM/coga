@@ -31,7 +31,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (design)
+step: 2 (evaluate-design)
 ---
 
 ## Description
@@ -66,17 +66,19 @@ README's premise check cannot be run on these drafts until they have a descripti
 This is a ticket-data change, not a code change; the implement step needs no branch beyond what the
 workflow requires and touches only `coga/tasks/v2/*.md`.
 
-1. Read the verdict table on the blackboard (filled in at `review-design`). It is the only input.
-2. For each `describe` row: open `coga/tasks/v2/<slug>.md`, replace the empty `## Description` with
-   the owner's answer (prose, first person is fine — it is a record of intent, not a spec), and put
-   the interview's findings for that stub under `## Context`. Keep frontmatter untouched; the
-   drafts stay `status: draft` with `workflow: null` so the v2 README's premise check can now be
-   run on them by whoever pulls them forward.
-3. For each `cancel` row: `coga mark canceled v2/<slug> --message "<reason from table>"`. One
-   command per stub; the message is the audit trail in `coga/log.md`.
-4. Where the owner merged two stubs into one (e.g. the two model-selection stubs), describe the
-   survivor and cancel the other with `duplicate of v2/<survivor>` as the reason.
-5. Run `coga validate --json` and `coga status v2 --all`; record both results on the blackboard.
+1. Read the verdict table on the blackboard (owner-approved at `review-design`). It is the only
+   input. Outcome of the interview: **1 describe, 16 cancels.**
+2. The one `describe` row (`pick-model-on-workflow-to-save-on-cost`): open
+   `coga/tasks/v2/pick-model-on-workflow-to-save-on-cost.md`, replace the empty `## Description`
+   with the text quoted verbatim on the blackboard ("Text for the one `describe`"), and put the
+   grep findings for that stub under `## Context`. Keep frontmatter untouched; it stays
+   `status: draft` with `workflow: null` — the owner explicitly does not want it pulled forward.
+3. For each of the 16 `cancel` rows: `coga mark canceled v2/<slug> --message "<cancel reason
+   column>"`. One command per stub, in table order; the message is the audit trail in
+   `coga/log.md`. `model-selector` is canceled as `duplicate of v2/pick-model-on-workflow-to-save-on-cost`.
+4. Run `coga validate --json` and `coga status v2 --all`; record both results on the blackboard.
+   Expected: 81 tasks, 16 newly `canceled`, no `unsynthesized-draft-blackboard` ERROR introduced
+   (the rule fires only on `status: draft`; the one described draft has a synthesized description).
 
 ### Out of scope
 
@@ -195,85 +197,58 @@ are not part of that cohort.
 
 <!-- coga:blackboard -->
 
-## Design step — 2026-09-12
+## Design step — 2026-09-12 → 2026-09-13
 
-**Status: blocked on the interview.** Session conduct for this launch is the megalaunch queue rule
-(input not already in hand is unavailable; do not ask-and-wait), so the 17 questions go out through
-`coga block`. Everything that does not depend on the answers is done: the spec skeleton is under
-`## Description`, and the per-stub grep findings are under `## Context` ("What the pre-interview
-grep found"). The verdict table below is the deliverable of `review-design`; the implement step
-reads only that table.
+**Status: interview complete; spec final.** The 17 questions went out via `coga block` on
+2026-09-12 (megalaunch session, input unavailable). The owner answered on 2026-09-13 through
+`coga unblock` (see Blockers below) and, in the attended relaunch the same day, settled the one
+open point: #10 is **described from the owner's own words**, not kept title-only. The verdict
+table below is the deliverable of `review-design` and the only input the implement step reads.
+Owner may still edit the #10 wording at `review-design`.
 
-Leans below are the agent's read of the evidence, **not verdicts** — the owner overrides any of
-them. A `describe` needs the owner's own words; nothing gets written from the slug.
+Net result: **1 describe, 16 cancels.** Everything not depending on the answers was done on
+2026-09-12: spec skeleton under `## Description`, per-stub grep findings under `## Context`
+("What the pre-interview grep found").
 
-## Verdict table (fill at review-design)
+## Verdict table (owner-approved 2026-09-13)
 
-| slug | found | lean | owner's answer | verdict |
-| --- | --- | --- | --- | --- |
-| `add-subproject` | nothing anywhere | cancel unless intent recalled | | |
-| `autoroute-agent-based-on-remaining-usage` | superseded by canceled `nightly-auto-drain` | cancel (superseder canceled too) or describe if still wanted | | |
-| `create-vault6-and-service-account-for-high-trust-s` | contradicts `coga/secrets` one-SA/one-vault rule; owner zach | cancel as premise-dead by decision | | |
-| `create-vault-and-service-account-for-mid-trust-sec` | same | cancel as premise-dead by decision | | |
-| `docs-and-contt-block-should-be-merged` | duplicate of live `redo-documentation-dir-…` | cancel as duplicate | | |
-| `generic-lib-to-use-e-g-patent-models` | only echo is canceled reminder-engine ticket | cancel unless intent recalled | | |
-| `in-general-relay-files-should-be-easier-to-access` | `move-cogacontext-…` done | cancel as shipped, unless more was meant | | |
-| `manage-security-and-pii` | secrets covered; PII not | describe if PII ask is real; else cancel | | |
-| `model-selector` | feature absent; twin of next | merge into one described stub, cancel other | | |
-| `pick-model-on-workflow-to-save-on-cost` | feature absent; twin of prev | (survivor candidate — it names the why) | | |
-| `project-manager-split-spec-in-tickets-block` | design step already splits; block exists | cancel unless a PM role is still wanted | | |
-| `remote-stale-command-line-toosl` | covered by `v2/cleanup-core-commands/` | cancel as duplicate | | |
-| `script-mode-to-activate` | `mode:` gone | cancel as premise-dead | | |
-| `simplify-command-lines` | covered by `v2/cleanup-core-commands/` | cancel as duplicate | | |
-| `sync-support-files-and-bare-ticket-authoring` | shipped in #491 | cancel as shipped | | |
-| `update-all-doesn-t-copy-workflow-correctly-to-atta` | command removed in #461 | cancel as premise-dead | | |
-| `why-ai-asks-me-to-bump-instead-of-doing-it` | base prompt mandates bump-last | cancel as shipped | | |
+| # | slug | found | owner's answer | verdict | cancel reason (`--message`) |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `add-subproject` | nothing anywhere | accept lean | cancel | intent no longer recoverable |
+| 2 | `autoroute-agent-based-on-remaining-usage` | superseded by canceled `nightly-auto-drain-run-for-ready-tickets` | accept lean | cancel | premise dead: folded into nightly-auto-drain-run-for-ready-tickets, itself canceled |
+| 3 | `create-vault6-and-service-account-for-high-trust-s` | contradicts `coga/secrets` one-SA/one-vault rule | accept lean | cancel | premise dead: coga/secrets rules one SA, one automation vault; trust-tiered vaults are human-only |
+| 4 | `create-vault-and-service-account-for-mid-trust-sec` | same | accept lean | cancel | premise dead: coga/secrets rules one SA, one automation vault; trust-tiered vaults are human-only |
+| 5 | `docs-and-contt-block-should-be-merged` | duplicate of live `redo-documentation-dir-and-merge-it-with-context-b` | accept lean (duplicate) | cancel | duplicate of redo-documentation-dir-and-merge-it-with-context-b |
+| 6 | `generic-lib-to-use-e-g-patent-models` | only echo is canceled reminder-engine ticket | accept lean | cancel | intent no longer recoverable |
+| 7 | `in-general-relay-files-should-be-easier-to-access` | `move-cogacontext-to-roodoc-so-its-easier-for-human` done | accept lean (shipped) | cancel | already shipped in move-cogacontext-to-roodoc-so-its-easier-for-human |
+| 8 | `manage-security-and-pii` | secrets covered by `coga/secrets`; PII never specified | accept lean | cancel | intent no longer recoverable; secrets half covered by coga/secrets context |
+| 9 | `model-selector` | twin of #10 | accept lean (duplicate of 10) | cancel | duplicate of v2/pick-model-on-workflow-to-save-on-cost |
+| 10 | `pick-model-on-workflow-to-save-on-cost` | feature absent; no `model` key in `[agents.*]` | "it is a v2 item — leave it in v2/ as the surviving model-selection stub, do not cancel and do not pull it forward; no per-step/agent/ticket decision yet." Describe from these words (confirmed attended 2026-09-13). | **describe** | — |
+| 11 | `project-manager-split-spec-in-tickets-block` | design step already splits; `coga block` exists | accept lean | cancel | premise dead: code/design step 5 already splits oversized tickets and coga block covers the block half |
+| 12 | `remote-stale-command-line-toosl` | covered by `v2/cleanup-core-commands/` | accept lean | cancel | duplicate of v2/cleanup-core-commands/ |
+| 13 | `script-mode-to-activate` | `mode:` frontmatter gone | accept lean | cancel | premise dead: mode:/script: frontmatter removed; ticket.py sibling replaced it |
+| 14 | `simplify-command-lines` | covered by `v2/cleanup-core-commands/` | accept lean | cancel | duplicate of v2/cleanup-core-commands/ |
+| 15 | `sync-support-files-and-bare-ticket-authoring` | shipped in #491 | accept lean (shipped #491) | cancel | already shipped in #491 (authoring.support_paths) |
+| 16 | `update-all-doesn-t-copy-workflow-correctly-to-atta` | `init --update --all` removed in #461 | accept lean (premise-dead, #461) | cancel | premise dead: relay init --update --all removed in #461 |
+| 17 | `why-ai-asks-me-to-bump-instead-of-doing-it` | base prompt mandates bump-last | accept lean (shipped) | cancel | already shipped in the base-prompt rewrite (prompt.md mandates bump as last act) |
+
+### Text for the one `describe` (#10) — implement step writes this verbatim
+
+`## Description` of `coga/tasks/v2/pick-model-on-workflow-to-save-on-cost.md`:
+
+> Pick the model per workflow to save on cost. This is the surviving model-selection stub
+> (`model-selector` was canceled as its duplicate). It stays a v2 item: not canceled, not pulled
+> forward. Whether the choice lives per workflow step, per agent in `[agents.*]`, or per ticket is
+> not yet decided — that is the first question whoever pulls this forward must answer.
+
+`## Context`: the grep facts from the table row — no `model` key exists in `[agents.claude]` /
+`[agents.codex]` (`coga/coga.toml:19-39`) or in `src/coga/config.py`; `launch.py` does no model
+routing; `model-selector` (created 2026-06-09) was the other half, canceled as duplicate.
 
 ## Open Questions
 
-The 17 questions to the owner, each carrying what was found. Answer with a verdict per row; for
-`describe`, one or two sentences in your own words is enough — they become the Description
-verbatim.
-
-1. `add-subproject` — no subproject concept exists anywhere. What was a subproject: a nested
-   Coga repo, a `coga/tasks/<dir>/` namespace like `v2/`, or something else? Or cancel?
-2. `autoroute-agent-based-on-remaining-usage` — was folded into `nightly-auto-drain`, which you
-   later canceled. Does routing a ticket to whichever of Claude/Codex still has budget still
-   matter on its own, or cancel with it?
-3. `create-vault6-and-service-account-for-high-trust-s` (zach's) — `coga/secrets` now says one SA,
-   one automation vault, and that trust-named vaults are human-only. Cancel as decided-against, or
-   is there a second automation tier you and zach still want?
-4. `create-vault-and-service-account-for-mid-trust-sec` (zach's) — same question.
-5. `docs-and-contt-block-should-be-merged` — three tickets already call it an empty duplicate of
-   the live `redo-documentation-dir-and-merge-it-with-context-b`. Confirm cancel as duplicate?
-6. `generic-lib-to-use-e-g-patent-models` — do you remember what the "generic lib" was (a shared
-   Python module the patents/admin repos would import? a bundled battery?). If not, cancel.
-7. `in-general-relay-files-should-be-easier-to-access` — `move-cogacontext-to-roodoc-…` shipped
-   the contexts move. Was that the whole ask, or is there more (tasks? skills? a CLI `coga show`
-   gap)?
-8. `manage-security-and-pii` — secrets are covered by `coga/secrets`. Was the PII half a real ask
-   (e.g. rules about what agents may put in tickets/log/Slack)? If yes, one sentence on what;
-   else cancel.
-9. + 10. `model-selector` / `pick-model-on-workflow-to-save-on-cost` — same feature twice. Keep
-   one? Proposed: keep `pick-model-on-workflow-to-save-on-cost` (it carries the why) and cancel
-   `model-selector` as duplicate. What did you want selected — model per workflow step in the
-   frozen workflow, per agent in `[agents.*]`, or per ticket?
-11. `project-manager-split-spec-in-tickets-block` — `code/design` already says "split if too
-    big" and `coga block` exists. Was this a distinct PM role/skill that turns a spec into a set
-    of tickets? Describe or cancel.
-12. `remote-stale-command-line-toosl` — reading this as "remove stale command-line tools", which
-    `v2/cleanup-core-commands/` now owns. Cancel as covered, or did "remote" mean something else?
-13. `script-mode-to-activate` — `mode:` frontmatter is gone; `ticket.py` sibling replaced it.
-    Confirm cancel as premise-dead?
-14. `simplify-command-lines` — also `cleanup-core-commands/` territory. Cancel as covered?
-15. `sync-support-files-and-bare-ticket-authoring` — `authoring.support_paths()` shipped this in
-    #491. Confirm cancel as shipped?
-16. `update-all-doesn-t-copy-workflow-correctly-to-atta` — `init --update --all` was removed in
-    #461. Confirm cancel as premise-dead?
-17. `why-ai-asks-me-to-bump-instead-of-doing-it` — base prompt now mandates bump-as-last-act.
-    Confirm cancel as shipped, or is the behavior still happening?
-
----
+None outstanding. All 17 answered 2026-09-13 (16 via `coga unblock`, #10 wording confirmed in the
+attended relaunch). The owner may still edit the #10 Description text at `review-design`.
 
 ## Blockers
 
