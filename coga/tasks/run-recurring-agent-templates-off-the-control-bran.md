@@ -1,6 +1,6 @@
 ---
 title: Run recurring agent templates off the control branch
-status: in_progress
+status: blocked
 owner: nicktoper
 agent: claude
 workflow:
@@ -32,7 +32,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (design)
-launch_generation: 453b9b7a-6daa-419a-99cb-5207dabd9eba
 ---
 
 ## Description
