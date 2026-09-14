@@ -10,6 +10,8 @@ steps:
     assignee: agent
   - name: review
     assignee: owner
+    skills:
+      - code/address-pr-comments
 ---
 
 ## When to use this instead of code/with-review
@@ -157,12 +159,14 @@ Human reviews the open PR on GitHub. The peer-review pass has already
 applied its must-fix findings to the branch, so the diff you see is the
 post-review state.
 
-This is an owner-controlled gate. If an agent is launched or asked to
-assist during this step, it may inspect the PR, run verification, prepare
-or push explicitly requested fixes, and report a recommendation. It must
-not merge the PR, delete the branch, run `coga bump` or
-`coga mark done`, or otherwise advance/close the task unless the human
-explicitly says to do that for this PR.
+This is an owner-controlled gate. The step freezes `code/address-pr-comments`
+(the same skill `code/with-review` freezes), so an agent launched or asked to
+assist here composes that skill rather than this section: it reads the PR's
+review threads, may run verification and prepare or push explicitly requested
+fixes, replies without resolving, and reports a recommendation. It must not
+merge the PR, delete the branch, run `coga bump` or `coga mark done`, or
+otherwise advance/close the task unless the human explicitly says to do that
+for this PR.
 
 The human owner decides whether to edit, request changes, push fixes, or
 merge. After the human merges, the `autoclose-merged` recurring sweep
