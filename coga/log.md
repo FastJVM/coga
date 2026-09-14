@@ -5149,3 +5149,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-14 12:07 [define-the-api-equivalent-cost-proxy-and-price-tab] [git] sync refused: coga/tasks/define-the-api-equivalent-cost-proxy-and-price-tab.md: published launch claim would be cleared without an authorized session-ending lifecycle transition
 2026-09-14 13:08 [define-the-api-equivalent-cost-proxy-and-price-tab] [git] sync refused: coga/tasks/define-the-api-equivalent-cost-proxy-and-price-tab.md: published launch claim would be cleared without an authorized session-ending lifecycle transition
 2026-09-14 13:09 [dream-2026-w38-extract-backlog-4-findings-phase-4] [human:nicktoper] created (status=draft)
+2026-09-14 13:09 [define-the-api-equivalent-cost-proxy-and-price-tab] [git] sync refused: coga/tasks/define-the-api-equivalent-cost-proxy-and-price-tab.md: published launch claim would be cleared without an authorized session-ending lifecycle transition
+2026-09-14 13:09 [document-the-remedy-for-a-bloated-blackboard-sibli] [human:nicktoper] created (status=draft)
