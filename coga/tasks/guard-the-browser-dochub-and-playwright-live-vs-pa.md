@@ -1,6 +1,6 @@
 ---
 title: Guard the browser dochub and playwright live-vs-packaged pair in test_packaging
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:bb670be8-8eee-43aa-9bc2-68400c38112f
 ---
 
 ## Description
