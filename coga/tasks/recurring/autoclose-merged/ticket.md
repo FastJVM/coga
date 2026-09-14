@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
-step: 1 (sweep)
 ---
 
 ## Description
@@ -53,3 +52,14 @@ nothing.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-09-14T18:52:31+00:00
+Task: `recurring/autoclose-merged`
+
+3 auto-closed ticket(s) still have a recorded feature checkout. Autoclose never removes one — `coga retire` owns the worktree and branch safety proofs:
+
+- `remov-digest-in-recurring` "Remove the daily digest": worktree `/home/n/Code/claude/coga-remove-digest`, branch `remove-digest` — `coga retire remov-digest-in-recurring`
+- `simplify-ticket-format` "simplify ticket format": worktree `/home/n/Code/codex/coga-simplify-ticket-format`, branch `simplify-ticket-format` — `coga retire simplify-ticket-format`
+- `stop-syncing-task-state-onto-the-feature-branch` "Stop syncing task state onto the feature branch": worktree `/home/n/Code/claude/coga-feature-branch-state-boundary`, branch `feature-branch-state-boundary` — `coga retire stop-syncing-task-state-onto-the-feature-branch`

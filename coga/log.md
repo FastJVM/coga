@@ -5112,3 +5112,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-14 11:52 [remov-digest-in-recurring] [human:nicktoper] auto-bumped on merge of PR #786 → done
 2026-09-14 11:52 [simplify-ticket-format] [human:nicktoper] auto-bumped on merge of PR #784 → done
 2026-09-14 11:52 [stop-syncing-task-state-onto-the-feature-branch] [human:nicktoper] auto-bumped on merge of PR #785 → done
+2026-09-14 11:52 [recurring/autoclose-merged] [human:nicktoper] task done
