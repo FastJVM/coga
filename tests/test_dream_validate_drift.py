@@ -224,6 +224,7 @@ def test_classifies_recurring_state_stuck_as_human_needed() -> None:
         "invalid-delegate-owner",
         "invalid-period-generation-owner",
         "missing-step-instructions",
+        "non-executable-script",
         "script-backed-delegate-target",
         "unrunnable-script-entry-point",
         "unsynthesized-draft-blackboard",

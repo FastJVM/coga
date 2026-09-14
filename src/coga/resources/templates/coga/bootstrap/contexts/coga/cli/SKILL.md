@@ -1310,7 +1310,14 @@ credential fails fast rather than hanging on a hidden prompt; failures are
 `(github)` errors excluded from the ok count. It is opt-in because the default
 validate path runs no subprocess and reads no network; Coga stores no PAT and
 does not reimplement GitHub auth — it just exercises the operator's own `git` and
-`gh` setup. Reach for
+`gh` setup. The default sweep also checks the installed and bundled skill
+trees: a file whose first two bytes are `#!` must be executable
+(`non-executable-script`, an error). The shebang is the author's declaration
+that the script is run directly, so a `100644` commit fails permission-denied
+on every fresh clone — the remedy is `chmod +x` plus committing the mode. On
+POSIX the working-tree mode is what is checked (no git needed); on Windows the
+git index is read instead, and the check stays silent when neither is
+available. Reach for
 validation when a command is misbehaving or slack/webhook setup looks broken;
 Dream's validate-drift skill is the normal place to apply safe fixes and
 broadcast a summary during a Dream run.

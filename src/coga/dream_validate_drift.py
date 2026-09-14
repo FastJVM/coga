@@ -272,6 +272,18 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
+    if kind == "non-executable-script":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_PR_PROPOSAL,
+            remediation=(
+                "Open a small PR that `chmod +x`es the named skill script and "
+                "commits the mode change (git tracks it as 100755). The shebang "
+                "is the author's declaration that it is run directly; do not "
+                "strip the shebang or rewrite the skill's instructions instead."
+            ),
+        )
+
     if kind == "duplicate-slug":
         return ClassifiedIssue(
             issue=issue,

@@ -874,6 +874,73 @@ def test_validate_checks_only_the_reserved_ticket_py_entry_point(repo: Path) -> 
     assert "does not compile" in issue.message
 
 
+def _write_shebang_script(repo: Path, mode: int) -> Path:
+    script = repo / "skills" / "infra" / "tests" / "scripts" / "run.sh"
+    _write(script, "#!/usr/bin/env bash\necho ok\n")
+    script.chmod(mode)
+    return script
+
+
+def test_validate_reports_non_executable_shebang_skill_script(repo: Path) -> None:
+    # The shebang is the author's declaration that the file is run directly,
+    # so a `100644` copy fails permission-denied on every fresh clone. An
+    # import-only module carries no shebang and stays `100644` legitimately.
+    cfg = load_config(repo)
+    script = _write_shebang_script(repo, 0o644)
+    module = script.with_name("helper.py")
+    _write(module, "def helper():\n    return 1\n")
+    module.chmod(0o644)
+
+    report = run(cfg)
+    flagged = [i for i in report.issues if i.kind == "non-executable-script"]
+    assert [i.task for i in flagged] == ["skills/infra/tests/scripts/run.sh"]
+    assert flagged[0].severity == "error"
+    assert "chmod +x" in flagged[0].message
+
+    script.chmod(0o755)
+    clean = run(cfg)
+    assert not [i for i in clean.issues if i.kind == "non-executable-script"]
+
+
+def test_validate_skips_shebang_mode_check_without_a_trustworthy_source(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A Windows working tree cannot carry the bit; with no git index to fall
+    # back on either, silence beats a false error.
+    cfg = load_config(repo)
+    _write_shebang_script(repo, 0o644)
+    monkeypatch.setattr("coga.validate._working_tree_carries_mode", lambda: False)
+    monkeypatch.setattr("coga.validate._git_index_modes", lambda root: None)
+
+    report = run(cfg)
+    assert not [i for i in report.issues if i.kind == "non-executable-script"]
+
+
+def test_validate_reads_the_git_index_where_the_working_tree_has_no_mode(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Simulate Windows: the working tree says nothing about the committed
+    # mode, so the check reads what git tracks instead. The packaged skills
+    # live in this checkout's own index, so point that root at nothing.
+    cfg = load_config(git_repo.coga_os)
+    script = _write_shebang_script(git_repo.coga_os, 0o755)
+    rel = str(script.relative_to(git_repo.root))
+    git_repo.git("add", "-A")
+    git_repo.git("update-index", "--chmod=-x", rel)
+    monkeypatch.setattr("coga.validate._working_tree_carries_mode", lambda: False)
+    monkeypatch.setattr(
+        "coga.validate.bundled_skills_root",
+        lambda cfg: git_repo.coga_os / "no-bundled-skills",
+    )
+
+    flagged = [i for i in run(cfg).issues if i.kind == "non-executable-script"]
+    assert [i.task for i in flagged] == ["skills/infra/tests/scripts/run.sh"]
+
+    git_repo.git("update-index", "--chmod=+x", rel)
+    clean = run(cfg)
+    assert not [i for i in clean.issues if i.kind == "non-executable-script"]
+
+
 def test_step_requires_unknown_gate_is_error(repo: Path) -> None:
     """A frozen step's `requires:` must name a registered completion gate; a
     bogus token is a hard `bad-shape` error (the activation/bump gate would
