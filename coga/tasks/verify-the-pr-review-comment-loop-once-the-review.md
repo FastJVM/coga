@@ -1,6 +1,6 @@
 ---
 title: Verify the PR review-comment loop once the review queue drains
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -11,6 +11,7 @@ workflow:
     - direct/body
     assignee: agent
 step: 1 (execute)
+launch_generation: pending:faa425c7-7269-442a-9c95-a950cfd65de7
 ---
 
 ## Description
