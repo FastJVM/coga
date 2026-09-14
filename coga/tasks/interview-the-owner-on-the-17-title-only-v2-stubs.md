@@ -1,6 +1,6 @@
 ---
 title: Interview the owner on the 17 title-only v2 stubs
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
