@@ -65,6 +65,8 @@ This also interacts with `ticket-relationships-and-ownership-have-no-mechani`
 a way to record the order. Decide whether the split contract adopts whatever
 that ticket settles, or defines its own heading and stays prose-only.
 
+**Dream 2026-W38 evidence (finding F-26).** `coga/skills/code/implement/SKILL.md` ("If the work is too big for one PR, **stop and split the ticket** on the blackboard") and `coga/skills/code/design/SKILL.md` ("recommend a split rather than writing a spec you know is oversized") both instruct a split without defining it; a grep of `coga/skills`, `coga/contexts`, and `src/coga/resources/templates` finds no `## Split`/`## Sequencing` heading and no sibling-slug or cross-link convention. Three independent tickets invented the linkage three ways: `run-recurring-agent-templates-off-the-control-bran` ("Two sibling tickets cover the easy cases: …"), `megalaunch-activates-picks-before-preflight` ("the same invariant violation as the sibling ticket `launch-activates-before-preflight`"), and `the-period-task-context-never-covers-the-determini` ("the sibling ticket `define-the-recipe-reporting-contract-report-durabi`. Read both before writing"), none distinguishing an ordered sequence from a co-equal split or recording it under a findable blackboard heading. `v2/skill-for-split-into-sibling-ticket-discipline` overlaps this ticket; its adjacent-finding half is already satisfied by the packaged `retro/done-ticket/SKILL.md` "Unresolved adjacent bugs" section, so fold what remains into this ticket rather than keeping both.
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

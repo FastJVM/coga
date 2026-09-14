@@ -100,6 +100,8 @@ Sibling tickets from this run that overlap: `adjudicate-parked-and-active-ticket
 (the verdicts themselves), `title-only-tickets-have-no-convention-and-no-valid`
 (the stub habit outside `v2/`), and `record-or-clear-the-standing-repo-wide-coga-valida`.
 
+**Dream 2026-W38 evidence (finding F-22, hole 4).** The guard "A green `coga validate` is never a reason to cancel a draft — it is a consequence of correct verdicts, never an input to them" is carried verbatim by eight tickets (`adjudicate-the-eight-premise-dead-v2-drafts`, `interview-the-owner-on-the-17-title-only-v2-stubs`, `adjudicate-parked-and-active-tickets-whose-premise`, `correct-the-v2-known-stale-surfaces-table-and-rout`, `record-or-clear-the-standing-repo-wide-coga-valida`, `title-only-tickets-have-no-convention-and-no-valid`, this ticket, and the canceled `triage-the-v2-parking-area-empty-descriptions-prem`) and by no context: grepping `coga/contexts`, `coga/skills`, `src/coga/resources/templates`, `docs`, and `coga/tasks/v2/README.md` for "green validate", "never a reason to cancel", or "consequence of correct verdicts" returns nothing. Since Dream deletes done tickets, the only durable statements sit on the path to deletion. Add the sentence to the premise-check section of `coga/tasks/v2/README.md` and, because the guard binds any draft, to the ticket-lifecycle section of `coga/contexts/coga/architecture/SKILL.md` and its packaged twin.
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

@@ -99,6 +99,8 @@ Any `coga mark canceled` call, and any verdict on the 8-draft premise cohort or 
 are the two sibling tickets. If triaging the table surfaces a draft you believe is premise-dead,
 note it for the sibling ticket rather than acting on it.
 
+**Dream 2026-W38 evidence (finding F-20).** Re-verified: the known-stale-surfaces row `relay-os/…` → `coga/…` still misroutes workflow refs — `coga/tasks/v2/dev-loop-git-hygiene-lift-sync-with-main-into-code.md` (now deleted by Retro) and `coga/tasks/v2/automerge-ticket.md` cite `relay-os/workflows/code/with-self-review.md` / `with-review.md` / `design-then-implement.md`, and `coga/workflows/code/` does not exist; `code/*` workflows resolve only through `src/coga/paths.py::bootstrap_workflow_path` from the packaged bootstrap tree. Split the row: `relay-os/contexts/…` → `coga/contexts/…`; `relay-os/workflows/<name>` → repo-local `coga/workflows/<name>` if present, otherwise the packaged bootstrap tree (`code/*` is packaged-only). The second deliverable (a `script:` row) is now moot: `grep -rl '^script:' coga/tasks/v2/` returns nothing and the `script: null` migration was removed by #784 (`grep -n script src/coga/ticket.py` is empty) — drop it from this ticket's scope.
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
