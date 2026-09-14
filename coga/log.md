@@ -5113,3 +5113,6 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-14 11:52 [simplify-ticket-format] [human:nicktoper] auto-bumped on merge of PR #784 → done
 2026-09-14 11:52 [stop-syncing-task-state-onto-the-feature-branch] [human:nicktoper] auto-bumped on merge of PR #785 → done
 2026-09-14 11:52 [recurring/autoclose-merged] [human:nicktoper] task done
+2026-09-14 11:52 [define-the-api-equivalent-cost-proxy-and-price-tab] [git] sync refused: coga/tasks/define-the-api-equivalent-cost-proxy-and-price-tab.md: published launch claim would be cleared without an authorized session-ending lifecycle transition
+2026-09-14 11:52 [recurring/autoclose-merged] [system] script exited with code 0
+2026-09-14 11:52 [bootstrap/resolve-conflicts] [human:nicktoper] launched (operator=claude, agent=claude)
