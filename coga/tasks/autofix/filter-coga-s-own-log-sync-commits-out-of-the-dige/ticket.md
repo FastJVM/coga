@@ -1,6 +1,6 @@
 ---
 title: 'Filter Coga''s own Log: sync commits out of the digest'
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -25,6 +25,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:12dba162-75a0-4839-ab04-595d416f842d
 ---
 
 ## Description
