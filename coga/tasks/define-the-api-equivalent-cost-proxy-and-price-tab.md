@@ -1,6 +1,6 @@
 ---
 title: Define the API-equivalent cost proxy and price table
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 contexts:
@@ -34,6 +34,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (design)
+launch_generation: pending:51d411e1-d275-4942-b862-e368883830d7
 ---
 
 ## Description
