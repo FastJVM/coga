@@ -1,6 +1,6 @@
 ---
 title: 'Filter Coga''s own Log: sync commits out of the digest'
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -24,8 +24,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: 12dba162-75a0-4839-ab04-595d416f842d
 ---
 
 ## Description
@@ -94,4 +92,43 @@ transient or already fixed.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Diagnosis confirmed
+
+The sweep's finding was correct at the time it was written. Replaying the
+cited range on current history: `git rev-list --count f2f7eb1..3e9249b` = 130,
+`git log --format=%s f2f7eb1..3e9249b | grep -c '^Log: '` = 25 — the ticket's
+numbers exactly. `_is_coga_state_sync_commit` did not match `Log: ` and would
+have reported those 25 as merged work.
+
+## Already satisfied
+
+The sweep ran 2026-09-10. On 2026-09-11 `5b5f3e1f Remove the daily digest
+(#786)` landed on `origin/main` and deleted the entire surface this ticket
+targets, by owner decision ("Unattributed merges ('Also merged (no ticket)')
+are dropped with no replacement"). There is no code left to change and no
+branch to create.
+
+- **Add `Log: ` to `_is_coga_state_sync_commit`** — moot. `src/coga/commands/digest.py`
+  is deleted; `grep -rn _is_coga_state_sync_commit src/ tests/` matches nothing
+  outside this ticket. No `Also merged` section exists anywhere to report a
+  `Log: ` commit into.
+- **Test coverage for the `Log: ` subject and the no-post path** — moot. The
+  digest command, its tests, `should_post`, and the "no done tickets or new
+  commits" note were all removed with the command. There is no
+  `tests/test_digest*.py` to extend.
+- **Check branch-sweep and autoclose for an independent subject classifier** —
+  verified, none. `src/coga/autoclose.py` decides by the linked PR's GitHub
+  merge state, never by commit subject (its `subject` at line 577 is the
+  grammatical subject of a Slack sentence). `src/coga/branchsweep.py`
+  enumerates refs via `for-each-ref`, not commits.
+  `grep -rn 'startswith("Sync task state\|startswith("Ticket: ' src/coga/`
+  matches nothing: no subject-prefix classifier survives on `main`.
+- **Leave watermark and drain semantics alone** — moot. `src/coga/spool.py`
+  and `### Digest State` were removed in the same PR; there is no watermark or
+  drain left to preserve.
+
+The six `git.sync_log(..., message=f"Log: <slug>")` producers are still live,
+which is fine: `Log: ` commits are Coga's own audit-trail syncs and now have
+no consumer that would surface them to humans.
+
+Closing via `coga mark done` per the `code/implement` already-satisfied path.
