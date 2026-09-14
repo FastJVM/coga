@@ -658,12 +658,14 @@ This extension seam has five important constraints:
   in-process, where option defaults would arrive as `OptionInfo` sentinels.
   Deliberately exiting non-zero to keep a period visible until a human looks at
   it is an available idiom — `coga/recurring/skill-update/ticket.md` documents
-  using it that way — but price it first: a non-zero exit stops the whole
-  sweep, and every template behind this one is abandoned and unnamed in the run
-  record. `coga block` buys the same visibility without that cost: the ask is
-  recorded on the period ticket, the script-recorded `blocked` lifecycle is
-  preserved rather than paused, the run is reported as `unfinished` with its
-  reason, and the sweep continues to the templates behind it.
+  using it that way — but price it first: the period is left unfinished and
+  `in_progress`, and the sweep — which does run every template behind this one
+  (see the dispatch bullet above) — exits with that code and names the failure
+  in every run record until someone resolves it. `coga block` buys the same
+  visibility with a better record: the ask is recorded on the period ticket,
+  the script-recorded `blocked` lifecycle is preserved rather than paused, and
+  the run is reported as `unfinished` with its reason rather than as a bare
+  non-zero exit.
 - **A scheduled agent run must reach `done` in one launch.** When a bare
   `coga recurring` sweep gets control back from an unfinished agent launch, it
   pauses the period task before continuing. That includes an intermediate

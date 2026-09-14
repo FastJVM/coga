@@ -73,7 +73,7 @@ remaining argv passes through unchanged.
 |------|-----------|-------------|-----|
 | `init` | built-in | No | Scaffolds `coga/` from packaged templates and commits it. Installs no software. |
 | `uninstall` | built-in | No | Symmetric inverse of `init`: removes the repo-local footprint plus the machine-global shim, with a confirmation prompt. Heavy side effects. |
-| `create` / `draft` | built-in | No | Scaffolds a raw `draft` ticket and validates it; raw creation is intentionally Slack-silent. |
+| `create` | built-in | No | Scaffolds a raw `draft`-status ticket and validates it; raw creation is intentionally Slack-silent. (There is no `draft` verb or alias.) |
 | `ticket` | thin built-in head + `coga.authoring` finalize; package home provisional | Not as a fixed alias | Drafts-on-fly, launches the authoring interview, then calls extracted validate/git-sync finalization; TTY guard. Those hooks require coordinating logic, but no co-versioning invariant has yet been ratified. |
 | `launch` | built-in | No | Prompt composition, supervisor loop, status flip. |
 | `megalaunch` | built-in | No | Sweep / `--pick` / `--relaunch` over one engine: launchability filtering, a TTY picker, staged prepare→check→per-ticket activation and launch, fixed-point dependency drain. The `pick` default alias is sugar for `megalaunch --pick`, not a replacement. |
