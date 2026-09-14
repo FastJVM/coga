@@ -1168,8 +1168,8 @@ fetched — but it turns the silently stale table into a labeled one.
 ## Design rule for new features
 
 If a new command changes state that other team members need to know about, it
-must reach the sync layer. The notification contract has three elements, and a
-state-changing command wires all three:
+must reach the sync layer. A state-changing command makes three notification
+decisions:
 
 1. **Surface.** `post` for an urgent event or explicit FYI, `notify` for a
    ticket outcome or scheduled-work error (it admits only those kinds), or
@@ -1178,18 +1178,19 @@ state-changing command wires all three:
 2. **Destination**, chosen at delivery: flow for operating awareness and
    aggregates, important only when a human must act and no durable
    human-owned ticket already holds the ask.
-3. **Preflight.** A command that announces its write with `fatal=False` — the
-   only correct setting for a post that follows a committed transition — calls
-   `notification.preflight_post(cfg)` *before* the mutation, passing
-   `important=True` when the broadcast routes to important. Preflight keeps
-   an unresolved webhook from allowing the mutation in the first place;
-   `fatal=False` reports and drops configuration or delivery failures found
-   after the write so the command can finish. Omitting preflight therefore
-   allows the state change to complete without its announcement, rather than
-   refusing it up front. Runs with a resolved webhook do not expose the
-   omission. Gate the call the way `bump` does, on whether this invocation will
-   actually post live, so a silent step advance does not demand a webhook it
-   will never use.
+3. **Preflight policy.** When the transition's contract explicitly makes
+   notification configuration an admission gate, call
+   `notification.preflight_post(cfg)` *before* mutation; select `important=True`
+   only if that gated post uses the important route. Gate the call on whether
+   this invocation will actually post live, as `bump` does. Preflight refuses an
+   unresolved route before the write; `fatal=False` reports and drops failures
+   discovered after the write so completion can continue. Using `fatal=False`
+   does not itself require preflight: ordinary `block` and launch paths and
+   important script-failure, scan-error, and watchdog alerts intentionally
+   retain best-effort notification semantics without that admission gate. Keep
+   those paths able to finish when their webhook is unavailable. Use the
+   inventory under *Notification implementation pointers* to distinguish the
+   gated transitions from these deliberate exceptions when adding a caller.
 
 Don't add silent state mutations that bypass both layers
 when the team needs awareness. Conversely, don't emit chatter that doesn't
