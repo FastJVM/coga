@@ -19,7 +19,7 @@ workflow:
     skills: []
     assignee: owner
 step: 3 (open-pr)
-launch_generation: pending:af819deb-169f-4f3f-88f9-d75039dd66cb
+launch_generation: af819deb-169f-4f3f-88f9-d75039dd66cb
 ---
 
 ## Description
