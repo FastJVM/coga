@@ -5059,3 +5059,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-13 22:49 [run-recurring-agent-templates-off-the-control-bran] [system] blocked: unresolved blocker still open after resumed megalaunch pick exited
 2026-09-13 22:49 [dream-findings-have-three-routing-holes-that-lose] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-09-13 22:49 [dream-findings-have-three-routing-holes-that-lose] [megalaunch] launched via coga megalaunch
+2026-09-13 22:53 [dream-findings-have-three-routing-holes-that-lose] [agent:claude] advanced to step 4 (review) → nicktoper — PR #799 open; note: tests/test_packaging.py twin test already fails on origin/main (codebase/SKILL.md drift), unrelated to this branch
