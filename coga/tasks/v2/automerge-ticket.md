@@ -78,8 +78,9 @@ that merging without a returned review is the failure mode to avoid. The merge s
 should: read `pr:` from the blackboard `## Dev` section (the `dev/code` convention,
 attached as a context); require the `## Peer review` note to record that the review
 **returned** (the same evidence `code/open-pr` gates on); require the verification
-gate below; run `gh pr merge`; then run `coga mark done <slug>` itself. A failed
-gate is a hard stop: `coga block --task <slug> --reason "…"` (the successor of the
+gate below; run `gh pr merge <pr-url> --match-head-commit <verified-head-sha>`;
+then run `coga mark done <slug>` itself after confirming the PR actually merged.
+A failed gate is a hard stop: `coga block --task <slug> --reason "…"` (the successor of the
 old `panic` command), not a note-and-bump.
 
 **Verification gate — re-examine before implementing.** The recorded decision was
@@ -87,9 +88,29 @@ old `panic` command), not a note-and-bump.
 Actions workflow is the publish-only `release.yml`, so `gh pr checks` has nothing to
 report (see `no-context-records-the-ci-posture-publish-only-rel`, which records this
 in `coga/codebase`). Until `v2/minimal-ci-run-pytest-on-prs-and-tags` ships, "green"
-can only mean the local gate — `python -m pytest` and `coga validate --json` run from
-the rebased feature checkout — and the skill must say so explicitly rather than
-naming a check that does not exist.
+can only mean a local gate, which the skill must spell out:
+
+- After any rebase and push, capture the PR's `headRefOid` from
+  `gh pr view <pr-url> --json headRefOid` and require a clean feature checkout
+  whose `git rev-parse HEAD` equals that SHA. That is the
+  `<verified-head-sha>` used by the merge command, not a fresh SHA read after
+  testing. Run `PYTHONPATH=$PWD/src python -m pytest` there with Python 3.11+.
+  Any subsequent commit, rebase, or change to the tested tree invalidates the
+  evidence and requires verification of the new head.
+- Run `coga validate --task <slug> --json` for each affected live ticket and
+  require no errors. When the PR changes shared contexts, workflows, templates,
+  config, or validation behavior, also compare repo-wide `coga validate --json`
+  against the fetched base revision using the same machine configuration.
+  Match errors by kind, repo-relative target, and message, normalizing checkout
+  prefixes. Require no new errors or additional occurrences. Existing errors
+  on unaffected paths may remain only when recorded with the baseline revision
+  and results; they are not an automatic refusal of every unrelated PR.
+  Missing or incomparable baseline evidence is a failed gate. Preserve both
+  reports with the test command and verified head in the review evidence.
+- Pass the captured SHA to `--match-head-commit` even after a final read shows
+  the expected head. GitHub must reject a concurrent push at the merge itself;
+  a pre-merge read alone leaves a race. A mismatch requires fresh review and
+  verification, never dropping the flag or substituting an untested SHA.
 
 **Human safety net = loud post.** The owner is cc'd on every broadcast by being
 `owner:`; the `watchers:` field was removed with the simplified ticket format (#784)
@@ -109,8 +130,9 @@ step (mirror how `with-review.md` documents `## review`; note that a step declar
 `skills:` does not compose its inline section). No Python/CLI changes are expected;
 if the merge step needs new CLI support, that is a separate ticket — block and
 surface it rather than expanding scope here. Markdown-only, so validate with
-`python -m pytest` (the packaging twin test) and `coga validate --json` plus a
-read-through; do not run this ticket's own workflow under the new workflow.
+`python -m pytest` (including the packaging twin test), scoped ticket validation,
+and the shared-contract validation comparison described above, plus a read-through;
+do not run this ticket's own workflow under the new workflow.
 
 <!-- coga:blackboard -->
 
