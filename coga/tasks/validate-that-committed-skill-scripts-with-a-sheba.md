@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
-launch_generation: 14ff41df-9c79-4c6f-ac33-0404cf7b6586
+step: 4 (review)
 ---
 
 ## Description
@@ -102,6 +101,7 @@ the same script `100755` should not.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/800
 branch: shebang-exec-check
 worktree: /home/n/Code/claude/coga-shebang-exec-check
 
@@ -109,6 +109,15 @@ Clean feature worktree with three commits ahead of `origin/main`:
 `2d245178` restores the four modes; `8d607263` adds validation;
 `7c8cf6bd` applies peer-review fixes. Fetched and rebased successfully onto
 `57e5681c` during peer review. Branch remains local; the next step opens the PR.
+
+## Open-PR
+
+`coga open-pr` ran from the primary control checkout on 2026-09-14 and opened
+PR #800 (`shebang-exec-check` -> `main`, non-draft). It judged the
+`origin/main` advance (generated task/log commits only) safe to publish. Its
+`[git] sync refused` line concerned another ticket's uncommitted drift in the
+shared checkout (`define-the-api-equivalent-cost-proxy-and-price-tab`), not
+this task; the `pr:` line is recorded and the bump's own sync lands it.
 
 ## What changed
 
