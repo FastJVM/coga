@@ -1,6 +1,6 @@
 ---
 title: Stop syncing task state onto the feature branch
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -28,7 +28,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description
