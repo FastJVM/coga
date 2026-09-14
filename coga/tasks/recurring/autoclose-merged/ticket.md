@@ -1,11 +1,11 @@
 ---
 title: Autoclose merged tickets
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: f94b57ee-988d-47cb-acfc-c2019f888ef7
+period_generation: 33152fb9-8be0-422f-b988-c7be66b549b9
 workflow:
   name: autoclose-merged/sweep
   steps:
@@ -13,6 +13,7 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
+step: 1 (sweep)
 ---
 
 ## Description
@@ -21,9 +22,8 @@ Close Coga tickets whose linked GitHub PR has already merged and whose Coga
 workflow is at its final step.
 
 Tickets can get stuck `in_progress` after the owner merges the PR on GitHub but
-forgets to run `coga mark done`. Once a day this recurring task fires before
-the daily digest. Its `ticket.py` runs the existing merged-ticket sweep,
-which:
+forgets to run `coga mark done`. Once a day this recurring task fires. Its
+`ticket.py` runs the existing merged-ticket sweep, which:
 
 1. scans active and in-progress tickets,
 2. reads the `pr:` line under each ticket blackboard's `## Dev` section,
@@ -43,22 +43,13 @@ This sweep is the sole trigger for auto-closing merged tickets — there is
 no manual `automerge` command. The recurring task only changes when the
 sweep runs; it does not change which tickets are safe to close.
 
-Done events produced by the sweep go through `coga mark done`, so they are
-spooled into the daily digest when `recurring/digest/` is installed. Running at
-8am keeps those closures visible in the same day's 9am digest. A quiet day with
-no merged final-step tickets exits successfully and changes nothing.
+Done events produced by the sweep go through the shared `mark_done` finalizer,
+so each closure posts live to Slack exactly as a manual `coga mark done` would.
+A quiet day with no merged final-step tickets exits successfully and changes
+nothing.
 
 ## Context
 
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Autoclose Sweep: retire follow-ups
-
-Generated: 2026-09-11T17:00:31+00:00
-Task: `recurring/autoclose-merged`
-
-1 auto-closed ticket(s) still have a recorded feature checkout. Autoclose never removes one — `coga retire` owns the worktree and branch safety proofs:
-
-- `allow-description-and-owner-on-create` "Allow --description and --owner on coga create": worktree `/home/zach2179/dev/coga-create-description-owner`, branch `create-description-owner` — `coga retire allow-description-and-owner-on-create`

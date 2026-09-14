@@ -5087,3 +5087,18 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-13 23:19 [validate-that-committed-skill-scripts-with-a-sheba] [system] {"agent":"claude","agent_turns":1,"cache_creation_input_tokens":161087,"cache_read_input_tokens":5837103,"cli":"claude","content_status":"ok","elapsed_seconds":535.190194,"ended_at":"2026-09-14T06:19:37.527938Z","human_turns":0,"input_tokens":142,"model":"claude-opus-5","outcome":"I'll start by reading the ticket file, the validator, and the test layout.","outcome_status":"completed","output_tokens":53773,"provider":"anthropic","request":null,"schema":2,"session_id":"705e238a-f87b-4f5f-8929-78286192324e","slug":"validate-that-committed-skill-scripts-with-a-sheba","started_at":"2026-09-14T06:10:42.337744Z","step":"implement","title":"Validate that committed skill scripts with a shebang are executable","ts":"2026-09-14T06:19:37.527938Z","usage_status":"ok"}
 2026-09-13 23:19 [validate-that-committed-skill-scripts-with-a-sheba] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-09-13 23:19 [validate-that-committed-skill-scripts-with-a-sheba] [megalaunch] launched via coga megalaunch
+2026-09-14 11:51 [recurring/autoclose-merged] [system] created (status=active)
+2026-09-14 11:51 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-09-14
+2026-09-14 11:51 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-09-14
+2026-09-14 11:51 [recurring/blocker-reminders] [system] created (status=active)
+2026-09-14 11:51 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-09-14
+2026-09-14 11:51 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-09-14
+2026-09-14 11:51 [recurring/branch-sweep] [system] created (status=active)
+2026-09-14 11:51 [recurring/branch-sweep] [system] created recurring/branch-sweep for 2026-W38
+2026-09-14 11:51 [recurring/dream] [system] created (status=active)
+2026-09-14 11:51 [recurring/dream] [system] deleted completed prior-period task before 2026-W38
+2026-09-14 11:51 [recurring/dream] [system] created recurring/dream for 2026-W38
+2026-09-14 11:51 [recurring/resolve-conflicts] [system] created (status=active)
+2026-09-14 11:51 [recurring/resolve-conflicts] [system] created recurring/resolve-conflicts for 2026-W38
+2026-09-14 11:51 [recurring/skill-update] [system] created (status=active)
+2026-09-14 11:51 [recurring/skill-update] [system] created recurring/skill-update for 2026-W38
