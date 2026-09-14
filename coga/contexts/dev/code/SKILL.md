@@ -65,6 +65,53 @@ layout, not the single-checkout one: `_checkout_mode` cannot prove live-ticket
 ownership from a foreign repository, so control-plane writes, `coga bump`, and
 `coga open-pr` still happen in the primary checkout.
 
+### Seed the machine-local config
+
+A fresh checkout — linked worktree or independent clone alike — has no
+`coga.local.toml`: the file is gitignored, so Git never carries it. Every Coga
+command that acts *as* someone (`bump`, `block`, `create`, `mark`, `launch`,
+`run`, `slack`, ...) loads config with `require_user=True` and fails with
+exit 2 before performing the requested action; the read-only views (`status`,
+`show`, `validate`, `usage`) tolerate the missing file. No environment
+variable or flag substitutes for it. The `coga/codebase` context lists what
+else a fresh checkout lacks and which of it self-heals.
+
+The CLI's exit sweep can still commit and publish dirty `coga/` files after
+that failure. Commit in-flight Coga context, skill, and other OS edits on
+the feature branch before invoking a mutating Coga command there, even when
+the local config is missing.
+
+In the two standard layouts you never need the copy: the separate-checkout
+layout runs every control-plane command in the primary checkout, and the
+single-checkout layout *is* the primary checkout. Seed it only when a
+user-acting command will run inside the fresh checkout — a session launched in
+a linked worktree, an isolated Retro or Dream checkout, or a design that
+services recurring work from a worktree. Then follow the rule the existing
+precedents (`recurring/dream`, `retro/done-ticket`, the retire prompt, and
+`recurring_runner`'s temporary control worktree) already share:
+
+- **Treat `coga.local.toml` as secret-bearing.** It can contain literal Slack
+  webhooks or OAuth credentials as well as secret references and machine-local
+  paths. Prefer a minimal local file with the user and settings/references the
+  intended commands need. An ordinary copy of the whole file is appropriate
+  only when the destination checkout and its processes may access every
+  credential it contains; being on the same machine does not establish that
+  boundary. Use the same repo-relative destination (`coga/coga.local.toml` in
+  this repo), verify that it is ignored, and create it with mode 0600 before
+  writing any contents. Keep credential values out of tool output and logs.
+- **Never symlink it**, put it in an evidence snapshot, stage it, or commit
+  it. It is ignored, so `git add <path>` is the only way it reaches a commit;
+  do not give Git that path.
+- **Remove the local file when the need ends.** With a disposable checkout,
+  remove it before the checkout goes. With a durable feature worktree, remove it
+  before the ticket reaches `coga retire`: retire preserves a checkout holding
+  any ignored file outside its regenerable-cache carve-out, so a copy left
+  behind turns the checkout's cleanup into a refusal.
+
+Before launching an agent from that checkout, also restore its ignored skill
+discovery links. Rebuilding `coga/.agent-skills/` does not recreate them; see
+`coga/codebase` for the paths and commands.
+
 ### Keep the feature checkout durable
 
 A `/tmp` checkout survives only until the next reboot, and the sandbox fallback
