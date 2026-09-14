@@ -958,9 +958,11 @@ returns the assembled prompt verbatim with no defusal step.
 
 ## Where a fact lives: docs vs contexts
 
-Coga explains itself on two surfaces — `docs/*.md` and the contexts under
-`coga/contexts/**/SKILL.md` — and the boundary between them is a property of
-how each is read, not of who it is "for":
+Coga explains itself on two surfaces — `docs/*.md` and the contexts under the
+configured contexts root (`coga/contexts/` by default, relocated by
+`[layout] contexts`), with bundled contexts resolved through the package
+fallback. The boundary between them is a property of how each is read, not of
+who it is "for":
 
 - **A context is eager knowledge.** Everything in it is composed into the
   prompt of every launch that attaches it (layer 4 above). It costs tokens on
@@ -992,15 +994,21 @@ fact, in order:
    it is needed.
 2. **Otherwise, does a human need it to understand, operate, or contribute?**
    Onboarding and tours (`docs/getting-started.md`, `docs/concepts.md`),
-   essays and thesis (`docs/vision.md`, `docs/market-thesis.md`), reference
-   generated from the CLI (`docs/reference.md`), dated audits and evidence
-   (`docs/cli-extension-audit.md`, `docs/velocity-report.md`), and
+   essays and thesis (`docs/vision.md`, `docs/market-thesis.md`), dated audits
+   and evidence (`docs/cli-extension-audit.md`, `docs/velocity-report.md`), and
    human-only procedures (`docs/releasing.md`, `docs/migrating-to-coga.md`).
    → **A doc owns it.** Any context that depends on it names the path so an
    agent can open it; bulky reference an agent needs only sometimes belongs
    here precisely so it is not paid for on every launch.
 3. **Is it the same fact stated for a second audience?** Then it is not a new
    fact and gets no second owner. Write a pointer or a summary (below).
+
+**Command behavior has one owner: `coga/cli`.** Its effective context, resolved
+local-first from the configured contexts root and then from the package, owns
+the command reference. `docs/reference.md` is a navigation guide linking to
+that contract, not a second specification. The installed CLI's `--help` exposes
+its current argument syntax; it does not make the guide an independent owner
+of command semantics.
 
 **What may legitimately appear on both surfaces: pointers and summaries,
 never the specification.** A doc may give a prose tour of a rule a context
