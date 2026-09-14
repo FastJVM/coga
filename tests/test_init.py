@@ -804,6 +804,33 @@ def test_init_sets_up_clone_of_initialized_repo(
     assert "Initialized coga repo" not in result.output
 
 
+@pytest.mark.parametrize("local_text", [None, '# Local settings\nuser = ""\n'])
+def test_init_clone_setup_requires_git_before_writing(
+    tmp_path: Path, local_text: str | None
+) -> None:
+    target = tmp_path / "unpacked"
+    coga_os = target / "coga"
+    coga_os.mkdir(parents=True)
+    (coga_os / "coga.toml").write_text("version = 1\n")
+    local_toml = coga_os / "coga.local.toml"
+    if local_text is not None:
+        local_toml.write_text(local_text)
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+
+    assert result.exit_code == 2, result.output
+    assert "not inside a git repository" in result.output
+    assert "git init" in result.output
+    assert (coga_os / "coga.toml").read_text() == "version = 1\n"
+    if local_text is None:
+        assert not local_toml.exists()
+    else:
+        assert local_toml.read_text() == local_text
+    assert not (coga_os / ".agent-skills").exists()
+    assert not (target / ".claude").exists()
+    assert not (target / ".codex").exists()
+
+
 def test_init_clone_setup_is_idempotent(tmp_path: Path, fake_vendor) -> None:
     """Re-running the clone setup with the same name after it succeeded is a
     clean no-op: the machine-local half exists, so init takes the ordinary

@@ -769,6 +769,19 @@ def _write_local_user(local_toml: Path, name: str) -> str:
     return verb
 
 
+def _require_git_work_tree(target: Path) -> None:
+    """Both fresh init and clone setup require an enclosing Git work tree."""
+    if not is_git_repo(target):
+        typer.secho(
+            f"{target} is not inside a git repository — coga is git-backed.\n"
+            f"Run `git init` in {target} (or an ancestor) first, then re-run "
+            f"`coga init`.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+
+
 def _setup_initialized_clone(target: Path, coga_os: Path, user: str | None) -> None:
     """`coga init --user NAME` on an already-initialized repo.
 
@@ -779,6 +792,7 @@ def _setup_initialized_clone(target: Path, coga_os: Path, user: str | None) -> N
     state — nothing is staged or committed — and is idempotent: a second run
     finds the same user and takes the ordinary refusal below.
     """
+    _require_git_work_tree(target)
     local_toml = coga_os / "coga.local.toml"
     if _local_toml_user(local_toml) is not None:
         # The machine-local half is already there, so re-running init was
@@ -914,16 +928,7 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     # We don't run `git init` ourselves — the user does, which keeps branch
     # naming in their hands. Checked here, before any writes, so a bad
     # invocation leaves nothing behind and we fail before the slow clone/venv.
-    if not is_git_repo(target):
-        typer.secho(
-            f"{target} is not inside a git repository — coga is git-backed and "
-            f"`coga init` commits coga/ into your repo.\n"
-            f"Run `git init` in {target} (or an ancestor) first, then re-run "
-            f"`coga init`.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        sys.exit(2)
+    _require_git_work_tree(target)
 
     # The host repo must actually be able to track coga/. If its ignore rules
     # exclude the target, `git add` refuses the path and the commit is silently
