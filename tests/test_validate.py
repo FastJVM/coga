@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from textwrap import dedent
 
@@ -941,6 +942,91 @@ def test_validate_reads_the_git_index_where_the_working_tree_has_no_mode(
     assert not [i for i in clean.issues if i.kind == "non-executable-script"]
 
 
+@pytest.mark.parametrize(
+    ("working_mode", "index_mode", "expected_error"),
+    [(0o644, "+x", False), (0o755, "-x", True)],
+)
+def test_validate_uses_index_when_git_filemode_is_false(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    working_mode: int,
+    index_mode: str,
+    expected_error: bool,
+) -> None:
+    cfg = load_config(git_repo.coga_os)
+    script = _write_shebang_script(git_repo.coga_os, working_mode)
+    rel = str(script.relative_to(git_repo.root))
+    git_repo.git("config", "core.fileMode", "false")
+    git_repo.git("add", rel)
+    git_repo.git("update-index", f"--chmod={index_mode}", rel)
+    monkeypatch.setattr(
+        "coga.validate.bundled_skills_root",
+        lambda cfg: git_repo.coga_os / "no-bundled-skills",
+    )
+
+    flagged = [i for i in run(cfg).issues if i.kind == "non-executable-script"]
+    assert [i.task for i in flagged] == (
+        ["skills/infra/tests/scripts/run.sh"] if expected_error else []
+    )
+
+
+def test_validate_index_fallback_preserves_non_ascii_paths(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(git_repo.coga_os)
+    script = _write_shebang_script(git_repo.coga_os, 0o644)
+    script = script.rename(script.with_name("café-語.sh"))
+    git_repo.git("add", str(script.relative_to(git_repo.root)))
+    # Git emits UTF-8 paths even when Windows' default encoding is cp1252.
+    monkeypatch.setattr("locale.getencoding", lambda: "cp1252")
+    monkeypatch.setattr("coga.validate._working_tree_carries_mode", lambda: False)
+    monkeypatch.setattr(
+        "coga.validate.bundled_skills_root",
+        lambda cfg: git_repo.coga_os / "no-bundled-skills",
+    )
+
+    flagged = [i for i in run(cfg).issues if i.kind == "non-executable-script"]
+    assert [i.task for i in flagged] == ["skills/infra/tests/scripts/café-語.sh"]
+
+
+def test_validate_prunes_skill_dependencies_before_scanning(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(repo)
+    script = _write_shebang_script(repo, 0o755)
+    skipped = {
+        script.parent / name
+        for name in (".git", "__pycache__", "node_modules", ".venv")
+    }
+    for directory in skipped:
+        _write(directory / "nested" / "dependency.py", "#!/usr/bin/env python3\n")
+    scanned: list[Path] = []
+    real_scandir = os.scandir
+
+    def record_scandir(path: str | Path):  # type: ignore[no-untyped-def]
+        scanned.append(Path(path))
+        return real_scandir(path)
+
+    monkeypatch.setattr(os, "scandir", record_scandir)
+    report = run(cfg)
+    assert not [i for i in report.issues if i.kind == "non-executable-script"]
+    assert not skipped.intersection(scanned)
+
+
+def test_validate_checks_bundled_shebang_scripts(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(repo)
+    bundled = repo / "bundled"
+    script = _write_shebang_script(bundled, 0o644)
+    monkeypatch.setattr("coga.validate.bundled_skills_root", lambda cfg: bundled / "skills")
+
+    flagged = [i for i in run(cfg).issues if i.kind == "non-executable-script"]
+    assert [i.task for i in flagged] == ["bootstrap/skills/infra/tests/scripts/run.sh"]
+    script.chmod(0o755)
+    assert not [i for i in run(cfg).issues if i.kind == "non-executable-script"]
+
+
 def test_step_requires_unknown_gate_is_error(repo: Path) -> None:
     """A frozen step's `requires:` must name a registered completion gate; a
     bogus token is a hard `bad-shape` error (the activation/bump gate would
@@ -1783,6 +1869,12 @@ def _fake_subprocess_factory(responses: dict[tuple[str, ...], object]):
     """
 
     def fake_run(args, **kwargs):  # type: ignore[no-untyped-def]
+        # The default skill sweep may query local mode policy. It must never
+        # run the network/auth probes that these tests expect to be skipped.
+        if tuple(args[:2]) == ("git", "-C") and tuple(args[3:]) == (
+            "config", "--bool", "--get", "core.fileMode"
+        ):
+            return _FakeProc(0, "true\n")
         for key, resp in responses.items():
             if tuple(args[: len(key)]) == key:
                 if isinstance(resp, Exception):
@@ -2080,10 +2172,10 @@ def test_check_github_scopes_state_drift_to_configured_coga_root(
 def test_run_no_github_check_by_default(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
-        raise AssertionError("git/gh must not run when --check-github is off")
-
-    monkeypatch.setattr("coga.github_preflight.subprocess.run", boom)
+    # Only the local file-mode query is allowed without --check-github.
+    monkeypatch.setattr(
+        "coga.github_preflight.subprocess.run", _fake_subprocess_factory({})
+    )
     cfg = load_config(repo)
     run(cfg)  # must not raise
 

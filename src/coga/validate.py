@@ -1357,13 +1357,10 @@ def _check_shebang_executables(cfg: Config) -> list[Issue]:
     allowlist: import-only modules carry none and stay `100644` legitimately.
 
     Scope is the repo's installed skills plus the packaged bootstrap skills.
-    On POSIX the working-tree mode is authoritative: it is what `exec` enforces
-    on this machine, a fresh clone sets it from the index, and reading it keeps
-    default `coga validate` free of git (a `core.fileMode=false` checkout on a
-    mode-less mount reports whatever that mount enforces, which is still the
-    truth locally). Where the OS carries no bit at all (Windows) the check
-    reads the git index instead, and stays silent when that is unavailable
-    too rather than emit false errors.
+    Use POSIX working-tree modes unless Git reports `core.fileMode=false`.
+    That setting and non-POSIX platforms (Windows) use the local git index
+    instead; skip a root when neither source is trustworthy. POSIX directories
+    without git still use stat. These git queries are read-only and local.
     """
     out: list[Issue] = []
     roots = (
@@ -1374,34 +1371,39 @@ def _check_shebang_executables(cfg: Config) -> list[Issue]:
         if not root.is_dir():
             continue
         index_modes: dict[Path, int] | None = None
-        if not _working_tree_carries_mode():
+        use_working_tree = _working_tree_carries_mode()
+        if use_working_tree:
+            filemode = _git_output(root, "config", "--bool", "--get", "core.fileMode")
+            use_working_tree = filemode is None or filemode.strip() != "false"
+        if not use_working_tree:
             index_modes = _git_index_modes(root)
             if index_modes is None:
                 continue
-        for path in sorted(root.rglob("*")):
-            rel = path.relative_to(root)
-            if _SKIPPED_SCRIPT_DIRS.intersection(rel.parts[:-1]):
-                continue
-            if path.is_symlink() or not path.is_file() or not _has_shebang(path):
-                continue
-            if index_modes is None:
-                executable = bool(path.stat().st_mode & 0o111)
-            elif rel in index_modes:
-                executable = bool(index_modes[rel] & 0o111)
-            else:
-                continue  # untracked: nothing committed to check
-            if executable:
-                continue
-            out.append(Issue(
-                kind="non-executable-script",
-                task=f"{label}/{rel.as_posix()}",
-                message=(
-                    f"{path} declares a `#!` shebang but is not executable "
-                    "— `chmod +x` it and commit the mode (git tracks it as "
-                    "100755) so it can be run as its skill documents"
-                ),
-                severity="error",
-            ))
+        for directory, subdirs, filenames in os.walk(root):
+            subdirs[:] = sorted(name for name in subdirs if name not in _SKIPPED_SCRIPT_DIRS)
+            for filename in sorted(filenames):
+                path = Path(directory) / filename
+                rel = path.relative_to(root)
+                if path.is_symlink() or not path.is_file() or not _has_shebang(path):
+                    continue
+                if index_modes is None:
+                    executable = bool(path.stat().st_mode & 0o111)
+                elif rel in index_modes:
+                    executable = bool(index_modes[rel] & 0o111)
+                else:
+                    continue  # untracked: nothing committed to check
+                if executable:
+                    continue
+                out.append(Issue(
+                    kind="non-executable-script",
+                    task=f"{label}/{rel.as_posix()}",
+                    message=(
+                        f"{path} declares a `#!` shebang but is not executable "
+                        "— `chmod +x` it and commit mode 100755; when Git ignores "
+                        "filesystem modes, stage it with `git add --chmod=+x`"
+                    ),
+                    severity="error",
+                ))
     return out
 
 
@@ -1419,7 +1421,7 @@ def _working_tree_carries_mode() -> bool:
 
 
 def _git_index_modes(root: Path) -> dict[Path, int] | None:
-    """Committed modes of tracked files under `root`, keyed relative to it.
+    """Index modes of tracked files under `root`, keyed relative to it.
 
     None when git is unavailable or `root` is not inside a checkout.
     """
@@ -1446,6 +1448,8 @@ def _git_output(root: Path, *args: str) -> str | None:
             ["git", "-C", str(root), *args],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="surrogateescape",
             check=False,
         )
     except OSError:
@@ -1679,9 +1683,9 @@ def _notification_issues(cfg: Config) -> list[Issue]:
 def _github_issues(cfg: Config) -> list[Issue]:
     """Map the git/GitHub preflight probes into report issues.
 
-    Opt-in only (gated by `--check-github`): this is the single call site that
-    shells out to `git`/`gh`, so the default read-only validate path never hits
-    the network. Every failed probe is an `error` — the operator explicitly
+    Opt-in only (gated by `--check-github`): these are the network-capable
+    `git`/`gh` probes, so the default read-only validate path never hits the
+    network. Every failed probe is an `error` — the operator explicitly
     asked "is my setup ready?", and a clear no (with an actionable hint and a
     non-zero exit) is the useful answer, including when the machine is offline.
     """
