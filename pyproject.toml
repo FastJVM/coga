@@ -27,6 +27,7 @@ dependencies = [
   "rich>=13",
   "PyYAML>=6",
   "tomli-w>=1",
+  "tomlkit>=0.13",
   "croniter>=2",
   "requests>=2.31",
 ]

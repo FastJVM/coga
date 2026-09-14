@@ -344,10 +344,10 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
     # `recurring list`, and `secret get` group views) pass `require_user=False`
     # and get `current_user = ""` instead, so
     # a teammate on a fresh clone — where the gitignored `coga.local.toml`
-    # does not exist yet — can look around before setting a name. Existing
-    # repos recover by creating or editing `coga.local.toml`; fresh repos pass
-    # `coga init --user <name>`, which writes `user` before anything reads
-    # config.
+    # does not exist yet — can look around before setting a name. Fresh repos
+    # and clones alike set it with `coga init --user <name>`: a fresh init
+    # writes `user` before anything reads config, and on an already-initialized
+    # repo init writes only the missing machine-local half.
     current_user = local.get("user")
     if not current_user:
         if require_user:
@@ -356,8 +356,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
                 'will not guess it. Add `user = "<name>"` to '
                 f"{local_path} (for example, `user = \"marc\"`); the file is "
                 "gitignored, so every teammate's clone sets its own. "
-                "For a fresh repo that has not been initialized yet, run "
-                "`coga init --user <name>`."
+                "Run `coga init --user <name>` to write it."
             )
         current_user = ""
 
