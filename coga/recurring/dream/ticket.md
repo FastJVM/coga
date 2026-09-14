@@ -84,10 +84,10 @@ does not rewrite existing files, synthesize `ticket.md`, freeze workflows, or
 change lifecycle/assignee state.
 
 The recipe's three buckets are inputs to Phase 6, not results. `direct-fix`
-repairs land in the safe-repair pass; `pr-proposal` issues become proposal PRs
-in Phase 6; `human-needed` issues are routed to hygiene draft tickets, one per
-validator `kind`, by the Phase 6 rule below. The `## Dream Skill:
-validate-drift` section is deleted with this task at the next firing, so an
+repairs land in the safe-repair pass; Phase 6 routes `pr-proposal` issues to
+proposal PRs or covering tickets; `human-needed` issues are routed to hygiene
+draft tickets, one per validator `kind`, by the Phase 6 rule below. The
+`## Dream Skill: validate-drift` section is deleted with this task at the next firing, so an
 issue left only there was never reported.
 
 ### Decide-half scan mechanics (Phases 2 and 3)
@@ -297,9 +297,9 @@ Result line: `pr-opened` when the PR is opened. If any gate is unclear, write
 
 ### Phase 6 — disposition + run summary
 
-Every Phase 1 `human-needed` issue and every Phase 2 and Phase 3 finding gets
-a durable home. The `## Findings` and `## Dream Skill: validate-drift`
-blackboard sections are an index of what Dream saw, not where decisions go to
+Every Phase 1 `pr-proposal` or `human-needed` issue and every Phase 2 and Phase 3
+finding gets a durable home. The `## Findings` and
+`## Dream Skill: validate-drift` blackboard sections are an index of what Dream saw, not where decisions go to
 rest — this task is retired and its blackboard with it. A finding whose only
 record is this blackboard was lost, not reported.
 
@@ -370,6 +370,24 @@ overlapping PR does not carry the finding, file or reuse a scoped
 preserve the finding, source evidence, target, and overlapping PR link so it
 can be handled after that PR's review. An overlap noted only on this run's
 blackboard is not a disposition.
+
+**Phase 1 PR proposals.** Read every issue in the `PR Proposal` bucket of
+`## Dream Skill: validate-drift`, including its validator `kind`, target path,
+message, and suggested remediation. Apply the proposal-ownership rule above to
+each issue before opening anything: report the covering ticket or PR, or
+preserve uncovered overlap in a scoped draft. For an unowned issue with an
+evidenced correction, open a proposal PR applying that correction to the named
+reference, template, or other contract. Group only coherent fixes, keep shipped
+live/packaged twins in sync, and include the Dream period,
+`validate-drift: <kind>`, affected paths, original messages, and validation results.
+Validate each affected task with `coga validate --task <slug> --json`; for
+template or shared-contract fixes, compare repo validation before and after
+and account for any remaining issues. If the correction needs a human choice,
+file or reuse a scoped `code/with-review` draft preserving the issue,
+remediation, and specific decision needed under the filing rules above.
+These are `pr-required` proposals: never apply them directly on `main` or
+auto-merge them. List each issue's PR or owner draft in the run summary; an
+entry left only in the recipe's disposable blackboard bucket is unfinished.
 
 Route each Phase 2 and Phase 3 finding by class:
 

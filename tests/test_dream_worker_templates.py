@@ -236,8 +236,8 @@ def test_dream_documents_the_contract_audit_phase() -> None:
     assert "never read it whole" in skill_norm
     # Phase 6 disposition routes `drift` findings to a proposal PR.
     assert (
-        "Every Phase 1 `human-needed` issue and every Phase 2 and Phase 3 "
-        "finding gets a durable home"
+        "Every Phase 1 `pr-proposal` or `human-needed` issue and every Phase 2 "
+        "and Phase 3 finding gets a durable home"
     ) in " ".join(text.split())
     assert "- `drift` — open a proposal PR" in text
 
