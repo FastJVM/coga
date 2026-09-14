@@ -350,3 +350,10 @@ ticket, closing with `coga mark done`.
 - 3c1149d09e4e last_reminded: 2026-09-02 11:59
 
 - 154e15295e36 last_reminded: 2026-09-11 10:00
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: PR review threads that merge unanswered
