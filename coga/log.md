@@ -5108,3 +5108,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-14 11:52 [define-the-api-equivalent-cost-proxy-and-price-tab] [git] sync refused: coga/tasks/define-the-api-equivalent-cost-proxy-and-price-tab.md: published launch claim would be cleared without an authorized session-ending lifecycle transition
 2026-09-14 11:52 [recurring/branch-sweep] [system] script exited with code 0
 2026-09-14 11:52 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
+2026-09-14 11:52 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
