@@ -11,7 +11,7 @@ workflow:
     - direct/body
     assignee: agent
 step: 1 (execute)
-launch_generation: pending:faa425c7-7269-442a-9c95-a950cfd65de7
+launch_generation: faa425c7-7269-442a-9c95-a950cfd65de7
 ---
 
 ## Description
