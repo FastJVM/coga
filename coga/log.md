@@ -5110,3 +5110,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-14 11:52 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
 2026-09-14 11:52 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
 2026-09-14 11:52 [remov-digest-in-recurring] [human:nicktoper] auto-bumped on merge of PR #786 → done
+2026-09-14 11:52 [simplify-ticket-format] [human:nicktoper] auto-bumped on merge of PR #784 → done
