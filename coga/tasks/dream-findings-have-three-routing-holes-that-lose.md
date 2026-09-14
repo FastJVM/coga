@@ -126,6 +126,7 @@ classified `gap`.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/799
 branch: dream-routing-holes
 worktree: /home/n/Code/claude/coga-dream-routing-holes
 
@@ -275,6 +276,21 @@ Verification:
   — final run on `7f965367`: 2436 passed in 181.19s, no warnings.
 
 Ready for the mechanical open-pr step. No push or PR was made in peer review.
+
+## Open-pr (2026-09-13)
+
+First `coga open-pr` run refused: branch stale against `origin/main`
+(control moved to `fb6352d5` after peer review). Rebased in the recorded
+worktree onto `FETCH_HEAD`, no conflicts; commits are now `dd7eae0e` and
+`0b140fc5`. Twins re-verified byte-identical with `cmp`.
+
+Full suite on the rebased branch: 2435 passed, 1 failed —
+`tests/test_packaging.py::test_live_and_packaged_copies_stay_identical`
+on `coga/contexts/coga/codebase/SKILL.md` vs its packaged twin. That drift
+is already present on `origin/main` (`git diff` between the two blobs at
+`FETCH_HEAD` differs; this branch does not touch either file), so it is a
+pre-existing `main` breakage, not a regression from this PR. Left for its
+own ticket; not fixed here per the open-pr step's scope.
 
 ## PR
 
