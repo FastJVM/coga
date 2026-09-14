@@ -5103,3 +5103,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-14 11:51 [recurring/skill-update] [system] created (status=active)
 2026-09-14 11:51 [recurring/skill-update] [system] created recurring/skill-update for 2026-W38
 2026-09-14 11:51 [recurring/branch-sweep] [system] started (active → in_progress) via coga launch
+2026-09-14 11:51 [recurring/branch-sweep] [system] launched as a script (ticket.py)
