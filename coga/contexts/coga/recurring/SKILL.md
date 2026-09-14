@@ -982,7 +982,8 @@ Operating it:
   cleanup. Use the recurring task's own blackboard region in
   `coga/recurring/<name>/ticket.md`.
 
-- **Every template under `coga/recurring/<name>/` has a packaged twin at
+- **In Coga's source repository, shipped recurring templates have a live copy
+  at `coga/recurring/<name>/` and a packaged twin at
   `src/coga/resources/templates/coga/recurring/<name>/` — edit both.** The
   packaged copy is what a fresh `coga init` writes into every new repo, and
   nothing refreshes it afterwards. Because the `ticket.md` body *is* the run
@@ -990,10 +991,14 @@ Operating it:
   drift between the copies is not a stale doc: it means a repo initialized
   while they differed runs a different sweep than this one, and keeps doing so
   until someone diffs the two by hand. The same goes for a template's
-  `ticket.py`. `tests/test_packaging.py` derives every live/packaged pair from
-  the packaged tree and requires byte-identity, so a one-sided edit fails the
-  suite rather than shipping — see the `coga/codebase` context for the rule and
+  `ticket.py`. `tests/test_packaging.py` starts from the packaged tree and
+  checks byte-identity only where a live counterpart exists, so a one-sided
+  edit to a shipped pair fails the suite — see the `coga/codebase` context for the rule and
   the rebase hazard that can reintroduce drift after a green run.
+  Repo-specific templates, including jobs created by `coga recurring promote`,
+  need no packaged counterpart. In a downstream repo, edit the git-backed
+  `coga/recurring/<name>/` template; do not create a source-tree twin or edit
+  installed package resources to satisfy this Coga-source-only rule.
 
 - **A template whose work is "launch another Coga command" must declare
   `delegate:`, never shell out to a nested `coga launch`.** The two levels are
