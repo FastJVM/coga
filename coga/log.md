@@ -5064,3 +5064,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-13 22:53 [define-the-api-equivalent-cost-proxy-and-price-tab] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-13 22:53 [define-the-api-equivalent-cost-proxy-and-price-tab] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-13 22:53 [define-the-api-equivalent-cost-proxy-and-price-tab] [megalaunch] launched via coga megalaunch
+2026-09-13 22:59 [define-the-api-equivalent-cost-proxy-and-price-tab] [agent:claude] advanced to step 2 (evaluate-design) → codex — Design done: packaged prices.toml + record-level pricing in rollup(); supersedes agent-usage-report's sketched price_rollup_row seam (read RollupRow.usd instead). 3 open questions on blackboard, chiefly 1h vs 5m cache-write rate.
