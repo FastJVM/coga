@@ -132,3 +132,10 @@ which is fine: `Log: ` commits are Coga's own audit-trail syncs and now have
 no consumer that would surface them to humans.
 
 Closing via `coga mark done` per the `code/implement` already-satisfied path.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: the four commit subjects Coga writes for itself
