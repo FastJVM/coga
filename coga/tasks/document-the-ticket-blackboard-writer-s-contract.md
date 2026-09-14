@@ -18,8 +18,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 3 (open-pr)
-launch_generation: af819deb-169f-4f3f-88f9-d75039dd66cb
+step: 4 (review)
 ---
 
 ## Description
@@ -152,11 +151,16 @@ is a suggestion; it collides with nothing (`src/coga/blackboard.py` is a differe
 directly, so composing them would pay their full size on every step to inline what the agent
 already has. `coga/architecture` alone would be paid on all four steps.
 
+## PR
+
+https://github.com/FastJVM/coga/pull/798
+
 <!-- coga:blackboard -->
 
 ## Dev
 branch: blackboard-writer-contract
 worktree: /home/n/Code/claude/coga-blackboard-writer-contract
+pr: https://github.com/FastJVM/coga/pull/798
 
 ## Implementation notes (step 1)
 
