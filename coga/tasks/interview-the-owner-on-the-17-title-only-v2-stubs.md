@@ -31,7 +31,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 ---
 
 ## Description
@@ -196,6 +196,107 @@ The 8-draft premise-dead cohort and the README stale-surfaces table — both sib
 are not part of that cohort.
 
 <!-- coga:blackboard -->
+
+## Evaluator review
+
+Reviewed 2026-09-13 against checkout `29dc07f8`, from the perspective of a new
+implementer. The Description, Acceptance criteria, Proposed shape, and Out of
+scope were assessed before using the blackboard as the explicitly referenced
+execution input.
+
+**Verdict: ready for owner review; no must-fix findings.** The 17-row table and
+the supplied Description text make this a bounded ticket-data change. The
+recorded owner answers support one describe and 16 cancels. The owner gate
+still approves the final wording and execution; this review does not do so.
+
+### Must resolve before implementation
+
+None. The model-selection scope is deliberately undecided because this task
+only makes a parked draft legible. Choosing a model-selection implementation
+now would exceed the stated scope.
+
+### Verified evidence
+
+- All 17 exact target files exist, remain `draft`, and have empty Description
+  and Context sections with placeholder blackboards. The surviving
+  `v2/pick-model-on-workflow-to-save-on-cost` has `workflow: null` as specified.
+  Of the canceled targets, `v2/sync-support-files-and-bare-ticket-authoring`
+  carries a frozen workflow and step; the other 15 have no workflow.
+- `src/coga/mark.py::mark_canceled` accepts drafts, validates the prospective
+  terminal state, clears `step`, preserves the body/blackboard, and appends the
+  supplied reason to the global log. Existing
+  `tests/test_mark.py::test_mark_canceled_from_every_non_terminal_status` and
+  `test_mark_canceled_accepts_workflow_less_draft` cover both target shapes.
+  The commands can run sequentially inside this parent task:
+  `src/coga/repl_supervisor.py::_sentinel_signals_done` matches the target's
+  identity, so canceling a different ticket does not end the parent session.
+- The model facts resolve to `src/coga/config.py::AgentType` /
+  `_ALLOWED_AGENT_KEYS`, `src/coga/workflow.py::WorkflowStep`, the shared
+  `coga/coga.toml` agent tables, and `src/coga/commands/launch.py`. There is no
+  first-class model field or per-step model routing. Use that full launch path
+  when writing the surviving draft's Context.
+- Cancellation evidence checked: `coga/contexts/coga/secrets/SKILL.md`,
+  "The service account and its vault"; the canceled
+  `coga/tasks/nightly-auto-drain-run-for-ready-tickets.md` and its explicit
+  supersession decision; the related-work section of
+  `coga/tasks/redo-documentation-dir-and-merge-it-with-context-b.md`; the done
+  `coga/tasks/move-cogacontext-to-roodoc-so-its-easier-for-human.md` and
+  `src/coga/config.py::_parse_layout`; `coga/skills/code/design/SKILL.md`, step
+  5; the six-child cleanup index; `src/coga/launch_script.py::SCRIPT_ENTRY_POINT`;
+  and `src/coga/resources/prompt.md`, "The loop". Commit `f08a274e` (#491)
+  contains `authoring.support_paths`; commit `03fd0c37` (#461) removes the
+  update/init-update surfaces. These checks support the recorded dispositions
+  without deriving new intent from the titles.
+- `src/coga/tasks.py::list_tasks` recurses into the six-child cleanup directory
+  and excludes README indexes. `coga status v2 --all` returned **81 tasks**:
+  62 draft, 11 paused, 1 in_progress, 1 done, 6 canceled. Absent unrelated
+  changes, implementing this table leaves 46 draft and 22 canceled, still 81.
+- The frozen workflow matches the packaged
+  `src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md`:
+  this evaluator hands off to owner `review-design`; branch and PR gates apply
+  later. Inline Context supplies the relevant references. No core behavior,
+  template, fixture, or protected README change is needed.
+
+### Optional recommendations
+
+1. **Refresh the validation baseline.** "Shared background" says four ERRORs,
+   but `coga validate --json` currently exits 1 with **five ERRORs and 28 WARNs**.
+   The fifth is `broken-skill` on `recurring/digest`, referencing the removed
+   `coga/digest/flush` skill. The four `unsynthesized-draft-blackboard` errors
+   remain on `v2/autotrigger-ticket-type`,
+   `v2/measure-relay-prompt-scope-and-agent-precision`,
+   `v2/split-context-to-doc-user-accessible-and-editable`, and
+   `v2/use-worktree-when-starting-a-dev-task`. Compare error identities before
+   and after implementation, rather than treating exit 1 as a regression or
+   relying on the old count. None belongs to these 17 stubs.
+2. **Clarify the write scope.** The body-only ambiguity was "touches only
+   `coga/tasks/v2/*.md`" versus the same Proposed shape's required global audit
+   writes and parent-blackboard results. Read the glob as the target-content
+   scope, with CLI-managed audit/lifecycle writes and this ticket's handoff
+   notes explicitly allowed. `mark_canceled` also publishes cancellation
+   evidence to control immediately, including from a feature branch; see
+   `tests/test_mark.py::test_mark_canceled_on_feature_lands_union_evidence_on_control`.
+   The later PR gate therefore does not make the 16 cancellations one atomic
+   PR change. The prior owner verdict gate supplies the intended approval.
+3. **Narrow the #6 grep claim if updating the supporting notes.** "No `patent`
+   anywhere in `src/`" is literally false: `config.Config.extensions` and
+   `_parse_extensions` include patent examples, and packaged skill prose also
+   mentions patents. There is also a parked retry at
+   `coga/tasks/v2/ship-a-shared-recurring-reminder-engine-battery.md`, separate
+   from the canceled root ticket. These are not recovered intent for
+   `generic-lib-to-use-e-g-patent-models`; its owner-confirmed cancellation
+   reason remains "intent no longer recoverable".
+
+### Verification and handoff
+
+- `coga status v2 --all` — exit 0; the baseline above.
+- `coga validate --json` — exit 1; the five pre-existing ERRORs listed above.
+- `coga validate --task interview-the-owner-on-the-17-title-only-v2-stubs --json`
+  — exit 0, no issues.
+- Source, relevant existing tests, and historical commits were inspected;
+  pytest was not run for this prose-only evaluation. Only this review section
+  was authored. Ticket intent/frontmatter, all 17 targets, and both README
+  indexes were left untouched before the required workflow handoff.
 
 ## Design step — 2026-09-12 → 2026-09-13
 
