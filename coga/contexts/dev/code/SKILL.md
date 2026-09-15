@@ -453,10 +453,10 @@ superseded design itself in the blackboard section.
 `code/with-review` and its siblings freeze `code/address-pr-comments` on the
 `review` step, but that skill is an on-demand assist: the step is
 `assignee: owner`, so the launch supervisor stops, megalaunch reports
-`skipped-human-gate`, no core code polls `reviewThreads`, and the owner merges
-from the GitHub UI, where an unresolved thread does not block. Nothing surfaces
-an unanswered thread to anyone. Measured over the tickets retired from the Coga
-repo between 2026-08-17 and 2026-09-13: 7 of 38 merged PRs (18%) carried a bot
+`skipped-human-gate`, and the owner merges from the GitHub UI, where an
+unresolved thread does not block. Before the post-merge detection below,
+nothing surfaced unanswered threads after merge. Measured over the tickets
+retired from the Coga repo between 2026-08-17 and 2026-09-13: 7 of 38 merged PRs (18%) carried a bot
 review thread that was not outdated, got no reply and no code change at the
 flagged line, and merged as-is — one of them a P1 — while the assist skill was
 launched once against roughly forty owner reviews. All 55 `code/with-review`

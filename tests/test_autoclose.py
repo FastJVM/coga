@@ -928,9 +928,19 @@ def test_unanswered_review_threads_keeps_only_unresolved_current_reply_less(
     ]
 
 
+@pytest.mark.parametrize(
+    ("host", "owner", "repo_name"),
+    [
+        ("github.com", "o", "r"),
+        ("ghe.example.com", "enterprise", "project"),
+        ("github.com", "123", "true"),
+        ("github.com", "true", "null"),
+    ],
+)
 def test_unanswered_review_threads_paginates_and_passes_base_repo_coordinates(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, host: str, owner: str, repo_name: str,
 ) -> None:
+    monkeypatch.setenv("GH_HOST", "another.example.com")
     calls = _stub_graphql(
         monkeypatch,
         [
@@ -939,14 +949,20 @@ def test_unanswered_review_threads_paginates_and_passes_base_repo_coordinates(
         ],
     )
 
-    threads = am.unanswered_review_threads("https://github.com/o/r/pull/12")
+    threads = am.unanswered_review_threads(
+        f"https://{host}/{owner}/{repo_name}/pull/12"
+    )
 
     assert [t.path for t in threads] == ["first.py", "second.py"]
     assert len(calls) == 2
-    # Owner, repo, and number come from the recorded URL — the base repository
-    # even for a fork PR — and the second page carries the cursor.
+    # Each page must use the URL's host even when GH_HOST differs. Owner and
+    # repo are strings: gh's typed -F would turn names like 123/true into
+    # non-string values rejected by GraphQL's String! variables.
     for argv in calls:
-        assert ["-F", "owner=o", "-F", "repo=r", "-F", "number=12"] == argv[3:9]
+        assert argv[3:5] == ["--hostname", host]
+        assert argv[5:11] == [
+            "-f", f"owner={owner}", "-f", f"repo={repo_name}", "-F", "number=12",
+        ]
     assert "-F" in calls[0] and "cursor=C1" not in calls[0]
     assert calls[1][-2:] == ["-F", "cursor=C1"]
 
@@ -1043,6 +1059,36 @@ def test_sweep_fetches_threads_once_per_closed_pr_and_records_them(
         "auto-bumped on merge of PR #30 → done; 1 unanswered review thread: "
         "src/coga/x.py:42" in log
     )
+
+
+@pytest.mark.parametrize("status", ["done", "paused", "canceled"])
+def test_sweep_preserves_a_transition_during_review_thread_lookup(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, status: str
+) -> None:
+    url = "https://github.com/o/r/pull/30"
+    slug, path = _make_task(
+        repo, status="in_progress", on_final=True, pr_url=url
+    )
+    _stub_pr_state(monkeypatch, {url: "MERGED"})
+
+    def concurrent_transition(url: str) -> list[am.ReviewThread]:
+        args = ["mark", status, slug]
+        if status == "canceled":
+            args.extend(["--message", "Obsolete work"])
+        completed = CliRunner().invoke(app, args)
+        assert completed.exit_code == 0, completed.output
+        return [_thread()]
+
+    monkeypatch.setattr(am, "unanswered_review_threads", concurrent_transition)
+
+    cfg = load_config(repo)
+    result = am.sweep_merged(cfg, quiet=True)
+
+    assert Ticket.read(path).status == status
+    assert result.closed == []
+    from coga.logfile import task_log_lines
+
+    assert "auto-bumped" not in "\n".join(task_log_lines(cfg, slug))
 
 
 def test_sweep_audit_line_stays_plain_without_unanswered_threads(

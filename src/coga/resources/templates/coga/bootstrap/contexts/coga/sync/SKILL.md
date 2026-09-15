@@ -63,11 +63,11 @@ Live surface (`post`) — posts immediately to the named destination:
   may duplicate work; important, under the existing best-effort warning guard.
 - the Dream validate-drift summary — bounded maintenance result; flow.
 - the megalaunch drain summary — non-empty aggregate result; flow.
-- the `autoclose-merged` sweep's retire-pending summary — the sweep closed
-  tickets whose worktrees still need `coga retire`; flow. A plain `post`
-  rather than a `notify` outcome: `notify` restricts the event *kind*
-  (`done` / `canceled` / `recurring-error`), and there is no retire-followup
-  kind in that set.
+- the `autoclose-merged` sweep's follow-up summaries — a recorded checkout
+  still needs `coga retire`, or a closed PR has unanswered review threads
+  (see `coga/autoclose/sweep`); flow. Each uses a plain `post` rather than a
+  `notify` outcome: `notify` restricts the event *kind*
+  (`done` / `canceled` / `recurring-error`), and neither follow-up is one.
 - recurring autofix filing a ticket for a problem it diagnosed in a recurring
   run — not only a failed one: a run that exits zero but whose blackboard shows
   it silently did nothing, or recorded real errors, is classified a problem too.
@@ -139,7 +139,7 @@ unreviewed cadence decision, not a neutral default.
 
 **This is an accounting of events, not a partition of templates.** A template
 may legitimately span surfaces, and several already do: `autoclose-merged`
-posts its retire-pending summary through `post` *and* its per-ticket `done`
+posts its checkout and unanswered-review-thread summaries through `post` *and* its per-ticket `done`
 outcomes through `notify`, and `resolve-conflicts` and `address-pr-comments`
 are silent as period templates while the bootstrap delegates they run post
 their roll-ups through the live `coga slack` escape hatch. A cadence audit should ask
@@ -452,8 +452,8 @@ new string:
   `blocker_reminders.py::remind_blocked_tasks`; the script-failure path
   in `launch_script.py` (important); the stale-period-state warning in
   `mark.py` (important); `dream_validate_drift.py` (flow);
-  `autoclose.py::_report_retire_followups` (the retire-pending sweep summary,
-  flow, `fatal=False`); `recurring_autofix.py` on both its ticket-filing paths
+  `autoclose.py::_report_followup` (the checkout and review-thread sweep
+  summaries, flow, `fatal=False`); `recurring_autofix.py` on both its ticket-filing paths
   (`run_autofix` and `run_autofix_analyze_recipe`, flow); and
   `commands/megalaunch.py` (flow). The `commands/*` module fronting a
   lifecycle transition contributes the `preflight_post(cfg)` configuration

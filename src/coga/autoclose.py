@@ -62,6 +62,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
 from coga import git
 from coga.blackboard import append_blackboard_report
@@ -520,8 +521,9 @@ def pr_review_threads(url: str) -> list[dict[str, object]]:
     the other `gh` helpers here, so the sweep's existing loud/quiet handling
     covers it.
     """
-    match = _PR_COORDINATES_RE.search(url)
-    if not match:
+    parsed = urlsplit(url)
+    match = _PR_COORDINATES_RE.search(parsed.path)
+    if not parsed.hostname or not match:
         raise GhError(f"cannot derive owner/repo/number from PR URL {url}")
     owner, repo, number = match.group(1), match.group(2), match.group(3)
     threads: list[dict[str, object]] = []
@@ -531,9 +533,11 @@ def pr_review_threads(url: str) -> list[dict[str, object]]:
             "gh",
             "api",
             "graphql",
-            "-F",
+            "--hostname",
+            parsed.hostname,
+            "-f",
             f"owner={owner}",
-            "-F",
+            "-f",
             f"repo={repo}",
             "-F",
             f"number={number}",
@@ -676,8 +680,13 @@ def _try_bump_one(
     if state != "MERGED":
         return None
 
-    # Re-read in case a concurrent caller (other hook, status, manual
-    # bump) already handled this ticket. Mark_done is the gate.
+    # Fetched before the close, not after: a GhError leaves the ticket open
+    # for retry. Complete all GitHub reads before rechecking eligibility so a
+    # human transition during this paginated lookup cannot be overwritten.
+    threads = tuple(unanswered_review_threads(url))
+
+    # Re-read after the network calls: another caller may have paused,
+    # canceled, or completed the ticket while GitHub was responding.
     try:
         ticket = read_ticket(ref)
     except TicketError:
@@ -685,16 +694,13 @@ def _try_bump_one(
     if not _candidate(ticket):
         return None
 
-    # Fetched before the close, not after: a `GhError` here leaves the ticket
-    # open for the next sweep instead of closing it without its report, which
-    # is the exact silence this lookup exists to end.
     closed = ClosedTicket(
         slug=ref.id_slug,
         title=ticket.title,
         branch=parse_branch_name(blackboard),
         worktree=parse_worktree_path(blackboard),
         pr=url,
-        unanswered_threads=tuple(unanswered_review_threads(url)),
+        unanswered_threads=threads,
     )
 
     pr_label = closed.pr_label
