@@ -1,6 +1,6 @@
 ---
 title: Validate that committed skill scripts with a shebang are executable
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description

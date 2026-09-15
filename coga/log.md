@@ -5173,3 +5173,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-15 09:56 [recurring-context-never-mentions-the-packaged-twin] [human:nicktoper] auto-bumped on merge of PR #792 → done
 2026-09-15 09:56 [sync-context-omits-preflight-post-from-the-notific] [human:nicktoper] auto-bumped on merge of PR #791 → done
 2026-09-15 09:56 [the-human-doc-vs-agent-context-boundary-is-decided] [human:nicktoper] auto-bumped on merge of PR #790 → done
+2026-09-15 09:56 [validate-that-committed-skill-scripts-with-a-sheba] [human:nicktoper] auto-bumped on merge of PR #800 → done
