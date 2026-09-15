@@ -796,6 +796,39 @@ wrong checkout silently produces wrong results in both directions:
   took four conflicts. Re-measure at implement time; never let an inherited
   "rebases clean, no conflicts expected" note stand in for running the rebase.
 
+- **Five bot review threads merged unanswered in Aug–Sep 2026; their remaining
+  concerns need triage.** `verify-the-pr-review-comment-loop-once-the-review`
+  (2026-09-13) queried `reviewThreads` on every PR merged in its window and
+  found these threads with no reply and no code change at the flagged line.
+  Each remaining concern needs a human verdict (fix / won't fix / moot) and, for a fix, its
+  own ticket — the brief is draft
+  `triage-five-review-comments-that-merged-unanswered`; none has a fix ticket
+  yet. Re-verify against the current tree before acting.
+  - PR 699 (P1), `recurring_runner.py` near the `_LEDGER_LOADED = "yes"` mark:
+    the control ledger is marked loaded unconditionally after the pre-scan
+    catch-up, so a competing checkout that publishes the same period between
+    that catch-up and the first create sync can trigger a double launch.
+  - PR 704, `config.py` context-artifact check: `path.is_file() or
+    path.is_symlink()` accepts any symlink, including one whose target lies
+    outside the checkout, so another clone composes a different prompt.
+  - PR 705, confirmed live: the recurring `ticket.py` shims finish via plain
+    `coga bump`, so headless completions log as `[human:<user>] task done`
+    (`recurring/autoclose-merged` entries on 2026-09-10 and 09-11); the ask was
+    a system-attributed completion path.
+  - PR 747, `commands/launch.py` released-witness reconciliation captures
+    `FileMutationRollback` after the control fetch instead of from the
+    validated current bytes, so a manual ticket edit made during the fetch can
+    be overwritten by the stale released revision.
+  - PR 755, the `dev/code` "Design pivots" section: superseded designs below
+    the blackboard fence still compose into later prompts; the remaining ask
+    is to keep the archive above the fence. The synthesis-gate concern is
+    fixed: `prelaunch_blackboard_synthesis_reason_text` removes each exact
+    `## Superseded designs` section before applying the size gate, so a large
+    archive under that heading no longer blocks activation.
+  Two more dropped threads were overtaken out of band and need nothing: PR 696
+  (fixed by `a-slack-repo-without-important-webhook-can-abort-t`, PR 761) and
+  PR 706 (`scripts/human_minutes.py` PR regex rewritten by PR 784).
+
 ## Secrets
 
 Never commit. Shared config goes in `coga.toml`; per-machine paths
