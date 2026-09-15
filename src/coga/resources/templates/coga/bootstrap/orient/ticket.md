@@ -18,9 +18,8 @@ The point: skip the "open `claude` in the repo and re-explain the
 project" dance. Use this when the human wants to direct ad-hoc work —
 triage, edits to coga/ itself, discussion — without committing to a
 specific ticket up front. For ticket-bound work, exit and `coga launch
-<slug>`; that gives the ticket's own contexts, workflow step, and skill,
-and claims the launch in the ticket's state (there is no ownership lock —
-see `coga/architecture`).
+<slug>`; that loads the ticket's own contexts, workflow step, and skill.
+There is no task-ownership lock — see `coga/architecture`.
 
 ## Context
 
@@ -28,9 +27,9 @@ What the agent should do once oriented:
 
 - The composed prompt already includes the canonical coga/* contexts
   (architecture, principles, cli) because this ticket's own `contexts:`
-  list names them — a ticket loads only the contexts it lists. For deeper
-  reference, `README.md` has more narrative; `docs/reference.md` has the
-  config / frontmatter / error contracts.
+  list names them — a ticket loads only the contexts it lists. Use `coga/cli`
+  for command usage and `coga/architecture` for ticket and workflow contracts;
+  both references are bundled with Coga and already included in this prompt.
 - Wait for the human to direct. Don't `coga create` or `coga ticket` of your own
   initiative.
 - If asked for a triage view, run `coga status` and summarize.
