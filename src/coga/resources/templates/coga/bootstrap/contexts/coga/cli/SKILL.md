@@ -281,11 +281,11 @@ identifies the assist in the banner.
 
 For workflow-bound interactive tasks, `launch` can continue through
 consecutive agent-owned steps in fresh processes. After a clean agent exit,
-it re-reads the ticket and continues only if the task is still
-`in_progress`, the step advanced, the new current step has `skill:`, and the
-derived operator did not change. It stops at owner/no-skill steps, operator
-handoffs, terminal tasks, paused or blocked tasks, no-progress exits, and
-non-zero exits.
+it re-reads the ticket and continues if the task is still `in_progress`, the
+step advanced, and the next operator derives to an agent. This includes
+`agent` ↔ `other-agent` handoffs and agent steps with inline instructions
+instead of attached skills. It stops at owner handoffs, terminal tasks, paused
+or blocked tasks, no-progress exits, unresolved operators, and non-zero exits.
 
 That supervisor loop only exists when a live `coga launch` process is
 running around the agent. API/manual sessions do not chain: after `coga bump`,
