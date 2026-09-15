@@ -323,8 +323,12 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             issue=issue,
             action=ACTION_PR_PROPOSAL,
             remediation=(
-                "Propose a reviewed blackboard condensation that preserves "
-                "current decisions and blockers before removing detail."
+                "Propose the `coga/architecture` bloated-blackboard remedy: "
+                "promote the task to directory form, move dated evidence into "
+                "sibling attachments and superseded material into an "
+                "unattached context, and leave only the current handoff, "
+                "worklist and verification on the blackboard. Move, do not "
+                "delete."
             ),
         )
 

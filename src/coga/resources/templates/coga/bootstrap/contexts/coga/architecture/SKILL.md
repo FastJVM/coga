@@ -885,6 +885,21 @@ entries in `--prompt-report` so the blackboard can still be sized on its own —
 that line is how a bloated blackboard gets noticed — but they compose as one
 contiguous block.
 
+When the blackboard entry in `--prompt-report` is the largest layer, do not
+trim history by deleting it. Promote the task to directory form (the
+`mkdir <slug>/ && mv <slug>.md <slug>/ticket.md` move above) and move dated
+evidence into sibling attachments (`tasks/<slug>/<topic>.md`) that open with an
+HTML comment naming the task they belong to and the date they were moved out;
+leave the blackboard holding only the current handoff, worklist and
+verification, with a pointer to each attachment. Attachments are never
+composed, so the moved evidence costs nothing until a session opens it.
+Superseded program material that several tickets may still cite belongs in an
+*unattached* context — one no live ticket lists under `contexts:` — which stays
+git-tracked and synced by Coga state sync but composes zero tokens. Record the
+resulting layer sizes on the blackboard so the next author can see what the
+split bought. `coga validate` reports `large-blackboard` above
+`BLACKBOARD_WARN_BYTES` (32 KiB); `validate-drift` routes that warning here.
+
 **Layer 6 is a three-region extract, not the whole ticket body.** The section
 extractor takes one `##` heading and stops at the next `##`, so composition
 carries exactly `## Description`, `## Context`, and live state from the

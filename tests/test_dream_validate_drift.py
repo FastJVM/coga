@@ -212,6 +212,23 @@ def test_packaged_script_mode_failure_needs_package_remediation() -> None:
     assert "upstream Coga" in classified.remediation
 
 
+def test_classifies_large_blackboard_as_attachment_remedy() -> None:
+    classified = classify_issue(
+        ValidationIssue(
+            kind="large-blackboard",
+            task="marketing/phase-0-audit",
+            message="blackboard region is 58 KiB (warn above 32 KiB)",
+            severity="warn",
+        )
+    )
+
+    assert classified.action == ACTION_PR_PROPOSAL
+    assert "coga/architecture" in classified.remediation
+    assert "sibling attachments" in classified.remediation
+    assert "unattached context" in classified.remediation
+    assert "do not delete" in classified.remediation.lower()
+
+
 def test_classifies_recurring_state_stuck_as_human_needed() -> None:
     classified = classify_issue(
         ValidationIssue(
