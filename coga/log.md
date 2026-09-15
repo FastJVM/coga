@@ -5193,3 +5193,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-15 12:24 [autoclose-should-name-unanswered-review-threads-on] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-15 12:24 [autoclose-should-name-unanswered-review-threads-on] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-15 12:24 [autoclose-should-name-unanswered-review-threads-on] [megalaunch] launched via coga megalaunch
+2026-09-15 12:37 [autoclose-should-name-unanswered-review-threads-on] [agent:claude] advanced to step 2 (peer-review) → codex
