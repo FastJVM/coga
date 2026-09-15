@@ -362,8 +362,32 @@ def test_prs_for_head_lists_requested_state(monkeypatch) -> None:
 # --- scanner ------------------------------------------------------------------
 
 
+def _stub_review_threads(
+    monkeypatch: pytest.MonkeyPatch,
+    mapping: dict[str, list[am.ReviewThread]] | None = None,
+) -> list[str]:
+    """Patch the per-closure `reviewThreads` fetch. Returns the URLs asked.
+
+    Defaults every PR to "no unanswered thread", so a sweep test that is not
+    about threads never reaches a real `gh api graphql`.
+    """
+    calls: list[str] = []
+    threads = mapping or {}
+
+    def fake(url: str) -> list[am.ReviewThread]:
+        calls.append(url)
+        return list(threads.get(url, []))
+
+    monkeypatch.setattr(am, "unanswered_review_threads", fake)
+    return calls
+
+
 def _stub_pr_state(monkeypatch: pytest.MonkeyPatch, mapping: dict[str, str]) -> list[str]:
-    """Patch `pr_state` to return states from `mapping`. Returns calls list."""
+    """Patch `pr_state` to return states from `mapping`. Returns calls list.
+
+    Also stubs the review-thread fetch to find nothing; a test about threads
+    layers `_stub_review_threads` with a mapping on top.
+    """
     calls: list[str] = []
 
     def fake(url: str) -> str:
@@ -373,6 +397,7 @@ def _stub_pr_state(monkeypatch: pytest.MonkeyPatch, mapping: dict[str, str]) -> 
         return mapping[url]
 
     monkeypatch.setattr(am, "pr_state", fake)
+    _stub_review_threads(monkeypatch)
     return calls
 
 
@@ -533,6 +558,7 @@ def test_sweep_rechecks_after_concurrent_manual_final_bump(
         return "MERGED"
 
     monkeypatch.setattr(am, "pr_state", finish_while_checking)
+    _stub_review_threads(monkeypatch)
     cfg = load_config(repo)
 
     result = am.sweep_merged(cfg, quiet=True)
@@ -587,9 +613,34 @@ def test_sweep_merged_loud_raises_gh_error(
 
 
 def _closed(
-    slug: str, *, branch: str | None = None, worktree: str | None = None
+    slug: str,
+    *,
+    branch: str | None = None,
+    worktree: str | None = None,
+    pr_url: str = "https://github.com/o/r/pull/1",
+    threads: tuple[am.ReviewThread, ...] = (),
 ) -> am.ClosedTicket:
-    return am.ClosedTicket(slug=slug, title="Work", branch=branch, worktree=worktree)
+    return am.ClosedTicket(
+        slug=slug,
+        title="Work",
+        branch=branch,
+        worktree=worktree,
+        pr=pr_url,
+        unanswered_threads=threads,
+    )
+
+
+def _thread(
+    path: str = "src/coga/x.py",
+    line: int | None = 42,
+    *,
+    author: str = "coderabbitai",
+    url: str = "https://github.com/o/r/pull/1#discussion_r1",
+    excerpt: str = "Consider a bound here.",
+) -> am.ReviewThread:
+    return am.ReviewThread(
+        path=path, line=line, author=author, url=url, excerpt=excerpt
+    )
 
 
 def _capture_posts(monkeypatch: pytest.MonkeyPatch) -> list[str]:
@@ -773,6 +824,411 @@ def test_render_retire_summary_reads_naturally_for_one_ticket() -> None:
     )
 
 
+def _graphql_page(
+    nodes: list[dict[str, object]], *, next_cursor: str | None = None
+) -> str:
+    import json
+
+    return json.dumps(
+        {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "pageInfo": {
+                                "hasNextPage": next_cursor is not None,
+                                "endCursor": next_cursor,
+                            },
+                            "nodes": nodes,
+                        }
+                    }
+                }
+            }
+        }
+    )
+
+
+def _thread_node(
+    *,
+    resolved: bool = False,
+    outdated: bool = False,
+    comments: int = 1,
+    path: str = "src/coga/x.py",
+    line: int | None = 42,
+    original_line: int | None = 40,
+    body: str = "Consider a bound here.",
+    login: str | None = "coderabbitai",
+    url: str = "https://github.com/o/r/pull/1#discussion_r1",
+) -> dict[str, object]:
+    return {
+        "isResolved": resolved,
+        "isOutdated": outdated,
+        "path": path,
+        "line": line,
+        "originalLine": original_line,
+        "comments": {
+            "totalCount": comments,
+            "nodes": [
+                {
+                    "body": body,
+                    "url": url,
+                    "author": {"login": login} if login is not None else None,
+                }
+            ],
+        },
+    }
+
+
+def _stub_graphql(
+    monkeypatch: pytest.MonkeyPatch, pages: list[str]
+) -> list[list[str]]:
+    """Serve `gh api graphql` one canned page per call. Returns the argvs."""
+    calls: list[list[str]] = []
+    remaining = list(pages)
+
+    def fake_run(argv, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(list(argv))
+        assert argv[:3] == ["gh", "api", "graphql"]
+        return subprocess.CompletedProcess(argv, 0, stdout=remaining.pop(0), stderr="")
+
+    monkeypatch.setattr(am.subprocess, "run", fake_run)
+    return calls
+
+
+def test_unanswered_review_threads_keeps_only_unresolved_current_reply_less(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The four exclusions the decision names: a resolved thread is a human
+    # verdict, an outdated one already moved, a replied-to one was seen. Only
+    # the untouched thread is reported.
+    _stub_graphql(
+        monkeypatch,
+        [
+            _graphql_page(
+                [
+                    _thread_node(resolved=True, path="a.py"),
+                    _thread_node(outdated=True, path="b.py"),
+                    _thread_node(comments=2, path="c.py"),
+                    _thread_node(path="d.py", line=7, body="  \nFirst line.\nSecond."),
+                ]
+            )
+        ],
+    )
+
+    threads = am.unanswered_review_threads("https://github.com/o/r/pull/1")
+
+    assert threads == [
+        am.ReviewThread(
+            path="d.py",
+            line=7,
+            author="coderabbitai",
+            url="https://github.com/o/r/pull/1#discussion_r1",
+            excerpt="First line.",
+        )
+    ]
+
+
+def test_unanswered_review_threads_paginates_and_passes_base_repo_coordinates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _stub_graphql(
+        monkeypatch,
+        [
+            _graphql_page([_thread_node(path="first.py")], next_cursor="C1"),
+            _graphql_page([_thread_node(path="second.py")]),
+        ],
+    )
+
+    threads = am.unanswered_review_threads("https://github.com/o/r/pull/12")
+
+    assert [t.path for t in threads] == ["first.py", "second.py"]
+    assert len(calls) == 2
+    # Owner, repo, and number come from the recorded URL — the base repository
+    # even for a fork PR — and the second page carries the cursor.
+    for argv in calls:
+        assert ["-F", "owner=o", "-F", "repo=r", "-F", "number=12"] == argv[3:9]
+    assert "-F" in calls[0] and "cursor=C1" not in calls[0]
+    assert calls[1][-2:] == ["-F", "cursor=C1"]
+
+
+def test_unanswered_review_threads_falls_back_to_original_line_and_unknown_author(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A thread on a line GitHub can no longer place reports `line: null`; a
+    # deleted account reports `author: null`. Neither may hide the thread.
+    _stub_graphql(
+        monkeypatch,
+        [_graphql_page([_thread_node(line=None, original_line=9, login=None)])],
+    )
+
+    [thread] = am.unanswered_review_threads("https://github.com/o/r/pull/1")
+
+    assert thread.location == "src/coga/x.py:9"
+    assert thread.author == "unknown"
+
+
+def test_unanswered_review_threads_excerpt_strips_bot_badge_markup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The Codex reviewer's opening line, verbatim from PR 699: the badge's alt
+    # text is the priority, the rest is markup.
+    body = (
+        "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)"
+        "</sub></sub>  Revalidate control before trusting the pre-scan ledger**\n\n"
+        "When another checkout publishes…"
+    )
+    _stub_graphql(monkeypatch, [_graphql_page([_thread_node(body=body)])])
+
+    [thread] = am.unanswered_review_threads("https://github.com/o/r/pull/1")
+
+    assert thread.excerpt == (
+        "P1 Badge Revalidate control before trusting the pre-scan ledger"
+    )
+
+
+def test_unanswered_review_threads_clips_a_long_opening_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_graphql(monkeypatch, [_graphql_page([_thread_node(body="x" * 200)])])
+
+    [thread] = am.unanswered_review_threads("https://github.com/o/r/pull/1")
+
+    assert len(thread.excerpt) == 80
+    assert thread.excerpt.endswith("…")
+
+
+def test_pr_review_threads_raises_gh_error_on_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def failing(argv, **kwargs):  # type: ignore[no-untyped-def]
+        return subprocess.CompletedProcess(argv, 1, stdout="", stderr="gh: boom")
+
+    monkeypatch.setattr(am.subprocess, "run", failing)
+
+    with pytest.raises(am.GhError, match="reviewThreads of .*pull/1.*gh: boom"):
+        am.pr_review_threads("https://github.com/o/r/pull/1")
+
+
+def test_pr_review_threads_rejects_a_url_without_repository_coordinates() -> None:
+    with pytest.raises(am.GhError, match="cannot derive owner/repo/number"):
+        am.pr_review_threads("https://example.invalid/pull/1")
+
+
+def test_sweep_fetches_threads_once_per_closed_pr_and_records_them(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    url = "https://github.com/o/r/pull/30"
+    slug, _ = _make_task(repo, on_final=True, pr_url=url)
+    _, open_path = _make_task(
+        repo, title="Open", on_final=True, pr_url="https://github.com/o/r/pull/31"
+    )
+    _stub_pr_state(monkeypatch, {url: "MERGED", "https://github.com/o/r/pull/31": "OPEN"})
+    asked = _stub_review_threads(monkeypatch, {url: [_thread()]})
+
+    cfg = load_config(repo)
+    result = am.sweep_merged(cfg, quiet=True)
+
+    # One fetch, only for the PR that actually closed a ticket: an open PR's
+    # threads are still the review step's business, not the sweep's.
+    assert asked == [url]
+    assert [
+        (item.slug, item.unanswered_threads) for item in result.review_threads_pending
+    ] == [(slug, (_thread(),))]
+    assert Ticket.read(open_path).status == "active"
+    # The audit line is the durable surface; it names the location.
+    from coga.logfile import task_log_lines
+
+    log = "\n".join(task_log_lines(cfg, slug))
+    assert (
+        "auto-bumped on merge of PR #30 → done; 1 unanswered review thread: "
+        "src/coga/x.py:42" in log
+    )
+
+
+def test_sweep_audit_line_stays_plain_without_unanswered_threads(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    url = "https://github.com/o/r/pull/32"
+    slug, _ = _make_task(repo, on_final=True, pr_url=url)
+    _stub_pr_state(monkeypatch, {url: "MERGED"})
+
+    cfg = load_config(repo)
+    result = am.sweep_merged(cfg, quiet=True)
+
+    assert result.review_threads_pending == []
+    from coga.logfile import task_log_lines
+
+    log = "\n".join(task_log_lines(cfg, slug))
+    assert "auto-bumped on merge of PR #32 → done\n" in log + "\n"
+    assert "review thread" not in log
+
+
+def test_sweep_thread_fetch_failure_leaves_the_ticket_open(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The lookup runs before the close on purpose: failing it must not close
+    # the ticket without its report, which is the silence this feature ends.
+    # The ticket stays open and the next sweep retries.
+    url = "https://github.com/o/r/pull/33"
+    _, path = _make_task(repo, on_final=True, pr_url=url)
+    _stub_pr_state(monkeypatch, {url: "MERGED"})
+
+    def boom(url: str) -> list[am.ReviewThread]:
+        raise am.GhError("graphql: boom")
+
+    monkeypatch.setattr(am, "unanswered_review_threads", boom)
+
+    with pytest.raises(am.GhError, match="graphql: boom"):
+        am.sweep_merged(load_config(repo), quiet=False)
+
+    assert Ticket.read(path).status == "active"
+
+
+def test_render_review_threads_report_names_location_author_excerpt_and_link() -> None:
+    report = am.render_review_threads_report(
+        generated_at="2026-09-15T08:00:00+00:00",
+        task_slug="recurring/autoclose-merged",
+        pending=[
+            _closed(
+                "fix-thing",
+                pr_url="https://github.com/o/r/pull/7",
+                threads=(_thread(), _thread("b.py", None, excerpt="")),
+            )
+        ],
+    )
+
+    assert report.startswith(am.REVIEW_THREADS_REPORT_HEADING)
+    assert "Generated: 2026-09-15T08:00:00+00:00" in report
+    assert "Task: `recurring/autoclose-merged`" in report
+    assert "Autoclose only names them" in report
+    assert '- `fix-thing` "Work" — PR #7:\n' in report
+    assert (
+        '  - `src/coga/x.py:42` by @coderabbitai: "Consider a bound here." — '
+        "https://github.com/o/r/pull/1#discussion_r1\n" in report
+    )
+    assert "  - `b.py` by @coderabbitai: — https://github.com/o/r/pull/1#discussion_r1\n" in report
+
+
+def test_render_review_threads_summary_is_one_line_linking_every_thread() -> None:
+    summary = am.render_review_threads_summary(
+        [
+            _closed(
+                "alpha",
+                pr_url="https://github.com/o/r/pull/7",
+                threads=(
+                    _thread("a.py", 1, url="https://github.com/o/r/pull/7#discussion_r1"),
+                    _thread("b.py", 2, url="https://github.com/o/r/pull/7#discussion_r2"),
+                ),
+            ),
+            _closed(
+                "beta",
+                pr_url="https://github.com/o/r/pull/8",
+                threads=(_thread("c.py", 3, url="https://github.com/o/r/pull/8#discussion_r3"),),
+            ),
+        ]
+    )
+
+    assert summary == (
+        "🧵 2 auto-closed tickets merged with unanswered review threads: "
+        "<https://github.com/o/r/pull/7|PR #7> "
+        "<https://github.com/o/r/pull/7#discussion_r1|a.py:1>, "
+        "<https://github.com/o/r/pull/7#discussion_r2|b.py:2>; "
+        "<https://github.com/o/r/pull/8|PR #8> "
+        "<https://github.com/o/r/pull/8#discussion_r3|c.py:3>"
+    )
+
+
+def test_render_review_threads_summary_reads_naturally_for_one_ticket() -> None:
+    assert am.render_review_threads_summary(
+        [_closed("alpha", pr_url="https://github.com/o/r/pull/7", threads=(_thread(),))]
+    ) == (
+        "🧵 1 auto-closed ticket merged with an unanswered review thread: "
+        "<https://github.com/o/r/pull/7|PR #7> "
+        "<https://github.com/o/r/pull/1#discussion_r1|src/coga/x.py:42>"
+    )
+
+
+def test_recipe_reports_unanswered_threads_on_stdout_and_slack_without_touching_them(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    url = "https://github.com/o/r/pull/34"
+    slug, path = _make_task(repo, on_final=True, pr_url=url, branch=None)
+    _stub_pr_state(monkeypatch, {url: "MERGED"})
+    _stub_review_threads(monkeypatch, {url: [_thread()]})
+    posts = _capture_posts(monkeypatch)
+    gh_calls: list[list[str]] = []
+    real_run = subprocess.run
+
+    def record_gh(argv, **kwargs):  # type: ignore[no-untyped-def]
+        if argv and argv[0] == "gh":
+            gh_calls.append(list(argv))
+        return real_run(argv, **kwargs)
+
+    monkeypatch.setattr(am.subprocess, "run", record_gh)
+
+    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+
+    out = capsys.readouterr().out
+    assert am.REVIEW_THREADS_REPORT_HEADING in out
+    assert f'- `{slug}` "Work" — PR #34:' in out
+    assert "`src/coga/x.py:42` by @coderabbitai" in out
+    # No checkout was recorded, so the retire section stays silent: the two
+    # follow-ups are independent.
+    assert am.RETIRE_REPORT_HEADING not in out
+    assert Ticket.read(path).status == "done"
+    summaries = [p for p in posts if "🧵" in p]
+    assert len(summaries) == 1
+    assert summaries[0].endswith(
+        "🧵 1 auto-closed ticket merged with an unanswered review thread: "
+        f"<{url}|PR #34> <https://github.com/o/r/pull/1#discussion_r1|src/coga/x.py:42>"
+    )
+    # Report-only: nothing resolved, nothing replied — no `gh` mutation ran.
+    assert gh_calls == []
+
+
+def test_recipe_reports_both_followups_when_a_closure_has_both(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    url = "https://github.com/o/r/pull/35"
+    slug, _ = _make_task(repo, on_final=True, pr_url=url, branch="feature-y")
+    _stub_pr_state(monkeypatch, {url: "MERGED"})
+    _stub_review_threads(monkeypatch, {url: [_thread()]})
+    posts = _capture_posts(monkeypatch)
+
+    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+
+    out = capsys.readouterr().out
+    assert out.index(am.RETIRE_REPORT_HEADING) < out.index(
+        am.REVIEW_THREADS_REPORT_HEADING
+    )
+    assert f"`coga retire {slug}`" in out
+    # One trailing line per follow-up, in the same order as the report.
+    followups = [p for p in posts if "🧹" in p or "🧵" in p]
+    assert len(followups) == 2
+    assert "🧹" in followups[0] and "🧵" in followups[1]
+
+
+def test_recipe_appends_the_review_threads_report_to_the_task_blackboard(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    url = "https://github.com/o/r/pull/36"
+    slug, _ = _make_task(repo, on_final=True, pr_url=url, branch=None)
+    _, host = _make_task(repo, title="Autoclose merged", status="draft")
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(host))
+    monkeypatch.setenv("COGA_TASK_SLUG", "autoclose-merged")
+    _stub_pr_state(monkeypatch, {url: "MERGED"})
+    _stub_review_threads(monkeypatch, {url: [_thread()]})
+    _capture_posts(monkeypatch)
+
+    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+
+    report = host.read_text()
+    assert am.REVIEW_THREADS_REPORT_HEADING in report
+    assert f'- `{slug}` "Work" — PR #36:' in report
+    assert "Task: `autoclose-merged`" in report
+    assert am.REVIEW_THREADS_REPORT_HEADING not in capsys.readouterr().out
+
+
 def test_recipe_reports_the_retire_followup_on_stdout_and_slack(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -922,6 +1378,7 @@ def test_recipe_result_excludes_a_closure_this_sweep_did_not_make(
         return states[url]
 
     monkeypatch.setattr(am, "pr_state", fake)
+    _stub_review_threads(monkeypatch)
 
     result = am.AutocloseResult()
     assert am.run_autoclose_recipe(load_config(repo), [], result=result) == 0
@@ -982,6 +1439,7 @@ def test_recipe_reports_earlier_closure_when_a_later_pr_lookup_fails(
         raise am.GhError("later lookup failed")
 
     monkeypatch.setattr(am, "pr_state", state)
+    _stub_review_threads(monkeypatch)
     _capture_posts(monkeypatch)
 
     assert am.run_autoclose_recipe(load_config(repo), []) == 2

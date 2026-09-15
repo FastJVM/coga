@@ -466,10 +466,11 @@ snapshots frozen in that window carried the skill, so the frozen-empty
 Decision (2026-09-13, owner): keep the owner gate — merge and thread resolution
 stay human, and the skill still never resolves or bumps — and add post-merge
 detection rather than a new trigger. When `autoclose-merged` closes a ticket it
-should fetch that PR's `reviewThreads` once and name every unresolved,
-non-outdated, reply-less thread in its summary and Slack line, report-only,
-exactly as it already names the `coga retire` follow-up. Fix ticket:
-`autoclose-should-name-unanswered-review-threads-on`. Rejected: auto-launching
+fetches that PR's `reviewThreads` once and names every unresolved,
+non-outdated, reply-less thread in the closure's `coga/log.md` line, its sweep
+report, and one Slack line, report-only, exactly as it already names the
+`coga retire` follow-up (`coga/autoclose/sweep` skill, "The unanswered-thread
+follow-up"). Rejected: auto-launching
 the assist on review entry (bot comments arrive minutes after `open-pr`; the
 gate exists so a human reads them first), a merge-blocking check (Coga does not
 own GitHub merge policy), and doing nothing.
