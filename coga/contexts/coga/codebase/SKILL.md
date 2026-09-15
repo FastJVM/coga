@@ -237,10 +237,14 @@ coexist under `coga/skills/`:
   lands it, and `_url_metadata` writes `include` back so the next run sees it.
   `source_tree_digest` stays the true unpruned upstream digest (upstream-change
   detection still works) while `installed_tree_digest` describes the pruned tree
-  on disk; a digest recorded before the allowlist was honored is repaired in
-  place and reported as a change. Edits *beyond* the allowlist are still real
-  divergence and still surface as `conflict`/`skipped-local-adaptation`. The
-  one unprotected shape is a `.coga-source.json` whose `local_adaptation_notes`
+  on disk. A digest recorded before the allowlist was honored is repaired in
+  place only when the freshly downloaded, pruned upstream tree still matches
+  the installed files (`_pruned_upstream_matches_installed`); the repair is
+  reported as a change. If upstream changed retained files first, the match
+  fails and the updater reports `conflict`, requiring manual reconciliation.
+  Edits *beyond* the allowlist also surface as
+  `conflict`/`skipped-local-adaptation`. Another unprotected shape is a
+  `.coga-source.json` whose `local_adaptation_notes`
   describe a prune but which carries no `include` key — the updater then treats
   the full tree as the install and never re-prunes (`clarity/` fell into this
   after a refresh that ran on pre-#776 code). `coga skill install-local` is a
