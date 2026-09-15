@@ -33,8 +33,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
-launch_generation: eb4458f5-206b-4247-a4db-2f16accf1522
+step: 3 (review-design)
 ---
 
 ## Description
@@ -423,3 +422,131 @@ the packaged `coga.toml` twin is already intentionally divergent).
    `--cost`) to keep the default view token-first? The design adds the
    column unconditionally because the vintage/stale signal is only useful
    if it is seen.
+
+## Evaluator review
+
+**Verdict: not ready for implementation.** The record-level pricing seam,
+packaged data, and thin CLI fit the existing usage accessor and the report
+consumer. The frozen workflow correctly hands this review to the owner.
+Two pricing assumptions need correction; the remaining findings pin public
+accounting and validation behavior. Ticket intent was reviewed before using
+the blackboard decisions to interpret it.
+
+### Must resolve before implementation
+
+1. **P1 — OpenAI cache writes are model-dependent, not universally free.**
+   The current [OpenAI pricing table](https://developers.openai.com/api/docs/pricing),
+   under "Flagship models", lists standard short-context cache-write rates
+   of $12.50/MTok for `gpt-6-astra`, $5 for `gpt-5.6-sol`, and $2.50 for
+   `gpt-5.6-terra`. Its [prompt caching guide](https://developers.openai.com/api/docs/guides/prompt-caching)
+   distinguishes the GPT-5.6-and-later write charge from older models and
+   subtracts both cached and cache-write tokens from ordinary input before
+   pricing. `src/coga/usage.py::_parse_codex_rollout` subtracts only cached
+   tokens and records cache creation as null. Consequently, the proposed
+   formula prices any writes inside that input bucket at the base rate,
+   missing their premium; null does not establish that no charge exists.
+   Replace the provider-wide prohibition in the table, validator, and tests.
+   Decide explicitly whether records lacking the split become unpriced or
+   receive a documented approximation with visible missing-cost information.
+   Adding correct rates alone makes them unpriced under the current strict
+   `price_record` rule. The same pricing page also lists long-context rates
+   for Astra, Sol, and Terra, so the documented base-tier assumption must
+   extend beyond gpt-5.5.
+
+2. **P1 — The selected approximation does not guarantee an API-bill floor.**
+   Proposed shape 1 and 7 label the result a floor while selecting the higher
+   Anthropic cache-write rate. One million Opus 5 writes with a 5m TTL would
+   be priced at $10 instead of the published $6.25; the ticket's own TTL
+   survey acknowledges that 5m writes occur. These are distinct prices in
+   [Anthropic's "Model pricing" table](https://platform.claude.com/docs/en/about-claude/pricing).
+   There is another existing approximation:
+   `src/coga/usage.py::_parse_claude_session` sums all assistant usage but
+   retains only the last model. A temporary two-message fixture, with 1M
+   input tokens each on Opus 5 then Fable 5, produced a Fable record with
+   2M input: the proposed pricer would report $20 for $15 of per-model usage.
+   Ignoring `<synthetic>` does not fix real model switches. Either define a
+   defensible lower-bound policy or label the amount an estimate under named
+   assumptions, with incomplete coverage distinguished from pricing error.
+   This can be resolved without requiring a new capture schema. Carry the
+   decision into `coga/tasks/agent-usage-report.md`, whose acceptance criteria
+   currently turn a purported floor into a confident plan-value verdict.
+
+3. **P2 — Make vintage renewal and the stale threshold unambiguous.**
+   The acceptance criteria fix staleness at
+   `PRICE_TABLE_STALE_AFTER_DAYS = 90`, while Proposed shape 1–2 also puts
+   `stale_after_days` in both TOML and `PriceTable`. Specify which is
+   authoritative, removing the redundant setting or defining validation and
+   matching the acceptance criteria to it. Separately, the header says to
+   bump the global vintage whenever any row changes. Updating one OpenAI
+   row must not silently renew unverified Anthropic rates. With one vintage,
+   require a whole-table verification before refreshing it, including a
+   refresh where no numeric rate changes. Pin tests at ages 90 and 91 using
+   UTC dates. Document that historical records are repriced using the loaded
+   table, rather than reconstructing their historical invoice rates.
+
+4. **P2 — Define the exact population of `unpriced_models`.**
+   Proposed shape 4 says to compute the map over filtered records but does
+   not say whether it includes all `price_record(...) is None` results,
+   only `ok` records among those results, or only missing model-table rows.
+   These differ for an unknown-status/null-model record and for an `ok`
+   record whose known model has a missing priced category. The acceptance
+   criteria explicitly exclude unknown sessions from `unpriced_sessions`,
+   so downstream consumers cannot safely infer the map's population.
+   Prefer using the same predicate as `unpriced_sessions`: `ok` records
+   whose pricing returns `None`, including zero-token records and known
+   models with incomplete categories. State the intended reconciliation
+   with `overall.unpriced_sessions`, and test it across filters, mixed
+   groups, missing model IDs, and incomplete categories. The existing
+   `src/coga/usage.py::_build_row` independently counts unknown sessions;
+   preserve that distinction.
+
+5. **P2 — Require finite rates and normalize validation failures.**
+   Proposed shape 2's literal rule, "Decimal accepts and is >= 0", accepts
+   `Decimal("Infinity")`; comparing `Decimal("NaN") >= 0` raises
+   `decimal.InvalidOperation`, which is not a `ValueError`. Verified both
+   with the installed Python. The former can survive loading and fail at
+   4dp serialization; the latter bypasses the promised exit-2 handling in
+   `src/coga/commands/usage.py::usage`. Require finite, non-negative rates
+   and key-specific `ValueError` for invalid decimals. Specify required
+   top-level table shapes and the stale-interval type if retained. Add
+   malformed-table cases for non-finite rates and missing/wrong-type
+   metadata, plus a CLI assertion that the error exits 2 without JSON output.
+
+### Optional recommendations and factual corrections
+
+- Add `coga/resources/prices.toml` to
+  `tests/test_packaging.py::EXPECTED_BOOTSTRAP_RESOURCES`: loading from an
+  editable checkout alone does not verify the built wheel. Neither the live
+  usage context nor the packaged CLI context has a twin today, as claimed.
+- Expose each group's unpriced count in text alongside its dollar amount;
+  an overall count alone cannot distinguish a genuinely zero-cost task from
+  an entirely unpriced task. Test stale JSON using stdout and stderr
+  separately, and control the date so CLI tests do not age into failures.
+- The advertised "full current non-retired list" is broader than the
+  enumerated seed set; the OpenAI pricing source also lists `gpt-5.6-luna`.
+  Name the intended supported set explicitly. Plan a price recheck around
+  Sol's minimum promotional period ending November 21, 2026: that is 69 days
+  after this vintage, before the proposed first stale day, December 13.
+- `UsageRecord` has no `total_tokens` property; only `RollupRow` does. Define
+  the record's unpriced token sum over its four categories. The Codex parser
+  copies `output_tokens` unchanged, as asserted by
+  `test_parse_codex_rollout_takes_last_cumulative_usage`; avoid interpreting
+  the Context's "folding reasoning" wording as an instruction to add
+  `reasoning_output_tokens` again. Carry the agreed record/rollup interface
+  into the report's owner review; its old adapter is still provisional.
+
+### Evidence and verification
+
+- Checked the relevant product/context contracts, usage source and fixtures,
+  packaging configuration and twin discovery, `docs/reference.md`, packaged
+  CLI context, resolved design workflow, and report specification.
+- `python -m pytest tests/test_usage.py -q` — **14 passed**.
+  `coga usage --by model` and `coga usage --json` — exit 0; JSON parsed.
+- Temporary fixtures reproduced the trailing-synthetic bug and mixed-model
+  attribution. Read-only Decimal probes reproduced the validation cases.
+  No transcript content was needed for the numeric log survey.
+- The first 578 records reproduce **$3,655.3097 under the ticket's formula**;
+  the log now contains 579 records, totaling $3,662.9831 under that formula,
+  with 63 unknown sessions and 13 synthetic sessions / 38,837,342 unpriced
+  tokens. This verifies the arithmetic, not the disputed floor semantics.
+- No ticket-body, source, test, branch, or PR changes were made for this step.

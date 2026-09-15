@@ -198,6 +198,7 @@ updating in the same PR, and the packaged twin under
 
 <!-- coga:blackboard -->
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/811
 branch: branch-sweep-landed
 worktree: /home/n/Code/claude/coga-branch-sweep-landed
 
