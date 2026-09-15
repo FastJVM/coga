@@ -5179,3 +5179,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-15 10:55 [branch-sweep-strands-squash-merged-branches-whose] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-15 10:55 [branch-sweep-strands-squash-merged-branches-whose] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-15 10:55 [branch-sweep-strands-squash-merged-branches-whose] [megalaunch] launched via coga megalaunch
+2026-09-15 11:01 [marketing/fix-installer] [human:nicktoper] created (status=draft)
