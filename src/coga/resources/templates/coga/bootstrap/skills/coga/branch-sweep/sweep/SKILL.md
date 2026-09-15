@@ -24,7 +24,12 @@ a ticket is deleted without going through retire or a session dies mid-flight.
    A `## Dev` `branch:` line is one such mention, not the contract — a draft
    that named its branch only in prose and a handoff manifest was invisible to
    the old `## Dev`-only guard. A mention pins; a ticket whose frontmatter
-   cannot be read is treated as live,
+   cannot be read is treated as live. Recurring period tasks
+   (`tasks/recurring/**`) are the exception and pin only a `## Dev`
+   `branch:` line: their blackboards are generated reports that name
+   branches — this sweep's own record when a failed run leaves its period
+   `in_progress`, autoclose's retire follow-ups — and scanning them would let
+   one failed sweep pin every branch it skipped,
 4. for the rest, authorize deletion two independent ways: the local tip being
    reachable from `[git].control_branch`
    (`branchcleanup.local_branch_landed`) — a real merge-commit or
@@ -32,7 +37,8 @@ a ticket is deleted without going through retire or a session dies mid-flight.
    **head branch name** (`gh pr list --head <branch>` with `number,headRefOid`)
    and no PR currently open for it, judged by `merged_pr_verdict`: the merged
    PR vouches for the ref only when every commit in `git rev-list <tip>
-   ^<merged head> ^<control>` touches only generated Coga state (`tasks/**`,
+   ^<merged head> ^<control> ^<remote>/<control>` (each control ref only when
+   it exists locally) touches only generated Coga state (`tasks/**`,
    `log.md` — `github_preflight.is_coga_state_path`, the same carve-out
    `validate --check-github` makes). `git diff-tree --cc` lists a merge
    commit's paths only where the result differs from every parent, so Coga's

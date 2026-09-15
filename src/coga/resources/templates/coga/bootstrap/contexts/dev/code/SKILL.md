@@ -306,10 +306,12 @@ under `## Dev`. Several focused Coga consumers deliberately parse those lines:
 the `code/open-pr` runner writes `pr:`, autoclose reads PR linkage and reports
 the `coga retire` follow-up for the `branch:` / `worktree:` a closed ticket
 leaves behind. Branch sweep is the exception: it protects a branch that any
-non-terminal ticket *names anywhere* in its task files, not only under
-`## Dev`, because a ticket that named its branch in prose and an attachment
-but had no `## Dev` section was otherwise one merged PR away from losing
-unpushed work. That does not make them frontmatter fields or
+non-terminal ordinary ticket *names anywhere* in its task files, not only
+under `## Dev`, because a ticket that named its branch in prose and an
+attachment but had no `## Dev` section was otherwise one merged PR away from
+losing unpushed work (a recurring period task, whose blackboard is generated
+reports, pins only its `## Dev` line). That does not make them frontmatter
+fields or
 general config; each consumer reads the narrow blackboard convention it needs.
 
 ## Multi-ticket PRs

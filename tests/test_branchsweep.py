@@ -295,7 +295,7 @@ def test_live_ticket_mention_must_be_the_whole_branch_name(
         _ticket_text(
             "near-miss",
             status="active",
-            body="See the feature-flag branch and old-feat, not this one.",
+            body="See the feature-flag branch, old-feat and feat/two, not this one.",
             blackboard="notes",
         )
     )
@@ -304,6 +304,74 @@ def test_live_ticket_mention_must_be_the_whole_branch_name(
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
     assert result.local_deleted == ["feat"]
+
+
+@pytest.mark.parametrize(
+    "prose",
+    [
+        "Follow-up commits sit unpushed on feat.",
+        "Pushed to origin/feat yesterday.",
+    ],
+)
+def test_live_ticket_prose_mention_survives_punctuation(
+    repo: Path, monkeypatch, prose: str
+) -> None:
+    # A sentence-final period and a remote-qualified spelling are the common
+    # un-backticked shapes; neither may hide the name from the guard.
+    _push_branch(repo, "feat", land_in_main=True)
+    task_dir = repo / "coga" / "tasks"
+    task_dir.mkdir(parents=True, exist_ok=True)
+    (task_dir / "prose.md").write_text(
+        _ticket_text("prose", status="active", body=prose, blackboard="notes")
+    )
+    monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == []
+    assert _branch_exists_local(repo, "feat")
+
+
+def test_period_task_report_does_not_pin_the_branches_it_names(
+    repo: Path, monkeypatch
+) -> None:
+    # A failed sweep leaves its period task `in_progress` with a report that
+    # lists every branch it skipped; the resumed run must not read that as
+    # "recorded on a live ticket" and refuse them all. Autoclose's retire
+    # follow-ups on its own period task name leaked branches the same way.
+    _push_branch(repo, "feat", land_in_main=True)
+    task_dir = repo / "coga" / "tasks" / "recurring" / "branch-sweep"
+    task_dir.mkdir(parents=True)
+    (task_dir / "ticket.md").write_text(
+        _ticket_text(
+            "branch-sweep",
+            status="in_progress",
+            body="",
+            blackboard="## Branch Sweep\n\n- skipped: feat\n",
+        )
+    )
+    _merged_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == ["feat"]
+
+
+def test_period_task_dev_branch_still_pins(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    task_dir = repo / "coga" / "tasks" / "recurring" / "weekly"
+    task_dir.mkdir(parents=True)
+    (task_dir / "ticket.md").write_text(
+        _ticket_text(
+            "weekly", status="in_progress", body="", blackboard="## Dev\nbranch: feat"
+        )
+    )
+    monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == []
+    assert _branch_exists_local(repo, "feat")
 
 
 def test_done_ticket_branch_not_protected(repo: Path, monkeypatch) -> None:
@@ -674,6 +742,50 @@ def test_tip_moved_by_sync_commits_is_deleted(repo: Path, monkeypatch) -> None:
     assert result.skipped == []
     assert not _branch_exists_local(repo, "feat")
     assert not _branch_exists_remote(repo, "feat")
+
+
+def test_remote_ref_that_moved_past_merged_head_is_kept(
+    repo: Path, monkeypatch
+) -> None:
+    # The widened rule is for the local ref only: even when the remote tip's
+    # objects are local (they were pushed from here), `origin/feat` is
+    # released only at the exact merged tip.
+    _push_branch(repo, "feat")
+    merged_head = _tip(repo, "feat")
+    _squash_merge(repo, "feat")
+    _state_commit(repo, "feat", "one")
+    _git(repo, "push", "origin", "feat")
+    _git(repo, "checkout", "main")
+    _fake_gh(monkeypatch, {"feat": merged_head})
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == ["feat"]
+    assert result.remote_deleted == []
+    assert _branch_exists_remote(repo, "feat")
+    assert any("skipping remote origin/feat" in note for note in result.notes)
+
+
+def test_control_merged_from_stale_local_main_is_not_unmerged_work(
+    repo: Path, monkeypatch
+) -> None:
+    # The branch merged `origin/main` after its PR landed, and local `main`
+    # lags: main's own source commits are landed work, not the ref's.
+    _push_branch(repo, "feat")
+    merged_head = _tip(repo, "feat")
+    _squash_merge(repo, "feat")
+    _commit(repo, "later.txt", "main moved on", "main change")
+    _git(repo, "push", "origin", "main")
+    _git(repo, "checkout", "feat")
+    _git(repo, "merge", "--no-ff", "--no-edit", "-m", "Merge main state into feat", "origin/main")
+    _git(repo, "checkout", "main")
+    _git(repo, "reset", "--hard", "HEAD~1")
+    assert _tip(repo, "main") != _tip(repo, "origin/main")
+    _fake_gh(monkeypatch, {"feat": merged_head})
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == ["feat"]
 
 
 def test_tip_moved_by_real_changes_is_skipped(repo: Path, monkeypatch) -> None:
