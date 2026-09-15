@@ -84,30 +84,94 @@ def _remote_url(repo: Path) -> str:
     return _git(repo, "remote", "get-url", "origin").stdout.strip()
 
 
+def _tip(repo: Path, ref: str) -> str:
+    return _git(repo, "rev-parse", ref).stdout.strip()
+
+
+def _fake_gh(
+    monkeypatch,
+    merged: dict[str, str] | None = None,
+    *,
+    open_heads: frozenset[str] = frozenset(),
+) -> None:
+    """Stub `gh pr list --head`: `merged` maps a branch to its merged head SHA."""
+    heads = merged or {}
+
+    def fake_prs(branch: str, state: str) -> list[dict[str, object]]:
+        if state == "merged" and branch in heads:
+            return [{"number": 7, "headRefOid": heads[branch]}]
+        if state == "open" and branch in open_heads:
+            return [{"number": 8, "headRefOid": heads.get(branch, "")}]
+        return []
+
+    monkeypatch.setattr(bs, "prs_for_head", fake_prs)
+
+
+def _merged_at_tip(monkeypatch, repo: Path, *branches: str) -> None:
+    """Stub gh so each branch's current local tip is a merged PR head."""
+    _fake_gh(monkeypatch, {branch: _tip(repo, branch) for branch in branches})
+
+
+def _ticket_text(slug: str, *, status: str, body: str, blackboard: str) -> str:
+    # Dedent the template first: a multi-line `body` or `blackboard` would
+    # otherwise defeat `dedent` and leave the frontmatter indented.
+    template = dedent(
+        """
+        ---
+        title: SLUG
+        status: STATUS
+        autonomy: interactive
+        owner: marc
+        agent: claude
+        workflow: null
+        ---
+
+        ## Description
+
+        BODY
+
+        <!-- coga:blackboard -->
+
+        BLACKBOARD
+        """
+    ).lstrip()
+    return (
+        template.replace("SLUG", slug)
+        .replace("STATUS", status)
+        .replace("BODY", body)
+        .replace("BLACKBOARD", blackboard)
+    )
+
+
 def _write_ticket(repo: Path, slug: str, *, status: str, branch: str) -> None:
     task_dir = repo / "coga" / "tasks"
     task_dir.mkdir(parents=True, exist_ok=True)
     (task_dir / f"{slug}.md").write_text(
-        dedent(
-            f"""
-            ---
-            title: {slug}
-            status: {status}
-            autonomy: interactive
-            owner: marc
-            agent: claude
-            workflow: null
-            ---
-
-            ## Description
-
-            <!-- coga:blackboard -->
-
-            ## Dev
-            branch: {branch}
-            """
-        ).lstrip()
+        _ticket_text(
+            slug, status=status, body="", blackboard=f"## Dev\nbranch: {branch}"
+        )
     )
+
+
+def _squash_merge(repo: Path, branch: str) -> None:
+    """Land `branch` on main the way GitHub's squash button does."""
+    _git(repo, "checkout", "main")
+    _git(repo, "merge", "--squash", branch)
+    _git(repo, "commit", "-m", f"{branch} (#7)")
+    _git(repo, "push", "origin", "main")
+
+
+def _state_commit(repo: Path, branch: str, name: str) -> None:
+    """One Coga state-sync commit on `branch`: a task file plus the audit log."""
+    _git(repo, "checkout", branch)
+    tasks = repo / "coga" / "tasks"
+    tasks.mkdir(parents=True, exist_ok=True)
+    (tasks / f"{name}.md").write_text(f"state {name}\n")
+    log = repo / "coga" / "log.md"
+    with log.open("a") as handle:
+        handle.write(f"log {name}\n")
+    _git(repo, "add", "coga/tasks", "coga/log.md")
+    _git(repo, "commit", "-m", f"Ticket: {name} — done")
 
 
 def _branch_exists_local(repo: Path, branch: str) -> bool:
@@ -124,7 +188,7 @@ def _branch_exists_remote(repo: Path, branch: str) -> bool:
 
 def test_merged_branch_deleted_local_and_remote(repo: Path, monkeypatch) -> None:
     _push_branch(repo, "feat", land_in_main=True)
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: True)
+    _merged_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -136,7 +200,7 @@ def test_merged_branch_deleted_local_and_remote(repo: Path, monkeypatch) -> None
 
 def test_open_pr_branch_skipped(repo: Path, monkeypatch) -> None:
     _push_branch(repo, "feat")
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: False)
+    _fake_gh(monkeypatch, {"feat": _tip(repo, "feat")}, open_heads=frozenset({"feat"}))
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -149,8 +213,8 @@ def test_no_pr_branch_skipped(repo: Path, monkeypatch) -> None:
     _push_branch(repo, "feat")
 
     # No PR at all → gh reports no merged and no open PRs, which is a
-    # legitimate (non-error) `False` from `branch_merged_without_open_pr`.
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: False)
+    # legitimate (non-error) refusal from `merged_pr_verdict`.
+    _fake_gh(monkeypatch)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -163,10 +227,7 @@ def test_live_ticket_branch_skipped_even_if_merged(repo: Path, monkeypatch) -> N
     _push_branch(repo, "feat", land_in_main=True)
     _write_ticket(repo, "in-flight", status="in_progress", branch="feat")
 
-    def _boom(branch: str, tip: str) -> bool:
-        raise AssertionError("gh must not be consulted for a live ticket's branch")
-
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", _boom)
+    monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -176,10 +237,147 @@ def test_live_ticket_branch_skipped_even_if_merged(repo: Path, monkeypatch) -> N
     assert _branch_exists_remote(repo, "feat")
 
 
+def _gh_must_not_be_consulted(branch: str, state: str) -> list[dict[str, object]]:
+    raise AssertionError("gh must not be consulted for a live ticket's branch")
+
+
+def test_live_ticket_prose_mention_pins_branch_without_dev_section(
+    repo: Path, monkeypatch
+) -> None:
+    # The guard used to read only `## Dev` `branch:`; a draft that named its
+    # branch three times in prose and attachments but had no `## Dev` at all
+    # was invisible to it, and a merged PR at the exact tip would have
+    # force-deleted the ref it still depended on.
+    _push_branch(repo, "feat", land_in_main=True)
+    task_dir = repo / "coga" / "tasks"
+    task_dir.mkdir(parents=True, exist_ok=True)
+    (task_dir / "prose-only.md").write_text(
+        _ticket_text(
+            "prose-only",
+            status="draft",
+            body="Follow-up commits sit unpushed on `feat` in this checkout.",
+            blackboard="notes",
+        )
+    )
+    monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == []
+    assert result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+
+
+def test_live_ticket_attachment_mention_pins_branch(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    task_dir = repo / "coga" / "tasks" / "with-manifest"
+    task_dir.mkdir(parents=True)
+    (task_dir / "ticket.md").write_text(
+        _ticket_text("with-manifest", status="active", body="", blackboard="notes")
+    )
+    (task_dir / "handoff-manifest.md").write_text("Coga source branch: `feat`\n")
+    monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == []
+    assert _branch_exists_local(repo, "feat")
+
+
+def test_live_ticket_mention_must_be_the_whole_branch_name(
+    repo: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    task_dir = repo / "coga" / "tasks"
+    task_dir.mkdir(parents=True, exist_ok=True)
+    (task_dir / "near-miss.md").write_text(
+        _ticket_text(
+            "near-miss",
+            status="active",
+            body="See the feature-flag branch, old-feat and feat/two, not this one.",
+            blackboard="notes",
+        )
+    )
+    _merged_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == ["feat"]
+
+
+@pytest.mark.parametrize(
+    "prose",
+    [
+        "Follow-up commits sit unpushed on feat.",
+        "Pushed to origin/feat yesterday.",
+    ],
+)
+def test_live_ticket_prose_mention_survives_punctuation(
+    repo: Path, monkeypatch, prose: str
+) -> None:
+    # A sentence-final period and a remote-qualified spelling are the common
+    # un-backticked shapes; neither may hide the name from the guard.
+    _push_branch(repo, "feat", land_in_main=True)
+    task_dir = repo / "coga" / "tasks"
+    task_dir.mkdir(parents=True, exist_ok=True)
+    (task_dir / "prose.md").write_text(
+        _ticket_text("prose", status="active", body=prose, blackboard="notes")
+    )
+    monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == []
+    assert _branch_exists_local(repo, "feat")
+
+
+def test_period_task_report_does_not_pin_the_branches_it_names(
+    repo: Path, monkeypatch
+) -> None:
+    # A failed sweep leaves its period task `in_progress` with a report that
+    # lists every branch it skipped; the resumed run must not read that as
+    # "recorded on a live ticket" and refuse them all. Autoclose's retire
+    # follow-ups on its own period task name leaked branches the same way.
+    _push_branch(repo, "feat", land_in_main=True)
+    task_dir = repo / "coga" / "tasks" / "recurring" / "branch-sweep"
+    task_dir.mkdir(parents=True)
+    (task_dir / "ticket.md").write_text(
+        _ticket_text(
+            "branch-sweep",
+            status="in_progress",
+            body="",
+            blackboard="## Branch Sweep\n\n- skipped: feat\n",
+        )
+    )
+    _merged_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == ["feat"]
+
+
+def test_period_task_dev_branch_still_pins(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    task_dir = repo / "coga" / "tasks" / "recurring" / "weekly"
+    task_dir.mkdir(parents=True)
+    (task_dir / "ticket.md").write_text(
+        _ticket_text(
+            "weekly", status="in_progress", body="", blackboard="## Dev\nbranch: feat"
+        )
+    )
+    monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == []
+    assert _branch_exists_local(repo, "feat")
+
+
 def test_done_ticket_branch_not_protected(repo: Path, monkeypatch) -> None:
     _push_branch(repo, "feat", land_in_main=True)
     _write_ticket(repo, "finished", status="done", branch="feat")
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: True)
+    _merged_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -190,7 +388,7 @@ def test_done_ticket_branch_not_protected(repo: Path, monkeypatch) -> None:
 def test_canceled_ticket_branch_not_protected(repo: Path, monkeypatch) -> None:
     _push_branch(repo, "feat", land_in_main=True)
     _write_ticket(repo, "declined", status="canceled", branch="feat")
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: True)
+    _merged_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -201,8 +399,8 @@ def test_canceled_ticket_branch_not_protected(repo: Path, monkeypatch) -> None:
 def test_never_deletes_control_branch(repo: Path, monkeypatch) -> None:
     monkeypatch.setattr(
         bs,
-        "branch_merged_without_open_pr",
-        lambda branch, tip: (_ for _ in ()).throw(
+        "prs_for_head",
+        lambda branch, state: (_ for _ in ()).throw(
             AssertionError("must not check PR for main")
         ),
     )
@@ -215,7 +413,7 @@ def test_never_deletes_control_branch(repo: Path, monkeypatch) -> None:
 def test_checked_out_branch_left_in_place(repo: Path, monkeypatch) -> None:
     _git(repo, "checkout", "-b", "feat")
     _commit(repo, "feat.txt", "feat", "feat work")
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: True)
+    _merged_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -230,7 +428,7 @@ def test_prunable_worktree_no_longer_pins_merged_branch(
     linked = tmp_path / "linked"
     _git(repo, "worktree", "add", str(linked), "feat")
     shutil.rmtree(linked)
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: True)
+    _merged_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -250,7 +448,7 @@ def test_pruned_stacked_branch_is_not_landed_by_feature_head(
     linked = tmp_path / "linked"
     _git(repo, "worktree", "add", str(linked), "stack-base")
     shutil.rmtree(linked)
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: False)
+    _fake_gh(monkeypatch)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -271,7 +469,7 @@ def test_live_worktree_pinned_merged_branch_has_distinct_outcome(
     _git(repo, "push", "origin", "main")
     linked = tmp_path / "linked"
     _git(repo, "worktree", "add", str(linked), "feat")
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: True)
+    _merged_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -290,7 +488,7 @@ def test_live_worktree_pinned_git_merged_branch_has_distinct_outcome(
     _push_branch(repo, "feat", land_in_main=True)
     linked = tmp_path / "linked"
     _git(repo, "worktree", "add", str(linked), "feat")
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: False)
+    _fake_gh(monkeypatch)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -314,7 +512,7 @@ def test_rebasing_worktree_preserves_both_refs_with_distinct_outcome(
     listing = _git(repo, "worktree", "list", "--porcelain").stdout
     assert f"worktree {linked}\n" in listing
     assert "detached" in listing
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: True)
+    _merged_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -374,7 +572,7 @@ def test_recipe_hands_back_the_deleted_branches(repo: Path, monkeypatch) -> None
     # caller a second `ls-remote`/`for-each-ref` snapshot either side of the run.
     _push_branch(repo, "feat", land_in_main=True)
     monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: True)
+    _merged_at_tip(monkeypatch, repo, "feat")
 
     result = bs.BranchSweepResult()
     assert bs.run_branch_sweep_recipe(_cfg(repo), [], result=result) == 0
@@ -405,10 +603,10 @@ def test_gh_unavailable_no_deletes(repo: Path, monkeypatch) -> None:
     _push_branch(repo, "feat", land_in_main=True)
     _push_branch(repo, "other")
 
-    def _boom(branch: str, tip: str) -> bool:
+    def _boom(branch: str, state: str) -> list[dict[str, object]]:
         raise bs.GhError("`gh` not found on PATH")
 
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", _boom)
+    monkeypatch.setattr(bs, "prs_for_head", _boom)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -469,7 +667,7 @@ def test_remote_only_branch_deleted_from_live_remote_listing(
         ).returncode
         != 0
     )
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: True)
+    _fake_gh(monkeypatch, {"remote-only": _tip(other, "remote-only")})
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -477,34 +675,310 @@ def test_remote_only_branch_deleted_from_live_remote_listing(
     assert not _branch_exists_remote(repo, "remote-only")
 
 
-def test_branch_merged_without_open_pr(monkeypatch) -> None:
+def _verdict(repo: Path, tip: str, merged_head: str) -> bs.MergedPrVerdict:
+    return bs.merged_pr_verdict(
+        repo,
+        tip,
+        [("7", merged_head)],
+        landed_refs=["main"],
+        remote="origin",
+        coga_prefix="coga",
+    )
+
+
+def test_verdict_exact_merged_tip_lands(repo: Path) -> None:
+    _push_branch(repo, "feat")
+    verdict = _verdict(repo, _tip(repo, "feat"), _tip(repo, "feat"))
+    assert verdict.landed is True
+    assert "PR #7" in verdict.reason
+
+
+def test_open_pr_refusal_is_noted_and_costs_no_git_comparison(
+    repo: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat")
+    _fake_gh(monkeypatch, {"feat": "0" * 40}, open_heads=frozenset({"feat"}))
+    monkeypatch.setattr(
+        bs,
+        "merged_pr_verdict",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("no comparison")),
+    )
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.skipped == ["feat"]
+    assert any("'feat' has an open PR" in note for note in result.notes), result.notes
+
+
+def test_no_pr_branch_costs_one_gh_call(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat")
     calls: list[tuple[str, str]] = []
 
     def fake_prs(branch: str, state: str) -> list[dict[str, object]]:
         calls.append((branch, state))
-        if state == "merged":
-            return [{"number": 7, "headRefOid": "abc"}]
         return []
 
     monkeypatch.setattr(bs, "prs_for_head", fake_prs)
-    assert bs.branch_merged_without_open_pr("feat", "abc") is True
-    assert ("feat", "merged") in calls
-    assert ("feat", "open") in calls
+
+    bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert calls == [("feat", "merged")]
 
 
-def test_branch_merged_without_open_pr_false_when_reopened(monkeypatch) -> None:
-    def fake_prs(branch: str, state: str) -> list[dict[str, object]]:
-        return [{"number": 7, "headRefOid": "abc"}] if state in ("merged", "open") else []
-
-    monkeypatch.setattr(bs, "prs_for_head", fake_prs)
-    assert bs.branch_merged_without_open_pr("feat", "abc") is False
+# --- the squash-merge shapes Coga itself produces ---------------------------
 
 
-def test_branch_merged_without_open_pr_false_when_tip_differs(monkeypatch) -> None:
-    def fake_prs(branch: str, state: str) -> list[dict[str, object]]:
-        if state == "merged":
-            return [{"number": 7, "headRefOid": "old"}]
-        return []
+def test_tip_moved_by_sync_commits_is_deleted(repo: Path, monkeypatch) -> None:
+    # PR squash-merged, then the still-checked-out branch kept receiving Coga
+    # state commits — including a clean `Merge main state into feat` — so the
+    # tip is neither the merged head nor an ancestor of main.
+    _push_branch(repo, "feat")
+    merged_head = _tip(repo, "feat")
+    _squash_merge(repo, "feat")
+    _state_commit(repo, "feat", "one")
+    _git(repo, "merge", "--no-ff", "--no-edit", "-m", "Merge main state into feat", "main")
+    _state_commit(repo, "feat", "two")
+    _git(repo, "checkout", "main")
+    assert _tip(repo, "feat") != merged_head
+    assert _git(repo, "merge-base", "--is-ancestor", "feat", "main", check=False).returncode != 0
+    _fake_gh(monkeypatch, {"feat": merged_head})
 
-    monkeypatch.setattr(bs, "prs_for_head", fake_prs)
-    assert bs.branch_merged_without_open_pr("feat", "current") is False
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == ["feat"]
+    assert result.remote_deleted == ["feat"]
+    assert result.skipped == []
+    assert not _branch_exists_local(repo, "feat")
+    assert not _branch_exists_remote(repo, "feat")
+
+
+def test_remote_ref_that_moved_past_merged_head_is_kept(
+    repo: Path, monkeypatch
+) -> None:
+    # The widened rule is for the local ref only: even when the remote tip's
+    # objects are local (they were pushed from here), `origin/feat` is
+    # released only at the exact merged tip.
+    _push_branch(repo, "feat")
+    merged_head = _tip(repo, "feat")
+    _squash_merge(repo, "feat")
+    _state_commit(repo, "feat", "one")
+    _git(repo, "push", "origin", "feat")
+    _git(repo, "checkout", "main")
+    _fake_gh(monkeypatch, {"feat": merged_head})
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == ["feat"]
+    assert result.remote_deleted == []
+    assert _branch_exists_remote(repo, "feat")
+    assert any("skipping remote origin/feat" in note for note in result.notes)
+
+
+def test_control_merged_from_stale_local_main_is_not_unmerged_work(
+    repo: Path, monkeypatch
+) -> None:
+    # The branch merged `origin/main` after its PR landed, and local `main`
+    # lags: main's own source commits are landed work, not the ref's.
+    _push_branch(repo, "feat")
+    merged_head = _tip(repo, "feat")
+    _squash_merge(repo, "feat")
+    _commit(repo, "later.txt", "main moved on", "main change")
+    _git(repo, "push", "origin", "main")
+    _git(repo, "checkout", "feat")
+    _git(repo, "merge", "--no-ff", "--no-edit", "-m", "Merge main state into feat", "origin/main")
+    _git(repo, "checkout", "main")
+    _git(repo, "reset", "--hard", "HEAD~1")
+    assert _tip(repo, "main") != _tip(repo, "origin/main")
+    _fake_gh(monkeypatch, {"feat": merged_head})
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == ["feat"]
+
+
+def test_tip_moved_by_real_changes_is_skipped(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat")
+    merged_head = _tip(repo, "feat")
+    _squash_merge(repo, "feat")
+    _state_commit(repo, "feat", "one")
+    _git(repo, "checkout", "feat")
+    (repo / "src").mkdir()
+    _commit(repo, "src/thing.py", "unpushed work", "real follow-up")
+    _git(repo, "checkout", "main")
+    _fake_gh(monkeypatch, {"feat": merged_head})
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == []
+    assert result.skipped == ["feat"]
+    assert _branch_exists_local(repo, "feat")
+    assert any(
+        "PR #7" in note and "src/thing.py" in note for note in result.notes
+    ), result.notes
+    assert any("no merged PR vouching for it" in note for note in result.notes)
+
+
+def test_evil_merge_of_control_state_keeps_branch(repo: Path, monkeypatch) -> None:
+    # A merge commit is bookkeeping only when its result matches a parent for
+    # every path; a conflict resolved in a source file is work.
+    _push_branch(repo, "feat")
+    merged_head = _tip(repo, "feat")
+    _squash_merge(repo, "feat")
+    _commit(repo, "base.txt", "main moved", "main change")
+    _git(repo, "checkout", "feat")
+    _git(repo, "merge", "--no-ff", "--no-edit", "-m", "Merge main state into feat", "main")
+    (repo / "base.txt").write_text("resolved differently")
+    _git(repo, "commit", "-a", "--amend", "--no-edit")
+    _git(repo, "checkout", "main")
+    _fake_gh(monkeypatch, {"feat": merged_head})
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == []
+    assert result.skipped == ["feat"]
+    assert any("base.txt" in note for note in result.notes), result.notes
+
+
+def _push_fix_from_elsewhere(repo: Path, tmp_path: Path, branch: str) -> str:
+    """Push one more commit to `branch` from another clone; return its SHA."""
+    other = tmp_path / "other"
+    subprocess.run(
+        ["git", "clone", "-q", _remote_url(repo), str(other)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    _git(other, "config", "user.email", "t@example.com")
+    _git(other, "config", "user.name", "Tester")
+    _git(other, "checkout", branch)
+    _commit(other, "review-fix.txt", "fix", "review fix")
+    _git(other, "push", "origin", branch)
+    return _tip(other, branch)
+
+
+def test_merged_head_absent_from_local_graph_is_fetched_and_deleted(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    # The dominant backlog shape: the local ref lags the merged head because
+    # the last commit was pushed from another checkout, and retire already
+    # deleted the remote branch. GitHub still serves `refs/pull/<n>/head`.
+    _push_branch(repo, "feat")
+    merged_head = _push_fix_from_elsewhere(repo, tmp_path, "feat")
+    _git(repo, "push", "origin", "--delete", "feat")
+    origin = tmp_path / "origin.git"
+    _git(origin, "update-ref", "refs/pull/7/head", merged_head)
+    assert _git(repo, "cat-file", "-e", merged_head, check=False).returncode != 0
+    _fake_gh(monkeypatch, {"feat": merged_head})
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == ["feat"]
+    assert not _branch_exists_local(repo, "feat")
+    assert _git(repo, "cat-file", "-e", merged_head, check=False).returncode == 0
+    # Fetched as objects only: no ref was written for it.
+    assert "refs/pull" not in _git(repo, "for-each-ref").stdout
+
+
+def test_merged_head_that_cannot_be_fetched_keeps_branch(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat")
+    merged_head = _push_fix_from_elsewhere(repo, tmp_path, "feat")
+    _git(repo, "push", "origin", "--delete", "feat")
+    _fake_gh(monkeypatch, {"feat": merged_head})
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == []
+    assert result.skipped == ["feat"]
+    assert _branch_exists_local(repo, "feat")
+    assert any("could not be fetched" in note for note in result.notes), result.notes
+
+
+def test_diverged_lineage_with_local_work_is_skipped(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    # Neither ref contains the other and the local side holds source work:
+    # a merged PR alone must never force-delete it.
+    _push_branch(repo, "feat")
+    merged_head = _push_fix_from_elsewhere(repo, tmp_path, "feat")
+    origin = tmp_path / "origin.git"
+    _git(origin, "update-ref", "refs/pull/7/head", merged_head)
+    _git(repo, "checkout", "feat")
+    _commit(repo, "local-only.txt", "never pushed", "local work")
+    _git(repo, "checkout", "main")
+    _fake_gh(monkeypatch, {"feat": merged_head})
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert any("local-only.txt" in note for note in result.notes), result.notes
+
+
+# --- the run record ----------------------------------------------------------
+
+
+def _host_task(repo: Path) -> Path:
+    task_dir = repo / "coga" / "tasks" / "recurring" / "branch-sweep"
+    task_dir.mkdir(parents=True)
+    host = task_dir / "ticket.md"
+    host.write_text(
+        _ticket_text("branch-sweep", status="draft", body="", blackboard="")
+    )
+    return host
+
+
+def test_recipe_writes_report_to_task_blackboard(
+    repo: Path, monkeypatch, capsys
+) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    _push_branch(repo, "kept")
+    host = _host_task(repo)
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(host))
+    monkeypatch.setenv("COGA_TASK_SLUG", "recurring/branch-sweep")
+    monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
+    _merged_at_tip(monkeypatch, repo, "feat")
+
+    assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 0
+
+    text = host.read_text()
+    report = text.split("<!-- coga:blackboard -->", 1)[1]
+    assert bs.SWEEP_REPORT_HEADING in report
+    assert "Task: `recurring/branch-sweep`" in report
+    assert "- deleted local: feat" in report
+    assert "- deleted remote: feat" in report
+    assert "- skipped: kept" in report
+    assert "'kept' has unmerged work and no merged PR vouching for it" in report
+    assert bs.SWEEP_REPORT_HEADING not in capsys.readouterr().out
+
+
+def test_recipe_writes_report_to_stdout_without_a_task(
+    repo: Path, monkeypatch, capsys
+) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
+    _merged_at_tip(monkeypatch, repo, "feat")
+
+    assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 0
+
+    out = capsys.readouterr().out
+    assert bs.SWEEP_REPORT_HEADING in out
+    assert "- deleted local: feat" in out
+
+
+def test_recipe_records_a_failed_sweep_on_the_blackboard(
+    repo: Path, monkeypatch
+) -> None:
+    host = _host_task(repo)
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(host))
+    monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
+
+    def _sweep(_cfg, _root, *, echo, result=None):
+        result.remote_unavailable = "remote unreachable"
+        return result
+
+    monkeypatch.setattr(bs, "sweep_branches", _sweep)
+
+    assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 2
+    assert "Result: the sweep stopped early — remote unreachable" in host.read_text()

@@ -764,13 +764,16 @@ def delete_local_branch(
     # Tip not reachable from HEAD. That is exactly the squash-merge shape (the
     # PR landed but the branch tip is not an ancestor of `main`), so the
     # merged-PR gate is what authorizes a forced delete; the tip SHA is logged
-    # first so the work stays recoverable from the reflog.
+    # first so the work stays recoverable from the reflog. Branch sweep's gate
+    # is `branchsweep.merged_pr_verdict`, which also admits a ref that only
+    # moved past (or lags) the merged head by Coga state commits; when a merged
+    # PR exists but still refuses, the sweep has already noted why.
     if not pr_merged:
         _note(
             result,
             echo,
             f"Branch cleanup: local {branch!r} has unmerged work and no merged "
-            "PR — left in place.",
+            "PR vouching for it — left in place.",
         )
         return
 
