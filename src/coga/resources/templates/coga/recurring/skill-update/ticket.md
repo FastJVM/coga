@@ -48,8 +48,10 @@ stays the true unpruned upstream digest (so upstream-change detection still
 works) while `installed_tree_digest` describes the pruned tree on disk. A pruned
 skill therefore reads as `unchanged` or `updated`, not as a standing follow-up.
 Edits *beyond* the allowlist are still real divergence and still conflict. A
-digest recorded before the allowlist was honored is repaired in place on the
-next run, and that repair counts as a change so `--pr` commits it. GitHub-backed directories
+digest recorded before the allowlist was honored is repaired only when the
+downloaded, pruned upstream tree matches the installed files. That repair counts
+as a change so `--pr` commits it; if retained upstream files changed first,
+the updater reports a conflict requiring manual reconciliation. GitHub-backed directories
 are upstream-owned by `gh skill update`; when its recorded tree SHA differs
 from upstream, re-downloading can overwrite local modifications before the
 draft PR is opened. That PR reviews the resulting upstream update; it does not
@@ -62,16 +64,20 @@ have the same unmanaged update posture.
 Bundled (package-backed) skills are not touched here — they refresh when the
 coga package is upgraded.
 
-The one shape the allowlist protection does not cover is a URL skill whose
+Another shape the allowlist protection does not cover is a URL skill whose
 `.coga-source.json` carries **no** `include` key while its
 `local_adaptation_notes` still describe a prune (a refresh that ran on code
 predating the allowlist re-expands the tree and drops the key, as happened to
 `clarity`). The updater then reads the full tree as the honest install and
 never re-prunes, so the skill reports `unchanged` week after week. Treat
 "notes describe a prune but no `include` is recorded" as a follow-up line,
-not as clean: restore the `include` list and re-run `coga skill update
-<name>` so `apply_include_allowlist` prunes the tree and repairs
-`installed_tree_digest`. **Do not simply accept a standing follow-up line as
+not as clean: restore the reviewed `include` list and explicitly prune the
+installed tree to that list, preserving its provenance and any local edits for
+reconciliation. Then re-run `coga skill update <name>`. Restoring the key alone
+can return `unchanged` before applying the allowlist. After pruning, the updater
+repairs `installed_tree_digest` only if the freshly fetched, pruned upstream
+matches the installed files; otherwise reconcile the reported conflict rather
+than discarding local changes. **Do not simply accept a standing follow-up line as
 the price of keeping the local edit** — see the cost below.
 
 A week with no upstream changes is a quiet no-op: nothing is committed and no
