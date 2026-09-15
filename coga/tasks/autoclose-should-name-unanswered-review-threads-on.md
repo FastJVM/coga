@@ -1,6 +1,6 @@
 ---
 title: Autoclose should name unanswered review threads on the PR it closes
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:cd040826-80a7-4422-ad06-7e33cff8a37a
 ---
 
 ## Description
