@@ -5177,3 +5177,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-15 09:56 [recurring/autoclose-merged] [system] script exited with code 1
 2026-09-15 10:01 [define-the-api-equivalent-cost-proxy-and-price-tab] [git] sync refused: coga/tasks/define-the-api-equivalent-cost-proxy-and-price-tab.md: published launch claim would be cleared without an authorized session-ending lifecycle transition
 2026-09-15 10:55 [branch-sweep-strands-squash-merged-branches-whose] [megalaunch] activated (draft → active) — explicit megalaunch pick
+2026-09-15 10:55 [branch-sweep-strands-squash-merged-branches-whose] [megalaunch] started (active → in_progress) via coga megalaunch
