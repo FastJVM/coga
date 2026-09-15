@@ -29,8 +29,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (self-qa)
-launch_generation: 3e859f53-d922-4bae-871d-bd3f8446d77f
+step: 3 (pr)
 ---
 
 ## Description
@@ -241,16 +240,25 @@ false for any real source commit, with the offending paths in the note.
   ref after branch deletion. A genuinely diverged ref with local source
   commits still fails the rule — the ticket's "merged PR exists, delete" is
   not what ships. Unfetchable head → skipped with a note naming the PR.
-- Remote ref: exact-tip only, unchanged. Its objects are usually not local
-  and ancestry never authorized remote deletes. A remote half that outlived
+- Remote ref: exact-tip only, now enforced in code (self-QA: the first cut
+  applied the widened verdict whenever the remote tip's objects happened to
+  be local, contradicting the docs). The sweep lists merged/open PRs once per
+  branch, matches the remote tip against the merged heads directly, and
+  leases the remote delete on the enumerated tip; only the local ref goes
+  through `merged_pr_verdict`. A remote half that outlived
   a widened local delete is reported "skipping remote (no merged PR)" and
   stays for a human; none of today's 15 candidates has a remote half.
 - Live-ticket guard: option 1. `_live_ticket_branches(cfg, candidates)`
-  scans every file of every non-terminal task (ticket above and below the
-  fence, all attachments) for any local/remote branch name as a whole token
-  (`(?<![\w./-])name(?![\w./-])`). A ticket whose frontmatter cannot be
-  read is treated as live (conservative). `## Dev` parse dropped from the
-  sweep — the scan subsumes it.
+  scans every file of every non-terminal *ordinary* task (ticket above and
+  below the fence, all attachments) for any local/remote branch name as a
+  whole token; a `.`/`/` delimits only when no name char follows, so
+  "on feat." and `origin/feat` pin and `v1.2` does not pin `v1`. A ticket
+  whose frontmatter cannot be read is treated as live (conservative).
+  **Period tasks (`tasks/recurring/**`) pin only a `## Dev` `branch:`**
+  (self-QA fix): their blackboards are generated reports naming branches —
+  this sweep's own report when a failed run leaves the period `in_progress`
+  would otherwise pin every branch it skipped on the resumed run, and
+  autoclose's retire follow-ups pinned 13 leaked branches on `main` today.
 - Report: `render_sweep_report` writes `## Branch Sweep` (counts, outcome
   lists, every decision including the cleanup helpers' notes, now folded into
   `BranchSweepResult.notes`) to `COGA_TASK_BLACKBOARD` via the shared
@@ -267,10 +275,21 @@ false for any real source commit, with the offending paths in the note.
 - Sweep now fails loud (`state_root_unavailable`) if `git rev-parse
   --show-prefix` cannot locate the Coga root — same posture as the worktree
   probe, rather than silently narrowing back to exact-tip.
+  `BranchSweepResult.failure` is the one owner of "stopped early".
+- The rev-list excludes both `<control>` and `<remote>/<control>` (each when
+  it exists locally): a branch that merged `origin/main` after its PR landed
+  carries main's own source commits, which a lagging local `main` reported
+  as the ref's unmerged work (self-QA fix, with a test).
 
 ## Result (same dry run, new gate)
 
-`12 6 2`. All 11 `dream/*-1788913097` plus `sweep-republishes-stranded-claim-release`
+Final re-measure after self-QA (2026-09-15, 24 worktrees now): `11 16 3` —
+all 11 `dream/*-1788913097` delete; 16 worktree-pinned; skipped are three
+remote-only refs: two closed-unmerged PRs (#782, #578 — out of scope by
+design) and `recurring-ledger-from-log`, whose remote tip moved past merged
+PR #688's head and so stays for a human under the exact-tip remote rule.
+Live-ticket pins dropped from 17 to 11 once period-task reports stopped
+counting. Earlier cut, before self-QA: `12 6 2`. All 11 `dream/*-1788913097` plus `sweep-republishes-stranded-claim-release`
 delete; `fix/watchdog-pauses` and `resolve-step-one-assignee` now report
 `skipped-worktree-pinned` (they are held by worktrees; before, they were
 skipped with no landed signal). Skipped: `branch-sweep-landed` (this branch,
@@ -285,16 +304,17 @@ skill-update job rebuilds with `checkout -B` anyway.
 
 ## Verification
 
-- `PYTHONPATH=$PWD/src <venv>/python -m pytest tests/test_branchsweep.py` →
-  35 passed (was 24; added: sync-commits-deleted, real-changes-skipped,
-  evil-merge-kept, head-absent-fetched-and-deleted, head-unfetchable-kept,
-  diverged-lineage-skipped, prose-mention-pins, attachment-mention-pins,
-  whole-name-only, three verdict unit tests, three report tests).
-- Related modules (packaging twins, branchcleanup, autoclose, retire, runner,
-  validate, open_pr, launch): 546 passed.
-- Full suite from the feature worktree: `PYTHONPATH=$PWD/src
-  /home/n/Code/claude/coga/.venv/bin/python -m pytest -q` → 2507 passed,
-  0 failed (2:47). Branch rebased on `origin/main` (`ffb0e361`), clean.
+- `PYTHONPATH=$PWD/src /home/n/Code/claude/coga/.venv/bin/python -m pytest
+  tests/test_branchsweep.py` → 41 passed (was 24; added: sync-commits-deleted,
+  real-changes-skipped, evil-merge-kept, head-absent-fetched-and-deleted,
+  head-unfetchable-kept, diverged-lineage-skipped, prose-mention-pins,
+  attachment-mention-pins, whole-name-only, punctuation mentions ×2,
+  period-report-does-not-pin, period-dev-still-pins, remote-moved-kept,
+  stale-local-main-not-unmerged, exact-tip verdict, open-PR-noted,
+  no-PR-one-gh-call, three report tests).
+- Full suite from the feature worktree after self-QA: `PYTHONPATH=$PWD/src
+  /home/n/Code/claude/coga/.venv/bin/python -m pytest -q` → 2513 passed,
+  0 failed (2:42). Branch on `origin/main` (`ffb0e361`), clean.
 
 ## Adjacent, not fixed here
 
@@ -303,3 +323,27 @@ skill-update job rebuilds with `checkout -B` anyway.
 - `recurring/autoclose-merged` is `in_progress` and dirty in the primary
   checkout (`git status`), which is why its blackboard pins branches today;
   looks like a dead or in-flight run, not something this ticket touches.
+
+## Self-QA
+
+- `/code-review` ran as the Claude Code skill (forked agent) against
+  `main...branch-sweep-landed` and **returned** with four findings, all
+  confirmed by reproduction and fixed in `dc7515b1`: (HIGH) period-task
+  report blackboards pinned every branch they named; (MED) remote refs got
+  the widened rule whenever their objects were local, contradicting the
+  docs; (LOW) `feat.` / `origin/feat` never matched the mention regex; (LOW)
+  rev-list excluded only the local control branch. Each has a regression
+  test. Docs (skill, template, `dev/code` context, module docstring) updated
+  and packaged twins re-synced byte-identical.
+- `/simplify` ran (four angle agents) and **returned**; applied in
+  `ccbd35ee`: gh lookup split from the per-ref judgment (one merged + one
+  open listing per branch; remote matched directly; `at_merged_tip` and the
+  `_NO_MERGED_PR` sentinel gone), `BranchSweepResult.failure`, cleanup
+  helpers note into the sweep record, `_git(input=)`, dead default reason
+  and unused sort dropped. Skipped: batching the `refs/pull/<n>/head`
+  fetches (restructure for a weekly job) and a `TaskRef.is_period` property
+  (five other private spellings would need migrating in the same PR).
+- No terminal/UI surface touched; no hand sweep needed.
+- Adjacent, still not fixed here: `branchsweep._current_branch` uses the
+  shadowable `rev-parse --abbrev-ref HEAD` spelling.
+
