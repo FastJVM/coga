@@ -9,15 +9,27 @@ is the net behind that — it walks every local and `origin` branch directly
 
 The merge signal differs from retire's: retire trusts a single ticket's
 recorded `pr:` link (`autoclose.pr_state`, URL-keyed). A swept branch has no
-ticket to point at a PR, so the check here is by **head branch name** and
-current tip SHA (`gh pr list --head <branch> --json headRefOid`), and it
-requires a merged PR for that exact tip **and no open PR** for that head — a
-branch that once merged a PR and was later reused must survive unless the
-current ref itself is the one GitHub says landed.
+ticket to point at a PR, so the check here is by **head branch name**
+(`gh pr list --head <branch> --json number,headRefOid`), and it requires a
+merged PR for that head **and no open PR** for it. A merged PR vouches for a
+local ref only when the ref carries nothing beyond what landed: every commit
+on the ref that neither the merged head nor the control branch contains must
+touch only generated Coga state (`tasks/**`, `log.md`) — see
+`merged_pr_verdict`. A branch that once merged a PR and was later reused for
+real work therefore survives, while the two shapes Coga itself produces are
+released: a ref that walked past the merged head through state-sync commits
+(this repo squash-merges, so ancestry into control never says "landed" for
+those), and a ref that *lags* the merged head because the last commit was
+pushed from another checkout. A remote ref is authorized only at the exact
+merged tip; its objects are usually not local.
 
-Live tickets are consulted defensively before any gh lookup: a non-terminal
-ticket's `## Dev` `branch:` line is skipped outright, so a ticket still
-mid-workflow never loses its branch even if its PR already merged.
+Live tickets are consulted defensively before any gh lookup: a branch that any
+non-terminal ticket names anywhere in its task files is skipped outright, so a
+ticket still mid-workflow never loses its branch even if its PR already
+merged. The match is deliberately broad — a mere mention pins — because the
+alternative (trusting only a `## Dev` `branch:` line) missed a draft that
+named its branch three times in prose and attachments but had no `## Dev`
+section, and a false positive here only defers a delete by a week.
 
 Before enumerating branches, the sweep prunes registrations for worktrees whose
 directories are gone. A merged branch that remains checked out in a live
@@ -33,13 +45,17 @@ than duplicated.
 
 from __future__ import annotations
 
+import os
+import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from coga.autoclose import GhError, parse_branch_name, prs_for_head
+from coga.autoclose import GhError, prs_for_head
+from coga.blackboard import append_blackboard_report
 from coga.branchcleanup import (
     BranchCleanupResult,
     delete_local_branch,
@@ -48,10 +64,14 @@ from coga.branchcleanup import (
 )
 from coga.config import Config
 from coga import git
+from coga.github_preflight import coga_root_prefix, is_coga_state_path
 from coga.lifecycle import TERMINAL_STATUSES
-from coga.taskfile import TaskFileError, read_blackboard
+from coga.task_env import blackboard_from_env
 from coga.tasks import list_tasks, read_ticket
 from coga.ticket import TicketError
+
+SWEEP_REPORT_HEADING = "## Branch Sweep"
+_NO_MERGED_PR = "has no merged PR"
 
 
 @dataclass
@@ -66,6 +86,21 @@ class BranchSweepResult:
     gh_unavailable: str | None = None
     remote_unavailable: str | None = None
     worktree_unavailable: str | None = None
+    state_root_unavailable: str | None = None
+
+
+@dataclass(frozen=True)
+class MergedPrVerdict:
+    """Whether a merged PR authorizes deleting one ref, and why.
+
+    `reason` is written to the sweep's notes when a merged PR exists but did
+    not authorize the delete, so the run record says what kept the branch —
+    "PR #779 merged at db19491d31, but the ref carries commits touching
+    src/coga/commands/launch.py" is the line a human acts on.
+    """
+
+    landed: bool
+    reason: str
 
 
 def sweep_branches(
@@ -93,12 +128,38 @@ def sweep_branches(
     worktree_branches = _worktree_branches(root, result, echo)
     if result.worktree_unavailable is not None:
         return result
+    coga_prefix, prefix_error = coga_root_prefix(cfg.repo_root)
+    if coga_prefix is None:
+        # Without the prefix nothing can tell generated state from source, so
+        # the widened merged-PR gate has no safe answer; fail the sweep loudly
+        # like the worktree probe does rather than fall back to a looser rule.
+        result.state_root_unavailable = prefix_error
+        _note(
+            result,
+            echo,
+            "Branch sweep: could not locate the Coga OS root in git — sweep "
+            f"skipped: {prefix_error}",
+        )
+        return result
 
     current = _current_branch(root)
-    live_branches = _live_ticket_branches(cfg)
     local = _local_branches(root)
     remote = _remote_branches(cfg, root, result, echo)
-    merged_by_tip: dict[tuple[str, str], bool] = {}
+    live_branches = _live_ticket_branches(cfg, set(local) | set(remote))
+    merged_by_tip: dict[tuple[str, str], MergedPrVerdict] = {}
+
+    def verdict_for(branch: str, tip: str) -> MergedPrVerdict:
+        key = (branch, tip)
+        if key not in merged_by_tip:
+            merged_by_tip[key] = merged_pr_verdict(
+                root,
+                branch,
+                tip,
+                control_branch=cfg.git_control_branch,
+                remote=cfg.git_remote,
+                coga_prefix=coga_prefix,
+            )
+        return merged_by_tip[key]
 
     for branch in sorted(local | remote):
         if branch == cfg.git_control_branch:
@@ -119,21 +180,19 @@ def sweep_branches(
         remote_tip = remote.get(branch)
 
         try:
-            remote_merged = (
-                _merged_for_tip(branch, remote_tip, merged_by_tip)
-                if remote_tip is not None
-                else False
+            remote_verdict = (
+                verdict_for(branch, remote_tip) if remote_tip is not None else None
             )
-            local_merged = (
-                _merged_for_tip(branch, local_tip, merged_by_tip)
-                if local_tip is not None
-                else False
+            local_verdict = (
+                verdict_for(branch, local_tip) if local_tip is not None else None
             )
         except GhError as exc:
             result.gh_unavailable = str(exc)
             result.skipped.append(branch)
             _note(result, echo, f"Branch sweep: gh unavailable ({exc}) — no gated deletes this run.")
             continue
+        remote_merged = remote_verdict is not None and remote_verdict.landed
+        local_merged = local_verdict is not None and local_verdict.landed
 
         local_landed = (
             local_tip is not None
@@ -155,6 +214,16 @@ def sweep_branches(
 
         cleanup = BranchCleanupResult(branch=branch)
         if branch in local:
+            if (
+                not local_merged
+                and not local_landed
+                and local_verdict is not None
+                and local_verdict.reason != _NO_MERGED_PR
+            ):
+                # `delete_local_branch` says "no merged PR vouching for it"
+                # below; when a PR exists and still did not authorize, the
+                # verdict's reason is the actionable part of the run record.
+                _note(result, echo, f"Branch sweep: {branch!r} {local_verdict.reason}.")
             delete_local_branch(
                 root,
                 branch,
@@ -169,6 +238,7 @@ def sweep_branches(
         # still reserving its original branch. Let Git's own deletion gate
         # catch that hidden state before touching the remote ref.
         if cleanup.local_worktree_path is not None:
+            result.notes.extend(cleanup.notes)
             result.worktree_pinned.append(branch)
             _note(
                 result,
@@ -185,6 +255,9 @@ def sweep_branches(
         if branch in remote and (branch not in local or cleanup.local_deleted):
             delete_remote_branch(cfg, root, branch, remote_merged, echo, cleanup)
 
+        # The cleanup helpers already echoed these; keeping them on the sweep
+        # result is what puts each delete and refusal into the run report.
+        result.notes.extend(cleanup.notes)
         if cleanup.local_deleted:
             result.local_deleted.append(branch)
         if cleanup.remote_deleted:
@@ -195,16 +268,161 @@ def sweep_branches(
     return result
 
 
-def branch_merged_without_open_pr(branch: str, current_tip: str) -> bool:
-    """True iff `branch`'s current tip has merged and no PR is open.
+def merged_pr_verdict(
+    root: Path,
+    branch: str,
+    tip: str,
+    *,
+    control_branch: str,
+    remote: str,
+    coga_prefix: str,
+) -> MergedPrVerdict:
+    """Decide whether a merged PR for `branch` vouches for the ref at `tip`.
 
-    Raises `GhError` if `gh` is missing, unauthed, or errors.
+    Raises `GhError` if `gh` is missing, unauthed, or errors. Any open PR for
+    the head refuses outright. Otherwise a merged PR authorizes the delete
+    when the ref at `tip` carries nothing the PR did not land: every commit in
+    `git rev-list <tip> ^<merged head> ^<control>` touches only generated Coga
+    state (`is_coga_state_path`). That one rule covers the exact merged tip
+    (nothing to list), a local ref that lags the merged head because the last
+    commit was pushed from another checkout (nothing to list either), and a
+    ref that walked past the merged head through Coga's own state-sync
+    commits, including its clean `Merge <control> state into <branch>` merges —
+    `git diff-tree --cc` lists a merge commit's paths only where the result
+    differs from every parent, so an evil merge that resolved a source file
+    still counts as work. Real unmerged source commits fail the rule and keep
+    the branch, with the offending paths in the verdict.
+
+    The merged head is only reachable locally when this checkout fetched it;
+    otherwise it is fetched from `refs/pull/<number>/head` without writing a
+    ref (`--no-write-fetch-head`), so the objects exist for the comparison and
+    nothing else changes. A `tip` that is not a local object (a remote ref
+    listed via `ls-remote`) can only match the merged head exactly.
     """
-    merged = any(
-        item.get("headRefOid") == current_tip
+    merged = [
+        (str(item.get("number", "")), str(item.get("headRefOid", "")))
         for item in prs_for_head(branch, "merged")
+    ]
+    merged = [(number, head) for number, head in merged if head]
+    if not merged:
+        # Checked first so a branch with no PR at all costs one gh call.
+        return MergedPrVerdict(False, _NO_MERGED_PR)
+    if prs_for_head(branch, "open"):
+        return MergedPrVerdict(False, "has an open PR")
+    for number, head in merged:
+        if head == tip:
+            return MergedPrVerdict(True, f"PR #{number} merged at this exact tip")
+    if not _object_present(root, tip):
+        return MergedPrVerdict(
+            False,
+            "has a merged PR, but its tip is not a local object, so only an "
+            "exact merged-tip match can authorize it",
+        )
+
+    reason = "has a merged PR that did not authorize it"
+    for number, head in merged:
+        if not _object_present(root, head) and not _fetch_pr_head(
+            root, remote, number, head
+        ):
+            reason = (
+                f"has merged PR #{number} at {head[:12]}, but that head could "
+                f"not be fetched from {remote} to compare against"
+            )
+            continue
+        beyond = _git(root, "rev-list", tip, f"^{head}", f"^{control_branch}")
+        if beyond.returncode != 0:
+            reason = (
+                f"has merged PR #{number} at {head[:12]}, but its history could "
+                f"not be compared: {(beyond.stderr + beyond.stdout).strip()}"
+            )
+            continue
+        commits = [line for line in beyond.stdout.splitlines() if line]
+        offending = _non_state_paths(root, commits, coga_prefix=coga_prefix)
+        if offending is None:
+            reason = (
+                f"has merged PR #{number} at {head[:12]}, but the commits beyond "
+                "it could not be inspected"
+            )
+            continue
+        if not offending:
+            beyond_note = (
+                f"; the {len(commits)} later commit(s) on this ref touch only "
+                "Coga task/log state"
+                if commits
+                else "; the ref is contained in the merged head"
+            )
+            return MergedPrVerdict(True, f"PR #{number} merged{beyond_note}")
+        shown = ", ".join(sorted(offending)[:3])
+        more = f" (+{len(offending) - 3} more)" if len(offending) > 3 else ""
+        reason = (
+            f"has merged PR #{number} at {head[:12]}, but the ref carries "
+            f"commits touching {shown}{more} — left in place"
+        )
+    return MergedPrVerdict(False, reason)
+
+
+def _non_state_paths(
+    root: Path, commits: list[str], *, coga_prefix: str
+) -> set[str] | None:
+    """Paths outside generated Coga state that `commits` touch, or None on error.
+
+    One `git diff-tree --stdin --cc` call over the whole list: non-merge
+    commits list their ordinary diff, merge commits only the paths whose result
+    differs from every parent. `--root` keeps a root commit from being read as
+    an empty diff.
+    """
+    if not commits:
+        return set()
+    proc = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(root),
+            "diff-tree",
+            "--stdin",
+            "--cc",
+            "-r",
+            "--root",
+            "--name-only",
+            "--no-commit-id",
+        ],
+        input="\n".join(commits) + "\n",
+        capture_output=True,
+        text=True,
+        check=False,
     )
-    return merged and not prs_for_head(branch, "open")
+    if proc.returncode != 0:
+        return None
+    return {
+        line
+        for line in proc.stdout.splitlines()
+        if line and not is_coga_state_path(line, coga_prefix=coga_prefix)
+    }
+
+
+def _fetch_pr_head(root: Path, remote: str, number: str, head: str) -> bool:
+    """Fetch a merged PR's head objects without writing any ref.
+
+    GitHub keeps `refs/pull/<n>/head` after the branch is deleted, so the
+    comparison can run even when retire already removed the remote branch.
+    True iff `head` is a local object afterwards.
+    """
+    if not number.isdigit():
+        return False
+    proc = _git(
+        root,
+        "fetch",
+        "--quiet",
+        "--no-tags",
+        "--no-write-fetch-head",
+        remote,
+        f"refs/pull/{number}/head",
+    )
+    return proc.returncode == 0 and _object_present(root, head)
+
+
+def _object_present(root: Path, oid: str) -> bool:
+    return bool(oid) and _git(root, "cat-file", "-e", f"{oid}^{{commit}}").returncode == 0
 
 
 def run_branch_sweep_recipe(
@@ -233,15 +451,29 @@ def run_branch_sweep_recipe(
     # object, and reading the caller's own reference keeps the out-parameter
     # contract true even if that ever stops being so.
     sweep_branches(cfg, root, echo=print, result=result)
-    if result.remote_unavailable:
-        sys.stderr.write(f"[branch-sweep] {result.remote_unavailable}\n")
-        return 2
-    if result.worktree_unavailable:
-        sys.stderr.write(f"[branch-sweep] {result.worktree_unavailable}\n")
-        return 2
-    if result.gh_unavailable:
-        sys.stderr.write(f"[branch-sweep] {result.gh_unavailable}\n")
-        return 2
+    # The report is the run's only durable record — the period task's
+    # blackboard is what the recurring sweep's autofix analyst reads, and a
+    # console-only sweep left the 2026-09-08 period with an empty one. Written
+    # before the exit code is decided so a failed sweep is recorded too.
+    report = render_sweep_report(
+        result,
+        generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        task_slug=os.environ.get("COGA_TASK_SLUG"),
+    )
+    blackboard = blackboard_from_env(cfg.repo_root)
+    if blackboard:
+        append_blackboard_report(cfg, blackboard, report)
+    else:
+        sys.stdout.write(report)
+    for failure in (
+        result.remote_unavailable,
+        result.worktree_unavailable,
+        result.state_root_unavailable,
+        result.gh_unavailable,
+    ):
+        if failure:
+            sys.stderr.write(f"[branch-sweep] {failure}\n")
+            return 2
     if result.worktree_pinned:
         sys.stdout.write(
             "[branch-sweep] skipped-worktree-pinned: "
@@ -252,33 +484,90 @@ def run_branch_sweep_recipe(
     return 0
 
 
-def _merged_for_tip(
-    branch: str, tip: str, cache: dict[tuple[str, str], bool]
-) -> bool:
-    key = (branch, tip)
-    if key not in cache:
-        cache[key] = branch_merged_without_open_pr(branch, tip)
-    return cache[key]
+def render_sweep_report(
+    result: BranchSweepResult,
+    *,
+    generated_at: str,
+    task_slug: str | None,
+) -> str:
+    """Render one run's outcomes and every per-branch decision as a section."""
+    lines = [SWEEP_REPORT_HEADING, "", f"Generated: {generated_at}"]
+    if task_slug:
+        lines.append(f"Task: `{task_slug}`")
+    lines.append("")
+    failure = (
+        result.remote_unavailable
+        or result.worktree_unavailable
+        or result.state_root_unavailable
+        or result.gh_unavailable
+    )
+    if failure:
+        lines.append(f"Result: the sweep stopped early — {failure}")
+    else:
+        lines.append(
+            f"Result: {len(result.local_deleted)} local and "
+            f"{len(result.remote_deleted)} remote branch(es) deleted, "
+            f"{len(result.worktree_pinned)} skipped-worktree-pinned, "
+            f"{len(result.skipped)} skipped."
+        )
+    for label, names in (
+        ("deleted local", result.local_deleted),
+        ("deleted remote", result.remote_deleted),
+        ("skipped-worktree-pinned", result.worktree_pinned),
+        ("skipped", result.skipped),
+    ):
+        if names:
+            lines.append(f"- {label}: {', '.join(names)}")
+    if result.notes:
+        lines.extend(["", "### Decisions", ""])
+        lines.extend(f"- {note}" for note in result.notes)
+    return "\n".join(lines) + "\n"
 
 
-def _live_ticket_branches(cfg: Config) -> set[str]:
-    """Branch names recorded under `## Dev` on any non-terminal ticket."""
+# A branch name is delimited by anything that cannot be part of one, so
+# `fix` in prose pins a branch named `fix` but `prefix` and `fixes` do not.
+_BRANCH_NAME_CHARS = r"[\w./-]"
+
+
+def _live_ticket_branches(cfg: Config, candidates: set[str]) -> set[str]:
+    """The `candidates` any non-terminal ticket names anywhere in its files.
+
+    Every file of the task is read — the ticket body above and below the
+    fence and, for a directory-form task, each attachment — so a draft that
+    names its branch in prose or in a handoff manifest but has no `## Dev`
+    section still pins it. A ticket whose frontmatter cannot be read is
+    treated as live for the same reason: the sweep cannot prove it finished.
+    """
+    if not candidates:
+        return set()
+    names = sorted(candidates, key=len, reverse=True)
+    pattern = re.compile(
+        rf"(?<!{_BRANCH_NAME_CHARS})(?:"
+        + "|".join(re.escape(name) for name in names)
+        + rf")(?!{_BRANCH_NAME_CHARS})"
+    )
     branches: set[str] = set()
     for ref in list_tasks(cfg):
         try:
-            ticket = read_ticket(ref)
+            if read_ticket(ref).status in TERMINAL_STATUSES:
+                continue
         except TicketError:
-            continue
-        if ticket.status in TERMINAL_STATUSES:
-            continue
-        try:
-            blackboard = read_blackboard(ref.ticket_path, blackboard_required=False)
-        except (OSError, TaskFileError):
-            continue
-        name = parse_branch_name(blackboard)
-        if name:
-            branches.add(name)
+            pass
+        for path in _task_files(ref.path):
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            branches.update(pattern.findall(text))
+            if len(branches) == len(candidates):
+                return branches
     return branches
+
+
+def _task_files(path: Path) -> list[Path]:
+    if path.is_file():
+        return [path]
+    return sorted(child for child in path.rglob("*") if child.is_file())
 
 
 def _note(result: BranchSweepResult, echo: Callable[[str], None], message: str) -> None:
@@ -391,8 +680,11 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 __all__ = [
+    "SWEEP_REPORT_HEADING",
     "BranchSweepResult",
-    "branch_merged_without_open_pr",
+    "MergedPrVerdict",
+    "merged_pr_verdict",
+    "render_sweep_report",
     "run_branch_sweep_recipe",
     "sweep_branches",
 ]

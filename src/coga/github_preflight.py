@@ -145,8 +145,13 @@ def check_git_auth(remote: str) -> CheckResult:
     return CheckResult("git-auth", True, f"remote {remote!r} push access authenticated")
 
 
-def _coga_root_prefix(coga_root: str | Path) -> tuple[str | None, str]:
-    """Return the active Coga OS root relative to its git toplevel."""
+def coga_root_prefix(coga_root: str | Path) -> tuple[str | None, str]:
+    """Return the active Coga OS root relative to its git toplevel.
+
+    Shared with the branch sweep, which classifies a branch's post-merge
+    commits with the same generated-state carve-out this preflight applies to
+    control-branch drift.
+    """
     rc, out, err = _run(
         ["git", "rev-parse", "--show-prefix"], cwd=coga_root
     )
@@ -155,8 +160,12 @@ def _coga_root_prefix(coga_root: str | Path) -> tuple[str | None, str]:
     return out.strip().strip("/"), ""
 
 
-def _is_coga_state_path(path: str, *, coga_prefix: str) -> bool:
-    """True for task/audit state under the configured Coga OS root."""
+def is_coga_state_path(path: str, *, coga_prefix: str) -> bool:
+    """True for task/audit state under the configured Coga OS root.
+
+    This is the one definition of "generated Coga state" — `tasks/**` and the
+    repo-global `log.md` — that both this preflight and the branch sweep read.
+    """
     tasks = f"{coga_prefix}/tasks/" if coga_prefix else "tasks/"
     log = f"{coga_prefix}/log.md" if coga_prefix else "log.md"
     return path == log or path.startswith(tasks)
@@ -263,7 +272,7 @@ def check_branch_contains_control(
             f"could not inspect changes on the current branch ({path_error}).",
         )
 
-    coga_prefix, path_error = _coga_root_prefix(coga_root)
+    coga_prefix, path_error = coga_root_prefix(coga_root)
     if coga_prefix is None:
         return CheckResult(
             "git-branch-current",
@@ -277,7 +286,7 @@ def check_branch_contains_control(
         {
             path
             for path in overlapping
-            if _is_coga_state_path(path, coga_prefix=coga_prefix)
+            if is_coga_state_path(path, coga_prefix=coga_prefix)
         }
         if allow_identical_coga_state_overlaps
         else set()
@@ -300,7 +309,7 @@ def check_branch_contains_control(
     unsafe_overlaps = overlapping - identical_overlaps
     if (
         all(
-            _is_coga_state_path(path, coga_prefix=coga_prefix)
+            is_coga_state_path(path, coga_prefix=coga_prefix)
             for path in control_paths
         )
         and not unsafe_overlaps
