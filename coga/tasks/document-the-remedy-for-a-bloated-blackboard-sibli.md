@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 9e4d29da-88fa-404c-9146-89aba16151af
 ---
 
 ## Description
@@ -79,3 +78,43 @@ exists.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: bloated-blackboard-remedy
+worktree: /home/n/Code/claude/coga-bloated-blackboard-remedy
+
+## Implement — 2026-09-15
+
+Commit `81cda358` on the branch above (one commit, rebased on `origin/main`
+`ec8a3919`; PRs #790 and #798 had already landed, so no conflict to rebase
+over).
+
+What changed:
+
+- `coga/contexts/coga/architecture/SKILL.md` + packaged twin: the proposed
+  remedy paragraph now follows the "how a bloated blackboard gets noticed"
+  sentence in the Layer-6 passage. Two additions beyond the ticket's draft,
+  each verified: it points back at the promotion recipe already in the
+  attachments passage (`mkdir <slug>/ && mv <slug>.md <slug>/ticket.md`),
+  and it states that attachments are never composed — `compose.py` reads only
+  `task_ref.ticket_path`. It closes by naming `BLACKBOARD_WARN_BYTES` (32 KiB)
+  and that `validate-drift` routes the warning here.
+- `src/coga/dream_validate_drift.py`: the `large-blackboard` remediation no
+  longer says "reviewed blackboard condensation"; it names the
+  `coga/architecture` remedy (directory form, sibling attachments, unattached
+  context, "move, do not delete"). Test added in
+  `tests/test_dream_validate_drift.py::test_classifies_large_blackboard_as_attachment_remedy`,
+  mirroring the neighbouring `classify_issue` tests.
+- `coga/contexts/coga/blackboard/SKILL.md` + packaged twin: one clause after
+  the `BLACKBOARD_WARN_BYTES` sentence saying the remedy is owned by
+  `coga/architecture` — a pointer, not a restatement, per "one owner per
+  fact".
+
+Not changed, deliberately: `draft-for-human.md` ("if it is large, record the
+path or link") is about where an artifact lands, not blackboard size, so it
+does not need the pointer.
+
+Verification: `python -m pytest` in the worktree (via the primary `.venv`,
+Python 3.12) — 2496 passed. `tests/test_packaging.py` confirms both twin
+pairs byte-identical.
