@@ -29,7 +29,10 @@ ticket still mid-workflow never loses its branch even if its PR already
 merged. The match is deliberately broad — a mere mention pins — because the
 alternative (trusting only a `## Dev` `branch:` line) missed a draft that
 named its branch three times in prose and attachments but had no `## Dev`
-section, and a false positive here only defers a delete by a week.
+section, and a false positive here only defers a delete by a week. Recurring
+period tasks are the one exception: their blackboards are generated reports
+that name branches (this sweep's own, autoclose's retire follow-ups), so they
+pin only a recorded `## Dev` `branch:`.
 
 Before enumerating branches, the sweep prunes registrations for worktrees whose
 directories are gone. A merged branch that remains checked out in a live
@@ -54,7 +57,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from coga.autoclose import GhError, prs_for_head
+from coga.autoclose import GhError, parse_branch_name, prs_for_head
 from coga.blackboard import append_blackboard_report
 from coga.branchcleanup import (
     BranchCleanupResult,
@@ -67,6 +70,7 @@ from coga import git
 from coga.github_preflight import coga_root_prefix, is_coga_state_path
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.task_env import blackboard_from_env
+from coga.taskfile import TaskFileError, read_blackboard
 from coga.tasks import list_tasks, read_ticket
 from coga.ticket import TicketError
 
@@ -101,6 +105,7 @@ class MergedPrVerdict:
 
     landed: bool
     reason: str
+    at_merged_tip: bool = False
 
 
 def sweep_branches(
@@ -191,7 +196,9 @@ def sweep_branches(
             result.skipped.append(branch)
             _note(result, echo, f"Branch sweep: gh unavailable ({exc}) — no gated deletes this run.")
             continue
-        remote_merged = remote_verdict is not None and remote_verdict.landed
+        # The widened rule is for the local ref, whose extra commits can be
+        # inspected; a remote ref is released only at the exact merged tip.
+        remote_merged = remote_verdict is not None and remote_verdict.at_merged_tip
         local_merged = local_verdict is not None and local_verdict.landed
 
         local_landed = (
@@ -253,7 +260,9 @@ def sweep_branches(
         # fallback safety gate for worktree operation states Git does not expose
         # as a branch in porcelain output.
         if branch in remote and (branch not in local or cleanup.local_deleted):
-            delete_remote_branch(cfg, root, branch, remote_merged, echo, cleanup)
+            delete_remote_branch(
+                cfg, root, branch, remote_merged, echo, cleanup, expected_tip=remote_tip
+            )
 
         # The cleanup helpers already echoed these; keeping them on the sweep
         # result is what puts each delete and refusal into the run report.
@@ -282,8 +291,12 @@ def merged_pr_verdict(
     Raises `GhError` if `gh` is missing, unauthed, or errors. Any open PR for
     the head refuses outright. Otherwise a merged PR authorizes the delete
     when the ref at `tip` carries nothing the PR did not land: every commit in
-    `git rev-list <tip> ^<merged head> ^<control>` touches only generated Coga
-    state (`is_coga_state_path`). That one rule covers the exact merged tip
+    `git rev-list <tip> ^<merged head> ^<control> ^<remote>/<control>` touches
+    only generated Coga state (`is_coga_state_path`). Both control refs are
+    excluded (each only when it exists) because a branch that merged the
+    remote-tracking control ref after its PR landed carries control's own
+    later source commits, which a lagging local control branch would otherwise
+    report as the ref's unmerged work. That one rule covers the exact merged tip
     (nothing to list), a local ref that lags the merged head because the last
     commit was pushed from another checkout (nothing to list either), and a
     ref that walked past the merged head through Coga's own state-sync
@@ -311,7 +324,9 @@ def merged_pr_verdict(
         return MergedPrVerdict(False, "has an open PR")
     for number, head in merged:
         if head == tip:
-            return MergedPrVerdict(True, f"PR #{number} merged at this exact tip")
+            return MergedPrVerdict(
+                True, f"PR #{number} merged at this exact tip", at_merged_tip=True
+            )
     if not _object_present(root, tip):
         return MergedPrVerdict(
             False,
@@ -320,6 +335,11 @@ def merged_pr_verdict(
         )
 
     reason = "has a merged PR that did not authorize it"
+    landed_refs = [
+        f"^{ref}"
+        for ref in (control_branch, f"{remote}/{control_branch}")
+        if _object_present(root, ref)
+    ]
     for number, head in merged:
         if not _object_present(root, head) and not _fetch_pr_head(
             root, remote, number, head
@@ -329,7 +349,7 @@ def merged_pr_verdict(
                 f"not be fetched from {remote} to compare against"
             )
             continue
-        beyond = _git(root, "rev-list", tip, f"^{head}", f"^{control_branch}")
+        beyond = _git(root, "rev-list", tip, f"^{head}", *landed_refs)
         if beyond.returncode != 0:
             reason = (
                 f"has merged PR #{number} at {head[:12]}, but its history could "
@@ -524,27 +544,41 @@ def render_sweep_report(
     return "\n".join(lines) + "\n"
 
 
-# A branch name is delimited by anything that cannot be part of one, so
-# `fix` in prose pins a branch named `fix` but `prefix` and `fixes` do not.
-_BRANCH_NAME_CHARS = r"[\w./-]"
+# A mention must be the whole branch name: `fix` in prose pins a branch named
+# `fix`, while `prefix`, `fixes`, `old-fix`, and the longer name `fix/one` do
+# not. A `.` or `/` is a delimiter only when no name character follows it, so
+# a sentence-final "on fix." and `origin/fix` still count and `v1.2` does not
+# pin `v1`.
+_MENTION_START = r"(?<![\w-])(?<!\w\.)"
+_MENTION_END = r"(?![\w-])(?![./]\w)"
+
+# Period tasks under `tasks/recurring/` are machine-generated and their
+# blackboards accumulate reports that name branches — autoclose's retire
+# follow-ups, and this sweep's own record when a failed run leaves its period
+# `in_progress`. Scanning those would let one failed sweep pin every branch
+# it skipped, so a period task protects only a `## Dev` `branch:` it records.
+_PERIOD_TASK_PREFIX = "recurring/"
 
 
 def _live_ticket_branches(cfg: Config, candidates: set[str]) -> set[str]:
     """The `candidates` any non-terminal ticket names anywhere in its files.
 
-    Every file of the task is read — the ticket body above and below the
-    fence and, for a directory-form task, each attachment — so a draft that
-    names its branch in prose or in a handoff manifest but has no `## Dev`
-    section still pins it. A ticket whose frontmatter cannot be read is
-    treated as live for the same reason: the sweep cannot prove it finished.
+    Every file of an ordinary task is read — the ticket body above and below
+    the fence and, for a directory-form task, each attachment — so a draft
+    that names its branch in prose or in a handoff manifest but has no
+    `## Dev` section still pins it. A ticket whose frontmatter cannot be read
+    is treated as live for the same reason: the sweep cannot prove it
+    finished. A recurring period task pins only its `## Dev` `branch:`.
     """
     if not candidates:
         return set()
     names = sorted(candidates, key=len, reverse=True)
     pattern = re.compile(
-        rf"(?<!{_BRANCH_NAME_CHARS})(?:"
+        _MENTION_START
+        + "(?:"
         + "|".join(re.escape(name) for name in names)
-        + rf")(?!{_BRANCH_NAME_CHARS})"
+        + ")"
+        + _MENTION_END
     )
     branches: set[str] = set()
     for ref in list_tasks(cfg):
@@ -553,6 +587,15 @@ def _live_ticket_branches(cfg: Config, candidates: set[str]) -> set[str]:
                 continue
         except TicketError:
             pass
+        if ref.id_slug.startswith(_PERIOD_TASK_PREFIX):
+            try:
+                blackboard = read_blackboard(ref.ticket_path, blackboard_required=False)
+            except (OSError, TaskFileError):
+                continue
+            name = parse_branch_name(blackboard)
+            if name in candidates:
+                branches.add(name)
+            continue
         for path in _task_files(ref.path):
             try:
                 text = path.read_text(encoding="utf-8", errors="replace")

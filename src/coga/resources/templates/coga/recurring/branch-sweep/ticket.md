@@ -30,13 +30,15 @@ which:
    branch a non-terminal ticket names anywhere in its task files — the
    ticket body, its blackboard, or an attachment — not only under a `## Dev`
    `branch:` line; a mere mention pins, because a false positive only defers
-   a delete by a week,
+   a delete by a week. A recurring period task pins only its `## Dev`
+   `branch:`, since its blackboard is generated reports naming branches,
 4. for the rest, authorizes deletion two independent ways — the local tip
    being reachable from the control branch, a merge-commit or fast-forward
    landing that needs no PR at all, or a merged PR for that head branch name
    with no PR currently open for it, where the merged PR vouches for the
    local ref only if every commit on the ref that neither the merged head nor
-   the control branch contains touches only Coga task/log state. That admits
+   the control branch (local or remote-tracking) contains touches only Coga
+   task/log state. That admits
    the exact merged tip, a ref that lags the merged head because the last
    commit was pushed from another checkout (the merged head is fetched from
    `refs/pull/<n>/head` when it is not local), and a ref that walked past the
