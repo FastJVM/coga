@@ -29,6 +29,7 @@ Checks (whole-repo):
 - Tasks stuck in `in_progress` with no recent log activity.
 - Assignees referenced in tickets exist in coga.toml.
 - No two tasks in one directory claim the same `<n>-` drain position.
+- Skill scripts that declare a `#!` shebang carry the executable bit.
 - (Opt-in) Slack webhook reachability via an empty-text probe.
 - (Opt-in) Git/GitHub auth readiness via `git`/`gh` preflight probes.
 """
@@ -38,6 +39,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -79,6 +81,7 @@ from coga.paths import (
     resolve_workflow_path,
 )
 from coga.service_order import leading_number
+from coga.skill_manager import bundled_skills_root, skills_root
 from coga.slack_response import classify_slack_response, format_slack_request_error
 from coga.tasks import (
     DuplicateTaskSlugError,
@@ -239,6 +242,7 @@ def run(
 
     report.issues.extend(_check_task_numbering(refs))
     report.issues.extend(_check_recurring_templates(cfg))
+    report.issues.extend(_check_shebang_executables(cfg))
 
     report.ok_count = _ok_count(refs, report.issues)
     return report
@@ -1336,6 +1340,131 @@ def _check_recurring_templates(cfg: Config) -> list[Issue]:
     return out
 
 
+# Directory names that never hold a skill's own scripts: VCS metadata, tool
+# state, bytecode caches, vendored dependencies.
+_SKIPPED_SCRIPT_DIRS: frozenset[str] = frozenset(
+    {".git", "__pycache__", "node_modules", ".venv"}
+)
+
+
+def _check_shebang_executables(cfg: Config) -> list[Issue]:
+    """A skill script that declares a `#!` shebang must be executable.
+
+    A SKILL.md that says to run `scripts/foo.sh` fails permission-denied on
+    every fresh clone when the file was committed `100644` — and only an agent
+    following the instruction finds out. The shebang is the author's own
+    declaration that the file is run directly, so keying off it needs no
+    allowlist: import-only modules carry none and stay `100644` legitimately.
+
+    Scope is the repo's installed skills plus the packaged bootstrap skills.
+    Use POSIX working-tree modes unless local Git config sets `core.fileMode=false`.
+    That setting and non-POSIX platforms (Windows) use the local git index
+    instead; skip a root when neither source is trustworthy. POSIX directories
+    without git still use stat. These git queries are read-only and local.
+    """
+    out: list[Issue] = []
+    roots = (
+        ("skills", skills_root(cfg)),
+        ("bootstrap/skills", bundled_skills_root(cfg)),
+    )
+    for label, root in roots:
+        if not root.is_dir():
+            continue
+        index_modes: dict[Path, int] | None = None
+        use_working_tree = _working_tree_carries_mode()
+        if use_working_tree:
+            filemode = _git_output(root, "config", "--local", "--bool", "--get", "core.fileMode")
+            use_working_tree = filemode is None or filemode.strip() != "false"
+        if not use_working_tree:
+            index_modes = _git_index_modes(root)
+            if index_modes is None:
+                continue
+        for directory, subdirs, filenames in os.walk(root):
+            subdirs[:] = sorted(name for name in subdirs if name not in _SKIPPED_SCRIPT_DIRS)
+            for filename in sorted(filenames):
+                path = Path(directory) / filename
+                rel = path.relative_to(root)
+                if path.is_symlink() or not path.is_file() or not _has_shebang(path):
+                    continue
+                if index_modes is None:
+                    executable = bool(path.stat().st_mode & 0o111)
+                elif rel in index_modes:
+                    executable = bool(index_modes[rel] & 0o111)
+                else:
+                    continue  # untracked: nothing committed to check
+                if executable:
+                    continue
+                remediation = (
+                    "upgrade or reinstall Coga with its owning installer, or "
+                    "fix the executable mode in the upstream Coga package"
+                    if label == "bootstrap/skills"
+                    else "`chmod +x` it and commit mode 100755; when Git ignores "
+                    "filesystem modes, stage it with `git add --chmod=+x`"
+                )
+                out.append(Issue(
+                    kind="non-executable-script",
+                    task=f"{label}/{rel.as_posix()}",
+                    message=(
+                        f"{path} declares a `#!` shebang but is not executable "
+                        f"— {remediation}"
+                    ),
+                    severity="error",
+                ))
+    return out
+
+
+def _has_shebang(path: Path) -> bool:
+    try:
+        with path.open("rb") as handle:
+            return handle.read(2) == b"#!"
+    except OSError:
+        return False
+
+
+def _working_tree_carries_mode() -> bool:
+    """Whether `stat` reflects the executable bit on this platform."""
+    return os.name == "posix"
+
+
+def _git_index_modes(root: Path) -> dict[Path, int] | None:
+    """Index modes of tracked files under `root`, keyed relative to it.
+
+    None when git is unavailable or `root` is not inside a checkout.
+    """
+    listing = _git_output(root, "ls-files", "--stage", "-z", "--", ".")
+    if listing is None:
+        return None
+    modes: dict[Path, int] = {}
+    for entry in listing.split("\0"):
+        if not entry:
+            continue
+        meta, _, rel = entry.partition("\t")
+        modes[Path(rel)] = int(meta.split()[0], 8)
+    return modes
+
+
+def _git_output(root: Path, *args: str) -> str | None:
+    """Run a read-only git query in `root`; None on any failure.
+
+    `coga validate` must work in a Coga repo that is not a git checkout, so
+    a missing binary or a non-repo directory is an answer, not an error.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="surrogateescape",
+            check=False,
+        )
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
 def _format_paths(paths: tuple[Path, ...] | tuple[Path, Path]) -> str:
     return ", ".join(str(path) for path in paths)
 
@@ -1560,9 +1689,9 @@ def _notification_issues(cfg: Config) -> list[Issue]:
 def _github_issues(cfg: Config) -> list[Issue]:
     """Map the git/GitHub preflight probes into report issues.
 
-    Opt-in only (gated by `--check-github`): this is the single call site that
-    shells out to `git`/`gh`, so the default read-only validate path never hits
-    the network. Every failed probe is an `error` — the operator explicitly
+    Opt-in only (gated by `--check-github`): these are the network-capable
+    `git`/`gh` probes, so the default read-only validate path never hits the
+    network. Every failed probe is an `error` — the operator explicitly
     asked "is my setup ready?", and a clear no (with an actionable hint and a
     non-zero exit) is the useful answer, including when the machine is offline.
     """

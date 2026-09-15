@@ -197,6 +197,21 @@ def test_classifies_broken_refs_as_pr_proposal() -> None:
     assert "Open a small PR" in classified.remediation
 
 
+def test_packaged_script_mode_failure_needs_package_remediation() -> None:
+    classified = classify_issue(
+        ValidationIssue(
+            kind="non-executable-script",
+            task="bootstrap/skills/coga/gmail/gmail.py",
+            message="installed package script is not executable",
+            severity="error",
+        )
+    )
+
+    assert classified.action == ACTION_HUMAN_NEEDED
+    assert "upgrade" in classified.remediation.lower()
+    assert "upstream Coga" in classified.remediation
+
+
 def test_classifies_recurring_state_stuck_as_human_needed() -> None:
     classified = classify_issue(
         ValidationIssue(
@@ -224,6 +239,7 @@ def test_classifies_recurring_state_stuck_as_human_needed() -> None:
         "invalid-delegate-owner",
         "invalid-period-generation-owner",
         "missing-step-instructions",
+        "non-executable-script",
         "script-backed-delegate-target",
         "unrunnable-script-entry-point",
         "unsynthesized-draft-blackboard",

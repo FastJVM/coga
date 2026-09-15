@@ -272,6 +272,31 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
+    if kind == "non-executable-script":
+        if issue.task.startswith("bootstrap/skills/"):
+            return ClassifiedIssue(
+                issue=issue,
+                action=ACTION_HUMAN_NEEDED,
+                remediation=(
+                    "Upgrade or reinstall Coga with the installer that owns the "
+                    "package, or report/fix the executable mode in upstream Coga. "
+                    "This script belongs to the installed distribution, so its "
+                    "mode cannot be repaired by a PR in the repository Dream "
+                    "is maintaining."
+                ),
+            )
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_PR_PROPOSAL,
+            remediation=(
+                "Open a small PR that `chmod +x`es the named skill script and "
+                "commits the mode change (git tracks it as 100755); use "
+                "`git add --chmod=+x` when Git ignores filesystem modes. The shebang "
+                "is the author's declaration that it is run directly; do not "
+                "strip the shebang or rewrite the skill's instructions instead."
+            ),
+        )
+
     if kind == "duplicate-slug":
         return ClassifiedIssue(
             issue=issue,
