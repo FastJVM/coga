@@ -239,6 +239,6 @@ ticket in full, history included.
 ## Where to go next
 
 - **[Concepts](concepts.md)** — make the mental model precise.
-- **[Command reference](reference.md)** — the full CLI surface.
+- **[Command guide](reference.md)** — find commands and their canonical reference.
 - **[Operations](operations.md)** — notifications, aliases, recurring
   maintenance, and secrets, once you're running Coga for real.

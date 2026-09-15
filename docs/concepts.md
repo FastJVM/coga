@@ -10,7 +10,10 @@ The design has one root — *don't don't think; think better* — and everything
 below is a consequence of it. The canonical statement lives in the contexts your
 agents actually load: [`coga/contexts/coga/principles/SKILL.md`](../coga/contexts/coga/principles/SKILL.md)
 (the non-negotiables) and `coga/contexts/coga/architecture/SKILL.md` (the
-system model). This page is the human-readable tour of the same ideas.
+system model). This page is the human-readable tour; the contexts own the
+rules, and where this page summarizes one it links there rather than restating
+it (the boundary itself is written down in the architecture context, under
+`Where a fact lives: docs vs contexts`).
 
 ## Tickets
 
@@ -233,17 +236,11 @@ workflow.
 
 ## Composition: how a prompt is built
 
-`coga launch` builds one prompt, fresh, every time, by stacking layers in order:
-
-1. Base prompt (shipped with the package).
-2. Session conduct for the launch context — exactly one, so the agent reads how
-   to operate before any task material.
-3. This repo's context (`coga/context.md`).
-4. The ticket's attached `contexts:`.
-5. The ticket-level skills, then the current step's skill.
-6. The ticket itself, last and contiguous within the composed prompt, in the
-   order it sits on disk: the
-   body's `## Description`, then its inline `## Context`, then the blackboard.
+`coga launch` rebuilds the prompt from the current repo and ticket files.
+Operating instructions precede task material, and the selected ticket content
+stays together at the end. The
+[Prompt composition section of `coga/architecture`](../coga/contexts/coga/architecture/SKILL.md#prompt-composition)
+owns the exact layers, their order, and which ticket regions compose.
 
 For a launch with no trailing positional arguments, that's the whole input.
 When arguments are supplied, launch appends one explicit `## Launch arguments`

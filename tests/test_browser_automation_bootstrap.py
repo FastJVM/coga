@@ -79,11 +79,13 @@ def test_autonomy_triage_apparatus_is_gone_from_both_trees() -> None:
         assert (tree / "workflows" / "draft-for-human.md").is_file()
 
 
-def test_reference_documents_browser_router_and_runner_roles() -> None:
-    # The README is the marketing hook and delegates command-level detail to
-    # docs/; the browser launcher is documented in the command reference.
-    text = (REPO_ROOT / "docs" / "reference.md").read_text()
+def test_command_guide_links_to_browser_router_and_runner_reference() -> None:
+    # The guide points to coga/cli, which owns command behavior and skill roles.
+    guide = (REPO_ROOT / "docs" / "reference.md").read_text()
+    reference = TEMPLATES / "bootstrap" / "contexts" / "coga" / "cli" / "SKILL.md"
+    assert f"(../{reference.relative_to(REPO_ROOT).as_posix()})" in guide
+    text = reference.read_text()
 
     assert "coga launch bootstrap/browser-automation" in text
-    assert "`browser/build-automation` is the orchestration skill" in text
-    assert "`browser/playwright` is the lower-level execution skill" in text
+    assert "`browser/build-automation` orchestration skill" in text
+    assert "`browser/playwright` runner" in text

@@ -8,7 +8,9 @@ description: The coga CLI surface — what each command does, the flags that mat
 Built-in commands plus a config-driven alias mechanism. Everything
 else is a flag or subcommand. The model beneath them lives in
 `coga/architecture` — read that for primitives and prompt composition.
-This context is just the operator's reference.
+This context owns the command-behavior reference. `docs/reference.md` is a
+navigation guide to it; command semantics are maintained here, not independently
+on both surfaces. The installed CLI's `--help` gives its current argument syntax.
 
 ## coga init [PATH] [--user <name>]
 

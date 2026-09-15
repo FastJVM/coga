@@ -12,8 +12,8 @@ If you're new, read these in order:
 2. **[Concepts](concepts.md)** — the mental model: tickets, the blackboard,
    contexts vs. skills, workflows and steps, the two state machines, agents and
    recipes. Read this once and the rest of the system stops surprising you.
-3. **[Command reference](reference.md)** — every public `coga` command, its
-   arguments and flags, generated from the CLI's own help.
+3. **[Command guide](reference.md)** — find the relevant command and follow
+   its link to the canonical `coga/cli` reference.
 
 Then, as you need them:
 
@@ -31,6 +31,18 @@ Then, as you need them:
   mechanical steps to move an existing Relay repo onto the Coga package,
   command, directories, and config.
 - **[Releasing](releasing.md)** — cutting a Coga release (contributor-facing).
+
+## Docs versus contexts
+
+These pages are the human tour. The rules agents operate under live in the
+configured contexts directory (`coga/contexts/` by default; `[layout] contexts`
+can relocate it), with a package fallback for bundled contexts. `coga launch`
+composes a context when a ticket attaches it. A fact has one owner: a page here
+may summarize a rule and link to the context that owns it, but never restates
+the specification, and a context
+never inlines a page — it names the path. The full rule, including how to
+decide for a new fact, is the `Where a fact lives: docs vs contexts` section of
+[`coga/contexts/coga/architecture/SKILL.md`](../coga/contexts/coga/architecture/SKILL.md).
 
 ## The shortest possible summary
 

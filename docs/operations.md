@@ -27,7 +27,7 @@ reaches it. Events fall into three tiers:
   ticket.
 
 Agents and humans add one-line FYIs on top with `coga slack` (see the
-[reference](reference.md#coga-slack---task-target---message-text)).
+[command contract](../src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md)).
 
 Surface is separate from destination. The ordinary flow webhook carries
 operating awareness and ticket outcomes. The important webhook carries

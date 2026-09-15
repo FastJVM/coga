@@ -77,6 +77,10 @@ review bars.
   you change task layout, prompt composition, or workflow
   semantics** (CLAUDE.md rule).
 - `docs/vision.md` — non-negotiables. See also `coga/principles`.
+- `docs/*.md` — the human tour and lazy reference (audits, evidence,
+  procedures). A doc and a context never both own one fact; the boundary and
+  the decision procedure are the `Where a fact lives: docs vs contexts`
+  section of `coga/architecture`.
 
 ## What belongs in core vs a skill — the microkernel rule
 
