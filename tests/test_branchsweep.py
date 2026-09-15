@@ -675,46 +675,54 @@ def test_remote_only_branch_deleted_from_live_remote_listing(
     assert not _branch_exists_remote(repo, "remote-only")
 
 
-def _verdict(repo: Path, branch: str, tip: str) -> bs.MergedPrVerdict:
+def _verdict(repo: Path, tip: str, merged_head: str) -> bs.MergedPrVerdict:
     return bs.merged_pr_verdict(
-        repo, branch, tip, control_branch="main", remote="origin", coga_prefix="coga"
+        repo,
+        tip,
+        [("7", merged_head)],
+        landed_refs=["main"],
+        remote="origin",
+        coga_prefix="coga",
     )
 
 
-def test_verdict_exact_merged_tip_lands(repo: Path, monkeypatch) -> None:
+def test_verdict_exact_merged_tip_lands(repo: Path) -> None:
+    _push_branch(repo, "feat")
+    verdict = _verdict(repo, _tip(repo, "feat"), _tip(repo, "feat"))
+    assert verdict.landed is True
+    assert "PR #7" in verdict.reason
+
+
+def test_open_pr_refusal_is_noted_and_costs_no_git_comparison(
+    repo: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat")
+    _fake_gh(monkeypatch, {"feat": "0" * 40}, open_heads=frozenset({"feat"}))
+    monkeypatch.setattr(
+        bs,
+        "merged_pr_verdict",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("no comparison")),
+    )
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.skipped == ["feat"]
+    assert any("'feat' has an open PR" in note for note in result.notes), result.notes
+
+
+def test_no_pr_branch_costs_one_gh_call(repo: Path, monkeypatch) -> None:
     _push_branch(repo, "feat")
     calls: list[tuple[str, str]] = []
 
     def fake_prs(branch: str, state: str) -> list[dict[str, object]]:
         calls.append((branch, state))
-        if state == "merged":
-            return [{"number": 7, "headRefOid": _tip(repo, "feat")}]
         return []
 
     monkeypatch.setattr(bs, "prs_for_head", fake_prs)
-    verdict = _verdict(repo, "feat", _tip(repo, "feat"))
-    assert verdict.landed is True
-    assert "PR #7" in verdict.reason
-    assert ("feat", "merged") in calls
-    assert ("feat", "open") in calls
 
+    bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
-def test_verdict_refuses_while_a_pr_is_open(repo: Path, monkeypatch) -> None:
-    _push_branch(repo, "feat")
-    _fake_gh(monkeypatch, {"feat": _tip(repo, "feat")}, open_heads=frozenset({"feat"}))
-    verdict = _verdict(repo, "feat", _tip(repo, "feat"))
-    assert verdict.landed is False
-    assert verdict.reason == "has an open PR"
-
-
-def test_verdict_needs_exact_tip_when_tip_is_not_local(repo: Path, monkeypatch) -> None:
-    # A remote tip listed by `ls-remote` may not be a local object; the
-    # history comparison cannot run, so only an exact match may authorize.
-    _push_branch(repo, "feat")
-    _fake_gh(monkeypatch, {"feat": "0" * 40})
-    verdict = _verdict(repo, "feat", "1" * 40)
-    assert verdict.landed is False
-    assert "not a local object" in verdict.reason
+    assert calls == [("feat", "merged")]
 
 
 # --- the squash-merge shapes Coga itself produces ---------------------------
