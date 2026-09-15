@@ -29,8 +29,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: 5979a19a-e391-4e2b-a4cc-03cc0a4443bd
+step: 2 (self-qa)
 ---
 
 ## Description
@@ -197,5 +196,109 @@ updating in the same PR, and the packaged twin under
 `src/coga/resources/templates/coga/` must stay byte-identical.
 
 <!-- coga:blackboard -->
+## Dev
+branch: branch-sweep-landed
+worktree: /home/n/Code/claude/coga-branch-sweep-landed
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Baseline (2026-09-15, dry run with deletes stubbed)
+
+`2 14 18` — deleted / worktree-pinned / skipped. The backlog shrank since the
+ticket's 2026-09-09 `3 9 54` measurement, and its shape changed: **zero**
+"tip moved by sync commits" branches remain today, and 15 of the 18 skipped
+are the ticket's "dead lineage" shape (merged `headRefOid` absent locally).
+
+Probing those 15 (`git fetch origin refs/pull/<n>/head`, then ancestry):
+in 14 of 15 the local tip is an **ancestor of the merged head** — the branch
+was pushed, one more commit (review fix) was pushed from another checkout
+(the retired worktree), then merged; retire deleted the remote branch, so the
+head never reached this checkout. Not a rebase or force-push: the local ref
+simply lags. The 15th (`cite-symbols-rule`) has both sides: 15 local-only
+commits (all `Ticket:`/`Log:`/`Merge main state into` bookkeeping) and one
+head-only source commit.
+
+## Design
+
+One rule replaces the exact-tip gate (`merged_pr_verdict`): a merged PR for
+the head name, with no open PR, vouches for the local ref iff every commit in
+`git rev-list <tip> ^<merged head> ^<control>` touches only Coga state paths
+(`github_preflight.is_coga_state_path`, the `validate --check-github`
+carve-out, now exported). Paths come from one
+`git diff-tree --stdin --cc --name-only`: a clean merge lists nothing, an evil
+merge lists the file it resolved, non-merge commits list their diff (verified
+in a scratch repo). Vacuously true for the exact tip and for a lagging tip;
+true for sync-only later commits including clean `Merge main state into X`;
+false for any real source commit, with the offending paths in the note.
+
+- The ticket's literal `git diff <control>...<branch>` clause would reject
+  the exact case it targets whenever no control merge followed the PR — the
+  PR's own source diff sits between the fork point and the merged head — and
+  the plain `diff <head> <tip>` tree diff rejects the shape where Coga merged
+  control back into the branch after the squash (tree gains all of main's
+  later changes). The per-commit rule is the one that is right for both.
+- Dead lineage: the "separate signal" is fetching `refs/pull/<n>/head`
+  (objects only, `--no-write-fetch-head`, no ref written). GitHub keeps that
+  ref after branch deletion. A genuinely diverged ref with local source
+  commits still fails the rule — the ticket's "merged PR exists, delete" is
+  not what ships. Unfetchable head → skipped with a note naming the PR.
+- Remote ref: exact-tip only, unchanged. Its objects are usually not local
+  and ancestry never authorized remote deletes. A remote half that outlived
+  a widened local delete is reported "skipping remote (no merged PR)" and
+  stays for a human; none of today's 15 candidates has a remote half.
+- Live-ticket guard: option 1. `_live_ticket_branches(cfg, candidates)`
+  scans every file of every non-terminal task (ticket above and below the
+  fence, all attachments) for any local/remote branch name as a whole token
+  (`(?<![\w./-])name(?![\w./-])`). A ticket whose frontmatter cannot be
+  read is treated as live (conservative). `## Dev` parse dropped from the
+  sweep — the scan subsumes it.
+- Report: `render_sweep_report` writes `## Branch Sweep` (counts, outcome
+  lists, every decision including the cleanup helpers' notes, now folded into
+  `BranchSweepResult.notes`) to `COGA_TASK_BLACKBOARD` via the shared
+  `blackboard.append_blackboard_report`, stdout otherwise; written before the
+  exit code so a failed sweep is recorded. The reporting-contract draft
+  (`define-the-recipe-reporting-contract-report-durabi`) owns the *general*
+  rule (per-run durability paragraph, failure-surface generalization); this
+  ticket only makes branch-sweep follow the pattern autoclose/skill-update
+  already use, so nothing was dropped from here.
+- Also: `delete_local_branch`'s refusal now reads "no merged PR vouching for
+  it", since a merged PR may exist and still refuse; the sweep notes the
+  verdict's reason separately in that case. `coga_root_prefix` /
+  `is_coga_state_path` un-underscored in `github_preflight.py` (2 consumers).
+- Sweep now fails loud (`state_root_unavailable`) if `git rev-parse
+  --show-prefix` cannot locate the Coga root — same posture as the worktree
+  probe, rather than silently narrowing back to exact-tip.
+
+## Result (same dry run, new gate)
+
+`12 6 2`. All 11 `dream/*-1788913097` plus `sweep-republishes-stranded-claim-release`
+delete; `fix/watchdog-pauses` and `resolve-step-one-assignee` now report
+`skipped-worktree-pinned` (they are held by worktrees; before, they were
+skipped with no landed signal). Skipped: `branch-sweep-landed` (this branch,
+no PR yet) and `guard-reauthor-in-progress` (no PR ever — by design).
+`autoclose-retires-durable-home` pins via its draft ticket's prose, as the
+ticket required. The mention scan pins 17 branches in total; the extra pins
+come from the `in_progress` `recurring/autoclose-merged` period blackboard
+(its retire follow-up report names the branches — deferring to `coga retire`
+is the intended outcome, and the pin lapses when that period task closes)
+and one v2 draft that mentions `coga/skill-update`, the weekly branch the
+skill-update job rebuilds with `checkout -B` anyway.
+
+## Verification
+
+- `PYTHONPATH=$PWD/src <venv>/python -m pytest tests/test_branchsweep.py` →
+  35 passed (was 24; added: sync-commits-deleted, real-changes-skipped,
+  evil-merge-kept, head-absent-fetched-and-deleted, head-unfetchable-kept,
+  diverged-lineage-skipped, prose-mention-pins, attachment-mention-pins,
+  whole-name-only, three verdict unit tests, three report tests).
+- Related modules (packaging twins, branchcleanup, autoclose, retire, runner,
+  validate, open_pr, launch): 546 passed.
+- Full suite from the feature worktree: `PYTHONPATH=$PWD/src
+  /home/n/Code/claude/coga/.venv/bin/python -m pytest -q` → 2507 passed,
+  0 failed (2:47). Branch rebased on `origin/main` (`ffb0e361`), clean.
+
+## Adjacent, not fixed here
+
+- `branchsweep._current_branch` still uses `rev-parse --abbrev-ref HEAD`
+  (the shadowable spelling `coga/codebase` warns about). Out of scope.
+- `recurring/autoclose-merged` is `in_progress` and dirty in the primary
+  checkout (`git status`), which is why its blackboard pins branches today;
+  looks like a dead or in-flight run, not something this ticket touches.
