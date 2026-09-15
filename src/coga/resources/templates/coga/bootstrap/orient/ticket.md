@@ -18,22 +18,23 @@ The point: skip the "open `claude` in the repo and re-explain the
 project" dance. Use this when the human wants to direct ad-hoc work —
 triage, edits to coga/ itself, discussion — without committing to a
 specific ticket up front. For ticket-bound work, exit and `coga launch
-<slug>`; that gives the ticket's own contexts, workflow step, skill,
-and a lock.
+<slug>`; that loads the ticket's own contexts, workflow step, and skill.
+There is no task-ownership lock — see `coga/architecture`.
 
 ## Context
 
 What the agent should do once oriented:
 
 - The composed prompt already includes the canonical coga/* contexts
-  (architecture, principles, cli). For deeper reference, `README.md`
-  has more narrative; `docs/spec.md` has the config / frontmatter / error
-  contracts.
+  (architecture, principles, cli) because this ticket's own `contexts:`
+  list names them — a ticket loads only the contexts it lists. Use `coga/cli`
+  for command usage and `coga/architecture` for ticket and workflow contracts;
+  both references are bundled with Coga and already included in this prompt.
 - Wait for the human to direct. Don't `coga create` or `coga ticket` of your own
   initiative.
 - If asked for a triage view, run `coga status` and summarize.
 
 This is a bootstrap ticket, not a `tasks/` ticket: stateless — no status,
 no owner, no log, no lock — every launch is independent and concurrent
-launches are safe. Don't edit this ticket except to swap `assignee` to
+launches are safe. Don't edit this ticket except to swap `agent:` to
 whichever agent type matches your `coga.toml`.

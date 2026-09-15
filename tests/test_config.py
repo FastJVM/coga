@@ -478,8 +478,10 @@ def test_legacy_assignees_table_rejected(tmp_path: Path) -> None:
         """,
     )
     _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
-    with pytest.raises(ConfigError, match=r"\[assignees\] is no longer supported"):
+    with pytest.raises(ConfigError, match=r"\[assignees\] is no longer supported") as exc:
         load_config(tmp_path)
+    assert "bundled `coga/architecture` context" in str(exc.value)
+    assert "docs/reference.md" not in str(exc.value)
 
 
 # --- unknown-key rejection (fail loud on stray/misspelled config) -------------

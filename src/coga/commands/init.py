@@ -295,9 +295,10 @@ under `coga/`; contexts live in the configured contexts directory —
 ## Start here
 
 Run `coga launch bootstrap/orient` to drop into a coga-aware session — the
-canonical contexts get composed into the prompt automatically. For ticket-bound
-work, prefer `coga launch <slug>` so the ticket's own contexts and current
-workflow step are loaded too.
+orient ticket lists the canonical contexts under its own `contexts:`, so they
+are composed into that prompt. For ticket-bound work, prefer
+`coga launch <slug>`: a ticket loads only the contexts its own `contexts:`
+list names, plus its current workflow step.
 
 ## Common commands
 
@@ -317,7 +318,7 @@ workflow step are loaded too.
 
 ## Mental model
 
-The canonical contexts are package-backed and composed automatically; a repo can
+The canonical contexts are package-backed; a repo can
 override them with local files under `<contexts-dir>/coga/` (by default,
 `coga/contexts/coga/`). Read in order:
 
@@ -325,8 +326,9 @@ override them with local files under `<contexts-dir>/coga/` (by default,
 - `architecture/SKILL.md` — primitives, planes, prompt composition, locking
 - `cli/SKILL.md` — full command reference
 
-These are the exact context refs composed into every launched ticket; if they
-disagree with anything else in the repo, they win.
+These are the refs `bootstrap/orient` attaches; a launched ticket composes
+only the refs in its own `contexts:` list. If they disagree with anything else
+in the repo, they win.
 
 ## Don't
 
