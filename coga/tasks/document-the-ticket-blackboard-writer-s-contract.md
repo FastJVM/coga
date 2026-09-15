@@ -1,6 +1,6 @@
 ---
 title: Document the ticket-blackboard writer's contract
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -18,7 +18,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description
