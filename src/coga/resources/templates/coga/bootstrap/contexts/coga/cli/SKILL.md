@@ -1314,12 +1314,16 @@ does not reimplement GitHub auth — it just exercises the operator's own `git` 
 trees: a file whose first two bytes are `#!` must be executable
 (`non-executable-script`, an error). The shebang is the author's declaration
 that the script is run directly, so a `100644` commit fails permission-denied
-on a fresh POSIX clone — the remedy is `chmod +x` plus committing mode 100755
-(use `git add --chmod=+x` when Git ignores filesystem modes). On POSIX it
-checks the working-tree mode, using a local `git config` query to detect
-`core.fileMode=false`; that setting and Windows use the git index instead.
+on a fresh POSIX clone. For repository-owned scripts, the remedy is `chmod +x`
+plus committing mode 100755 (use `git add --chmod=+x` when Git ignores
+filesystem modes). Bundled findings belong to the installed Coga package:
+upgrade or reinstall it, or fix the mode upstream in Coga. Dream routes those
+findings to package remediation, not to a PR in the repository it is scanning.
+On POSIX the check uses working-tree modes unless repository-local Git config
+sets `core.fileMode=false`; that setting and Windows use the git index instead.
 If neither mode source is trustworthy, the root is skipped. POSIX directories
-without git still use the working-tree mode. These queries are read-only and
+without git still use the working-tree mode even when global Git config sets
+`core.fileMode=false`. These queries are read-only and
 local, so the default validator remains offline. Dependency and generated
 state directories (`.git`, `__pycache__`, `node_modules`, `.venv`) are pruned
 before traversal; symlinked files and directory contents are skipped. Reach for

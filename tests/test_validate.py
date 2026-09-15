@@ -903,6 +903,25 @@ def test_validate_reports_non_executable_shebang_skill_script(repo: Path) -> Non
     assert not [i for i in clean.issues if i.kind == "non-executable-script"]
 
 
+@pytest.mark.skipif(os.name != "posix", reason="requires trustworthy POSIX modes")
+def test_validate_ignores_global_filemode_outside_git(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    global_config = tmp_path / "global.gitconfig"
+    global_config.write_text("[core]\nfileMode = false\n")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(global_config))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(repo.parent))
+    cfg = load_config(repo)
+    script = _write_shebang_script(repo, 0o644)
+
+    flagged = [i for i in run(cfg).issues if i.kind == "non-executable-script"]
+    assert [i.task for i in flagged] == ["skills/infra/tests/scripts/run.sh"]
+
+    script.chmod(0o755)
+    assert not [i for i in run(cfg).issues if i.kind == "non-executable-script"]
+
+
 def test_validate_skips_shebang_mode_check_without_a_trustworthy_source(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1023,6 +1042,8 @@ def test_validate_checks_bundled_shebang_scripts(
 
     flagged = [i for i in run(cfg).issues if i.kind == "non-executable-script"]
     assert [i.task for i in flagged] == ["bootstrap/skills/infra/tests/scripts/run.sh"]
+    assert "upgrade or reinstall Coga" in flagged[0].message
+    assert "git add" not in flagged[0].message
     script.chmod(0o755)
     assert not [i for i in run(cfg).issues if i.kind == "non-executable-script"]
 
@@ -1872,7 +1893,7 @@ def _fake_subprocess_factory(responses: dict[tuple[str, ...], object]):
         # The default skill sweep may query local mode policy. It must never
         # run the network/auth probes that these tests expect to be skipped.
         if tuple(args[:2]) == ("git", "-C") and tuple(args[3:]) == (
-            "config", "--bool", "--get", "core.fileMode"
+            "config", "--local", "--bool", "--get", "core.fileMode"
         ):
             return _FakeProc(0, "true\n")
         for key, resp in responses.items():

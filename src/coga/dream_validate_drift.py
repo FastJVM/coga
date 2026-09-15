@@ -273,6 +273,18 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
         )
 
     if kind == "non-executable-script":
+        if issue.task.startswith("bootstrap/skills/"):
+            return ClassifiedIssue(
+                issue=issue,
+                action=ACTION_HUMAN_NEEDED,
+                remediation=(
+                    "Upgrade or reinstall Coga with the installer that owns the "
+                    "package, or report/fix the executable mode in upstream Coga. "
+                    "This script belongs to the installed distribution, so its "
+                    "mode cannot be repaired by a PR in the repository Dream "
+                    "is maintaining."
+                ),
+            )
         return ClassifiedIssue(
             issue=issue,
             action=ACTION_PR_PROPOSAL,

@@ -1357,7 +1357,7 @@ def _check_shebang_executables(cfg: Config) -> list[Issue]:
     allowlist: import-only modules carry none and stay `100644` legitimately.
 
     Scope is the repo's installed skills plus the packaged bootstrap skills.
-    Use POSIX working-tree modes unless Git reports `core.fileMode=false`.
+    Use POSIX working-tree modes unless local Git config sets `core.fileMode=false`.
     That setting and non-POSIX platforms (Windows) use the local git index
     instead; skip a root when neither source is trustworthy. POSIX directories
     without git still use stat. These git queries are read-only and local.
@@ -1373,7 +1373,7 @@ def _check_shebang_executables(cfg: Config) -> list[Issue]:
         index_modes: dict[Path, int] | None = None
         use_working_tree = _working_tree_carries_mode()
         if use_working_tree:
-            filemode = _git_output(root, "config", "--bool", "--get", "core.fileMode")
+            filemode = _git_output(root, "config", "--local", "--bool", "--get", "core.fileMode")
             use_working_tree = filemode is None or filemode.strip() != "false"
         if not use_working_tree:
             index_modes = _git_index_modes(root)
@@ -1394,13 +1394,19 @@ def _check_shebang_executables(cfg: Config) -> list[Issue]:
                     continue  # untracked: nothing committed to check
                 if executable:
                     continue
+                remediation = (
+                    "upgrade or reinstall Coga with its owning installer, or "
+                    "fix the executable mode in the upstream Coga package"
+                    if label == "bootstrap/skills"
+                    else "`chmod +x` it and commit mode 100755; when Git ignores "
+                    "filesystem modes, stage it with `git add --chmod=+x`"
+                )
                 out.append(Issue(
                     kind="non-executable-script",
                     task=f"{label}/{rel.as_posix()}",
                     message=(
                         f"{path} declares a `#!` shebang but is not executable "
-                        "— `chmod +x` it and commit mode 100755; when Git ignores "
-                        "filesystem modes, stage it with `git add --chmod=+x`"
+                        f"— {remediation}"
                     ),
                     severity="error",
                 ))
