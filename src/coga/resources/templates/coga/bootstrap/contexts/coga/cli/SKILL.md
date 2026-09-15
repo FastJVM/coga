@@ -136,10 +136,11 @@ running the `coga ticket` interview. `--description` fills the new ticket's
 loud, before anything is written, on a level-2 heading line (`## ...`) or the
 blackboard fence on its own line, since either would break the ticket's
 section/fence structure; `###` subheadings are fine. `--owner` sets `owner:`
-to that coga name instead of `user` from `coga.local.toml`, and the default
-cascade follows it: `human:` takes the same name, as does `assignee:` on a
-workflow-less draft (with a workflow, step 1's role resolves against the
-owner). Any non-empty name is accepted; surrounding whitespace is stripped and
+to that coga name instead of `user` from `coga.local.toml`. Nothing else is
+derived from it at create time: there is no stored `human:` or `assignee:`
+(both are rejected ticket keys since #784) — who holds the ticket is derived
+per step from `owner`, the optional `agent:` main-agent choice, and the frozen
+step's `assignee:` role. Any non-empty name is accepted; surrounding whitespace is stripped and
 an empty `--owner` fails loud.
 
 The deliberate separation keeps the moment of authorship distinct from
@@ -155,7 +156,7 @@ Run the guided ticket-authoring interview (`bootstrap/ticket`).
   launch the authoring skill against it.
 - `coga ticket add-retry` — edit an existing ticket at any status.
 
-The guided authoring flow chooses workflow/context/assignee with the human,
+The guided authoring flow chooses workflow/contexts/main agent with the human,
 edits the ticket, and preserves any valid lifecycle status. An
 out-of-vocabulary status is malformed metadata: the interview confirms the
 intended valid status and repairs its correlated workflow/step shape. After
@@ -245,7 +246,7 @@ stdout / exit contracts remain behind the registered `coga run` recipe surface.
   (e.g. `--agent claude`). Within that supervised launch, it follows directly
   consecutive workflow steps declared `assignee: agent`; another role ends the
   continuation. It may assist on a human-owned step, prints that unusual
-  handoff in the launch banner, and never rewrites the ticket's `assignee:`;
+  handoff in the launch banner, and never rewrites the ticket's `agent:`;
   human-step assists never propagate. Without the flag, a human handoff is
   still refused.
 - `coga launch <slug> --prompt-report` — print composed prompt layers,
@@ -290,20 +291,23 @@ start), but a mid-workflow ticket-state sync miss (`coga bump` / `mark`) stays
 on-disk markdown is the source of truth and aborting there would stall the
 supervised chain.
 
-Agent type normally comes from the ticket's `assignee` directly — it names an
-effective `[agents.<type>]` block after `coga.local.toml` has layered individual
-keys and local-only types over `coga.toml`. Human assignees are not launchable
-by default. An explicit `--agent <type>` is the on-demand assist escape hatch: it
-selects the agent in memory for that launch only, leaves the human assignee on
-disk, and identifies the assist in the banner.
+Agent type is derived, never stored per step: `bump.resolve_operator` reads
+the ticket's `owner`, its optional `agent:` main-agent choice (frozen at
+activation), and the current frozen step's `assignee:` role (`owner`, `agent`,
+or `other-agent`), and maps an agent role to an effective `[agents.<type>]`
+block after `coga.local.toml` has layered individual keys and local-only types
+over `coga.toml`. Owner-held steps are not launchable by default. An explicit
+`--agent <type>` is the on-demand assist escape hatch: it selects the agent in
+memory for that launch only, leaves the ticket's `agent:` untouched, and
+identifies the assist in the banner.
 
 For workflow-bound interactive tasks, `launch` can continue through
 consecutive agent-owned steps in fresh processes. After a clean agent exit,
-it re-reads the ticket and continues only if the task is still
-`in_progress`, the step advanced, the new current step has `skill:`, and the
-concrete assignee did not change. It stops at human/no-skill steps, assignee
-handoffs, terminal tasks, paused or blocked tasks, no-progress exits, and
-non-zero exits.
+it re-reads the ticket and continues if the task is still `in_progress`, the
+step advanced, and the next operator derives to an agent. This includes
+`agent` ↔ `other-agent` handoffs and agent steps with inline instructions
+instead of attached skills. It stops at owner handoffs, terminal tasks, paused
+or blocked tasks, no-progress exits, unresolved operators, and non-zero exits.
 
 That supervisor loop only exists when a live `coga launch` process is
 running around the agent. API/manual sessions do not chain: after `coga bump`,
@@ -736,7 +740,7 @@ working launch:
    drafts — run the guided authoring interview to make them ready before
    launching? [Y/n]"* — and if you agree, runs the guided `coga ticket`
    interview on each picked draft, turning it into a launchable shape
-   (workflow, contexts, assignee). You end an interview at once if that draft
+   (workflow, contexts, main agent). You end an interview at once if that draft
    is already fine; decline the prompt and picked drafts go straight to
    phase 2 (an unready one is reported, not launched). A pick with no drafts
    is never prompted.
@@ -862,8 +866,8 @@ Gaps and unnumbered siblings are legal and unflagged.
 Pass `--agent <type>` to run picked-draft guided authoring interviews and to
 launch swept agent-owned tasks (and launchable tasks in the picker's confirmed
 set) with that configured agent type. The override is ephemeral and applies to
-authoring plus the first launched step—later steps follow the ticket's resolved
-assignee, so `other-agent` rotation keeps its meaning. Megalaunch deliberately
+authoring plus the first launched step—later steps follow the ticket's derived
+operator, so `other-agent` rotation keeps its meaning. Megalaunch deliberately
 keeps its own human gate: unlike an explicit `coga launch --agent` assist, a
 human-assigned working step still skips.
 
@@ -1005,8 +1009,8 @@ git sync owned by each repo while allowing one cron entry such as `coga
 recurring --all ~/Code` without racing two checkouts of one remote workspace.
 
 Pass `--agent <type>` to run every agent-backed task in the sweep with that
-configured agent type. The override is ephemeral: it does not rewrite ticket
-assignees, and a period task carrying `ticket.py` keeps its deterministic
+configured agent type. The override is ephemeral: it does not rewrite a
+ticket's `agent:`, and a period task carrying `ticket.py` keeps its deterministic
 execution path. The scanner delegates every template to `coga launch --agent`,
 which classifies each period task from its own directory, so the explicit flag
 may also assist a current human-owned step. The command passes the override to
@@ -1162,12 +1166,15 @@ overrides the template directory name, which defaults to the task's leaf slug.
 
 The body above the blackboard fence travels verbatim; the blackboard is reset,
 because a template blackboard holds durable cross-run state rather than one
-run's scratch. `status:`, `step:`, `slug:`, `human:`, and `agent:` are dropped
-(the creator re-derives them per period), a frozen `workflow:` snapshot
-collapses back to its name, and ticket-level `skills:` are dropped with a
-warning — they are never copied into a period task, so process skills belong
-on the workflow's steps. Everything else (`title`, `owner`, `assignee`,
-`watchers`, `contexts`, `secrets`) passes through.
+run's scratch. `status:`, `step:`, and `period_generation:` are dropped (the
+creator re-derives them per period), a frozen `workflow:` snapshot collapses
+back to its name, and ticket-level `skills:` are dropped with a warning — they
+are never copied into a period task, so process skills belong on the
+workflow's steps. `title`, `owner`, `agent` (the main-agent choice every
+period task inherits), `contexts` (minus the auto-attached
+`coga/period-task`), `secrets`, and any repo extension field pass through. The
+removed keys `slug`, `human`, `assignee`, and `watchers` never reach a
+template: `Template.load` rejects them as `bad-recurring-template`.
 
 It refuses instead of guessing: an existing `coga/recurring/<name>/` is never
 overwritten, a bad cron leaves the source ticket untouched, and an
@@ -1255,7 +1262,7 @@ only; they don't accept their own flags.
   `coga launch bootstrap/browser-automation`.
 - Sweeping all your launchable agent work (active + in_progress) →
   `coga megalaunch`
-  (`--agent <type>` runs the sweep with that agent regardless of assignee,
+  (`--agent <type>` runs the sweep with that agent regardless of `agent:`,
   `coga megalaunch <dir>` scopes it to one `tasks/` sub-tree).
 - Picking which tasks to launch (arrow-key checkbox list over any owner's
   non-terminal tasks) → `coga megalaunch --pick`; replaying the
