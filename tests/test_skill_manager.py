@@ -154,8 +154,6 @@ def _gh_install_runner(commands: list[list[str]]):
                 shutil.rmtree(target)
             shutil.copytree(source, target)
             return _completed(command, stdout="installed")
-        if command[:3] == ["gh", "skill", "update"]:
-            return _completed(command, stdout="updated")
         raise AssertionError(f"unexpected command: {command}")
 
     return runner
@@ -214,23 +212,259 @@ def test_github_owner_repo_normalizes_common_transports(source: str) -> None:
     assert github_owner_repo(source) == "google/agents-cli"
 
 
-def test_update_all_delegates_github_backed_skills_to_gh_skill(
+def _gh_backed_skill(name: str) -> str:
+    """A SKILL.md carrying the frontmatter `gh skill install` writes."""
+    return dedent(
+        f"""
+        ---
+        name: {name.rsplit("/", 1)[-1]}
+        metadata:
+            github-repo: https://github.com/example/skills
+            github-path: skills/{name}
+            github-tree-sha: {"0" * 40}
+        ---
+        Use the tool.
+        """
+    ).lstrip()
+
+
+# gh's exit 0 with only its up-to-date notice: the skill is current.
+_GH_UP_TO_DATE = _completed([], stderr="All skills are up to date.\n")
+
+
+def _gh_update_runner(
+    commands: list[list[str]],
+    outcomes: dict[str, subprocess.CompletedProcess[str]],
+):
+    """Answer `gh skill --help` and one `gh skill update ... <ref>` per skill
+    with the `CompletedProcess` `outcomes` maps that ref to."""
+
+    def runner(args, cwd=None):
+        command = list(args)
+        commands.append(command)
+        if command == ["gh", "skill", "--help"]:
+            return _completed(command, stdout="gh skill help")
+        if command[:3] == ["gh", "skill", "update"]:
+            return outcomes[command[-1]]
+        raise AssertionError(f"unexpected command: {command}")
+
+    return runner
+
+
+def _no_command_runner(args, cwd=None):
+    raise AssertionError(f"unexpected command: {list(args)}")
+
+
+def test_update_all_asks_gh_about_each_github_backed_skill_in_turn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One `gh skill update <ref>` per installed gh-backed skill, and one
+    measured result row each — never a single synthetic `gh-managed` row."""
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    _package_skill_root(tmp_path, monkeypatch)
+    skills = cfg.repo_root / "skills"
+    _write(skills / "pack-a" / "SKILL.md", _gh_backed_skill("pack-a"))
+    _write(skills / "pack-b" / "SKILL.md", _gh_backed_skill("pack-b"))
+    # A first-party skill that merely mentions GitHub is not gh-backed and is
+    # never handed to `gh skill update`.
+    _write(
+        skills / "code" / "open-pr" / "SKILL.md",
+        "---\nname: code/open-pr\n---\nOpen the PR at https://github.com/.\n",
+    )
+    commands: list[list[str]] = []
+    outcomes = {
+        "pack-a": _completed(
+            [],
+            stdout="  • pack-a (example/skills) 0000000 > 1111111 [main]\nUpdated pack-a\n",
+            stderr="\n1 update(s) available:\n\n",
+        ),
+        "pack-b": _GH_UP_TO_DATE,
+    }
+
+    summary = update_skills(
+        cfg, all_skills=True, runner=_gh_update_runner(commands, outcomes)
+    )
+
+    results = {result.name: result for result in summary.results}
+    assert set(results) == {"pack-a", "pack-b"}
+    assert results["pack-a"].status == "updated"
+    assert results["pack-a"].changed is True
+    assert results["pack-a"].source_type == "github"
+    assert "0000000 > 1111111 [main]" in results["pack-a"].message
+    assert results["pack-b"].status == "unchanged"
+    assert results["pack-b"].changed is False
+    update = ["gh", "skill", "update", "--dir", str(skills), "--all"]
+    assert commands == [
+        ["gh", "skill", "--help"],
+        [*update, "pack-a"],
+        [*update, "pack-b"],
+    ]
+    assert results["pack-a"].details["command"] == [*update, "pack-a"]
+
+
+def test_update_all_reports_a_failed_gh_skill_as_followup_beside_the_updated_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ticket's regression: one skill updates, one fails. The summary must
+    name both with their real statuses, and the skill-update recipe must count
+    a follow-up from it — not `1 updated, 0 need follow-up` by construction."""
+    from coga import skill_update
+
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    skills = cfg.repo_root / "skills"
+    _write(skills / "pack-a" / "SKILL.md", _gh_backed_skill("pack-a"))
+    _write(skills / "pack-b" / "SKILL.md", _gh_backed_skill("pack-b"))
+    outcomes = {
+        "pack-a": _completed([], stdout="Updated pack-a\n"),
+        "pack-b": _completed(
+            [],
+            returncode=1,
+            stderr="X Failed to update pack-b: HTTP 403: rate limit exceeded\n",
+        ),
+    }
+
+    summary = update_skills(cfg, all_skills=True, runner=_gh_update_runner([], outcomes))
+
+    results = {result.name: result for result in summary.results}
+    assert results["pack-a"].status == "updated"
+    assert results["pack-b"].status == "fetch-failed"
+    assert results["pack-b"].changed is False
+    assert "rate limit exceeded" in results["pack-b"].message
+    assert results["pack-b"].details["returncode"] == 1
+    assert "gh-managed" not in results
+
+    parsed = skill_update.parse_results(summary.to_dict())
+    assert skill_update.render_result_line(parsed) == (
+        "2 skill(s): 1 updated, 1 need follow-up, 0 skipped."
+    )
+    report = skill_update.render_blackboard_report(
+        parsed,
+        generated_at="2026-09-02T18:58:53+00:00",
+        command=["coga", "skill", "update", "--all", "--json"],
+        pr_url=None,
+        pr_requested=True,
+    )
+    assert "### Needs follow-up" in report
+    assert "- `pack-b`: `fetch-failed` (github) - gh skill could not update it: HTTP 403" in report
+    assert "- `pack-a`: `updated` (github)" in report
+    assert "gh-managed" not in report
+    assert "delegated" not in report
+
+
+@pytest.mark.parametrize(
+    ("returncode", "stdout", "stderr", "status", "fragment"),
+    [
+        (0, "Updated tools/x\n", "", "updated", "updated by gh skill"),
+        (0, "", "All skills are up to date.\n", "unchanged", "current"),
+        (
+            0,
+            "",
+            "! Skipping tools/x: could not resolve example/skills: HTTP 404\n"
+            "All skills are up to date.\n",
+            "fetch-failed",
+            "could not resolve example/skills",
+        ),
+        (
+            0,
+            "",
+            "! Skipping tools/x: invalid repository metadata: bad host\n",
+            "fetch-failed",
+            "invalid repository metadata",
+        ),
+        (
+            1,
+            "",
+            "X Failed to update tools/x: tarball download failed\n",
+            "fetch-failed",
+            "tarball download failed",
+        ),
+        (
+            0,
+            "",
+            "⊘ tools/x is pinned to v1.2.0 (skipped)\nAll skills are up to date.\n",
+            "skipped-pinned",
+            "pinned to v1.2.0",
+        ),
+        (
+            1,
+            "",
+            "none of the specified skills are installed\n",
+            "failed",
+            "none of the specified skills are installed",
+        ),
+        (0, "", "", "failed", "no output"),
+    ],
+)
+def test_classify_gh_update_output_reads_each_gh_outcome(
+    returncode: int, stdout: str, stderr: str, status: str, fragment: str
+) -> None:
+    result = skill_manager.classify_gh_update_output(
+        "tools/x",
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
+        command=["gh", "skill", "update", "--dir", "skills", "--all", "tools/x"],
+    )
+
+    assert result.name == "tools/x"
+    assert result.source_type == "github"
+    assert result.status == status
+    assert fragment in result.message
+    assert result.changed is (status == "updated")
+    assert result.details["returncode"] == returncode
+
+
+def test_classify_gh_update_output_keeps_unrecognised_message_to_one_line() -> None:
+    """`message` renders as a single report bullet; gh's full output stays in
+    `details` so a usage dump cannot break the PR body or blackboard list."""
+    stderr = (
+        "! tools/x has no GitHub metadata. Reinstall to enable updates\n"
+        "All skills are up to date.\n"
+    )
+    result = skill_manager.classify_gh_update_output(
+        "tools/x",
+        returncode=1,
+        stdout="",
+        stderr=stderr,
+        command=["gh", "skill", "update", "tools/x"],
+    )
+
+    assert result.status == "failed"
+    assert "\n" not in result.message
+    assert "has no GitHub metadata" in result.message
+    assert "+1 more lines in details" in result.message
+    assert result.details["stderr"] == stderr.strip()
+
+
+def test_classify_gh_update_output_ignores_forced_colour() -> None:
+    result = skill_manager.classify_gh_update_output(
+        "tools/x",
+        returncode=0,
+        stdout="\x1b[0;32m✓\x1b[0m Updated tools/x\n",
+        stderr="",
+        command=["gh", "skill", "update", "tools/x"],
+    )
+
+    assert result.status == "updated"
+
+
+def test_update_one_github_backed_skill_reports_ghs_outcome(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg = load_config(_repo(tmp_path, monkeypatch))
     _write(
-        cfg.repo_root / "skills" / "tools" / "example" / "SKILL.md",
-        "---\nname: tools/example\n---\nhttps://github.com/example/skill\n",
+        cfg.repo_root / "skills" / "example" / "SKILL.md",
+        _gh_backed_skill("example"),
     )
     commands: list[list[str]] = []
+    outcomes = {"example": _completed([], stdout="Updated example\n")}
 
     summary = update_skills(
-        cfg,
-        all_skills=True,
-        runner=_gh_install_runner(commands),
+        cfg, "example", runner=_gh_update_runner(commands, outcomes)
     )
 
-    assert summary.results[0].status == "delegated"
+    assert summary.results[0].status == "updated"
+    assert summary.results[0].changed is True
     assert commands == [
         ["gh", "skill", "--help"],
         [
@@ -240,8 +474,89 @@ def test_update_all_delegates_github_backed_skills_to_gh_skill(
             "--dir",
             str(cfg.repo_root / "skills"),
             "--all",
+            "example",
         ],
     ]
+
+
+def test_update_refuses_a_nested_github_backed_skill_before_gh_moves_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`gh skill update` reinstalls at the tree root, so updating `ns/x`
+    would delete it and create `x` while printing a clean `Updated ns/x`
+    (verified on gh 2.92). Coga reports follow-up without touching gh — not
+    even the availability probe, since the row does not depend on it."""
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    _package_skill_root(tmp_path, monkeypatch)
+    _write(
+        cfg.repo_root / "skills" / "tools" / "example" / "SKILL.md",
+        _gh_backed_skill("tools/example"),
+    )
+
+    summary = update_skills(cfg, all_skills=True, runner=_no_command_runner)
+
+    assert [result.name for result in summary.results] == ["tools/example"]
+    assert summary.results[0].status == "failed"
+    assert summary.results[0].changed is False
+    assert "would move `tools/example` to `example`" in summary.results[0].message
+    assert (cfg.repo_root / "skills" / "tools" / "example" / "SKILL.md").is_file()
+
+
+def test_update_all_checks_gh_before_any_url_skill_is_rewritten(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A missing `gh skill` must fail before the URL updater touches disk, or
+    a half-finished run leaves rewritten skills uncommitted in the checkout.
+    `clarity/` sorts ahead of `google-*/`, so ordering alone does not save it."""
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    _package_skill_root(tmp_path, monkeypatch)
+    commands: list[list[str]] = []
+    install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        downloader=lambda url: _skill_zip("a-url-skill", body="old\n"),
+        runner=_gh_install_runner(commands),
+        now=lambda: "2026-05-13T12:00:00Z",
+    )
+    url_skill_md = cfg.repo_root / "skills" / "a-url-skill" / "SKILL.md"
+    before = url_skill_md.read_text()
+    _write(cfg.repo_root / "skills" / "z-pack" / "SKILL.md", _gh_backed_skill("z-pack"))
+
+    def old_gh(args, cwd=None):
+        command = list(args)
+        assert command == ["gh", "skill", "--help"], command
+        return _completed(command, returncode=1, stderr="unknown command: skill")
+
+    fetched: list[str] = []
+
+    def downloader(url: str) -> bytes:
+        fetched.append(url)
+        return _skill_zip("a-url-skill", body="new\n")
+
+    with pytest.raises(GhSkillUnavailableError):
+        update_skills(cfg, all_skills=True, runner=old_gh, downloader=downloader)
+
+    assert fetched == []
+    assert url_skill_md.read_text() == before
+
+
+def test_update_one_skill_without_a_managed_source_reports_unmanaged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    # An empty package tree: with the real one, `code/implement` is a bundled
+    # twin and reports `skipped-bundled` instead.
+    _package_skill_root(tmp_path, monkeypatch)
+    _write(
+        cfg.repo_root / "skills" / "code" / "implement" / "SKILL.md",
+        "---\nname: code/implement\n---\nSee https://github.com/ for the PR.\n",
+    )
+
+    summary = update_skills(cfg, "code/implement", runner=_no_command_runner)
+
+    assert summary.results[0].status == "unmanaged"
+    assert summary.results[0].changed is False
+    assert "reinstall to enable updates" in summary.results[0].message
 
 
 def test_install_url_downloads_local_installs_and_records_coga_metadata(
@@ -651,13 +966,20 @@ def test_status_labels_non_coga_skill_provenance(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg = load_config(_repo(tmp_path, monkeypatch))
+    _package_skill_root(tmp_path, monkeypatch)
     _write(
         cfg.repo_root / "skills" / "custom" / "SKILL.md",
         "---\nname: custom\n---\nlocal-only\n",
     )
     _write(
         cfg.repo_root / "skills" / "github-tool" / "SKILL.md",
-        "---\nname: github-tool\n---\nhttps://github.com/example/skill\n",
+        _gh_backed_skill("github-tool"),
+    )
+    # Mentioning GitHub in the body is not `gh skill` provenance; only the
+    # frontmatter `metadata.github-repo` gh writes counts, as for `update`.
+    _write(
+        cfg.repo_root / "skills" / "code" / "open-pr" / "SKILL.md",
+        "---\nname: code/open-pr\n---\nOpen the PR at https://github.com/.\n",
     )
 
     results = {result.name: result for result in status_skills(cfg)}
@@ -665,6 +987,7 @@ def test_status_labels_non_coga_skill_provenance(
     assert results["custom"].source_type == "unknown"
     assert results["custom"].status == "unmanaged"
     assert results["custom"].message == "no Coga source metadata"
+    assert results["code/open-pr"].status == "unmanaged"
     assert results["github-tool"].source_type == "github"
     assert results["github-tool"].status == "delegated"
     assert results["github-tool"].message == "managed by gh skill metadata"
@@ -707,25 +1030,52 @@ def test_status_marks_local_skill_that_overrides_bundled(
     assert "shadows bundled" in results["tools/example"].message
 
 
-def test_update_all_skips_bundled_bootstrap_skills(
+def test_update_all_reports_only_installed_bundled_twins_as_skipped(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """A bundled ref this repo never installed is not one of its skills and
+    gets no row; an installed twin of a bundled skill is skipped because its
+    updates come with the package."""
     cfg = load_config(_repo(tmp_path, monkeypatch))
     bundled_root = _package_skill_root(tmp_path, monkeypatch)
     _write(
         bundled_root / "retro" / "done-ticket" / "SKILL.md",
         "---\nname: retro/done-ticket\n---\nbundled\n",
     )
+    _write(
+        bundled_root / "bootstrap" / "import" / "SKILL.md",
+        "---\nname: bootstrap/import\n---\nbundled\n",
+    )
+    _write(
+        cfg.repo_root / "skills" / "retro" / "done-ticket" / "SKILL.md",
+        "---\nname: retro/done-ticket\n---\nlocal copy\n",
+    )
 
-    def runner(args, cwd=None):
-        raise AssertionError(f"unexpected command: {list(args)}")
-
-    summary = update_skills(cfg, all_skills=True, runner=runner)
+    summary = update_skills(cfg, all_skills=True, runner=_no_command_runner)
     results = {result.name: result for result in summary.results}
 
+    assert set(results) == {"retro/done-ticket"}
     assert results["retro/done-ticket"].source_type == "bundled"
     assert results["retro/done-ticket"].status == "skipped-bundled"
-    assert "pip install --upgrade coga" in results["retro/done-ticket"].message
+    # The repo copy shadows the packaged one, so a package upgrade would not
+    # change the directory this row names; do not point operators at it.
+    assert "shadows the packaged copy" in results["retro/done-ticket"].message
+    assert "pip install" not in results["retro/done-ticket"].message
+
+
+def test_update_all_emits_no_row_for_skills_without_a_managed_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    _package_skill_root(tmp_path, monkeypatch)
+    _write(
+        cfg.repo_root / "skills" / "code" / "implement" / "SKILL.md",
+        "---\nname: code/implement\n---\nfirst-party\n",
+    )
+
+    summary = update_skills(cfg, all_skills=True, runner=_no_command_runner)
+
+    assert summary.results == []
 
 
 def test_update_one_bundled_skill_reports_package_update_path(
@@ -742,6 +1092,31 @@ def test_update_one_bundled_skill_reports_package_update_path(
 
     assert summary.results[0].status == "skipped-bundled"
     assert summary.results[0].source_type == "bundled"
+    assert "pip install --upgrade coga" in summary.results[0].message
+
+
+def test_update_one_installed_bundled_twin_matches_the_all_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`coga skill update code/x` on an installed twin of a bundled skill
+    reports the same `skipped-bundled` row `--all` does, not `unmanaged`
+    with a "reinstall" hint for a skill the package already ships."""
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    bundled_root = _package_skill_root(tmp_path, monkeypatch)
+    _write(
+        bundled_root / "retro" / "done-ticket" / "SKILL.md",
+        "---\nname: retro/done-ticket\n---\nbundled\n",
+    )
+    _write(
+        cfg.repo_root / "skills" / "retro" / "done-ticket" / "SKILL.md",
+        "---\nname: retro/done-ticket\n---\nlocal copy\n",
+    )
+
+    summary = update_skills(cfg, "retro/done-ticket", runner=_no_command_runner)
+
+    assert summary.results[0].status == "skipped-bundled"
+    assert summary.results[0].source_type == "bundled"
+    assert "shadows the packaged copy" in summary.results[0].message
 
 
 def test_remove_requires_exact_installed_skill_path(
@@ -1381,17 +1756,18 @@ def test_dream_pr_summary_skips_pr_when_nothing_changed(
 def test_dream_pr_summary_skips_pr_when_commit_is_empty(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A `changed=True` result that leaves no on-disk diff (e.g. an opaque
-    `gh skill update` that found nothing upstream) must not error on an empty
-    commit — it stages, sees no diff, opens no PR, and restores the branch."""
+    """A `changed=True` result that leaves no on-disk diff (e.g. a `gh skill
+    update` that re-downloaded byte-identical files) must not error on an
+    empty commit — it stages, sees no diff, opens no PR, and restores the
+    branch."""
     cfg = load_config(_repo(tmp_path, monkeypatch))
     summary = SkillUpdateSummary(
         results=[
             SkillResult(
-                name="gh-managed",
+                name="tools/example",
                 source_type="github",
-                status="delegated",
-                message="delegated GitHub-backed skill updates to gh skill",
+                status="updated",
+                message="updated by gh skill",
                 changed=True,
             )
         ]
@@ -1489,8 +1865,8 @@ def test_update_cli_emits_json_summary(
                 SkillResult(
                     name="tools/example",
                     source_type="github",
-                    status="delegated",
-                    message="delegated tools/example update to gh skill",
+                    status="unchanged",
+                    message="gh skill found it current",
                 )
             ]
         )
@@ -1500,7 +1876,7 @@ def test_update_cli_emits_json_summary(
 
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
-    assert payload["counts"] == {"delegated": 1}
+    assert payload["counts"] == {"unchanged": 1}
 
 
 def test_install_url_cli_passes_force(

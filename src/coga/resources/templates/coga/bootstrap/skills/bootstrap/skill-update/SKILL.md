@@ -8,9 +8,11 @@ description: Update remotely managed GitHub/URL skills into one reviewable PR, s
 This skill documents the skill-update run behind the
 `recurring/skill-update/` task, whose `ticket.py` calls
 `coga.skill_update.run_skill_update_recipe` directly — no agent, no composed
-prompt. The run performs `coga skill update --all --pr`: GitHub-backed skills
-are delegated to `gh skill update`, while URL-backed skills use Coga's digest
-and provenance checks. Updates land in one draft PR on a dedicated branch.
+prompt. The run performs `coga skill update --all --pr`: each installed
+GitHub-backed skill (one whose `SKILL.md` frontmatter carries `gh skill`'s
+`metadata.github-repo`) is handed to `gh skill update` one at a time and
+reports what `gh` did to it, while URL-backed skills use Coga's digest and
+provenance checks. Updates land in one draft PR on a dedicated branch.
 URL-backed local adaptations and provenance conflicts are left untouched and
 reported; GitHub-backed directories follow `gh skill`'s stored-tree-SHA policy
 and can be overwritten before that PR is opened. Bundled (package-backed)
@@ -65,10 +67,11 @@ maintenance contract above rather than masquerading as a reported no-op.
   the draft PR can review a resulting overwrite but cannot recover it. Maintain
   local-backed installs by reviewing their source and reinstalling explicitly;
   their omission alone does not make this run fail.
-- Output: append `## Skill Update` to the task blackboard, bucketing every
-  result emitted by the GitHub, URL, and bundled paths and linking the PR when
-  one was opened. Local-backed and hand-vendored directories currently produce
-  no result line. A run that fails before it classifies anything appends the
+- Output: append `## Skill Update` to the task blackboard with one row per
+  installed managed skill — GitHub-backed, URL-backed, or an installed twin of
+  a bundled skill — bucketed by its emitted status and linking the PR when one
+  was opened. Bundled refs the repo never installed get no row. Local-backed
+  and hand-vendored directories currently produce no result line. A run that fails before it classifies anything appends the
   same section carrying a `### Failed` block with the command and its failing
   output,
   so a hard failure is as legible in the run record as a follow-up — the
@@ -90,9 +93,14 @@ blackboard, so run from one the recipe writes its report to stdout rather than
 into a packaged `bootstrap/<name>/ticket.md`.
 
 The skill runs `coga skill update --all --pr --json`, then groups the results
-by their raw update status so each status (e.g. `updated`, URL-backed
+by their raw update status so each status (e.g. `updated`, GitHub-backed
+`unchanged` / `fetch-failed` / `skipped-pinned`, URL-backed
 `skipped-local-adaptation` / `conflict`, or `failed`) is reported in its own
-bucket. It exits 2 when the `coga skill update` command itself failed, and 1
+bucket. `gh skill update` has no machine-readable output, so the GitHub
+statuses come from asking `gh` about one skill at a time and reading the line
+it prints for that skill; output the updater does not recognise is reported as
+`failed` with `gh`'s own words, so it lands under follow-up rather than
+reading as a no-op. It exits 2 when the `coga skill update` command itself failed, and 1
 when a run needs human follow-up but opened no PR to carry that follow-up
 forward; it also passes through `coga bump`'s exit code, which is 2 on most of its
 own refusals. This is not a complete installed-skill inventory: local-backed and
