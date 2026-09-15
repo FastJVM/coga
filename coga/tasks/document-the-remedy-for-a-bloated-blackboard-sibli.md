@@ -1,7 +1,7 @@
 ---
 title: 'Document the remedy for a bloated blackboard: sibling attachments and unattached
   contexts'
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,6 +25,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:9e4d29da-88fa-404c-9146-89aba16151af
 ---
 
 ## Description
