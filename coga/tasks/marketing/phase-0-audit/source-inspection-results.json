@@ -1,0 +1,35 @@
+{
+  "scope": "Pure composition, argv construction and handoff/classification checks; no agent or ticket script executed; no launch, Git or remote mutation.",
+  "checks": [
+    "Composed input contains selected context, brief, current method and recorded decision",
+    "Later review and human-step instructions are absent from the current-step prompt",
+    "Editing the shared context changes the next composition without a chat-history input",
+    "Only the selected-context layer changes for that edit",
+    "Editing the brief and live method changes their next composed input",
+    "The existing ticket retains its frozen step sequence",
+    "Advancing the view to review selects that step skill",
+    "Agent-to-agent handoff permits another session",
+    "Launch argv selects the existing external CLI and passes the composed input",
+    "A human-assigned next step returns to the caller",
+    "An ordinary task has no deterministic phase by default",
+    "A reserved sibling script selects the deterministic phase without importing it",
+    "Dream uses the ordinary recurring launch alias"
+  ],
+  "layers": [
+    "header",
+    "base_prompt",
+    "session_conduct",
+    "ticket_context",
+    "workflow_inline",
+    "task_description",
+    "task_context",
+    "blackboard"
+  ],
+  "human_stop_reason": "newsletter: next step hands off to editor; returning to caller",
+  "context_edit_changed_layers": [
+    "ticket_context"
+  ],
+  "date": "2026-09-12",
+  "coga_revision": "7a3d56431b8827509bfb9a0392e8f7a437caf342",
+  "competitor_inspection": "Upstream main source read on 2026-09-12; competitors were not executed in this probe."
+}

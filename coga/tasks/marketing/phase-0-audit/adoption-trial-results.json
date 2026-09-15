@@ -1,0 +1,207 @@
+{
+  "status": "awaiting_human_knowledge_review",
+  "manifest": {
+    "fixture": "/tmp/coga-adoption-trial-20260911/candidate",
+    "ce_commit": "f050478dfc2b9621a2a75fbe58b37f2468d3af4a",
+    "ce_version": "3.24.0",
+    "claude_version": "2.1.269",
+    "baseline_head": "298d3c447bba1e01ab75e2ef5b07e33acb615103",
+    "synthetic": true,
+    "queue_integration_words": 260,
+    "queue_integration_lines": 26,
+    "candidate_start_head": "edc519c18d136c4170ca6e9b9132aa1087a803a4"
+  },
+  "protocol": {
+    "question": "Can unmodified Compound Engineering plus ordinary repository instructions and Git reproduce the useful Coga work loop without a new programmatic task runner?",
+    "candidate": "Compound Engineering 3.24.0 on the installed Claude Code CLI, with 26 lines of explicit queue instructions and project guidance.",
+    "scenarios": [
+      {
+        "name": "prepared_queue",
+        "expected": [
+          "Code task verifies a corrected count of three",
+          "Dependent non-code brief uses its artifact",
+          "Independent human gate holds",
+          "State is written in plan files",
+          "Ordinary work leaves shared lesson unchanged"
+        ]
+      },
+      {
+        "name": "fresh_resume_and_edit",
+        "expected": [
+          "New session skips completed code",
+          "Reopened brief uses its directly edited current requirements",
+          "Human gate still holds"
+        ]
+      },
+      {
+        "name": "propose_review_reuse",
+        "expected": [
+          "CE updates a stale shared lesson from completed-work evidence in an isolated branch",
+          "Unmerged proposal does not change accepted-source worktree",
+          "Human can revise/reject/merge a concrete diff",
+          "A fresh later task retrieves and correctly applies accepted knowledge without old conversation"
+        ]
+      }
+    ],
+    "limits": [
+      "Synthetic functional trial, not a productivity or human-attention benchmark",
+      "Coga production history and previous isolated checks are reference evidence, not a matched new run",
+      "No claim about multi-operator concurrency, machine-crash recovery, large queues or dependency cycles",
+      "Any queue instructions, proposal isolation, CLI prompts and repairs are recorded as integration, not attributed to stock CE",
+      "No external publication, actual Coga migration or current-ticket workflow transition"
+    ]
+  },
+  "first_queue": {
+    "checks": {
+      "code_plan_complete": true,
+      "brief_plan_complete": true,
+      "human_gate_held": true,
+      "case_sensitive_distinct_count": true,
+      "durable_count_correct": true,
+      "brief_matches_source_and_limit": true,
+      "queue_state_saved": true,
+      "verification_passes": true,
+      "unapproved_knowledge_unchanged": true
+    },
+    "passing": 9,
+    "total": 9,
+    "test_output": "test_checkins_fixture_counts_three (test_attendance.AttendanceTests.test_checkins_fixture_counts_three) ... ok\ntest_differently_cased_ids_are_separate_passes (test_attendance.AttendanceTests.test_differently_cased_ids_are_separate_passes) ... ok\ntest_exact_duplicate_confirmed_rows_count_once (test_attendance.AttendanceTests.test_exact_duplicate_confirmed_rows_count_once) ... ok\ntest_no_rows_counts_zero (test_attendance.AttendanceTests.test_no_rows_counts_zero) ... ok\ntest_non_confirmed_rows_are_excluded (test_attendance.AttendanceTests.test_non_confirmed_rows_are_excluded) ... ok\ntest_single_confirmed_pass (test_attendance.AttendanceTests.test_single_confirmed_pass) ... ok\ntest_surrounding_whitespace_is_transport_noise (test_attendance.AttendanceTests.test_surrounding_whitespace_is_transport_noise) ... ok\n\n----------------------------------------------------------------------\nRan 7 tests in 0.000s\n\nOK\n",
+    "source_sha256": "7f1f67b12b4c3a7a1db581070d221ad72cfd1a91a6482df82e492c907082058a",
+    "head": "9e61bb8b09fa786baef3d2ca895ba2b8a6d8a32d"
+  },
+  "resume_and_proposal": {
+    "checks": {
+      "completed_code_unchanged": true,
+      "edited_first_sentence_used": true,
+      "new_word_limit_respected": true,
+      "brief_complete": true,
+      "human_gate_still_held": true,
+      "accepted_knowledge_still_old": true,
+      "proposal_has_scoped_correction": true,
+      "proposal_did_not_modify_accepted_source": true
+    },
+    "passing": 8,
+    "total": 8,
+    "word_count": 23,
+    "code_sha256": "7f1f67b12b4c3a7a1db581070d221ad72cfd1a91a6482df82e492c907082058a",
+    "head": "614dd0d286fa82cb9f7cf893b9689a4026c60ab2",
+    "human_knowledge_decision": "pending"
+  },
+  "operator_instructions": "# Operate the saved work queue\n\nThis short instruction file is trial-specific integration around the unmodified\nCompound Engineering plugin. It is not a shipped CE queue feature.\n\n1. Read docs/plans/*.md from disk. Their status, dependencies, workflow and\n   named context sources are authoritative. Never infer approval from time.\n2. A ready or in-progress plan is eligible only when all named dependencies\n   are complete. Leave awaiting-human plans alone and continue other work.\n3. Execute one eligible plan at a time in a fresh Agent context using the\n   loaded compound-engineering:ce-work skill with\n   `mode:return-to-caller <absolute-plan-path>`. Pass the exact skill path if\n   the worker cannot resolve its name. The worker must read the skill and\n   its required phase references, not replace them with an improvised process.\n4. The worker follows the plan's named sources, verifies the actual output,\n   and writes its working state/evidence before returning. Code and non-code\n   plans keep their different execution paths. Local commits on trial/work\n   are authorized. Shared knowledge cannot change as part of ordinary work.\n5. Inspect the returned evidence and actual files. Mark a verified plan\n   complete and preserve its output/evidence paths in the plan. Record a\n   missing input or failure as a blocker on that plan. Do not silently clear\n   it or block unrelated eligible plans. Commit only the trial's own files.\n6. Re-read the queue after each completed plan so a newly satisfied dependency\n   can run. Stop when nothing is eligible. Save reports/queue.md with completed,\n   waiting and blocked plans. A fresh invocation starts from these files and\n   skips completed work; do not rely on any previous coordinator conversation.\n",
+  "project_instructions": "# Project instructions\n\nThis is an isolated synthetic fixture. Work only inside this repository and\nread the explicitly loaded Compound Engineering plugin when needed. No remote\npublishing, network calls, dependency installation, real account operations,\nor changes to user/global configuration. Local commits are authorized.\n\nThe maintained plans under docs/plans are the work definition. Read the current\nfile when beginning or resuming work; never use a previous conversation as the\nonly task definition. Follow the context/source references named by the plan.\nBefore work, consult relevant accepted lessons under docs/solutions. Proposed\nlessons stay on a separate branch/worktree until the operator merges them.\nChat and direct editing may both revise the plans.\n\nProject verification: python -m unittest discover -s tests -v.\n",
+  "prompts": {
+    "preflight": "Read the local README.md and the loaded compound-engineering:ce-work skill. Make no changes. Report the plugin skill path, whether it supports knowledge-work, and whether its return-to-caller mode avoids remote publishing. Stop after this capability preflight.\n",
+    "queue-first": "Read operator.md and operate all currently eligible saved plans. Use the real Compound Engineering execution skill for each eligible plan. Honor every human gate. Work only in this isolated synthetic repository. Do not publish or change shared knowledge. Stop when the queue has no eligible work.\n",
+    "queue-resume": "Read operator.md and operate all currently eligible saved plans from their current files. Use Compound Engineering ce-work; its installed skill path is /tmp/coga-adoption-ce-20260911/skills/ce-work/SKILL.md. This is a fresh session with no prior task conversation. Honor all human gates, preserve completed work, and stop when nothing is eligible.\n",
+    "knowledge": "Use compound-engineering:ce-compound with mode:non-interactive depth:lightweight.\nThe skill path is /tmp/coga-adoption-ce-20260911/skills/ce-compound/SKILL.md.\n\nThis is the isolated trial/knowledge worktree for a shared-knowledge proposal,\nnot the accepted-source worktree. The completed code task is docs/plans/01-count.md;\nits evidence is reports/01.md, the code/tests and evidence/operator-note.md.\nThe existing docs/solutions/pass-identity.md is materially stale. Judge whether\nit qualifies for correction under the real CE skill and, if it does, update it\nfrom that evidence. Preserve provider scope and distinguish an observed rule\nfrom an unsupported universal claim. Do not rely on any past chat or read\nsession history. Do not change code, other task plans or user settings.\n\nLeave the proposal as local worktree changes for a human to inspect, edit or\nreject. No remote publishing and no merge into the accepted-source worktree.\nReport the changed files and the exact proposed durable rule.\n",
+    "reuse-preview": "Use compound-engineering:ce-work mode:return-to-caller /tmp/coga-adoption-trial-20260911/preview/docs/plans/04-import-check.md. Skill path: /tmp/coga-adoption-ce-20260911/skills/ce-work/SKILL.md. This is an isolated preview of proposed knowledge, not an approved merge. Follow the current plan and project instructions, do not read prior chats or another repo, and save the requested outputs.\n"
+  },
+  "runs": {
+    "preflight": {
+      "returncode": 0,
+      "elapsed_seconds": 45.79,
+      "cwd": "/tmp/coga-adoption-trial-20260911/candidate",
+      "fresh_session": true,
+      "subtype": "success",
+      "is_error": false,
+      "num_turns": 12,
+      "permission_denial_count": 1,
+      "final_report": "Preflight complete. No changes were made.\n\n## Capability preflight: `compound-engineering:ce-work`\n\n**Local README** (`README.md`): \"Cedar Workshop \u2014 synthetic trial fixture.\" Python stdlib only, invented data, tests via `python -m unittest discover -s tests -v`. Nothing in it constrains the skill.\n\n**Plugin skill path**\n`/tmp/coga-adoption-ce-20260911/skills/ce-work/SKILL.md` \u2014 reported by the harness as the skill's base directory when loaded. It is *outside* the candidate repo (`/tmp/coga-adoption-trial-20260911/candidate`), which is why file search inside the repo didn't find it. All 13 bundled references are present under `references/`.\n\n**Knowledge-work support: yes, via an explicit carve-out**\n`references/input-triage.md:44-46` routes any plan whose metadata carries `execution: knowledge-work` to `references/non-code-execution.md` (present on disk) instead of the code lifecycle. Two caveats:\n- It's triggered by plan **metadata**, not by prompt content. A bare prompt with no plan goes through `work-intake.md` as code work.\n- Blank invocation will *not* auto-select a knowledge-work plan; it stops and asks for an explicit path (`input-triage.md:49`).\n\n**Return-to-Caller mode avoids remote publishing: yes**\nActivated by a leading `mode:return-to-caller <plan-path>` token (`input-triage.md:27`). Per `SKILL.md` and `references/return-to-caller.md`:\n- Performs implementation and local verification only; explicitly must not run simplify, code review, commit, PR creation, CI watching, or babysitting \u2014 \"the caller owns those steps\" (`return-to-caller.md:3-5`).\n- Returns a structured result ending with `standalone_shipping_skipped: true` (`return-to-caller.md:28`).\n- Won't print a copy-paste prompt for external engines; any engine used \"must not open a PR\" (`return-to-caller.md:32`).\n- On a pre-existing dirty file collision it returns `blocked` rather than editing or committing it (`SKILL.md` Phase 1).\n\nOne thing to note for the trial: the skill *can* make local commits in return-to-caller mode (unit-scoped, per `implementation-loop.md` rules) \u2014 it avoids **push/PR**, not all git writes. If the trial needs a no-commit guarantee, that's a separate constraint to state at invocation time.\n\nStopping here as requested."
+    },
+    "queue-first": {
+      "returncode": 0,
+      "elapsed_seconds": 351.73,
+      "cwd": "/tmp/coga-adoption-trial-20260911/candidate",
+      "fresh_session": true,
+      "subtype": "success",
+      "is_error": false,
+      "num_turns": 53,
+      "permission_denial_count": 4,
+      "final_report": "Queue drained; stopping. Working tree is clean on `trial/work`, nothing pushed.\n\n## What ran\n\n**01-count** (code) \u2014 worker ran `ce-work mode:return-to-caller`, observed the red first (2 failures from `.lower()` folding `A7`/`a7`), removed the case-folding, kept whitespace stripping and the confirmed-only filter. I independently re-ran the suite (7/7 OK) and the CLI (`{\"confirmed\": 3}`), confirmed `reports/count.json` matches, and confirmed `docs/solutions/` and `data/` were untouched. Commits `be30bd8` (work), `dd9e7a3` (marked complete). Evidence: `reports/01.md`.\n\n**02-brief** (knowledge-work) \u2014 became eligible once 01 was complete. Worker took the non-code path and wrote `reports/brief.md` (heading, count 3, synthetic-report sentence; 20 words). Verified count against `count.json` and word limit. Commits `1c40ec7` (work), `9e61bb8` (marked complete + queue report).\n\n**03-announcement** \u2014 left alone. It's `awaiting-human` on the channel decision; no channel chosen, no `reports/announcement.md` created.\n\n## Queue report\n\nSaved to `reports/queue.md`: 2 completed, 1 waiting on the human gate, 0 blocked.\n\nOne thing for you to decide outside this queue: `docs/solutions/pass-identity.md` (lowercase all pass IDs) now contradicts the CedarPass v2 behavior in code. Per plan 01 the operator note governed and the shared lesson wasn't touched; whether to scope that lesson to LegacyPass is your call."
+    },
+    "queue-resume": {
+      "returncode": 0,
+      "elapsed_seconds": 150.25,
+      "cwd": "/tmp/coga-adoption-trial-20260911/candidate",
+      "fresh_session": true,
+      "subtype": "success",
+      "is_error": false,
+      "num_turns": 24,
+      "permission_denial_count": 1,
+      "final_report": "Queue run finished; nothing else is eligible.\n\n**What ran**\n- **02-brief** (the only eligible plan): the operator had revised it (40-word limit, first body sentence must be exactly `Snapshot: rehearsal only.`) and set it back to `ready`, and the prior brief didn't meet the new rule. A fresh worker ran `ce-work` in `mode:return-to-caller` on the knowledge-work path and rewrote `reports/brief.md` (commit `86dc987`). I verified the actual output myself: 23 words, line 3 is the exact required sentence, count 3 matches `reports/count.json`, and `attendance.py`/`tests`/`data`/`docs/solutions` are unchanged since `0d2a288`. Marked complete with output/evidence paths recorded in the plan (commit `614dd0d`).\n\n**Preserved / skipped**\n- **01-count**: already complete; not re-run, artifacts untouched.\n- **03-announcement**: still `awaiting-human` \u2014 no channel chosen, `reports/announcement.md` not created. It becomes eligible only when you record the decision in the plan and set `status: ready`.\n\n**Report:** `reports/queue.md` (completed / waiting / blocked \u2014 blocked is empty). Both commits are local on `trial/work`; nothing pushed, no shared knowledge changed.\n\nOne note: the worker mentioned the harness skipped its final re-read of `return-to-caller.md` as a duplicate of an unchanged file, so it built the result from the copy read at triage. That didn't affect the output, which I checked directly."
+    },
+    "knowledge": {
+      "returncode": 0,
+      "elapsed_seconds": 103.62,
+      "cwd": "/tmp/coga-adoption-trial-20260911/knowledge",
+      "fresh_session": true,
+      "subtype": "success",
+      "is_error": false,
+      "num_turns": 34,
+      "permission_denial_count": 2,
+      "final_report": "**Judgment:** the existing learning qualifies for correction under `ce-compound`'s \"existing learning that became materially inaccurate\" clause. Its universal rule (\"lowercase every pass ID\u2026 for all provider imports\") is what put `.lower()` into `count_confirmed` and under-counted CedarPass v2 (`{\"confirmed\": 2}` vs. the correct 3). The code docstring now explains CedarPass, but an agent following CLAUDE.md's \"consult accepted lessons under docs/solutions\" would still read the old doc and reintroduce the bug \u2014 so the counterfactual holds. Updated in place rather than duplicated.\n\n```\n\u2713 Documentation complete (non-interactive lightweight mode)\n\nFile: docs/solutions/pass-identity.md  (updated; last_updated: 2026-09-11)\nTrack: knowledge\nCategory: (flat corpus \u2014 existing path preserved, no subdirectory)\nGrounding: mechanical check clean (6 paths, 1 SHA, 0 flags); frontmatter parser-safe\nDiscoverability: no gap (CLAUDE.md points agents to docs/solutions before work)\nCONCEPTS.md: not present\nCONCEPTS.md discoverability: not checked \u2014 CONCEPTS.md unchanged\nRefresh recommendation: none (single-doc corpus; this run was the correction)\n\nDocumentation complete\n```\n\n**Changed files** (uncommitted, in this worktree only):\n- `docs/solutions/pass-identity.md` \u2014 rewritten from `evidence/operator-note.md`, `reports/01.md`, `attendance.py`, `tests/test_attendance.py`, and commit `be30bd8`. Kept the original `title`/`date`/`tags`, added `last_updated` plus the schema fields (`module`, `problem_type: convention`, `component`, `severity`, `applies_when`).\n\nNothing else touched: no code, no other plans, no settings, no commit, no remote.\n\n**Exact proposed durable rule** (as written in the doc's Guidance section):\n\n> Pass-ID identity is a per-provider rule. Apply only the rule confirmed for the feed you are counting; do not carry one provider's case handling to another.\n> - **CedarPass v2** (current feed, `data/checkins.csv`, `attendance.py`): IDs are opaque and case-sensitive. `A7` and `a7` are two passes. Compare IDs exactly. Strip surrounding whitespace (transport noise). Exact duplicate confirmed rows are one pass. Count only rows whose `status` is `confirmed`; waitlist and canceled rows are not attendees. Source: `evidence/operator-note.md`, confirmed with the operator.\n> - **LegacyPass** (older feed, `data/legacy.csv`): its import convention treated IDs case-insensitively. That convention is unchanged. No code in this repo currently consumes `data/legacy.csv`, so it is not implemented in `attendance.py`.\n> - **Any other provider:** there is no default. Get the provider's identity rule confirmed and record it here before deduplicating.\n\nObserved vs. unsupported: the CedarPass v2 case-sensitivity rule is stated as observed (operator note + red/green tests + fixture). The LegacyPass rule is stated as an unchanged convention with the explicit caveat that no code exercises it. The old \"all providers\" claim is called out as never verified, and the doc deliberately does not replace it with the opposite universal (\"all providers are case-sensitive\").\n\nOne note for the human reviewer: adding the schema frontmatter fields goes slightly beyond \"preserve frontmatter structure\"; they're additive and the parser-safety check passes, but drop them if you want the doc to stay in the original minimal shape."
+    },
+    "reuse-preview": {
+      "returncode": 0,
+      "elapsed_seconds": 67.01,
+      "cwd": "/tmp/coga-adoption-trial-20260911/preview",
+      "fresh_session": true,
+      "subtype": "success",
+      "is_error": false,
+      "num_turns": 16,
+      "permission_denial_count": 0,
+      "final_report": "## Return-to-Caller result\n\n```yaml\nstatus: complete\nplan_path: /tmp/coga-adoption-trial-20260911/preview/docs/plans/04-import-check.md\nchanged_files:\n  - reports/import-check.json        # new\n  - reports/import-explanation.md    # new\nu_ids_attempted: [knowledge-work deliverable (single unit; plan has no U-IDs)]\nu_ids_completed: [knowledge-work deliverable]\nverification_results:\n  - JSON parses; values {cedarpass_v2: 2, legacypass: 1, otherpass: null}\n  - data/imports.csv inspected with cat -A: no hidden whitespace/CRLF; all 7 rows status=confirmed\n  - git diff docs/solutions/pass-identity.md is empty (lesson untouched); no code files written\nverification_evidence:\n  - unit: knowledge-work deliverable\n    behavior_changed: false        # non-code; execution: knowledge-work carve-out\n    existing_tests_inspected: none exist in this checkout\n    tests_added_or_changed: none (non-code deliverable, tests intentionally skipped)\n    verification: json.load succeeded; counts re-derived by hand from the 7 rows\nimplementation_engine_binding: null\nrequested_route: native (Claude Code inline)\nactual_route: native (Claude Code inline)\nrequested_model: claude-opus-5[1m]\nactual_model: claude-opus-5[1m]\nfallback_reason: null\nrun_id: null\nsource_kind: plan\nsource_digest: docs/plans/04-import-check.md @ a647d7a (clean tree at start)\nunit_receipts:\n  - unit: knowledge-work deliverable; route native; integration inline; verified; canonical-commit: none (left uncommitted, untracked reports/); cleanup n/a\nplan_checkpoint: null\nblockers: []\nrecovery_path: null\nsettled_decision_conflicts: []\nbehavior_change: false\nstandalone_shipping_skipped: true\n```\n\n**How the counts were derived** (from `docs/solutions/pass-identity.md`, the only maintained lesson):\n- **CedarPass v2 = 2** \u2014 case-sensitive exact compare; `Q1`,`q1`,`Q1` \u2192 {`Q1`,`q1`}, repeat row is an exact duplicate.\n- **LegacyPass = 1** \u2014 case-insensitive; `R2`,`r2` fold to one.\n- **OtherPass = null** \u2014 lesson says \"any other provider: there is no default\"; capitalization pattern of `S3`/`s3` was not used to infer a rule.\n\n**Flags for the caller**, recorded in `reports/import-explanation.md`:\n- The lesson's cited evidence (`evidence/operator-note.md`, `reports/01.md`, `attendance.py`, tests) is absent from this checkout, so rules were applied on the lesson's text alone.\n- `README.md` labels this a preview of an unmerged proposal; the counts reflect the proposed lesson, not ratified convention.\n- The lesson scopes its rules to `data/checkins.csv` / `data/legacy.csv`; applying them to `data/imports.csv` assumes the identity rule travels with the provider label, not the file.\n\nOutputs are written but not committed (`reports/` is untracked); committing is the caller's call."
+    }
+  },
+  "synthetic_fixture": {
+    ".gitignore": "__pycache__/\n*.pyc\n",
+    "CLAUDE.md": "# Project instructions\n\nThis is an isolated synthetic fixture. Work only inside this repository and\nread the explicitly loaded Compound Engineering plugin when needed. No remote\npublishing, network calls, dependency installation, real account operations,\nor changes to user/global configuration. Local commits are authorized.\n\nThe maintained plans under docs/plans are the work definition. Read the current\nfile when beginning or resuming work; never use a previous conversation as the\nonly task definition. Follow the context/source references named by the plan.\nBefore work, consult relevant accepted lessons under docs/solutions. Proposed\nlessons stay on a separate branch/worktree until the operator merges them.\nChat and direct editing may both revise the plans.\n\nProject verification: python -m unittest discover -s tests -v.\n",
+    "README.md": "# Cedar Workshop \u2014 synthetic trial fixture\n\nAll organizations, data and rules in this repo are invented for an isolated tool evaluation. Python standard library only. Run `python -m unittest discover -s tests -v`.\n",
+    "attendance.py": "import csv\nimport json\nimport sys\n\n\ndef count_confirmed(rows):\n    return len({row[\"pass_id\"].strip().lower() for row in rows if row[\"status\"] == \"confirmed\"})\n\n\nif __name__ == \"__main__\":\n    with open(sys.argv[1], newline=\"\") as source:\n        print(json.dumps({\"confirmed\": count_confirmed(csv.DictReader(source))}))\n",
+    "contexts/writing.md": "# Internal writing\n\nUse plain language. Report aggregate counts without inventing attendance or revenue claims. This is an internal draft, not a published message.\n",
+    "data/checkins.csv": "pass_id,status\nA7,confirmed\na7,confirmed\nA7,confirmed\nB2,waitlist\nB2,confirmed\nC3,canceled\n",
+    "data/legacy.csv": "pass_id,status\nZ9,confirmed\nz9,confirmed\n",
+    "docs/plans/01-count.md": "---\ntitle: Correct the CedarPass v2 attendance count\nexecution: code\nstatus: ready\ndepends_on: []\nworkflow:\n  - implement\n  - verify\n  - complete\ncontexts:\n  - evidence/operator-note.md\n  - docs/solutions/pass-identity.md\n---\n\n# Correct the CedarPass v2 attendance count\n\nFix attendance.py for the current CedarPass v2 feed. The maintained operator\nnote is authoritative over the older shared lesson. Deduplicate only according\nto the confirmed provider rule and exclude non-confirmed rows. Do not change\nthe LegacyPass import convention or shared lesson in this task.\n\n## Acceptance\n\n- The existing data/checkins.csv produces {\"confirmed\": 3}.\n- Add meaningful coverage for exact duplicates, differently cased IDs,\n  surrounding whitespace and non-confirmed records; observe the failure first.\n- Save output to reports/count.json and verification evidence to reports/01.md.\n- Preserve the CLI output field `confirmed`.\n- Local commits on the trial work branch are authorized; no remote actions.\n\n## Working state\n\nNo implementation has started.\n",
+    "docs/plans/02-brief.md": "---\ntitle: Write an internal attendance brief\nexecution: knowledge-work\nstatus: ready\ndepends_on:\n  - 01-count\nworkflow:\n  - synthesize\n  - complete\ncontexts:\n  - contexts/writing.md\n  - reports/count.json\n---\n\n# Internal attendance brief\n\nAfter 01-count is complete, read reports/count.json and contexts/writing.md.\nWrite reports/brief.md: a heading, the confirmed-pass count and one short\nsentence stating this is a synthetic internal planning report. Maximum 80\nwords. Do not change code, publish or request a code-shipping review.\n\n## Working state\n\nWaiting for the count artifact.\n",
+    "docs/plans/03-announcement.md": "---\ntitle: Draft an announcement after the channel decision\nexecution: knowledge-work\nstatus: awaiting-human\ndepends_on: []\nworkflow:\n  - human-channel-decision\n  - draft\n  - complete\ncontexts:\n  - contexts/writing.md\n---\n\n# Announcement\n\nThe operator has not selected internal versus member-facing delivery. This is\nan explicit human gate. Do not choose a channel or create reports/announcement.md\nuntil the operator edits this plan to record the decision and marks it ready.\nOther eligible plans may continue while this one waits.\n\n## Working state\n\nAwaiting the operator's channel choice.\n",
+    "docs/solutions/pass-identity.md": "---\ntitle: Preserve attendee identity when deduplicating checkins\ndate: 2026-09-01\ntags:\n  - attendance\n  - pass-id\n  - deduplication\n---\n\n# Attendee identity\n\nNormalize every pass ID to lowercase before deduplication. This is the shared\nidentity rule for all provider imports. Strip transport whitespace. Ignore\nwaitlist and canceled rows when counting confirmed passes.\n\nThis convention came from the LegacyPass feed's case-insensitive identifiers.\n",
+    "evidence/operator-note.md": "# Verified provider decision \u2014 synthetic\n\nThe CedarPass v2 API issues opaque case-sensitive pass IDs. A7 and a7 are\nseparate passes. Exact duplicate confirmed rows describe the same pass.\nWhitespace around a CSV field is transport noise and may be stripped.\nWaitlist and canceled rows are not confirmed attendees.\n\nThe older LegacyPass feed deliberately treated IDs without case sensitivity;\nits import compatibility rule remains unchanged. The existing shared lesson\nwas written when LegacyPass was the only provider, so its universal lowercasing\nrecommendation is stale. Scope the correction to the provider instead of\nreversing the legacy rule. This provider distinction was confirmed with the\nfictional operator and should not need to be rediscovered for each task.\n",
+    "tests/test_attendance.py": "import unittest\nfrom attendance import count_confirmed\n\n\nclass AttendanceTests(unittest.TestCase):\n    def test_single_confirmed_pass(self):\n        self.assertEqual(count_confirmed([{\"pass_id\": \"X1\", \"status\": \"confirmed\"}]), 1)\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n"
+  },
+  "knowledge_proposal_diff": "diff --git a/docs/solutions/pass-identity.md b/docs/solutions/pass-identity.md\nindex 608a96c..bbc695a 100644\n--- a/docs/solutions/pass-identity.md\n+++ b/docs/solutions/pass-identity.md\n@@ -1,16 +1,88 @@\n ---\n title: Preserve attendee identity when deduplicating checkins\n date: 2026-09-01\n+last_updated: 2026-09-11\n+module: attendance\n+problem_type: convention\n+component: data_model\n+severity: medium\n+applies_when:\n+  - \"Deduplicating or counting pass IDs from any provider feed\"\n+  - \"Adding a new provider import or changing an existing one\"\n+  - \"Deciding whether two differently cased pass IDs are the same attendee\"\n tags:\n   - attendance\n   - pass-id\n   - deduplication\n+  - cedarpass\n+  - legacypass\n ---\n \n # Attendee identity\n \n-Normalize every pass ID to lowercase before deduplication. This is the shared\n-identity rule for all provider imports. Strip transport whitespace. Ignore\n-waitlist and canceled rows when counting confirmed passes.\n+## Context\n \n-This convention came from the LegacyPass feed's case-insensitive identifiers.\n+This lesson was written on 2026-09-01 when LegacyPass was the only provider.\n+It said to lowercase every pass ID before deduplication and called that the\n+shared rule for all provider imports. That universal claim was never verified\n+for other providers, and it was wrong for CedarPass v2: `attendance.py`\n+lowercased IDs, folded `A7` and `a7` into one pass, and reported\n+`{\"confirmed\": 2}` for `data/checkins.csv` when the correct count is 3\n+(`reports/01.md`, plan `docs/plans/01-count.md`, fix commit `be30bd8`).\n+\n+## Guidance\n+\n+Pass-ID identity is a per-provider rule. Apply only the rule confirmed for the\n+feed you are counting; do not carry one provider's case handling to another.\n+\n+- **CedarPass v2** (current feed, `data/checkins.csv`, `attendance.py`):\n+  IDs are opaque and case-sensitive. `A7` and `a7` are two passes. Compare IDs\n+  exactly. Strip surrounding whitespace (transport noise). Exact duplicate\n+  confirmed rows are one pass. Count only rows whose `status` is `confirmed`;\n+  waitlist and canceled rows are not attendees. Source:\n+  `evidence/operator-note.md`, confirmed with the operator.\n+- **LegacyPass** (older feed, `data/legacy.csv`): its import convention treated\n+  IDs case-insensitively (`Z9` and `z9` are one pass). That convention is\n+  unchanged. No code in this repo currently consumes `data/legacy.csv`, so it\n+  is not implemented in `attendance.py`.\n+- **Any other provider:** there is no default. Get the provider's identity rule\n+  confirmed and record it here before deduplicating.\n+\n+Whitespace stripping and excluding non-confirmed rows are the parts of the\n+original lesson that held for both providers.\n+\n+## Why This Matters\n+\n+Lowercasing looks like harmless normalization, but for a case-sensitive\n+provider it merges distinct attendees and under-counts. The old wording\n+(\"shared identity rule for all provider imports\") is exactly what led the\n+count code to lowercase CedarPass IDs. A future agent following this doc as a\n+universal rule would reintroduce the bug.\n+\n+## When to Apply\n+\n+- Before touching `count_confirmed` or any other dedup of pass IDs\n+- When importing a new feed: treat case handling as an unknown until confirmed\n+- When a LegacyPass importer is added: keep it case-insensitive; do not reuse\n+  the CedarPass path unchanged\n+\n+## Examples\n+\n+```python\n+# CedarPass v2 (attendance.py): exact comparison after strip\n+len({row[\"pass_id\"].strip() for row in rows if row[\"status\"] == \"confirmed\"})\n+\n+# Previous, wrong for CedarPass v2: .lower() folded A7 and a7 together\n+len({row[\"pass_id\"].strip().lower() for row in rows if row[\"status\"] == \"confirmed\"})\n+```\n+\n+`tests/test_attendance.py` pins the CedarPass v2 behavior:\n+`test_differently_cased_ids_are_separate_passes`,\n+`test_surrounding_whitespace_is_transport_noise`,\n+`test_non_confirmed_rows_are_excluded`, `test_checkins_fixture_counts_three`.\n+\n+## Related\n+\n+- `evidence/operator-note.md` \u2014 provider decision (authoritative for CedarPass v2)\n+- `reports/01.md` \u2014 red/green evidence for the fix\n+- `docs/plans/01-count.md` \u2014 the task that surfaced the stale rule\n",
+  "scope": "Actual CE agent runs on a synthetic fixture. No matched new Coga run, comparative human-attention measurement, external publication or migration.",
+  "reuse_preview": {
+    "checks": {
+      "cedarpass_rule_applied": true,
+      "legacy_rule_preserved": true,
+      "unknown_rule_not_invented": true,
+      "lesson_read_in_fresh_session": true,
+      "lesson_unchanged_by_consumer": true,
+      "accepted_source_still_unmodified": true
+    },
+    "actual": {
+      "cedarpass_v2": 2,
+      "legacypass": 1,
+      "otherpass": null
+    },
+    "type": "isolated preview of an unmerged proposal; not accepted-knowledge reuse",
+    "source_reads": [
+      "/tmp/coga-adoption-ce-20260911/skills/ce-work/references/input-triage.md",
+      "/tmp/coga-adoption-trial-20260911/preview/docs/plans/04-import-check.md",
+      "/tmp/coga-adoption-ce-20260911/skills/ce-work/references/return-to-caller.md",
+      "/tmp/coga-adoption-ce-20260911/skills/ce-work/references/non-code-execution.md",
+      "/tmp/coga-adoption-trial-20260911/preview/docs/solutions/pass-identity.md",
+      "/tmp/coga-adoption-trial-20260911/preview/README.md",
+      "/tmp/coga-adoption-ce-20260911/skills/ce-work/references/execution-engines.md",
+      "/tmp/coga-adoption-ce-20260911/skills/ce-work/references/return-to-caller.md"
+    ],
+    "source_sha256": "f84ae34bf80abdca71095fdd6728a774be5296decc8dd20068f9fbfab4ee0dd9"
+  },
+  "reviewed_proposal": "---\ntitle: Preserve attendee identity when deduplicating checkins\ndate: 2026-09-01\nlast_updated: 2026-09-11\nmodule: attendance\nproblem_type: convention\ncomponent: data_model\nseverity: medium\napplies_when:\n  - \"Deduplicating or counting pass IDs from any provider feed\"\n  - \"Adding a new provider import or changing an existing one\"\n  - \"Deciding whether two differently cased pass IDs are the same attendee\"\ntags:\n  - attendance\n  - pass-id\n  - deduplication\n  - cedarpass\n  - legacypass\n---\n\n# Attendee identity\n\n## Context\n\nThis lesson was written on 2026-09-01 when LegacyPass was the only provider.\nIt said to lowercase every pass ID before deduplication and called that the\nshared rule for all provider imports. That universal claim was never verified\nfor other providers, and it was wrong for CedarPass v2: `attendance.py`\nlowercased IDs, folded `A7` and `a7` into one pass, and reported\n`{\"confirmed\": 2}` for `data/checkins.csv` when the correct count is 3\n(`reports/01.md`, plan `docs/plans/01-count.md`, fix commit `be30bd8`).\n\n## Guidance\n\nPass-ID identity is a per-provider rule. Apply only the rule confirmed for the\nfeed you are counting; do not carry one provider's case handling to another.\n\n- **CedarPass v2** (current feed, `data/checkins.csv`, `attendance.py`):\n  IDs are opaque and case-sensitive. `A7` and `a7` are two passes. Compare IDs\n  exactly. Strip surrounding whitespace (transport noise). Exact duplicate\n  confirmed rows are one pass. Count only rows whose `status` is `confirmed`;\n  waitlist and canceled rows are not attendees. Source:\n  `evidence/operator-note.md`, confirmed with the operator.\n- **LegacyPass** (older feed, `data/legacy.csv`): its import convention treated\n  IDs case-insensitively (`Z9` and `z9` are one pass). That convention is\n  unchanged. No code in this repo currently consumes `data/legacy.csv`, so it\n  is not implemented in `attendance.py`.\n- **Any other provider:** there is no default. Get the provider's identity rule\n  confirmed and record it here before deduplicating.\n\nWhitespace stripping and excluding non-confirmed rows are the parts of the\noriginal lesson that held for both providers.\n\n## Why This Matters\n\nLowercasing looks like harmless normalization, but for a case-sensitive\nprovider it merges distinct attendees and under-counts. The old wording (\"shared identity rule for all provider imports\") would\ninstruct a future agent to lowercase CedarPass IDs and could reintroduce\nthe bug. The available evidence does not establish whether the document\ncaused the original implementation mistake.\n\n## When to Apply\n\n- Before touching `count_confirmed` or any other dedup of pass IDs\n- When importing a new feed: treat case handling as an unknown until confirmed\n- When a LegacyPass importer is added: keep it case-insensitive; do not reuse\n  the CedarPass path unchanged\n\n## Examples\n\n```python\n# CedarPass v2 (attendance.py): exact comparison after strip\nlen({row[\"pass_id\"].strip() for row in rows if row[\"status\"] == \"confirmed\"})\n\n# Previous, wrong for CedarPass v2: .lower() folded A7 and a7 together\nlen({row[\"pass_id\"].strip().lower() for row in rows if row[\"status\"] == \"confirmed\"})\n```\n\n`tests/test_attendance.py` pins the CedarPass v2 behavior:\n`test_differently_cased_ids_are_separate_passes`,\n`test_surrounding_whitespace_is_transport_noise`,\n`test_non_confirmed_rows_are_excluded`, `test_checkins_fixture_counts_three`.\n\n## Related\n\n- `evidence/operator-note.md` \u2014 provider decision (authoritative for CedarPass v2)\n- `reports/01.md` \u2014 red/green evidence for the fix\n- `docs/plans/01-count.md` \u2014 the task that surfaced the stale rule\n",
+  "preview_fixture": {
+    "README.md": "# Preview of a proposed lesson\n\nSynthetic data. This workspace previews an unmerged knowledge proposal; it is not accepted shared state.\n",
+    "CLAUDE.md": "# Trial consumer\n\nThis is an isolated preview using synthetic data. Work only in this repo and\nthe explicitly loaded Compound Engineering plugin. No network, publishing,\nuser settings or prior session-history reads. Before work, consult relevant\nmaintained lessons under docs/solutions. Read the current plan and its named\nsources; do not reconstruct earlier work from a conversation. No other repo's\ncode or evidence is available or needed. Local output only.\n",
+    "docs/plans/04-import-check.md": "---\ntitle: Assess a new mixed-provider import\nexecution: knowledge-work\n---\n\n# Assess the mixed-provider import\n\nRead data/imports.csv and the relevant maintained project knowledge. Write\nreports/import-check.json with keys cedarpass_v2, legacypass and otherpass:\neach value is the count of distinct confirmed passes under the documented\nprovider convention, or null when that convention is not established.\n\nAlso write reports/import-explanation.md explaining the applied rules, the\nsource that supplied them, and any question that prevents a reliable count.\nDo not infer a convention from the capitalization pattern of the sample rows.\nDo not write code or alter the shared lesson.\n",
+    "data/imports.csv": "provider,pass_id,status\nCedarPass v2,Q1,confirmed\nCedarPass v2,q1,confirmed\nCedarPass v2,Q1,confirmed\nLegacyPass,R2,confirmed\nLegacyPass,r2,confirmed\nOtherPass,S3,confirmed\nOtherPass,s3,confirmed\n"
+  }
+}
