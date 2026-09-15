@@ -952,21 +952,24 @@ architecture`: "no database, no daemon, no in-memory state"). The sweep's commit
 subject (`Sync coga state`) is fixed so readers of `git log` can tell a
 backstop sweep from an attributed per-transition state commit.
 
-Those attributed commits have fixed subjects too, and together they are the
-complete set of commit shapes Coga writes for itself: `Sync task state: …`,
+Four common bookkeeping subjects evidenced by the retired digest are
+`Sync task state: …`,
 `Ticket: <slug> — <event>` (lifecycle transitions, `— deleted` included),
 `Sync coga state` (the catch-all sweep), and `Log: <slug>`. Every `sync_log`
 producer writes that last one — the recurring runner, launch teardown,
 `launch_script`, `open_pr`, and `bump` (whose variant is `Log: <slug> — rewind
-notification failure`) — and there is no human-authored `Log:` convention in a
-Coga repo. Anything that classifies commit subjects to separate Coga
-bookkeeping from product work must recognise all four. The removed daily
+notification failure`). These are examples, not a complete subject inventory:
+`recurring_autofix` also writes `Autofix: <slug> — created`, and recurring
+promotion writes `Recurring: promoted …`. A subject alone does not prove a
+commit's author or contents. The removed daily
 digest's `_is_coga_state_sync_commit` knew the first three and not `Log:`, so
 on quiet days its "Also merged (no ticket)" section was entirely Coga writing
 to its own log (25 of the 47 commits it reported one day, 4 of 4 the day
 before) while the sweep recorded `problems: 0`; PR #786 deleted the digest
 rather than fixing the filter, and as of 2026-09-13 no subject-prefix
-classifier survives in `src/coga/` — a new one starts from this list.
+classifier survives in `src/coga/`. A new classifier must inspect the current
+commit producers and changed paths; these four historical shapes are not a
+complete classification rule.
 
 **Never run a repo-mutating verification experiment in a checkout whose sweep
 can reach the real remote.** Because the sweep fires at the dispatch boundary
