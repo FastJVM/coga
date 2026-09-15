@@ -89,8 +89,12 @@ Outcome surface (`notify`) — posted live, one message per event:
 - the recurring liveness watchdog — a timed-out run is paused and recorded as
   `recurring-error`. Manual pauses and non-timeout unfinished pauses stay
   silent.
+- `run_recurring_scan` — every task the watchdog already paused is
+  re-escalated as `recurring-error` on *each* later sweep until that task is
+  successfully recovered (#778). Resume only the affected task with
+  `coga launch <slug>`; a successful completion stops its future escalations.
 
-Done and canceled outcomes keep the flow destination; both recurring-error
+Done and canceled outcomes keep the flow destination; all three recurring-error
 producers pass `important=True` and land in important. The scan-error summary
 posts `fatal=False`: it runs in `_broadcast_scan`, before the launch loop, and
 every skipped template it names has already been printed to stderr and to the
@@ -152,7 +156,7 @@ subsequent launches are resume attempts.
 ## Notifications optional on first run; configured Slack fails loud
 
 A fresh `coga init` selects no notification channels (`[notification]
-channels = []`), so a brand-new user runs `draft`/`mark`/`launch`/`bump`
+channels = []`), so a brand-new user runs `create`/`mark`/`launch`/`bump`
 without configuring anything. Notifications are opt-in: a repo turns Slack on
 by selecting the channel and pointing it at a webhook:
 
@@ -452,8 +456,9 @@ new string:
   call before listing a module here. Outcome producers (`notify`):
   `mark.mark_done` (including the autoclose sweep), `mark.mark_canceled`, the
   recurring scan-error summary (`recurring_runner._broadcast_scan`, important,
-  `fatal=False`), and `mark.mark_paused` only when the recurring
-  watchdog supplies `slack_text`. Both paths pass
+  `fatal=False`), the per-sweep re-escalation of already-watchdog-paused tasks
+  (`recurring_runner.run_recurring_scan`, important, `fatal=False`), and
+  `mark.mark_paused` only when the recurring watchdog supplies `slack_text`. Both paths pass
   `task_path=ref.path` (when a task exists) so a live-post failure trace lands
   in the repo-global `coga/log.md`, tagged with the task ref.
 - `coga validate --check-slack` — probes the webhook with an
@@ -514,12 +519,16 @@ explicitly (not `rebase --autostash`), and on any rebase or pop failure resets
 to the pre-sync tip and re-applies the stash there — so a failed recovery leaves
 no conflict markers and no orphaned stash, only a reported sync miss.
 
-(Process-level races within a single clone — a recurring sweep and an agent's
-`coga mark`/`bump` both rebasing one working tree — remain a known limitation:
-launches run in the shared checkout, so concurrent agents in one clone share a
-single `.git/index` / stash stack. Run concurrent sessions from separate clones
-or worktrees, or sequentially — `coga megalaunch` is strictly sequential and
-unaffected. coga stays intentionally lock-free.)
+(Within one checkout, Coga's own publishers and lifecycle ticket writes
+serialize on the checkout-local advisory admission/publication barrier
+(`git.state_publication_barrier`, an `fcntl.flock` on a per-checkout lock
+file — see the barrier section below and `coga/architecture`), so two Coga
+commands racing on the index/stash stack is not the hazard. What stays
+unserialized is the shared *working tree* itself: an agent session and a
+recurring sweep both editing one checkout's files. Run concurrent sessions
+from separate clones or worktrees, or sequentially — `coga megalaunch` is
+strictly sequential and unaffected. Coga has no task-ownership lock; the
+barrier never decides who owns a task.)
 
 ## Git — durable task-state sync
 
@@ -829,12 +838,12 @@ exact-leaf commit before landing; a following unblock, bump, or terminal
 transition therefore compares against the state the prior command actually
 published.
 
-Two kinds of caller supply it. The catch-all sweep guards whatever it found
-dirty (`_guard_coga_state_regressions`); every publisher of a *specific*
-ticket's state knows which file it is about to overlay and binds
-`ticket_state_guard` to it, passing the result through
-`sync_task_state`/`sync_paths(guard=...)`. That is all of them, not just
-cancellation:
+The catch-all sweep guards whatever it found dirty
+(`_guard_coga_state_regressions`). Scoped lifecycle publishers and other callers
+that explicitly bind `ticket_state_guard` pass it through
+`sync_task_state`/`sync_paths(guard=...)`. The following paths bind it; search
+`ticket_state_guard(` in `src/coga` for the current call sites. This is an
+inventory of guarded paths, not a guarantee about every ticket-state writer:
 
 - **`mark`** — `done`, `canceled`, `paused`, `active`, `blocked`, and launch's
   `in_progress` flip.
@@ -843,10 +852,18 @@ cancellation:
 - **`unblock`** — the `in_progress` resolve-only branch, which writes the
   blackboard without a status flip. Its `blocked → active` branch delegates to
   `mark_active` and is guarded there.
+- **`launch` and `megalaunch`** — the activation and `in_progress` claim
+  writes (`commands/launch.py`, four sites in `megalaunch.py`).
+- **`open-pr`** — `open_pr._sync_pr_record`, the generated `pr:` record sync.
+- **recurring period writes** — `recurring_runner._period_lease_guard`
+  composes `ticket_state_guard` into the lease guard every period/delegated
+  write passes to `sync_task_state`.
 
-Callers without a command-specific lifecycle transition (authoring, deletes,
-recurring child writes) pass no ticket-state guard. They still pass through the
-explicit-path publisher's automatic pending-admission seal.
+Some publishers pass no ticket-state guard: authoring, deletes, and
+`blocker_reminders.remind_blocked_tasks` publishing its reminder watermark on
+an existing blocked ticket. An existing ticket alone does not imply protection
+by this guard. These writes still pass through the explicit-path publisher's
+automatic pending-admission seal, which is a separate protection.
 
 **The one deliberate backward move is a human rewind.** It is an exceptional
 debug/recovery operation, not normal lifecycle progression. `coga bump
