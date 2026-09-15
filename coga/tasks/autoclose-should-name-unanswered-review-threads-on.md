@@ -1,6 +1,6 @@
 ---
 title: Autoclose should name unanswered review threads on the PR it closes
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,7 +24,6 @@ workflow:
     assignee: owner
 step: 2 (peer-review)
 agent: claude
-launch_generation: 1447d1cf-abb0-4062-9909-40e40ddec6a7
 ---
 
 ## Description
@@ -106,3 +105,77 @@ describes landed behavior and points at the skill instead of this ticket.
 
 Not done / out of scope: resolving threads, blocking merges, auto-launching
 the assist. No adjacent bugs found.
+
+## Peer review
+
+2026-09-15: `codex review --base main` **returned** (exit 0;
+transcript `/tmp/coga-autoclose-peer-review.log`). All three must-fix findings
+were reproduced and fixed in `1c414750`:
+
+- P1: finish the paginated thread lookup before the final ticket re-read,
+  preserving a concurrent pause, cancellation, or completion and avoiding
+  duplicate completion events.
+- P2: use the recorded PR hostname on every GraphQL page, including GitHub
+  Enterprise and when `GH_HOST` names a different host.
+- P2: send owner/repository with raw `-f` fields, preserving names such as
+  `123`, `true`, and `null` as strings.
+
+Also corrected stale retire-only report descriptions in `coga/recurring` and
+`coga/sync`, and the historical baseline in `dev/code`; all affected live and
+packaged twins match. No design rethink or unresolved code finding.
+
+Verification:
+
+- New regression cases: `PYTHONPATH=/home/n/Code/claude/coga-autoclose-unanswered-threads/src /home/n/Code/claude/coga/.venv/bin/python -m pytest tests/test_autoclose.py -k 'paginates_and_passes_base_repo_coordinates or preserves_a_transition_during_review_thread_lookup' -q -p no:cacheprovider`
+  → 7 failed before fixes; 7 passed, 77 deselected afterwards.
+- Full suite after fixes and rebase: `PYTHONPATH=/home/n/Code/claude/coga-autoclose-unanswered-threads/src /home/n/Code/claude/coga/.venv/bin/python -m pytest`
+  → **2517 passed in 225.84s**. Transcript:
+  `/tmp/coga-autoclose-peer-tests-final.log`. Use this venv: ambient `python`
+  lacks `tomlkit`.
+- `git diff --check` → clean.
+- `coga validate --task autoclose-should-name-unanswered-review-threads-on --json`
+  from the primary checkout → 1 valid task, no issues.
+- `git fetch origin main && git rebase FETCH_HEAD` completed without conflicts.
+  Implementation commit is now `cef8037a`; fixes are `1c414750`. Feature branch
+  contains current fetched `origin/main` (`5894147a`), with both commits ahead.
+
+Live read-only query confirmed PR 699 → 1, PR 705 → 1, PR 800 → 0 unanswered
+threads. Drove the production report delivery with those results in actual
+80×24 and 120×40 PTYs, Slack disabled: audit locations, report authors,
+badge-stripped excerpts, and full thread URLs were present; the clean PR
+produced no report. Probe: `/tmp/coga-autoclose-output-probe.py`.
+This verifies terminal output and the suppressed Slack payload, **not** the
+rendered Slack message. Available tools include no browser-control runtime
+or Slack visual client; the Browser skill was inspected and its required
+execution tool is not available. The current peer-review instructions require
+driving a changed human-visible surface and say that record is the gate.
+**Blocked on that remaining check; do not advance to open-pr yet.**
+
+To resume: inspect the new 🧵 summary in a rendered Slack preview/client at
+normal and narrow widths, confirm that PR labels and every path:line link
+remain readable and open the intended thread, and record the result here.
+Provide an accessible browser/Slack visual session for the agent, or record
+the human's visual verification. The code fixes, tests, and PR body below
+are complete; rebase/test again only if the branch has materially drifted.
+
+## PR
+
+Autoclose now reports unresolved, non-outdated review threads that contain
+only their opening comment when it closes a ticket on a merged PR. The
+closure audit line names their locations, the sweep report includes authors,
+opening-line excerpts, and thread URLs, and one Slack follow-up links every
+thread.
+
+The read-only lookup paginates against the recorded PR's host and base
+repository. A fetch failure leaves the ticket open for retry, and eligibility
+is rechecked after the network calls to preserve concurrent human transitions.
+Updated the autoclose contract, recurring and notification contexts, and
+their packaged twins.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-autoclose-unanswered-threads/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` — 2517 passed; regressions reproduced before fixes; read-only PR 699/705/800 probe and report inspection in 80×24 and 120×40 PTYs.
+
+---
+
+## Blockers
+
+- [ ] [2026-09-15 16:54] [agent:codex] id=20260915T165417 Peer-review requires a rendered Slack check for the new thread summary. Provide an accessible browser/Slack visual session, or record human verification at normal and narrow widths that PR labels and every path:line link render correctly and open the intended thread. This session has no visual client. Codex review returned; all three findings are fixed in 1c414750, the rebased branch is clean, 2517 tests passed, and the PR body and terminal QA are on the blackboard.
