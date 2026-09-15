@@ -1,6 +1,6 @@
 ---
 title: Sync context omits preflight_post from the notification contract
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description
