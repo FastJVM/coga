@@ -313,9 +313,10 @@ def test_queue_conduct_resources_share_their_invariants() -> None:
         "code/with-review",
         "code/with-self-review",
         "code/design-then-implement",
+        "docs/with-review",
     ],
 )
-def test_bundled_code_review_step_composes_address_pr_comments_skill(
+def test_bundled_review_step_composes_address_pr_comments_skill(
     repo: Path,
     workflow_name: str,
 ) -> None:
@@ -349,6 +350,7 @@ def test_bundled_code_review_step_composes_address_pr_comments_skill(
     assert "Current step: review (skill: code/address-pr-comments)" in prompt
     assert "Address PR review comments" in prompt
     assert "Do not run `coga bump`" in prompt
+    assert "A pure prose edit does not require pytest" in prompt
 
 
 def test_design_workflow_routes_a_cold_peer_review_before_owner_approval(
