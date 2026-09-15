@@ -29,8 +29,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (pr)
-launch_generation: 4324908e-2fad-4595-86ec-470db5fce915
+step: 4 (review)
 ---
 
 ## Description
@@ -349,3 +348,15 @@ skill-update job rebuilds with `checkout -B` anyway.
 - Adjacent, still not fixed here: `branchsweep._current_branch` uses the
   shadowable `rev-parse --abbrev-ref HEAD` spelling.
 
+
+## PR step (2026-09-15)
+
+- `coga open-pr` from the primary checkout on `main`: origin/main had advanced
+  only through this ticket's own generated task/log commits, judged safe;
+  pushed `branch-sweep-landed` (`ccbd35ee`) and opened
+  https://github.com/FastJVM/coga/pull/811 (ready, not draft).
+- Its `Sync coga state` commit on `main` (`0c24d584`) also carried two
+  pre-existing unrelated dirty task files from the primary checkout
+  (`define-the-api-equivalent-cost-proxy-and-price-tab.md`,
+  `recurring/autoclose-merged/ticket.md`) — task state only, not touched by
+  this ticket; noted so the owner is not surprised by the diff on `main`.
