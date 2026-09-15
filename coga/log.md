@@ -5166,3 +5166,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-15 09:55 [document-the-ticket-blackboard-writer-s-contract] [human:nicktoper] auto-bumped on merge of PR #798 → done
 2026-09-15 09:55 [dream-2026-w36-extract-backlog-18-findings-phase-4] [human:nicktoper] auto-bumped on merge of PR #795 → done
 2026-09-15 09:55 [dream-findings-have-three-routing-holes-that-lose] [human:nicktoper] auto-bumped on merge of PR #799 → done
+2026-09-15 09:55 [four-parked-tickets-carry-premises-that-have-since] [human:nicktoper] auto-bumped on merge of PR #794 → done
