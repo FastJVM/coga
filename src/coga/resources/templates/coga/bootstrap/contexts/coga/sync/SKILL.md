@@ -90,8 +90,9 @@ Outcome surface (`notify`) — posted live, one message per event:
   `recurring-error`. Manual pauses and non-timeout unfinished pauses stay
   silent.
 - `run_recurring_scan` — every task the watchdog already paused is
-  re-escalated as `recurring-error` on *each* later sweep until `--force`
-  recovers it (#778), so a paused run keeps pinging important, not just once.
+  re-escalated as `recurring-error` on *each* later sweep until that task is
+  successfully recovered (#778). Resume only the affected task with
+  `coga launch <slug>`; a successful completion stops its future escalations.
 
 Done and canceled outcomes keep the flow destination; all three recurring-error
 producers pass `important=True` and land in important. The scan-error summary
@@ -793,13 +794,12 @@ exact-leaf commit before landing; a following unblock, bump, or terminal
 transition therefore compares against the state the prior command actually
 published.
 
-Two kinds of caller supply it. The catch-all sweep guards whatever it found
-dirty (`_guard_coga_state_regressions`); every publisher of a *specific*
-ticket's state knows which file it is about to overlay and binds
-`ticket_state_guard` to it, passing the result through
-`sync_task_state`/`sync_paths(guard=...)`. Every ticket-state publisher binds
-it (`grep -rn "ticket_state_guard(" src/coga` is the authoritative list), not
-just cancellation:
+The catch-all sweep guards whatever it found dirty
+(`_guard_coga_state_regressions`). Scoped lifecycle publishers and other callers
+that explicitly bind `ticket_state_guard` pass it through
+`sync_task_state`/`sync_paths(guard=...)`. The following paths bind it; search
+`ticket_state_guard(` in `src/coga` for the current call sites. This is an
+inventory of guarded paths, not a guarantee about every ticket-state writer:
 
 - **`mark`** — `done`, `canceled`, `paused`, `active`, `blocked`, and launch's
   `in_progress` flip.
@@ -815,9 +815,11 @@ just cancellation:
   composes `ticket_state_guard` into the lease guard every period/delegated
   write passes to `sync_task_state`.
 
-Callers without a command-specific lifecycle transition (authoring, deletes)
-pass no ticket-state guard. They still pass through the explicit-path
-publisher's automatic pending-admission seal.
+Some publishers pass no ticket-state guard: authoring, deletes, and
+`blocker_reminders.remind_blocked_tasks` publishing its reminder watermark on
+an existing blocked ticket. An existing ticket alone does not imply protection
+by this guard. These writes still pass through the explicit-path publisher's
+automatic pending-admission seal, which is a separate protection.
 
 **The one deliberate backward move is a human rewind.** It is an exceptional
 debug/recovery operation, not normal lifecycle progression. `coga bump
