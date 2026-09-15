@@ -15,6 +15,14 @@ later `code/open-pr` step does that, after self-review and fixes.
    referenced files. If anything is ambiguous, don't guess: write the
    ambiguity to the blackboard and escalate per your launch mode — ask
    the attending human, or `coga block` in a queue run.
+
+   When adding or revising code facts in the ticket's `## Context`,
+   **Cite module plus symbol, never a bare line number.** For example,
+   `src/coga/git.py` plus `git.sync_task_state`. If a line range helps
+   navigation, name the symbol first and mark the range as an aid. Explain
+   the relationship that makes the fact relevant, so the explanation survives
+   a refactor. Apply this even to a raw `coga create` ticket that never passed
+   through guided authoring or a design step.
 2. **Close already-satisfied tickets directly.** If every requested
    checklist item has already landed in other work and there is genuinely
    no branch, diff, or PR to create, do not manufacture one and do not
