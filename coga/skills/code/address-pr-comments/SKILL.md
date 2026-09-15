@@ -183,16 +183,16 @@ unrelated cleanup out of the diff. For a thread already satisfied by the
 current branch, collect concrete file/commit evidence instead of manufacturing
 another change.
 
-Run:
+Choose verification from the changed files and the repository's documented
+checks. For code or fixture changes in a Python project, run `python -m pytest`;
+in other projects, run the documented suite for that surface. For docs-only
+changes, verify factual claims, links, and live/packaged copies. Run targeted
+packaging, workflow, or composition checks when those contracts changed.
+A pure prose edit does not require pytest or a Python test installation.
+Record the exact checks and results; do not continue with failing required
+checks. Then choose the path that matches the inventory:
 
-```text
-python -m pytest
-```
-
-Do not continue with failing tests. Then choose the path that matches the
-inventory:
-
-- **At least one thread required a code change.** Commit the requested fixes on
+- **At least one thread required a file change.** Commit the requested fixes on
   the recorded branch with a short factual subject. Immediately before pushing,
   re-read the PR's `state`, head repository, `headRefName`, and `headRefOid`;
   require the PR to remain open with the same repository and branch. Repeat the
