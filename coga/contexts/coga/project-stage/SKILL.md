@@ -50,9 +50,24 @@ non-tester users, this context gets deleted, not edited.
 
 - When in doubt, remove the feature, the flag, the option, the
   config field, the command.
-- Watchers were removed once and later reintroduced for mapped Slack cc
-  mentions when a concrete need returned. Apply the same evidence-first
-  standard elsewhere.
+- The precedent list, kept so a later cleanup does not delete a survivor a
+  second time. Watchers were removed, reintroduced for mapped Slack cc
+  mentions, and removed again in the ticket-format simplification (PR #784)
+  once it was clear no ticket ever populated the field. `coga build` was
+  removed with `coga project` (PR #691) and deliberately restored three days
+  later (PR #701, "we want the build back with the skills; it was useful"),
+  while `coga project` stayed gone — so the removal ticket's "no references
+  remain" is true for only half of what it removed. Apply the same
+  evidence-first standard elsewhere: delete freely, and record the reversal
+  when one happens.
+- Restoring half of a removal is a **partial revert, not `git revert`**: a
+  whole-commit revert resurrects the half that should stay dead. Bring back
+  the scoped files verbatim from the pre-removal parent (`git show
+  <removal>^:<path>`) and verify them byte-identical; for files that drifted
+  since the removal, re-add the mentions on top of current text rather than
+  restoring old prose wholesale — current text wins on conflict. Re-check any
+  restored template against conventions that changed in between, and restore
+  the tests the removal deleted alongside the code.
 - "Small surface, sharp behavior" beats "big surface, fuzzy
   behavior."
 

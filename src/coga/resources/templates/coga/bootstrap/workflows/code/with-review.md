@@ -89,6 +89,15 @@ blackboard and escalate per your launch mode — ask the attending human,
 or `coga block` in a queue run. Escalate the same way if your review tool
 isn't on PATH.
 
+**A green suite is not the whole review when the diff touches a surface tests
+cannot reach.** A raw-terminal loop, a pager, a TTY prompt, a rendered Slack
+message: the tests cover the pure function underneath and never the thing a
+human sees, and the megalaunch picker shipped a cursor that scrolled off-screen
+with every test green. Drive such a surface yourself in a real terminal at the
+sizes that matter, and record what you tried and saw under `## Peer review` —
+that record is the gate. If the terminal cannot be driven from this session,
+escalate per your launch mode instead of bumping on tests alone.
+
 **This is the last judgment step before the PR opens.** The next `open-pr` step
 is agent-owned, but its remit is only to run the deterministic command and bump,
 so anything needing review judgment must be done *here* before you bump:

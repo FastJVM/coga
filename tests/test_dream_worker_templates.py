@@ -102,7 +102,8 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "gitignored `coga.local.toml`" in text
     assert "same repo-relative path" in " ".join(text.split())
     assert "never symlink, snapshot, stage, or commit it" in " ".join(text.split())
-    assert "read-only temporary\nevidence snapshot" in text
+    assert "read-only `evidence/` snapshot" in " ".join(text.split())
+    assert "writable `progress.md` alongside `evidence/`, not inside it" in " ".join(text.split())
     assert "including sibling attachments" in " ".join(text.split())
     assert "current `## Findings`" in text
     assert "`coga delete <slug> --keep-control-checkout`" in text

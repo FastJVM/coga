@@ -234,6 +234,17 @@ actively fights the capability boundary.
   types, or validation in `coga.toml` rebuild Typer worse and in TOML — an
   illegible config DSL that violates the legibility non-negotiable
   (`coga/principles`).
+  The one validation an alias does get is structural, and it fails loud at
+  dispatch: `aliases.validate_aliases` raises `ConfigError` when an alias name
+  collides with a built-in command, expands to nothing, or expands to a first
+  token that is not a built-in — and `cli.main` exits 2 on that error before
+  running *any* ordinary command, so a bad alias in `coga.toml` takes the whole
+  CLI down in that checkout, not just the alias. Exactly three invocations
+  survive it by discarding the repo's alias map and dispatching on the
+  built-in defaults: `coga init`, `coga uninstall`, and a cross-repo
+  `coga recurring --all` (the parent dispatcher, whose children load their own
+  config). `coga/recurring` records why that escape hatch exists and why
+  tightening alias validation must preserve it.
 - **No inversion.** Relocating logic out of the kernel must move the *substance
   unchanged*: deterministic Python stays Python, either as a registered recipe
   or a ticket-owned `ticket.py`; never rewrite a deterministic check as agent

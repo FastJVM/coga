@@ -46,6 +46,19 @@ this step just makes sure the diff they see is already clean.
    there is nothing for a stale checkout to bury" was false, and a workflow was
    validated only after its source ticket had already been deleted. Probe the
    reasons the change gives for itself, not just its assertions.
+
+   **Some surfaces no automated test can reach; sweep those by hand and record
+   it, or block.** A raw-terminal `Live` loop, a pager, a TTY prompt, a Slack
+   render — the suite exercises the pure view function and never the terminal,
+   so a green run proves nothing about what a human sees. The megalaunch picker
+   shipped a cursor that scrolled off-screen exactly this way: every
+   `_picker_view` test passed and the bug was found by eye. When the diff
+   touches such a surface, drive it yourself in a real terminal at the sizes
+   that matter (for a picker: roughly 100x50, 80x24, and 50 columns, holding
+   the cursor from top to bottom) and write the sizes and the outcome under
+   `## Self-QA`. That record is the gate: do not bump without it. If the
+   terminal cannot be driven from this session, say so and escalate per your
+   launch mode rather than passing the step on tests alone.
 3. **Run `/simplify`.** Invoke the `/simplify` slash command against
    the branch. It reviews changed code for reuse, quality, and
    efficiency, then fixes issues it finds. Let it apply its edits.
@@ -86,6 +99,9 @@ this step just makes sure the diff they see is already clean.
 - Working tree is clean; tests pass.
 - Every review this step started has **returned** — none is still in
   flight at the bump.
+- Any surface automated tests cannot reach has been swept by hand, with the
+  sizes or conditions tried and the outcome recorded — or the step escalated
+  instead of bumping.
 - A short `## Self-QA` section on the blackboard notes what was
   changed (or "no findings" if both passes came back clean), and states
   explicitly that the review returned. The `pr` step reads that line as its
