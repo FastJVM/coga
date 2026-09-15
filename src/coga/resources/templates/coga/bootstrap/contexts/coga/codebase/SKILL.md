@@ -200,8 +200,8 @@ coexist under `coga/skills/`:
   declared in `src/coga/resources/managed-skills.toml`. That file is the list
   of *optional GitHub refs `coga init` tries to fetch*, not the membership test
   for the flat shape — and **init is the only reader**:
-  `install_managed_skills` / `reconcile_managed_skills` are called from
-  `commands/init.py` alone. `update_skills` enumerates the skill directories
+  `install_managed_skills` is called from `commands/init.py` alone, and
+  `reconcile_managed_skills` is exercised only by tests. `update_skills` enumerates the skill directories
   that already exist on disk and hands each one whose `SKILL.md` frontmatter
   carries `gh skill`'s `metadata.github-repo` (`gh_skill_repo`, the one
   gh-backed predicate `update_skills` and `status_skills` share) to `gh skill
@@ -230,17 +230,25 @@ coexist under `coga/skills/`:
   example, and it is deliberately **absent** from `managed-skills.toml`: an
   operator installed it directly. Its refresh posture differs from the
   GitHub-backed form — `coga skill update` walks `.coga-source.json` in Coga's
-  own code rather than delegating to `gh`. **The `include` allowlist is inert
-  documentation, not behavior**: `include` is never read anywhere in
-  `skill_manager.py`. `_update_url_skill_dir` compares digests only — it
-  materializes the complete upstream tree and then either reports a
-  `conflict`/`skipped-local-adaptation` (when the installed tree no longer
-  matches `installed_tree_digest`) or replaces the directory with that complete
-  tree. So a deliberate pruning of upstream scaffolding is *not* reproduced on
-  update: it either blocks the update as a local adaptation, or is undone
-  wholesale, restoring every path the operator meant to exclude. Reproducing a
-  pruning from the recorded allowlist is unimplemented work, not current
-  behavior. `coga skill install-local` is a third installer path
+  own code rather than delegating to `gh`. **The `include` allowlist is
+  honored, not documentation** (since #776): `parse_include_allowlist` and
+  `apply_include_allowlist` in `skill_manager.py` prune each freshly
+  materialized upstream tree to the recorded subset before `_replace_skill_tree`
+  lands it, and `_url_metadata` writes `include` back so the next run sees it.
+  `source_tree_digest` stays the true unpruned upstream digest (upstream-change
+  detection still works) while `installed_tree_digest` describes the pruned tree
+  on disk. A digest recorded before the allowlist was honored is repaired in
+  place only when the freshly downloaded, pruned upstream tree still matches
+  the installed files (`_pruned_upstream_matches_installed`); the repair is
+  reported as a change. If upstream changed retained files first, the match
+  fails and the updater reports `conflict`, requiring manual reconciliation.
+  Edits *beyond* the allowlist also surface as
+  `conflict`/`skipped-local-adaptation`. Another unprotected shape is a
+  `.coga-source.json` whose `local_adaptation_notes`
+  describe a prune but which carries no `include` key — the updater then treats
+  the full tree as the install and never re-prunes (`clarity/` fell into this
+  after a refresh that ran on pre-#776 code). `coga skill install-local` is a
+  third installer path
   and is updated by neither: `gh skill` records it as `local-path` and skips
   it, and Coga's URL updater does not consume that metadata. **The presence of
   `.coga-source.json` — not an entry in `managed-skills.toml` — is what tells
@@ -318,8 +326,9 @@ tickets. `coga/bootstrap/` is not materialized into working repos. Claude Code
 and Codex are pointed at the generated `coga/.agent-skills/` view, which
 exposes the same effective local-plus-bundled skill set. Optional Coga-owned
 domain skills are declared in `src/coga/resources/managed-skills.toml` and
-installed into `coga/skills/` through the public skill installer during
-init/update; they are not copied from the template tree.
+installed into `coga/skills/` by `coga init` only (`install_managed_skills`;
+`coga skill update` never reads the manifest, and `reconcile_managed_skills` has
+no production caller); they are not copied from the template tree.
 
 ## Authoring bundled batteries
 
