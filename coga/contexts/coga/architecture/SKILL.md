@@ -560,10 +560,11 @@ bundled refs may replace that list with specific cleanup instructions.
 
 - **Control plane (`status`)** — `draft`, `active`, `in_progress`, `paused`,
   and `blocked`, plus the terminal outcomes `done` and `canceled`. Governs
-  *whether* work happens. The shared `coga.mark` finalizers own the
-  `draft`/`active`/`paused`/`done`/`canceled` writes; the `coga mark` command
-  exposes them directly, while a final-step `coga bump` delegates to
-  `mark_done`.
+  *whether* work happens. `coga create` explicitly writes `draft`, independent
+  of `default_status`; the shared `coga.mark` finalizers own the
+  `active`/`paused`/`done`/`canceled` writes (plus launch's `in_progress`
+  flip); the `coga mark` command exposes those four directly, while a
+  final-step `coga bump` delegates to `mark_done`.
   `coga block` owns the `blocked` transition, and `coga unblock` resolves
   open blocker asks and moves `blocked → active` while preserving `step:`.
   `coga launch`
