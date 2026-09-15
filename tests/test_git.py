@@ -2404,6 +2404,83 @@ def test_catch_all_sync_cannot_clear_a_published_launch_claim(
     assert "stale local prose" not in remote.body
 
 
+def test_catch_all_sync_republishes_a_stranded_claim_release(
+    git_repo, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A bump whose own publication failed offline converges on the next sweep.
+
+    The checkout's committed baseline *is* control's claimed copy, so the
+    released step move is the retry of an authorized session-ending
+    transition, not a stale worktree erasing a peer's claim.
+    """
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(
+        git_repo, status="in_progress", blackboard="original notes\n"
+    )
+    ticket.write_text(
+        _claimed_ticket_text(
+            generation="finishing-generation",
+            blackboard="agent result\n",
+        )
+    )
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "claim demo")
+    git_repo.git("push", "origin", "main")
+    ticket.write_text(
+        _step_ticket_text(
+            step="2 (review)",
+            status="in_progress",
+            blackboard="agent result\n",
+        )
+    )
+
+    git.sync_coga_state(cfg)
+
+    assert "sync refused" not in capsys.readouterr().err
+    assert not git_repo.git("status", "--porcelain").strip()
+    remote = Ticket.parse(
+        git_repo.git("show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin)
+    )
+    assert remote.launch_generation is None
+    assert remote.step == "2 (review)"
+
+
+def test_catch_all_sync_cannot_release_a_claim_from_a_stale_baseline(
+    git_repo, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A step move alone never authorizes the sweep to clear a peer's claim."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_demo_ticket(
+        git_repo, status="in_progress", blackboard="original notes\n"
+    )
+    git_repo.checkout_branch("feature/stale-sweep-release")
+    before_head = git_repo.git("rev-parse", "HEAD").strip()
+    git_repo.push_competing_commit(
+        "coga/tasks/demo/ticket.md",
+        _claimed_ticket_text(
+            generation="live-generation",
+            blackboard="claimed by peer\n",
+        ),
+    )
+    ticket.write_text(
+        _step_ticket_text(
+            step="2 (review)",
+            status="in_progress",
+            blackboard="stale step move\n",
+        )
+    )
+
+    git.sync_coga_state(cfg)
+
+    assert "published launch claim would be cleared" in capsys.readouterr().err
+    assert git_repo.git("rev-parse", "HEAD").strip() == before_head
+    remote = Ticket.parse(
+        git_repo.git("show", "main:coga/tasks/demo/ticket.md", cwd=git_repo.origin)
+    )
+    assert remote.launch_generation == "live-generation"
+    assert remote.step == "1 (implement)"
+
+
 def test_catch_all_sync_cannot_delete_a_published_launch_claim(
     git_repo, capsys: pytest.CaptureFixture[str]
 ) -> None:
