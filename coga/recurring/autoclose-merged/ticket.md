@@ -46,6 +46,12 @@ This blackboard persists across every run of this recurring task. The
 `autoclose` sweep keeps no durable state here - every run's output
 is the tickets it marks done and the live Done posts they produce.
 
-The one thing a run appends is a `## Autoclose Sweep: retire follow-ups`
-section, and only when it closed a ticket that still records a feature
-checkout. A sweep that stranded nothing writes nothing.
+A run that closed a ticket still recording a feature checkout appends a
+`## Autoclose Sweep: retire follow-ups` section — to the *period task's*
+blackboard for that firing (`autoclose._report_retire_followups` writes
+`COGA_TASK_BLACKBOARD`), not here. That section is a per-run report the
+scheduler deletes with the period task, not a durable worklist; the retire
+debt itself stays visible on each closed ticket's `## Dev` until
+`coga retire <slug>` runs. A durable home for the worklist is the open
+`persist-autoclose-retire-follow-ups` ticket. A sweep that stranded nothing
+writes nothing.

@@ -39,8 +39,8 @@ A recurring **agent** period task that calls `coga block` does not stay
 `blocked` long enough to be scanned. The scheduled-run contract in the
 `coga/recurring` context requires an agent run to reach `done` in one launch,
 so when the sweep gets control back it rewrites the period `blocked → paused`;
-`_pause_unfinished` in `src/coga/recurring_runner.py` returns early for a
-script-recorded block and never for an agent one. The unresolved ask is still
+`_stop_if_unfinished_after_launch` in `src/coga/recurring_runner.py` returns
+early for a script-recorded block and never for an agent one. The unresolved ask is still
 sitting on the paused ticket, but `status: paused` fails this scan's only
 filter, so nobody is reminded of it and the only surface that would have is
 blind to it. That is what happened to `recurring/resolve-conflicts`: it
