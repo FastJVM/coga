@@ -235,8 +235,71 @@ def test_dream_documents_the_contract_audit_phase() -> None:
     assert "diff -r coga/ src/coga/resources/templates/coga/" not in skill_text
     assert "never read it whole" in skill_norm
     # Phase 6 disposition routes `drift` findings to a proposal PR.
-    assert "Every Phase 2 and Phase 3 finding gets a durable home" in text
+    assert (
+        "Every Phase 1 `pr-proposal` or `human-needed` issue and every Phase 2 "
+        "and Phase 3 finding gets a durable home"
+    ) in " ".join(text.split())
     assert "- `drift` — open a proposal PR" in text
+
+
+def test_dream_routes_every_finding_class_to_a_durable_home() -> None:
+    """Phase 6 closes the three routing holes the 2026-W36 run hit: Phase 1
+    `human-needed` issues had no route past the blackboard, `extract` findings
+    whose source ticket is not Retro-eligible fell through, and nothing stopped
+    a shard from refiling a gap an earlier run had already ticketed."""
+    text = DREAM_PROMPT.read_text()
+    norm = " ".join(text.replace("**", "").split())
+    scan_text = (SCAN_TEMPLATES / "knowledge-scan" / "SKILL.md").read_text()
+    scan_norm = " ".join(scan_text.split())
+    drift_text = (TEMPLATES / "validate-drift" / "SKILL.md").read_text()
+    drift_norm = " ".join(drift_text.split())
+
+    # Phase 1 tells the reader its buckets are Phase 6 inputs, not results.
+    assert "`human-needed` issues are routed to hygiene draft tickets" in norm
+    assert "an issue left only there was never reported" in norm
+
+    # Hole 1: one ticket per validator kind, deduplicated by a greppable tag,
+    # with machine-local kinds kept out of the ticket corpus.
+    assert "one draft ticket per systematic class, never one per issue" in norm
+    assert "`validate-drift: <kind>`" in text
+    assert "--workflow brief-for-human" in text
+    assert "`missing-user`, `unset-secret-env`, `slack-*`, `github-*`" in norm
+    assert "They get no ticket" in norm
+    assert "`coga validate --json` is the live member list" in norm
+    assert "Membership is not copied from run to run" in norm
+    assert "## Where `human-needed` goes" in drift_text
+    assert "`human-needed` is a classification, not a destination" in drift_norm
+    assert "`validate-drift: <kind>`" in drift_text
+
+    # Hole 2: `extract` routes on the source ticket's Retro standing, which
+    # the shard records, and retirement debt is reported, not re-copied.
+    for source in ("`source: done`", "`source: done+checkout`", "`source: canceled`"):
+        assert source in scan_text
+    assert "`done+checkout` — the source ticket is retirement debt" in norm
+    assert "Open no PR and file no carrier ticket" in norm
+    assert "retirement is its consumer" in norm
+    assert "`canceled` — Retro refuses a ticket that is not `done`" in norm
+    assert "Open a proposal PR that edits the target context or skill" in norm
+    assert "a done or canceled ticket holds durable knowledge" in scan_norm
+    assert "abandoned design is not durable knowledge" in scan_norm
+
+    # Hole 3: both halves — the shard searches for an owner before emitting a
+    # gap, and Phase 6 reconciles again with the whole corpus in view.
+    assert "check whether the gap already has an owner" in scan_norm
+    assert "not only your shard's paths" in scan_norm
+    assert "`owner: <slug>`" in scan_text
+    assert "Still write the finding" in scan_norm
+    assert "reconcile against open tickets before creating anything" in norm
+    assert "Phase 6 repeats the search with the whole corpus in view" in norm
+    assert "already ticketed as `<slug>`" in text
+    assert "Dream does not edit another ticket's body or blackboard" in norm
+
+    # Filing rules: top level only, greppable provenance, and the summary
+    # carries what was not filed and why.
+    assert "Dream never files under `coga/tasks/v2/`" in norm
+    assert "so a later run can find the owner by grep" in norm
+    assert "every `already ticketed as` line" in norm
+    assert "the retirement-debt list with the `extract` findings each retirement unlocks" in norm
 
 
 def test_validate_drift_worker_declares_contract() -> None:
