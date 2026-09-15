@@ -5168,3 +5168,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-15 09:55 [dream-findings-have-three-routing-holes-that-lose] [human:nicktoper] auto-bumped on merge of PR #799 → done
 2026-09-15 09:55 [four-parked-tickets-carry-premises-that-have-since] [human:nicktoper] auto-bumped on merge of PR #794 → done
 2026-09-15 09:55 [isolated-checkouts-nothing-says-what-a-fresh-workt] [human:nicktoper] auto-bumped on merge of PR #789 → done
+2026-09-15 09:55 [no-context-records-the-ci-posture-publish-only-rel] [human:nicktoper] auto-bumped on merge of PR #787 → done
