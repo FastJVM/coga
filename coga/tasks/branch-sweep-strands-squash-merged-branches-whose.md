@@ -1,13 +1,13 @@
 ---
 title: Branch sweep strands squash-merged branches whose tip moved
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 contexts:
-  - coga/principles
-  - coga/architecture
-  - coga/codebase
-  - coga/recurring
+- coga/principles
+- coga/architecture
+- coga/codebase
+- coga/recurring
 workflow:
   name: code/with-self-review
   steps:
