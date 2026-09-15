@@ -5162,3 +5162,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-15 09:55 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
 2026-09-15 09:55 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
 2026-09-15 09:55 [autofix/report-per-skill-outcomes-from-gh-skill-update-in] [human:nicktoper] auto-bumped on merge of PR #796 → done
+2026-09-15 09:55 [cloning-a-coga-repo-has-no-setup-path] [human:nicktoper] auto-bumped on merge of PR #788 → done
