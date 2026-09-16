@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: 9f61945b-8fb5-48cf-8717-e71554e0442a
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -40,10 +39,10 @@ hand and each invents its own shape: `v2/acceptance-criteria` uses a bold
 in `## Context`; `v2/cleanup-core-commands/work-orchestration-commands-to-tickets`
 buries "The dedicated removal ticket supersedes the project-planning portion of
 this work" mid-`## Description` without naming the successor;
-`dream-recurring-persist-done-stop-inline-delete`,
-`auto-persist-dirty-launch-worktrees-to-pushed-bran`,
-`use-worktree-when-starting-a-dev-task` and
-`cleanup-core-commands/launch-decomposition` each differ again. Nothing in the
+`v2/dream-recurring-persist-done-stop-inline-delete`,
+`v2/auto-persist-dirty-launch-worktrees-to-pushed-bran`,
+`v2/use-worktree-when-starting-a-dev-task` and
+`v2/cleanup-core-commands/launch-decomposition` each differ again. Nothing in the
 model supports it: `CANONICAL_TICKET_KEYS` in `src/coga/ticket.py` has no
 `supersedes`/`superseded_by`, and `src/coga/lifecycle.py` allows only
 draft/active/in_progress/blocked/paused/done/canceled — no superseded terminal.
@@ -86,8 +85,92 @@ Note: `document-design-pivot-in-blackboard-convention` was canceled, but it
 covered a different shape — a design pivot inside one ticket — so that
 cancellation does not close part 1.
 
+**Code facts (implement step, 2026-09-15).** Part 2 already has a mechanism
+the description missed: `src/coga/megalaunch.py` `_finished_blocker_dependency`
+plus `_reason_names_task` read an exact path-qualified task slug out of an open
+blocker ask, and `_drain_satisfied_blockers` relaunches the dependent once that
+ticket is `done` or retired — a blocked ticket is therefore visible to `coga
+status --blocked`, `src/coga/blocker_reminders.py`, and launch selection. What
+was missing was one documented spelling, not a field. For part 3,
+`src/coga/git.py` `TicketRoutingState` includes `owner`, which is why a live
+`in_progress` session must not have its owner changed underneath it.
+
 **Dream 2026-W38 evidence (finding F-25, part 1 — supersession).** Verified against source: `CANONICAL_TICKET_KEYS` in `src/coga/ticket.py` has no `supersedes`/`superseded_by` key, `src/coga/lifecycle.py` has no `superseded` state, and `grep -rni supersed coga/contexts coga/skills` finds only `coga/contexts/dev/code/SKILL.md` "Design pivots and superseded plans", which governs a superseded design *inside one ticket*. Current carriers each invent a shape: `coga/tasks/v2/acceptance-criteria.md` (paused) opens `## Context` with a bold "Superseded by `the-ticket-interview-never-asks-what-done-means` (2026-09-01)" line; `v2/cleanup-core-commands/work-orchestration-commands-to-tickets.md` buries "The dedicated removal ticket supersedes …" mid-Description without naming the successor; `nightly-auto-drain-run-for-ready-tickets.md` records the supersession only from the successor's side while `v2/autoroute-agent-based-on-remaining-usage` says nothing. Refresh this ticket's example slugs: three of the six it cites (`dream-recurring-persist-done-stop-inline-delete`, `auto-persist-dirty-launch-worktrees-to-pushed-bran`, `use-worktree-when-starting-a-dev-task`) no longer exist under `coga/tasks/` at those paths (the first two live under `v2/`, the third is `v2/use-worktree-when-starting-a-dev-task`). Proposed minimum: one documented spelling in the ticket-lifecycle section of `coga/contexts/coga/architecture/SKILL.md` (a bold "Superseded by `<slug>` (<date>)" first paragraph of `## Context` plus the terminal status the superseded ticket takes), or a `superseded_by` key that `coga status`/launch selection treat as terminal.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Plan (implement step, 2026-09-15)
+
+The workflow (`code/with-review`) has no design step, so implement picks per
+part, following the ticket's own framing: mechanism or documented convention.
+
+- **Part 1 — supersession: document, no new mechanism.** `coga mark canceled
+  <slug> --message "Superseded by <path-qualified-slug>"` already provides
+  everything a `superseded` terminal would: terminal (drops out of `coga
+  status`, blocker sweeps, megalaunch candidates), reason required and
+  audit-logged, `step:` cleared, body untouched. Adding a `superseded_by` key
+  or a new status would touch `lifecycle.py`, `validate.py`, `mark.py`, views,
+  launch refusals, and every packaged workflow for a relationship that
+  cancellation-with-reason already carries. Convention: the cancellation
+  reason begins `Superseded by <exact slug>`; when readers of the file need the
+  pointer too, `## Context` opens with the same bold line. Owner of the fact:
+  `coga/architecture` (new `## Ticket relationships` section); `coga/cli`
+  "Pick which command" gets the entry.
+- **Part 2 — dependencies: document the existing mechanism.** A blocker ask
+  whose reason names the prerequisite's exact path-qualified slug *is* the
+  declared dependency: `megalaunch._finished_blocker_dependency` /
+  `_reason_names_task` already read it and the dependency drain retries the
+  dependent once the prerequisite is `done` or retired (see `### Megalaunch
+  dependency drain`). The ticket's claim that ordering is "invisible to `coga
+  status`, blocker sweeps and launch selection" is stale — a blocked ticket is
+  visible on all three. No `dependencies:` field: it would be a second, unread
+  copy of the same fact. The successor-side `### Blocks` prose in
+  `v2/op-service-account-auth-to-skip-op-read-prompt` stays a human pointer.
+- **Part 3 — owner reassignment: build `coga owner <slug> <name>`.** Hand
+  editing `owner:` skips validation, the audit line, and the guarded control
+  sync, which is why fifteen tickets drifted. The transaction (barrier write →
+  `assert_task_valid` → `append_log` → `git.sync_task_state` under
+  `ticket_state_guard`) is package-private, so this is a genuine command under
+  the microkernel rule, not an alias. Rules: any non-terminal status except
+  `in_progress` (pause first — a live session's routing lease compares
+  `owner`, see `git.TicketRoutingState`); terminal records refuse; same owner
+  is a no-op error; name must be non-empty. No Slack post (routine, like
+  `mark paused`). Named `owner` so the verb mirrors the frontmatter field the
+  way `mark <state>` mirrors `status`, and to avoid reviving "assign".
+
+Out of scope, noted for retro: migrating the seven hand-annotated `v2/`
+supersession tickets and the fifteen `owner: zach` tickets is a human
+decision per ticket; the new command and convention make it a one-liner each.
+
+## Implemented (commit 8e3680b2 on `ticket-relationships`)
+
+- `src/coga/commands/owner.py` — new `coga owner <slug> <name>`; registered in
+  `src/coga/cli.py` (command + `_SWEEPING_COMMANDS`) and
+  `src/coga/aliases.py` `BUILTIN_COMMANDS`.
+- `tests/test_owner.py` — 13 tests mirroring `tests/test_mark.py`: every
+  allowed status, step/body preserved, workflow-less draft, refusals
+  (in_progress, done/canceled, same owner, blank name, unknown task), plus one
+  `git_repo` test proving the reassignment and audit line land on control.
+- `coga/contexts/coga/architecture/SKILL.md` + packaged twin — new
+  `## Ticket relationships` section (ownership / dependency / supersession),
+  `coga owner` added to the one-writer list, prospective-validation list, and
+  the `human` → `owner` bullet.
+- `src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md` —
+  `## coga owner` section and three "Pick which command" entries.
+- `docs/reference.md` — one-line pointer.
+- Ticket `## Context`: refreshed the three stale example slugs to their `v2/`
+  paths and added the code facts for parts 2 and 3.
+
+Verification: `python -m pytest` → 2508 passed; `coga validate --json` on
+`example/` → 0 issues; on the live repo → 29 pre-existing warnings/errors, none
+on this ticket. Rebased on `origin/main` (no new commits). Not pushed.
+
+For peer review: the one judgment call worth challenging is refusing
+`in_progress` instead of clearing `launch_generation` the way `mark paused`
+does — I chose the refusal because an owner change does not end the session,
+so clearing the claim would lie about a child that is still running.
+
+## Dev
+
+branch: ticket-relationships
+worktree: /home/n/Code/claude/coga-ticket-relationships
