@@ -46,6 +46,7 @@ Observed in the multiply repo on 2026-09-14 (`coga recurring --all ~/Code`): the
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/814
 branch: recurring-missing-workflow
 worktree: /home/n/Code/claude/coga-recurring-missing-workflow
 
