@@ -179,3 +179,9 @@ Test plan: `PYTHONPATH=/home/n/Code/claude/coga-autoclose-unanswered-threads/src
 ## Blockers
 
 - [ ] [2026-09-15 16:54] [agent:codex] id=20260915T165417 Peer-review requires a rendered Slack check for the new thread summary. Provide an accessible browser/Slack visual session, or record human verification at normal and narrow widths that PR labels and every path:line link render correctly and open the intended thread. This session has no visual client. Codex review returned; all three findings are fixed in 1c414750, the rebased branch is clean, 2517 tests passed, and the PR body and terminal QA are on the blackboard.
+
+---
+
+## Blocker reminders
+
+- e56cebde79e4 last_reminded: 2026-09-16 10:58
