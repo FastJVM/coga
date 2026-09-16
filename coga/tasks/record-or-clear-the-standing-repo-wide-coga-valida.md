@@ -73,6 +73,7 @@ Guard: a green validate is never a reason to cancel a draft.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/823
 branch: validate-baseline
 worktree: /home/n/Code/claude/coga-validate-baseline
 
