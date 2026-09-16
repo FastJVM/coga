@@ -25,8 +25,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: d32c8689-172c-46e1-b9ca-104a7ae20171
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -133,3 +132,76 @@ account against one automation vault; this ticket does not change that model.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: scrub-sa-token
+worktree: /home/n/Code/claude/coga-scrub-sa-token
+
+## Design question — answered (verification, not a design decision)
+
+Which nested in-session paths need the token once the child no longer inherits
+it? **None.** Evidence (2026-09-15):
+
+- The only in-package `op://` resolver is `config.select_launch_secrets`. Its
+  callers are `config.build_launch_env` and `commands/secret.py` (`coga secret
+  get`). Nothing else in `src/coga/` shells out to `op`.
+- Every `build_launch_env` call runs in the *parent* (`commands/launch.py`
+  ×4, `megalaunch.py`, `launch_script.py` ×2), which keeps its own
+  `os.environ`. Megalaunch and the REPL supervisor spawn the agent directly
+  with the built env (`megalaunch._PreparedAgentLaunch.env`,
+  `repl_supervisor` `subprocess.run(cmd, env=...)`), not a nested `coga
+  launch`, so no second resolution ever happens from a scrubbed env. The
+  supervisor's per-step re-mint (`launch.py`, the `build_launch_env` before
+  the step spawn) also runs in the parent.
+- `coga secret get` is defined by the `coga/cli` context as "a human-facing
+  query, not something agents call". Inside a child it now fails without
+  another `op` session — that is the scoping working, not a regression.
+- No recurring `ticket.py` (`coga/recurring/*/ticket.py`) or recipe touches
+  `op` or `OP_SERVICE_ACCOUNT_TOKEN`.
+- Slack: unaffected, as the ticket already notes (`SLACK_WEBHOOK_URL` env
+  ref, not `op://`).
+
+So no narrower mechanism is needed; the scrub lives entirely inside
+`build_launch_env`.
+
+## What changed
+
+- `src/coga/config.py`: new `SERVICE_ACCOUNT_TOKEN_VAR` constant;
+  `build_launch_env` now resolves declared secrets *first* (parent still holds
+  the token for `op read`), then `env.pop(OP_SERVICE_ACCOUNT_TOKEN)`, then
+  `env.update(resolved)`. Because `update` runs after the pop, a ticket
+  declaring `OP_SERVICE_ACCOUNT_TOKEN` as a destination alias still gets it
+  (inherited value scrubbed, declared value kept). Applies to whatever
+  `base_env` is in use, not only `os.environ`.
+- `tests/test_config.py`: six `build_launch_env` tests — no-secrets scrub with
+  injected `base_env`; scrub after `op://` resolution (fake `op read`); the
+  `os.environ` default path (parent env untouched); token declared as
+  destination survives; `OP_SERVICE_ACCOUNT_TOKEN: env:OTHER_TOKEN` replaces;
+  `TASK_OP_TOKEN: env:OP_SERVICE_ACCOUNT_TOKEN` stays scrubbed. Three of them
+  fail on the old code (checked via stash).
+- Docs: `coga/contexts/coga/architecture/SKILL.md` "declaration, not a
+  sandbox" paragraph + packaged twin under `bootstrap/` (byte-identical);
+  `coga/contexts/coga/secrets/SKILL.md` "Scoping bounds the grant" section and
+  the following `op` auto-auth paragraph (now also names the `coga secret get`
+  in-child consequence).
+
+## Verification
+
+- Full suite in the feature worktree: `python -m pytest` → 2501 passed
+  (`.venv/bin/python` 3.12; miniconda default is 3.9 and refuses to import
+  coga — use the repo venv).
+- `tests/test_packaging.py` passes (twins in sync).
+- Manual half (clean env, real `OP_SERVICE_ACCOUNT_TOKEN` only, launched child
+  with no declared secrets cannot `op read`) **not run** here — needs a real
+  token and a shell without a personal `op` session; left for the owner /
+  review step.
+
+## Decisions
+
+- Scrub placed inside `build_launch_env` rather than at call sites: one
+  function, seven callers, and the ticket's own audit says none re-adds the
+  variable (re-confirmed: `apply_task_env` / `build_supervised_step_env` only
+  add `COGA_*` keys).
+- Kept the "not a logout" caveat prominent in both docs; the change bounds the
+  SA path only.

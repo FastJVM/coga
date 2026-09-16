@@ -5231,3 +5231,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-15 20:32 [scrub-the-service-account-token-from-the-launch-ch] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-15 20:32 [scrub-the-service-account-token-from-the-launch-ch] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-15 20:32 [scrub-the-service-account-token-from-the-launch-ch] [megalaunch] launched via coga megalaunch
+2026-09-15 20:39 [scrub-the-service-account-token-from-the-launch-ch] [agent:claude] advanced to step 2 (peer-review) → codex
