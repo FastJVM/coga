@@ -1,6 +1,6 @@
 ---
 title: The autofix analyst ticket closed without shipping any of its three defects
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
