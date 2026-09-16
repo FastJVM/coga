@@ -326,9 +326,11 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
                 "Propose the `coga/architecture` bloated-blackboard remedy: "
                 "promote the task to directory form, move dated evidence into "
                 "sibling attachments and superseded material into an "
-                "unattached context, and leave only the current handoff, "
-                "worklist and verification on the blackboard. Move, do not "
-                "delete."
+                "unattached context, and leave the current handoff, worklist "
+                "and verification on the blackboard. Keep `## Dev` and "
+                "`## Blockers` in place under the `coga/blackboard` contract; "
+                "CLI readers do not follow attachment links for that state. "
+                "Move, do not delete."
             ),
         )
 

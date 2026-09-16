@@ -890,8 +890,10 @@ trim history by deleting it. Promote the task to directory form (the
 `mkdir <slug>/ && mv <slug>.md <slug>/ticket.md` move above) and move dated
 evidence into sibling attachments (`tasks/<slug>/<topic>.md`) that open with an
 HTML comment naming the task they belong to and the date they were moved out;
-leave the blackboard holding only the current handoff, worklist and
-verification, with a pointer to each attachment. Attachments are never
+leave the blackboard holding the current handoff, worklist and verification,
+with a pointer to each attachment. Keep `## Dev` and `## Blockers` in place
+under the `coga/blackboard` contract; CLI readers do not follow attachment
+links for that state. Attachments are never
 composed, so the moved evidence costs nothing until a session opens it.
 Superseded program material that several tickets may still cite belongs in an
 *unattached* context — one no live ticket lists under `contexts:` — which stays
