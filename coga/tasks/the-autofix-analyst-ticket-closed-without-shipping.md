@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: d060d5cd-0a32-46ef-9fd9-feedd259f219
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -140,17 +139,85 @@ Decisions made without an owner (recorded so the review step can overrule):
 - `tests/test_recurring_autofix.py`: 9 new (labelled streams ×3, stdin ×2,
   agent precedence ×4). `tests/test_config.py`: 7 new (`[autofix]` parse,
   local-declared type, unknown type, non-string, unknown key, shared-only,
-  default None). 15 of the 17 fail against the unfixed source.
+  default None). 15 of the 16 fail against the unfixed source.
 - Full suite in the worktree: `2511 passed` (pre-rebase). Post-rebase the
   incoming main commit (`261045a3`) touched only `coga/log.md`, task files,
   and a recurring `ticket.py`; re-ran `test_recurring_autofix`,
   `test_config`, `test_packaging`: 207 passed.
-- `coga validate` not run: no task-layout or workflow semantics changed.
+- Implementation deferred `coga validate`; peer review below ran task-scoped
+  validation with the feature source.
 
-## For the review step (from the ticket's Context)
+## Adjacent ticket disposition (peer review, 2026-09-16)
 
-- `dream-2026-w36-extract-backlog-18-findings-phase-4` item 8 is now fully
-  carried here (items 1 and 2 of that backlog remain unlanded — nothing here
-  touches them). Closing vs narrowing that draft is still the owner's call.
+- `dream-2026-w36-extract-backlog-18-findings-phase-4` is already `done`:
+  PR #795 landed as `2a7e0290`. Its September 12 triage explicitly assigns
+  item 8 to this ticket. Items 1 and 2 were knowledge extraction, not a
+  promise to consolidate the helpers or convert the remaining lifecycle
+  writers. There is no draft backlog left to close or narrow here; those
+  unrelated code changes remain outside this fix.
 - `fix-the-autofix-analyst` stays `done`; this ticket supersedes it rather
-  than reopening a retired-shape ticket. Not reopened here.
+  than reopening a retired-shape ticket. Reopening or retiring its recorded
+  checkout remains an owner decision.
+
+## Peer review
+
+`codex review --base main` ran from the recorded feature worktree at
+`16959c72` and **returned**, exit 0, on 2026-09-16: "No actionable regressions
+found in agent selection, stdin isolation, or failure reporting." The review
+also ran the full suite with the feature `src/` on `PYTHONPATH`: **2511
+passed**. No must-fix finding or design rethink; no code amendment needed.
+
+Accepted the shared-only configuration and load-time validation against the
+effective agents table: both follow the documented repository policy and
+fail-loud configuration contract. The explicit override still wins for valid
+configurations, and the default remains unchanged without the key.
+
+Ran `git fetch origin main`, then `git rebase FETCH_HEAD` unconditionally in
+the feature worktree. Rebase succeeded without conflicts onto `163b1d12`;
+feature HEAD is now `4a5502a5`. The incoming four commits changed only this
+ticket and `coga/log.md`; the reviewed nine-file product diff is unchanged.
+The required post-rebase full suite returned **2511 passed in 180.23s**:
+`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src" /tmp/coga-pr784-review-venv/bin/python -m pytest -p no:cacheprovider`.
+Task validation from the primary checkout with the feature package returned
+`ok_count: 1`, no issues (`python -m coga.cli validate --task
+the-autofix-analyst-ticket-closed-without-shipping --json`, using the same
+venv and the absolute feature `src/` on `PYTHONPATH`).
+`git diff --check origin/main...HEAD` also passed.
+
+Independent manual verification passed using real child processes in a
+temporary fixture (fake vendor executables, notifications and git sync
+disabled). The actual `coga run autofix-analyze --dry-run` path selected
+`[autofix].agent`, honored `--agent`, and retained the first-declared fallback;
+all three received EOF despite nonempty piped input. The initial Claude call,
+auth-status probe, and subscription retry also all received EOF. A failed
+child preserved both labelled streams and returned exit 1.
+
+Real-terminal checks at 80×24 and 40×12 displayed the stdout billing cause
+and stderr connector warning on separate labelled lines, with the normal
+error color and the literal `[account notice]` text preserved. Both calls
+returned promptly without reading the terminal. Reproduction script:
+`/tmp/coga-autofix-peer-smoke.py` (temporary, not product code), run with
+`/tmp/coga-pr784-review-venv/bin/python` and arguments `80 24`, `40 12`, or no
+arguments for the pipe/precedence/fallback checks. The default `python` lacks
+the declared `tomlkit` dependency; the existing test venv includes it.
+
+Handoff: feature branch `autofix-analyst-fixes` is clean and committed at
+`4a5502a5`, one commit ahead of fetched `origin/main` `163b1d12`. Review and
+test processes have all returned. The PR body is below; no review findings
+remain open.
+
+## PR
+
+Autofix analysis could hide a stdout error behind an unrelated stderr warning
+and consume the sweep's stdin. Fix both defects and let recurring sweeps
+select an analyst independently of the sweep override or new-ticket default.
+
+- Report both failed-child streams with labels and separate bounded tails.
+  Pass `stdin=subprocess.DEVNULL` to the analyst and Claude auth-status probe.
+- Add shared `[autofix].agent` with `--agent` > configured analyst >
+  first-declared agent precedence. Validate the setting against the effective
+  agents table at config load.
+- Add 16 regression tests and update the recurring, architecture, and CLI
+  contracts, including the packaged copies.
+
+Test plan: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src" /tmp/coga-pr784-review-venv/bin/python -m pytest -p no:cacheprovider` — 2511 passed; `python -m coga.cli validate --task the-autofix-analyst-ticket-closed-without-shipping --json` with the feature package and `git diff --check origin/main...HEAD` passed; real subprocess and terminal smoke checks at 80×24 and 40×12 passed.
