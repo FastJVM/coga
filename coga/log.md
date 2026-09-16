@@ -5412,3 +5412,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-16 16:17 [test-recurring-create-is-silent-fixture-fix-is-hal] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-16 16:17 [test-recurring-create-is-silent-fixture-fix-is-hal] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-16 16:17 [test-recurring-create-is-silent-fixture-fix-is-hal] [megalaunch] launched via coga megalaunch
+2026-09-16 16:18 [test-recurring-create-is-silent-fixture-fix-is-hal] [human:nicktoper] task done

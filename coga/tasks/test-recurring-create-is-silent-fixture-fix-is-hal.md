@@ -1,6 +1,6 @@
 ---
 title: test_recurring_create_is_silent fixture fix is half-applied on main
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -23,8 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: 3486cb64-cc0b-47e7-bacf-4cb2b6b34a54
 ---
 
 ## Description
@@ -77,3 +75,32 @@ because the editable install points at the primary checkout and a plain
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Already satisfied
+
+This ticket's own fix merged as `589e141a` (PR #780, "Finish the half-applied
+test_recurring_create_is_silent fixture fix"), whose commit message names this
+slug as closed. The ticket was created (`a33b9aa5`) before that PR landed and
+was never marked done, so this launch found finished work rather than a bug.
+
+Per-item evidence, checked on current `main` (`git status` clean):
+
+- **One-token flip landed.** `tests/test_notification_messages.py` line 371
+  now reads `ref=TaskRef(slug=slug, path=path, file_form=False)`. `git log -S"file_form=False" -- tests/test_notification_messages.py`
+  returns exactly `589e141a`; `c4482fae` is confirmed as the half-fix (added
+  `force_directory=True` and the comment, left `file_form=True`).
+- **Test passes with the ticket's prescribed invocation.**
+  `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_notification_messages.py::test_recurring_create_is_silent`
+  → `1 passed`. (System `python3.12` lacks `tomlkit`; the repo `.venv`
+  is the `.[test]` interpreter on this machine.)
+- **Assertion is load-bearing, not vacuous.** Mutating it to
+  `assert posts == ["MUTANT"]` fails with `assert [] == ['MUTANT']`, so
+  `_broadcast_scan` runs to completion and posts nothing. Mutation reverted.
+- **"Half-applied, not absent" is recorded durably.** The extended comment
+  above the fixture (also from `589e141a`) says the two lines must agree and
+  names the `IsADirectoryError` path; the `589e141a` commit message carries
+  the full half-fix history (`4012c5e9` claim → `c4482fae` half → `589e141a`
+  finish). No Coga context mentions it; `retro/done-ticket` decides whether
+  the pattern deserves a context entry when it retires this ticket.
+
+No branch, worktree, or PR created; closing with `coga mark done`.
