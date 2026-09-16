@@ -93,7 +93,7 @@ class BranchSweepResult:
 
     @property
     def failure(self) -> str | None:
-        """Why the sweep stopped early, or None when it ran to the end."""
+        """First failure explaining a skipped or partial sweep, if any."""
         return (
             self.remote_unavailable
             or self.worktree_unavailable
@@ -490,14 +490,19 @@ def render_sweep_report(
         lines.append(f"Task: `{task_slug}`")
     lines.append("")
     if result.failure:
-        lines.append(f"Result: the sweep stopped early — {result.failure}")
-    else:
-        lines.append(
-            f"Result: {len(result.local_deleted)} local and "
-            f"{len(result.remote_deleted)} remote branch(es) deleted, "
-            f"{len(result.worktree_pinned)} skipped-worktree-pinned, "
-            f"{len(result.skipped)} skipped."
+        status = (
+            "the sweep stopped early"
+            if result.worktree_unavailable or result.state_root_unavailable
+            else "partial sweep"
         )
+        lines.append(f"Result: {status} — {result.failure}")
+    count_label = "Counts" if result.failure else "Result"
+    lines.append(
+        f"{count_label}: {len(result.local_deleted)} local and "
+        f"{len(result.remote_deleted)} remote branch(es) deleted, "
+        f"{len(result.worktree_pinned)} skipped-worktree-pinned, "
+        f"{len(result.skipped)} skipped."
+    )
     for label, names in (
         ("deleted local", result.local_deleted),
         ("deleted remote", result.remote_deleted),

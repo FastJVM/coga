@@ -967,18 +967,60 @@ def test_recipe_writes_report_to_stdout_without_a_task(
     assert "- deleted local: feat" in out
 
 
+@pytest.mark.parametrize(
+    ("failure_field", "result_text"),
+    [
+        ("remote_unavailable", "partial sweep"),
+        ("gh_unavailable", "partial sweep"),
+        ("worktree_unavailable", "the sweep stopped early"),
+        ("state_root_unavailable", "the sweep stopped early"),
+    ],
+)
 def test_recipe_records_a_failed_sweep_on_the_blackboard(
-    repo: Path, monkeypatch
+    repo: Path, monkeypatch, failure_field: str, result_text: str
 ) -> None:
     host = _host_task(repo)
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(host))
     monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
 
     def _sweep(_cfg, _root, *, echo, result=None):
-        result.remote_unavailable = "remote unreachable"
+        setattr(result, failure_field, "probe unavailable")
         return result
 
     monkeypatch.setattr(bs, "sweep_branches", _sweep)
 
     assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 2
-    assert "Result: the sweep stopped early — remote unreachable" in host.read_text()
+    assert f"Result: {result_text} — probe unavailable" in host.read_text()
+    assert "Counts: 0 local and 0 remote branch(es) deleted" in host.read_text()
+
+
+def test_recipe_reports_local_cleanup_when_remote_listing_fails(
+    repo: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    host = _host_task(repo)
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(host))
+    monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
+    _merged_at_tip(monkeypatch, repo, "feat")
+    real_git = bs._git
+
+    def fail_remote_listing(
+        root: Path, *args: str, input: str | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        if args[:1] == ("ls-remote",):
+            return subprocess.CompletedProcess(
+                args, 1, stdout="", stderr="simulated remote listing failure"
+            )
+        return real_git(root, *args, input=input)
+
+    monkeypatch.setattr(bs, "_git", fail_remote_listing)
+
+    assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 2
+
+    report = host.read_text()
+    assert "Result: partial sweep — simulated remote listing failure" in report
+    assert "Counts: 1 local and 0 remote branch(es) deleted" in report
+    assert "- deleted local: feat" in report
+    assert "stopped early" not in report
+    assert not _branch_exists_local(repo, "feat")
+    assert _git(repo, "ls-remote", "--heads", "origin", "feat").stdout.strip()
