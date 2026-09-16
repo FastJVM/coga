@@ -16,7 +16,7 @@ workflow:
     skills: []
     assignee: agent
 step: 1 (brief-and-hand-off)
-launch_generation: pending:b7aac450-3ca5-49e1-8153-4c347672d6d2
+launch_generation: b7aac450-3ca5-49e1-8153-4c347672d6d2
 ---
 
 ## Description
