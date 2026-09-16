@@ -24,8 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: fcaa27ad-cf4d-4a1e-b8fa-181a6ed8ab4d
+step: 2 (self-qa)
 ---
 
 ## Description
@@ -100,3 +99,74 @@ transient or already fixed.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Verified against run-log.md
+
+Confirmed: 7 due, `tasks run: 3`, `skill-update` failed (exit 1), and the
+four templates behind it appear nowhere in the outcomes or notes.
+
+## Already landed vs. remaining
+
+PR #777 (`6224faf0`, 2026-09-09, after the 2026-09-08 sweep) landed the bulk
+of this ticket in `recurring_runner._launch_due_tasks`:
+
+- The delegated `if delegated.exit_code`, the `except SystemExit` arm around
+  `launch_cmd`, and the missing-period-lease refusal now record the failure,
+  append to a `failures` list, and `continue`; the first failing code is
+  returned after the loop with a `N of M due template(s) failed: ...` note.
+- `tests/test_recurring.py::test_recurring_scan_returns_failed_script_exit_without_unwinding`
+  now asserts continuation + exit 17, and
+  `test_recurring_scan_names_every_failed_template_in_the_run_record` covers
+  the record naming each failure.
+
+**Remaining gap (ticket item 3):** three early exits still survive by design —
+`return 2` when a period cannot be classified after reconciliation, and the
+two `raise` paths for exit 75 (`git.RETRY_WITHOUT_SWEEP_EXIT_CODE`) and
+signal exits ≥128 — and none of them tells the `RunRecord` which admitted due
+tasks were never launched. `run_autofix` still runs from the caller's
+`finally`, so the report is written, but it would read exactly like the
+2026-09-08 one: fewer tasks run than due, no explanation.
+
+## Plan
+
+- Add `_record_abandoned_due(record, due, stopped_at, reason)` beside
+  `_record_unlaunched_creates` in `src/coga/recurring_runner.py`; it appends
+  one `scan_problems` entry per unlaunched due task (so the `problems:`
+  header counts them, matching how created-but-never-launched periods are
+  already reported) plus a single summary note.
+- Call it from the three surviving early exits before returning/raising.
+- Tests: extend `test_recurring_scan_stops_immediately_on_non_template_exits`
+  to assert the record names the abandoned task, and add one for the
+  classify-failure `return 2` path.
+
+## Dev
+
+branch: sweep-abandoned-record
+worktree: /home/n/Code/claude/coga-sweep-abandoned-record
+
+## What changed (commit `e2aefc31` on `sweep-abandoned-record`)
+
+- `src/coga/recurring_runner.py`: new `_record_abandoned_due(record, due,
+  stopped_at, reason)` beside `_record_unlaunched_creates`. Called from the
+  three surviving early exits in `_launch_due_tasks` — the classify-refusal
+  `return 2`, the exit-75 `raise`, and the ≥128 signal `raise` — before they
+  leave the loop. Each due task behind the stopping one becomes a
+  `scan_problems` entry (`admitted as due but never launched: <reason>
+  stopped the sweep at <slug>`), so the `problems:` header counts it, plus
+  one sweep note `N of M due task(s) never launched after <slug>: ...`.
+- Decision: kept all three early exits as-is. The ticket allows them for
+  repo-unsafe states and PR #777 deliberately retained the classify `return
+  2`; widening that to `continue` is out of scope here.
+- Decision: `scan_problems` over `notes` alone, so the header cannot read as
+  a clean sweep; mirrors how created-but-never-launched periods are reported.
+- `tests/test_recurring.py`: `test_recurring_scan_stops_immediately_on_non_template_exits`
+  now captures the run record and asserts `recurring/beta` is named with
+  `problems: 1`; new `test_recurring_scan_names_due_tasks_abandoned_by_a_classify_refusal`
+  covers the `return 2` path (`problems: 3`, both trailing tasks named).
+- `coga/contexts/coga/recurring/SKILL.md` and its bundled twin under
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/`:
+  documented the third (classify) stop and the abandoned-task reporting.
+
+Verification: `python -m pytest` (2496 passed before the context edit;
+`tests/test_recurring.py` + `tests/test_packaging.py` re-run green after it).
+Rebased on `origin/main`: already up to date. Not pushed; no PR.
