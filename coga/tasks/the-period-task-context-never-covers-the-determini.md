@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: 9006fd5a-3dfe-4a16-bc86-94a28a166771
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -119,3 +118,44 @@ in the file, so the existing agent-facing prose stays intact and the twin diff s
 - `tests/test_packaging.py`, `tests/test_period_state.py`, `tests/test_recurring.py`: 388 passed.
 - Full `python -m pytest` (worktree `src` on `PYTHONPATH`, primary `.venv` 3.12): 2495 passed.
 - Branch contains `origin/main` (fetched before commit; no new commits since).
+
+## Peer review
+
+- `codex review --base main` **returned** (exit 0) from the recorded feature
+  worktree with two P2 findings. Both are fixed in the live context and its
+  byte-identical packaged twin:
+  - A hybrid script's per-run handoff notes belong in the period blackboard
+    (`COGA_TASK_BLACKBOARD`), which the agent prompt includes; the parent
+    blackboard holds cross-run state.
+  - The ordinary no-`ticket.py` case now excludes `delegate:`. A delegated
+    agent runs the bootstrap ticket and does not receive the period context;
+    the section points to `coga/recurring` for that contract.
+- Confirmed the state-key check is shared by script and agent completion;
+  `mark_done` loads the period snapshot and runs `_warn_if_state_not_advanced`.
+- Re-read merged PR #774 (`a2028a7d`) and the still-draft reporting-contract
+  sibling. The context preserves hybrid dispatch and the existing optional
+  per-run reporting contract without pre-empting the sibling's failure work.
+- Ran `git fetch origin main` and `git rebase FETCH_HEAD` unconditionally;
+  the rebase completed without conflicts onto `3a6e02a3`. Review fixes are
+  committed as `65737f7f` on top of implementation commit `1fec93d5`.
+- Surface check: inspected the Markdown guidance against the dispatch,
+  composition, and state-check code. This documentation change has no terminal,
+  pager, prompt input, or rendered-notification behavior to exercise.
+- Full suite after the fixes and rebase **returned: 2495 passed in 187.60s**.
+  Exact command: `PYTHONPATH=/home/n/Code/claude/coga-period-task-recipe-firing/src /home/n/Code/claude/coga/.venv/bin/python -m pytest`.
+- `git diff --check origin/main...HEAD` and the live/packaged `cmp` both passed.
+  The feature branch is clean with two commits ahead of the fetched main.
+
+## PR
+
+Recurring periods always carry `coga/period-task`, but a fully deterministic
+`ticket.py` firing never composes that context. Clarify that the
+parent-blackboard state contract applies to recipe authors as well as agents,
+including explicit CLI completion and the shared `state_keys` check.
+
+Distinguish per-run hybrid handoff notes from cross-run cursors, explain the
+delegated bootstrap exception to context delivery, and keep the live context
+and its packaged twin identical. A seeded period blackboard alone does not
+prove a deterministic run skipped its bookkeeping.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-period-task-recipe-firing/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` (2495 passed); `git diff --check origin/main...HEAD`; `cmp coga/contexts/coga/period-task/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/period-task/SKILL.md` (both passed).
