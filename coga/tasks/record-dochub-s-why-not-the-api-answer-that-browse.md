@@ -1,6 +1,6 @@
 ---
 title: Record DocHub's why-not-the-API answer that browser api-first requires
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
