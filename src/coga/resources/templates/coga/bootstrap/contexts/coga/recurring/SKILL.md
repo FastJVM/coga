@@ -150,6 +150,16 @@ the example under "Extend recurring with a task-specific workflow").
   - **≥ 128** — a process-level interrupt. `commands/launch.py` turns
     SIGINT/SIGTERM into `SystemExit(128 + signum)`, and an explicit
     cancellation must never initiate additional work.
+
+  A third stop is a refusal rather than an exit: a period whose reconciled
+  ticket cannot be classified (`Ticket.parse` or `frozen_task_delegate` fails
+  after admission) is recorded as `refused` and the sweep returns 2 there.
+  Whichever of the three stops it, the sweep never again abandons work
+  silently: `recurring_runner._record_abandoned_due` lists every due task
+  admitted behind the stopping one under `## Unresolved recurring failures`
+  in the run record as `admitted as due but never launched`, counts each in
+  `problems:`, and adds one sweep note naming them. A report whose
+  `tasks run:` is short of its due count therefore always says why.
 - `coga recurring --force` — ignores schedule and status filters and attempts
   the real period task for every template, reactivating `done` and `paused`
   runs. A `canceled` task remains terminal: the runner reports a controlled

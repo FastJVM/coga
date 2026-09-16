@@ -1741,6 +1741,39 @@ def _record_unlaunched_creates(scan: DueScan, record: RunRecord) -> None:
         record.scan_problems.append((slug, detail))
 
 
+def _record_abandoned_due(
+    record: RunRecord, due: list[DueTask], stopped_at: int, reason: str
+) -> None:
+    """Name every admitted due task the sweep stopped before launching.
+
+    The loop in `_launch_due_tasks` keeps sweeping past a template failure, but
+    three exits still stop it where they happen: exit 75's retained state, a
+    process signal, and a period that cannot be classified after
+    reconciliation. On 2026-09-08 an early return left the report reading
+    `tasks run: 3` against 7 due with no line about the other four. Whatever
+    stops the sweep, the tasks it never reached are lost work this run has to
+    own, so each one is a problem the header counts, as with a period created
+    but never launched.
+    """
+    stopped = due[stopped_at]
+    remaining = due[stopped_at + 1 :]
+    if not remaining:
+        return
+    stopped_slug = stopped.ref.id_slug if stopped.ref else stopped.template
+    slugs = [task.ref.id_slug if task.ref else task.template for task in remaining]
+    detail = (
+        f"admitted as due but never launched: {reason} stopped the sweep at "
+        f"{stopped_slug}"
+    )
+    for slug in slugs:
+        typer.secho(f"{slug}: {detail}", fg=typer.colors.RED, err=True)
+        record.scan_problems.append((slug, detail))
+    record.note(
+        f"{len(remaining)} of {len(due)} due task(s) never launched after "
+        f"{stopped_slug}: {', '.join(slugs)}"
+    )
+
+
 def _launch_due_tasks(
     cfg: Config,
     due: list[DueTask],
@@ -1863,6 +1896,7 @@ def _launch_due_tasks(
                     detail=detail,
                 )
             )
+            _record_abandoned_due(record, due, i - 1, "an unclassifiable period")
             return 2
         # Baseline for the post-firing template check. Captured here — after
         # every skip path, immediately before dispatch — so it reflects the
@@ -1993,11 +2027,15 @@ def _launch_due_tasks(
                 # deliberately left dirty retained state for the operator to
                 # reconcile. No later template may run a refresh, sync, or
                 # agent that could disturb or publish those bytes first.
+                _record_abandoned_due(
+                    record, due, i - 1, f"a retained-state refusal (exit {code})"
+                )
                 raise
             if code >= 128:
                 # Process-level interrupt: `commands/launch.py`'s handler turns
                 # SIGINT/SIGTERM into `SystemExit(128 + signum)`. An explicit
                 # cancellation must never initiate additional work.
+                _record_abandoned_due(record, due, i - 1, f"a signal (exit {code})")
                 raise
             if code:
                 _record_outcome(
