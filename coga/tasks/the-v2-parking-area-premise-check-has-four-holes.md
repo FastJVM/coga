@@ -1,6 +1,6 @@
 ---
 title: The v2 parking-area premise check has four holes
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
