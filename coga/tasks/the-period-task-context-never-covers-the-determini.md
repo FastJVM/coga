@@ -68,6 +68,7 @@ both before writing so the three agree on one story.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/817
 branch: period-task-recipe-firing
 worktree: /home/n/Code/claude/coga-period-task-recipe-firing
 
