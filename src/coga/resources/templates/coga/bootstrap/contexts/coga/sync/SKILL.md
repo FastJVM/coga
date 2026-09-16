@@ -1304,6 +1304,14 @@ one candidate).
    compare before/after validation reports by task and finding kind so the
    only findings that disappear are the intended ones (`unknown-assignee` went
    5 → 0 in the format simplification; no new kinds appeared).
+6. **Keep dispatch stopped until the merged writers and state are verified.**
+   Update the control checkout and every usable installed or editable writer
+   to the merged revision and confirm their import paths. Rebase or reconcile
+   feature worktrees and independent clones before permitting Coga writes;
+   preserve local work and keep stale checkouts barred from mutation and
+   launch teardown while they remain parked. Re-run read-only validation on
+   the converted control state, then resume dispatch with fresh processes.
+   Never replay an old supervisor's finalizer after merge.
 
 ## Future direction — bidirectional sync
 

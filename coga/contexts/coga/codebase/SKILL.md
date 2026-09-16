@@ -427,10 +427,11 @@ force-include is what guarantees they ship.
   (or `python -m coga.validate --json` if `coga` isn't on PATH).
 
 If edits to `src/coga/` (especially the prompt templates under
-`src/coga/resources/`) don't appear when you run the CLI, the venv likely
-has a non-editable install.
-Reinstall against the venv that backs your `coga` shim:
-`<that venv's python> -m pip install -e .` from the repo root.
+`src/coga/resources/`) don't appear when you run the CLI, check both whether
+the install is editable and which checkout it imports. For a pip-managed
+install, use `<that venv's python> -m pip install -e .` from the intended
+checkout. For the uv tool install below, use
+`uv tool install --force -e <checkout>`; its environment has no `pip`.
 
 **Which Python backs `coga`.** On the dev machines the `coga` on PATH is a
 global uv tool editable install, not a venv inside any checkout:
@@ -439,7 +440,7 @@ interpreter that actually runs it is
 `$(dirname "$(readlink -f "$(command -v coga)")")/python`. The
 `direct_url.json` in that environment's `coga-*.dist-info` names the checkout
 it imports from (`{"url":"file:///…/coga","dir_info":{"editable":true}}`).
-Two consequences:
+Consequences:
 
 - Any script that must `import coga` against the *active* CLI — Dream's
   owned-path derivation, an ad-hoc `importlib.resources.files("coga.resources")`
@@ -450,8 +451,8 @@ Two consequences:
   `coga` executes **regardless of the cwd you run it from**. Running `coga`
   from the other checkout silently executes the first checkout's source and
   templates. Check `direct_url.json` before trusting output from a second
-  checkout, and reinstall (`uv tool install -e <checkout>` or the pip line
-  above under that env's python) to repoint it.
+  checkout. Repoint the install only to the intended long-lived checkout;
+  verify feature branches with the explicit `PYTHONPATH` below.
 - A `.venv/` inside a checkout, where one exists, is the *test* environment
   (its own editable install plus `pytest` and `tomlkit`), not what `coga` on
   PATH runs — and the tool env carries no `pytest`. Run the suite through the
@@ -758,21 +759,25 @@ wrong checkout silently produces wrong results in both directions:
 - **`create_task` validates after it writes and logs.** `create.create_task`
   calls `git.write_ticket_under_barrier(...)`, then `logfile.append_log(...)`,
   and only then `validate.assert_task_valid(cfg, ref, action="create")`. A
-  description containing a level-2 heading line (`## …`) or the blackboard
-  fence on its own line therefore lands on disk as a corrupt two-section or
-  two-fence ticket, plus a `created` log line, before validation fails —
+  description containing the blackboard fence on its own line therefore
+  leaves a two-fence ticket and a `created` log line behind when validation
+  fails.
   `tests/test_create.py::test_cli_create_reports_validation_failure_and_leaves_draft`
-  pins that leave-on-disk behavior. Only the CLI command guards against it:
+  pins the general leave-on-disk behavior on validation failure. A level-2
+  heading line (`## …`) is a different hazard: creation succeeds and validation
+  passes, but compose ends the Description at the next heading, so subsequent
+  text can disappear from the launched prompt. Only the CLI command guards
+  descriptions against both hazards:
   `commands/create.py`'s `_description_structure_problem`
   (`_SECTION_HEADING_LINE_RE`, `^##(?:\s|$)`, mirroring the lines compose's
   `_SECTION_HEADING_RE` splits sections on, plus `taskfile.fence_count`) runs
-  on the stripped text *before* `load_config` and `create_task`. The other
-  callers — `commands/retire.py`, `recurring.py`, `recurring_autofix.py` — pass
-  descriptions they compose themselves. Any new
-  caller that forwards an agent- or user-authored description must reject
-  level-2 headings and an own-line fence itself before calling `create_task`,
-  or accept that a failed validation leaves the broken draft and its log line
-  behind; the CLI guard is the reference shape.
+  on the stripped text *before* `load_config` and `create_task`. The recurring
+  caller uses the separate `body=template.body` interface, while
+  `recurring_autofix.py` wraps unguarded, agent-authored `analysis.body` in its
+  description. Any caller forwarding an agent- or user-authored description
+  must reject level-2 headings and an own-line fence in the stripped text
+  before calling `create_task`, or accept silent truncation or a failed create
+  that leaves its ticket and log behind; the CLI guard is the reference shape.
 
 - **A rebase carries a fix through a rename — never into a twin created fresh
   in the same commit.** The live↔packaged pattern (a file under `coga/` and its
