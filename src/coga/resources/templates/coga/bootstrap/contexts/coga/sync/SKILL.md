@@ -1259,6 +1259,60 @@ still sees the local-state confirmation on stdout above the error on stderr,
 and can reason about idempotency (most state changes — like `bump` — should not
 be re-run blindly after a notification failure).
 
+## Shipping a stored-ticket schema conversion
+
+`coga/current-direction` records the decision the `simplify-ticket-format`
+change made — no compatibility reader, no migration tool, no dual-writer
+period; the whole stored population converted in the same change. This section
+is the procedure that made a code+data conversion of committed `coga/tasks/**`
+safe, for the next frontmatter or format change (the parked playbook rename is
+one candidate).
+
+1. **One PR carries everything: code, the converted tickets, fixtures, and the
+   context edits.** A split merge leaves the running CLI and the stored
+   tickets disagreeing — old code reading new tickets, or new code reading old
+   ones — with no reader in between to bridge them.
+2. **The state-regression guard is not a schema barrier.** It compares
+   lifecycle progress only (terminal status, step index, status order; see
+   *The state-regression guard*), so an older supervisor that is still running
+   will happily restore a removed field at the *same* step and pass the guard.
+   Before merge the owner therefore opens a writer quiet window: stop the
+   recurring and megalaunch dispatchers, let every old supervisor finish its
+   teardown and state sync, suspend scheduled entry points and any writers on
+   other machines, and inventory `git worktree list` plus independent clones
+   and installed or editable entry points. Registered worktrees are not live
+   processes — ten were registered during the conversion and that list proved
+   nothing about what was running — so inventory the processes, not just the
+   paths.
+3. **Refresh the conversion from the exact control revision at the gate.**
+   Control moves under a long-running PR (four times during one
+   implement+open-pr pass, twice within ten minutes). Rebuild the conversion
+   commit on the control tip you are about to merge and re-verify the allowed
+   field/token diff per ticket; expect to repeat this.
+4. **Rebase rule for a converted ticket that control has since advanced.**
+   Take control's version **wholesale** — lifecycle, body, and blackboard —
+   then re-apply only the mechanical conversion to it. Neither side of the
+   conflict is the answer on its own: the feature side has lost control's
+   progress, and the control side has lost the conversion. Prove the result
+   with
+   `git diff origin/main -- <path>` (or against `git show origin/main:<path>`)
+   showing pure key deletions and nothing else.
+5. **Never run a mutating Coga command from the converting feature checkout.**
+   Its exit sweep (`sync_coga_state`, above) would publish the converted
+   `coga/` files to control before the code lands. Verify with a source-pinned
+   `python -m coga.validate --json` and a pure `compose_prompt_report` call, and
+   compare before/after validation reports by task and finding kind so the
+   only findings that disappear are the intended ones (`unknown-assignee` went
+   5 → 0 in the format simplification; no new kinds appeared).
+6. **Keep dispatch stopped until the merged writers and state are verified.**
+   Update the control checkout and every usable installed or editable writer
+   to the merged revision and confirm their import paths. Rebase or reconcile
+   feature worktrees and independent clones before permitting Coga writes;
+   preserve local work and keep stale checkouts barred from mutation and
+   launch teardown while they remain parked. Re-run read-only validation on
+   the converted control state, then resume dispatch with fresh processes.
+   Never replay an old supervisor's finalizer after merge.
+
 ## Future direction — bidirectional sync
 
 Today the sync is outbound only: agents/CLI → channel. The obvious next step is
