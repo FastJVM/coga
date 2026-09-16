@@ -5245,3 +5245,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-15 22:08 [autofix/stop-one-failing-ticket-py-from-starving-the-rest] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-09-15 22:08 [autofix/stop-one-failing-ticket-py-from-starving-the-rest] [megalaunch] launched via coga megalaunch
 2026-09-15 22:09 [recurring-sweep-aborts-and-orphans-a-deleted-done] [human:nicktoper] activated (draft → active) — auto on launch
+2026-09-15 22:09 [recurring-sweep-aborts-and-orphans-a-deleted-done] [human:nicktoper] started (active → in_progress) via coga launch
