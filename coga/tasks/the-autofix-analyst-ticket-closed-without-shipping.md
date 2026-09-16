@@ -95,6 +95,7 @@ edit, against `src/coga/recurring_autofix.py` and `src/coga/config.py`:
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/816
 branch: autofix-analyst-fixes
 worktree: /home/n/Code/claude/coga-autofix-analyst-fixes
 
