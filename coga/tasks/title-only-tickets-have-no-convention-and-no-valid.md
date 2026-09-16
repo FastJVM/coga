@@ -1,6 +1,6 @@
 ---
 title: Title-only tickets have no convention and no validator
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
