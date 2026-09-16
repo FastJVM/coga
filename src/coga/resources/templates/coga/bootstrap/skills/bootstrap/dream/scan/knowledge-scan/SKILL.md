@@ -1,6 +1,6 @@
 ---
 name: bootstrap/dream/scan/knowledge-scan
-description: Scan Dream's corpus in bounded shards and record extract, stale, and gap findings for durable follow-up.
+description: Scan Dream's corpus in bounded shards and record extract, stale, gap, and premise findings for durable follow-up.
 ---
 
 # Knowledge Scan
@@ -117,6 +117,42 @@ If the needed comparison cannot fit in this assignment, finish no finding from
 that candidate: write `incomplete` with the exact extra evidence paths so Dream
 can place them together in a smaller retry shard.
 
+## Parked drafts: the standing premise pass
+
+`coga/tasks/v2/` is the parking area, and its `README.md` owns a four-question
+premise check — does the subject still exist, do the surfaces it names still
+resolve, do the tickets it cites still exist, has something else already
+delivered it — that otherwise fires only when a human pulls a draft forward.
+Nothing else re-validates a draft while it sits, so this scan is the standing
+owner of that check: it already reads every ticket under `coga/tasks/` each
+run. Read `coga/tasks/v2/README.md` as evidence first (it is small, and it
+carries the questions, the verdict vocabulary, and the known-stale surface
+table), then ask its four questions of **every parked draft your shard owns**,
+in the README's order, and write one `premise` finding per draft that fails
+one — naming the first question it fails and the evidence, in the README's
+terms, so the human can rule from the finding alone.
+
+The questions need the comparison this shard already makes: the subject and
+surfaces are checked against the knowledge evidence and code paths in the
+area, a cited slug is resolved against `coga/tasks/` (bare `.md` and
+`<slug>/ticket.md`, any status), and a deliverable is checked by reading the
+target surface the draft names on current `main` against the draft's
+acceptance criterion, not its title. The index entry is not evidence for any
+of them. A draft whose `## Description` is empty is a title-only stub: the
+README says the premise check cannot run on it and Phase 1's
+`empty-description` report already owns it, so emit nothing for it here.
+
+Before writing, check whether an open ticket already adjudicates the draft:
+grep every task Markdown file under `coga/tasks/` (any status but `done` or
+`canceled`, not only your shard's paths) for the draft's exact slug, and read
+each hit's title and description. Earlier runs' adjudication drafts list their
+members by slug, so an owned draft usually greps on its own name. Still write
+the finding, and add `owner: <slug>` so Phase 6 reports "already ticketed"
+instead of filing a duplicate. Write findings, never verdicts: the verdict —
+cancel, close as delivered, narrow, or rewrite — is the author's, and Dream
+files it as a question, not as a lifecycle change. A green `coga validate` is
+never a reason to rule a draft dead; the README carries that guard.
+
 ## Findings
 
 Record only a classified findings list; raw ticket and blackboard contents stay
@@ -145,6 +181,13 @@ inside the subagent. Classify each finding as exactly one of:
   struggle, or an ad-hoc workflow sequence) with no context, skill, or
   workflow to carry it. Add `owner: <slug>` when the owner search above found
   an existing ticket for it.
+- `premise` — a parked draft under `coga/tasks/v2/` fails one of the README's
+  four premise questions. `target:` is the draft's path-qualified slug
+  (`v2/<slug>`); add `question: <subject | surfaces | citations | delivered>`
+  for the first question it fails, and `owner: <slug>` when an open ticket
+  already adjudicates it. The paragraph carries the evidence — the removed
+  surface, the dead command, the slug that no longer resolves, or the path
+  on `main` that already carries the deliverable.
 
 Include draft content when a new file is proposed. Set the `area:` and
 `source:` fields on every `extract` finding. Group the `extract` findings by
