@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 5139d763-3543-41c8-b574-a1c0c8aed24b
 ---
 
 ## Description
@@ -119,3 +118,47 @@ does not need the pointer.
 Verification: `python -m pytest` in the worktree (via the primary `.venv`,
 Python 3.12) — 2496 passed. `tests/test_packaging.py` confirms both twin
 pairs byte-identical.
+
+---
+
+## Peer review
+
+2026-09-15 — complete.
+
+- `codex review --base main` **returned**, exit 0, against `a2bb5ab1`: no
+  actionable findings. The documented read-only app-server failure required
+  the permitted unsandboxed retry. Review output is locally available at
+  `/tmp/coga-bloated-blackboard-review.log`.
+- Manual review found a concrete ambiguity in "leave only" handoff, worklist
+  and verification: moving `## Dev` out makes both branch and PR gates fail.
+  Commit `de8c4871` makes the architecture context, its packaged twin, and the
+  remediation explicitly retain `## Dev` and `## Blockers` under the existing
+  `coga/blackboard` contract. A probe against an existing ticket's blackboard
+  confirmed the failure without these sections and preserved parsed linkage,
+  blocker state, and passing gates with them. No live task was archived.
+- Manual composition smoke check in a temporary fixture: promotion preserved
+  task identity and frontmatter; dated evidence and superseded program text
+  stayed intact in their new files; archived content was absent from prompts
+  while the live context, handoff, and attachment pointers remained. Composed
+  blackboard: 56,477 bytes / ~14,120 tokens → 255 / ~64; live context:
+  13,676 / ~3,419 → 108 / ~27. The 32 KiB warning cleared.
+- `git fetch origin main && git rebase FETCH_HEAD` returned cleanly before
+  review and again after the correction. Final branch head `de8c4871` is clean,
+  two commits ahead of fetched `main` `1f278fda`; no conflicts or outstanding
+  judgment calls remain.
+- Final verification from the feature worktree: `PYTHONPATH=/home/n/Code/claude/coga-bloated-blackboard-remedy/src /home/n/Code/claude/coga/.venv/bin/python -m pytest -o cache_dir=/tmp/coga-bloated-blackboard-pytest-cache` → **2496
+  passed** in 176.16 seconds. The absolute `PYTHONPATH` was verified to import
+  feature-branch source; the `/tmp` cache avoids the sandbox's read-only
+  worktree cache. Packaging checks cover both byte-identical context twins.
+  `git diff --check origin/main...HEAD` passed.
+- Scoped validation from the primary checkout: `PYTHONPATH=/home/n/Code/claude/coga-bloated-blackboard-remedy/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --task document-the-remedy-for-a-bloated-blackboard-sibli --json` →
+  **1 task checked, no issues**.
+
+
+---
+
+## PR
+
+Blackboard size diagnostics identify bloat without explaining how to preserve the history. Document moving dated evidence into sibling attachments and shared superseded program material into unattached contexts, while keeping the current handoff and machine-readable task state in place. Route `validate-drift` and the blackboard context to this remedy, with matching packaged contexts.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-bloated-blackboard-remedy/src /home/n/Code/claude/coga/.venv/bin/python -m pytest -o cache_dir=/tmp/coga-bloated-blackboard-pytest-cache` — 2496 passed; scoped task validation — 1 checked, no issues; manual archival/composition and workflow-gate checks passed.
