@@ -5286,3 +5286,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-16 10:55 [the-autofix-analyst-ticket-closed-without-shipping] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-16 10:55 [the-autofix-analyst-ticket-closed-without-shipping] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-16 10:55 [the-autofix-analyst-ticket-closed-without-shipping] [megalaunch] launched via coga megalaunch
+2026-09-16 10:58 [recurring/blocker-reminders] [system] created (status=active)
+2026-09-16 10:58 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-09-16
