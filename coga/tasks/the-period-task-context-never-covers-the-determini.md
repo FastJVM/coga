@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
-launch_generation: c0765143-0ccb-45e7-94e8-f44abb78de28
+step: 4 (review)
 ---
 
 ## Description
@@ -147,6 +146,14 @@ in the file, so the existing agent-facing prose stays intact and the twin diff s
   Exact command: `PYTHONPATH=/home/n/Code/claude/coga-period-task-recipe-firing/src /home/n/Code/claude/coga/.venv/bin/python -m pytest`.
 - `git diff --check origin/main...HEAD` and the live/packaged `cmp` both passed.
   The feature branch is clean with two commits ahead of the fetched main.
+
+## Open-PR
+
+- First `coga open-pr` refused: branch no longer contained `origin/main`
+  (five commits landed after peer review, #811–#816). Rebased the feature
+  worktree onto `29b559f4` cleanly; commits are now `d8f609d7` + `20a71bc4`.
+- Twin `cmp` passed; full suite after rebase: 2561 passed in 193.21s.
+- Retry opened PR #817 and recorded `pr:` under `## Dev`.
 
 ## PR
 
