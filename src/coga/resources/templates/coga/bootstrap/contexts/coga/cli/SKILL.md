@@ -129,13 +129,20 @@ ticket as an `active-no-workflow` **error** (a stuck task no `coga bump` can
 advance). Once a ticket leaves `draft`, a workflow is mandatory. For guided
 authoring that fills the workflow in for you, use `coga ticket`.
 
-`--description <text>` and `--owner <name>` are optional too, so one command
-can scaffold a described, correctly-owned draft without opening the file or
-running the `coga ticket` interview. `--description` fills the new ticket's
-`## Description` section; omitted or empty, the section stays blank. It fails
-loud, before anything is written, on a level-2 heading line (`## ...`) or the
-blackboard fence on its own line, since either would break the ticket's
-section/fence structure; `###` subheadings are fine. `--owner` sets `owner:`
+`--description <text>` fills the new ticket's `## Description` section. The
+option is syntactically optional: omitted or empty, the section stays blank.
+Use that bare-capture form only under `v2/` (`coga create "v2/<title>"`).
+Everywhere else, supply `--description` at creation or use `coga ticket` for
+guided authoring. The parking and describe-or-cancel convention is owned by
+`coga/roadmap` and `coga/tasks/v2/README.md`. `coga validate` reports an
+`empty-description` warning for every non-terminal ticket with a blank
+description, including parked stubs; it does not refuse creation or activation
+on that warning alone.
+
+`--description` fails loud, before anything is written, on a level-2 heading
+line (`## ...`) or the blackboard fence on its own line, since either would
+break the ticket's section/fence structure; `###` subheadings are fine.
+`--owner <name>` is also optional and sets `owner:`
 to that coga name instead of `user` from `coga.local.toml`. Nothing else is
 derived from it at create time: there is no stored `human:` or `assignee:`
 (both are rejected ticket keys since #784) — who holds the ticket is derived
