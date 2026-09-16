@@ -1,6 +1,6 @@
 ---
 title: 'Dream 2026-W38 extract backlog: 4 findings Phase 4 could not consume'
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -23,6 +23,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
