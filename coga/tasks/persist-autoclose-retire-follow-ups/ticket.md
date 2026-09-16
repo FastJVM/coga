@@ -29,8 +29,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (self-qa)
-launch_generation: 86a8861d-938e-40b9-b695-8b34d944f96a
+step: 3 (pr)
 ---
 
 ## Description
@@ -242,3 +241,50 @@ worktree: /home/n/Code/claude/coga-autoclose-retire-worklist
 - Adjacent, not fixed: `git._current_branch` still uses `rev-parse
   --abbrev-ref HEAD` (known, recorded in `coga/codebase`).
 
+
+## Self-QA (2026-09-16, commit 8d30ad62 on `autoclose-retire-worklist`)
+
+- Review form: `/code-review` (default effort) **ran and returned** — 4
+  findings (2 medium, 2 low), all applied; `/simplify` **ran and returned**
+  (4 reviewers: reuse, simplification, efficiency, altitude), findings
+  applied as one commit. No review is still in flight at this bump.
+- Applied from `/code-review`: (1) `RetireWorklistError` could escape the
+  recipe's `GhError`/`BaseException` handlers (only the success path caught
+  it) — `_report_retire_followups` now returns bool and reports on stderr
+  itself; (2) a refused reconcile ran *before* the per-run report and Slack
+  line and suppressed both — every per-run surface is now written even
+  when the durable one fails, and the report no longer claims a durable
+  copy; (3) `%(refname:short)` is shortened to `heads/<name>` when a tag
+  shares the branch name (verified with git), which would have discharged
+  a live branch — now `%(refname)` + `removeprefix`; (4) a retire that
+  preserves the checkout then deletes the ticket leaves a line whose
+  `coga retire <slug>` no longer resolves — documented (header, skill twins,
+  retire docstring) rather than changing the discharge rule.
+- Applied from `/simplify`: `dataclasses.replace` for the keep-first-date
+  merge (was duplicated); dead `RetireFollowUp.retire_command` and
+  `WorklistChange.changed` removed; single reader of `COGA_TASK_BLACKBOARD`
+  (the raw-env fast path is gone; `test_autoclose_sweep` now passes a
+  `SimpleNamespace(repo_root=...)` instead of `object()`); `_worklist_root`
+  returns `Path | None` and `is_discharged` keeps a *relative* worktree it
+  cannot anchor instead of judging it against `coga/` (an absolute one is
+  still judged); branches probed only when the worklist has entries;
+  `tasks_dir(cfg)`; trimmed docstrings that restated the skill's rule;
+  tests factored (`_merged_worktree_ticket`, `_write_workflow_less_task`).
+- Skipped, with reasons: replacing the batched `local_branches` tri-state
+  with per-entry `git._git_ref_present` (altitude, medium) — a real
+  alternative, but it would turn ~15 injectable unit tests into git-repo
+  tests for ~25 lines saved; left for the human reviewer to weigh.
+  `retire()` resolves `git._toplevel` twice (once in `_cleanup_checkout`,
+  once in `_discharge_worklist_entry`) — one extra `rev-parse` per retire,
+  fixing it means reshaping the pre-existing cleanup's early returns.
+  `worklist_for_period_task` deriving the layout from path parts rather
+  than `TaskRef` — kept, now via `tasks_dir(cfg)`. `__all__` kept (repo
+  convention).
+- Verification: `PYTHONPATH=$PWD/src /home/n/Code/claude/coga/.venv/bin/python
+  -m pytest -q` from the worktree → **2604 passed** (3 new tests: worklist
+  failure surfaces from the gh-error handler, per-run surfaces survive a
+  refused worklist, tag-shadowed branch). `python -m coga.cli validate
+  --json` → 207 ok, the same four pre-existing `v2/` draft errors, none
+  new. Skill twins `cmp`-identical; `tests/test_packaging.py` green.
+- Working tree clean on the feature branch; no terminal/TTY surface in
+  this diff to sweep by hand.
