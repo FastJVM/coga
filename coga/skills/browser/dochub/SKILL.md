@@ -21,6 +21,50 @@ site-specific layer on top of two substrates:
 DocHub is the chosen e-sign target (v7). Use this skill when a ticket attaches
 it for placing annotations, placing a signature, and sending for signature.
 
+## Why the browser, not the API
+
+This is the `browser/api-first` answer for DocHub, recorded once here so no
+DocHub ticket has to redo the search. Re-check it when the date below is more
+than a year old or a DocHub ticket hits a wall the browser cannot pass.
+
+- **Does DocHub expose an API that covers this workflow? No.** As of
+  2026-09-16 DocHub has no public, documented API — no REST reference, SDK,
+  OpenAPI spec, webhooks, or Zapier app. Upload, field placement, signer
+  assignment, and sending a sign request are browser-only.
+- **Docs checked (2026-09-16):**
+  - DocHub Support's own answer in the help-center community thread
+    "Automatically Filling Forms via API" (`help.dochub.com`, question uuid
+    `c91a6950-fa12-401f-93e5-cbc88a6db133`, answered 2024-04-11): *"Currently,
+    we are working on DocHub API. Hopefully, it will become available soon. As
+    of now, you can only use DocHub directly from your browser."* Reachable via
+    the help-center search for "API"; it is the only API hit in the whole
+    knowledge base and community.
+  - `https://www.dochub.com/compare/dochub-vs-pandadocs-api-pricing` — the
+    only page on dochub.com that describes a "docHub API" (sandbox plan,
+    Developer Dashboard, "Open API Specification"). It is templated SEO copy:
+    it links to no reference, dashboard, or spec, and the pages it implies
+    (`dochub.com/developers`, `/developers/api`, `/api-docs`, `/api`) all 404.
+    Do not cite it as evidence that an API exists.
+  - `dochub.com/pricing` and `dochub.com/en/integrations` mention no API tier
+    or developer plan; `help.dochub.com` has no articles for "API", "webhook",
+    "SDK", "developer", or "Zapier".
+- **What exists instead, and what this skill does with it:**
+  - The web app's private XHR backend (`https://dochub.com/api/`) is
+    undocumented, unsupported, and not a sanctioned surface — driving it
+    directly is not an "API-first" path, and dom-backed's fail-loud rules would
+    have nothing to check against.
+  - The PDF itself is scriptable: AcroForm text/radio/checkbox values are
+    pre-filled with pypdf **before** upload (see the next section). That is the
+    hybrid api-first asks for — the script does everything it can on the file,
+    and the browser pass handles only the UI-only steps (signature field,
+    signer assignment, send).
+  - DocHub's "Publish a PDF form to a webpage" link-share is the only
+    non-browser hand-off it offers; it does not place fields or send requests.
+
+If a later check finds a real DocHub API, update this section first, then
+revisit Technique B — a documented field-placement endpoint would retire the
+coordinate exception.
+
 ## Before you start: pre-fill the PDF (AcroForm)
 
 If the document is a fillable AcroForm PDF, set its **text / radio / checkbox**
