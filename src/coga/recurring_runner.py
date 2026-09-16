@@ -1744,7 +1744,7 @@ def _record_unlaunched_creates(scan: DueScan, record: RunRecord) -> None:
 def _record_abandoned_due(
     record: RunRecord, due: list[DueTask], reached: int, reason: str
 ) -> None:
-    """Name every admitted due task the sweep stopped before launching.
+    """Record the stopping task and every admitted due task left behind.
 
     `reached` is the 1-based position the loop was at, as it prints them. The
     loop in `_launch_due_tasks` keeps sweeping past a template failure, so the
@@ -1756,15 +1756,20 @@ def _record_abandoned_due(
     the header counts, as with a period created but never launched.
     """
     stopped = due[reached - 1]
+    stopped_slug = stopped.ref.id_slug if stopped.ref else stopped.template
+    stop_detail = f"{reason} stopped the sweep at {stopped_slug}"
+    record.note(stop_detail)
+    if not any(outcome.slug == stopped_slug for outcome in record.outcomes):
+        # No later task is needed to expose an incomplete run. Keep this
+        # in-memory: a retained-state refusal must not touch task files again.
+        detail = f"no launch outcome was recorded; {stop_detail}"
+        typer.secho(f"{stopped_slug}: {detail}", fg=typer.colors.RED, err=True)
+        record.scan_problems.append((stopped_slug, detail))
     remaining = due[reached:]
     if not remaining:
         return
-    stopped_slug = stopped.ref.id_slug if stopped.ref else stopped.template
     slugs = [task.ref.id_slug if task.ref else task.template for task in remaining]
-    detail = (
-        f"admitted as due but never launched: {reason} stopped the sweep at "
-        f"{stopped_slug}"
-    )
+    detail = f"admitted as due but never launched: {stop_detail}"
     for slug in slugs:
         typer.secho(f"{slug}: {detail}", fg=typer.colors.RED, err=True)
         record.scan_problems.append((slug, detail))

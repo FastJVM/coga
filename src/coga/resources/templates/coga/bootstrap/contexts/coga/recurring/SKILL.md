@@ -156,9 +156,13 @@ the example under "Extend recurring with a task-specific workflow").
   per-task refusal. Whatever does leave the launch loop — those two exits or
   an error escaping a launch or its lifecycle bookkeeping — the sweep never
   again abandons work silently: `recurring_runner._record_abandoned_due`
-  lists every due task admitted behind the stopping one under `## Unresolved
-  recurring failures` in the run record as `admitted as due but never
-  launched`, counts each in `problems:`, and adds one sweep note naming them.
+  records the stopping task and reason in the sweep notes. If that task has
+  no launch outcome, it also becomes an `## Unresolved recurring failures`
+  entry counted in `problems:`, even when it was the only or last due task.
+  Every due task admitted behind it is listed there as `admitted as due but
+  never launched`, counted in `problems:`, and named in a sweep note.
+  This reporting uses the captured task identities without rereading or
+  mutating retained task state.
   A report whose `tasks run:` is short of its due count therefore always
   says why.
 - `coga recurring --force` — ignores schedule and status filters and attempts
