@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: 9ba04136-041e-47ad-8063-5938b7b4e16a
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -169,3 +168,45 @@ Verification:
 - `coga validate --json` in `example/`: 0 issues, 4 ok (needs
   `SLACK_WEBHOOK_URL` unset in this shell — pre-existing, unrelated).
 - Rebased on `origin/main`: already up to date. Not pushed, no PR.
+
+## Peer review
+
+`codex review --base main` **returned** from the recorded feature worktree:
+no actionable regressions, no must-fix findings. The reviewer ran all 2500
+tests successfully and compared the validator against the base: existing
+findings stayed identical apart from the intended `empty-description`
+warnings (4 existing errors on both versions). No code changes required.
+
+Independent full-suite verification passed **2500 tests before rebase and
+2500 tests after rebase** using
+`PYTHONPATH=/home/n/Code/claude/coga-title-only-validator/src /home/n/Code/claude/coga/.venv/bin/python -m pytest`.
+Use that virtualenv: the ambient `python` lacks `tomlkit` and cannot collect
+the suite. From `example/`,
+`env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/claude/coga-title-only-validator/src coga validate --json`
+also passed before and after rebase (4 ok, no issues). A branch-source sweep
+of the primary repo reported 24 `empty-description` warnings and the same
+4 pre-existing `unsynthesized-draft-blackboard` errors.
+
+Terminal check: drove `coga create --help` in real PTYs at 80x24 and 120x40
+(explicit `COLUMNS=120 LINES=40` for the wider rendering), and
+`coga validate --task marketing/add-telemetry` at 80x24. The new help wraps
+within both widths, the warning text is complete, and the warning-only
+command exits 0. No interactive terminal-loop or Slack-rendering changes.
+
+Ran `git fetch origin main && git rebase FETCH_HEAD` successfully. The branch
+is now at `d1a27208`, one commit ahead of fetched `main` (`20bbbe9b`); the
+incoming changes were task/log state only. `git diff --check origin/main...HEAD`
+passes and the feature worktree is clean. No review-fix commit was needed;
+the implementation commit remains the one feature commit ahead of main.
+Review, freshness, testing, and PR-body gates are complete; ready to bump.
+
+## PR
+
+Warn when a non-terminal ticket has an empty or missing `## Description`, and
+classify the warning as human-needed in Dream. The owner must supply the
+intent or confirm cancellation with a reason; clearing validation warnings
+alone is never a reason to cancel. Document `v2/` as this repo's place for
+title-only capture, with a verdict due at the first sweep, and add the
+guidance to `coga create --description` help.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-title-only-validator/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` (2500 passed after rebase); from `example/`, `env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/claude/coga-title-only-validator/src coga validate --json` (4 ok, no issues); real PTY help at 80x24/120x40 and warning output at 80x24.
