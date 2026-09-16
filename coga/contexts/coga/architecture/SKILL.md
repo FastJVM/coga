@@ -958,6 +958,63 @@ or PTY byte stream to trip: an agent that reads, greps, or quotes a teardown
 string at runtime cannot end its own (or a parent's) session, so the composer
 returns the assembled prompt verbatim with no defusal step.
 
+### Attach or cite
+
+`contexts:` is prompt payload. Every attached context is composed whole
+(layer 4) into every launch of every step, whether or not that step uses the
+fact. The other way to hand a context to a step is to **cite** it: name its
+path in the ticket's `## Context`, copy the few facts the step depends on, and
+leave the ref off `contexts:`, so the agent opens the file on disk when it gets
+there. Both are legitimate. Which one a ticket uses is a per-ticket decision
+about *that step's* prompt, not a property of the context, and it is made the
+same way every time:
+
+- **Attach** when the step must have the context's facts without being told
+  to go look — its correctness depends on rules spread across the context, or
+  the author cannot know in advance which of its facts the step will hit. This
+  is the same test that decides whether a context owns a fact (`Where a fact
+  lives` below): would a launched step go wrong if this were absent from the
+  prompt?
+- **Cite** when the step needs a handful of identifiable facts from a context
+  that is large relative to the rest of the prompt, or when the ticket is going
+  to *edit* that context. An edited file is read first thing regardless, so
+  attaching it pays its size on every step to inline what the agent already
+  has.
+
+The threshold is relative, and it is measured, not quoted. Run
+`coga launch <slug> --prompt-report` on the ticket (it works on a draft): a
+context that would outweigh every other layer combined, for a step that uses a
+few of its facts, is a cite. Do not decide from a byte count written in a
+ticket or in a context's own prose. The large contexts grow by tens of KiB in
+a quarter, so a quoted size is stale within weeks — Dream found one context
+describing its own size at roughly two-thirds of the actual file — and the
+number the decision needs is the ratio in the report at authoring time, not a
+file's size at some earlier writing. No context is always-cite or
+always-attach: the same context is attached by a ticket that changes the
+behavior it specifies and cited by one that only reads a rule from it.
+
+**Citation form.** A cite is one sentence in `## Context` that names the
+context ref and its path, says it is cited rather than attached, and names the
+section(s) to read — "`coga/sync` (`coga/contexts/coga/sync/SKILL.md`) is
+cited, not attached: read its `sync_task_state` sections before changing
+`git.py`" — followed by the facts the step actually depends on, cited by
+module plus symbol as `bootstrap/ticket` prescribes for code facts. Do not
+justify the cite with the context's size or token count; the justification is
+this rule, and a literal size rots (three tickets each wrote their own
+paragraph justifying a cite by size, and the sizes they quote already disagree
+with the files). The copied facts are a snapshot for one ticket's lifetime, never a
+second owner. A reviewer checks a cite the way they check an attachment: does
+the step have what it needs, and is nothing quoted that the file will
+contradict?
+
+**Citing does not relieve the sync rule.** The cited context is still the
+owner of its facts. A ticket that cites `coga/recurring` and then changes
+behavior `coga/recurring` specifies updates `coga/recurring` — and its packaged
+twin — in the same PR, exactly as it would had the context been attached (the
+rule is under `Where a fact lives` below, and `CLAUDE.md` states it for
+sessions outside `coga launch`). Leaving a context off `contexts:` changes what
+the agent is handed at launch; it changes nothing about what the PR owes.
+
 ## Where a fact lives: docs vs contexts
 
 Coga explains itself on two surfaces — `docs/*.md` and the contexts under the
@@ -1024,8 +1081,8 @@ composition order stated in `docs/concepts.md` and in this context, both
 stale and stale differently. The same rule holds *within* the context layer.
 A context that needs another's facts names the owner ("see
 `coga/launch-internals`; attach it") rather than inlining them — inlined
-copies drift exactly as doc copies do, and a ticket author attaches the owner
-when the step needs it in-prompt.
+copies drift exactly as doc copies do, and a ticket author attaches or cites
+the owner per `Attach or cite` above.
 
 **The sync rule.** When an owning file changes, the same PR greps the other
 surface for the fact and fixes or deletes the restatement; `CLAUDE.md`'s "update
