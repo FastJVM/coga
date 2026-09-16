@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: dc521fa0-72e4-400d-9e97-a86a302c4e10
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -66,3 +65,51 @@ together.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: dochub-api-answer
+worktree: /home/n/Code/claude/coga-dochub-api-answer
+
+## Implement (2026-09-16)
+
+**Finding that overrides the ticket's guess.** The `## Context` assumed the
+answer was "likely partial" because "DocHub does publish an API". It does not.
+Evidence, all checked 2026-09-16:
+
+- DocHub Support's own community answer (help.dochub.com, thread
+  "Automatically Filling Forms via API", uuid
+  `c91a6950-fa12-401f-93e5-cbc88a6db133`, 2024-04-11): "Currently, we are
+  working on DocHub API… As of now, you can only use DocHub directly from your
+  browser." Only API hit in the entire help-center knowledge base + community
+  (searched: API, webhook, zapier, developer, sdk, "rest api").
+- `dochub.com/compare/dochub-vs-pandadocs-api-pricing` is the sole dochub.com
+  page describing a "docHub API" (lowercase-d mail-merge; sandbox plan,
+  Developer Dashboard, "Open API Specification"). Zero outbound links to any
+  reference/spec/dashboard. `dochub.com/developers`, `/developers/api`,
+  `/api-docs`, `/api` → 404; `api./docs./developers.dochub.com` don't resolve.
+- `dochub.com/pricing`, `dochub.com/en/integrations`: no API/developer tier.
+  `zapier.com/apps/dochub/integrations` → 404. apitracker.io profile is empty.
+- `https://dochub.com/api/` is the web app's private XHR backend (visible in
+  help-center page config as `DOCHUB_API_URL`); undocumented, unsupported.
+
+So the recorded answer is **No** (not partial), with the pypdf AcroForm
+pre-fill named as the hybrid api-first asks for. Section explicitly says
+which page not to cite as evidence and when to re-check.
+
+**Changes.** `coga/skills/browser/dochub/SKILL.md` — new "Why the browser, not
+the API" section directly under the intro (before the AcroForm pre-fill
+section). Packaged twin
+`src/coga/resources/templates/coga/bootstrap/skills/browser/dochub/SKILL.md`
+copied byte-for-byte (it existed and was identical before the change).
+
+**Verification.** In the worktree, using the primary checkout's `.venv`:
+`PYTHONPATH=src python -m pytest -q tests/test_packaging.py` → 11 passed;
+full `python -m pytest -q` → 2561 passed (171s). Rebased onto fresh
+`origin/main` (already at tip). One commit `a6aeda1f`, tree clean. No push,
+no PR.
+
+**Not done / out of scope.** Did not add `browser/api-first` to the skill's
+substrate list at the top; the new section names the context inline, which
+seemed enough. No fixture change — no task layout, prompt composition, or
+workflow semantics affected.

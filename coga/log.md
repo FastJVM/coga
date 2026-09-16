@@ -5372,3 +5372,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-16 14:00 [record-dochub-s-why-not-the-api-answer-that-browse] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-16 14:00 [record-dochub-s-why-not-the-api-answer-that-browse] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-16 14:00 [record-dochub-s-why-not-the-api-answer-that-browse] [megalaunch] launched via coga megalaunch
+2026-09-16 14:08 [record-dochub-s-why-not-the-api-answer-that-browse] [agent:claude] advanced to step 2 (peer-review) → codex — api-first answer for DocHub recorded: No public API (verified 2026-09-16), not 'partial' as the ticket guessed; branch dochub-api-answer ready for review
