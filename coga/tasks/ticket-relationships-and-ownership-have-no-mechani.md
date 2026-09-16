@@ -1,6 +1,6 @@
 ---
 title: Ticket relationships and ownership have no mechanism
-status: in_progress
+status: blocked
 owner: nicktoper
 agent: claude
 workflow:
@@ -24,7 +24,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 2 (peer-review)
-launch_generation: 344050b8-a6af-4681-bf3d-d4ab1d52d703
 ---
 
 ## Description
@@ -171,7 +170,79 @@ For peer review: the one judgment call worth challenging is refusing
 does — I chose the refusal because an owner change does not end the session,
 so clearing the claim would lie about a child that is still running.
 
+## Peer review
+
+`codex review --base main` **returned**, exit 0, on 2026-09-15 against
+commit `8e3680b2` in the recorded feature checkout. It found two P1 bugs and
+one P2 policy problem. Its 380 focused tests passed; additional real-Git and
+CLI probes reproduced all three uncovered failures. This is a failed review,
+not approval to advance.
+
+1. **P1 — stale control publication loses newer state.**
+   `src/coga/commands/owner.py` `owner` passes only the ordinary
+   `git.ticket_state_guard` to `git.sync_task_state`. A feature checkout with
+   a paused ticket can overwrite control's later `in_progress` or `blocked`
+   state and blackboard while returning success. Independently reproduced:
+   publish a paused ticket, check out a feature branch, publish
+   `in_progress` from a competing clone, then run `owner` from the stale
+   feature checkout; control becomes `paused` with the new owner. Lease the
+   pre-change control revision and prevent a refused publication from being
+   retried by the generic CLI sweep without that lease.
+2. **P1 — the local write barrier does not compare its input.**
+   `owner` caches the ticket before validation and calls
+   `git.write_ticket_under_barrier` without a `mutation_snapshot`. An
+   intervening lifecycle write is overwritten. The review probe published
+   an `in_progress` launch with a claim and new notes during validation;
+   reassignment restored `paused`, removed the claim and notes, and returned
+   success. Capture the initial ticket bytes and compare them under the
+   barrier; preserve concurrent edits on refusal and cover this with a
+   deterministic regression.
+3. **P2 — pause-first reassignment strands an owner gate.**
+   An ordinary `assignee: owner` handoff remains `in_progress` after the
+   agent session ends. Following the new error's `mark paused` then `owner`
+   advice leaves that gate paused: `bump` refuses because it requires
+   `in_progress`, and ordinary `launch` refuses an owner step. Requiring an
+   unnecessary assisting agent or rewinding completed work is not a usable
+   handoff. The assumption that every `in_progress` ticket has a running
+   agent is false; conversely, an owner step can have a live assisting agent.
+
+**Design decision required before fixes:** choose the policy for reassigning
+an `in_progress` owner-held gate while retaining its progressable state,
+including what happens to a live assisting session whose routing lease would
+be invalidated. The step explicitly requires escalation when findings imply
+a design rethink, and this queue cannot obtain a new answer interactively.
+No product fixes were made. The required `git fetch origin main` and
+`git rebase FETCH_HEAD` completed; the clean feature branch now holds
+`4e4a4faf`, one commit ahead of `origin/main` (the same implementation,
+with only control ticket/log updates relative to the reviewed `8e3680b2`).
+After resolution, implement the three
+fixes together, update the owning contexts and packaged twins, rerun review
+and regressions, freshen the branch, and author `## PR` before advancing.
+
+Verification so far: `git diff --check main...HEAD` passed;
+`coga validate --task ticket-relationships-and-ownership-have-no-mechani --json`
+returned one valid ticket and no issues. Real-PTY smoke of
+`PYTHONPATH=/home/n/Code/claude/coga-ticket-relationships/src
+/home/n/Code/claude/coga/.venv/bin/python -m coga.cli owner --help` rendered
+the usage, arguments and refusal policy cleanly at the default 80-column
+terminal. No raw-terminal loop, pager or Slack renderer changed. The ambient
+`python` lacks `tomlkit`; use the existing repo venv with an absolute
+`PYTHONPATH` to test the feature source.
+
+Full suite, run before and again after the required rebase:
+`PYTHONPATH=/home/n/Code/claude/coga-ticket-relationships/src
+/home/n/Code/claude/coga/.venv/bin/python -m pytest` — **2508 passed** in
+187.07s before rebase and **2508 passed** in 172.52s after rebase. Both runs
+had one non-failing warning that the sandbox cannot write the worktree's
+pytest cache. The branch remains clean; no fix commit, push, PR, or bump.
+
 ## Dev
 
 branch: ticket-relationships
 worktree: /home/n/Code/claude/coga-ticket-relationships
+
+---
+
+## Blockers
+
+- [ ] [2026-09-15 22:52] [agent:codex] id=20260915T225238 Choose how coga owner should reassign an in_progress owner-held gate without stranding it, including how to handle a live assisting agent (stop first or invalidate its routing lease). The current pause-first policy prevents normal bump/launch. See Peer review on the blackboard for the returned review and two P1 state-loss races.
