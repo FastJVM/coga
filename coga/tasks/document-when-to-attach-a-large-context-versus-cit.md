@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: 754f4452-434d-45cc-b05b-9d9b813ce1ce
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -68,3 +67,43 @@ avoid pinning literal per-file sizes that rot.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: attach-vs-cite
+worktree: /home/n/Code/claude/coga-attach-vs-cite
+
+## Implement — findings and decisions
+
+- Owner of the new rule: `coga/contexts/coga/architecture/SKILL.md`, new
+  `### Attach or cite` subsection at the end of `## Prompt composition`
+  (immediately before `## Where a fact lives`). Packaged twin
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md`
+  mirrored byte-for-byte; `tests/test_packaging.py` passes against the
+  worktree package (`PYTHONPATH=<worktree>/src`, since the venv's editable
+  install resolves `coga` from the primary checkout otherwise).
+- The rule as written: attach when the step must have the facts without being
+  told to look (same test as fact ownership); cite when the step uses a
+  handful of facts from a context that would outweigh every other layer
+  combined, or when the ticket edits the context. Threshold is measured with
+  `coga launch <slug> --prompt-report` (verified it works on a draft) — no
+  literal per-file sizes anywhere in the rule, per the `launch-internals`
+  Dream finding.
+- Citation form fixed: one sentence naming ref + path, "cited, not attached",
+  sections to read, then the needed facts by module+symbol; no size/token
+  justification in the ticket.
+- Stated explicitly that citing does not relieve the same-PR sync rule; the
+  `Where a fact lives` sentence about attaching the owner now says "attaches
+  or cites the owner per `Attach or cite`".
+- `bootstrap/ticket` (package-only skill, no live twin) got one bullet in the
+  selection contract pointing at the owner plus one evaluator-checklist item.
+  `coga/principles` left untouched: the rule is composition guidance, not a
+  non-negotiable, and one owner per fact.
+- Docs checked (`docs/README.md`, `docs/concepts.md`, `docs/vision.md`): only
+  summaries of "contexts are composed when attached"; no restatement to fix.
+- The three cited tickets (`run-recurring-agent-templates-off-the-control-bran`,
+  `reuse-the-existing-control-worktree-for-recurring`,
+  `detect-stranded-ticket-writes-across-checkouts`) were not rewritten — they
+  are live tickets with their own lifecycle; the rule now governs new tickets.
+- Full suite: 2561 passed. Branch rebased on current `origin/main`
+  (no new commits). Not pushed; no PR.

@@ -5349,3 +5349,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-16 12:56 [document-when-to-attach-a-large-context-versus-cit] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-16 12:56 [document-when-to-attach-a-large-context-versus-cit] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-16 12:56 [document-when-to-attach-a-large-context-versus-cit] [megalaunch] launched via coga megalaunch
+2026-09-16 13:04 [document-when-to-attach-a-large-context-versus-cit] [agent:claude] advanced to step 2 (peer-review) → codex
