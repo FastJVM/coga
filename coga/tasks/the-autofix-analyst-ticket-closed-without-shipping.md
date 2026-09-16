@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: 451387b3-7622-4c09-8dd0-9f3be43fe761
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -81,3 +80,76 @@ Two adjacent decisions for the review step:
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Re-verification (2026-09-16, implement step)
+
+All three defects confirmed present at `origin/main` `436b6028` before any
+edit, against `src/coga/recurring_autofix.py` and `src/coga/config.py`:
+
+1. `analyze_record` still built its detail as
+   `(result.stderr or result.stdout or "").strip()`.
+2. `grep -n stdin src/coga/recurring_autofix.py` returned nothing.
+3. `_analyze_agent` went `agent_override` → `cfg.default_agent()`;
+   `_ALLOWED_SHARED_SECTIONS` had no `autofix` entry and `Config` no field.
+
+## Dev
+
+branch: autofix-analyst-fixes
+worktree: /home/n/Code/claude/coga-autofix-analyst-fixes
+
+Separate-checkout layout (linked worktree, created from `origin/main`).
+
+## Implemented
+
+One commit, `Fix the three autofix analyst defects`, rebased onto
+`origin/main` `261045a3`.
+
+- **Defect 1** — new `recurring_autofix._labelled_streams` renders
+  `stdout: …` / `stderr: …` (empty streams omitted, each with its own
+  `_tail(…, 500)`); `analyze_record` raises `AutofixUnavailable` as
+  `<cli> exited <rc>:\n<labelled streams>`. Per-stream tails are deliberate:
+  a chatty stderr must not crowd the cause out of stdout.
+- **Defect 2** — `stdin=subprocess.DEVNULL` on the analyst `subprocess.run`
+  in `analyze_record`, and also on the `claude auth status` probe in
+  `_claude_subscription_fallback_env` (same one-shot reasoning; one line, not
+  scope creep).
+- **Defect 3** — `Config.autofix_agent: str | None`, parsed by new
+  `config._parse_autofix` from shared `[autofix] agent = "<type>"`;
+  `_ALLOWED_SHARED_SECTIONS` gains `autofix`, `_ALLOWED_AUTOFIX_KEYS` is
+  `{"agent"}` (one key, one branch — not a routing table). `_analyze_agent`
+  precedence is `--agent` > `[autofix].agent` > `default_agent()`.
+
+Decisions made without an owner (recorded so the review step can overrule):
+
+- The key is validated against the *effective* (shared + local merged)
+  agents table **at config load**, so a typo fails on the next command rather
+  than at the end of an unattended sweep, where the misconfigured analyst
+  would be the thing reporting it.
+- `[autofix]` is **shared-only** (rejected in `coga.local.toml`, like
+  `[layout]`/`[launch]`): which vendor analyzes the sweep is repo policy. A
+  machine can still name a locally declared `[agents.*]` type in it.
+- Docs: `coga/recurring` context gains three "Operating it" bullets
+  (precedence + rationale, stdin, labelled streams); `coga/architecture`
+  fixed-schema list gains `[autofix]`; packaged `coga/cli` context mentions
+  the key on `coga run autofix-analyze --agent` and the autofix-loop
+  paragraph. Packaged twins byte-identical (`tests/test_packaging.py` green).
+
+## Tests
+
+- `tests/test_recurring_autofix.py`: 9 new (labelled streams ×3, stdin ×2,
+  agent precedence ×4). `tests/test_config.py`: 7 new (`[autofix]` parse,
+  local-declared type, unknown type, non-string, unknown key, shared-only,
+  default None). 15 of the 17 fail against the unfixed source.
+- Full suite in the worktree: `2511 passed` (pre-rebase). Post-rebase the
+  incoming main commit (`261045a3`) touched only `coga/log.md`, task files,
+  and a recurring `ticket.py`; re-ran `test_recurring_autofix`,
+  `test_config`, `test_packaging`: 207 passed.
+- `coga validate` not run: no task-layout or workflow semantics changed.
+
+## For the review step (from the ticket's Context)
+
+- `dream-2026-w36-extract-backlog-18-findings-phase-4` item 8 is now fully
+  carried here (items 1 and 2 of that backlog remain unlanded — nothing here
+  touches them). Closing vs narrowing that draft is still the owner's call.
+- `fix-the-autofix-analyst` stays `done`; this ticket supersedes it rather
+  than reopening a retired-shape ticket. Not reopened here.
