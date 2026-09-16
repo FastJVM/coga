@@ -51,6 +51,15 @@ a find-and-replace — some names carried over, some were deleted. Read
 premise check and the known-stale surface table. Cancelling a premise-dead
 draft with a recorded reason is a normal outcome of that check.
 
+A bare thought — a title with nothing yet to say under `## Description` — is
+captured *only* there: `coga create "v2/<title>"`. Everywhere else a ticket
+carries its description from the moment it exists (`coga create
+--description`, or `coga ticket`), because a title-only ticket at the root
+reads as current work in `coga status` while nobody but its author can say
+what it is. `coga validate` names every live title-only ticket as
+`empty-description`; `coga/tasks/v2/README.md` says how such a stub is read
+and when the author's describe-or-cancel verdict is due.
+
 Marketing and documentation work may proceed independently when it does not
 change the core task model. Reliability bugs that block installation, launch,
 state sync, or review take precedence over new convenience surfaces.

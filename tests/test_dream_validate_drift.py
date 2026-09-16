@@ -262,6 +262,7 @@ def test_classifies_file_backed_validator_drift_as_pr_proposal(kind: str) -> Non
 @pytest.mark.parametrize(
     "kind",
     [
+        "empty-description",
         "github-gh-auth",
         "github-gh-installed",
         "github-git-auth",

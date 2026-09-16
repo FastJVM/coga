@@ -91,6 +91,7 @@ def test_clean_repo_has_no_issues(repo: Path) -> None:
         owner="marc",
         agent="claude",
         status="draft",
+        description="Described.",
     )
     report = run(cfg)
     assert report.issues == []
@@ -158,6 +159,7 @@ def test_agentless_draft_validates_future_peer_without_selecting_main_agent(
         contexts=[],
         owner="marc",
         status="draft",
+        description="Described.",
     )
     ticket = Ticket.read(created["path"])
     assert "agent" not in ticket.frontmatter
@@ -794,6 +796,7 @@ def test_validate_tolerates_legacy_null_script_key(repo: Path) -> None:
         owner="marc",
         agent="claude",
         status="draft",
+        description="Described.",
     )
     path = Path(created["path"])
     text = path.read_text()
@@ -1647,6 +1650,102 @@ def test_draft_authoring_blackboard_allows_production_notes(repo: Path) -> None:
     ]
 
 
+def test_empty_description_warns_as_title_only(repo: Path) -> None:
+    cfg = load_config(repo)
+    # `coga create` without `--description` leaves the canonical skeleton with
+    # nothing under `## Description`: the title-only shape.
+    create_task(
+        cfg=cfg,
+        title="X",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
+    )
+
+    report = run(cfg)
+
+    issue = next(i for i in report.issues if i.kind == "empty-description")
+    assert issue.severity == "warn"
+    assert "title-only" in issue.message
+    assert "Do not cancel it just to clear this warning" in issue.message
+    # A warning, not an error: the task still counts as ok and nothing that
+    # gates on `assert_task_valid` (create itself, mark, bump) refuses it.
+    assert report.ok_count == 1
+
+
+def test_empty_description_warns_when_heading_is_missing(repo: Path) -> None:
+    cfg = load_config(repo)
+    path = repo / "tasks" / "headless.md"
+    _write(
+        path,
+        """
+        ---
+        title: Headless
+        status: draft
+        owner: marc
+        workflow: null
+        ---
+
+        ## Context
+
+        Only context, no description heading at all.
+
+        <!-- coga:blackboard -->
+
+        Nothing yet.
+        """,
+    )
+
+    report = run(cfg)
+
+    assert [i.kind for i in report.issues if i.task == "headless"] == [
+        "empty-description"
+    ]
+
+
+def test_empty_description_is_silent_on_terminal_tickets(repo: Path) -> None:
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="X",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
+    )
+    ref = list_tasks(cfg)[0]
+    # A finished or abandoned ticket with an empty body is history, not
+    # capture debt: nothing downstream will ever need its intent.
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["status"] = "canceled"
+    ticket.write(ref.ticket_path)
+
+    report = run(cfg)
+
+    assert not [i for i in report.issues if i.kind == "empty-description"]
+
+
+def test_described_ticket_has_no_empty_description_issue(repo: Path) -> None:
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="X",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
+        description="One sentence is enough to make the intent recoverable.",
+    )
+
+    report = run(cfg)
+
+    assert not [i for i in report.issues if i.kind == "empty-description"]
+
+
 class _FakeResponse:
     def __init__(self, status_code: int, text: str = "") -> None:
         self.status_code = status_code
@@ -2218,6 +2317,7 @@ def test_validate_accepts_declared_extension_fields(repo: Path) -> None:
         owner="marc",
         agent="claude",
         status="draft",
+        description="Described.",
     )
     report = run(cfg)
     assert report.issues == []
@@ -2327,6 +2427,7 @@ def test_validate_allows_empty_extension_value(repo: Path) -> None:
         owner="marc",
         agent="claude",
         status="draft",
+        description="Described.",
     )
     report = run(cfg)
     assert report.issues == []
@@ -2569,6 +2670,7 @@ def test_validate_requires_a_main_agent_once_activated(repo: Path) -> None:
         contexts=[],
         owner="marc",
         status="draft",
+        description="Described.",
     )
     # A draft may omit it.
     ticket = Ticket.read(created["path"])

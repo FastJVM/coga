@@ -211,3 +211,11 @@ title-only capture, with a verdict due at the first sweep, and add the
 guidance to `coga create --description` help.
 
 Test plan: `PYTHONPATH=/home/n/Code/claude/coga-title-only-validator/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` (2500 passed after rebase); from `example/`, `env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/claude/coga-title-only-validator/src coga validate --json` (4 ok, no issues); real PTY help at 80x24/120x40 and warning output at 80x24.
+
+## PR review follow-up (2026-09-16)
+
+Addressed the requested comments on [PR #815](https://github.com/FastJVM/coga/pull/815) in `/tmp/coga-review-pr815-20260916`.
+
+Updated the package-only CLI command contract with the v2-only bare-capture convention and the warn-only empty-description validator behavior. CLI argument syntax is unchanged.
+
+Verification: `PYTHONPATH=/tmp/coga-review-pr815-20260916/src /home/n/Code/claude/coga/.venv/bin/python -m pytest -q tests/test_packaging.py` — 11 passed.

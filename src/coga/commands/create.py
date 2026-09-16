@@ -66,7 +66,10 @@ def create(
         "--description",
         help=(
             "Short text for the new ticket's '## Description' section. May "
-            "not contain a '## ' heading line or the blackboard fence line."
+            "not contain a '## ' heading line or the blackboard fence line. "
+            "Omit it only for a bare capture under 'v2/'; 'coga validate' "
+            "reports a live ticket with an empty description as "
+            "'empty-description'."
         ),
     ),
     owner: str | None = typer.Option(
