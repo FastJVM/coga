@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: 7c642513-1187-4cf6-8cba-08d54aee6dfd
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -114,3 +113,58 @@ no PR.
 substrate list at the top; the new section names the context inline, which
 seemed enough. No fixture change — no task layout, prompt composition, or
 workflow semantics affected.
+
+## Peer review
+
+2026-09-16: `codex review --base main` **returned** with no actionable
+findings; its focused packaging run passed all 11 tests. The reviewer could
+not independently check DocHub's external claims because its network was
+unavailable. Parent review separately fetched the public help-center sources
+and checked the current pricing, integrations, and comparison pages.
+
+**Evidence correction (supersedes Implement's categorical conclusion).** The
+2024-04-11 support reply exists in the help center's public thread record:
+`https://support-backend.usrsprt.com/support/dochub/community-forum/question/c91a6950-fa12-401f-93e5-cbc88a6db133`.
+However, today's `/search?q=API&per_page=15&page=1` at the same support base
+returns two knowledge-base topics, two questions, and the support answer;
+the draft's "only API hit" / "no articles" claims were false. The other
+hits concern Google APIs and SSO, not the e-sign workflow. An old reply plus
+unsuccessful documentation searches also cannot prove that no API exists.
+Both skill copies now say **no usable public API found for this workflow**,
+link the checked sources, acknowledge the conflicting comparison-page claim,
+and drop the unsupported assertions about every integration or hand-off.
+The browser route and local AcroForm pre-fill remain; future tickets attach
+`browser/api-first`, cite this check, and re-check for changed scope, new API
+evidence/access, or age beyond a year.
+
+**Surface review.** This diff only changes instructional markdown; no
+interactive terminal or rendered UI behavior changed. Browser control tools
+were unavailable; the external evidence was verified through public HTTP
+reads instead.
+
+**Verification.** `git fetch origin main` followed by `git rebase FETCH_HEAD`
+ran before review and again after committing the corrections. Both rebases
+succeeded without conflicts; the final refresh added only audit-log commit
+`6a60239a`. `git diff --check origin/main...HEAD` and
+`cmp coga/skills/browser/dochub/SKILL.md src/coga/resources/templates/coga/bootstrap/skills/browser/dochub/SKILL.md`
+passed after the corrections. Final post-rebase command:
+`PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m pytest -q -o cache_dir=/tmp/coga-dochub-peer-review-pytest-cache`
+→ **2561 passed in 176.43s**, with no warnings. The cache directory avoids
+the harmless read-only-cache warning from the earlier full passing run.
+
+**Committed handoff.** Review fix: `824ae147` (`peer-review: qualify DocHub API
+evidence`); rebased implementation: `6c50e678`. `dochub-api-answer` is clean,
+two commits ahead of fetched `origin/main`. No feature push or PR in this step.
+
+## PR
+
+DocHub's automation skill lacked the API check required by `browser/api-first`.
+Add a dated, source-linked answer for document preparation and e-signing:
+no usable public API was found for this workflow. Distinguish the older
+support answer from current comparison-page claims, keep local AcroForm
+pre-fill plus the browser workflow, and explain when to re-check. Update the
+packaged skill twin identically; no runtime or fixture changes.
+
+Test plan: `PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m pytest -q -o cache_dir=/tmp/coga-dochub-peer-review-pytest-cache`
+— 2561 passed; skill twins are byte-identical and
+`git diff --check origin/main...HEAD` passed.

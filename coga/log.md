@@ -5377,3 +5377,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-16 14:08 [record-dochub-s-why-not-the-api-answer-that-browse] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-09-16 14:08 [record-dochub-s-why-not-the-api-answer-that-browse] [megalaunch] launched via coga megalaunch
 2026-09-16 14:53 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-16 15:05 [record-dochub-s-why-not-the-api-answer-that-browse] [agent:codex] advanced to step 3 (open-pr) → claude
