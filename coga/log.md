@@ -5225,3 +5225,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-15 19:13 [cleanup/publish-coga-1-0-to-pypi] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-15 19:13 [cleanup/publish-coga-1-0-to-pypi] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-15 19:13 [cleanup/publish-coga-1-0-to-pypi] [megalaunch] launched via coga megalaunch
+2026-09-15 19:15 [cleanup/publish-coga-1-0-to-pypi] [agent:claude] advanced to step 2 (human-executes) → nicktoper — Brief on blackboard. Precondition unmet: 3.11 fix (cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r, at peer-review) is not on main yet — land it before tagging v1.0.0. Repo is at 0.3.2, not 0.3.1.
