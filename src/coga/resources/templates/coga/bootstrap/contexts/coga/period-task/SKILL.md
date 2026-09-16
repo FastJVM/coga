@@ -21,15 +21,19 @@ own blackboard (the region of your `ticket.md`, below the
 The creator attaches this context to every period task unconditionally
 (`_create_at_slug` in `src/coga/recurring.py` appends `coga/period-task`;
 `_template_frontmatter` strips a copy a promoted template already carries),
-but who reads it depends on the template's dispatch, which is deduced from one
-file:
+but who reads it depends on the materialized period's frozen dispatch:
 
-- **No `ticket.py` beside the template: an agent runs the period.** `coga
+- **No `ticket.py` or `delegate:`: an agent runs the period.** `coga
   launch` composes this context into the prompt, and "you" below is that
   agent.
-- **A `ticket.py` sibling: the recipe runs first, headless.** Launch copies
-  the script into the period task and runs it as a subprocess with no prompt
-  composed. When it closes its last step itself — the shape every shipped
+- **A `delegate:` target: an agent runs the bootstrap ticket.** That
+  target's prompt does not include the period ticket's contexts, so the
+  delegated agent does not receive these bookkeeping instructions. See
+  the delegation contract in `coga/recurring`.
+- **A copied `ticket.py` sibling: the recipe runs first, headless.** The
+  creator copies the script into the period task; `coga launch` runs it as
+  a subprocess with no prompt composed. When it closes its last step itself
+  — the shape every shipped
   `ticket.py` template is written for, ending in a shell-out to `coga bump`
   or `coga mark done` — no agent starts and **nobody reads this context for
   that firing**. Each step of the shape below is then performed in code: the
@@ -38,10 +42,11 @@ file:
   binary, though: a script that exits 0 leaving its step open — on its first
   run, or when the chain re-runs it on a later agent-owned step its bump
   reached — hands the *same* period to an agent phase that does get this
-  prompt. In that case "you" is that agent, the
-  period is already `in_progress`, and the parent blackboard is where the
-  script left anything it wants you to have. The three outcomes are specified
-  by the dispatch bullet and the completion contract in `coga/recurring`.
+  prompt. In that case "you" is that agent and the period is already
+  `in_progress`. The period blackboard (`COGA_TASK_BLACKBOARD`) carries any
+  per-run handoff notes into the agent prompt; the parent blackboard holds
+  cross-run state. The three outcomes are specified by the dispatch bullet
+  and the completion contract in `coga/recurring`.
 
 So read the rest of this context as addressed to *whoever runs this period*:
 the recipe author when the reader is code, the agent otherwise. The state
