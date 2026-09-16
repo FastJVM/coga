@@ -324,20 +324,35 @@ def test_dream_re_validates_parked_drafts_every_run() -> None:
 
     # The README owns the four questions and names Dream as the standing owner.
     assert "Four questions, in this order:" in readme_text
-    assert "Do the tickets it cites still exist?" in readme_norm
+    assert "Do the tickets it depends on still exist?" in readme_norm
     assert "a draft must carry the substance it depends on in its own body" in readme_norm
     assert "Has something else already delivered it?" in readme_norm
     assert "### Who runs the check while a draft sits" in readme_text
     assert "The standing owner is Dream" in readme_norm
 
+    # A delivered duplicate can be canceled directly from draft, even without
+    # a workflow. The CLI refuses `mark done` from draft.
+    assert 'coga mark canceled v2/<slug> --message "already delivered by' in readme_norm
+    assert "coga mark done v2/<slug>" not in readme_norm
+
     # The shard runs the check and records a `premise` finding, never a verdict.
     assert "## Parked drafts: the standing premise pass" in scan_text
+    assert "If `coga/tasks/v2/README.md` is absent, skip this pass" in scan_norm
+    assert "continue the rest of the knowledge scan" in scan_norm
+    assert "A terminal (`done` or `canceled`) ticket is no longer a parked draft" in scan_norm
     assert "every parked draft your shard owns" in scan_norm
     assert "`premise`" in scan_text
     assert "`question: <subject | surfaces | citations | delivered>`" in scan_text
     assert "Write findings, never verdicts" in scan_norm
     assert "emit nothing for it here" in scan_norm
     assert "- class: <extract | stale | gap | premise | drift>" in protocol_text
+
+    # Retired provenance must not re-trigger a finding once the draft carries
+    # its requirements locally.
+    assert "Provenance-only citations are not premise failures" in readme_norm
+    assert "required substance absent from the draft's own body" in readme_norm
+    assert "provenance-only citations are not failures" in scan_norm
+    assert "must not make the finding recur" in scan_norm
 
     # Phase 6 routes the class to one brief-for-human draft per run and
     # reconciles against earlier runs' adjudication drafts first.

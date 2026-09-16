@@ -162,10 +162,10 @@ Phase 4 reads that section when batching knowledge PRs. Keep each `extract`
 finding's `source:` line, each `gap` finding's `owner:` line, and each
 `premise` finding's `target:`, `question:`, and `owner:` lines through the
 merge — Phase 6 routes on them. The `premise` class is this scan's standing
-re-validation of the parking area: the skill asks the four premise questions
-of `coga/tasks/v2/README.md` of every parked draft it owns, so a draft that
-sits there is re-checked every run instead of only when a human pulls it
-forward.
+re-validation of the parking area, where `coga/tasks/v2/README.md` exists:
+the skill asks that contract's four premise questions of every parked draft
+it owns, so a draft that sits there is re-checked every run instead of only
+when a human pulls it forward.
 
 ### Phase 3 — contract audit
 
@@ -476,8 +476,8 @@ Route each Phase 2 and Phase 3 finding by class:
   --workflow brief-for-human --description "<...>"` under the filing rules
   above, whose description lists each draft by path-qualified slug with the
   question it failed and the shard's evidence, names the README's verdict
-  vocabulary (cancel with a reason, close as delivered, narrow, rewrite), and
-  repeats the README's guard that a green `coga validate` is never a reason
+  vocabulary (cancel with evidence, including already-delivered work; narrow;
+  rewrite), and repeats the README's guard that a green `coga validate` is never a reason
   to rule a draft dead. `brief-for-human` is the workflow because every
   verdict is the human's. A draft ruled on in that ticket stops appearing
   when its verdict lands; a draft the human leaves open is owned by that

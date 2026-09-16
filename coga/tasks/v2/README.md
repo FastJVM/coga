@@ -61,14 +61,16 @@ Four questions, in this order:
 2. **Do the surfaces it names still resolve?** Grep the draft for the dead
    surfaces below and check each against current `main` before trusting any
    step in it.
-3. **Do the tickets it cites still exist?** A draft that says "read the
+3. **Do the tickets it depends on still exist?** A draft that says "read the
    `Ranked changes` section of `<slug>`'s blackboard" or "the live cluster to
    read instead is `<slug>`, `<slug>`" has delegated its content to a file
-   Coga deletes on a schedule: Dream's Retro pass removes every done ticket,
-   and the citation keeps pointing at nothing. Resolve every slug the draft
-   names against `coga/tasks/` (bare `.md` and `<slug>/ticket.md`). A citation
-   that no longer resolves is a *dangling citation*, and the wording it stood
-   for survives only in git history —
+   Coga can delete during Retro. Resolve those dependencies against
+   `coga/tasks/` (bare `.md` and `<slug>/ticket.md`). A missing ticket is a
+   premise failure only when it holds required substance absent from the
+   draft's own body. **Provenance-only citations are not premise failures**:
+   a self-contained draft may retain a retired source or example, including
+   after its required substance has been recovered and inlined. For a
+   dangling dependency, recover the missing substance from git history —
    `git log --all --diff-filter=D --name-only -- 'coga/tasks/<slug>*'` finds
    the deleting commit, and `git show <commit>^:<path>` reads the file. Do not
    repair a dangling citation by pointing at a different live ticket: that is
@@ -79,7 +81,7 @@ Four questions, in this order:
    The rule that prevents this: **a draft must carry the substance it depends
    on in its own body.** Cite another ticket for provenance if you like, but
    never as the only copy of a requirement, a ranked list, or a verdict the
-   implementer will need. The cited ticket will be deleted before the draft is
+   implementer will need. The cited ticket may be deleted before the draft is
    pulled forward; the draft's own `## Description` and `## Context` are the
    only surfaces that sit as long as it does.
 4. **Has something else already delivered it?** The commonest outcome of this
@@ -88,20 +90,21 @@ Four questions, in this order:
    know a parked draft was waiting on it. Read the target surface the draft
    names on current `main` and compare it with the draft's acceptance
    criterion, not its title. If the surface already carries the substance,
-   close the draft as delivered —
-   `coga mark done v2/<slug> --message "delivered by <PR, commit, or path>"` —
-   so its outcome is truthful and Retro retires it on the next Dream run;
-   cancel is for a deliverable that never landed. If only part shipped, narrow
-   the draft to the remainder in its own body (question 3 applies to the
-   narrowing) rather than leaving the satisfied half armed.
+   cancel the redundant draft with delivery evidence —
+   `coga mark canceled v2/<slug> --message "already delivered by <PR, commit, or path>"`.
+   This records why the duplicate work is no longer needed using a transition
+   available to drafts, including workflow-less ones. The canceled draft
+   remains on disk under Dream's existing lifecycle contract. If only part
+   shipped, narrow the draft to the remainder in its own body (question 3
+   applies to the narrowing) rather than leaving the satisfied half armed.
 
-Only then decide: pull forward, rewrite against the current shape, close as
-delivered, or cancel.
+Only then decide: pull forward, rewrite against the current shape, or cancel
+with evidence of the dead premise or already-delivered outcome.
 
 ### The green-validate guard
 
 Every verdict this file asks for — describe or cancel a stub, cancel a
-premise-dead draft, close a delivered one — is a judgment about that draft
+premise-dead or already-delivered draft — is a judgment about that draft
 and nothing else. **A green `coga validate` is never a reason to cancel a
 draft — it is a consequence of correct verdicts, never an input to them.**
 The incentive this guards against is real and recurring: the standing
