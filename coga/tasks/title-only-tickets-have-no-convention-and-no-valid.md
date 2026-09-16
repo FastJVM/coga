@@ -1,6 +1,6 @@
 ---
 title: Title-only tickets have no convention and no validator
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:53824ec1-16c3-456b-b757-76e4fac7e312
 ---
 
 ## Description
