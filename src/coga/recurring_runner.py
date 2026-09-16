@@ -1721,7 +1721,9 @@ def _record_unlaunched_creates(scan: DueScan, record: RunRecord) -> None:
     sweep would otherwise report `problems: 0` over lost work, so absence of an
     outcome is the signal, as with admitted watchdog recoveries above.
     """
-    ran = {outcome.slug for outcome in record.outcomes}
+    # A create the stopped sweep already named as abandoned is not named twice.
+    named = {outcome.slug for outcome in record.outcomes}
+    named |= {slug for slug, _ in record.scan_problems}
     # Every admission skip is a create already removed from `scan.tasks`.
     unlaunched = [
         (task.ref.id_slug, reason)
@@ -1733,7 +1735,7 @@ def _record_unlaunched_creates(scan: DueScan, record: RunRecord) -> None:
         for task in scan.tasks
         if task.ref is not None
         and (task.created or task.replaced_done)
-        and task.ref.id_slug not in ran
+        and task.ref.id_slug not in named
     ]
     for slug, reason in unlaunched:
         detail = f"created this sweep but never launched ({reason})"
@@ -1747,13 +1749,14 @@ def _record_abandoned_due(
     """Name every admitted due task the sweep stopped before launching.
 
     The loop in `_launch_due_tasks` keeps sweeping past a template failure, but
-    three exits still stop it where they happen: exit 75's retained state, a
-    process signal, and a period that cannot be classified after
-    reconciliation. On 2026-09-08 an early return left the report reading
-    `tasks run: 3` against 7 due with no line about the other four. Whatever
-    stops the sweep, the tasks it never reached are lost work this run has to
-    own, so each one is a problem the header counts, as with a period created
-    but never launched.
+    it can still stop where it stands: on the one surviving early return (a
+    period that cannot be classified after reconciliation) or on anything that
+    escapes the loop — exit 75's retained state, a process signal, an error out
+    of a launch or its lifecycle bookkeeping. On 2026-09-08 an early return
+    left the report reading `tasks run: 3` against 7 due with no line about
+    the other four. Whatever stops the sweep, the tasks it never reached are
+    lost work this run has to own, so each one is a problem the header counts,
+    as with a period created but never launched.
     """
     stopped = due[stopped_at]
     remaining = due[stopped_at + 1 :]
@@ -1772,6 +1775,18 @@ def _record_abandoned_due(
         f"{len(remaining)} of {len(due)} due task(s) never launched after "
         f"{stopped_slug}: {', '.join(slugs)}"
     )
+
+
+def _sweep_stop_reason(exc: BaseException) -> str:
+    """Describe, for the run record, what escaped `_launch_due_tasks`' loop."""
+    if isinstance(exc, SystemExit):
+        code = _exit_status(exc)
+        if code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
+            return f"a retained-state refusal (exit {code})"
+        if code >= 128:
+            return f"a signal (exit {code})"
+        return f"an unhandled launch exit (exit {code})"
+    return f"an unhandled {type(exc).__name__}"
 
 
 def _launch_due_tasks(
@@ -1818,298 +1833,301 @@ def _launch_due_tasks(
     # end — the same isolate-and-aggregate shape `coga recurring --all` already
     # uses across repos.
     failures: list[tuple[str, int]] = []
-    for i, task in enumerate(due, 1):
-        if task.ref is None:
-            detail = (
-                f"{task.template} has no materialized period to launch; skipped"
-            )
-            typer.secho(detail, fg=typer.colors.YELLOW)
-            record.note(detail)
-            continue
-        typer.secho(
-            f"[{i}/{len(due)}] {task.ref.id_slug}", fg=typer.colors.CYAN, bold=True
-        )
-        admitted_period_lease = admitted_period_leases[task.ref.id_slug]
-        if force:
-            if not _same_period_lease(
-                _local_period_lease(cfg, task.ref), admitted_period_lease
-            ):
+    # Whatever stops the loop short — a retained-state refusal, a signal, or
+    # an error escaping a launch — the due tasks it never reached are lost
+    # work this run has to own before the exception leaves.
+    try:
+        for i, task in enumerate(due, 1):
+            if task.ref is None:
                 detail = (
-                    f"{task.ref.id_slug} changed after sweep admission; skipped"
+                    f"{task.template} has no materialized period to launch; skipped"
                 )
                 typer.secho(detail, fg=typer.colors.YELLOW)
                 record.note(detail)
                 continue
-            try:
-                _prepare_forced_launch(cfg, task)
-            except RecurringError as exc:
-                forced_refusals += 1
-                typer.secho(str(exc), fg=typer.colors.RED, err=True)
-                _record_outcome(
-                    record,
-                    TaskOutcome(
-                        template=task.template,
-                        slug=task.ref.id_slug if task.ref else task.template,
-                        result="refused",
-                        detail=str(exc),
+            typer.secho(
+                f"[{i}/{len(due)}] {task.ref.id_slug}", fg=typer.colors.CYAN, bold=True
+            )
+            admitted_period_lease = admitted_period_leases[task.ref.id_slug]
+            if force:
+                if not _same_period_lease(
+                    _local_period_lease(cfg, task.ref), admitted_period_lease
+                ):
+                    detail = (
+                        f"{task.ref.id_slug} changed after sweep admission; skipped"
                     )
-                )
+                    typer.secho(detail, fg=typer.colors.YELLOW)
+                    record.note(detail)
+                    continue
+                try:
+                    _prepare_forced_launch(cfg, task)
+                except RecurringError as exc:
+                    forced_refusals += 1
+                    typer.secho(str(exc), fg=typer.colors.RED, err=True)
+                    _record_outcome(
+                        record,
+                        TaskOutcome(
+                            template=task.template,
+                            slug=task.ref.id_slug if task.ref else task.template,
+                            result="refused",
+                            detail=str(exc),
+                        )
+                    )
+                    continue
+                # Forced preparation may deliberately activate or rematerialize the
+                # admitted generation. The resulting lease, not its pre-mutation
+                # snapshot, is what the child is allowed to launch.
+                admitted_period_lease = _local_period_lease(cfg, task.ref)
+            current_period_lease = _local_period_lease(cfg, task.ref)
+            if not _same_period_lease(current_period_lease, admitted_period_lease):
+                detail = f"{task.ref.id_slug} changed after sweep admission; skipped"
+                typer.secho(detail, fg=typer.colors.YELLOW)
+                record.note(detail)
                 continue
-            # Forced preparation may deliberately activate or rematerialize the
-            # admitted generation. The resulting lease, not its pre-mutation
-            # snapshot, is what the child is allowed to launch.
-            admitted_period_lease = _local_period_lease(cfg, task.ref)
-        current_period_lease = _local_period_lease(cfg, task.ref)
-        if not _same_period_lease(current_period_lease, admitted_period_lease):
-            detail = f"{task.ref.id_slug} changed after sweep admission; skipped"
-            typer.secho(detail, fg=typer.colors.YELLOW)
-            record.note(detail)
-            continue
-        if current_period_lease.ticket_bytes is None:
-            detail = f"{task.ref.id_slug} no longer exists on control; skipped"
-            typer.secho(detail, fg=typer.colors.YELLOW)
-            record.note(detail)
-            continue
-        # Reconciliation can refresh or replace the materialized period after
-        # `scan_due` cached its dispatch field. Route only from the durable
-        # ticket that now owns this launch; otherwise a restored delegate could
-        # run as an ordinary wrapper, or a removed delegate could still spawn
-        # obsolete bootstrap work.
-        try:
-            current_ticket = Ticket.parse(
-                current_period_lease.ticket_bytes.decode()
-            )
-            task.status = current_ticket.status
-            task.delegate = frozen_task_delegate(task.ref, current_ticket)
-        except (RecurringError, UnicodeError, TicketError) as exc:
-            detail = (
-                f"cannot classify recurring period {task.ref.id_slug} after "
-                f"reconciliation: {exc}"
-            )
-            typer.secho(detail, fg=typer.colors.RED, err=True)
-            _record_outcome(
-                record,
-                TaskOutcome(
-                    template=task.template,
-                    slug=task.ref.id_slug,
-                    result="refused",
-                    detail=detail,
+            if current_period_lease.ticket_bytes is None:
+                detail = f"{task.ref.id_slug} no longer exists on control; skipped"
+                typer.secho(detail, fg=typer.colors.YELLOW)
+                record.note(detail)
+                continue
+            # Reconciliation can refresh or replace the materialized period after
+            # `scan_due` cached its dispatch field. Route only from the durable
+            # ticket that now owns this launch; otherwise a restored delegate could
+            # run as an ordinary wrapper, or a removed delegate could still spawn
+            # obsolete bootstrap work.
+            try:
+                current_ticket = Ticket.parse(
+                    current_period_lease.ticket_bytes.decode()
                 )
-            )
-            _record_abandoned_due(record, due, i - 1, "an unclassifiable period")
-            return 2
-        # Baseline for the post-firing template check. Captured here — after
-        # every skip path, immediately before dispatch — so it reflects the
-        # bytes this run was actually composed from.
-        template_description_before = _template_description(cfg, task.template)
-        # One dispatch for every template: `coga launch` classifies the period
-        # task from its own directory, so a `ticket.py` template runs
-        # deterministically and an agent template composes a prompt, without
-        # this sweep holding a second copy of that rule.
-        #
-        if task.delegate:
-            if agent_spawn_refusal is not None:
+                task.status = current_ticket.status
+                task.delegate = frozen_task_delegate(task.ref, current_ticket)
+            except (RecurringError, UnicodeError, TicketError) as exc:
                 detail = (
-                    f"{task.ref.id_slug} needs its delegated agent after "
-                    f"reconciliation, but {agent_spawn_refusal} No agent was "
-                    "started."
+                    f"cannot classify recurring period {task.ref.id_slug} after "
+                    f"reconciliation: {exc}"
                 )
-                typer.secho(detail, fg=typer.colors.YELLOW, err=True)
+                typer.secho(detail, fg=typer.colors.RED, err=True)
                 _record_outcome(
                     record,
                     TaskOutcome(
                         template=task.template,
                         slug=task.ref.id_slug,
                         result="refused",
-                        final_status=current_ticket.status,
                         detail=detail,
-                    ),
+                    )
                 )
-                continue
-            # A delegating template's period task never runs its own agent
-            # session: the sweep launches the declared bootstrap target
-            # directly — in this operator's terminal, under the same liveness
-            # bounds and queue posture as any sweep launch — and does the
-            # period task's lifecycle bookkeeping itself.
-            delegated = _run_delegated_task(
-                cfg,
-                task.ref,
-                agent_override=agent_override,
-                idle_timeout=idle_timeout,
-                max_session=max_session,
-                launch_context=launch_context,
-                continue_after_timeout=True,
-                admitted_period_lease=admitted_period_lease,
-            )
-            if delegated.kind == "skipped":
-                record.note(
-                    f"{task.ref.id_slug} changed after sweep admission; skipped"
-                )
-                continue
-            # Main's sweep records every run it performed; `run_autofix` fires
-            # only when `record.outcomes` is non-empty, so a delegated run that
-            # returned without recording would be invisible to the analyst.
-            _record_outcome(
-                record,
-                _task_outcome(
+                _record_abandoned_due(record, due, i - 1, "an unclassifiable period")
+                return 2
+            # Baseline for the post-firing template check. Captured here — after
+            # every skip path, immediately before dispatch — so it reflects the
+            # bytes this run was actually composed from.
+            template_description_before = _template_description(cfg, task.template)
+            # One dispatch for every template: `coga launch` classifies the period
+            # task from its own directory, so a `ticket.py` template runs
+            # deterministically and an agent template composes a prompt, without
+            # this sweep holding a second copy of that rule.
+            #
+            if task.delegate:
+                if agent_spawn_refusal is not None:
+                    detail = (
+                        f"{task.ref.id_slug} needs its delegated agent after "
+                        f"reconciliation, but {agent_spawn_refusal} No agent was "
+                        "started."
+                    )
+                    typer.secho(detail, fg=typer.colors.YELLOW, err=True)
+                    _record_outcome(
+                        record,
+                        TaskOutcome(
+                            template=task.template,
+                            slug=task.ref.id_slug,
+                            result="refused",
+                            final_status=current_ticket.status,
+                            detail=detail,
+                        ),
+                    )
+                    continue
+                # A delegating template's period task never runs its own agent
+                # session: the sweep launches the declared bootstrap target
+                # directly — in this operator's terminal, under the same liveness
+                # bounds and queue posture as any sweep launch — and does the
+                # period task's lifecycle bookkeeping itself.
+                delegated = _run_delegated_task(
                     cfg,
-                    task.template,
                     task.ref,
-                    kind=delegated.kind,
-                    result=(
-                        "failed"
-                        if delegated.exit_code and delegated.kind != "timeout"
-                        else ""
-                    ),
-                    exit_code=delegated.exit_code or None,
-                    template_damage=_damage_since(
-                        cfg, task.template, template_description_before
-                    ),
+                    agent_override=agent_override,
+                    idle_timeout=idle_timeout,
+                    max_session=max_session,
+                    launch_context=launch_context,
+                    continue_after_timeout=True,
+                    admitted_period_lease=admitted_period_lease,
                 )
-            )
-            if delegated.exit_code:
-                failures.append((task.ref.id_slug, delegated.exit_code))
-                detail = (
-                    f"{task.ref.id_slug} failed (exit {delegated.exit_code}); "
-                    "continuing with the remaining due templates"
-                )
-                typer.secho(detail, fg=typer.colors.RED, err=True)
-                record.note(detail)
-            continue
-        # Sequential by design: each launch blocks until the session exits
-        # before the next begins. `scan_due` filters periods with no executable
-        # phase in the current context. A ticket.py may still be hybrid, so the
-        # same admission refusal is passed into shared launch and enforced
-        # before agent-only setup. For admitted agents, liveness backstops
-        # release any that launch but then stall. `launch` returns "timeout"
-        # when a backstop fired so we record the wedge honestly below instead
-        # of pausing it as a human would.
-        try:
-            raw_launch_result = launch_cmd(
-                task.ref.id_slug,
-                expected_period_lease=admitted_period_lease,
-                control_remote_expected=control_remote_expected,
-                agent_override=agent_override,
-                prompt_report=False,
-                idle_timeout=idle_timeout,
-                max_session=max_session,
-                return_timeout=True,
-                script_failure_important=True,
-                # An automatic sweep's agent must announce-and-continue and end
-                # owner decisions in `coga block` — a conversational ask hangs
-                # the queue until a liveness timeout fails the task.
-                # `--interactive` is a human stepping through by hand, so it
-                # selects the attended contract instead.
-                launch_context=launch_context,
-                agent_spawn_refusal=agent_spawn_refusal,
-            )
-            if not isinstance(raw_launch_result, RecurringPeriodLaunchResult):
-                raise RecurringError(
-                    f"internal recurring launch for {task.ref.id_slug} did not "
-                    "return its typed child-generation lease"
-                )
-            launch_result = raw_launch_result
-        except SystemExit as exc:
-            # A failed `ticket.py` exits the launch. Catch it rather than
-            # unwinding the process, so the command still reaches its
-            # exit-boundary git sync. The task is deliberately left unfinished,
-            # not paused — but the templates *behind* it are not this task's to
-            # cancel, so record the failure and keep sweeping. The aggregate
-            # non-zero code is returned once every due template has had its
-            # turn.
-            code = _exit_status(exc)
-            # Two exit classes are *not* template failures and must stop the
-            # sweep where they happened. Aggregating them would let this sweep
-            # start work the operator or the launch contract just forbade, and
-            # returning them after the fact is too late.
-            if code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
-                # An aligned-assist publication or teardown refused and
-                # deliberately left dirty retained state for the operator to
-                # reconcile. No later template may run a refresh, sync, or
-                # agent that could disturb or publish those bytes first.
-                _record_abandoned_due(
-                    record, due, i - 1, f"a retained-state refusal (exit {code})"
-                )
-                raise
-            if code >= 128:
-                # Process-level interrupt: `commands/launch.py`'s handler turns
-                # SIGINT/SIGTERM into `SystemExit(128 + signum)`. An explicit
-                # cancellation must never initiate additional work.
-                _record_abandoned_due(record, due, i - 1, f"a signal (exit {code})")
-                raise
-            if code:
+                if delegated.kind == "skipped":
+                    record.note(
+                        f"{task.ref.id_slug} changed after sweep admission; skipped"
+                    )
+                    continue
+                # Main's sweep records every run it performed; `run_autofix` fires
+                # only when `record.outcomes` is non-empty, so a delegated run that
+                # returned without recording would be invisible to the analyst.
                 _record_outcome(
                     record,
                     _task_outcome(
                         cfg,
                         task.template,
                         task.ref,
-                        result="failed",
-                        exit_code=code,
+                        kind=delegated.kind,
+                        result=(
+                            "failed"
+                            if delegated.exit_code and delegated.kind != "timeout"
+                            else ""
+                        ),
+                        exit_code=delegated.exit_code or None,
                         template_damage=_damage_since(
                             cfg, task.template, template_description_before
                         ),
                     )
                 )
-                failures.append((task.ref.id_slug, code))
+                if delegated.exit_code:
+                    failures.append((task.ref.id_slug, delegated.exit_code))
+                    detail = (
+                        f"{task.ref.id_slug} failed (exit {delegated.exit_code}); "
+                        "continuing with the remaining due templates"
+                    )
+                    typer.secho(detail, fg=typer.colors.RED, err=True)
+                    record.note(detail)
+                continue
+            # Sequential by design: each launch blocks until the session exits
+            # before the next begins. `scan_due` filters periods with no executable
+            # phase in the current context. A ticket.py may still be hybrid, so the
+            # same admission refusal is passed into shared launch and enforced
+            # before agent-only setup. For admitted agents, liveness backstops
+            # release any that launch but then stall. `launch` returns "timeout"
+            # when a backstop fired so we record the wedge honestly below instead
+            # of pausing it as a human would.
+            try:
+                raw_launch_result = launch_cmd(
+                    task.ref.id_slug,
+                    expected_period_lease=admitted_period_lease,
+                    control_remote_expected=control_remote_expected,
+                    agent_override=agent_override,
+                    prompt_report=False,
+                    idle_timeout=idle_timeout,
+                    max_session=max_session,
+                    return_timeout=True,
+                    script_failure_important=True,
+                    # An automatic sweep's agent must announce-and-continue and end
+                    # owner decisions in `coga block` — a conversational ask hangs
+                    # the queue until a liveness timeout fails the task.
+                    # `--interactive` is a human stepping through by hand, so it
+                    # selects the attended contract instead.
+                    launch_context=launch_context,
+                    agent_spawn_refusal=agent_spawn_refusal,
+                )
+                if not isinstance(raw_launch_result, RecurringPeriodLaunchResult):
+                    raise RecurringError(
+                        f"internal recurring launch for {task.ref.id_slug} did not "
+                        "return its typed child-generation lease"
+                    )
+                launch_result = raw_launch_result
+            except SystemExit as exc:
+                # A failed `ticket.py` exits the launch. Catch it rather than
+                # unwinding the process, so the command still reaches its
+                # exit-boundary git sync. The task is deliberately left unfinished,
+                # not paused — but the templates *behind* it are not this task's to
+                # cancel, so record the failure and keep sweeping. The aggregate
+                # non-zero code is returned once every due template has had its
+                # turn.
+                code = _exit_status(exc)
+                # Two exit classes are *not* template failures and must stop the
+                # sweep where they happened. Aggregating them would let this sweep
+                # start work the operator or the launch contract just forbade, and
+                # returning them after the fact is too late.
+                if code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
+                    # An aligned-assist publication or teardown refused and
+                    # deliberately left dirty retained state for the operator to
+                    # reconcile. No later template may run a refresh, sync, or
+                    # agent that could disturb or publish those bytes first.
+                    raise
+                if code >= 128:
+                    # Process-level interrupt: `commands/launch.py`'s handler turns
+                    # SIGINT/SIGTERM into `SystemExit(128 + signum)`. An explicit
+                    # cancellation must never initiate additional work.
+                    raise
+                if code:
+                    _record_outcome(
+                        record,
+                        _task_outcome(
+                            cfg,
+                            task.template,
+                            task.ref,
+                            result="failed",
+                            exit_code=code,
+                            template_damage=_damage_since(
+                                cfg, task.template, template_description_before
+                            ),
+                        )
+                    )
+                    failures.append((task.ref.id_slug, code))
+                    detail = (
+                        f"{task.ref.id_slug} failed (exit {code}); continuing with "
+                        "the remaining due templates"
+                    )
+                    typer.secho(detail, fg=typer.colors.RED, err=True)
+                    record.note(detail)
+                    continue
+                launch_result = RecurringPeriodLaunchResult(None, None, False)
+            kind = launch_result.kind
+            if kind == "skipped":
+                record.note(
+                    f"{task.ref.id_slug} changed on control before launch; skipped"
+                )
+                continue
+            if launch_result.period_lease is None:
                 detail = (
-                    f"{task.ref.id_slug} failed (exit {code}); continuing with "
-                    "the remaining due templates"
+                    f"cannot finalize recurring period {task.ref.id_slug}: the "
+                    "launch established no child-generation lease"
                 )
                 typer.secho(detail, fg=typer.colors.RED, err=True)
-                record.note(detail)
+                _record_outcome(
+                    record,
+                    _task_outcome(
+                        cfg,
+                        task.template,
+                        task.ref,
+                        result="refused",
+                        exit_code=2,
+                        template_damage=_damage_since(
+                            cfg, task.template, template_description_before
+                        ),
+                    )
+                )
+                failures.append((task.ref.id_slug, 2))
                 continue
-            launch_result = RecurringPeriodLaunchResult(None, None, False)
-        kind = launch_result.kind
-        if kind == "skipped":
-            record.note(
-                f"{task.ref.id_slug} changed on control before launch; skipped"
+            _stop_if_unfinished_after_launch(
+                cfg,
+                task.ref,
+                timed_out=(kind == "timeout"),
+                script_stopped=(kind == "script"),
+                expected_period_lease=launch_result.period_lease,
+                require_period_publication=(
+                    launch_result.require_period_publication
+                    and launch_result.period_lease is not None
+                ),
             )
-            continue
-        if launch_result.period_lease is None:
-            detail = (
-                f"cannot finalize recurring period {task.ref.id_slug}: the "
-                "launch established no child-generation lease"
-            )
-            typer.secho(detail, fg=typer.colors.RED, err=True)
             _record_outcome(
                 record,
                 _task_outcome(
                     cfg,
                     task.template,
                     task.ref,
-                    result="refused",
-                    exit_code=2,
+                    kind=kind,
                     template_damage=_damage_since(
                         cfg, task.template, template_description_before
                     ),
                 )
             )
-            failures.append((task.ref.id_slug, 2))
-            continue
-        _stop_if_unfinished_after_launch(
-            cfg,
-            task.ref,
-            timed_out=(kind == "timeout"),
-            script_stopped=(kind == "script"),
-            expected_period_lease=launch_result.period_lease,
-            require_period_publication=(
-                launch_result.require_period_publication
-                and launch_result.period_lease is not None
-            ),
-        )
-        _record_outcome(
-            record,
-            _task_outcome(
-                cfg,
-                task.template,
-                task.ref,
-                kind=kind,
-                template_damage=_damage_since(
-                    cfg, task.template, template_description_before
-                ),
-            )
-        )
+    except BaseException as exc:
+        _record_abandoned_due(record, due, i - 1, _sweep_stop_reason(exc))
+        raise
     if failures:
         # Name every failure. The old early return left the templates behind a
         # failure unmentioned, so the report read as a clean sweep with one
