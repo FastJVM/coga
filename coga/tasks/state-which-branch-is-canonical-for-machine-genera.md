@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: c44b3cbf-78aa-41f8-82e2-5b452bd1e7e0
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -132,3 +131,69 @@ the false invariant (its "verified code fact" around
 `git._try_update_local_ref` being the only cross-checkout reconciler, with
 stale `git.py` line numbers). Its divergence discriminator needs re-deriving
 against the new policy subsection before that ticket proceeds.
+
+## Peer review
+
+2026-09-16 — `codex review --base main` ran from the recorded feature
+worktree and **returned**, exit 0, with two P2 findings. Both are fixed:
+
+- The new policy incorrectly promised review preservation for hand-authored
+  edits committed by the catch-all sweep. It now states the current exception:
+  the sweep publishes those edits and reconciles their duplicates; commit
+  authored review work before a mutating Coga command.
+- The corollary incorrectly promised that the regression guard prevents every
+  stale overwrite. It now limits that protection to the documented caller
+  inventory and lifecycle/claim rules, and distinguishes prose and unpublished
+  local writes.
+
+Also corrected over-broad claims found while checking the inventory against
+`git._dispatch_branch_sync`, `_reconcile_feature_payload`,
+`_try_update_local_ref`, `refresh_coga_state_from_control`, recurring-create
+publication, and launch teardown/preflight: local unpublished state is not
+disposable; strict/detached/recurring publishers do not all perform the ordinary
+feature merge; local-ref refresh reaches only the same Git repository and can
+be deliberately skipped. Two nearby mechanism paragraphs no longer claim
+publishing never moves a feature checkout or only updates the control ref.
+The live context and packaged twin remain byte-identical. No code or terminal,
+pager, prompt, or rendered notification surface changed, so interactive QA is
+not applicable to this diff.
+
+`git fetch origin main` and `git rebase FETCH_HEAD` completed without conflict
+in the feature worktree. Base: `8d17e97c`; reviewed fixes: `403ccdb4` (following
+rebased implementation `cdf6d775`). The Dream context work is already on main
+(including #806 and #812); the rebase preserves it. A fresh `gh pr list`
+query found no open PR touching the sync context. No corresponding
+restatement was found in `docs/`.
+
+**Validation:**
+
+- `PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m pytest`
+  in the feature worktree: **2561 passed in 187.28s** after the fixes and rebase.
+  The initial `PYTHONPATH="$PWD/src" python -m pytest` stopped at collection
+  (31 errors: ambient Python lacks `tomlkit`); the repository test virtualenv
+  supplies that dependency, with imports still pinned to the feature source.
+- `git diff --check origin/main...HEAD`: passed.
+- `cmp coga/contexts/coga/sync/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md`:
+  byte-identical.
+- `coga validate --task state-which-branch-is-canonical-for-machine-genera --json`
+  from primary: 1 valid task, no issues.
+
+The feature branch is clean and committed, two commits ahead of the fetched
+main. No must-fix findings remain; the separate stranded-writes ticket still
+needs the follow-up already recorded above.
+
+## PR
+
+The sync context stated the canonical-branch policy inside one publication
+mechanism but lacked a map of which checkout each reconciler updates. Add a
+dedicated policy section covering control-branch ownership, operational feature
+mirrors, and the publisher, control-ref, and launch-refresh scopes. This explains
+why launch in a feature checkout can refresh it while commands run from primary
+leave a separate feature mirror stale.
+
+Document the existing catch-all exception for authored review work, the limits
+of stale-state guards, and why unpublished local writes may still be the only
+copy. Correct two nearby mechanism descriptions and keep the packaged context
+byte-identical.
+
+Test plan: `PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m pytest` (2561 passed); `git diff --check origin/main...HEAD` (passed); `coga validate --task state-which-branch-is-canonical-for-machine-genera --json` (no issues).
