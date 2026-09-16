@@ -273,3 +273,9 @@ Test plan: `PYTHONPATH=/home/n/Code/claude/coga-scrub-sa-token/src /home/n/Code/
 ## Blockers
 
 - [ ] [2026-09-15 22:00] [agent:codex] id=20260915T220015 Run and record the required live 1Password check on branch scrub-sa-token (cc222a6f): with a real OP_SERVICE_ACCOUNT_TOKEN as the only credential and no personal or desktop authentication, the parent can read a known automation-vault ref and a launched child with no declared secrets cannot read that same ref. This session has no token. Native review returned no actionable findings and all 2501 tests passed; the PR body is prepared.
+
+---
+
+## Blocker reminders
+
+- 292ad8b9a72a last_reminded: 2026-09-16 10:58
