@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 3ca07bb3-9ee3-4b5f-b4ae-a6321c4511a9
 ---
 
 ## Description
@@ -168,3 +167,68 @@ Not done / for reviewers: no test added — doc-only change; the packaging twin
 test already guards the six context files. `uv tool install -e <checkout>` in
 the F-02 note is the reinstall spelling and was not executed in-session (the
 install must not be repointed from a feature worktree).
+
+## Peer review
+
+2026-09-15: `codex review --base main` **returned**, exit 0, from the recorded
+feature worktree. Its sandboxed attempt could not initialize the app-server;
+the completed run used the existing unsandboxed command permission. Review
+output: `/tmp/coga-dream-w38-peer-review.log`. It found two P2 issues, both
+fixed in the live contexts and their packaged twins:
+
+- F-04 lacked the post-merge gate from the source ticket: update and verify
+  installed/editable writers, reconcile or bar stale checkouts while preserving
+  local work, validate converted control, then resume with fresh processes.
+- F-03 incorrectly promised validation failure for headings. A direct
+  `create_task(description="Intro\n\n## Hidden\nBody")` succeeds and logs
+  creation while compose extracts only `Intro`; an own-line fence fails after
+  writing the ticket and log. Disposable `/tmp` probes confirmed both. The
+  context now distinguishes these outcomes and accurately names recurring's
+  `body=` interface and autofix's unguarded agent-authored description.
+
+Also corrected the reinstall guidance: the active uv environment has neither
+`pip` nor `pytest`, so pip instructions apply only to pip-managed installs;
+uv uses `uv tool install --force -e <checkout>`. Verified the interpreter,
+import path, `direct_url.json`, and local `uv tool install --help`; did not
+repoint any installation.
+
+Ran `git fetch origin main` and `git rebase FETCH_HEAD` unconditionally.
+Rebased cleanly onto `9f0c30d8`; only task/log state had advanced from the
+original base. All four twin pairs match, and `git diff --check` passes.
+The eight-file diff is documentation-only; no terminal, pager, prompt UI, or
+Slack rendering surface changed, so no interactive-surface gate applies.
+
+Source-pinned `python -m coga.validate --json` reports the same 29 task findings
+on primary and feature (4 pre-existing `unsynthesized-draft-blackboard` errors
+and 25 warnings). Feature adds only `(config)/missing-user`, because its local
+config is absent. This corrects the implement handoff's shorthand about only
+warnings. Validation command, run from each checkout:
+`PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m coga.validate --json`.
+
+Final verification from the feature worktree:
+
+- `PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m pytest`
+  → **2495 passed in 173.92s**, including packaging tests. Two warnings only:
+  pytest could not write its optional cache in the read-only feature checkout.
+  Output: `/tmp/coga-dream-w38-peer-pytest.log`.
+- `git diff --check origin/main` → clean.
+- `cmp CLAUDE.md AGENTS.md` and `cmp` for each of the three context pairs
+  (`coga/codebase`, `coga/sync`, `dev/code`) → identical.
+- From primary, `PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m coga.validate --task dream-2026-w38-extract-backlog-4-findings-phase-4 --json`
+  → one valid task, no issues; blackboard diff also passes `git diff --check`.
+
+Committed review fixes as `1d23cb4c` on top of rebased implementation
+`18091d93`. `dream-w38-extract-backlog` is clean, two commits ahead of
+`origin/main`, and unpushed. The recorded worktree remains correct. No open
+review finding or design decision remains; ready for the mechanical open-pr
+step.
+
+## PR
+
+Preserve four Dream W38 findings in durable contexts: the hand-kept root
+instruction twin, the uv CLI interpreter and imported checkout, `create_task`
+description hazards, and the atomic stored-ticket schema cutover through
+verified writer restart. Add the `dev/code` cross-reference, describe `.coga/`
+as machine-local state, and keep all live/packaged twins synchronized.
+
+Test plan: `PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m pytest` → 2495 passed; `cmp CLAUDE.md AGENTS.md` and three context-pair comparisons pass; `git diff --check origin/main` passes. Source-pinned `python -m coga.validate --json` has identical task findings to primary (four existing draft errors; feature adds only its missing-local-user warning).
