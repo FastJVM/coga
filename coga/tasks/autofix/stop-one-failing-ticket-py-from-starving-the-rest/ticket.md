@@ -236,3 +236,13 @@ layout); it reported `origin/main` advanced only through non-overlapping
 task/log state and pushed `sweep-abandoned-record` (tip `bb2d017f`) as
 PR #813. Reviewer pointer: the one judgement call is the Self-QA altitude
 change that turned the classify `return 2` into a per-task refusal.
+
+## PR review follow-up (2026-09-16)
+
+Addressed the requested comments on [PR #813](https://github.com/FastJVM/coga/pull/813) in `/tmp/coga-review-pr813-20260916`.
+
+The run record now names the stopping task and reason, counting a missing outcome even for the sole or final due task. Reporting uses captured identities and does not reread or mutate retained task state. Regression coverage includes exits 75/130/143, an escaping error, and delegated launches. Live and packaged recurring contexts are synchronized.
+
+Verification: `PYTHONPATH=/tmp/coga-review-pr813-20260916/src /home/n/Code/claude/coga/.venv/bin/python -m pytest -q tests/test_recurring.py tests/test_recurring_autofix.py tests/test_packaging.py` — 430 passed.
+
+Before the fix, all eight sole/final-task regressions reported zero problems and failed.
