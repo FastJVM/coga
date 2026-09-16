@@ -142,6 +142,7 @@ tasks were never launched. `run_autofix` still runs from the caller's
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/813
 branch: sweep-abandoned-record
 worktree: /home/n/Code/claude/coga-sweep-abandoned-record
 

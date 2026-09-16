@@ -98,3 +98,14 @@ All four verified failing before the fix. Full suite: 2499 passed.
 - Regression test: first test above.
 
 Commit `f3e705d1` on the branch; rebased on current `origin/main`; no push.
+
+## Peer review
+
+- `codex review --base main` is running in the recorded feature worktree;
+  its final assessment has not returned yet. Do not advance on this note.
+- Reviewer checks so far: recurring + packaging, 364 passed; creation +
+  validation, 188 passed. The final full-suite run will use the primary venv
+  with absolute `PYTHONPATH` pointing at the feature worktree's `src`.
+- Manual trace confirms scan errors flow into `RunRecord.scan_errors`, and
+  `run_autofix` writes that record before invoking the analyst. A combined
+  local probe, fresh rebase, full suite, and final review outcome remain.
