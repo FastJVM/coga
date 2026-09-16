@@ -1,6 +1,6 @@
 ---
 title: Publish coga 1.0 to PyPI
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -16,6 +16,7 @@ workflow:
     skills: []
     assignee: agent
 step: 1 (brief-and-hand-off)
+launch_generation: pending:b7aac450-3ca5-49e1-8153-4c347672d6d2
 ---
 
 ## Description
