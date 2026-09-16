@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: 7cff53e1-4e50-4e2c-ad27-66423685f035
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -108,3 +107,42 @@ worktree: /home/n/Code/claude/coga-attach-vs-cite
   are live tickets with their own lifecycle; the rule now governs new tickets.
 - Full suite: 2561 passed. Branch rebased on current `origin/main`
   (no new commits). Not pushed; no PR.
+
+## Peer review
+
+- `codex review --base main` **returned** in the recorded worktree with no
+  actionable findings. Its targeted packaging, composition, and prompt-report
+  checks passed: 44 tests.
+- Additional manual review found that a report omits a context already left
+  off `contexts:`, and that the CLI report performs the normal state sweep.
+  The guidance now measures with candidate refs present, names the control
+  checkout/publication precondition, and offers `compose.compose_prompt_report`
+  on an in-memory ticket copy for read-only comparisons. Both authoring-skill
+  measurement pointers lead to that procedure.
+- Because all steps inherit one ticket-wide context list, the attach/cite
+  decision and evaluator check now account for every planned step. The example
+  no longer implies that changing specified behavior alone requires attachment.
+- Manual composition probe: compared implement and peer-review prompts with
+  `coga/architecture` omitted and present on in-memory copies; only the latter
+  reports include its context layer. Ticket bytes stayed unchanged. This diff
+  changes prose only; no terminal, pager, or Slack rendering surface changes.
+- `git fetch origin main && git rebase FETCH_HEAD` completed without conflicts
+  onto `9947daea`. `git diff --check`, direct architecture-twin `cmp`, and
+  `coga validate --task document-when-to-attach-a-large-context-versus-cit`
+  passed. Full suite against the feature source: **2561 passed** in 184.44s;
+  the exact command is in the PR test plan below.
+- Corrections committed as `468f31fb` (`peer-review: clarify context
+  measurement`). Final feature worktree is clean, two commits ahead of the
+  fetched `origin/main` and none behind. PR body is ready below; no findings
+  remain open.
+
+## PR
+
+Ticket authors now have a shared rule for attaching a context or citing its
+path and relevant sections for direct reading. The architecture contract uses
+current prompt proportions across workflow steps, documents how to measure
+candidates safely, and keeps same-PR context updates mandatory. The bundled
+ticket-authoring checklist links to that rule, and the packaged architecture
+copy stays synchronized.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-attach-vs-cite/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` (2561 passed, including packaging/twin checks); `git diff --check`; `coga validate --task document-when-to-attach-a-large-context-versus-cit`.
