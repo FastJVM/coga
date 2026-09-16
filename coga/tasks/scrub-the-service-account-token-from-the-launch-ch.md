@@ -206,3 +206,40 @@ So no narrower mechanism is needed; the scrub lives entirely inside
   add `COGA_*` keys).
 - Kept the "not a logout" caveat prominent in both docs; the change bounds the
   SA path only.
+
+---
+
+## Peer review
+
+2026-09-15: `codex review --base main` **returned**, exit 0, from the recorded
+feature worktree. Result: **no actionable regressions**; the reviewer reported
+519 targeted tests passing. Its subprocess check used a fake `op` executable
+and fake token to confirm parent-side resolution, rejection in the scrubbed
+child, and success with an explicit token destination. No must-fix findings,
+so no follow-up code commit was needed. No terminal, pager, prompt, or rendered
+notification surface changed.
+
+Independently re-audited all seven builder callers and subsequent environment
+updates: none re-adds the token. The nested `coga secret get` consequence agrees
+with the packaged CLI context's human-facing-query contract; no recurring
+`ticket.py` or recipe needs ambient service-account authentication.
+
+Ran `git fetch origin main` then `git rebase FETCH_HEAD` in the feature
+worktree. Rebase was clean onto `e1b2fefa`; branch HEAD is now `cc222a6f`, one
+commit ahead. All five implementation/docs/test files are unchanged from the
+reviewed `ce3b270c`. `git diff --check origin/main...HEAD` and the architecture
+live/packaged `cmp` passed. Full suite on the rebased branch is running.
+
+`PYTHONPATH=/home/n/Code/claude/coga-scrub-sa-token/src
+/home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --task
+scrub-the-service-account-token-from-the-launch-ch --json` from the primary
+checkout returned `ok_count: 1`, no issues.
+
+**Manual check remains required.** `op` is installed, but this session has no
+`OP_SERVICE_ACCOUNT_TOKEN` (presence checked without reading/logging a value).
+No real-credential check was run. The owner must verify on this branch, with
+personal/desktop authentication absent and a real SA token as the only parent
+credential, that the parent can read a known automation-vault ref and a child
+launched with no declared secrets cannot read that same ref. Record outcomes,
+not token or secret values. Fake-token tests do not satisfy this check.
+
