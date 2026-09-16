@@ -43,8 +43,11 @@ ticket decision, then update its location/status instead of duplicating it in
 this context.
 
 That decision starts with a premise check, not with implementation: a parked
-draft is a dated record, and nothing re-validates it while it sits, so its
-subject may already be gone and the surfaces it names may no longer resolve.
+draft is a dated record, and the only standing re-validation it gets while it
+sits is Dream's weekly premise pass, which files findings for a human verdict
+rather than fixing anything — so its subject may already be gone, the surfaces
+it names may no longer resolve, the tickets it cites may have been retired, or
+something else may already have delivered it.
 Most of the directory also predates the `relay` → `coga` rename, which was not
 a find-and-replace — some names carried over, some were deleted. Read
 `coga/tasks/v2/README.md` before pulling anything forward; it carries the

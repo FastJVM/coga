@@ -619,6 +619,17 @@ bundled refs may replace that list with specific cleanup instructions.
 Tickets without a `workflow` field have no steps and move through
 statuses directly via `coga mark`. `coga bump` refuses them.
 
+A terminal transition is a verdict about the ticket, never a repair of the
+validator's output. A green `coga validate` is never a reason to cancel a
+draft — it is a consequence of correct verdicts, never an input to them. The
+incentive runs the other way as a matter of course: the standing repo-wide
+validate errors sit on parked drafts, so ruling those drafts dead is always
+the cheapest route to a green gate, and a cancellation reached that way trades
+the record of what someone wanted for an exit code. `coga mark canceled`
+requires a reason so the reason can be read; "clears a validate error" is
+not one. `coga/tasks/v2/README.md` applies this rule to the parking area's
+own verdicts.
+
 The split is deliberate: each state change has one shared writer. `coga create`
 authors a draft, the `coga.mark` finalizers flip status across the lifecycle,
 `coga bump` moves steps and delegates final completion to `mark_done`, and
