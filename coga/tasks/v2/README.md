@@ -17,6 +17,37 @@ v2 draft, follows its steps literally, and writes code or prose against a repo
 that no longer exists — or, worse, "modernizes" the draft's dead commands into
 live-looking ones and buries the fact that the premise died.
 
+## Title-only drafts: a capture, not a ticket
+
+A draft whose `## Description` is empty is a **title-only draft**: a thought
+that was written down as far as its title and no further. It is a different
+shape from a workflow-less draft — that is a decision deferred; this is a
+thought never recorded — and it is the weaker of the two, because nothing in
+the repo can reconstruct what the author meant. The premise check below cannot
+run on it: there is no premise to check.
+
+This directory is the **only** place a title-only draft may sit. `coga create
+"v2/<title>"` is the supported spelling for capturing a bare thought; a ticket
+anywhere else carries its description from the moment it exists (`coga create
+--description`, or `coga ticket` for guided authoring). The rule itself lives
+in `coga/roadmap` ("Deferred work"); this section is how to read a stub once
+it is here.
+
+`coga validate` reports every live title-only ticket as `empty-description`
+(a warning, wherever the ticket sits). That report is the stub's **expiry**:
+the first sweep that names it is when the author's verdict is due, and only
+the author can give it —
+
+- **describe**: fill `## Description` in the author's own words, and put
+  what the codebase says about it under `## Context`; or
+- **cancel**: `coga mark canceled v2/<slug> --message "<reason>"` when the
+  author confirms the intent is lost or already shipped.
+
+Nothing in either verdict may be inferred from the slug alone, and a green
+`coga validate` is never a reason to cancel a draft — it is a consequence of
+correct verdicts, never an input to them. Precedent for the batch form of this
+verdict is `interview-the-owner-on-the-17-title-only-v2-stubs`.
+
 ## Before pulling anything forward, check the premise
 
 Two questions, in this order:

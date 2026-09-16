@@ -339,6 +339,21 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
+    if kind == "empty-description":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_HUMAN_NEEDED,
+            remediation=(
+                "A title-only ticket: only its author can say what the title "
+                "meant. Ask the owner to write the description in their own "
+                "words, or to cancel it with a recorded reason when the intent "
+                "is lost. Do not infer a description from the slug, and never "
+                "cancel a draft merely to clear this warning — a green "
+                "validate is a consequence of a correct verdict, not a reason "
+                "for one."
+            ),
+        )
+
     if kind == "stuck-in-progress":
         return ClassifiedIssue(
             issue=issue,

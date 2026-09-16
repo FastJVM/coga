@@ -26,6 +26,7 @@ Checks (whole-repo):
 - step is consistent with workflow shape and status.
 - Blackboard files are not large enough to bloat composed prompts.
 - Draft blackboards do not still carry prelaunch authoring notes.
+- Live tickets say something: an empty `## Description` is a title-only stub.
 - Tasks stuck in `in_progress` with no recent log activity.
 - Assignees referenced in tickets exist in coga.toml.
 - No two tasks in one directory claim the same `<n>-` drain position.
@@ -50,6 +51,7 @@ import requests
 
 from coga import git
 from coga.atomicio import atomic_write_text
+from coga.compose import _extract_section
 from coga.blackboard import (
     BLACKBOARD_WARN_BYTES,
     blackboard_size_warning,
@@ -70,7 +72,7 @@ from coga.lifecycle import (
     TERMINAL_STATUSES,
     VALID_STATUSES,
 )
-from coga.taskfile import BLACKBOARD_FENCE, TaskFileError, fence_count
+from coga.taskfile import BLACKBOARD_FENCE, TaskFileError, fence_count, split_body
 from coga.period_state import read_snapshot, stale_keys
 from coga.paths import (
     context_resolution_paths,
@@ -457,6 +459,29 @@ def _check_one_task(
                     "`## Production notes` before activation"
                 ),
                 severity="error",
+            ))
+
+    # A title-only ticket: the body says nothing, so the intent lives only
+    # with its author and nothing downstream (launch, premise check, Dream)
+    # can act on it. Terminal tickets are history, not capture debt, so they
+    # are exempt. A warning, not an error: `coga create` without
+    # `--description` legitimately produces this shape, and `assert_task_valid`
+    # runs on every mutating command. The convention for where a stub may
+    # live and when it expires is `coga/tasks/v2/README.md`.
+    if fences == 1 and ticket.status not in TERMINAL_STATUSES:
+        above, _ = split_body(ticket.body, blackboard_required=False)
+        if not _extract_section(above, "Description"):
+            out.append(Issue(
+                kind="empty-description",
+                task=task_label,
+                message=(
+                    "`## Description` is empty — a title-only ticket whose "
+                    "intent is unrecoverable from the repo; write the "
+                    "description down, or cancel with a recorded reason when "
+                    "the author confirms it is lost. Do not cancel it just to "
+                    "clear this warning"
+                ),
+                severity="warn",
             ))
 
     if idle_hours != float("inf") and ticket.status == "in_progress":
