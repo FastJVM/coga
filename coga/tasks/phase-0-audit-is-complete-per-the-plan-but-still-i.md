@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: ec07fe24-dfbb-4525-a94c-ed4db87a83d2
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -63,4 +62,52 @@ directory.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: reconcile-audit-lifecycle
+worktree: /home/n/Code/claude/coga-reconcile-audit-lifecycle
+
+Separate-checkout layout: linked worktree off `main`; bump runs from the
+primary checkout.
+
+## Findings — implement, 2026-09-16
+
+- The contradiction this ticket names is already gone. `6d1ed844` and the
+  syncs after it replaced the plan's "complete input to this plan; do not
+  rerun it" with "original checks completed … lifecycle remains at the human
+  gate until the owner advances it" (`marketing/plan` "Execution tickets and
+  disposition"), and the ownership section now says "Its human review step
+  remains open; editing these documents does not advance it". The audit
+  ticket's own `### Decisions and limits` says it stays at step 2 until an
+  explicit owner transition. So the "drop the plan's claim" branch of the
+  Context happened outside this ticket.
+- Closing the audit is not an agent action: it sits at a
+  `human-owns-and-finishes` step, and `narrative-candidates-md-publishes-log-text-the-own`
+  (still `draft`) must be settled before its task directory is archived. A
+  `coga block` asking the owner to close it now would be asking a question
+  the repo already answers ("not yet"), so no block.
+- What was left for this ticket was its own exit. `marketing/plan` and
+  `marketing/map` both linked this ticket by path as owner of "the audit
+  lifecycle question", and `retro/done-ticket` deletes a reaped ticket
+  without repairing inbound links. The branch removes both references and
+  states where the call lives (the audit's own owner gate, after the
+  confidentiality ticket), and rewrites the audit worklist line that named
+  this slug. Inbound references to this slug outside `coga/log.md`: 0.
+- Marketing contexts have no packaged twin under
+  `src/coga/resources/templates/coga/`, so nothing to sync.
+
+## Verification
+
+- `python -m pytest`: 2561 passed (feature worktree).
+- `coga validate --json`: issue set identical to the primary checkout
+  except the expected `missing-user (config)` from the worktree having no
+  `coga.local.toml`; none on the touched files.
+- `git diff --check`: clean. Rebased on fresh `origin/main`: already
+  up to date, 1 commit ahead, working tree clean.
+
+## For the owner
+
+Nothing in this PR changes a lifecycle. When
+`narrative-candidates-md-publishes-log-text-the-own` is resolved, advance
+`marketing/phase-0-audit` from step 2 yourself (its step 3
+`report-to-coga` then runs, and Dream's done-ticket sweep can reap it).
