@@ -1131,6 +1131,11 @@ Failure model:
   the same attempt cap: the cross-branch land refetches the moved tip and
   rebuilds its overlay tree; the same-branch push fetches and rebases with an
   explicit stash that restores the pre-sync state on any failure.
+  Recurring creation's specialized control fetch has a generic `sync_paths`
+  retry. Its first fetch miss is a stderr retry notice, not a durable
+  `sync failed` entry or a claim that state is local-only: the fallback can
+  still publish to control. The generic publisher reports and audits its own
+  failure if that retry fails.
 - **Fatal git gates happen only before mutable work starts.** Launch entry is
   gated before the ticket flips to `in_progress`: `coga launch` preflights push
   access to the configured remote with the same non-interactive `git push

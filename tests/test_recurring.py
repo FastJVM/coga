@@ -5743,11 +5743,12 @@ def test_recurring_create_sync_restores_control_ledger_for_handled_period(
     assert git_repo.git("status", "--porcelain") == ""
 
 
-def test_recurring_create_sync_reports_control_fetch_failure_before_fallback(
-    git_repo, monkeypatch, capsys
+@pytest.mark.parametrize("feature_branch", [False, True], ids=["control", "feature"])
+@pytest.mark.parametrize("fallback_fails", [False, True], ids=["retry-ok", "retry-fails"])
+def test_recurring_create_sync_reports_the_fallback_outcome(
+    git_repo, monkeypatch, capsys, feature_branch: bool, fallback_fails: bool
 ) -> None:
-    """A failed control fetch is recorded, not swallowed, on the local-only
-    fallback: stderr names the cause and the task's log carries it."""
+    """A transient fetch miss is not a failed sync when the retry publishes."""
     coga_os = git_repo.coga_os
     _seed_period_task_context(coga_os)
     _write_recurring(
@@ -5769,6 +5770,8 @@ def test_recurring_create_sync_reports_control_fetch_failure_before_fallback(
     git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check", "coga/log.md")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
+    if feature_branch:
+        git_repo.checkout_branch("feature/recurring-retry")
 
     cfg = load_config(coga_os)
     outcome = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 0))
@@ -5777,16 +5780,34 @@ def test_recurring_create_sync_reports_control_fetch_failure_before_fallback(
         raise coga_git.GitError("simulated offline remote")
 
     monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", fail_fetch)
+    if fallback_fails:
+        def fail_sync(*args: object, **kwargs: object) -> None:
+            raise coga_git.GitError("simulated fallback failure")
+
+        monkeypatch.setattr(coga_git, "_dispatch_branch_sync", fail_sync)
 
     created = recurring_cmd._sync_recurring_create(cfg, "weekly-check", outcome.ref)
 
     assert created is True
     err = capsys.readouterr().err
-    assert "[git] control fetch failed (landing locally only): simulated offline remote" in err
-    assert "sync failed: simulated offline remote" in "\n".join(
-        task_log_lines(cfg, "recurring/weekly-check")
-    )
+    assert "control fetch failed; retrying with generic path sync" in err
+    assert "simulated offline remote" in err
+    assert "landing locally only" not in err
+    audit = "\n".join(task_log_lines(cfg, "recurring/weekly-check"))
+    assert "sync failed: simulated offline remote" not in audit
     assert outcome.ref.path.exists()
+    if fallback_fails:
+        assert "sync failed: simulated fallback failure" in err
+        assert audit.count("sync failed:") == 1
+        assert "sync failed: simulated fallback failure" in audit
+    else:
+        assert "sync failed" not in err
+        assert "sync failed" not in audit
+        ticket_rel = outcome.ref.ticket_path.relative_to(git_repo.root).as_posix()
+        assert git_repo.origin_tracks(ticket_rel)
+        assert git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin) == (
+            outcome.ref.ticket_path.read_text()
+        )
 
 
 def test_recurring_create_sync_failure_after_removing_stale_task_is_soft(
