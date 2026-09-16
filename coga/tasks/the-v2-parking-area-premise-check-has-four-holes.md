@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: 3223caff-2942-42d3-aaa1-c03d15cf6745
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -110,7 +109,12 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: v2-premise-holes
-worktree: /home/n/Code/claude/coga-v2-premise-holes
+worktree: /tmp/coga-v2-premise-review.5AX4MD/repo
+
+Peer review moved the branch to an independent writable clone using the
+`code/implement` sandbox fallback. The previous linked worktree at
+`/home/n/Code/claude/coga-v2-premise-holes` remains at the implementation
+commit; use the recorded clone for the next step.
 
 ## Plan (implement step)
 
@@ -209,3 +213,65 @@ commits). No push, no PR.
   ticket on disk and Retro refuses non-done tickets, so every premise-dead
   cancellation the new pass produces is a permanent file. Nothing retires
   them today; worth a ticket if the count grows.
+
+## Peer review
+
+`codex review --base main` **returned** (exit 0) from the original feature
+worktree with three P2 findings. All three are corrected and committed as
+`a5f5e061` (`peer-review: apply review findings`) in the recorded writable
+clone:
+
+- The documented `mark done` recipe refused `status: draft` (exit 2).
+  Already-delivered duplicates now use the existing `mark canceled` command
+  with an `already delivered by <evidence>` reason, including workflow-less
+  drafts. This also resolves the inconsistency with the title-only verdict.
+  It supersedes the implement-step `done` decision above: canceled duplicates
+  stay on disk under the existing lifecycle; this ticket adds no new terminal
+  transition or retirement rule.
+- Fresh initialized repos have Dream but no `coga/tasks/v2/README.md`.
+  The bundled skill now skips only the parking pass when that contract is
+  absent, continues its other scans, and charges README reads to the shard
+  budget. Terminal tickets are excluded from premise findings.
+- A missing provenance-only source incorrectly triggered `citations`, even
+  after the required substance had been inlined. The README and scan now
+  require a missing dependency on substance absent from the draft's body.
+  A retired source may remain as provenance without recurring findings.
+
+Design judgment: retain the knowledge scan and one `brief-for-human` batch
+for unowned findings. Existing shard bounds and retry rules contain the
+additional reads; a separate grep job would miss shipped prose and code
+evidence. Human verdicts and cross-run owner reconciliation remain intact.
+
+Freshness: `git fetch origin main` followed by `git rebase FETCH_HEAD`
+completed without conflicts in the writable clone, on `origin/main`
+`71c28f2a`. The implementation commit is now `a40db962`. Verification:
+
+- From `/tmp/coga-v2-premise-review.5AX4MD/repo`,
+  `PYTHONPATH=/tmp/coga-v2-premise-review.5AX4MD/repo/src /home/n/Code/claude/coga/.venv/bin/python -m pytest`
+  returned **2562 passed** in 191.83s, including the Dream contract tests,
+  cancellation of workflow-less drafts, and shipped-twin packaging checks.
+- From its `example/` directory,
+  `env -u SLACK_WEBHOOK_URL PYTHONPATH=/tmp/coga-v2-premise-review.5AX4MD/repo/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --json`
+  returned **4 OK, 0 issues**.
+- `git diff --check` passed. The feature branch is committed with the
+  implementation and review-fix commits ahead of the fetched `origin/main`.
+
+No terminal, pager, TTY prompt, or Slack rendering code changed;
+the reviewed surface is the Markdown instruction contract. The review checked
+fresh-template availability, the CLI transition, and a self-contained draft
+with retired provenance; no live Dream sweep has been launched.
+
+## PR
+
+Parked v2 drafts now receive a premise check during every Dream knowledge
+scan. Dream reconciles existing owners and batches the remaining findings
+into one `brief-for-human` adjudication draft, preserving the human's verdict.
+Repos without the parking README skip this pass.
+
+Extend the parking contract to missing required ticket citations and work
+already delivered elsewhere. Drafts carry their required substance inline;
+retired provenance remains valid, and delivered duplicates can be canceled
+with delivery evidence. Preserve the green-validate guard in the README and
+the lifecycle context, with shipped twins kept in sync.
+
+Test plan: `PYTHONPATH=/tmp/coga-v2-premise-review.5AX4MD/repo/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` (2562 passed); from `example/`, `env -u SLACK_WEBHOOK_URL PYTHONPATH=/tmp/coga-v2-premise-review.5AX4MD/repo/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --json` (4 OK, 0 issues).
