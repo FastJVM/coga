@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: eefb11cf-5e6b-4227-a7a5-5dfaefe3467d
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -71,4 +70,43 @@ Guard: a green validate is never a reason to cancel a draft.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: validate-baseline
+worktree: /home/n/Code/claude/coga-validate-baseline
+
+## Decision: record the baseline (not clear it)
+
+- Verified 2026-09-16 on `main` (`6184b971`): `coga validate --json` exits 1
+  with 208 OK and exactly four errors, all `unsynthesized-draft-blackboard`,
+  on the four `v2/` slugs the ticket names. Everything else is a warning.
+- Every ticket that owns clearing them is still `draft`, so nothing to
+  sequence behind: `adjudicate-the-eight-premise-dead-v2-drafts` (owns
+  `autotrigger-ticket-type` + `split-context-to-doc…`, cancel only after an
+  owner `review-design` gate), `correct-the-v2-known-stale-surfaces-table-and-rout`
+  (owns synthesizing `measure-relay…` + `use-worktree…`), and
+  `adjudicate-parked-and-active-tickets-whose-premise` (also lists
+  `split-context-to-doc…`). Clearing here would either duplicate their
+  synthesis or pre-empt an owner-gated cancel — exactly the "swept up under an
+  unrelated ticket" move the ticket forbids.
+- So: add a baseline bullet beside the existing `--task` bullet in
+  `coga/contexts/coga/codebase/SKILL.md` and its packaged twin
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/codebase/SKILL.md`
+  (byte-identical; `tests/test_packaging.py` enforces it). The bullet names
+  the date, the four slugs, the "do not clear under an unrelated ticket" rule,
+  the "green validate is never a reason to cancel" guard, and instructs
+  whoever clears the last error to delete the bullet in the same PR.
+
+## Implement handoff (2026-09-16)
+
+- Commit `8135e9cd` on `validate-baseline` (worktree above), rebased on
+  `origin/main` `6184b971`, tree clean. Two files changed, byte-identical:
+  the live context and its packaged twin. No source or fixture change.
+- Verified: `python -m pytest` in the worktree with the repo `.venv`
+  (Python 3.12) — 2561 passed. `coga validate` behavior is unchanged, so the
+  example fixture was not touched. Note for reviewers: the system `python` is
+  3.9, so run tests with `.venv/bin/python`.
+- Not done, by design: the four drafts are untouched. Their errors clear only
+  through the adjudication tickets named above; the new bullet says the same
+  and asks whoever clears the last one to delete it.
+- Not pushed, no PR — `open-pr` step owns that.
