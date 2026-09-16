@@ -24,8 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (self-qa)
-launch_generation: 247512bf-9a8a-419c-a460-0ccc2b37665a
+step: 3 (pr)
 ---
 
 ## Description
@@ -171,3 +170,60 @@ worktree: /home/n/Code/claude/coga-sweep-abandoned-record
 Verification: `python -m pytest` (2496 passed before the context edit;
 `tests/test_recurring.py` + `tests/test_packaging.py` re-run green after it).
 Rebased on `origin/main`: already up to date. Not pushed; no PR.
+
+## Self-QA
+
+Both passes ran against `sweep-abandoned-record` and **returned**; nothing is
+still in flight. Two QA commits on top of `e2aefc31`: `a3a7ca22`, `bb2d017f`.
+
+- `/code-review` (Claude Code slash command, default effort, target
+  `sweep-abandoned-record`; a first invocation without a target reviewed the
+  primary checkout's empty diff and was discarded). Returned two findings,
+  both confirmed by reading the code and both fixed:
+  1. **Medium** — a signal / exit 75 escaping `_run_delegated_task` (or a
+     `RecurringError` out of `_stop_if_unfinished_after_launch`) left the loop
+     without naming the tasks behind it; the context's "never again abandons
+     work silently" claim was false for every delegating template. Fixed by
+     wrapping the loop in one `try/except BaseException` that calls
+     `_record_abandoned_due` then re-raises — the single owner — and dropping
+     the per-site calls. `git diff -w` shows the real change; the plain diff
+     is mostly the loop re-indent.
+  2. **Low** — on the classify `return 2`, `_record_unlaunched_creates` named
+     every created-then-abandoned period a second time (`problems: 5` for 3
+     due). Fixed first by dedup, then made moot (below).
+- `/simplify` (4 review agents: reuse, simplification, efficiency, altitude).
+  Efficiency: no findings. Applied: one `_sweep_stopping_exit(code)`
+  classifier now decides both the re-raise and the record wording (the 75 /
+  ≥128 ladder lived twice); `_record_abandoned_due` takes the loop's 1-based
+  `i` (no `i - 1` / `+ 1` pair); tests reuse `_allow_interactive_recurring`
+  and parametrize just the reason. **Altitude finding, applied — reverses
+  the implement step's decision:** the classify `return 2` was a leftover,
+  not a deliberate stop (PR #777's message lists the three early returns it
+  fixed and never mentions it), and an unclassifiable period is one task's
+  routing problem, exactly like the forced-launch refusal ten lines above.
+  It now counts a refusal and `continue`s; the sweep still exits 2. That
+  leaves an escaping exception as the only way the loop stops short, so the
+  dedup from finding 2 was reverted, the "third stop" paragraph in both
+  `recurring/SKILL.md` twins was replaced, and the classify test became
+  `test_recurring_scan_continues_past_an_unclassifiable_period` (beta and
+  gamma launch, `tasks run: 3`, `problems: 1`, no "never launched"). Reviewer:
+  this is the one judgement call in the PR worth a look.
+- Skipped: consolidating the ~40-line monkeypatch scaffold shared by ~10
+  in-process sweep tests (pre-existing pattern; a follow-up across all of
+  them is the only version with payoff); a `DueTask.slug` property for the
+  `ref.id_slug if ref else template` fallback (pre-existing, four sites).
+  One simplification suggestion was wrong (dropping `last_fire` etc. from a
+  fake — `scan_lines_for_record` reads them) and is gone with that test.
+- Noted, out of scope: `_record_unlaunched_creates` sits inside the `try` in
+  `run_recurring_scan`, so on an escaping exception admission-skipped creates
+  still go unnamed (pre-existing).
+- No hand-swept surface: the change is record/stderr text and control flow,
+  fully reachable by the suite.
+
+Verification (worktree, `../coga/.venv/bin/python`): full `python -m pytest`
+2499 passed after each QA commit; `tests/test_recurring.py` 353 passed;
+twins byte-identical. `coga validate --json` exits 1 in the worktree and the
+primary checkout alike from pre-existing repo-state warnings (no `user` in the
+local toml, stuck tasks) — not from this change. `origin/main` moved 8
+task-state-only commits (no `src`/`tests`) since the base; no rebase needed
+before the PR step. Working tree clean.
