@@ -1,6 +1,6 @@
 ---
 title: State which branch is canonical for machine-generated Coga state
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
