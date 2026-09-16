@@ -1,6 +1,6 @@
 ---
 title: Scrub the service-account token from the launch child environment
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 contexts:
