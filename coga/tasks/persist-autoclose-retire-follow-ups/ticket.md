@@ -29,8 +29,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (pr)
-launch_generation: 0bd1ad99-b32b-443f-a0f2-d150c189bbe1
+step: 4 (review)
 ---
 
 ## Description
@@ -290,3 +289,11 @@ worktree: /home/n/Code/claude/coga-autoclose-retire-worklist
   new. Skill twins `cmp`-identical; `tests/test_packaging.py` green.
 - Working tree clean on the feature branch; no terminal/TTY surface in
   this diff to sweep by hand.
+
+## PR (2026-09-16)
+
+- `coga open-pr` from the primary control checkout opened
+  https://github.com/FastJVM/coga/pull/820 (head `autoclose-retire-worklist`
+  at 8d30ad62, base `main`). open-pr judged the 9 commits `origin/main` had
+  advanced as non-overlapping task/log state only, so no rebase was needed.
+  Next step is the owner's review/merge gate.
