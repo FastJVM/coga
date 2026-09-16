@@ -1,6 +1,6 @@
 ---
 title: phase-0-audit is complete per the plan but still in_progress
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
