@@ -1721,9 +1721,7 @@ def _record_unlaunched_creates(scan: DueScan, record: RunRecord) -> None:
     sweep would otherwise report `problems: 0` over lost work, so absence of an
     outcome is the signal, as with admitted watchdog recoveries above.
     """
-    # A create the stopped sweep already named as abandoned is not named twice.
-    named = {outcome.slug for outcome in record.outcomes}
-    named |= {slug for slug, _ in record.scan_problems}
+    ran = {outcome.slug for outcome in record.outcomes}
     # Every admission skip is a create already removed from `scan.tasks`.
     unlaunched = [
         (task.ref.id_slug, reason)
@@ -1735,7 +1733,7 @@ def _record_unlaunched_creates(scan: DueScan, record: RunRecord) -> None:
         for task in scan.tasks
         if task.ref is not None
         and (task.created or task.replaced_done)
-        and task.ref.id_slug not in named
+        and task.ref.id_slug not in ran
     ]
     for slug, reason in unlaunched:
         detail = f"created this sweep but never launched ({reason})"
@@ -1744,22 +1742,21 @@ def _record_unlaunched_creates(scan: DueScan, record: RunRecord) -> None:
 
 
 def _record_abandoned_due(
-    record: RunRecord, due: list[DueTask], stopped_at: int, reason: str
+    record: RunRecord, due: list[DueTask], reached: int, reason: str
 ) -> None:
     """Name every admitted due task the sweep stopped before launching.
 
-    The loop in `_launch_due_tasks` keeps sweeping past a template failure, but
-    it can still stop where it stands: on the one surviving early return (a
-    period that cannot be classified after reconciliation) or on anything that
-    escapes the loop — exit 75's retained state, a process signal, an error out
-    of a launch or its lifecycle bookkeeping. On 2026-09-08 an early return
-    left the report reading `tasks run: 3` against 7 due with no line about
-    the other four. Whatever stops the sweep, the tasks it never reached are
-    lost work this run has to own, so each one is a problem the header counts,
-    as with a period created but never launched.
+    `reached` is the 1-based position the loop was at, as it prints them. The
+    loop in `_launch_due_tasks` keeps sweeping past a template failure, so the
+    only way it stops short is an exception escaping it: exit 75's retained
+    state, a process signal, an error out of a launch or its lifecycle
+    bookkeeping. On 2026-09-08 an early return left the report reading `tasks
+    run: 3` against 7 due with no line about the other four; the tasks a stop
+    never reached are lost work this run has to own, so each one is a problem
+    the header counts, as with a period created but never launched.
     """
-    stopped = due[stopped_at]
-    remaining = due[stopped_at + 1 :]
+    stopped = due[reached - 1]
+    remaining = due[reached:]
     if not remaining:
         return
     stopped_slug = stopped.ref.id_slug if stopped.ref else stopped.template
@@ -1777,15 +1774,34 @@ def _record_abandoned_due(
     )
 
 
+def _sweep_stopping_exit(code: int) -> str | None:
+    """Why a launch exit must stop the sweep where it happened, or None.
+
+    Two exit classes are not template failures: aggregating them would let the
+    sweep start work the operator or the launch contract just forbade, and
+    returning them after the fact is too late.
+    """
+    if code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
+        # An aligned-assist publication or teardown refused and deliberately
+        # left dirty retained state for the operator to reconcile. No later
+        # template may run a refresh, sync, or agent that could disturb or
+        # publish those bytes first.
+        return f"a retained-state refusal (exit {code})"
+    if code >= 128:
+        # Process-level interrupt: `commands/launch.py`'s handler turns
+        # SIGINT/SIGTERM into `SystemExit(128 + signum)`. An explicit
+        # cancellation must never initiate additional work.
+        return f"a signal (exit {code})"
+    return None
+
+
 def _sweep_stop_reason(exc: BaseException) -> str:
     """Describe, for the run record, what escaped `_launch_due_tasks`' loop."""
     if isinstance(exc, SystemExit):
         code = _exit_status(exc)
-        if code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
-            return f"a retained-state refusal (exit {code})"
-        if code >= 128:
-            return f"a signal (exit {code})"
-        return f"an unhandled launch exit (exit {code})"
+        return _sweep_stopping_exit(code) or (
+            f"an unhandled launch exit (exit {code})"
+        )
     return f"an unhandled {type(exc).__name__}"
 
 
@@ -1827,15 +1843,13 @@ def _launch_due_tasks(
         if task.ref is not None
     }
 
-    forced_refusals = 0
+    refusals = 0
     # One template's failure must not starve the templates behind it. Record
     # each failure, keep sweeping, and surface the first non-zero code at the
     # end — the same isolate-and-aggregate shape `coga recurring --all` already
     # uses across repos.
     failures: list[tuple[str, int]] = []
-    # Whatever stops the loop short — a retained-state refusal, a signal, or
-    # an error escaping a launch — the due tasks it never reached are lost
-    # work this run has to own before the exception leaves.
+    # Whatever leaves the loop, name the due tasks it never reached first.
     try:
         for i, task in enumerate(due, 1):
             if task.ref is None:
@@ -1862,7 +1876,7 @@ def _launch_due_tasks(
                 try:
                     _prepare_forced_launch(cfg, task)
                 except RecurringError as exc:
-                    forced_refusals += 1
+                    refusals += 1
                     typer.secho(str(exc), fg=typer.colors.RED, err=True)
                     _record_outcome(
                         record,
@@ -1893,7 +1907,8 @@ def _launch_due_tasks(
             # `scan_due` cached its dispatch field. Route only from the durable
             # ticket that now owns this launch; otherwise a restored delegate could
             # run as an ordinary wrapper, or a removed delegate could still spawn
-            # obsolete bootstrap work.
+            # obsolete bootstrap work. Like the forced refusal above, this is one
+            # period's problem: refuse it and keep sweeping.
             try:
                 current_ticket = Ticket.parse(
                     current_period_lease.ticket_bytes.decode()
@@ -1915,8 +1930,8 @@ def _launch_due_tasks(
                         detail=detail,
                     )
                 )
-                _record_abandoned_due(record, due, i - 1, "an unclassifiable period")
-                return 2
+                refusals += 1
+                continue
             # Baseline for the post-firing template check. Captured here — after
             # every skip path, immediately before dispatch — so it reflects the
             # bytes this run was actually composed from.
@@ -2037,20 +2052,9 @@ def _launch_due_tasks(
                 # non-zero code is returned once every due template has had its
                 # turn.
                 code = _exit_status(exc)
-                # Two exit classes are *not* template failures and must stop the
-                # sweep where they happened. Aggregating them would let this sweep
-                # start work the operator or the launch contract just forbade, and
-                # returning them after the fact is too late.
-                if code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
-                    # An aligned-assist publication or teardown refused and
-                    # deliberately left dirty retained state for the operator to
-                    # reconcile. No later template may run a refresh, sync, or
-                    # agent that could disturb or publish those bytes first.
-                    raise
-                if code >= 128:
-                    # Process-level interrupt: `commands/launch.py`'s handler turns
-                    # SIGINT/SIGTERM into `SystemExit(128 + signum)`. An explicit
-                    # cancellation must never initiate additional work.
+                if _sweep_stopping_exit(code):
+                    # Not a template failure: stop where it happened. The
+                    # `except` around the loop names the tasks left behind.
                     raise
                 if code:
                     _record_outcome(
@@ -2126,7 +2130,7 @@ def _launch_due_tasks(
                 )
             )
     except BaseException as exc:
-        _record_abandoned_due(record, due, i - 1, _sweep_stop_reason(exc))
+        _record_abandoned_due(record, due, i, _sweep_stop_reason(exc))
         raise
     if failures:
         # Name every failure. The old early return left the templates behind a
@@ -2137,7 +2141,7 @@ def _launch_due_tasks(
         typer.secho(detail, fg=typer.colors.RED, err=True)
         record.note(detail)
         return failures[0][1]
-    return 2 if forced_refusals else 0
+    return 2 if refusals else 0
 
 
 def _template_description(cfg: Config, template: str) -> str | None:

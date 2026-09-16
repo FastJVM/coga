@@ -6728,32 +6728,22 @@ def test_recurring_scan_stops_immediately_on_non_template_exits(
     assert "1 of 2 due task(s) never launched after recurring/alpha" in rendered
 
 
-def test_recurring_scan_names_due_tasks_abandoned_by_a_classify_refusal(
+def test_recurring_scan_continues_past_an_unclassifiable_period(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The unclassifiable-period `return 2` still stops the sweep where it is.
-
-    It is the one early return left in `_launch_due_tasks`, so it is the one
-    place a sweep can still run fewer tasks than it admitted. The tasks it
-    never reached are named as problems, exactly as for the raised exits.
+    """A period that cannot be classified after reconciliation is refused, not
+    a licence to stop: it is one task's problem, like a forced-launch refusal,
+    so the due tasks behind it still run and the sweep exits 2 at the end.
     """
     cfg = load_config(repo)
 
     def due_task(name: str) -> SimpleNamespace:
-        # `created=True` as in a bare sweep, where every fresh period is a
-        # create: `_record_unlaunched_creates` must not name it a second time.
         return SimpleNamespace(
             template=name,
             ref=SimpleNamespace(
                 id_slug=f"recurring/{name}", ticket_path=Path("no-such-ticket.md")
             ),
             delegate=None,
-            created=True,
-            replaced_done=False,
-            last_fire=datetime.now(),
-            resuming=False,
-            launchable=True,
-            watchdog_paused=False,
         )
 
     first, second, third = due_task("alpha"), due_task("beta"), due_task("gamma")
@@ -6777,11 +6767,7 @@ def test_recurring_scan_names_due_tasks_abandoned_by_a_classify_refusal(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[],
-            due=[first, second, third],
-            tasks=[first, second, third],
-            errors=[],
-            admission_skips=[],
+            forced=[], due=[first, second, third], tasks=[], errors=[], admission_skips=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -6813,33 +6799,25 @@ def test_recurring_scan_names_due_tasks_abandoned_by_a_classify_refusal(
     )
 
     assert recurring_cmd.run_recurring_scan(cfg) == 2
-    assert launched == []
+    assert launched == ["recurring/beta", "recurring/gamma"]
 
     assert records, "the autofix loop still receives the run record"
     rendered = records[0].render()
-    # The refusal itself plus the two tasks it cost — each named once, even
-    # though both were created this sweep and left no outcome behind.
-    assert "- problems: 3" in rendered
-    assert rendered.count("`recurring/beta`:") == 1
-    assert rendered.count("`recurring/gamma`:") == 1
-    assert "`recurring/beta`: admitted as due but never launched" in rendered
-    assert "`recurring/gamma`: admitted as due but never launched" in rendered
-    assert "an unclassifiable period stopped the sweep at recurring/alpha" in rendered
-    assert (
-        "2 of 3 due task(s) never launched after recurring/alpha: "
-        "recurring/beta, recurring/gamma"
-    ) in rendered
+    assert "- tasks run: 3" in rendered
+    assert "- problems: 1" in rendered
+    assert "cannot classify recurring period recurring/alpha" in rendered
+    assert "never launched" not in rendered
 
 
 @pytest.mark.parametrize(
-    ("escape", "expected"),
+    ("escape", "reason"),
     [
-        (SystemExit(130), "a signal (exit 130) stopped the sweep"),
+        (SystemExit(130), "a signal (exit 130)"),
         (
             SystemExit(coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE),
-            "a retained-state refusal (exit 75) stopped the sweep",
+            "a retained-state refusal (exit 75)",
         ),
-        (RecurringError("lease vanished"), "an unhandled RecurringError stopped the sweep"),
+        (RecurringError("lease vanished"), "an unhandled RecurringError"),
     ],
     ids=["signal", "exit-75", "error"],
 )
@@ -6847,7 +6825,7 @@ def test_recurring_scan_names_due_tasks_abandoned_through_a_delegated_launch(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
     escape: BaseException,
-    expected: str,
+    reason: str,
 ) -> None:
     """Exits escaping the delegated path name the tasks behind them too.
 
@@ -6900,7 +6878,7 @@ def test_recurring_scan_names_due_tasks_abandoned_through_a_delegated_launch(
     monkeypatch.setattr(
         recurring_cmd, "frozen_task_delegate", lambda ref, ticket: "bootstrap/dream"
     )
-    monkeypatch.setattr(recurring_cmd, "_interactive_stdio_has_tty", lambda: True)
+    _allow_interactive_recurring(monkeypatch)
     monkeypatch.setattr(recurring_cmd, "_run_delegated_task", escaping_delegated)
     records: list[object] = []
     monkeypatch.setattr(
@@ -6917,7 +6895,7 @@ def test_recurring_scan_names_due_tasks_abandoned_through_a_delegated_launch(
     rendered = records[0].render()
     assert "- problems: 1" in rendered
     assert "`recurring/beta`: admitted as due but never launched" in rendered
-    assert f"{expected} at recurring/alpha" in rendered
+    assert f"{reason} stopped the sweep at recurring/alpha" in rendered
     assert "1 of 2 due task(s) never launched after recurring/alpha" in rendered
 
 
