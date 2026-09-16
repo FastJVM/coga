@@ -1,6 +1,6 @@
 ---
 title: Scrub the service-account token from the launch child environment
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 contexts:
@@ -26,6 +26,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:d32c8689-172c-46e1-b9ca-104a7ae20171
 ---
 
 ## Description
