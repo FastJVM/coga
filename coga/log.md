@@ -5399,3 +5399,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-16 15:41 [state-which-branch-is-canonical-for-machine-genera] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-16 15:41 [state-which-branch-is-canonical-for-machine-genera] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-16 15:41 [state-which-branch-is-canonical-for-machine-genera] [megalaunch] launched via coga megalaunch
+2026-09-16 15:51 [state-which-branch-is-canonical-for-machine-genera] [agent:claude] advanced to step 2 (peer-review) → codex

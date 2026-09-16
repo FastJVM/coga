@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: ce3db1b5-a870-4bf5-9d5d-9ab0530a51af
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -74,4 +73,61 @@ conflict.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: sync-canonical-policy
+worktree: /home/n/Code/claude/coga-sync-canonical-policy
+
+Separate-checkout layout: linked worktree off `main`; `## Dev` and `coga bump`
+live in the primary checkout.
+
+## Implement — 2026-09-16
+
+**Description was partly stale.** The grep in the description no longer holds:
+"mirror, not review payload" and "canonical on the control branch" already sat
+at the top of `### The feature-branch publication boundary` (landed with the
+boundary work, #806-era). What was still missing was the *inventory* — which
+writers reach which checkout — and the policy as a section of its own rather
+than a lead-in to one mechanism. So not an already-satisfied close.
+
+**Dream proposal PR:** no open PR touches `coga/contexts/coga/sync/SKILL.md`
+and its topics (root-layout pathspecs, best-effort delivery, cadence,
+mutating-experiment rule) are already in the file on `main` — it has merged.
+No conflict.
+
+**Re-verified against code before writing** (module + symbol):
+- `git._try_update_local_ref` / `git._worktree_holding_branch`: bare
+  `update-ref` when no worktree holds the control branch, else
+  `merge --ff-only` run *through* that worktree. Only ever reaches the control
+  branch's holder. Callers: `git._land_on_control_branch`,
+  `git._land_paths_on_control_branch`, `recurring_runner` create landing.
+- `git.refresh_coga_state_from_control`: control branch → ff-only; feature
+  branch → overlay control's changed `coga/tasks/**`, union `coga/log.md`,
+  commit on the current branch; detached → skip. Scope is
+  `_toplevel(cfg.repo_root)`, i.e. the invoking checkout. Callers:
+  `commands.launch` teardown (every exit path) and the recurring per-child
+  preflight (`require_control_verification=True`).
+- `git._reconcile_feature_payload`: after a feature-branch landing, moves the
+  invoking checkout's HEAD onto the accepted control commit (soft reset or
+  merge) — the one place control's product tree enters a working tree.
+
+So the precise invariant: a feature checkout receives control state only via
+commands run *inside* it (writer 1 mid-run, writer 3 at launch end). The
+stranded-writes ticket's "nothing ever pushes those files back into the
+feature worktree" is false exactly when `coga launch` is invoked from that
+worktree, and true for a worktree whose commands all run from primary.
+
+**Change:** new `### Policy — the control branch is canonical` subsection
+before the publication boundary (three policy bullets + three-writer
+inventory + corollary). Boundary section's opening now points at the policy
+instead of restating it (one owner per fact). Both twins byte-identical.
+
+**Tests:** `python -m pytest` in the worktree — 2561 passed. Rebased onto
+`origin/main` (unchanged, `7317811a`). Commit `e888dcc5`.
+
+**Adjacent finding (not fixed here):**
+`coga/tasks/detect-stranded-ticket-writes-across-checkouts.md` still asserts
+the false invariant (its "verified code fact" around
+`git._try_update_local_ref` being the only cross-checkout reconciler, with
+stale `git.py` line numbers). Its divergence discriminator needs re-deriving
+against the new policy subsection before that ticket proceeds.
