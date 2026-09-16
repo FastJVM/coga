@@ -1,6 +1,6 @@
 ---
 title: Document when to attach a large context versus cite it for direct reading
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:754f4452-434d-45cc-b05b-9d9b813ce1ce
 ---
 
 ## Description
