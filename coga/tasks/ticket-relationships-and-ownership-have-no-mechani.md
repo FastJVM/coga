@@ -1,6 +1,6 @@
 ---
 title: Ticket relationships and ownership have no mechanism
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:9f61945b-8fb5-48cf-8717-e71554e0442a
 ---
 
 ## Description
