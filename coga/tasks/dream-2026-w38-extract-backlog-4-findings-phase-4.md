@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 91767d9b-b47a-4434-ae38-5d69f5e27786
 ---
 
 ## Description
@@ -74,3 +73,97 @@ The done ticket `allow-description-and-owner-on-create` established (and its sel
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: dream-w38-extract-backlog
+worktree: /home/n/Code/claude/coga-dream-w38-extract-backlog
+
+Separate-checkout layout; worktree created from `origin/main` (`7b76b51a`).
+
+## Plan (2026-09-15, implement)
+
+One knowledge PR carrying all four findings. Facts re-verified in-session before
+writing (see `## Findings` below). Files, grouped by target:
+
+- `coga/contexts/coga/codebase/SKILL.md` + packaged bootstrap twin: F-01 (root
+  `CLAUDE.md`/`AGENTS.md` hand-kept twin sentence in the rebase/twin bullet),
+  F-02 ("Which Python backs `coga`" note under Daily commands; `.coga/` wording
+  in the twin bullet), F-03 (`create_task` write-before-validate gotcha).
+- `coga/contexts/coga/sync/SKILL.md` + twin: F-04 procedure section next to
+  "Design rule for new features".
+- `coga/contexts/dev/code/SKILL.md` + twin: one cross-reference to the F-04
+  section.
+- `CLAUDE.md` and `AGENTS.md` (both, byte-identical): F-02's `.coga/` wording.
+
+Tradeoff: one PR instead of two (codebase vs sync) — the findings are all
+doc-only, small, and share the packaging-twin test; splitting adds review
+overhead with no isolation benefit.
+
+## Findings
+
+- F-01: `cmp CLAUDE.md AGENTS.md` identical; `grep -rn 'AGENTS.md' tests/`
+  finds no pairing test. Twins live under
+  `src/coga/resources/templates/coga/bootstrap/contexts/...` (not
+  `templates/coga/contexts/...`), all three targets currently byte-identical.
+- F-02: `command -v coga` -> `~/.local/bin/coga` -> readlink
+  `~/.local/share/uv/tools/coga/bin/coga`; that env's `python` is 3.12.12 and
+  imports `/home/n/Code/claude/coga/src/coga/__init__.py`; `direct_url.json`
+  = `{"url":"file:///home/n/Code/claude/coga","dir_info":{"editable":true}}`;
+  ambient `python3` is 3.9.12. `.coga/` here holds only `recurring-runs/` and
+  `worktrees/`.
+- F-03: `src/coga/create.py` `create_task` order unchanged:
+  `git.write_ticket_under_barrier` -> `append_log` -> `assert_task_valid`.
+  Four callers (`commands/create.py`, `commands/retire.py`, `recurring.py`,
+  `recurring_autofix.py`); only `commands/create.py` runs
+  `_description_structure_problem`.
+- F-04: `grep -n 'quiet window|cutover|old writer|wholesale|re-apply'` over
+  `coga/contexts/coga/sync`, `coga/codebase`, `dev/code` hits only the
+  regression-guard "replaces the ticket wholesale" sentence — no procedure
+  exists.
+
+## Implement handoff (2026-09-15)
+
+Commit `5bf988a0` on `dream-w38-extract-backlog` (worktree above), rebased on
+`origin/main` `7b76b51a`, working tree clean, not pushed. Eight files: the three
+live contexts, their three packaged bootstrap twins, `CLAUDE.md`, `AGENTS.md`.
+
+What landed, by finding:
+
+- F-01 → `coga/codebase` "A rebase carries a fix through a rename" bullet: root
+  `CLAUDE.md`/`AGENTS.md` named as a hand-kept third twin; edit both + `cmp`.
+- F-02 → `coga/codebase` Daily commands: new "Which Python backs `coga`"
+  paragraph (uv tool editable install, interpreter path expression,
+  `direct_url.json` names the checkout, ambient `python3` fails `import coga`,
+  cwd is irrelevant with two checkouts). Same bullet + `CLAUDE.md`/`AGENTS.md`:
+  `.coga/` reworded as machine-local state (run records, megalaunch
+  selection), not an installation directory.
+  Addition beyond the finding, verified in-session: the primary checkout *does*
+  have a `.venv/` (editable coga + pytest 9.1.1 + tomlkit, created 2026-07-16)
+  and the uv tool env has no `pytest`; recorded one sentence distinguishing the
+  test venv from the CLI env, since "neither checkout has a vendored venv" is
+  not literally true here and the distinction is exactly what tripped the
+  test run (`python3.12` lacked tomlkit, tool env lacked pytest).
+- F-03 → `coga/codebase` "Gotchas when editing coga's own code": new
+  `create_task` write-before-validate bullet, naming the actual regex symbol
+  `_SECTION_HEADING_LINE_RE` (the finding's "matching compose's
+  `_SECTION_HEADING_RE`" softened to "mirroring the lines it splits on" — the
+  two patterns differ: `^##(?:\s|$)` vs `^##\s+(.+?)\s*$`).
+- F-04 → `coga/sync` new section "Shipping a stored-ticket schema conversion"
+  placed directly after "Design rule for new features", five numbered steps as
+  specified; step 4 reworded so "take control wholesale, then re-apply the
+  conversion" and "never pick one side" do not read as contradictory.
+  `dev/code` "What this context does not cover" gained a cross-reference item.
+
+Verification:
+
+- `PYTHONPATH=<worktree>/src /home/n/Code/claude/coga/.venv/bin/python -m
+  pytest` → 2495 passed (170s). `tests/test_packaging.py` 11 passed.
+- `cmp` on all three live/packaged pairs and on `CLAUDE.md`/`AGENTS.md`: identical.
+- Source-pinned `python -m coga.validate --json` from the worktree: same
+  finding set as `main` (pre-existing draft/stale warnings only).
+
+Not done / for reviewers: no test added — doc-only change; the packaging twin
+test already guards the six context files. `uv tool install -e <checkout>` in
+the F-02 note is the reinstall spelling and was not executed in-session (the
+install must not be repointed from a feature worktree).
