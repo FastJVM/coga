@@ -1,6 +1,6 @@
 ---
 title: Record or clear the standing repo-wide coga validate baseline
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
