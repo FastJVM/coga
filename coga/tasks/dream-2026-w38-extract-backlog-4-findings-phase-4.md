@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
-launch_generation: 48d8da09-e0a6-4f1f-b5b0-d6157f3140d3
 ---
 
 ## Description
@@ -224,6 +223,13 @@ Committed review fixes as `1d23cb4c` on top of rebased implementation
 `origin/main`, and unpushed. The recorded worktree remains correct. No open
 review finding or design decision remains; ready for the mechanical open-pr
 step.
+
+## Open-pr (2026-09-15)
+
+`coga open-pr` run from the primary control checkout on `main`: the branch was
+safe to publish (origin/main had advanced only through non-overlapping task/log
+state), pushed, and PR #812 opened; `pr:` recorded under `## Dev`. Both peer
+review P2 fixes were already on the branch (`1d23cb4c`), no rebase needed.
 
 ## PR
 
