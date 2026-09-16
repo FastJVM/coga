@@ -5230,3 +5230,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-15 20:29 [cleanup/handle-a-bare-slack-webhook-url-during-empty-repo] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
 2026-09-15 20:32 [scrub-the-service-account-token-from-the-launch-ch] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-15 20:32 [scrub-the-service-account-token-from-the-launch-ch] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-09-15 20:32 [scrub-the-service-account-token-from-the-launch-ch] [megalaunch] launched via coga megalaunch
