@@ -105,6 +105,7 @@ def _make_task(
         agent="claude",
         status=status,
         force_directory=force_directory,
+        description="Do the work.",
     )
     # File form: `ref["path"]` is the `tasks/<slug>.md` ticket file (it *is* the
     # ticket). Directory form (`force_directory=True`): it is the task
