@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -97,15 +97,52 @@ All four verified failing before the fix. Full suite: 2499 passed.
 - Fetch fallback records the error: stderr + log line.
 - Regression test: first test above.
 
-Commit `f3e705d1` on the branch; rebased on current `origin/main`; no push.
+Implementation initially committed as `f3e705d1`; final peer-review rebase and
+verification are recorded below. No feature-branch push in this step.
 
 ## Peer review
 
-- `codex review --base main` is running in the recorded feature worktree;
-  its final assessment has not returned yet. Do not advance on this note.
-- Reviewer checks so far: recurring + packaging, 364 passed; creation +
-  validation, 188 passed. The final full-suite run will use the primary venv
-  with absolute `PYTHONPATH` pointing at the feature worktree's `src`.
-- Manual trace confirms scan errors flow into `RunRecord.scan_errors`, and
-  `run_autofix` writes that record before invoking the analyst. A combined
-  local probe, fresh rebase, full suite, and final review outcome remain.
+- `codex review --base main` **returned**, exit 0, with no actionable
+  findings. It ran recurring + packaging checks (364 passed) and creation +
+  validation checks (188 passed), using the primary checkout's venv and the
+  feature source. No review fix or design change was needed.
+- A temporary combined probe drove the real scan, report rendering, and
+  autofix record writer, with child execution and the analyst stubbed and
+  notifications suppressed. A missing workflow left the stale done ticket
+  byte-identical, preserved its attachment and prior serviced period, yielded
+  exactly one scan error, and allowed the later template to complete. The
+  saved run record reached the analyst with the workflow error present.
+  Command: `PYTHONPATH=/home/n/Code/claude/coga-recurring-missing-workflow/src:/home/n/Code/claude/coga-recurring-missing-workflow/tests /home/n/Code/claude/coga/.venv/bin/python /tmp/coga-recurring-missing-workflow-smoke.py`.
+- No raw-terminal loop, pager, interactive prompt, or rendered Slack surface
+  changed. The new stderr diagnostic is covered by the regression test; the
+  combined probe also confirmed the visible scan error and continuation.
+- Required `git fetch origin main && git rebase FETCH_HEAD` completed without
+  conflicts onto `ef2c02d5`; feature commit is now `e62d818f`.
+  `git range-diff f3e705d1^..f3e705d1 e62d818f^..e62d818f` confirms the reviewed
+  patch is unchanged, and `git diff --check main...HEAD` passed.
+- `PYTHONPATH=/home/n/Code/claude/coga-recurring-missing-workflow/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --task recurring-sweep-aborts-and-orphans-a-deleted-done --json`
+  passed: one valid task, no errors, expected `missing-user` warning in the
+  feature worktree without machine-local configuration.
+- Full suite after rebase: `PYTHONPATH=/home/n/Code/claude/coga-recurring-missing-workflow/src /home/n/Code/claude/coga/.venv/bin/python -m pytest`
+  **2499 passed in 181.89s**, exit 0. Output:
+  `/tmp/coga-recurring-missing-workflow-peer-full.log`.
+- Primary-checkout validation also passed with one valid task and no issues:
+  `PYTHONPATH=/home/n/Code/claude/coga/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --task recurring-sweep-aborts-and-orphans-a-deleted-done --json`.
+- The feature branch is clean and retains its implementation commit. Commits
+  landing on `main` during verification change only task/log state; no source
+  or context drift was introduced after the rebase. No findings remain open.
+
+## PR
+
+Recurring sweeps could delete a stale completed period task and then abort when
+its template referenced a removed workflow, leaving earlier creations unsynced
+and later templates unprocessed. Resolve the replacement workflow and all step
+skills before deletion, and report workflow-loading failures as per-template
+scan errors so the remaining sweep and autofix reporting can finish.
+
+Also report control-fetch failures on stderr and in the task log before the
+existing sync fallback. Add regressions for missing workflows, missing step
+skills, fresh creation, and fetch-failure reporting; update the recurring
+contract and its packaged twin.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-recurring-missing-workflow/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` — 2499 passed after rebase; scoped task validation passed; combined scan-to-autofix probe passed with child execution and analysis stubbed.

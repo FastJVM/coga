@@ -5268,3 +5268,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-15 22:52 [title-only-tickets-have-no-convention-and-no-valid] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-15 22:52 [title-only-tickets-have-no-convention-and-no-valid] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-15 22:52 [title-only-tickets-have-no-convention-and-no-valid] [megalaunch] launched via coga megalaunch
+2026-09-15 23:04 [recurring-sweep-aborts-and-orphans-a-deleted-done] [agent:codex] advanced to step 3 (open-pr) → claude
