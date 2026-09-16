@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: 3ccc7a10-0d7d-4e31-9a76-3dc8018332d2
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -106,9 +105,49 @@ primary checkout.
 - `git diff --check`: clean. Rebased on fresh `origin/main`: already
   up to date, 1 commit ahead, working tree clean.
 
+## Peer review
+
+- `codex review --base main` **returned** on 2026-09-16 with no actionable
+  regressions. Its packaging-test probe lacked `tomlkit`; the required full
+  suite then passed with the primary checkout's test venv and the feature
+  checkout's absolute `PYTHONPATH`: **2561 passed** in 179.64 seconds. The only
+  two warnings were sandbox restrictions on writing pytest's cache.
+- Manual review corrected two lifecycle statements: completing the audit
+  makes it eligible for later Dream cleanup rather than immediately archiving
+  it, and the current audit worklist now directs the owner to its own gate
+  instead of assigning ownership to this reconciliation ticket. The historical
+  worklist remains a historical record. The owner still must settle the
+  confidentiality ticket and accept the preparation before advancing to
+  `report-to-coga`.
+- `git fetch origin main` and `git rebase FETCH_HEAD` completed without
+  conflicts. Audit frontmatter is byte-identical to `origin/main`. No inbound
+  references to this reconciliation ticket remain outside its own file and
+  `coga/log.md`; no packaged marketing twins exist.
+- Checked 70 local links in the plan/map: no newly broken links; three missing
+  Clarity documentation links already exist on `origin/main`. Validation
+  matches all 53 primary-checkout issues plus the expected worktree-only
+  `missing-user` warning. `git diff --check origin/main` passes.
+- This is a markdown-only change; no terminal, pager, prompt, or Slack
+  rendering surface changed.
+- Review corrections are committed as `547357df` (`peer-review: clarify audit
+  completion handoff`). The rebased branch contains two commits above fresh
+  `origin/main` and is clean.
+
+## PR
+
+The marketing contexts still assigned the audit lifecycle decision to this
+reconciliation ticket, leaving references that would break when it is retired.
+Point the plan, catalogue and audit worklists to the audit's own owner gate,
+with confidentiality disposition and owner acceptance before `report-to-coga`.
+Clarify that completion makes the directory eligible for later Dream cleanup;
+the audit remains at its existing human review step.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-reconcile-audit-lifecycle/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` — 2561 passed; `PYTHONPATH=/home/n/Code/claude/coga-reconcile-audit-lifecycle/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --json` — same baseline issues plus the expected worktree-only `missing-user` warning; `git diff --check origin/main` — clean. Manual checks found no newly broken links and confirmed unchanged audit frontmatter.
+
 ## For the owner
 
 Nothing in this PR changes a lifecycle. When
-`narrative-candidates-md-publishes-log-text-the-own` is resolved, advance
+`narrative-candidates-md-publishes-log-text-the-own` is resolved and the
+preparation is accepted, advance
 `marketing/phase-0-audit` from step 2 yourself (its step 3
 `report-to-coga` then runs, and Dream's done-ticket sweep can reap it).
