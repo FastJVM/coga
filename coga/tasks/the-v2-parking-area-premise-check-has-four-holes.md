@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: 2fd5edeb-64ae-4d0a-9b41-533558605389
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -106,3 +105,106 @@ Sibling tickets from this run that overlap: `adjudicate-parked-and-active-ticket
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: v2-premise-holes
+worktree: /home/n/Code/claude/coga-v2-premise-holes
+
+## Plan (implement step)
+
+Surfaces touched, one owner per fact:
+
+- `coga/tasks/v2/README.md` — premise check grows from two questions to
+  four (dangling citations; already delivered), the inline-the-substance rule,
+  the green-validate guard stated once for every v2 verdict (title-only
+  section now points at it instead of repeating it), and a "who runs the
+  check while a draft sits" paragraph pointing at Dream.
+- `coga/contexts/coga/architecture/SKILL.md` + packaged twin — the general
+  form of the green-validate guard in "Two state machines per ticket", since
+  a verdict is a lifecycle write and the incentive is not v2-specific.
+- Hole 1 mechanism: Dream's knowledge scan already owns every ticket under
+  `coga/tasks/` in-shard, so the standing re-validation is a new finding class
+  `premise` in `bootstrap/dream/scan/knowledge-scan` (run the README's four
+  questions over every `coga/tasks/v2/` draft the shard owns) plus a Phase 6
+  route in the Dream template: one `brief-for-human` adjudication draft per
+  run listing every unowned `premise` finding with its failed question and
+  evidence; owned findings report "already ticketed as". Dream files no
+  cancellation itself — verdicts stay the author's, and Dream's contract
+  already says it never changes lifecycle state or edits another ticket.
+- Rejected: a recurring grep-against-the-table ticket. Two of the four
+  motivating cases (`fcntl.flock` in `src/coga/git.py`; prose already carried
+  by a context) are invisible to a grep of the known-stale table, and a new
+  recurring template + schedule is more machinery for less coverage.
+- Test: extend `tests/test_dream_worker_templates.py` with a template-text
+  test for the `premise` class and its Phase 6 route, in the suite's style.
+
+Out of scope (owned by siblings): the known-stale table row fixes and the
+`gap` routing note (`correct-the-v2-known-stale-surfaces-table-and-rout`),
+the verdicts themselves (`adjudicate-parked-and-active-tickets-whose-premise`),
+stubs outside `v2/` (`title-only-tickets-have-no-convention-and-no-valid`).
+
+## Implement — what landed (commit `59f3fb56` on `v2-premise-holes`)
+
+- `coga/tasks/v2/README.md`: premise check is now four questions (subject,
+  surfaces, citations, delivered) with the git-history recovery recipe for a
+  dangling citation, the "carry the substance in its own body" rule, the
+  `mark done --message "delivered by …"` verdict for a shipped deliverable
+  (done so Retro retires it; cancel stays for a deliverable that never
+  landed), a `### The green-validate guard` section stated once (the
+  title-only section now points at it), and `### Who runs the check while a
+  draft sits` naming Dream. The "nothing re-validates it while it sits"
+  sentence at the top was updated to match.
+- `coga/contexts/coga/architecture/SKILL.md` + packaged twin: the general
+  guard in "Two state machines per ticket" ("A terminal transition is a
+  verdict about the ticket, never a repair of the validator's output …").
+- `coga/contexts/coga/roadmap/SKILL.md`: its own "nothing re-validates it"
+  sentence updated to name Dream's pass and the two new failure kinds.
+- `bootstrap/dream/scan/knowledge-scan/SKILL.md` (packaged only; no live
+  twin exists): `## Parked drafts: the standing premise pass` + the `premise`
+  class (`target: v2/<slug>`, `question: subject|surfaces|citations|delivered`,
+  `owner:`), title-only stubs excluded (Phase 1 `empty-description` owns
+  them), owner search by exact slug across open tickets.
+- `bootstrap/dream/scan/scan-protocol/SKILL.md`: class vocabulary gains
+  `premise`.
+- `coga/recurring/dream/ticket.md` + packaged twin: Phase 2 keeps the
+  `premise` lines through the merge; Phase 6 gains the `premise` route — one
+  `brief-for-human` adjudication draft per run
+  (`Premise check <period>: <N> parked drafts need a verdict`), owned drafts
+  reported as already ticketed, Dream never cancels/closes/edits; run summary
+  lists the draft with its member count.
+- Test: `tests/test_dream_worker_templates.py::test_dream_re_validates_parked_drafts_every_run`
+  (template-text style of its neighbours; also pins that the guard sentence
+  appears exactly once in the README and once in architecture).
+
+Verification: `python -m pytest` → 2562 passed (venv Python 3.12; the shell's
+default `python` is 3.9 and refuses to import coga). `coga validate --json` on
+`example/` → 4 OK, 0 issues. Branch rebased on fresh `origin/main` (no new
+commits). No push, no PR.
+
+## Decisions for the reviewer
+
+- Hole-1 owner is the knowledge scan, not a new recurring grep ticket: two of
+  the four motivating cases need judgment a grep of the known-stale table
+  cannot give. Cost: one more question per parked draft per shard (76 drafts,
+  README is small evidence). If that proves too heavy, the fallback is a
+  dedicated Dream phase over `coga/tasks/v2/` only; the finding shape and
+  Phase 6 route would not change.
+- Dream files a question, not a verdict: consistent with its existing
+  contract ("does not change lifecycle, workflow, or assignee state", "never
+  files under `coga/tasks/v2/`", "does not edit another ticket").
+- Delivered verdict is `mark done`, premise-dead is `mark canceled`: Phase 6
+  leaves canceled tickets on disk indefinitely, so `done` is what lets Retro
+  retire a draft whose outcome actually exists.
+
+## Adjacent observations (not fixed here)
+
+- A bare `SLACK_WEBHOOK_URL` in the shell environment makes
+  `coga validate --json` exit non-zero on the example fixture before
+  validating anything ("Bare `SLACK_WEBHOOK_URL` is no longer supported");
+  `env -u SLACK_WEBHOOK_URL` works around it. Behaviour is by design
+  (`config.py` fails loud), but it surprises a validate run.
+- Canceled parked drafts accumulate: Phase 6 says Dream leaves a canceled
+  ticket on disk and Retro refuses non-done tickets, so every premise-dead
+  cancellation the new pass produces is a permanent file. Nothing retires
+  them today; worth a ticket if the count grows.
