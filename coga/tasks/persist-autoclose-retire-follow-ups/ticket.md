@@ -30,7 +30,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 3 (pr)
-launch_generation: pending:0bd1ad99-b32b-443f-a0f2-d150c189bbe1
+launch_generation: 0bd1ad99-b32b-443f-a0f2-d150c189bbe1
 ---
 
 ## Description
