@@ -1,6 +1,6 @@
 ---
 title: test_recurring_create_is_silent fixture fix is half-applied on main
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
