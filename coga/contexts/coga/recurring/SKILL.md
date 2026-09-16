@@ -996,6 +996,26 @@ Operating it:
   `coga.toml` or machine-local `coga.local.toml` (e.g.
   `analyze = "-p {prompt}"`); without it the loop skips loudly rather than
   guessing an argv and opening a REPL nobody can drive.
+- Which agent type analyzes: the explicit `--agent` flag on `coga recurring`
+  or `coga run autofix-analyze`, then the shared `[autofix] agent = "<type>"`
+  key in `coga.toml`, then the first-declared `[agents.*]` table (the same
+  create-time default new tickets get). The key exists because the other two
+  levers are wider than the intent — reordering `[agents.*]` also changes every
+  new ticket's default, and `--agent` also reroutes every agent-backed period
+  task in the sweep — and the meta-loop is a place you may *want* a different
+  vendor: a second opinion on a sweep the default agent ran, on an auth path
+  that did not just break. It must name a type in the effective agents table
+  (a typo fails at config load, not at the end of an unattended sweep), it is
+  one key and one branch rather than a per-command routing table, and it is
+  shared-only: which vendor analyzes the sweep is repo policy.
+- The analyst runs with its stdin closed (`/dev/null`), never the sweep's:
+  `codex exec` appends a piped stdin to the prompt as a `<stdin>` block, so an
+  inherited pipe would silently graft unrelated bytes onto the analysis.
+- A non-zero analyst exit is reported with *both* of its streams, each under a
+  `stdout:` / `stderr:` label and each keeping its own tail. Picking one
+  stream — the old `stderr or stdout` — once told the operator about a
+  connectors warning on stderr while the cause, `Credit balance is too low`,
+  sat on stdout: loud, but loudly wrong.
 - Claude Code normally honors an ambient `ANTHROPIC_API_KEY`. If that key's
   call fails specifically for authentication or billing, the analyst checks
   for an existing signed-in claude.ai account with the variable removed and,

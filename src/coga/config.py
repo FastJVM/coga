@@ -141,6 +141,13 @@ class Config:
     # key is unset and the default location applies — read `contexts_root`, not
     # this field. See `_parse_layout` for the anchoring and containment rules.
     contexts_dir: Path | None = None
+    # Agent type name for the recurring sweep's autofix analyst, from the
+    # shared `[autofix]` table. None means unset and `default_agent()` applies.
+    # It sits between the explicit `coga recurring --agent` override and that
+    # first-declared fallback so the meta-loop can use a different vendor than
+    # the work without reordering `[agents.*]` or rerouting the whole sweep.
+    # Read by `coga.recurring_autofix._analyze_agent`; nothing else does.
+    autofix_agent: str | None = None
 
     # --- convenience accessors -------------------------------------------------
 
@@ -335,6 +342,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         launch_max_session,
     ) = _parse_launch(shared.get("launch"))
     contexts_dir = _parse_layout(shared.get("layout"), root)
+    autofix_agent = _parse_autofix(shared.get("autofix"), agents)
 
     # The operator's `user` must be set explicitly in `coga.local.toml` — coga
     # never guesses it. A guessed name (git `user.name`, OS username) can
@@ -384,6 +392,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         launch_max_session=launch_max_session,
         owner=owner,
         contexts_dir=contexts_dir,
+        autofix_agent=autofix_agent,
     )
 
 
@@ -437,6 +446,7 @@ _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
     "aliases",
     "extensions",
     "layout",
+    "autofix",
 })
 _ALLOWED_LOCAL_SECTIONS: frozenset[str] = frozenset({
     "user",
@@ -478,6 +488,10 @@ _ALLOWED_TICKET_KEYS: frozenset[str] = frozenset({"fields"})
 # so it is deliberately absent from `_ALLOWED_LOCAL_SECTIONS`: one clone must
 # not resolve a context ref somewhere another clone doesn't.
 _ALLOWED_LAYOUT_KEYS: frozenset[str] = frozenset({"contexts"})
+# `[autofix]` is likewise shared-only: which vendor analyzes the sweep is team
+# policy, and it is deliberately one key — not a per-command agent-routing
+# table. See `Config.autofix_agent`.
+_ALLOWED_AUTOFIX_KEYS: frozenset[str] = frozenset({"agent"})
 
 
 def _reject_unknown_sections(shared: dict, local: dict) -> None:
@@ -1372,6 +1386,36 @@ def _parse_launch(
         "idle_timeout" in shared,
         _seconds("max_session"),
     )
+
+
+def _parse_autofix(shared: object, agents: dict[str, AgentType]) -> str | None:
+    """Parse `[autofix] agent` — the analyst's own agent type, or None if unset.
+
+    The value must name a type in the effective `[agents.*]` table (shared and
+    machine-local merged), checked here rather than when the sweep ends: a
+    typo that only surfaced after a full unattended sweep would be reported by
+    the very analyst it misconfigured. An absent table changes nothing —
+    `_analyze_agent` keeps falling back to `default_agent()`.
+    """
+    if shared is None:
+        return None
+    if not isinstance(shared, dict):
+        raise ConfigError(f"[autofix] must be a table (got {type(shared).__name__})")
+    _reject_unknown_keys(shared, _ALLOWED_AUTOFIX_KEYS, "[autofix]")
+    if "agent" not in shared:
+        return None
+    value = shared["agent"]
+    if not isinstance(value, str) or not value.strip():
+        raise ConfigError(
+            f"[autofix].agent must be a non-empty agent type name (got {value!r})"
+        )
+    name = value.strip()
+    if name not in agents:
+        raise ConfigError(
+            f"[autofix].agent names {name!r}, which is not defined in [agents]. "
+            f"Known: {sorted(agents)}."
+        )
+    return name
 
 
 def _resolve_secret_value(value: str) -> str:

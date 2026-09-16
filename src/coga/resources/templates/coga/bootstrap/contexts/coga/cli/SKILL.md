@@ -340,7 +340,9 @@ config, or entry points.
 hand-run half of the recurring autofix loop: it re-reads a recorded sweep (the
 most recent under `.coga/recurring-runs/` when no path is given) and tickets
 what it finds under `coga/tasks/autofix/`. Every `coga recurring` sweep already
-runs the same analysis in-process when it finishes.
+runs the same analysis in-process when it finishes. `--agent` picks the
+analyst's agent type for this call; without it the shared `[autofix].agent`
+key applies, then the first-declared `[agents.*]` table.
 
 Two of them take a task ref as their single argument. `coga run open-pr
 <task>` publishes a code ticket's recorded branch and prints the bare PR URL
@@ -1128,7 +1130,9 @@ way as a wall-clock cap.
 **Autofix loop.** Every sweep ends by analyzing itself and files a real
 problem as an `active` ticket under `coga/tasks/autofix/`. It never changes
 the sweep's exit code. Operator knobs: `COGA_AUTOFIX=0` disables the loop,
-`COGA_AUTOFIX_TIMEOUT` (seconds) bounds the call, every run record is kept at
+`COGA_AUTOFIX_TIMEOUT` (seconds) bounds the call, `[autofix] agent = "<type>"`
+in `coga.toml` picks the analyst's agent type (below `--agent`, above the
+first-declared default), every run record is kept at
 `.coga/recurring-runs/<stamp>.md`, and `coga run autofix-analyze` re-runs the
 analysis over a recorded run by hand. `coga recurring launch <name>` closes
 the same loop, so the `coga dream` / `coga autoclose` / `coga skill-update`

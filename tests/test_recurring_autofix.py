@@ -273,6 +273,159 @@ def test_an_unrelated_claude_failure_never_switches_authentication(
     assert len(calls) == 1
 
 
+# --- what a failed analyst reports, and what it is handed --------------------
+
+
+def test_a_failed_analyst_reports_both_streams_labelled(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`stderr or stdout` hid the real cause on stdout behind an unrelated
+    stderr warning (the 20260825T105618 sweep). Both streams, each labelled."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        return subprocess.CompletedProcess(
+            cmd,
+            1,
+            "Credit balance is too low\n",
+            "⚠ claude.ai connectors are disabled because ANTHROPIC_API_KEY "
+            "or another auth source is set\n",
+        )
+
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: "/usr/bin/claude")
+
+    with pytest.raises(autofix.AutofixUnavailable) as exc:
+        autofix.analyze_record(cfg_repo, "failing run")
+    message = str(exc.value)
+    assert message.startswith("claude exited 1:")
+    assert "stdout: Credit balance is too low" in message
+    assert "stderr: ⚠ claude.ai connectors are disabled" in message
+    assert message.index("stdout:") < message.index("stderr:")
+
+
+def test_a_failed_analyst_omits_an_empty_stream_rather_than_labelling_it(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        return subprocess.CompletedProcess(cmd, 2, "", "usage: claude [options]\n")
+
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: "/usr/bin/claude")
+
+    with pytest.raises(autofix.AutofixUnavailable) as exc:
+        autofix.analyze_record(cfg_repo, "failing run")
+    message = str(exc.value)
+    assert "stderr: usage: claude [options]" in message
+    assert "stdout:" not in message
+
+
+def test_each_stream_keeps_its_own_tail() -> None:
+    """A chatty stderr must not crowd the cause out of stdout: the 500-char
+    tail applies per stream, not to the pair."""
+    result = subprocess.CompletedProcess(
+        ["claude"], 1, "x" * 600 + "CAUSE", "y" * 600 + "WARNING"
+    )
+    detail = autofix._labelled_streams(result)
+    assert detail.count("[... truncated ...]") == 2
+    assert "CAUSE" in detail
+    assert "WARNING" in detail
+
+
+def test_the_analyst_never_inherits_the_sweeps_stdin(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`codex exec` appends a piped stdin to the prompt as a `<stdin>` block,
+    so an inherited pipe would graft unrelated bytes onto the analysis."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    stdins: list[object] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        stdins.append(kwargs.get("stdin"))
+        return subprocess.CompletedProcess(cmd, 0, "VERDICT: ok\n", "")
+
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: "/usr/bin/claude")
+
+    assert autofix.analyze_record(cfg_repo, "healthy run").verdict == "ok"
+    assert stdins == [subprocess.DEVNULL]
+
+
+def test_the_auth_probe_never_inherits_stdin_either(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "exhausted-key")
+    stdins: list[object] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        stdins.append(kwargs.get("stdin"))
+        if cmd[1:] == ["auth", "status"]:
+            return subprocess.CompletedProcess(cmd, 1, "", "not logged in")
+        return subprocess.CompletedProcess(cmd, 1, "Credit balance is too low", "")
+
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: "/usr/bin/claude")
+
+    with pytest.raises(autofix.AutofixUnavailable, match="Credit balance"):
+        autofix.analyze_record(cfg_repo, "failing run")
+    assert stdins == [subprocess.DEVNULL, subprocess.DEVNULL]
+
+
+# --- which agent analyzes: --agent > [autofix].agent > default_agent() --------
+
+
+def _with_codex_and_autofix_agent(repo: Path, agent: str) -> None:
+    toml = repo / "coga.toml"
+    toml.write_text(
+        toml.read_text()
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+        + f'\n[autofix]\nagent = "{agent}"\n'
+    )
+
+
+def test_the_autofix_agent_key_beats_the_first_declared_default(repo: Path) -> None:
+    """`[autofix].agent` is the narrow lever: it moves the analyst and nothing
+    else, so the default (claude, first-declared) still covers ticket creation."""
+    _with_codex_and_autofix_agent(repo, "codex")
+    cfg = load_config(repo)
+    assert cfg.default_agent().name == "claude"
+    assert autofix._analyze_agent(cfg, None).name == "codex"
+
+
+def test_the_explicit_agent_override_beats_the_autofix_agent_key(repo: Path) -> None:
+    _with_codex_and_autofix_agent(repo, "codex")
+    cfg = load_config(repo)
+    assert autofix._analyze_agent(cfg, "claude").name == "claude"
+
+
+def test_without_the_key_the_analyst_keeps_the_first_declared_default(
+    cfg_repo,
+) -> None:
+    assert cfg_repo.autofix_agent is None
+    assert autofix._analyze_agent(cfg_repo, None).name == "claude"
+
+
+def test_the_analysis_argv_follows_the_autofix_agent(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End to end: the one-shot argv is built for the configured analyst."""
+    _with_codex_and_autofix_agent(repo, "codex")
+    cfg = load_config(repo)
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, "VERDICT: ok\n", "")
+
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: f"/usr/bin/{_cli}")
+
+    assert autofix.analyze_record(cfg, "healthy run").verdict == "ok"
+    assert calls[0][:2] == ["codex", "exec"]
+
+
 # --- one timeout budget across the fallback -----------------------------------
 #
 # `COGA_AUTOFIX_TIMEOUT` is documented as the bound on the analysis call, so the
