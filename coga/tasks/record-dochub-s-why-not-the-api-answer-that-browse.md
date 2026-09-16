@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
-launch_generation: 0e8f2078-4f08-421c-942c-52bc4e952acc
+step: 4 (review)
 ---
 
 ## Description
@@ -157,6 +156,15 @@ the harmless read-only-cache warning from the earlier full passing run.
 **Committed handoff.** Review fix: `824ae147` (`peer-review: qualify DocHub API
 evidence`); rebased implementation: `6c50e678`. `dochub-api-answer` is clean,
 two commits ahead of fetched `origin/main`. No feature push or PR in this step.
+
+## Open-PR (2026-09-16)
+
+Peer-review note confirmed the ordered `codex review` returned (no actionable
+findings), so nothing was in flight. Ran `coga open-pr` from the primary
+control checkout on `main`; it reported origin/main had advanced only through
+non-overlapping task/log state and published `dochub-api-answer` as
+https://github.com/FastJVM/coga/pull/822 (open, not draft). `pr:` recorded
+under `## Dev`. Next step is the human merge/review gate.
 
 ## PR
 
