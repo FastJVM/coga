@@ -19,6 +19,7 @@ from coga.create import create_task
 from coga.git import GitError
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.paths import read_packaged_resource
+from coga.retire_worklist import RetireWorklistError, discharge_slug
 from coga.slugify import slugify
 from coga.taskfile import TaskFileError, read_blackboard
 from coga.tasks import (
@@ -94,6 +95,7 @@ def retire(
     # deletes the directory. Best effort: a cleanup failure must never abort the
     # retire run.
     checkout = _cleanup_checkout(cfg, ref)
+    _discharge_worklist_entry(cfg, ref)
 
     try:
         main_agent = agent or _default_agent(cfg)
@@ -204,6 +206,27 @@ def _cleanup_checkout(cfg: Config, ref: TaskRef) -> WorktreeCleanupResult | None
     except Exception as exc:  # noqa: BLE001 — never let cleanup abort retire
         typer.echo(f"Retire: branch cleanup failed ({exc}).")
     return worktree_result
+
+
+def _discharge_worklist_entry(cfg: Config, ref: TaskRef) -> None:
+    """Drop this slug from the autoclose retire worklist once its checkout is gone.
+
+    The autoclose sweep records a `coga retire <slug>` follow-up in the
+    recurring template's durable `retires.md` for every ticket it closes that
+    still has a checkout. Retire is the event that discharges it, so retire
+    also clears the line — but only when the worktree and branch really are
+    gone now; a checkout the cleanup above preserved keeps its entry. The next
+    recurring sweep applies the same rule, so this is immediacy, not the only
+    path. Best effort, like the cleanup itself: never abort retire over it.
+    """
+    try:
+        root = git._toplevel(ref.ticket_path)
+        if root is None:
+            return
+        for path in discharge_slug(cfg, ref.id_slug, root=root):
+            typer.echo(f"Retire: dropped {ref.id_slug} from {path}.")
+    except (GitError, OSError, RetireWorklistError) as exc:
+        typer.echo(f"Retire: retire worklist not updated ({exc}).")
 
 
 def _live_checkout_claim(

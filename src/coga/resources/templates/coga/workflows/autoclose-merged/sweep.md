@@ -18,4 +18,8 @@ only final-step or workflow-less tickets done when the linked PR has merged.
 The command exits successfully when there is nothing to close. It then names
 the `coga retire` follow-up for each closed ticket that still records a
 `branch:` or `worktree:` — it never removes one itself, and Dream preserves the
-source ticket until that human-typed retirement happens.
+source ticket until that human-typed retirement happens. Under this period task
+the follow-ups are also recorded in the template's durable
+`coga/recurring/<name>/retires.md`, keyed by slug and pruned of discharged
+entries on every run, because this period task is deleted at the next period
+boundary; the `coga/autoclose/sweep` skill owns those rules.

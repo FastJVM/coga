@@ -9,6 +9,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
+from coga import retire_worklist as rw
 from coga.cli import app
 from coga.branchcleanup import WorktreeCleanupResult
 from coga.commands.retire import _checkout_cleanup_section
@@ -413,6 +414,140 @@ def test_retire_removes_linked_worktree_then_prunes_its_branch(
         ).returncode
         != 0
     )
+
+
+def _seed_retire_worklist(repo: Path, *entries: rw.RetireFollowUp) -> Path:
+    """The autoclose sweep's durable worklist, naming `entries` as owed retires."""
+    template = repo / "recurring" / "autoclose-merged"
+    template.mkdir(parents=True)
+    (template / "ticket.md").write_text("template\n")
+    path = template / rw.RETIRE_WORKLIST_FILENAME
+    path.write_text(rw.render_worklist(rw.RETIRE_WORKLIST_HEADER, entries))
+    return path
+
+
+def test_retire_drops_its_slug_from_the_autoclose_worklist_once_the_checkout_is_gone(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Retire is the event that discharges an autoclose follow-up, so it clears
+    the worklist line itself rather than waiting for the next daily sweep."""
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "coga.branchcleanup.prs_for_head", lambda _branch, _state: []
+    )
+    _git(repo, "init", "-b", "main", ".")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "Tester")
+    (repo / "seed.txt").write_text("seed")
+    _git(repo, "add", "seed.txt")
+    _git(repo, "commit", "-m", "seed")
+    feature = tmp_path / "feature"
+    _git(repo, "worktree", "add", str(feature), "-b", "fix-retry-branch")
+    (feature / "work.txt").write_text("work")
+    _git(feature, "add", "work.txt")
+    _git(feature, "commit", "-m", "work")
+    _git(repo, "merge", "--ff-only", "fix-retry-branch")
+
+    slug = "fix-retry-logic"
+    task_dir = repo / "tasks" / slug
+    task_dir.mkdir(parents=True)
+    _write(
+        task_dir / "ticket.md",
+        f"""
+        ---
+        title: Fix retry logic
+        status: done
+        owner: marc
+        ---
+
+        ## Description
+
+        Done.
+
+        <!-- coga:blackboard -->
+
+        ## Dev
+        branch: fix-retry-branch
+        worktree: {feature}
+        pr: https://github.com/owner/repo/pull/9
+        """,
+    )
+    (task_dir / "log.md").write_text("")
+    other_dir = tmp_path / "other-checkout"
+    other_dir.mkdir()
+    worklist = _seed_retire_worklist(
+        repo,
+        rw.RetireFollowUp(slug, "fix-retry-branch", str(feature), "2026-09-04"),
+        rw.RetireFollowUp("other", "other-branch", str(other_dir), "2026-09-04"),
+    )
+
+    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+
+    assert result.exit_code == 0, result.output
+    assert f"Retire: dropped {slug} from {worklist}." in result.output
+    _, entries = rw.parse_worklist(worklist.read_text())
+    # The retired slug is gone; the unrelated live entry is untouched.
+    assert [e.slug for e in entries] == ["other"]
+
+
+def test_retire_keeps_the_worklist_line_for_a_checkout_it_preserved(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "coga.branchcleanup.prs_for_head", lambda _branch, _state: []
+    )
+    _git(repo, "init", "-b", "main", ".")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "Tester")
+    (repo / "seed.txt").write_text("seed")
+    _git(repo, "add", "seed.txt")
+    _git(repo, "commit", "-m", "seed")
+    feature = tmp_path / "feature"
+    _git(repo, "worktree", "add", str(feature), "-b", "fix-retry-branch")
+    (feature / "work.txt").write_text("work")
+    _git(feature, "add", "work.txt")
+    _git(feature, "commit", "-m", "work")
+    _git(repo, "merge", "--ff-only", "fix-retry-branch")
+    # Dirty local state makes retire preserve the checkout.
+    (feature / "scratch.txt").write_text("unsaved")
+
+    slug = "fix-retry-logic"
+    task_dir = repo / "tasks" / slug
+    task_dir.mkdir(parents=True)
+    _write(
+        task_dir / "ticket.md",
+        f"""
+        ---
+        title: Fix retry logic
+        status: done
+        owner: marc
+        ---
+
+        ## Description
+
+        Done.
+
+        <!-- coga:blackboard -->
+
+        ## Dev
+        branch: fix-retry-branch
+        worktree: {feature}
+        pr: https://github.com/owner/repo/pull/9
+        """,
+    )
+    (task_dir / "log.md").write_text("")
+    worklist = _seed_retire_worklist(
+        repo, rw.RetireFollowUp(slug, "fix-retry-branch", str(feature), "2026-09-04")
+    )
+
+    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+
+    assert result.exit_code == 0, result.output
+    assert feature.exists()
+    assert "Retire: dropped" not in result.output
+    _, entries = rw.parse_worklist(worklist.read_text())
+    assert [e.slug for e in entries] == [slug]
 
 
 def test_retire_leaves_dirty_worktree_in_place(

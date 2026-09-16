@@ -152,6 +152,45 @@ error by `coga recurring list` and `coga status`; it never counts as serviced.
 Point a single cron entry at `coga recurring` (or `coga recurring --all`) and the
 schedules inside the templates do the rest.
 
+### Autoclose's retire worklist
+
+The daily `autoclose-merged` sweep closes merged final-step tickets but never
+deletes their feature checkouts — that is `coga retire`'s job, with its safety
+proofs. The sweep keeps the list of retires still owed in
+`coga/recurring/autoclose-merged/retires.md`, a plain markdown file beside the
+template, and prunes it on every run once a checkout's worktree and branch are
+both gone; `coga retire <slug>` clears its own line the moment it disposes of
+the checkout. Read that file, not the period task's blackboard, when you want
+to know what is left to retire: the period task is deleted at the next period.
+The rules — what an entry means, when it clears, the line shape for a
+hand-written backfill — are in the `coga/autoclose/sweep` skill and in the
+file's own header.
+
+**Adopting it in a repo initialized before Coga shipped this** (the sweep
+formerly wrote the list only to the period task, so follow-ups older than a
+day were lost): upgrade the installed Coga package — the template's `ticket.py`
+calls the packaged recipe, so the durable write and the prune apply on the next
+sweep with no template edit. Then, in your repo:
+
+1. Add `**/retires.md merge=union` to `coga/.gitattributes` (a fresh
+   `coga init` writes it). Without it a state merge between two branches that
+   both touched the worklist can conflict instead of taking both sides.
+2. Re-copy the packaged `coga/recurring/autoclose-merged/ticket.md` and
+   `coga/workflows/autoclose-merged/sweep.md` from the installed package's
+   `templates/coga/` resources, or edit your local copies: their prose still
+   describes the period-task blackboard as the only surface, and a local
+   workflow override composes into every future period task's prompt. The
+   behavior does not depend on those files, only their accuracy does.
+3. Backfill debt the old sweep already lost, if you want it listed: for each
+   `done` ticket that still carries a `branch:` or `worktree:` under `## Dev`,
+   add one line under `## Follow-ups (open)` in the file's documented shape.
+   The next sweep validates every line (a malformed one fails the run loudly)
+   and drops any entry whose checkout is already gone, so seeding a generous
+   list is safe.
+
+A repo that carried a private maintenance script for the same file can drop
+it: the shipped sweep and `coga retire` now perform its add and prune.
+
 If two people have clones of the same repo, name one of them in the committed
 `coga.toml` — `owner = "<name>"` — so only their machine sweeps it. Everyone
 else's recurring launches (including `--force`) are refused with the owner's

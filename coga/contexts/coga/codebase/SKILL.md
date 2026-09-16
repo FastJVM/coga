@@ -41,6 +41,9 @@ review bars.
   context to any ticket changing those paths; `coga/architecture` deliberately
   keeps only the model. `commands/run.py` forwards ordinary trailing argv to
   `runner.py`.
+  `retire_worklist.py` owns the autoclose sweep's durable `retires.md`
+  worklist — parse, discharge rule, barrier-held atomic rewrite — for its two
+  consumers, the `autoclose` recipe and `commands/retire.py`.
   `commands/slack.py` keeps the explicit FYI command spelling.
   `commands/block.py` and `commands/unblock.py` own blocked-state
   handoffs. `commands/megalaunch.py` is the manual drain entrypoint;
