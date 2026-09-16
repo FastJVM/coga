@@ -575,13 +575,66 @@ into the control-branch commit. Narrow strict-state publishers are the
 exception described below: they seal their exact generated paths in a scoped
 detached commit so later broad sync cannot replay already-published bytes.
 
+### Policy — the control branch is canonical
+
+Every mechanism in this section serves one policy, settled by the owner on
+2026-08-25. Read it before the mechanisms:
+
+- **Machine-generated Coga state and audit history are canonical on the
+  control branch.** Every byte a Coga command writes — lifecycle frontmatter,
+  the blackboard lines Coga itself appends, `coga/log.md`, blocker-reminder
+  watermarks, `pr:` records — is durable once it reaches
+  `refs/heads/<control>`, and nowhere else.
+- **A feature checkout may mirror that state while a session runs.** The local
+  commit a feature-branch sync makes exists so the session reads current
+  ticket state. It is operational state, not review payload: a PR must not
+  carry it, and a mirror that has gone stale is a stale mirror, not lost data.
+- **Hand-authored Coga files remain ordinary feature work.** Contexts, skills,
+  workflows, config, and deliberate ticket prose go through review on the
+  branch like any other change, even when the catch-all sweep committed them
+  (property 3 of the publication boundary below covers that case).
+
+**Which writers reach which checkout.** Coga's git layer writes into exactly
+three checkouts, each through one class of writer. A checkout on none of these
+three is never touched — in particular, nothing writes into a checkout merely
+because it holds the feature branch of the task being synced.
+
+1. *The checkout the command runs in.* Every publisher — `sync_task_state` and
+   `sync_paths`, `sync_log`, the catch-all `sync_coga_state`, the recurring
+   create — commits its own state locally on whatever branch is checked out
+   there (a detached HEAD skips the local commit), then lands it on control.
+   On a feature branch `_reconcile_feature_payload` then moves that checkout's
+   HEAD onto the accepted control commit, adopting or merging it. That merge is
+   the one place a Coga command integrates control's product tree into a
+   working tree; see "What the merge costs" below.
+2. *The checkout holding the control branch, from anywhere.* After a
+   cross-branch landing wins its push, `_try_update_local_ref` fast-forwards
+   the local control ref: a bare `update-ref` when no worktree has the branch
+   checked out, otherwise `merge --ff-only` run *through* the worktree that
+   does, so ref, index, and files move together. It reaches only the control
+   branch's holder, never a checkout on any other branch.
+3. *The checkout `coga launch` was invoked from.*
+   `refresh_coga_state_from_control` runs at the end of every launch and before
+   each recurring child. On the control branch it is a `merge --ff-only`; on a
+   feature branch it overlays control's changed `coga/tasks/**`, union-merges
+   `coga/log.md`, and commits on that branch; a detached HEAD skips. So a
+   feature checkout *does* receive control's task state — but only when launch
+   itself ran there, never from a launch invoked in another checkout. See "The
+   launch-end pull-back" below.
+
+The corollary to design against: writers 1 and 3 are scoped to the invoking
+checkout and writer 2 to the control branch's holder, so a linked feature
+worktree whose ticket commands all run from the primary checkout is refreshed by
+none of them. Its mirror goes stale by design, and the state-regression guard
+below is what stops that stale copy from ever landing over control. Do not
+derive a "nothing else writes there" invariant from writer 2 alone.
+
 ### The feature-branch publication boundary
 
-That local feature commit is a **mirror, not review payload**. Machine-generated
-Coga state and audit history are canonical on the control branch; a feature
-checkout holds them so the session reads current state, and nothing more. Left
-alone, the mirror strands a duplicate: the same ticket bytes committed twice,
-once on control and once on the branch, so the PR's file list carries
+That local feature commit is the mirror the policy above describes —
+operational state, not review payload. Left alone, it strands a duplicate:
+the same ticket bytes committed twice, once on control and once on the
+branch, so the PR's file list carries
 `coga/tasks/**`, `coga/log.md`, and mixed-purpose files like a period ticket
 whose `## Blocker reminders` watermark sits beside its authored prose (the
 retired digest's `### Digest State` cursor was the original case) — and the
