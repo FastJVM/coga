@@ -1,6 +1,6 @@
 ---
 title: test_recurring_create_is_silent fixture fix is half-applied on main
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:3486cb64-cc0b-47e7-bacf-4cb2b6b34a54
 ---
 
 ## Description
