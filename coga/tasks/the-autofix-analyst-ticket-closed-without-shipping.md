@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
-launch_generation: a9fedbc6-1efa-452a-a175-03e035095bcc
+step: 4 (review)
 ---
 
 ## Description
@@ -223,3 +222,11 @@ select an analyst independently of the sweep override or new-ticket default.
   contracts, including the packaged copies.
 
 Test plan: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src" /tmp/coga-pr784-review-venv/bin/python -m pytest -p no:cacheprovider` — 2511 passed; `python -m coga.cli validate --task the-autofix-analyst-ticket-closed-without-shipping --json` with the feature package and `git diff --check origin/main...HEAD` passed; real subprocess and terminal smoke checks at 80×24 and 40×12 passed.
+
+## Open-pr (2026-09-16)
+
+`coga open-pr` ran from the primary control checkout on `main`, exit 0. It
+judged the four incoming `origin/main` commits as non-overlapping task/log
+state and published the branch unchanged. PR #816
+(https://github.com/FastJVM/coga/pull/816) is open, non-draft, head
+`autofix-analyst-fixes`; `pr:` recorded under `## Dev`. Nothing else changed.
