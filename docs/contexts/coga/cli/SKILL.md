@@ -24,7 +24,7 @@ command's behavior. Attach that topic when a task depends on it.
 
 | Command | Owner |
 | --- | --- |
-| `create`, `ticket`, `show` | [coga/tickets](../tickets/SKILL.md) |
+| `create`, `ticket`, `show`, `owner` | [coga/tickets](../tickets/SKILL.md) |
 | `mark`, `bump`, `block`, `unblock`, `status` | [coga/lifecycle](../lifecycle/SKILL.md), [coga/workflows](../workflows/SKILL.md) |
 | `delete`, `retire` | [dev/checkout-cleanup](../../dev/checkout-cleanup/SKILL.md) |
 | `open-pr` → `run open-pr` | [coga/internals/pr-publication](../internals/pr-publication/SKILL.md), [dev/dev-record](../../dev/dev-record/SKILL.md) |
