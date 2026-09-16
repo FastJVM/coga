@@ -147,3 +147,13 @@ skills, fresh creation, and fetch-failure reporting; update the recurring
 contract and its packaged twin.
 
 Test plan: `PYTHONPATH=/home/n/Code/claude/coga-recurring-missing-workflow/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` — 2499 passed after rebase; scoped task validation passed; combined scan-to-autofix probe passed with child execution and analysis stubbed.
+
+## PR review follow-up (2026-09-16)
+
+Addressed the requested comments on [PR #814](https://github.com/FastJVM/coga/pull/814) in `/tmp/coga-review-pr814-20260916`.
+
+The specialized fetch miss now announces a retry. The generic publisher owns the final failure diagnostic and audit, so a successful fallback no longer leaves a false sync failure. Real-Git regressions cover successful publication and a failed fallback from control and feature branches; the sync context and packaged twin describe the result.
+
+Verification: `PYTHONPATH=/tmp/coga-review-pr814-20260916/src /home/n/Code/claude/coga/.venv/bin/python -m pytest -q tests/test_recurring.py tests/test_packaging.py` — 367 passed.
+
+Before the fix, all four fallback-outcome cases failed.

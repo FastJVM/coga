@@ -880,8 +880,13 @@ implicit.
 
 The scheduler is the liveness fallback. If any completed recurring task
 survives into a later period, it deletes that stale artifact before creating
-the fresh task at the stable path. This is also how Dream's own completed task
-is removed: Dream marks itself `done` and stops, then the next firing's scan
+the fresh task at the stable path — but only after proving the replacement can
+be created: the template's `workflow:` and every step skill it names must
+resolve first. A template pointing at a removed workflow is one per-template
+scan error, its stale `done` task stays on disk, and the rest of the sweep
+runs; the delete never runs ahead of a create that would fail. This is also
+how Dream's own completed task is removed: Dream marks itself `done` and
+stops, then the next firing's scan
 deletes that prior-period task before creating the new Dream run. Git history
 is the audit trail; the log's serviced-period record remains persistent.
 

@@ -1752,6 +1752,141 @@ def test_scan_due_replaces_prior_period_done_task(repo: Path) -> None:
     assert len(list_tasks(cfg)) == 1
 
 
+def _write_stale_done_template(repo: Path, name: str) -> TaskRef:
+    """Materialize `name` and `weekly-check` for week 17 and leave both
+    `done`, so a week-18 scan takes the replace-done path for each. Templates
+    scan in name order, so give `name` one that sorts before `weekly-check`."""
+    _write_recurring(
+        repo,
+        name,
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Ghost"
+        owner: marc
+        ---
+
+        ## Description
+
+        Ghost.
+        """,
+    )
+    cfg = load_config(repo)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    assert first.errors == []
+    for task in first.tasks:
+        ticket = Ticket.read(task.ref.ticket_path)
+        ticket.frontmatter["status"] = "done"
+        ticket.write(task.ref.ticket_path)
+        _seed_serviced_period(repo, task.template, "2026-W17")
+    return next(t.ref for t in first.tasks if t.template == name)
+
+
+def _assert_stale_done_kept_and_sweep_continued(
+    repo: Path, name: str, ref: TaskRef, scan: DueScan
+) -> None:
+    (template_name, detail) = scan.errors[0]
+    assert template_name == name
+    assert len(scan.errors) == 1
+    # The stale done task is untouched: no delete without a replacement.
+    assert ref.ticket_path.is_file()
+    assert Ticket.read(ref.ticket_path).status == "done"
+    cfg = load_config(repo)
+    log = "\n".join(task_log_lines(cfg, f"recurring/{name}"))
+    assert "deleted completed prior-period task" not in log
+    # The template sorted after it still ran.
+    assert [t.template for t in scan.tasks] == ["weekly-check"]
+    assert scan.tasks[0].created is True
+    assert scan.tasks[0].replaced_done is True
+    assert scan.tasks[0].status == "active"
+
+
+def test_scan_due_keeps_stale_done_task_when_template_workflow_is_missing(
+    repo: Path, capsys
+) -> None:
+    """A template whose `workflow:` no longer resolves is one scan error, not
+    a sweep abort — and its stale done period task is left in place."""
+    ref = _write_stale_done_template(repo, "a-ghost")
+    _write_recurring(
+        repo,
+        "a-ghost",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Ghost"
+        workflow: does/not-exist
+        owner: marc
+        ---
+
+        ## Description
+
+        Ghost.
+        """,
+    )
+
+    scan = scan_due(load_config(repo), now=datetime(2026, 4, 29, 10, 0, 0))
+
+    _assert_stale_done_kept_and_sweep_continued(repo, "a-ghost", ref, scan)
+    assert "does/not-exist" in scan.errors[0][1]
+    assert "skipping a-ghost" in capsys.readouterr().err
+
+
+def test_scan_due_keeps_stale_done_task_when_step_skill_is_missing(
+    repo: Path,
+) -> None:
+    """Same for a workflow whose step skill is gone: refuse before deleting."""
+    ref = _write_stale_done_template(repo, "a-ghost")
+    _seed_agent_workflow(repo)
+    shutil.rmtree(repo / "skills" / _AGENT_SKILL)
+    _write_recurring(
+        repo,
+        "a-ghost",
+        f"""
+        ---
+        schedule: "0 9 * * 1"
+        title: "Ghost"
+        workflow: {_AGENT_WORKFLOW}
+        owner: marc
+        ---
+
+        ## Description
+
+        Ghost.
+        """,
+    )
+
+    scan = scan_due(load_config(repo), now=datetime(2026, 4, 29, 10, 0, 0))
+
+    _assert_stale_done_kept_and_sweep_continued(repo, "a-ghost", ref, scan)
+    assert _AGENT_SKILL in scan.errors[0][1]
+
+
+def test_scan_due_reports_missing_workflow_on_fresh_create(repo: Path) -> None:
+    """The fresh-create path degrades the same way: per-template error."""
+    _write_recurring(
+        repo,
+        "a-ghost",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Ghost"
+        workflow: does/not-exist
+        owner: marc
+        ---
+
+        ## Description
+
+        Ghost.
+        """,
+    )
+
+    scan = scan_due(load_config(repo), now=datetime(2026, 4, 22, 10, 0, 0))
+
+    assert [name for name, _ in scan.errors] == ["a-ghost"]
+    assert "does/not-exist" in scan.errors[0][1]
+    assert [t.template for t in scan.tasks] == ["weekly-check"]
+
+
 def test_scan_due_keeps_current_period_done_task_finished(repo: Path) -> None:
     cfg = load_config(repo)
     now = datetime(2026, 4, 22, 10, 0, 0)
@@ -5606,6 +5741,73 @@ def test_recurring_create_sync_restores_control_ledger_for_handled_period(
     )
     assert not stale.ref.path.exists()
     assert git_repo.git("status", "--porcelain") == ""
+
+
+@pytest.mark.parametrize("feature_branch", [False, True], ids=["control", "feature"])
+@pytest.mark.parametrize("fallback_fails", [False, True], ids=["retry-ok", "retry-fails"])
+def test_recurring_create_sync_reports_the_fallback_outcome(
+    git_repo, monkeypatch, capsys, feature_branch: bool, fallback_fails: bool
+) -> None:
+    """A transient fetch miss is not a failed sync when the retry publishes."""
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _seed_global_log(git_repo)
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check", "coga/log.md")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+    if feature_branch:
+        git_repo.checkout_branch("feature/recurring-retry")
+
+    cfg = load_config(coga_os)
+    outcome = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 0))
+
+    def fail_fetch(*args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        raise coga_git.GitError("simulated offline remote")
+
+    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", fail_fetch)
+    if fallback_fails:
+        def fail_sync(*args: object, **kwargs: object) -> None:
+            raise coga_git.GitError("simulated fallback failure")
+
+        monkeypatch.setattr(coga_git, "_dispatch_branch_sync", fail_sync)
+
+    created = recurring_cmd._sync_recurring_create(cfg, "weekly-check", outcome.ref)
+
+    assert created is True
+    err = capsys.readouterr().err
+    assert "control fetch failed; retrying with generic path sync" in err
+    assert "simulated offline remote" in err
+    assert "landing locally only" not in err
+    audit = "\n".join(task_log_lines(cfg, "recurring/weekly-check"))
+    assert "sync failed: simulated offline remote" not in audit
+    assert outcome.ref.path.exists()
+    if fallback_fails:
+        assert "sync failed: simulated fallback failure" in err
+        assert audit.count("sync failed:") == 1
+        assert "sync failed: simulated fallback failure" in audit
+    else:
+        assert "sync failed" not in err
+        assert "sync failed" not in audit
+        ticket_rel = outcome.ref.ticket_path.relative_to(git_repo.root).as_posix()
+        assert git_repo.origin_tracks(ticket_rel)
+        assert git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin) == (
+            outcome.ref.ticket_path.read_text()
+        )
 
 
 def test_recurring_create_sync_failure_after_removing_stale_task_is_soft(
