@@ -1,7 +1,7 @@
 ---
 title: Recurring sweep aborts and orphans a deleted done period task when a template's
   workflow is missing
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
