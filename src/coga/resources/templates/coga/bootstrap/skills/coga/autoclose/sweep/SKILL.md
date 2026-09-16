@@ -64,7 +64,15 @@ nothing; the third is the durable worklist:
   Either half still on disk keeps the entry, and a branch list that cannot be
   read keeps every entry: the failure mode is one listing too many, never a
   forgotten checkout. `coga retire <slug>` drops its own line by the same rule
-  once its cleanup has really disposed of the checkout. The reconcile is a
+  once its cleanup has really disposed of the checkout; a retire that
+  *preserved* the checkout (the worktree is the invoking checkout, another
+  ticket claims it, cleanup failed) keeps the line even though it goes on to
+  delete the ticket, so that entry's `coga retire <slug>` no longer resolves —
+  dispose of the recorded worktree and branch by hand, or let the weekly
+  branch sweep take the branch, and the entry clears by the same rule. A
+  worklist the sweep cannot safely rewrite fails the run (exit 2) only after
+  the per-run report and Slack line are written, so a refused durable record
+  never leaves the follow-up unrecorded everywhere. The reconcile is a
   barrier-held, compare-and-swap, atomic rewrite; the file is `merge=union`
   like `log.md`, and a line union merge resurrects or duplicates is healed by
   the next reconcile. A run that recorded, refreshed, or dropped nothing, and

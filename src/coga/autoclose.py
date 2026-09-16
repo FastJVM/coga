@@ -622,7 +622,20 @@ def render_retire_summary(pending: list[ClosedTicket]) -> str:
     return f"🧹 {subject} a feature checkout: {commands}"
 
 
-def _report_retire_followups(cfg: Config, result: AutocloseResult) -> None:
+def _worklist_root(cfg: Config) -> Path | None:
+    """The git root a worklist entry's relative `worktree:` resolves against.
+
+    `None` when the checkout is not a git repository; the discharge rule then
+    keeps every entry it cannot judge without one — a relative worktree, or any
+    recorded branch — the fail-closed reading of debt the worklist exists for.
+    """
+    try:
+        return git._toplevel(cfg.repo_root)
+    except git.GitError:
+        return None
+
+
+def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
     """Name the `coga retire` follow-up for the tickets this sweep stranded.
 
     Two per-run surfaces, both silent when the sweep left nothing behind: the
@@ -638,45 +651,63 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> None:
     outcome feed into a command list and buries the action item. This summary
     is a plain live `post` rather than a `notify` outcome: the `notify` kinds
     are per-ticket outcomes, which a sweep-level summary is not.
+
+    Returns False when the durable worklist could not be safely rewritten —
+    reported on stderr, never raised, and only after every per-run surface has
+    been written: the tickets are already `done` on disk, so the
+    blackboard/stdout report and the Slack line must survive the new surface
+    failing, or the follow-ups would be recorded nowhere at all. Every caller,
+    including the recipe's error handlers, can therefore call this without
+    guarding it.
     """
     pending = result.retire_pending
-    if not pending and not os.environ.get("COGA_TASK_BLACKBOARD"):
-        # Nothing stranded and no task this run could own a worklist for.
-        return
-    now = datetime.now(timezone.utc)
     # Scoped to the root this sweep actually walked, so an inherited blackboard
     # from another checkout falls back to stdout — and, below, never selects
     # another checkout's recurring template as the durable home.
     blackboard = blackboard_from_env(cfg.repo_root)
+    if not pending and blackboard is None:
+        # Nothing stranded and no task this run could own a worklist for.
+        return True
+    now = datetime.now(timezone.utc)
     worklist = worklist_for_period_task(cfg, blackboard)
+    failure: RetireWorklistError | None = None
     if worklist is not None:
         # The durable half: record this run's follow-ups keyed by slug and drop
         # the ones `coga retire` (or the branch sweep) has since discharged.
         # Runs on every recurring sweep, so a quiet day still prunes.
-        change = reconcile_worklist(
-            cfg,
-            worklist,
-            root=_worklist_root(cfg),
-            pending=[
-                RetireFollowUp(
-                    slug=item.slug,
-                    branch=item.branch or "",
-                    worktree=item.worktree or "",
-                    recorded=now.date().isoformat(),
-                )
-                for item in pending
-            ],
-        )
-        if change.written or change.open:
-            sys.stdout.write(_worklist_line(change))
+        try:
+            change = reconcile_worklist(
+                cfg,
+                worklist,
+                root=_worklist_root(cfg),
+                pending=[
+                    RetireFollowUp(
+                        slug=item.slug,
+                        branch=item.branch or "",
+                        worktree=item.worktree or "",
+                        recorded=now.date().isoformat(),
+                    )
+                    for item in pending
+                ],
+            )
+        except RetireWorklistError as exc:
+            # The closures are already on disk; a worklist this run cannot
+            # safely rewrite is a loud failure of the run, not a swallowed
+            # warning — but the per-run surfaces below still get written.
+            failure = exc
+            sys.stderr.write(f"[autoclose] {exc}\n")
+        else:
+            if change.written or change.open:
+                sys.stdout.write(_worklist_line(change))
     if not pending:
-        return
+        return failure is None
 
     report = render_retire_report(
         generated_at=now.isoformat(timespec="seconds"),
         task_slug=os.environ.get("COGA_TASK_SLUG"),
         pending=pending,
-        worklist=worklist,
+        # A report must not claim a durable record the reconcile refused.
+        worklist=None if failure is not None else worklist,
     )
     if blackboard:
         _append_blackboard_report(cfg, blackboard, report)
@@ -697,6 +728,7 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> None:
         # is also durable in the repo-global audit log.
         fatal=False,
     )
+    return failure is None
 
 
 def run_autoclose_recipe(
@@ -742,28 +774,7 @@ def run_autoclose_recipe(
         raise
     if not result.closed:
         sys.stdout.write("[autoclose] no tickets bumped.\n")
-    try:
-        _report_retire_followups(cfg, result)
-    except RetireWorklistError as exc:
-        # The closures are already on disk; a worklist this run cannot safely
-        # rewrite is a loud failure of the run, not a swallowed warning.
-        sys.stderr.write(f"[autoclose] {exc}\n")
-        return 2
-    return 0
-
-
-def _worklist_root(cfg: Config) -> Path:
-    """The git root a worklist entry's relative `worktree:` resolves against.
-
-    Falls back to the Coga root when the checkout is not a git repository;
-    `local_branches` then reports the branches as unknown and every entry is
-    kept, which is the fail-closed reading of debt this file exists to hold.
-    """
-    try:
-        root = git._toplevel(cfg.repo_root)
-    except git.GitError:
-        root = None
-    return root if root is not None else cfg.repo_root
+    return 0 if _report_retire_followups(cfg, result) else 2
 
 
 def _read_dev_blackboard(ticket: Path) -> str | None:

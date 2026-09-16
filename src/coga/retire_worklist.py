@@ -19,13 +19,10 @@ share it, which is what earns it a home in core:
   the checkout.
 
 Entries are keyed by task slug, so re-recording one refreshes the checkout it
-names and keeps the first sighting's date. An entry is **discharged** when its
-recorded worktree path is no longer a directory *and* its recorded branch is no
-longer a local branch: `coga retire <slug>` then has nothing left to dispose
-of. Either half still on disk keeps the entry — a branch the weekly branch
-sweep deleted while the checkout directory lingers is still a stranded
-checkout. When the branch list cannot be read at all, the branch is unknown
-and the entry is kept: the file is a record of debt, so the failure mode is
+names and keeps the first sighting's date. When an entry is **discharged** is
+`is_discharged`'s rule; the `coga/autoclose/sweep` skill owns the prose. The
+one design constant: the file is a record of debt, so every unknown (a branch
+list or git root that cannot be read) keeps the entry — the failure mode is
 "listed one time too many", never "silently forgotten".
 
 The file is plain markdown so a human can read, hand-edit, or backfill it.
@@ -46,13 +43,13 @@ from __future__ import annotations
 import re
 import subprocess
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from coga import git
 from coga.atomicio import atomic_write_text
 from coga.config import Config
-from coga.paths import recurring_dir
+from coga.paths import recurring_dir, tasks_dir
 
 RETIRE_WORKLIST_FILENAME = "retires.md"
 RETIRE_WORKLIST_HEADING = "## Follow-ups (open)"
@@ -67,7 +64,10 @@ Every entry means the same thing: run `coga retire <slug>` to dispose of the
 recorded worktree and branch. Autoclose only ever names the follow-up; retire
 owns the safety proofs. Entries are keyed by slug, so a later sweep refreshes
 one rather than duplicating it, and an entry is dropped once both its worktree
-directory and its local branch are gone.
+directory and its local branch are gone. An entry whose ticket no longer
+exists — retire preserved the checkout and then deleted the ticket — is still
+debt: dispose of the recorded worktree and branch by hand (or let the weekly
+branch sweep take the branch) and the entry clears by the same rule.
 
 {RETIRE_WORKLIST_HEADING}
 """
@@ -90,10 +90,6 @@ class RetireFollowUp:
     worktree: str
     recorded: str
 
-    @property
-    def retire_command(self) -> str:
-        return f"coga retire {self.slug}"
-
     def render(self) -> str:
         return (
             f"- `{self.slug}` — branch `{self.branch}`, "
@@ -111,10 +107,6 @@ class WorklistChange:
     dropped: list[RetireFollowUp] = field(default_factory=list)
     open: list[RetireFollowUp] = field(default_factory=list)
     written: bool = False
-
-    @property
-    def changed(self) -> bool:
-        return bool(self.added or self.refreshed or self.dropped)
 
 
 def template_worklist_path(cfg: Config, template: str) -> Path:
@@ -135,7 +127,7 @@ def worklist_for_period_task(cfg: Config, blackboard: Path | None) -> Path | Non
     """
     if blackboard is None:
         return None
-    tasks_root = (cfg.repo_root / "tasks").resolve()
+    tasks_root = tasks_dir(cfg).resolve()
     try:
         parts = blackboard.resolve().relative_to(tasks_root).parts
     except ValueError:
@@ -150,12 +142,9 @@ def worklist_for_period_task(cfg: Config, blackboard: Path | None) -> Path | Non
 
 def all_worklists(cfg: Config) -> list[Path]:
     """Every recurring template's worklist that exists on disk, sorted."""
-    root = recurring_dir(cfg)
-    if not root.is_dir():
-        return []
     return sorted(
         path
-        for path in root.glob(f"*/{RETIRE_WORKLIST_FILENAME}")
+        for path in recurring_dir(cfg).glob(f"*/{RETIRE_WORKLIST_FILENAME}")
         if path.is_file() and not path.parent.name.startswith("_")
     )
 
@@ -187,12 +176,7 @@ def parse_worklist(text: str) -> tuple[str, list[RetireFollowUp]]:
         entry = RetireFollowUp(**match.groupdict())
         existing = by_slug.get(entry.slug)
         if existing is not None:
-            entry = RetireFollowUp(
-                slug=entry.slug,
-                branch=entry.branch,
-                worktree=entry.worktree,
-                recorded=existing.recorded,
-            )
+            entry = replace(entry, recorded=existing.recorded)
         by_slug[entry.slug] = entry
     return header + separator, list(by_slug.values())
 
@@ -210,6 +194,12 @@ def local_branches(root: Path) -> frozenset[str] | None:
     One `for-each-ref` for the whole worklist rather than a probe per entry.
     `None` is deliberately distinct from an empty set: a failed probe leaves
     every branch unknown, and an unknown branch keeps its entry.
+
+    The full `%(refname)` is stripped by hand rather than asking for
+    `%(refname:short)`: git shortens a branch that shares its name with a tag
+    to `heads/<name>`, which would read as "branch gone" and discharge an
+    entry whose branch still exists — the same shadowing `coga/codebase` warns
+    about for `rev-parse --abbrev-ref`.
     """
     try:
         result = subprocess.run(
@@ -218,7 +208,7 @@ def local_branches(root: Path) -> frozenset[str] | None:
                 "-C",
                 str(root),
                 "for-each-ref",
-                "--format=%(refname:short)",
+                "--format=%(refname)",
                 "refs/heads/",
             ],
             capture_output=True,
@@ -229,27 +219,31 @@ def local_branches(root: Path) -> frozenset[str] | None:
         return None
     if result.returncode != 0:
         return None
-    return frozenset(result.stdout.split())
+    return frozenset(ref.removeprefix("refs/heads/") for ref in result.stdout.split())
 
 
 def is_discharged(
-    entry: RetireFollowUp, *, root: Path, branches: frozenset[str] | None
+    entry: RetireFollowUp, *, root: Path | None, branches: frozenset[str] | None
 ) -> bool:
     """Whether `coga retire <slug>` has nothing left to dispose of.
 
-    A relative `worktree:` resolves against the git root the ticket lives in,
-    never the process working directory. A branch that cannot be checked
-    (`branches is None`) is treated as still present.
+    Discharged means the recorded worktree path is no longer a directory *and*
+    the recorded branch is no longer a local branch; either half still on disk
+    keeps the entry. A relative `worktree:` resolves against the git root the
+    ticket lives in, never the process working directory. Every unknown keeps
+    the entry: a relative worktree with no git root to anchor it (`root is
+    None`), or a branch list that could not be read (`branches is None`).
     """
     if entry.worktree:
         path = Path(entry.worktree).expanduser()
         if not path.is_absolute():
+            if root is None:
+                return False
             path = root / path
         if path.is_dir():
             return False
-    if entry.branch:
-        if branches is None or entry.branch in branches:
-            return False
+    if entry.branch and (branches is None or entry.branch in branches):
+        return False
     return True
 
 
@@ -257,7 +251,7 @@ def reconcile_worklist(
     cfg: Config,
     path: Path,
     *,
-    root: Path,
+    root: Path | None,
     pending: Iterable[RetireFollowUp] = (),
     branches: frozenset[str] | None = None,
 ) -> WorklistChange:
@@ -266,11 +260,11 @@ def reconcile_worklist(
     The whole read/prune/merge/write happens under the local state-publication
     barrier, and the write refuses if the file's bytes moved between the read
     and the replace, so a concurrent writer wins loudly instead of being
-    overwritten. `branches` defaults to `local_branches(root)`.
+    overwritten. `branches` defaults to `local_branches(root)`, probed only
+    when there are entries to judge, so a quiet day with no worklist costs no
+    git call.
     """
     change = WorklistChange(path=path)
-    if branches is None:
-        branches = local_branches(root)
     with git.state_publication_barrier(cfg):
         raw = path.read_bytes() if path.exists() else None
         header, entries = (
@@ -278,6 +272,8 @@ def reconcile_worklist(
             if raw is not None
             else (RETIRE_WORKLIST_HEADER, [])
         )
+        if branches is None and entries and root is not None:
+            branches = local_branches(root)
         by_slug: dict[str, RetireFollowUp] = {}
         for entry in entries:
             if is_discharged(entry, root=root, branches=branches):
@@ -290,12 +286,7 @@ def reconcile_worklist(
                 by_slug[item.slug] = item
                 change.added.append(item)
                 continue
-            merged = RetireFollowUp(
-                slug=item.slug,
-                branch=item.branch,
-                worktree=item.worktree,
-                recorded=existing.recorded,
-            )
+            merged = replace(item, recorded=existing.recorded)
             if merged != existing:
                 change.refreshed.append(merged)
             by_slug[item.slug] = merged
@@ -327,13 +318,12 @@ def discharge_slug(cfg: Config, slug: str, *, root: Path) -> list[Path]:
     the same and the file is being rewritten anyway. Returns the worklists
     that changed.
     """
-    branches = local_branches(root)
     changed: list[Path] = []
     for path in all_worklists(cfg):
         _, entries = parse_worklist(path.read_text(encoding="utf-8"))
         if not any(entry.slug == slug for entry in entries):
             continue
-        change = reconcile_worklist(cfg, path, root=root, branches=branches)
+        change = reconcile_worklist(cfg, path, root=root)
         if any(entry.slug == slug for entry in change.dropped):
             changed.append(path)
     return changed

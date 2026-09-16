@@ -347,13 +347,13 @@ def test_retire_prunes_merged_branch_before_launch(
     )
 
 
-def test_retire_removes_linked_worktree_then_prunes_its_branch(
+def _merged_worktree_ticket(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The worktree goes first, which is what lets the pinned branch be deleted.
+) -> tuple[str, Path]:
+    """A done ticket whose merged branch is still checked out in a linked worktree.
 
-    A branch still checked out in a linked worktree is undeletable, so before
-    this retire step the branch survived every sweep.
+    Returns `(slug, feature_worktree)`; the checkout is what retire's cleanup
+    is expected to dispose of.
     """
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
@@ -397,6 +397,18 @@ def test_retire_removes_linked_worktree_then_prunes_its_branch(
         """,
     )
     (task_dir / "log.md").write_text("")
+    return slug, feature
+
+
+def test_retire_removes_linked_worktree_then_prunes_its_branch(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The worktree goes first, which is what lets the pinned branch be deleted.
+
+    A branch still checked out in a linked worktree is undeletable, so before
+    this retire step the branch survived every sweep.
+    """
+    slug, feature = _merged_worktree_ticket(repo, tmp_path, monkeypatch)
 
     result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
 
@@ -431,48 +443,7 @@ def test_retire_drops_its_slug_from_the_autoclose_worklist_once_the_checkout_is_
 ) -> None:
     """Retire is the event that discharges an autoclose follow-up, so it clears
     the worklist line itself rather than waiting for the next daily sweep."""
-    monkeypatch.chdir(repo)
-    monkeypatch.setattr(
-        "coga.branchcleanup.prs_for_head", lambda _branch, _state: []
-    )
-    _git(repo, "init", "-b", "main", ".")
-    _git(repo, "config", "user.email", "t@example.com")
-    _git(repo, "config", "user.name", "Tester")
-    (repo / "seed.txt").write_text("seed")
-    _git(repo, "add", "seed.txt")
-    _git(repo, "commit", "-m", "seed")
-    feature = tmp_path / "feature"
-    _git(repo, "worktree", "add", str(feature), "-b", "fix-retry-branch")
-    (feature / "work.txt").write_text("work")
-    _git(feature, "add", "work.txt")
-    _git(feature, "commit", "-m", "work")
-    _git(repo, "merge", "--ff-only", "fix-retry-branch")
-
-    slug = "fix-retry-logic"
-    task_dir = repo / "tasks" / slug
-    task_dir.mkdir(parents=True)
-    _write(
-        task_dir / "ticket.md",
-        f"""
-        ---
-        title: Fix retry logic
-        status: done
-        owner: marc
-        ---
-
-        ## Description
-
-        Done.
-
-        <!-- coga:blackboard -->
-
-        ## Dev
-        branch: fix-retry-branch
-        worktree: {feature}
-        pr: https://github.com/owner/repo/pull/9
-        """,
-    )
-    (task_dir / "log.md").write_text("")
+    slug, feature = _merged_worktree_ticket(repo, tmp_path, monkeypatch)
     other_dir = tmp_path / "other-checkout"
     other_dir.mkdir()
     worklist = _seed_retire_worklist(
@@ -493,50 +464,9 @@ def test_retire_drops_its_slug_from_the_autoclose_worklist_once_the_checkout_is_
 def test_retire_keeps_the_worklist_line_for_a_checkout_it_preserved(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.chdir(repo)
-    monkeypatch.setattr(
-        "coga.branchcleanup.prs_for_head", lambda _branch, _state: []
-    )
-    _git(repo, "init", "-b", "main", ".")
-    _git(repo, "config", "user.email", "t@example.com")
-    _git(repo, "config", "user.name", "Tester")
-    (repo / "seed.txt").write_text("seed")
-    _git(repo, "add", "seed.txt")
-    _git(repo, "commit", "-m", "seed")
-    feature = tmp_path / "feature"
-    _git(repo, "worktree", "add", str(feature), "-b", "fix-retry-branch")
-    (feature / "work.txt").write_text("work")
-    _git(feature, "add", "work.txt")
-    _git(feature, "commit", "-m", "work")
-    _git(repo, "merge", "--ff-only", "fix-retry-branch")
+    slug, feature = _merged_worktree_ticket(repo, tmp_path, monkeypatch)
     # Dirty local state makes retire preserve the checkout.
     (feature / "scratch.txt").write_text("unsaved")
-
-    slug = "fix-retry-logic"
-    task_dir = repo / "tasks" / slug
-    task_dir.mkdir(parents=True)
-    _write(
-        task_dir / "ticket.md",
-        f"""
-        ---
-        title: Fix retry logic
-        status: done
-        owner: marc
-        ---
-
-        ## Description
-
-        Done.
-
-        <!-- coga:blackboard -->
-
-        ## Dev
-        branch: fix-retry-branch
-        worktree: {feature}
-        pr: https://github.com/owner/repo/pull/9
-        """,
-    )
-    (task_dir / "log.md").write_text("")
     worklist = _seed_retire_worklist(
         repo, rw.RetireFollowUp(slug, "fix-retry-branch", str(feature), "2026-09-04")
     )

@@ -1047,28 +1047,10 @@ def _make_recurring_sweep(
     template_dir = repo / "recurring" / template
     template_dir.mkdir(parents=True)
     (template_dir / "ticket.md").write_text("template\n")
-    period_dir = repo / "tasks" / "recurring" / template
-    period_dir.mkdir(parents=True)
-    period = period_dir / "ticket.md"
-    period.write_text(
-        dedent(
-            """
-            ---
-            title: Autoclose merged
-            status: in_progress
-            owner: marc
-            agent: claude
-            workflow: null
-            ---
-
-            ## Description
-
-            <!-- coga:blackboard -->
-
-            The blackboard.
-            """
-        ).lstrip()
+    _, period_dir = _write_workflow_less_task(
+        repo, slug=f"recurring/{template}", status="in_progress"
     )
+    period = period_dir / "ticket.md"
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(period))
     monkeypatch.setenv("COGA_TASK_SLUG", f"recurring/{template}")
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/24": "MERGED"})
@@ -1110,10 +1092,9 @@ def test_the_worklist_survives_deleting_and_recreating_the_period_task(
     period.unlink()
     period.parent.rmdir()
     assert slug in worklist.read_text()
-    period.parent.mkdir()
-    period.write_text("---\ntitle: Autoclose merged\nstatus: in_progress\n"
-                      "owner: marc\nagent: claude\nworkflow: null\n---\n\n"
-                      "## Description\n\n<!-- coga:blackboard -->\n\nfresh\n")
+    _write_workflow_less_task(
+        repo, slug="recurring/autoclose-merged", status="in_progress"
+    )
 
     # The next period closes nothing, so it only reconciles: the entry is
     # still live (its branch cannot be checked here, so it is kept) and the
@@ -1249,7 +1230,8 @@ def test_a_period_task_inherited_from_another_checkout_selects_no_worklist(
 def test_a_corrupt_worklist_fails_the_run_loudly_after_closing(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    slug, _, worklist = _make_recurring_sweep(repo, monkeypatch)
+    slug, period, worklist = _make_recurring_sweep(repo, monkeypatch)
+    posts = _capture_posts(monkeypatch)
     worklist.write_text("# Someone else's file\n")
 
     assert am.run_autoclose_recipe(load_config(repo), []) == 2
@@ -1261,6 +1243,36 @@ def test_a_corrupt_worklist_fails_the_run_loudly_after_closing(
     from coga.tasks import resolve_task
 
     assert Ticket.read(resolve_task(load_config(repo), slug).ticket_path).status == "done"
+    # The per-run surfaces the durable one was added *beside* still get the
+    # follow-up: the ticket is done on disk, so a refused worklist must not
+    # leave the retire recorded nowhere. The report does not claim a durable
+    # copy that was never written.
+    report = period.read_text()
+    assert f"`coga retire {slug}`" in report
+    assert str(worklist) not in report
+    assert any(f"`coga retire {slug}`" in text for text in posts)
+
+
+def test_a_corrupt_worklist_is_reported_when_the_sweep_itself_fails(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The worklist failure must not escape the handler reporting a gh error."""
+    slug, period, worklist = _make_recurring_sweep(repo, monkeypatch)
+    worklist.write_text("# Someone else's file\n")
+    real_bump = am.mark_done
+
+    def close_then_break(*args, **kwargs):
+        result = real_bump(*args, **kwargs)
+        raise am.GhError("gh fell over after the close")
+
+    monkeypatch.setattr(am, "mark_done", close_then_break)
+
+    assert am.run_autoclose_recipe(load_config(repo), []) == 2
+
+    captured = capsys.readouterr()
+    assert "retire worklist has no" in captured.err
+    assert "gh fell over after the close" in captured.err
+    assert f"`coga retire {slug}`" in period.read_text()
 
 
 # --- status stays read-only --------------------------------------------------

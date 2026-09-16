@@ -197,6 +197,14 @@ def test_an_unknown_branch_list_keeps_every_entry_with_a_branch(tmp_path: Path) 
     )
 
 
+def test_an_unknown_git_root_keeps_every_entry(tmp_path: Path) -> None:
+    # A relative worktree cannot be judged without the root it is relative to,
+    # and guessing one could discharge a checkout that still exists.
+    entry = _entry("x", branch="", worktree="checkouts/feature")
+
+    assert not rw.is_discharged(entry, root=None, branches=frozenset())
+
+
 def test_a_relative_worktree_resolves_against_the_root_not_the_cwd(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -216,6 +224,14 @@ def test_local_branches_lists_heads_and_is_none_outside_a_repo(tmp_path: Path) -
 
     assert rw.local_branches(repo) == frozenset({"main", "feature-x"})
     assert rw.local_branches(tmp_path / "not-a-repo") is None
+
+
+def test_local_branches_is_not_shadowed_by_a_tag_of_the_same_name(tmp_path: Path) -> None:
+    """`%(refname:short)` would report `heads/feature-x` here and read as gone."""
+    repo = _git_repo_with_branch(tmp_path / "repo", "feature-x")
+    _git(repo, "tag", "feature-x")
+
+    assert rw.local_branches(repo) == frozenset({"main", "feature-x"})
 
 
 # --- reconcile -------------------------------------------------------------
@@ -258,7 +274,8 @@ def test_reconcile_is_idempotent_by_slug_and_keeps_the_first_date(repo: Path) ->
         cfg, path, root=repo, pending=[_entry("s", recorded="2026-09-05")]
     )
 
-    assert not change.written and not change.changed
+    assert not change.written
+    assert not (change.added or change.refreshed or change.dropped)
     assert path.read_bytes() == first
     assert path.read_text().count("`s`") == 1
 

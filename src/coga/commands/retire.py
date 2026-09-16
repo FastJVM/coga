@@ -211,13 +211,9 @@ def _cleanup_checkout(cfg: Config, ref: TaskRef) -> WorktreeCleanupResult | None
 def _discharge_worklist_entry(cfg: Config, ref: TaskRef) -> None:
     """Drop this slug from the autoclose retire worklist once its checkout is gone.
 
-    The autoclose sweep records a `coga retire <slug>` follow-up in the
-    recurring template's durable `retires.md` for every ticket it closes that
-    still has a checkout. Retire is the event that discharges it, so retire
-    also clears the line — but only when the worktree and branch really are
-    gone now; a checkout the cleanup above preserved keeps its entry. The next
-    recurring sweep applies the same rule, so this is immediacy, not the only
-    path. Best effort, like the cleanup itself: never abort retire over it.
+    Best effort, like the cleanup above: never abort retire over it. Only a
+    checkout that is really gone loses its line — see `discharge_slug` and the
+    `coga/autoclose/sweep` skill for what happens to a preserved one.
     """
     try:
         root = git._toplevel(ref.ticket_path)
