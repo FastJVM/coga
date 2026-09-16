@@ -76,6 +76,7 @@ conflict.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/824
 branch: sync-canonical-policy
 worktree: /home/n/Code/claude/coga-sync-canonical-policy
 
