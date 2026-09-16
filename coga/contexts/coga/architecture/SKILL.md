@@ -965,9 +965,10 @@ returns the assembled prompt verbatim with no defusal step.
 fact. The other way to hand a context to a step is to **cite** it: name its
 path in the ticket's `## Context`, copy the few facts the step depends on, and
 leave the ref off `contexts:`, so the agent opens the file on disk when it gets
-there. Both are legitimate. Which one a ticket uses is a per-ticket decision
-about *that step's* prompt, not a property of the context, and it is made the
-same way every time:
+there. Both are legitimate. The choice covers the whole workflow:
+`contexts:` is one ticket-wide list. Apply the following test to every planned
+step, and cite only when scoped facts and explicit reads cover every step that
+needs the context:
 
 - **Attach** when the step must have the context's facts without being told
   to go look — its correctness depends on rules spread across the context, or
@@ -981,17 +982,23 @@ same way every time:
   attaching it pays its size on every step to inline what the agent already
   has.
 
-The threshold is relative, and it is measured, not quoted. Run
-`coga launch <slug> --prompt-report` on the ticket (it works on a draft): a
-context that would outweigh every other layer combined, for a step that uses a
-few of its facts, is a cite. Do not decide from a byte count written in a
-ticket or in a context's own prose. The large contexts grow by tens of KiB in
-a quarter, so a quoted size is stale within weeks — Dream found one context
-describing its own size at roughly two-thirds of the actual file — and the
-number the decision needs is the ratio in the report at authoring time, not a
-file's size at some earlier writing. No context is always-cite or
-always-attach: the same context is attached by a ticket that changes the
-behavior it specifies and cited by one that only reads a rule from it.
+The threshold is relative and measured at authoring time. Compare the
+candidate's `approx_tokens` with the rest of the composed prompt: a context
+that outweighs every other layer combined, when only a few of its facts are
+needed, is a cite. Include the candidate in the measured `contexts:` list
+before deciding to remove it; a report of a ticket that already cites it has
+no layer for that context.
+
+`coga launch <slug> --prompt-report` works on a draft, but it runs the normal
+state sweep (see `coga/codebase` → `Which checkout you invoke coga from`). Use
+it from the control checkout only when pending Coga edits are ready to publish.
+For a read-only comparison, call `compose.compose_prompt_report` on an
+in-memory ticket copy with the candidate refs added; select the step on that
+copy to compare planned steps. Do not edit lifecycle frontmatter on disk for
+measurement. Use current reports rather than quoted per-file sizes, which go
+stale. No context is always-cite or always-attach: attach when a step needs
+rules spread across it, and cite when scoped facts and direct reading suffice
+throughout the workflow, including when editing the context itself.
 
 **Citation form.** A cite is one sentence in `## Context` that names the
 context ref and its path, says it is cited rather than attached, and names the
