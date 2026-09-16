@@ -3539,7 +3539,16 @@ def _sync_recurring_create_paths(
 
         try:
             _fetch_control_branch(cfg, root)
-        except git.GitError:
+        except git.GitError as exc:
+            # The control-aware landing needs FETCH_HEAD; without it, fall back
+            # to the plain path sync. Say so first (stderr + the task's log
+            # line): a silent fallback hides an offline or dead remote behind a
+            # sweep that otherwise looks healthy.
+            sys.stderr.write(
+                f"[git] control fetch failed (landing locally only): {exc}. "
+                f"Message was: {message}\n"
+            )
+            _append_sync_failure(cfg, anchor_path, exc)
             if local_ticket:
                 template_ticket.write_text(local_ticket)
             git.sync_paths(cfg, anchor_path, paths, message=message)
