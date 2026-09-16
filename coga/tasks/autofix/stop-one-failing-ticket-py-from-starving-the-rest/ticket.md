@@ -1,6 +1,6 @@
 ---
 title: Stop one failing ticket.py from starving the rest of the sweep
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -25,6 +25,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:fcaa27ad-cf4d-4a1e-b8fa-181a6ed8ab4d
 ---
 
 ## Description
