@@ -111,14 +111,14 @@ Silent lifecycle surface — no notification post at all:
 - `coga retire` creating.
 - `recurring/branch-sweep` — the weekly stale-branch prune. `branchsweep.py`
   makes no notification call at all, and deleting a branch whose work already
-  landed is not something a human has to act on. Note where its report does
-  *not* go: `run_branch_sweep_recipe` emits its deletion and skip notes through
-  stdout/stderr only, `coga/recurring/branch-sweep/ticket.py` just calls that
-  recipe and then `coga bump`, and `run_script_phase` runs the child with no
-  `capture_output`. The report is therefore **console-only** — after an
-  unattended run nothing about which branches were deleted or skipped survives
-  on the period task's blackboard. Read the run transcript under
-  `.coga/recurring-runs/` to reconstruct one.
+  landed is not something a human has to act on. `run_branch_sweep_recipe`
+  appends a `## Branch Sweep` report to the calling task's blackboard before
+  returning, including on failure; without a task blackboard, it writes the
+  report to stdout. The report preserves deletion and skip counts, branch
+  names, and per-branch decisions for the recurring autofix analyst. A remote
+  listing or GitHub lookup failure reports a partial sweep with any completed
+  cleanup counted; a worktree or Coga-root discovery failure reports an early
+  stop. Console progress and stderr diagnostics remain available too.
 - `recurring/skill-update` — the weekly managed-skill refresh. `skill_update.py`
   likewise never notifies: the run's entire output is a reviewable PR, so the
   PR *is* the notification and a post would duplicate it.

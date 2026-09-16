@@ -360,3 +360,13 @@ skill-update job rebuilds with `checkout -B` anyway.
   (`define-the-api-equivalent-cost-proxy-and-price-tab.md`,
   `recurring/autoclose-merged/ticket.md`) — task state only, not touched by
   this ticket; noted so the owner is not surprised by the diff on `main`.
+
+## PR review follow-up (2026-09-16)
+
+Addressed the requested comments on [PR #811](https://github.com/FastJVM/coga/pull/811) in `/tmp/coga-review-pr811-20260916`.
+
+Updated the sync contract and packaged twin to document durable Branch Sweep reports. Remote/GitHub lookup failures now report partial sweeps with deletion and skip counts; failed worktree/Coga-root discovery still reports an early stop. The regression uses real local cleanup while remote listing fails and verifies that the remote branch survives.
+
+Verification: `PYTHONPATH=/tmp/coga-review-pr811-20260916/src /home/n/Code/claude/coga/.venv/bin/python -m pytest -q tests/test_branchsweep.py tests/test_branchcleanup.py tests/test_packaging.py` — 87 passed.
+
+Before the fix, the remote-listing regression reproduced successful local deletion with an incorrect early-stop report.

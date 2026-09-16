@@ -935,14 +935,16 @@ The output is unchanged; the loop is what got added after it
    renders the pending-retire report and `_append_blackboard_report` writes it
    to the period task, so that run does give the analyst more than the seeded
    placeholder. A sweep that closed nothing, or nothing needing retire, still
-   leaves only the placeholder. `branch-sweep` and
-   `blocker-reminders` hand the analyst a period blackboard holding nothing but
-   the seeded placeholder (the committed run records under
-   `coga/tasks/autofix/` show exactly that). So for those runs the analyst can
-   see *that* they ended cleanly and nothing about what they did, and
-   `skill-update` is faulted more often partly because it is the one that
-   always says something. A template whose findings should be analyzed has to write
-   them to the period blackboard itself.
+   leaves only the placeholder. `branch-sweep` writes a `## Branch Sweep`
+   section on every run — outcome lists plus each per-branch decision — since
+   the 2026-09-08 period landed with an empty blackboard and no record of
+   what the sweep decided. `blocker-reminders` still hands the analyst a
+   period blackboard holding nothing but the seeded placeholder (the committed
+   run records under `coga/tasks/autofix/` show exactly that), so for that
+   run the analyst can see *that* it ended cleanly and nothing about what it
+   did, and `skill-update` is faulted more often partly because it is one of
+   the runs that always says something. A template whose findings should be
+   analyzed has to write them to the period blackboard itself.
 2. **One agent call reads that record** and answers `ok`, `duplicate`, or
    `problem` plus a ticket body. This is the only place Coga spawns an agent
    without a PTY — a one-shot, text-in/text-out call with no REPL and no

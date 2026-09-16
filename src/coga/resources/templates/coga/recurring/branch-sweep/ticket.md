@@ -26,21 +26,37 @@ which:
 1. prunes registrations for worktrees whose directories are gone, then
    enumerates the branches held by the remaining live worktrees,
 2. enumerates every local branch and every branch on the configured git remote,
-3. skips the configured control branch, the checked-out branch, and any branch recorded under a
-   non-terminal ticket's `## Dev` `branch:` line,
+3. skips the configured control branch, the checked-out branch, and any
+   branch a non-terminal ticket names anywhere in its task files — the
+   ticket body, its blackboard, or an attachment — not only under a `## Dev`
+   `branch:` line; a mere mention pins, because a false positive only defers
+   a delete by a week. A recurring period task pins only its `## Dev`
+   `branch:`, since its blackboard is generated reports naming branches,
 4. for the rest, authorizes deletion two independent ways — the local tip
    being reachable from the control branch, a merge-commit or fast-forward
-   landing that needs no PR at all, or GitHub confirming by head branch name
-   and current tip SHA a merged PR for that exact tip with no PR currently
-   open for that head; the remote ref takes only the second signal,
+   landing that needs no PR at all, or a merged PR for that head branch name
+   with no PR currently open for it, where the merged PR vouches for the
+   local ref only if every commit on the ref that neither the merged head nor
+   the control branch (local or remote-tracking) contains touches only Coga
+   task/log state. That admits
+   the exact merged tip, a ref that lags the merged head because the last
+   commit was pushed from another checkout (the merged head is fetched from
+   `refs/pull/<n>/head` when it is not local), and a ref that walked past the
+   merged head through Coga's own state-sync commits; a ref carrying real
+   unmerged source commits stays, with the offending paths named. The remote
+   ref takes only a merged PR at its exact tip,
 5. preserves both refs for a branch that landed either way but is still held
    by a live worktree and reports the distinct, non-fatal
-   `skipped-worktree-pinned` outcome, and
+   `skipped-worktree-pinned` outcome,
 6. deletes the remote ref and/or local branch per the same policy
    `coga retire` uses (plain `git branch -d` when the tip is reachable from
    the control branch; log the tip SHA and force with `-D` for the
    squash-merge case a merged PR vouches for; skip and report anything
-   unmerged with no merged PR).
+   unmerged with no merged PR), and
+7. writes a `## Branch Sweep` report — the outcome lists and every
+   per-branch decision — to this period task's blackboard, so the run has a
+   durable record for the recurring sweep's autofix analyst; run outside a
+   task, the report goes to stdout instead.
 
 The sweep is defined in `coga.branchsweep.sweep_branches`. Its first run
 also prunes the merged part of the branch backlog that accumulated before
@@ -57,6 +73,7 @@ The sweep runs on this schedule via `coga recurring`, on demand via
 
 This blackboard persists across every run of this recurring task. The
 `branch-sweep` sweep keeps no durable state here — every run's
-output is the branches it deletes or reports as skipped. `coga recurring`
-keeps the serviced-period record in the repo-global `coga/log.md`
+output is the branches it deletes or reports as skipped, written as a
+`## Branch Sweep` section on the period task's own blackboard. `coga
+recurring` keeps the serviced-period record in the repo-global `coga/log.md`
 (weekly period key `YYYY-Www`) once the first run has fired.
