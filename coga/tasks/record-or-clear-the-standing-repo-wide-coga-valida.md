@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: f24299db-f824-4252-8f3a-d2a452482ea8
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -111,3 +110,44 @@ worktree: /home/n/Code/claude/coga-validate-baseline
   through the adjudication tickets named above; the new bullet says the same
   and asks whoever clears the last one to delete it.
 - Not pushed, no PR — `open-pr` step owns that.
+
+## Peer review
+
+- `codex review --base origin/main` **returned** (exit 0) from the recorded
+  feature worktree on 2026-09-16. It found no actionable regressions: the
+  four errors match the note and the two copies are identical. No review
+  fixes or design escalation are needed.
+- The review's separate targeted run passed 140 tests but could not build
+  the wheel because its system Python lacks `hatchling`. The repo `.venv`
+  has the declared test dependencies; the full-suite run below passed the
+  wheel-build test too.
+- Ran `git fetch origin main` and `git rebase FETCH_HEAD` in that worktree.
+  Rebase completed without conflicts onto `66cb952d`; the implementation
+  commit is now `01ff2ce8` (one commit ahead of `main`).
+- Rechecked primary-checkout validation on 2026-09-16:
+  `coga validate --json` exits 1 with 208 OK, 49 warnings, and exactly the
+  four documented `unsynthesized-draft-blackboard` errors.
+  `coga validate --task record-or-clear-the-standing-repo-wide-coga-valida
+  --json` exits 0 with 1 OK and no issues. All three clearing/adjudication
+  tickets named above remain `draft`.
+- Full verification from the rebased feature worktree:
+  `PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m pytest`
+  — **2561 passed** in 182.80s (Python 3.12.12), including packaging and
+  live/packaged twin checks. `git diff --check origin/main...HEAD` and an
+  explicit `cmp` of the two changed contexts also pass.
+- The diff changes only the two matching Markdown contexts. No raw-terminal
+  loop, pager, TTY prompt, or rendered-message UI changed, so the interactive
+  smoke-test gate does not apply. The feature branch is clean and committed;
+  no additional feature commit was needed after the clean review.
+
+## PR
+
+Repo-wide validation repeatedly reports the same four unsynthesized parked
+drafts, causing unrelated tickets to rediscover the failure. Record the dated
+2026-09-16 baseline beside the `--task` guidance in `coga/codebase` and its
+byte-identical packaged twin. The note requires reporting changes to that
+baseline, leaves synthesis and adjudication to the drafts' own tickets, and
+must be removed when the last baseline error clears. A green validation run
+is never a reason to cancel a draft.
+
+Test plan: `PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m pytest` — 2561 passed; `coga validate --task record-or-clear-the-standing-repo-wide-coga-valida --json` — exit 0, no issues; `coga validate --json` — expected exit 1, exactly four known baseline errors.
