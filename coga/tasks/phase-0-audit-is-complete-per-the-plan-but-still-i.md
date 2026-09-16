@@ -1,6 +1,6 @@
 ---
 title: phase-0-audit is complete per the plan but still in_progress
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:ec07fe24-dfbb-4525-a94c-ed4db87a83d2
 ---
 
 ## Description
