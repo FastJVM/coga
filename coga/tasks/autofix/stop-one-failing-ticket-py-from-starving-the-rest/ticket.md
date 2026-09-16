@@ -24,8 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (pr)
-launch_generation: 8b615f5a-bf7d-44b5-b7d2-81e6f299c2b0
+step: 4 (review)
 ---
 
 ## Description
@@ -229,3 +228,11 @@ primary checkout alike from pre-existing repo-state warnings (no `user` in the
 local toml, stuck tasks) — not from this change. `origin/main` moved 8
 task-state-only commits (no `src`/`tests`) since the base; no rebase needed
 before the PR step. Working tree clean.
+
+## PR step
+
+`coga open-pr` ran from the primary checkout on `main` (separate-worktree
+layout); it reported `origin/main` advanced only through non-overlapping
+task/log state and pushed `sweep-abandoned-record` (tip `bb2d017f`) as
+PR #813. Reviewer pointer: the one judgement call is the Self-QA altitude
+change that turned the classify `return 2` into a per-task refusal.
