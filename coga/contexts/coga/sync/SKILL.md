@@ -1296,7 +1296,9 @@ one candidate).
    progress, and the control side has lost the conversion. Prove the result
    with
    `git diff origin/main -- <path>` (or against `git show origin/main:<path>`)
-   showing pure key deletions and nothing else.
+   showing only the conversion's explicitly allowed field additions,
+   deletions, renames, and token changes, with no unrelated lifecycle, body,
+   or blackboard edits.
 5. **Never run a mutating Coga command from the converting feature checkout.**
    Its exit sweep (`sync_coga_state`, above) would publish the converted
    `coga/` files to control before the code lands. Verify with a source-pinned

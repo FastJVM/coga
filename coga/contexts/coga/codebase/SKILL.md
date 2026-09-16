@@ -436,8 +436,14 @@ checkout. For the uv tool install below, use
 **Which Python backs `coga`.** On the dev machines the `coga` on PATH is a
 global uv tool editable install, not a venv inside any checkout:
 `~/.local/bin/coga` resolves to `~/.local/share/uv/tools/coga/bin/coga`, and the
-interpreter that actually runs it is
-`$(dirname "$(readlink -f "$(command -v coga)")")/python`. The
+interpreter that actually runs it is the `python` beside the resolved entry
+point. Find it portably on Linux and macOS with:
+
+```sh
+python3 -c 'from pathlib import Path; from shutil import which; print(Path(which("coga")).resolve().parent / "python")'
+```
+
+This lookup uses only the standard library and need not import Coga. The
 `direct_url.json` in that environment's `coga-*.dist-info` names the checkout
 it imports from (`{"url":"file:///…/coga","dir_info":{"editable":true}}`).
 Consequences:
