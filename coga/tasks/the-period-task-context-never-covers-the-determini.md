@@ -1,6 +1,6 @@
 ---
 title: The period-task context never covers the deterministic ticket.py firing
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
