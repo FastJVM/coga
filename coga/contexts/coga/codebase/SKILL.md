@@ -564,6 +564,24 @@ recurring walls that don't appear on a normal dev machine:
 - **Scope validation with `--task`.** A repo-wide `coga validate` reports
   pre-existing, unrelated drift that isn't yours to fix and drowns the signal.
   `coga validate --task <slug>` is the meaningful per-ticket check.
+- **The repo-wide run is red by baseline; do not clear it under an unrelated
+  ticket.** As of 2026-09-16, `coga validate --json` exits 1 on exactly four
+  errors, all `unsynthesized-draft-blackboard`, all on `v2/` drafts:
+  `v2/autotrigger-ticket-type`,
+  `v2/measure-relay-prompt-scope-and-agent-precision`,
+  `v2/split-context-to-doc-user-accessible-and-editable`, and
+  `v2/use-worktree-when-starting-a-dev-task`. Everything else it prints is a
+  warning. If your verification sees exactly those four errors and nothing
+  else, that is the standing baseline: note "4 known baseline errors" and move
+  on; do not re-derive it, and do not synthesize, cancel, or otherwise touch
+  those drafts to make the gate green. The check fires only on
+  `status == "draft"` (`validate.py`, the `unsynthesized-draft-blackboard`
+  branch of `validate_task` via `prelaunch_blackboard_synthesis_reason`), so
+  each error clears only by adjudicating or synthesizing its draft, and that
+  belongs to the drafts' own adjudication tickets — a green validate is never
+  a reason to cancel a draft. A fifth error, or one of the four vanishing, is a
+  real change worth reporting. Whoever clears the last of the four deletes
+  this bullet in the same PR.
 
 ### Which checkout you invoke coga from
 
