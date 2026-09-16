@@ -79,6 +79,7 @@ correct verdicts, never an input to them.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/815
 branch: title-only-validator
 worktree: /home/n/Code/claude/coga-title-only-validator
 
