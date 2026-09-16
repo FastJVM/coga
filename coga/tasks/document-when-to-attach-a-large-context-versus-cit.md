@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
-launch_generation: b083e596-fef2-4a90-bf93-8fa51d2a273f
+step: 4 (review)
 ---
 
 ## Description
@@ -137,6 +136,10 @@ worktree: /home/n/Code/claude/coga-attach-vs-cite
   measurement`). Final feature worktree is clean, two commits ahead of the
   fetched `origin/main` and none behind. PR body is ready below; no findings
   remain open.
+
+## Open PR
+
+- `coga open-pr` run from the primary control checkout on `main`; origin/main had advanced only through non-overlapping task/log state, so the branch published without a rebase. PR #821 opened and `pr:` recorded under `## Dev`.
 
 ## PR
 
