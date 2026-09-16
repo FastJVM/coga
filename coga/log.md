@@ -5236,3 +5236,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-15 20:39 [scrub-the-service-account-token-from-the-launch-ch] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-09-15 20:39 [scrub-the-service-account-token-from-the-launch-ch] [megalaunch] launched via coga megalaunch
 2026-09-15 21:57 [recurring-sweep-aborts-and-orphans-a-deleted-done] [human:nicktoper] created (status=draft)
+2026-09-15 22:00 [scrub-the-service-account-token-from-the-launch-ch] [agent:codex] blocked: Run and record the required live 1Password check on branch scrub-sa-token (cc222a6f): with a real OP_SERVICE_ACCOUNT_TOKEN as the only credential and no personal or desktop authentication, the parent can read a known automation-vault ref and a launched child with no declared secrets cannot read that same ref. This session has no token. Native review returned no actionable findings and all 2501 tests passed; the PR body is prepared.

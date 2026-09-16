@@ -1,6 +1,6 @@
 ---
 title: Scrub the service-account token from the launch child environment
-status: in_progress
+status: blocked
 owner: nicktoper
 agent: claude
 contexts:
@@ -26,7 +26,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 2 (peer-review)
-launch_generation: 4440e974-29d1-46b9-8f95-d046455f1179
 ---
 
 ## Description
@@ -228,7 +227,11 @@ Ran `git fetch origin main` then `git rebase FETCH_HEAD` in the feature
 worktree. Rebase was clean onto `e1b2fefa`; branch HEAD is now `cc222a6f`, one
 commit ahead. All five implementation/docs/test files are unchanged from the
 reviewed `ce3b270c`. `git diff --check origin/main...HEAD` and the architecture
-live/packaged `cmp` passed. Full suite on the rebased branch is running.
+live/packaged `cmp` passed. The feature worktree is clean and committed.
+
+Full verification from the feature worktree:
+`PYTHONPATH=/home/n/Code/claude/coga-scrub-sa-token/src /home/n/Code/claude/coga/.venv/bin/python -m pytest`
+returned **2501 passed in 185.89s**, including packaging/twin checks.
 
 `PYTHONPATH=/home/n/Code/claude/coga-scrub-sa-token/src
 /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --task
@@ -243,3 +246,30 @@ credential, that the parent can read a known automation-vault ref and a child
 launched with no declared secrets cannot read that same ref. Record outcomes,
 not token or secret values. Fake-token tests do not satisfy this check.
 
+The pending live verification is the only remaining blocker. On resolution,
+record its outcome here, update the PR test-plan line below, refresh/rebase and
+retest against current `main`, then bump once from the primary checkout. This
+session stops with `coga block`, leaving the task at peer-review.
+
+
+---
+
+## PR
+
+Launches inherit `OP_SERVICE_ACCOUNT_TOKEN` even when a ticket declares no
+secrets. Resolve declared references in the parent, remove the inherited token
+from child environments, then add resolved aliases so explicitly declared
+token destinations still work. Other inherited credentials remain outside
+this service-account-specific boundary.
+
+Update the architecture and secrets contexts, keep the packaged architecture
+twin identical, and add regressions for injected/default environments and token
+alias behavior.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-scrub-sa-token/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` — 2501 passed; task-scoped validation — no issues; `codex review --base main` returned no actionable findings. Required live 1Password service-account-only check remains pending and blocks peer-review completion.
+
+---
+
+## Blockers
+
+- [ ] [2026-09-15 22:00] [agent:codex] id=20260915T220015 Run and record the required live 1Password check on branch scrub-sa-token (cc222a6f): with a real OP_SERVICE_ACCOUNT_TOKEN as the only credential and no personal or desktop authentication, the parent can read a known automation-vault ref and a launched child with no declared secrets cannot read that same ref. This session has no token. Native review returned no actionable findings and all 2501 tests passed; the PR body is prepared.
