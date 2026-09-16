@@ -427,10 +427,43 @@ force-include is what guarantees they ship.
   (or `python -m coga.validate --json` if `coga` isn't on PATH).
 
 If edits to `src/coga/` (especially the prompt templates under
-`src/coga/resources/`) don't appear when you run the CLI, the venv likely
-has a non-editable install.
-Reinstall against the venv that backs your `coga` shim:
-`<that venv's python> -m pip install -e .` from the repo root.
+`src/coga/resources/`) don't appear when you run the CLI, check both whether
+the install is editable and which checkout it imports. For a pip-managed
+install, use `<that venv's python> -m pip install -e .` from the intended
+checkout. For the uv tool install below, use
+`uv tool install --force -e <checkout>`; its environment has no `pip`.
+
+**Which Python backs `coga`.** On the dev machines the `coga` on PATH is a
+global uv tool editable install, not a venv inside any checkout:
+`~/.local/bin/coga` resolves to `~/.local/share/uv/tools/coga/bin/coga`, and the
+interpreter that actually runs it is the `python` beside the resolved entry
+point. Find it portably on Linux and macOS with:
+
+```sh
+python3 -c 'from pathlib import Path; from shutil import which; print(Path(which("coga")).resolve().parent / "python")'
+```
+
+This lookup uses only the standard library and need not import Coga. The
+`direct_url.json` in that environment's `coga-*.dist-info` names the checkout
+it imports from (`{"url":"file:///…/coga","dir_info":{"editable":true}}`).
+Consequences:
+
+- Any script that must `import coga` against the *active* CLI — Dream's
+  owned-path derivation, an ad-hoc `importlib.resources.files("coga.resources")`
+  probe — must run under that interpreter, not `python`/`python3`. The ambient
+  `python3` is often 3.9 with no `coga` on its path, so the same block fails
+  with `ModuleNotFoundError` there and works under the tool env's `python`.
+- With two checkouts on disk, the one named by `direct_url.json` is the one
+  `coga` executes **regardless of the cwd you run it from**. Running `coga`
+  from the other checkout silently executes the first checkout's source and
+  templates. Check `direct_url.json` before trusting output from a second
+  checkout. Repoint the install only to the intended long-lived checkout;
+  verify feature branches with the explicit `PYTHONPATH` below.
+- A `.venv/` inside a checkout, where one exists, is the *test* environment
+  (its own editable install plus `pytest` and `tomlkit`), not what `coga` on
+  PATH runs — and the tool env carries no `pytest`. Run the suite through the
+  venv's interpreter with the explicit `PYTHONPATH` below; run `coga` through
+  the tool env.
 
 **Run the suite with an explicit `PYTHONPATH` whenever you are not in the
 primary checkout — this is the default, not a recovery step.** A *healthy*
@@ -729,6 +762,29 @@ wrong checkout silently produces wrong results in both directions:
   `coga.commands.launch.subprocess.run` separately collides (they are the same
   object). Use a single argv-dispatching mock on `coga.config.subprocess.run`.
 
+- **`create_task` validates after it writes and logs.** `create.create_task`
+  calls `git.write_ticket_under_barrier(...)`, then `logfile.append_log(...)`,
+  and only then `validate.assert_task_valid(cfg, ref, action="create")`. A
+  description containing the blackboard fence on its own line therefore
+  leaves a two-fence ticket and a `created` log line behind when validation
+  fails.
+  `tests/test_create.py::test_cli_create_reports_validation_failure_and_leaves_draft`
+  pins the general leave-on-disk behavior on validation failure. A level-2
+  heading line (`## …`) is a different hazard: creation succeeds and validation
+  passes, but compose ends the Description at the next heading, so subsequent
+  text can disappear from the launched prompt. Only the CLI command guards
+  descriptions against both hazards:
+  `commands/create.py`'s `_description_structure_problem`
+  (`_SECTION_HEADING_LINE_RE`, `^##(?:\s|$)`, mirroring the lines compose's
+  `_SECTION_HEADING_RE` splits sections on, plus `taskfile.fence_count`) runs
+  on the stripped text *before* `load_config` and `create_task`. The recurring
+  caller uses the separate `body=template.body` interface, while
+  `recurring_autofix.py` wraps unguarded, agent-authored `analysis.body` in its
+  description. Any caller forwarding an agent- or user-authored description
+  must reject level-2 headings and an own-line fence in the stripped text
+  before calling `create_task`, or accept silent truncation or a failed create
+  that leaves its ticket and log behind; the CLI guard is the reference shape.
+
 - **A rebase carries a fix through a rename — never into a twin created fresh
   in the same commit.** The live↔packaged pattern (a file under `coga/` and its
   copy under `src/coga/resources/templates/coga/bootstrap/`) is exactly this
@@ -746,12 +802,16 @@ wrong checkout silently produces wrong results in both directions:
   `coga/<path>`, and `templates/coga/bootstrap/{contexts,skills,workflows}/
   <path>` -> `coga/<area>/<path>`) must be byte-identical, so a new twin is
   covered the moment it exists and there is nothing to register. Discovery
-  excludes local installation directories (`.coga/`, `.venv/`), agent-tooling
-  state (`.agent-skills/`, `.claude/`, `.codex/`), bytecode caches, and
+  excludes machine-local state (`.coga/` — run records and the megalaunch
+  selection, not an installation — and `.venv/`), agent-tooling state
+  (`.agent-skills/`, `.claude/`, `.codex/`), bytecode caches, and
   `coga.local.toml`; those are not shipped twins. A deliberate difference goes
   in `INTENTIONALLY_DIVERGENT_TWINS` with its reason, and the
   suite fails if that entry outlives the divergence. That catches the drift
   after the fact; it does not catch it during the rebase, so still re-diff.
+  `CLAUDE.md` and `AGENTS.md` at the repo root are a third twin kept identical
+  by hand: edit both and `cmp` them, because `test_packaging.py`'s discovery
+  walks only the packaged template tree and never covers that root pair.
 
 - **Prompt resources under `src/coga/resources/prompt*.md` are the only
   version of a rule most agents ever see.** `prompt.md` and the session-conduct

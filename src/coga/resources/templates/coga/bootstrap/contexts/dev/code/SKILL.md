@@ -408,6 +408,10 @@ before the owner reshaped it.
   regardless.
 - **PR description shape.** That belongs to the workflow step's
   skill, not to this context.
+- **Changing the stored ticket format itself.** A branch that rewrites
+  committed `coga/tasks/**` alongside the code that reads them follows the
+  one-PR cutover, writer quiet window, and converted-ticket rebase rule under
+  *Shipping a stored-ticket schema conversion* in `coga/sync`.
 
 This context is narrow on purpose: explicit code-task linkage and the boundary
 between a live implementation plan and the designs it superseded. Extend in a

@@ -240,3 +240,13 @@ verified writer restart. Add the `dev/code` cross-reference, describe `.coga/`
 as machine-local state, and keep all live/packaged twins synchronized.
 
 Test plan: `PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m pytest` → 2495 passed; `cmp CLAUDE.md AGENTS.md` and three context-pair comparisons pass; `git diff --check origin/main` passes. Source-pinned `python -m coga.validate --json` has identical task findings to primary (four existing draft errors; feature adds only its missing-local-user warning).
+
+## PR review follow-up (2026-09-16)
+
+Addressed the requested comments on [PR #812](https://github.com/FastJVM/coga/pull/812) in `/tmp/coga-review-pr812-20260916`.
+
+Replaced the GNU-only interpreter lookup with Python pathlib/shutil resolution. Schema conversion verification now allows the explicitly intended additions, deletions, renames, and token changes while preserving unrelated state. Updated both live contexts and their packaged twins.
+
+Verification: `PYTHONPATH=/tmp/coga-review-pr812-20260916/src /home/n/Code/claude/coga/.venv/bin/python -m pytest -q tests/test_packaging.py` — 11 passed.
+
+Executed the documented lookup against the installed CLI and a temporary chain of relative symlinks; both resolved the expected tool interpreter.
