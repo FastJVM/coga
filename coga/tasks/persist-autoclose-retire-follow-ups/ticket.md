@@ -29,8 +29,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: 709d7abd-9b1f-4f85-a7c8-151e6eadf3b0
+step: 2 (self-qa)
 ---
 
 ## Description
@@ -125,3 +124,120 @@ launch that work or dispose of any recorded checkout.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: autoclose-retire-worklist
+worktree: /home/n/Code/claude/coga-autoclose-retire-worklist
+
+## Plan (implement, 2026-09-16)
+
+- The preserved branch `autoclose-retires-durable-home` (fa3880b1, c5cb1548)
+  is 905 commits behind `main` and its doc hunks no longer apply (main's
+  template/skill now describe the defect and name this ticket). Re-implemented
+  from current `main` on a fresh branch; the old branch is left untouched.
+- Durable home: `coga/recurring/<template>/retires.md`, template derived from
+  `COGA_TASK_SLUG` (`recurring/<name>`), gated on the env blackboard being
+  inside this root's `tasks/` (same scoping as `blackboard_from_env`). Entry
+  format is byte-compatible with the Multiply seed
+  (`- \`slug\` — branch \`b\`, worktree \`w\`, recorded \`YYYY-MM-DD\``).
+- Shared module `src/coga/retire_worklist.py`: two real consumers — the
+  autoclose recipe (record + prune every recurring run) and `coga retire`
+  (discharge its own slug after checkout cleanup). Prune rule: drop an entry
+  when its worktree path is not a directory AND its branch is not a local
+  branch; relative worktree paths resolve against the git toplevel, never the
+  CWD; when `git for-each-ref` cannot be run the branch is unknown and the
+  entry is kept (fail closed on debt).
+- Write path: read bytes under `git.state_publication_barrier`, parse, prune,
+  merge, render; write only when bytes change, atomically, refusing if the
+  file moved underneath (fixes the non-atomic read/modify/write review note).
+- Union merge: `**/retires.md merge=union` in `coga/.gitattributes` (+ packaged
+  twin). A resurrected entry is re-pruned by the next sweep; duplicates
+  collapse by slug on read (first `recorded` date survives).
+- Per-run report keeps its surfaces: period blackboard (autofix analyst reads
+  it) / task blackboard / stdout; the recurring report also names the worklist.
+- Adoption for existing installs goes in `docs/operations.md`.
+
+## Implemented (commit 91d31cf5 on `autoclose-retire-worklist`)
+
+- `src/coga/retire_worklist.py` (new, shared infra with two consumers):
+  `parse_worklist` / `render_worklist` (byte-compatible with the Multiply
+  seed format; duplicates collapse by slug on read, first `recorded` date
+  survives), `is_discharged` (worktree dir gone AND branch gone; `branches is
+  None` = unknown = keep; relative worktree resolved against `root`),
+  `local_branches` (one `git for-each-ref`, `None` on failure),
+  `reconcile_worklist` (barrier-held read/prune/merge/render; writes only when
+  bytes change; refuses if the file moved underneath; never mints an empty
+  file), `worklist_for_period_task` (derives the template from the scoped
+  period-task blackboard path `tasks/recurring/<name>/ticket.md`, requires the
+  template `ticket.md` to exist), `discharge_slug` (retire's hook).
+- `src/coga/autoclose.py`: `_report_retire_followups` reconciles the worklist
+  on every recurring period run (pending or not) and prints one
+  `[autoclose] retire worklist <path>: N open, ...` line when it wrote or has
+  open entries; the per-run report keeps its surfaces (period/task blackboard
+  or stdout) and names the worklist under a period task. `RetireWorklistError`
+  on the success path → `[autoclose] ...` on stderr, exit 2 (closures stay).
+  The old no-pending fast path is preserved when no `COGA_TASK_BLACKBOARD`
+  is set (`test_autoclose_sweep` passes a sentinel cfg there).
+- `src/coga/commands/retire.py`: `_discharge_worklist_entry` after
+  `_cleanup_checkout`; best-effort, echoes `Retire: dropped <slug> from
+  <path>.`; a preserved checkout keeps its line.
+- `**/retires.md merge=union` in `coga/.gitattributes`, packaged twin, and
+  `example/coga/.gitattributes`. `git.union_merge_paths` picks it up, so the
+  sync layer lands it by union and `open-pr` counts it as generated state.
+- Docs (owner → summary): `coga/autoclose/sweep` skill owns the surfaces and
+  the discharge rule; recurring template + `autoclose-merged/sweep` workflow
+  (both twins) point at it; `coga/recurring` context gains the sibling
+  worklist paragraph under "Last-run state" and corrects the autofix bullet;
+  `coga/codebase` lists the module; package-only `coga/cli` gets one
+  paragraph each under `coga retire` and `coga autoclose`;
+  `docs/operations.md` › "Autoclose's retire worklist" carries the adoption
+  procedure (upgrade package; add the gitattributes line; re-copy/edit local
+  template + workflow prose; hand-backfill lines; drop any private script).
+
+## Decisions
+
+- Prune is state-derived (on-disk worktree + local branch), applied by the
+  daily sweep and by retire, rather than an event-only removal: survives
+  branch-sweep deletions, manual `git worktree remove`, and union-merge
+  resurrection with a single rule. Cost: a retire refused by its safety
+  proofs leaves the line (correct — debt remains).
+- A ticket that no longer exists is *not* consulted by the discharge rule:
+  the list is about the checkout, and a gone ticket with a live branch is
+  still branch-sweep's concern; keeping the line is the loud option.
+- Kept the per-run report on the period blackboard (not only the worklist):
+  the autofix analyst and run record read it, per `coga/recurring`.
+- Backfill for consumers is a documented hand-edit of `retires.md`, not a new
+  command; the next sweep validates (fails loud on a malformed line) and
+  prunes. The Multiply script's `add`/`prune` are covered by sweep + retire.
+- Union merge kept (human's earlier choice); resurrection heals within one
+  period because the prune is idempotent.
+
+## Verification
+
+- `PYTHONPATH=$PWD/src /home/n/Code/claude/coga/.venv/bin/python -m pytest -q`
+  from the worktree → **2601 passed**. New tests: 30 in
+  `tests/test_retire_worklist.py` (28 functions, one parametrized ×3), 8 in
+  `test_autoclose.py`, 2 in `test_retire.py`; the three files alone →
+  115 passed.
+- `python -m coga.cli validate --json` from the worktree: 207 ok; the four
+  `unsynthesized-draft-blackboard` errors are pre-existing `v2/` drafts
+  untouched here.
+- Twins byte-identical (`cmp`) for the skill, template, workflow, recurring
+  and codebase contexts; `tests/test_packaging.py` passed in the suite.
+- Branch contains `origin/main` tip (`ccedb3fb`, 0 commits behind at handoff).
+
+## Notes for self-QA / review
+
+- The superseded local branch `autoclose-retires-durable-home` (fa3880b1,
+  c5cb1548) is untouched; it can be deleted by a human once this merges.
+- `discharge_slug` reconciles the whole file it touches, so a `coga retire X`
+  may also drop an unrelated *already discharged* entry Y — documented in
+  the module and skill; same rule, same file rewrite.
+- Not done (out of scope, ticket says re-derive before backfill): no backfill
+  of this repo's or Multiply's historical debt. This repo has no
+  `retires.md` yet; the next `autoclose-merged` period creates it on the
+  first stranded close.
+- Adjacent, not fixed: `git._current_branch` still uses `rev-parse
+  --abbrev-ref HEAD` (known, recorded in `coga/codebase`).
+
