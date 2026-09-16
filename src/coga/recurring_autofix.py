@@ -279,6 +279,21 @@ def _tail(text: str, limit: int) -> str:
     return "[... truncated ...]\n" + text[-limit:]
 
 
+def _labelled_streams(result: subprocess.CompletedProcess[str]) -> str:
+    """Both of a failed child's streams, each under its own label.
+
+    Empty streams are omitted; neither one is allowed to stand in for the
+    other. Each stream keeps its own tail so a chatty stderr cannot crowd the
+    cause out of stdout.
+    """
+    parts: list[str] = []
+    for label, text in (("stdout", result.stdout), ("stderr", result.stderr)):
+        text = (text or "").strip()
+        if text:
+            parts.append(f"{label}: {_tail(text, 500)}")
+    return "\n".join(parts)
+
+
 # --- reading what a run reported ----------------------------------------------
 
 
@@ -359,8 +374,20 @@ def _remaining(deadline: float | None, cap: float | None = None) -> float | None
 
 
 def _analyze_agent(cfg: Config, agent_override: str | None) -> AgentType:
+    """Which agent type runs the analysis: `--agent` > `[autofix].agent` > default.
+
+    The explicit `coga recurring --agent` / `coga run autofix-analyze --agent`
+    flag wins; it also reroutes every agent-backed period task, which is wider
+    than "analyze with a different vendor". The `[autofix].agent` key is the
+    narrow spelling of that intent — a second opinion from a CLI other than
+    the one that ran the sweep, on an auth path that did not just break —
+    and `default_agent()` (the create-time default, first `[agents.*]` table)
+    remains the fallback when neither is set.
+    """
     if agent_override:
         return cfg.agent_type(agent_override)
+    if cfg.autofix_agent:
+        return cfg.agent_type(cfg.autofix_agent)
     agent = cfg.default_agent()
     if agent is None:
         raise AutofixUnavailable(
@@ -438,6 +465,7 @@ def _claude_subscription_fallback_env(
         status = subprocess.run(
             [agent.cli, "auth", "status"],
             cwd=cwd,
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             errors="replace",
@@ -625,9 +653,14 @@ def analyze_record(
             attempt_timeout = _remaining(deadline)
             if attempt_timeout is not None and attempt_timeout <= 0:
                 raise subprocess.TimeoutExpired(cmd, budget or 0.0)
+            # Never inherit the sweep's stdin: `codex exec` appends a piped
+            # stdin to the prompt as a `<stdin>` block, so an inherited pipe
+            # would silently graft unrelated bytes onto the analysis. DEVNULL
+            # is right for every one-shot CLI, not just codex.
             result = subprocess.run(
                 cmd,
                 cwd=cwd,
+                stdin=subprocess.DEVNULL,
                 capture_output=True,
                 text=True,
                 errors="replace",
@@ -662,12 +695,16 @@ def analyze_record(
         ) from exc
 
     if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "").strip()
+        # Report both streams, labelled. `stderr or stdout` short-circuited:
+        # an unrelated warning on stderr (a connectors notice) hid the real
+        # cause on stdout (`Credit balance is too low`) — loud, but loudly
+        # wrong, which is worse than quiet for the human acting on it.
+        detail = _labelled_streams(result)
         raise AutofixUnavailable(
             f"{agent.cli}"
             + (" subscription retry" if used_subscription_fallback else "")
             + f" exited {result.returncode}"
-            + (f": {_tail(detail, 500)}" if detail else "")
+            + (f":\n{detail}" if detail else "")
         )
     if not (result.stdout or "").strip():
         raise AutofixUnavailable(f"{agent.cli} returned an empty analysis")

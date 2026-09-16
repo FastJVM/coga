@@ -463,7 +463,7 @@ everyone puts `peer` in shared `coga.toml`.
 `load_config` validates `coga.toml` **and** `coga.local.toml` against a fixed
 schema. Any unrecognized key, at **any level of a fixed-schema table** —
 top-level sections, `[notification]`, `[notification.slack]`, `[git]`, `[launch]`,
-`[layout]`, `[ticket]`, `[agents.<name>]` — raises `ConfigError` naming
+`[layout]`, `[autofix]`, `[ticket]`, `[agents.<name>]` — raises `ConfigError` naming
 the offending key and listing the valid ones, in either file. This generalizes
 the enforcement `[ticket.fields.*]` already had: a misspelled `[notification.slak]`
 no longer silently resolves to "no webhook" and takes Slack dark. Adding a new

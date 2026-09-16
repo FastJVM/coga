@@ -464,6 +464,75 @@ def test_launch_worktree_key_rejected(repo: Path) -> None:
         load_config(repo)
 
 
+def test_autofix_agent_defaults_to_none(repo: Path) -> None:
+    """No `[autofix]` table → the analyst keeps `default_agent()`."""
+    assert load_config(repo).autofix_agent is None
+
+
+def test_autofix_agent_parsed(repo: Path) -> None:
+    """`[autofix].agent` names a declared agent type; it does not have to be
+    the first-declared one (that is the point of the key)."""
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+        + '\n[autofix]\nagent = "codex"\n'
+    )
+    cfg = load_config(repo)
+    assert cfg.autofix_agent == "codex"
+    assert cfg.default_agent().name == "claude"
+
+
+def test_autofix_agent_may_be_declared_machine_locally(repo: Path) -> None:
+    """The key is checked against the *effective* agents table, so a type
+    declared only in `coga.local.toml` is a valid analyst on that machine."""
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text() + '\n[autofix]\nagent = "codex"\n'
+    )
+    (repo / "coga.local.toml").write_text(
+        (repo / "coga.local.toml").read_text()
+        + '\n[agents.codex]\ncli = "codex"\nfile = "AGENTS.md"\n'
+    )
+    assert load_config(repo).autofix_agent == "codex"
+
+
+def test_autofix_agent_unknown_type_rejected(repo: Path) -> None:
+    """A typo fails at load, not at the end of an unattended sweep."""
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text() + '\n[autofix]\nagent = "codx"\n'
+    )
+    with pytest.raises(
+        ConfigError, match=r"\[autofix\].agent names 'codx', which is not defined"
+    ):
+        load_config(repo)
+
+
+def test_autofix_agent_non_string_rejected(repo: Path) -> None:
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text() + "\n[autofix]\nagent = 1\n"
+    )
+    with pytest.raises(ConfigError, match=r"\[autofix\].agent must be a non-empty"):
+        load_config(repo)
+
+
+def test_autofix_unknown_key_rejected(repo: Path) -> None:
+    """One key, one branch: `[autofix]` is not a general agent-routing table."""
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text() + '\n[autofix]\nmodel = "opus"\n'
+    )
+    with pytest.raises(ConfigError, match=r"\[autofix\] has unknown key\(s\).*model"):
+        load_config(repo)
+
+
+def test_autofix_table_is_shared_only(repo: Path) -> None:
+    """Which vendor analyzes the sweep is repo policy, so the table is rejected
+    from `coga.local.toml` like `[layout]` and `[launch]`."""
+    (repo / "coga.local.toml").write_text(
+        (repo / "coga.local.toml").read_text() + '\n[autofix]\nagent = "claude"\n'
+    )
+    with pytest.raises(ConfigError, match=r"coga.local.toml has unknown key\(s\).*autofix"):
+        load_config(repo)
+
+
 def test_legacy_assignees_table_rejected(tmp_path: Path) -> None:
     _write(
         tmp_path / "coga.toml",
