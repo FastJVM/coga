@@ -27,7 +27,13 @@ from coga.logfile import (
     iter_log_messages,
     iter_log_messages_reverse,
 )
-from coga.paths import log_path, recurring_dir, resolve_workflow_path
+from coga.paths import (
+    log_path,
+    missing_skill_message,
+    recurring_dir,
+    resolve_skill_path,
+    resolve_workflow_path,
+)
 from coga.period_state import write_snapshot
 from coga.taskfile import (
     join_task_body,
@@ -281,6 +287,36 @@ def assert_template_delegation(cfg: Config, template: "Template") -> BootstrapRe
             f"delegating template cannot use workflow {name!r}: {violation}"
         )
     return target
+
+
+def assert_template_workflow(cfg: Config, template: "Template") -> None:
+    """Refuse a template whose period workflow cannot be frozen.
+
+    `create_task` performs the same resolution, but only after the replace-done
+    path has already deleted the prior period's task — so a template pointing
+    at a removed workflow (or a workflow naming a removed step skill) must be
+    refused here, while there is still nothing to roll back.
+    """
+    name = template.frontmatter.get("workflow") or DEFAULT_PERIOD_WORKFLOW
+    try:
+        workflow = Workflow.load(resolve_workflow_path(cfg, name))
+    except WorkflowError as exc:
+        raise RecurringError(
+            f"template declares workflow {name!r}, which does not load: {exc}"
+        ) from exc
+    missing = [
+        ref
+        for step in workflow.steps
+        for ref in step.skills
+        if resolve_skill_path(cfg, ref) is None
+    ]
+    if missing:
+        raise RecurringError(
+            "\n".join(
+                missing_skill_message(cfg, ref, source=f"Workflow {name!r}")
+                for ref in missing
+            )
+        )
 
 
 def assert_frozen_delegation(
@@ -920,6 +956,10 @@ def create_template(
                 assert_template_delegation(cfg, template)
             if not allow_agent and template.script_entry_point is None:
                 raise RecurringError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
+            # Delete only once the replacement is known to be creatable: a
+            # template whose workflow no longer resolves must not orphan the
+            # prior period by deleting its task and then failing to create.
+            assert_template_workflow(cfg, template)
             replaced_done_ticket_bytes = existing.ticket_path.read_bytes()
             try:
                 run_delete_task(cfg, existing)
@@ -1414,11 +1454,12 @@ def _create_at_slug(
             force_directory=True,
             created_by="system",
         )
-    except (TaskValidationError, ValueError) as exc:
-        # create_task fails with TaskValidationError post-write and plain
-        # ValueError pre-write (unknown contexts, slug collision, ...); both
-        # must become RecurringError so scan_due skips and reports this
-        # template instead of aborting the whole sweep.
+    except (TaskValidationError, ValueError, WorkflowError) as exc:
+        # create_task fails with TaskValidationError post-write, plain
+        # ValueError pre-write (unknown contexts, slug collision, missing step
+        # skill, ...), and WorkflowError when `workflow:` itself does not
+        # load; all must become RecurringError so scan_due skips and reports
+        # this template instead of aborting the whole sweep.
         raise RecurringError(str(exc)) from exc
     out_ref = _task_with_slug(cfg, ref["slug"])
     if out_ref is None:
