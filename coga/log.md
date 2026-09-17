@@ -5448,3 +5448,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-16 22:22 [define-the-split-a-ticket-mechanic-shared-by-code] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-16 22:22 [define-the-split-a-ticket-mechanic-shared-by-code] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-16 22:22 [define-the-split-a-ticket-mechanic-shared-by-code] [megalaunch] launched via coga megalaunch
+2026-09-16 22:31 [v2/skill-for-split-into-sibling-ticket-discipline] [human:nicktoper] canceled (draft → canceled): Superseded by define-the-split-a-ticket-mechanic-shared-by-code: the adjacent-finding half shipped as the Unresolved adjacent bugs contract in retro/done-ticket; the split mechanic (sibling drafts via coga create, ## Split heading, Split from cross-link, sequenced vs co-equal) ships on branch split-ticket-contract

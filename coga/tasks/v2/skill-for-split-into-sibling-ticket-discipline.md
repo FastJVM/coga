@@ -1,6 +1,6 @@
 ---
 title: Skill for split-into-sibling-ticket discipline
-status: draft
+status: canceled
 owner: nicktoper
 agent: claude
 contexts:
@@ -22,7 +22,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
