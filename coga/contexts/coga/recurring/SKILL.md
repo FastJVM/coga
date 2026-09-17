@@ -122,7 +122,10 @@ the example under "Extend recurring with a task-specific workflow").
   The launcher marks `active → in_progress` before starting and then leaves
   the workflow alone: the script closes its own step (`coga bump`), exactly as
   an agent does. A non-zero exit halts that launch and leaves the task
-  unfinished — but it does **not** stop the sweep. The failure is recorded and
+  unfinished — but it does **not** stop the sweep. The failure is recorded —
+  its exit code in the run record, and its stderr tail on the period
+  blackboard by the recipe layer (see the recipe reporting contract under
+  "Extend recurring with a task-specific workflow") — and
   the remaining due templates still run; the sweep names every failed template
   in its summary and run record, then exits with the first failing code. One
   template's problem is not its licence to cancel the ones behind it, which is
@@ -677,7 +680,7 @@ Run the weekly deliverability review; this scheduled workflow must reach
 The cross-run state for this recurring task goes here.
 ```
 
-This extension seam has five important constraints:
+This extension seam has six important constraints:
 
 - **One instantiated task per template.** Every firing uses the stable ref
   `recurring/<name>` at `coga/tasks/recurring/<name>/`. A still-live prior run
@@ -715,6 +718,53 @@ This extension seam has five important constraints:
   the script-recorded `blocked` lifecycle is preserved rather than paused, and
   the run is reported as `unfinished` with its reason rather than as a bare
   non-zero exit.
+- **The recipe reporting contract: the period blackboard is a per-run report
+  surface, and the recipe layer records failures there.** Code reaches the
+  period task's blackboard through `COGA_TASK_BLACKBOARD` /
+  `coga.task_env.blackboard_from_env`, and that helper answers only *which
+  repo* (it refuses a path outside the `tasks/` tree of the root the recipe is
+  operating on). *Which task and for how long* is this rule: under a recurring
+  template the path is always `coga/tasks/recurring/<name>/ticket.md`, the
+  period task the next firing deletes. So a report appended there is
+  **per-run**: it travels into the sweep's run record (the analyst-channel
+  section below) and the `run-log.md` of any autofix ticket, and it is then
+  gone with the period. That is the right home for a run summary whose durable
+  product is elsewhere — a PR, a posted notification, a closed ticket — and
+  the wrong home for anything a later run or a human must find: the
+  2026-09-03 autoclose defect wrote its only copy of the pending `coga retire`
+  follow-ups there, and `render_retire_report`'s docstring calling the target
+  "a long-lived recurring task's blackboard" is exactly why review missed it.
+  Anything that must outlive the period goes to one of three surfaces: the
+  template's own blackboard region (`coga/recurring/<name>/ticket.md` below
+  the fence — cross-run cursors and keys, see "Last-run state" below); a
+  template sibling file in a fixed machine-written shape (the retired digest
+  template's `spool.md` was the precedent, and `persist-autoclose-retire-follow-ups`
+  gives autoclose a `retires.md` worklist the same way); or the repo-global,
+  append-only `coga/log.md` for one-line audit facts. Successful runs owe no
+  report — a finished deterministic period whose blackboard still holds only
+  the seeded placeholder is normal — but a template whose findings the
+  analyst should see writes them itself, and a recipe whose failure is
+  structured beyond a stderr line (skill-update's `## Skill Update` failure
+  report names the command and the unconfirmed PR) writes that itself too.
+  **Failure is owed a reason, and the layer pays it once.** The sweep discards
+  a `ticket.py` child's stderr; only the blackboard reaches the run record, so
+  a recipe that exited non-zero to stderr alone showed up as "failed, blank
+  blackboard, no reason" — a problem counted, with nothing to read about it.
+  `coga.runner.run_recipe` — the one seam every registered recipe crosses,
+  from `coga run` and from every shipped shim, which is why the shims call
+  `run_recipe(load_config(), "<name>", [])` rather than importing the recipe
+  function — copies the recipe's stderr while it runs and, on a non-zero
+  return or an escaping exception (traceback included), appends a
+  `## Recipe Failure` section (recipe, exit, task, the stderr tail bounded to
+  what the run record can carry) to the blackboard `blackboard_from_env`
+  resolves. No blackboard means no extra write: `coga run` from a shell
+  already showed its stderr. A refused or failed write is a stderr warning and
+  never replaces the recipe's exit. Do not add a per-recipe copy of that write
+  for the stderr tail; put the recipe's structured detail on top of it. A
+  template-owned `ticket.py` that is not a registered recipe gets the same
+  property by routing its deterministic work through `run_recipe` or by
+  writing its own reason before exiting non-zero — exiting to stderr alone is
+  the one shape the sweep cannot report.
 - **A scheduled agent run must reach `done` in one launch.** When a bare
   `coga recurring` sweep gets control back from an unfinished agent launch, it
   pauses the period task before continuing. That includes an intermediate

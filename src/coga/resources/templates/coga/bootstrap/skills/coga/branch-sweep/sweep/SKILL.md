@@ -6,9 +6,10 @@ description: Delete local and remote git branches whose work has already landed.
 # Branch Sweep
 
 This skill documents the branch sweep behind the
-`recurring/branch-sweep/` ticket, whose `ticket.py` calls
-`coga.branchsweep.run_branch_sweep_recipe` directly — no agent, no composed
-prompt. It is the safety net behind `coga retire`'s
+`recurring/branch-sweep/` ticket, whose `ticket.py` runs the registered
+`branch-sweep` recipe (`coga.branchsweep.run_branch_sweep_recipe`) through
+`coga.runner.run_recipe` — no agent, no composed prompt. It is the safety
+net behind `coga retire`'s
 branch deletion — retire's
 cleanup is best-effort (failures are swallowed), and branches also leak when
 a ticket is deleted without going through retire or a session dies mid-flight.

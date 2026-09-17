@@ -25,6 +25,13 @@ review bars.
   the first backend. `config.py` loads config. `runner.py` owns the fixed
   name-to-function registry behind `coga run`; recipes are ordinary
   importable functions in focused core modules, not discovered skill files.
+  `runner.run_recipe` is also the recipe layer's failure surface: it tees
+  `sys.stderr` around the call and appends a `## Recipe Failure` section to
+  the blackboard `task_env.blackboard_from_env` resolves when the recipe
+  returns non-zero or raises. The shipped `ticket.py` shims therefore call
+  `run_recipe(load_config(), "<name>", [])` instead of importing the recipe
+  function, and `tests/test_recurring_shims.py` pins that shape; the contract
+  itself is stated in `coga/recurring`.
   `task_env.py` builds the shared `COGA_TASK_*` contract for agents and
   deterministic subprocesses. `recurring_autofix.py` owns the sweep's run
   record and the post-run analysis call — the one text-only, PTY-less agent
@@ -755,7 +762,11 @@ wrong checkout silently produces wrong results in both directions:
   `tasks/` tree of the root the recipe is operating on — a report belongs to the
   repo under test, so pass the discovered root at every recipe call site. If
   the target root cannot be discovered, the writer fails closed to stdout
-  rather than trusting an inherited path.
+  rather than trusting an inherited path. That check answers only *which
+  repo*; which task the path names and how long it lives is the recipe
+  reporting contract in `coga/recurring` — under a recurring template it is
+  the period task the next firing deletes, so nothing a later run needs goes
+  there.
 
 - **`coga.config` and `coga.commands.launch` share one `subprocess` module
   object.** Patching `coga.config.subprocess.run` and

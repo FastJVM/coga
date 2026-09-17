@@ -339,11 +339,13 @@ def run_skill_update_recipe(
     failure detail there rather than to stderr alone, which the recurring sweep
     discards.
 
-    That exit-2 blackboard write is the first instance of a property the other
-    recipes still lack — `dream_validate_drift`, `dream_cleanup_orphan_markers`,
-    `branchsweep`, `autoclose`, `blocker_reminders` and `recurring_autofix` all
-    exit non-zero to stderr alone. It belongs in the recipe layer rather than
-    here; do not paste a seventh copy, generalize it instead.
+    The generic half of that property now lives in the recipe layer:
+    `runner.run_recipe` appends a `## Recipe Failure` section carrying the
+    stderr tail of any recipe that exits non-zero, so a run through `coga run`
+    or a `ticket.py` shim records its reason without per-recipe code. This
+    recipe keeps its own exit-2 report on top because the report carries what
+    stderr cannot — the command it attempted and the PR-not-confirmed state.
+    Do not add a per-recipe failure write elsewhere for the stderr tail alone.
     """
     report_out = result if result is not None else SkillUpdateReport()
     parser = argparse.ArgumentParser(description="Run the skill-update maintenance skill.")
