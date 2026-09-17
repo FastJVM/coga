@@ -5468,3 +5468,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-17 11:01 [the-autofix-analyst-ticket-closed-without-shipping] [human:nicktoper] auto-bumped on merge of PR #816 → done
 2026-09-17 11:02 [title-only-tickets-have-no-convention-and-no-valid] [human:nicktoper] auto-bumped on merge of PR #815 → done
 2026-09-17 11:02 [recurring/autoclose-merged] [human:nicktoper] task done
+2026-09-17 11:02 [recurring/autoclose-merged] [system] script exited with code 0
+2026-09-17 11:02 [recurring/blocker-reminders] [system] started (active → in_progress) via coga launch
