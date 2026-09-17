@@ -1,6 +1,6 @@
 ---
 title: Branch sweep strands squash-merged branches whose tip moved
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -29,7 +29,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description
