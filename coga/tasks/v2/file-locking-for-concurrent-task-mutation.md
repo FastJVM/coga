@@ -1,6 +1,6 @@
 ---
 title: File locking for concurrent task mutation
-status: draft
+status: canceled
 owner: nicktoper
 agent: claude
 workflow: null
