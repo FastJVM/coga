@@ -139,3 +139,13 @@ which carries the do-not-merge and do-not-bump rules for that assist.
 
 After the human merges, the `autoclose-merged` recurring sweep marks the task
 `done` on its next run (≤24h); `coga bump` closes it immediately.
+
+`done` is not the end of the ticket. Its feature checkout and branch, recorded
+under `## Dev`, outlive the close: neither the sweep nor `coga bump` disposes
+of them, because destructive behavior is never implicit. The closing act is
+the owner's — once the ticket is `done`, run `coga retire <slug>`. Retire
+removes the recorded worktree and prunes the landed branch after proving that
+is safe, then scaffolds and launches the `retro/done-ticket` task that carries
+what the ticket learned into the knowledge base and deletes the ticket. Until
+someone runs it, the `done` ticket and its stale checkout stay in the repo;
+see `coga retire` in the `coga/cli` context for what it proves and refuses.
