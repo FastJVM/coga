@@ -1,6 +1,6 @@
 ---
 title: Add contributing docs, issue templates and a repo description
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:9535297c-0a9a-401d-8ecd-1a59752892bb
 ---
 
 ## Description
