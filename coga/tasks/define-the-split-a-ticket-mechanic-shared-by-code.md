@@ -71,3 +71,43 @@ that ticket settles, or defines its own heading and stays prose-only.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Plan (implement step, 2026-09-16)
+
+- **Where the contract lives: inlined, identically, in both step skills.**
+  A `## Splitting a ticket` section in `code/implement` and `code/design`,
+  byte-identical, enforced by a test the way live/packaged twins are. A third
+  owner (a `code/split-ticket` skill or a context) was rejected: nothing
+  composes it at the moment the split decision arises, `dev/code` is opt-in
+  per ticket and declares itself narrow, and no CLI prints a bundled
+  non-step skill for a downstream repo's agent to read.
+- **Sibling slug: whatever `coga create` makes of a title that names the
+  sibling's own outcome.** No shared prefix or numbering — `slugify` truncates
+  at 50 chars and the slug never changes. Siblings are created as drafts from
+  the checkout you bump from, in the source ticket's directory; never
+  activated by the splitting agent.
+- **One heading: `## Split` on the source blackboard**, dated, marked
+  `Co-equal` or `Sequenced`, one line per sibling (exact path-qualified slug +
+  slice).
+- **Cross-link: bold first paragraph of each sibling's `## Context`** —
+  `**Split from `<source>` (<date>).** Siblings: …` plus `After: `<slug>`.`
+  for a sequenced successor. Same shape as the supersession line the blocked
+  `ticket-relationships-and-ownership-have-no-mechani` plan settled on, and it
+  composes into the sibling's prompt and survives the source's deletion.
+- **Ordering adopts the existing mechanism, no new field.** A draft cannot be
+  blocked (`commands/block.py` requires active/in_progress/blocked), so the
+  order is prose until the successor is activated; whoever picks up a
+  successor whose `After:` ticket is not `done` runs `coga block` naming that
+  exact slug, and `megalaunch._finished_blocker_dependency` retries it later.
+  This is the same conclusion `ticket-relationships…` part 2 reached; the
+  contract does not wait on that blocked ticket.
+- **Source ticket: narrow to one PR-sized slice, or `coga mark canceled
+  --message "Split into …"`** when nothing remains.
+- **Parked draft:** cancel `v2/skill-for-split-into-sibling-ticket-discipline`
+  with a pointer here — its adjacent-finding half shipped in
+  `retro/done-ticket`, its split half ships on this branch.
+
+## Dev
+
+branch: split-ticket-contract
+worktree: /home/n/Code/claude/coga-split-ticket-contract

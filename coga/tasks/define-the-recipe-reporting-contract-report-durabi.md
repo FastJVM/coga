@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: b51f30e8-1449-40cc-8ef9-12e871d589f0
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -206,3 +205,53 @@ Adjacent observations (not fixed here):
   `_run_recipe_task`, which no longer exists.
 - `tests/test_recurring_shims.py` module docstring says "five recurring
   templates"; there are four shims.
+
+## Peer review
+
+`codex review --base main` **returned** from the recorded feature checkout.
+It reported one P2: failure reporting used the invoking config's root after
+`validate-drift` / `skill-update --cwd` selected another repo, bypassing the
+recipe's blackboard-containment refusal. Fixed by sharing the recipes' existing
+argument parsers with report-target resolution (including `--cwd=`, abbreviated
+options, and unknown targets). Cleanup-orphan-markers retains its own root
+resolver. The append also takes the target root's publication barrier. The
+registry and recipe call/return contracts are unchanged.
+
+Additional reproduced gaps fixed: an own-line blackboard fence in captured
+stderr became a second structural fence; a 4000-character detail lost the
+report's header in the run-record tail; a path-resolution exception could
+replace the original recipe failure. Diagnostics are now indented, the whole
+section fits the run-record budget, and resolution/render/write failures are
+inside the best-effort guard. Added regression coverage for all three and for
+cross-root refusal/acceptance. Updated the recurring owner and architecture
+pointer, including their packaged twins; the analyst-channel paragraph now
+distinguishes optional successful reports from layer-owned failure reports.
+
+Verification:
+
+- `PYTHONPATH=/home/n/Code/claude/coga-recipe-reporting-contract/src /home/n/Code/claude/coga/.venv/bin/python -m pytest -o cache_dir=/tmp/coga-recipe-peer-pytest-cache` — **2586 passed** in 184.18s, after rebase and all fixes.
+- `PYTHONPATH=/home/n/Code/claude/coga-recipe-reporting-contract/src /home/n/Code/claude/coga/.venv/bin/python -m pytest tests/test_runner.py tests/test_recurring_shims.py tests/test_skill_update.py tests/test_dream_validate_drift.py tests/test_packaging.py -q -o cache_dir=/tmp/coga-recipe-peer-pytest-cache` — 113 passed.
+- Real terminal, after fixes: `PYTHONPATH=/home/n/Code/claude/coga-recipe-reporting-contract/src /home/n/Code/claude/coga/.venv/bin/python /tmp/coga-recipe-peer-terminal.py`, driven through a PTY at 80x24 and 40x12. Observed red failure text and child stderr at both sizes; checked `isatty`, `fileno`, encoding, exit 2, an ANSI-free blackboard report, and restoration of stderr. Only disposable fixture tickets were used.
+- `PYTHONPATH=/home/n/Code/claude/coga-recipe-reporting-contract/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --task define-the-recipe-reporting-contract-report-durabi --json` from primary — no issues.
+- `git diff --check` — clean.
+
+Ran `git fetch origin main` followed by `git rebase FETCH_HEAD` successfully
+before applying the fixes. Feature commits: `86a66ede` (implementation, rebased
+from the earlier `4ca44bea`) and `f845e44f` (`peer-review: preserve failure report
+containment and ticket structure`). No unresolved review findings. The recorded
+feature branch is committed and ready for the mechanical open-pr step.
+
+## PR
+
+Registered recipes now record nonzero exits and exceptions on the task
+blackboard so recurring run records retain the failure reason. All four shipped
+recurring shims use the shared runner. Reporting preserves console output and
+the original failure, respects the recipe's target repository, keeps diagnostic
+text from becoming ticket structure, and fits the complete report within the
+run-record budget.
+
+The recurring context defines period reports as temporary and names the durable
+homes for cross-run state. Context pointers, recipe skills, and packaged twins
+are updated with regression coverage for the reporting contract.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-recipe-reporting-contract/src /home/n/Code/claude/coga/.venv/bin/python -m pytest -o cache_dir=/tmp/coga-recipe-peer-pytest-cache` — 2586 passed; real-PTY smoke at 80x24 and 40x12 passed; task validation and `git diff --check` clean.
