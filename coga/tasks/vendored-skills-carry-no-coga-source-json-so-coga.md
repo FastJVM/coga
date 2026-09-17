@@ -97,6 +97,7 @@ Two follow-ups that arrived here from Dream Phase 6 have their own tickets:
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/829
 branch: docs/skill-attribution
 worktree: /tmp/coga-skill-attribution
 
