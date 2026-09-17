@@ -61,13 +61,16 @@ Four questions, in this order:
 2. **Do the surfaces it names still resolve?** Grep the draft for the dead
    surfaces below and check each against current `main` before trusting any
    step in it.
-3. **Do the tickets it depends on still exist?** A draft that says "read the
-   `Ranked changes` section of `<slug>`'s blackboard" or "the live cluster to
+3. **Does the draft carry the substance it depends on?** A draft that says
+   "read the `Ranked changes` section of `<slug>`'s blackboard" or "the live cluster to
    read instead is `<slug>`, `<slug>`" has delegated its content to a file
    Coga can delete during Retro. Resolve those dependencies against
-   `coga/tasks/` (bare `.md` and `<slug>/ticket.md`). A missing ticket is a
-   premise failure only when it holds required substance absent from the
-   draft's own body. **Provenance-only citations are not premise failures**:
+   `coga/tasks/` (bare `.md` and `<slug>/ticket.md`). A dependency is a
+   premise failure when it holds required substance absent from the draft's
+   own body, even while the source ticket still exists. In particular, a
+   `done` source eligible for Retro can disappear later in the same Dream
+   run; flag the dependency now and read the required substance while it is
+   available. **Provenance-only citations are not premise failures**:
    a self-contained draft may retain a retired source or example, including
    after its required substance has been recovered and inlined. For a
    dangling dependency, recover the missing substance from git history —
@@ -103,18 +106,11 @@ with evidence of the dead premise or already-delivered outcome.
 
 ### The green-validate guard
 
-Every verdict this file asks for — describe or cancel a stub, cancel a
-premise-dead or already-delivered draft — is a judgment about that draft
-and nothing else. **A green `coga validate` is never a reason to cancel a
-draft — it is a consequence of correct verdicts, never an input to them.**
-The incentive this guards against is real and recurring: the standing
-repo-wide validate errors sit on parked drafts, so ruling those drafts dead is
-always the cheapest route to a green gate. A verdict reached that way is a
-validator repair wearing a lifecycle write, and it deletes the record of what
-someone wanted in exchange for a clean exit code. The general rule — that a
-terminal transition is never a validator repair — is owned by the ticket
-lifecycle section of `coga/architecture`; this section is its application to
-the parking area, stated here once so no ticket has to carry it.
+Apply the [ticket lifecycle rule in `coga/architecture`](../../contexts/coga/architecture/SKILL.md#two-state-machines-per-ticket)
+when adjudicating parked drafts. Here, the evidence comes from the author's
+intent and the premise questions above. Standing validation errors on parked
+drafts can make cancellation look like an easy cleanup, but they supply no
+evidence about whether the requested work is still wanted or already delivered.
 
 ### Who runs the check while a draft sits
 

@@ -324,7 +324,7 @@ def test_dream_re_validates_parked_drafts_every_run() -> None:
 
     # The README owns the four questions and names Dream as the standing owner.
     assert "Four questions, in this order:" in readme_text
-    assert "Do the tickets it depends on still exist?" in readme_norm
+    assert "Does the draft carry the substance it depends on?" in readme_norm
     assert "a draft must carry the substance it depends on in its own body" in readme_norm
     assert "Has something else already delivered it?" in readme_norm
     assert "### Who runs the check while a draft sits" in readme_text
@@ -347,10 +347,13 @@ def test_dream_re_validates_parked_drafts_every_run() -> None:
     assert "emit nothing for it here" in scan_norm
     assert "- class: <extract | stale | gap | premise | drift>" in protocol_text
 
-    # Retired provenance must not re-trigger a finding once the draft carries
-    # its requirements locally.
+    # Required external substance is flagged before Retro deletes a live
+    # source; self-contained drafts may keep retired provenance.
     assert "Provenance-only citations are not premise failures" in readme_norm
     assert "required substance absent from the draft's own body" in readme_norm
+    assert "even while the source ticket still exists" in readme_norm
+    assert "even when the source ticket still exists" in scan_norm
+    assert "before Phase 4 can delete it in this same run" in scan_norm
     assert "provenance-only citations are not failures" in scan_norm
     assert "must not make the finding recur" in scan_norm
 
@@ -363,16 +366,15 @@ def test_dream_re_validates_parked_drafts_every_run() -> None:
     assert '`coga create "Premise check <period>: <N> parked drafts need a verdict"' in norm
     assert "the run's premise adjudication draft included" in norm
 
-    # The green-validate guard is stated once per surface: the general form in
-    # the lifecycle section of the architecture context, its parking-area
-    # application in the README's premise section, and nowhere else in the
-    # README (the title-only section points at it instead of repeating it).
+    # Architecture owns the lifecycle guard; the parking README links to it
+    # and applies it without maintaining a second specification.
     guard = (
         "A green `coga validate` is never a reason to cancel a draft — it is a "
         "consequence of correct verdicts, never an input to them."
     )
-    assert readme_norm.count(guard) == 1
+    assert guard not in readme_norm
     assert "### The green-validate guard" in readme_text
+    assert "../../contexts/coga/architecture/SKILL.md#two-state-machines-per-ticket" in readme_text
     assert architecture_norm.count(guard) == 1
     assert "A terminal transition is a verdict about the ticket" in architecture_norm
 

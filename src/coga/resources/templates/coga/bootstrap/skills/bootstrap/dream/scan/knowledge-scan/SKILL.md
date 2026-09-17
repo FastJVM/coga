@@ -126,10 +126,8 @@ that README. A terminal (`done` or `canceled`) ticket is no longer a parked
 draft; emit no `premise` finding for it.
 
 Where that contract exists, `coga/tasks/v2/` is the parking area, and its
-`README.md` owns a four-question premise check — does the subject still exist,
-do the surfaces it names still
-resolve, do the tickets it depends on still exist, has something else already
-delivered it — that otherwise fires only when a human pulls a draft forward.
+`README.md` owns the four-question premise check that otherwise fires only
+when a human pulls a draft forward.
 Nothing else re-validates a draft while it sits, so this scan is the standing
 owner of that check: it already reads every ticket under `coga/tasks/` each
 run. Read `coga/tasks/v2/README.md` as evidence first, counting it against the
@@ -145,8 +143,11 @@ area, a required ticket citation is resolved against `coga/tasks/` (bare `.md`
 and `<slug>/ticket.md`, any status), and a deliverable is checked by reading the
 target surface the draft names on current `main` against the draft's
 acceptance criterion, not its title. The index entry is not evidence for any
-of them. A missing source fails `citations` only when required substance is
-absent from the draft's own body; provenance-only citations are not failures.
+of them. Required substance absent from the draft's own body fails `citations`
+even when the source ticket still exists. In particular, flag a dependency on
+a Retro-eligible `done` ticket before Phase 4 can delete it in this same run.
+The finding must identify the required substance while it is still readable;
+provenance-only citations are not failures.
 Once that substance is inlined, retaining the retired source for provenance
 must not make the finding recur. A draft whose `## Description` is empty is a
 title-only stub: the README says the premise check cannot run on it and Phase 1's
@@ -197,8 +198,9 @@ inside the subagent. Classify each finding as exactly one of:
   (`v2/<slug>`); add `question: <subject | surfaces | citations | delivered>`
   for the first question it fails, and `owner: <slug>` when an open ticket
   already adjudicates it. The paragraph carries the evidence — the removed
-  surface, the dead command, the missing dependency and required substance it
-  held, or the path on `main` that already carries the deliverable.
+  surface, the dead command, the external dependency (present or missing) and
+  required substance it holds, or the path on `main` that already carries the
+  deliverable.
 
 Include draft content when a new file is proposed. Set the `area:` and
 `source:` fields on every `extract` finding. Group the `extract` findings by
