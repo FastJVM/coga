@@ -303,6 +303,82 @@ def test_dream_routes_every_finding_class_to_a_durable_home() -> None:
     assert "the retirement-debt list with the `extract` findings each retirement unlocks" in norm
 
 
+def test_dream_re_validates_parked_drafts_every_run() -> None:
+    """The v2 parking area's premise check used to fire only when a human
+    pulled a draft forward. Dream's knowledge scan owns every ticket in-shard,
+    so it asks the README's four questions of every parked draft each run and
+    Phase 6 batches the failures into one adjudication draft — a question for
+    the human, never a cancellation by Dream."""
+    repo_root = Path(__file__).resolve().parents[1]
+    text = DREAM_PROMPT.read_text()
+    norm = " ".join(text.replace("**", "").split())
+    scan_text = (SCAN_TEMPLATES / "knowledge-scan" / "SKILL.md").read_text()
+    scan_norm = " ".join(scan_text.split())
+    protocol_text = (SCAN_TEMPLATES / "scan-protocol" / "SKILL.md").read_text()
+    readme_text = (repo_root / "coga" / "tasks" / "v2" / "README.md").read_text()
+    readme_norm = " ".join(readme_text.replace("**", "").split())
+    architecture_text = (
+        repo_root / "coga" / "contexts" / "coga" / "architecture" / "SKILL.md"
+    ).read_text()
+    architecture_norm = " ".join(architecture_text.split())
+
+    # The README owns the four questions and names Dream as the standing owner.
+    assert "Four questions, in this order:" in readme_text
+    assert "Does the draft carry the substance it depends on?" in readme_norm
+    assert "a draft must carry the substance it depends on in its own body" in readme_norm
+    assert "Has something else already delivered it?" in readme_norm
+    assert "### Who runs the check while a draft sits" in readme_text
+    assert "The standing owner is Dream" in readme_norm
+
+    # A delivered duplicate can be canceled directly from draft, even without
+    # a workflow. The CLI refuses `mark done` from draft.
+    assert 'coga mark canceled v2/<slug> --message "already delivered by' in readme_norm
+    assert "coga mark done v2/<slug>" not in readme_norm
+
+    # The shard runs the check and records a `premise` finding, never a verdict.
+    assert "## Parked drafts: the standing premise pass" in scan_text
+    assert "If `coga/tasks/v2/README.md` is absent, skip this pass" in scan_norm
+    assert "continue the rest of the knowledge scan" in scan_norm
+    assert "A terminal (`done` or `canceled`) ticket is no longer a parked draft" in scan_norm
+    assert "every parked draft your shard owns" in scan_norm
+    assert "`premise`" in scan_text
+    assert "`question: <subject | surfaces | citations | delivered>`" in scan_text
+    assert "Write findings, never verdicts" in scan_norm
+    assert "emit nothing for it here" in scan_norm
+    assert "- class: <extract | stale | gap | premise | drift>" in protocol_text
+
+    # Required external substance is flagged before Retro deletes a live
+    # source; self-contained drafts may keep retired provenance.
+    assert "Provenance-only citations are not premise failures" in readme_norm
+    assert "required substance absent from the draft's own body" in readme_norm
+    assert "even while the source ticket still exists" in readme_norm
+    assert "even when the source ticket still exists" in scan_norm
+    assert "before Phase 4 can delete it in this same run" in scan_norm
+    assert "provenance-only citations are not failures" in scan_norm
+    assert "must not make the finding recur" in scan_norm
+
+    # Phase 6 routes the class to one brief-for-human draft per run and
+    # reconciles against earlier runs' adjudication drafts first.
+    assert "each `premise` finding's `target:`, `question:`, and `owner:` lines" in norm
+    assert "`premise` — a parked draft under `coga/tasks/v2/` failed" in norm
+    assert "The verdict is the author's, never Dream's" in norm
+    assert "never one ticket per draft" in norm
+    assert '`coga create "Premise check <period>: <N> parked drafts need a verdict"' in norm
+    assert "the run's premise adjudication draft included" in norm
+
+    # Architecture owns the lifecycle guard; the parking README links to it
+    # and applies it without maintaining a second specification.
+    guard = (
+        "A green `coga validate` is never a reason to cancel a draft — it is a "
+        "consequence of correct verdicts, never an input to them."
+    )
+    assert guard not in readme_norm
+    assert "### The green-validate guard" in readme_text
+    assert "../../contexts/coga/architecture/SKILL.md#two-state-machines-per-ticket" in readme_text
+    assert architecture_norm.count(guard) == 1
+    assert "A terminal transition is a verdict about the ticket" in architecture_norm
+
+
 def test_validate_drift_worker_declares_contract() -> None:
     text = (TEMPLATES / "validate-drift" / "SKILL.md").read_text()
 

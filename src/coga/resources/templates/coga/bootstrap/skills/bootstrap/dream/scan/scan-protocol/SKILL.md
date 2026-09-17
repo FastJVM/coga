@@ -142,7 +142,7 @@ Each finding is one block:
 ### <short title>
 
 - shard: <shard-id>
-- class: <extract | stale | gap | drift>
+- class: <extract | stale | gap | premise | drift>
 - target: <file path, or ticket slug for `extract`>
 - area: <context/skill area>
 
@@ -150,7 +150,9 @@ Each finding is one block:
 ```
 
 `area:` is required for `extract` findings — Phase 4 batches coherent PRs by it —
-and optional otherwise. When the finding proposes a new file, append the draft
+and optional otherwise. A `premise` finding's `target:` is the parked draft's
+path-qualified slug (`v2/<slug>`), and the knowledge-scan skill names the
+extra lines it carries. When the finding proposes a new file, append the draft
 content under the paragraph in a fenced block.
 
 ## Heartbeat

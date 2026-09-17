@@ -8,9 +8,11 @@ what is in here. The pull-forward rule itself lives in `coga/roadmap`
 ## Read every draft in here as a dated artifact, not as instructions
 
 A parked draft is a **record of what someone wanted at the time it was
-written**. It is not a maintained spec, and nothing re-validates it while it
-sits. Its problem statement usually survives; its proposed implementation
-often does not, because the surfaces it names keep moving underneath it.
+written**. It is not a maintained spec; the only thing that re-validates it
+while it sits is Dream's weekly premise pass (see "Who runs the check while a
+draft sits"), and that produces a finding for a human, not a fix. Its problem
+statement usually survives; its proposed implementation often does not,
+because the surfaces it names keep moving underneath it.
 
 The failure mode this file exists to prevent: an agent or a person picks up a
 v2 draft, follows its steps literally, and writes code or prose against a repo
@@ -43,14 +45,13 @@ the author can give it —
 - **cancel**: `coga mark canceled v2/<slug> --message "<reason>"` when the
   author confirms the intent is lost or already shipped.
 
-Nothing in either verdict may be inferred from the slug alone, and a green
-`coga validate` is never a reason to cancel a draft — it is a consequence of
-correct verdicts, never an input to them. Precedent for the batch form of this
+Nothing in either verdict may be inferred from the slug alone, and the
+green-validate guard below binds both. Precedent for the batch form of this
 verdict is `interview-the-owner-on-the-17-title-only-v2-stubs`.
 
 ## Before pulling anything forward, check the premise
 
-Two questions, in this order:
+Four questions, in this order:
 
 1. **Does the subject still exist?** If the thing the draft asks you to build,
    document, or remove is already gone, the draft is *premise-dead* — cancel
@@ -60,8 +61,72 @@ Two questions, in this order:
 2. **Do the surfaces it names still resolve?** Grep the draft for the dead
    surfaces below and check each against current `main` before trusting any
    step in it.
+3. **Does the draft carry the substance it depends on?** A draft that says
+   "read the `Ranked changes` section of `<slug>`'s blackboard" or "the live cluster to
+   read instead is `<slug>`, `<slug>`" has delegated its content to a file
+   Coga can delete during Retro. Resolve those dependencies against
+   `coga/tasks/` (bare `.md` and `<slug>/ticket.md`). A dependency is a
+   premise failure when it holds required substance absent from the draft's
+   own body, even while the source ticket still exists. In particular, a
+   `done` source eligible for Retro can disappear later in the same Dream
+   run; flag the dependency now and read the required substance while it is
+   available. **Provenance-only citations are not premise failures**:
+   a self-contained draft may retain a retired source or example, including
+   after its required substance has been recovered and inlined. For a
+   dangling dependency, recover the missing substance from git history —
+   `git log --all --diff-filter=D --name-only -- 'coga/tasks/<slug>*'` finds
+   the deleting commit, and `git show <commit>^:<path>` reads the file. Do not
+   repair a dangling citation by pointing at a different live ticket: that is
+   how `autotrigger-ticket-type`'s fix-up rotted the same way its original
+   did. Either inline the recovered substance into the draft or, if it cannot
+   be recovered, cancel with a reason that says so.
 
-Only then decide: pull forward, rewrite against the current shape, or cancel.
+   The rule that prevents this: **a draft must carry the substance it depends
+   on in its own body.** Cite another ticket for provenance if you like, but
+   never as the only copy of a requirement, a ranked list, or a verdict the
+   implementer will need. The cited ticket may be deleted before the draft is
+   pulled forward; the draft's own `## Description` and `## Context` are the
+   only surfaces that sit as long as it does.
+4. **Has something else already delivered it?** The commonest outcome of this
+   check is not a dead subject but a shipped deliverable: a context edit,
+   skill, or code change landed under another ticket whose PR had no reason to
+   know a parked draft was waiting on it. Read the target surface the draft
+   names on current `main` and compare it with the draft's acceptance
+   criterion, not its title. If the surface already carries the substance,
+   cancel the redundant draft with delivery evidence —
+   `coga mark canceled v2/<slug> --message "already delivered by <PR, commit, or path>"`.
+   This records why the duplicate work is no longer needed using a transition
+   available to drafts, including workflow-less ones. The canceled draft
+   remains on disk under Dream's existing lifecycle contract. If only part
+   shipped, narrow the draft to the remainder in its own body (question 3
+   applies to the narrowing) rather than leaving the satisfied half armed.
+
+Only then decide: pull forward, rewrite against the current shape, or cancel
+with evidence of the dead premise or already-delivered outcome.
+
+### The green-validate guard
+
+Apply the [ticket lifecycle rule in `coga/architecture`](../../contexts/coga/architecture/SKILL.md#two-state-machines-per-ticket)
+when adjudicating parked drafts. Here, the evidence comes from the author's
+intent and the premise questions above. Standing validation errors on parked
+drafts can make cancellation look like an easy cleanup, but they supply no
+evidence about whether the requested work is still wanted or already delivered.
+
+### Who runs the check while a draft sits
+
+Nobody, by hand: the check above fires when a human pulls a draft forward,
+and the only sweeps that ever ran it across the directory were one-off
+tickets (the one in "Precedent" below, then the adjudication drafts a Dream
+run filed by hand). The standing owner is Dream. Its knowledge scan
+(`bootstrap/dream/scan/knowledge-scan`) already reads every ticket under
+`coga/tasks/` each run, and it asks the four questions of every draft in this
+directory it owns, recording each failure as a `premise` finding with the
+question it failed and the evidence. Dream's disposition phase collects the
+run's unowned `premise` findings into one adjudication draft for the human —
+Dream cancels nothing and edits no draft; the verdict stays the author's — and
+reports a draft an open ticket already adjudicates as "already ticketed". A
+draft that sits here is therefore re-validated weekly, and a verdict is due
+the first time a run names it.
 
 ## Known-stale surfaces (the pre-rename cohort)
 
