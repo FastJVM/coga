@@ -67,6 +67,11 @@ reinstalls explicitly. They currently produce no per-skill update result, so
 the weekly report neither lists nor verifies them; omission is not evidence
 that their source or installed bytes are current. Hand-vendored directories
 have the same unmanaged update posture.
+Human-readable attribution for hand-vendored `anthropic/skill-creator` lives in
+`coga/skills/anthropic/skill-creator/ATTRIBUTION.md`, pinning `anthropics/skills`
+at `f458cee3`; the separate package-backed `browser/playwright` `local-override`
+carries `coga/skills/browser/playwright/NOTICE.txt`, naming
+`microsoft/playwright-cli` as the source of its adapted material.
 Bundled (package-backed) skills are not touched here — they refresh when the
 coga package is upgraded.
 
