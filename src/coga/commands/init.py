@@ -36,6 +36,7 @@ from coga.commands.update import (
     packaged_template_root,
 )
 from coga.config import (
+    Config,
     ConfigError,
     _parse_git,
     load_config,
@@ -1062,7 +1063,7 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             # the seeded onboarding task through the ordinary audit writer so
             # its creation time is real rather than baked into every install.
             append_log(
-                load_config(coga_os),
+                _load_scaffolded_config(coga_os),
                 "coga-build",
                 "coga:init",
                 "created (mode=interactive, status=active)",
@@ -1234,6 +1235,26 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         typer.echo(f"  {i}. {step}")
 
     _print_notification_state()
+
+
+def _load_scaffolded_config(coga_os: Path) -> Config:
+    """Load the config `coga init` just wrote, for init's own audit write.
+
+    The shipped coga.toml selects no notification channel, so a bare
+    `SLACK_WEBHOOK_URL` in the operator's environment plays no part in this
+    read — but `load_config` refuses one as a migration guard aimed at the
+    user's declared config. Hide the variable for this single call so the
+    empty-repo path agrees with the filled path, which never loads config:
+    both finish and let `_print_notification_state` say what to declare. The
+    guard is untouched for every later command, and the variable is restored
+    before init spawns anything.
+    """
+    saved = os.environ.pop("SLACK_WEBHOOK_URL", None)
+    try:
+        return load_config(coga_os)
+    finally:
+        if saved is not None:
+            os.environ["SLACK_WEBHOOK_URL"] = saved
 
 
 def _print_notification_state() -> None:
