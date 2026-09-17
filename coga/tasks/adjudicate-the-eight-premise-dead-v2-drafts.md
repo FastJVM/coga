@@ -31,8 +31,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
-launch_generation: 6b8bb2ba-7889-4e1a-a1a1-c959eee526bc
+step: 3 (review-design)
 ---
 
 ## Description
@@ -368,3 +367,78 @@ numbers, including the suggestion to cancel a ticket that is already done.
    are still wanted is unresolved by shipped onboarding. The proposed keep
    leaves that product decision with `zach` in the paused ticket's own design;
    it need not be answered to preserve the ticket in this adjudication.
+
+## Evaluator review
+
+Independent cold review, 2026-09-17, against `main` / local `origin/main`
+`0f5e2b55`. Since the design's `d4c7445b` snapshot, only this ticket and
+`coga/log.md` changed; no cohort or source drift changes the recommendation.
+
+**Verdict: ready for owner review. No must-fix design defects found.** The
+body alone defines the eight-row allowlist, exact cancellation reason,
+retained-ticket edits, lifecycle ordering and verification exceptions. It is
+implementable as one prose PR plus the separately approved CLI transition.
+This review does not approve cancellation: the owner still decides the table
+and reason-only preservation of the dirty-file preflight bug at `review-design`.
+
+### Evidence checked
+
+- **Prior verdicts:** the rules-audit cancellation and workflow-less draft's
+  done outcome match their current frontmatter and the 2026-09-16 entries in
+  `coga/log.md`. The dev-loop done entry on 2026-09-12 and deletion commit
+  `b73b20d0` support leaving that absent ticket absent. Split-context's body
+  retains the `redo-documentation-dir-and-merge-it-with-context-b` owner gate
+  from `23420a91` / PR #826. None requires a replayed transition.
+- **Sole proposed cancellation:** `git show 74792cd2 --
+  src/coga/commands/launch_script.py` confirms the PR #635 pre-run log sync;
+  `755e60de` deletes that implementation. Current
+  `src/coga/launch_script.py::run_script_phase` still syncs before executing
+  the attachment. `src/coga/skill_manager.py::run_skill_update_pr_flow`,
+  `_assert_no_unmerged_paths`, `_commit_skill_updates` and `_checkout`
+  confirm the distinct ordinary-dirt gap. The exact reason preserves that
+  gap without claiming every dirty file prevents checkout.
+- **Autotrigger:** `src/coga/recurring.py::scan_due`, `create_template`,
+  `DueTask.launchable` and `_record_run`, together with
+  `src/coga/recurring_runner.py::run_recurring_scan`, substantiate stable
+  identity, the log ledger and orphan resume. Source search finds no idle
+  trigger unification. All four cited historical bodies are recoverable at
+  the specified parents (`d7086ecd`, `078dd705`, `2584de1d`, `c008c23b`);
+  their contents support the proposed bounded background. Recovering it
+  into the retained draft meets README question 3 without treating those
+  historical hazards as four new feature requirements.
+- **Other keeps:** `src/coga/commands/init.py::_do_init` requires an existing
+  git worktree; `coga/workflows/build/onboarding.md`'s `gather-and-spec` and
+  `generate-batch` deliver vision and starter tickets, not the entire repo
+  proposal. Its pause and owner `zach` remain current. `coga skill --help`,
+  `src/coga/commands/skill.py::app`, the source-metadata constants in
+  `src/coga/skill_manager.py`, and packaged `bootstrap/import`'s
+  `Finding a candidate` section support keeping search. Its implementation
+  home properly remains undecided under `coga/codebase`'s microkernel rule.
+- **Execution contract:** the frozen workflow matches packaged
+  `code/design-then-implement`: evaluator, then owner approval, then implement.
+  `src/coga/mark.py::mark_canceled` preserves body/blackboard, clears lifecycle
+  fields and writes the reason through the audit/sync path; existing
+  `tests/test_mark.py` cancellation cases cover draft eligibility.
+  `src/coga/validate.py::validate_task` and
+  `tests/test_validate.py::test_authoring_blackboard_error_is_draft_only`
+  support the stated synthesis exception. No new core or policy work is needed.
+
+### Optional recommendation
+
+In skill search's planned `### Premise review`, explicitly label the
+`detect-missing-skills` link as historical. Its current Context and Out of
+scope still describe that ticket as a future trigger/owner, whereas
+`coga/current-direction`'s `Recent decisions (missing-skill detection)`
+records its closure and no programmatic handoff. This is not a prerequisite
+for search and does not weaken the keep verdict; the clarification fits the
+already-scoped prose edit.
+
+### Review verification
+
+Re-ran the exact five targeted `coga validate --task ... --json` commands
+listed under `## Verification`: this ticket, skill-update, repository design
+and skill search pass; autotrigger alone reports the expected
+`unsynthesized-draft-blackboard`. `coga validate --json` still exits 1 with
+214 OK, 49 warnings and the same three synthesis errors. `coga status v2 --all`
+still reports 81 tasks. Existing lifecycle, validation and skill-preflight
+tests were inspected; no tests or feature changes were made in this review.
