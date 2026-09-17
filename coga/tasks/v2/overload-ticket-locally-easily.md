@@ -1,6 +1,6 @@
 ---
 title: overload ticket locally easily
-status: paused
+status: active
 owner: nicktoper
 agent: claude
 contexts:
