@@ -5466,3 +5466,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-17 11:01 [dream-2026-w38-extract-backlog-4-findings-phase-4] [human:nicktoper] auto-bumped on merge of PR #812 → done
 2026-09-17 11:01 [recurring-sweep-aborts-and-orphans-a-deleted-done] [human:nicktoper] auto-bumped on merge of PR #814 → done
 2026-09-17 11:01 [the-autofix-analyst-ticket-closed-without-shipping] [human:nicktoper] auto-bumped on merge of PR #816 → done
+2026-09-17 11:02 [title-only-tickets-have-no-convention-and-no-valid] [human:nicktoper] auto-bumped on merge of PR #815 → done
