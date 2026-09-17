@@ -23,9 +23,12 @@ The creator attaches this context to every period task unconditionally
 `_template_frontmatter` strips a copy a promoted template already carries),
 but who reads it depends on the materialized period's frozen dispatch:
 
-- **No `ticket.py` or `delegate:`: an agent runs the period.** `coga
-  launch` composes this context into the prompt, and "you" below is that
-  agent.
+- **No `ticket.py` or `delegate:`: the current step's routing applies.**
+  For an agent-owned step, `coga launch` composes this context into the
+  agent's prompt. A step assigned to the owner is a human handoff; launch
+  requires an explicit `--agent <type>` assist. An unfinished handoff
+  may be paused by the recurring sweep; see `coga/recurring` for that
+  completion contract.
 - **A `delegate:` target: an agent runs the bootstrap ticket.** That
   target's prompt does not include the period ticket's contexts, so the
   delegated agent does not receive these bookkeeping instructions. See
