@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import shutil
 from datetime import datetime
+from types import SimpleNamespace
 from pathlib import Path
 from textwrap import dedent
 
@@ -24,8 +25,12 @@ def _write(path: Path, text: str) -> None:
     path.write_text(dedent(text).lstrip())
 
 
-def test_autoclose_recipe_calls_shared_sweep_loudly(monkeypatch, capsys) -> None:
-    cfg = object()
+def test_autoclose_recipe_calls_shared_sweep_loudly(
+    monkeypatch, capsys, tmp_path: Path
+) -> None:
+    # `repo_root` is all the recipe reads before the sweep (to scope the
+    # follow-up report); everything else is exercised through the fake sweep.
+    cfg = SimpleNamespace(repo_root=tmp_path)
     calls: list[tuple[object, bool]] = []
 
     def fake_sweep(
@@ -47,13 +52,13 @@ def test_autoclose_recipe_calls_shared_sweep_loudly(monkeypatch, capsys) -> None
     assert "[autoclose] no tickets bumped." in capsys.readouterr().out
 
 
-def test_autoclose_recipe_surfaces_gh_error(monkeypatch, capsys) -> None:
+def test_autoclose_recipe_surfaces_gh_error(monkeypatch, capsys, tmp_path: Path) -> None:
     def boom(*args, **kwargs):
         raise autoclose.GhError("gh: not authenticated")
 
     monkeypatch.setattr(autoclose, "sweep_merged", boom)
 
-    assert autoclose.run_autoclose_recipe(object(), []) == 2
+    assert autoclose.run_autoclose_recipe(SimpleNamespace(repo_root=tmp_path), []) == 2
     assert "gh: not authenticated" in capsys.readouterr().err
 
 

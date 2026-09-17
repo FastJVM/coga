@@ -27,6 +27,12 @@ proofs. Autoclose stays non-destructive and instead *names* the follow-up —
 see `_report_retire_followups`. Duplicating retire's proofs here would either
 copy that machinery or ship a weaker version of it, and implicit destruction
 cuts against the principle that destructive behavior is never implicit.
+
+Under a recurring period task the name has to outlive the run: the period task
+is deleted at the next period boundary, so the sweep also records each
+follow-up in the template's durable `retires.md` (`coga.retire_worklist`) and
+drops the entries already discharged. That reconcile runs on every recurring
+sweep, closed tickets or not, so the worklist stays a worklist.
 """
 
 from __future__ import annotations
@@ -41,10 +47,18 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from coga import git
 from coga.blackboard import append_blackboard_report
 from coga.mark import mark_done
 from coga.config import Config
 from coga.notification import post, preflight_post
+from coga.retire_worklist import (
+    RetireFollowUp,
+    RetireWorklistError,
+    WorklistChange,
+    reconcile_worklist,
+    worklist_for_period_task,
+)
 from coga.task_env import blackboard_from_env
 from coga.taskfile import (
     TaskFileError,
@@ -545,12 +559,16 @@ def render_retire_report(
     generated_at: str,
     task_slug: str | None,
     pending: list[ClosedTicket],
+    worklist: Path | None = None,
 ) -> str:
     """Render the report naming each closed ticket's `coga retire` command.
 
     Only called with a non-empty `pending`: a sweep that stranded nothing has
-    nothing to report, and this section is appended to a long-lived recurring
-    task's blackboard, which a daily no-op line would grow without bound.
+    nothing to report. This is the *per-run* surface — a task blackboard or
+    stdout — so a daily no-op line would only grow it without bound. Under a
+    recurring period task it names the durable `worklist` the same entries
+    were recorded in, because the period task itself is deleted at the next
+    period boundary.
     """
     lines = [RETIRE_REPORT_HEADING, "", f"Generated: {generated_at}"]
     if task_slug:
@@ -569,7 +587,28 @@ def render_retire_report(
             f'- `{item.slug}` "{item.title}": {item.checkout_state} — '
             f"`{item.retire_command}`"
         )
+    if worklist is not None:
+        lines.extend(
+            [
+                "",
+                f"Recorded in the durable worklist `{worklist}`; this period "
+                "task is deleted at the next period boundary.",
+            ]
+        )
     return "\n".join(lines) + "\n"
+
+
+def _worklist_line(change: WorklistChange) -> str:
+    """One stdout line describing what the reconcile did to the worklist."""
+    parts = [f"{len(change.open)} open"]
+    if change.added:
+        parts.append(f"{len(change.added)} recorded")
+    if change.refreshed:
+        parts.append(f"{len(change.refreshed)} refreshed")
+    if change.dropped:
+        dropped = ", ".join(f"`{entry.slug}`" for entry in change.dropped)
+        parts.append(f"{len(change.dropped)} discharged ({dropped})")
+    return f"[autoclose] retire worklist {change.path}: {', '.join(parts)}\n"
 
 
 def render_retire_summary(pending: list[ClosedTicket]) -> str:
@@ -583,12 +622,28 @@ def render_retire_summary(pending: list[ClosedTicket]) -> str:
     return f"🧹 {subject} a feature checkout: {commands}"
 
 
-def _report_retire_followups(cfg: Config, result: AutocloseResult) -> None:
+def _worklist_root(cfg: Config) -> Path | None:
+    """The git root a worklist entry's relative `worktree:` resolves against.
+
+    `None` when the checkout is not a git repository; the discharge rule then
+    keeps every entry it cannot judge without one — a relative worktree, or any
+    recorded branch — the fail-closed reading of debt the worklist exists for.
+    """
+    try:
+        return git._toplevel(cfg.repo_root)
+    except git.GitError:
+        return None
+
+
+def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
     """Name the `coga retire` follow-up for the tickets this sweep stranded.
 
-    Two surfaces, both silent when the sweep left nothing behind: the run
-    report (the task blackboard when run under a task, stdout otherwise), and
-    one trailing Slack line for the whole sweep.
+    Two per-run surfaces, both silent when the sweep left nothing behind: the
+    run report (the task blackboard when run under a task, stdout otherwise),
+    and one trailing Slack line for the whole sweep. Under a recurring period
+    task there is a third, durable one: the template's `retires.md` worklist,
+    reconciled on every run because the period task's own blackboard is
+    deleted at the next period boundary (see `coga.retire_worklist`).
 
     The per-ticket `🎉 ... merged` line is deliberately left alone. It
     announces a lifecycle event, while a retire hint is an operational to-do
@@ -596,21 +651,73 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> None:
     outcome feed into a command list and buries the action item. This summary
     is a plain live `post` rather than a `notify` outcome: the `notify` kinds
     are per-ticket outcomes, which a sweep-level summary is not.
+
+    Returns False when the durable worklist or task report cannot be written.
+    Expected I/O and encoding failures are reported on stderr; a failed task
+    report falls back to stdout before the live summary is attempted. The
+    tickets are already `done` on disk, so these reporting failures must not
+    erase their follow-ups or mask an earlier sweep error.
     """
     pending = result.retire_pending
+    # Scoped to the root this sweep actually walked, so an inherited blackboard
+    # from another checkout falls back to stdout — and, below, never selects
+    # another checkout's recurring template as the durable home.
+    blackboard = blackboard_from_env(cfg.repo_root)
+    if not pending and blackboard is None:
+        # Nothing stranded and no task this run could own a worklist for.
+        return True
+    now = datetime.now(timezone.utc)
+    worklist = worklist_for_period_task(cfg, blackboard)
+    failure: RetireWorklistError | OSError | UnicodeError | None = None
+    if worklist is not None:
+        # The durable half: record this run's follow-ups keyed by slug and drop
+        # the ones `coga retire` (or the branch sweep) has since discharged.
+        # Runs on every recurring sweep, so a quiet day still prunes.
+        try:
+            change = reconcile_worklist(
+                cfg,
+                worklist,
+                root=_worklist_root(cfg),
+                pending=[
+                    RetireFollowUp(
+                        slug=item.slug,
+                        branch=item.branch or "",
+                        worktree=item.worktree or "",
+                        recorded=now.date().isoformat(),
+                    )
+                    for item in pending
+                ],
+            )
+        except (RetireWorklistError, OSError, UnicodeError) as exc:
+            # The closures are already on disk; a worklist this run cannot
+            # safely rewrite is a loud failure of the run, not a swallowed
+            # warning — but the per-run surfaces below still get written.
+            failure = exc
+            sys.stderr.write(f"[autoclose] {exc}\n")
+        else:
+            if change.written or change.open:
+                sys.stdout.write(_worklist_line(change))
     if not pending:
-        return
+        return failure is None
 
     report = render_retire_report(
-        generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        generated_at=now.isoformat(timespec="seconds"),
         task_slug=os.environ.get("COGA_TASK_SLUG"),
         pending=pending,
+        # A report must not claim a durable record the reconcile refused.
+        worklist=None if failure is not None else worklist,
     )
-    # Scoped to the root this sweep actually walked, so an inherited blackboard
-    # from another checkout falls back to stdout.
-    blackboard = blackboard_from_env(cfg.repo_root)
     if blackboard:
-        _append_blackboard_report(cfg, blackboard, report)
+        try:
+            _append_blackboard_report(cfg, blackboard, report)
+        except (OSError, UnicodeError) as exc:
+            # Disk exhaustion can affect both durable files. Keep the commands
+            # visible on stdout and still attempt the live summary.
+            failure = exc
+            sys.stderr.write(
+                f"[autoclose] could not write retire report to {blackboard}: {exc}\n"
+            )
+            sys.stdout.write(report)
     else:
         sys.stdout.write(report)
 
@@ -623,11 +730,12 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> None:
             else blackboard
         ),
         # The tickets are already `done` on disk and the report is already
-        # written; an undeliverable hint must not fail the recurring run. A
+        # emitted; an undeliverable hint must not fail the recurring run. A
         # task-scoped run supplies its validated task path above, so the miss
         # is also durable in the repo-global audit log.
         fatal=False,
     )
+    return failure is None
 
 
 def run_autoclose_recipe(
@@ -673,8 +781,7 @@ def run_autoclose_recipe(
         raise
     if not result.closed:
         sys.stdout.write("[autoclose] no tickets bumped.\n")
-    _report_retire_followups(cfg, result)
-    return 0
+    return 0 if _report_retire_followups(cfg, result) else 2
 
 
 def _read_dev_blackboard(ticket: Path) -> str | None:

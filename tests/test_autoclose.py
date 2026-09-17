@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 from textwrap import dedent
+from typing import Any
 
 import pytest
 import requests
@@ -11,6 +12,7 @@ from typer.testing import CliRunner
 
 from coga import autoclose as am
 from coga import blackboard as blackboard_module
+from coga import retire_worklist as rw
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
@@ -1017,6 +1019,324 @@ def test_failed_summary_delivery_is_logged_against_the_host_task(
         "post failed: ConnectionError: connection failure" in line
         for line in task_log_lines(load_config(repo), host_slug)
     )
+
+
+# --- the durable retire worklist ---------------------------------------------
+
+
+def _make_recurring_sweep(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    template: str = "autoclose-merged",
+    worktree: str = "/nowhere/coga-feature-x",
+) -> tuple[str, Path, Path]:
+    """Stage a merged ticket swept by a recurring *period* task.
+
+    Mirrors the real shape: the template directory under `coga/recurring/`
+    survives every period, while the period task at
+    `coga/tasks/recurring/<name>/ticket.md` is deleted at the next boundary
+    and is what `coga launch` exports as the blackboard.
+    """
+    slug, _ = _make_task(
+        repo,
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/24",
+        branch="feature-x",
+        worktree=worktree,
+    )
+    template_dir = repo / "recurring" / template
+    template_dir.mkdir(parents=True)
+    (template_dir / "ticket.md").write_text("template\n")
+    _, period_dir = _write_workflow_less_task(
+        repo, slug=f"recurring/{template}", status="in_progress"
+    )
+    period = period_dir / "ticket.md"
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(period))
+    monkeypatch.setenv("COGA_TASK_SLUG", f"recurring/{template}")
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/24": "MERGED"})
+    _capture_posts(monkeypatch)
+    return slug, period, template_dir / rw.RETIRE_WORKLIST_FILENAME
+
+
+def test_recipe_records_the_followup_in_the_durable_worklist(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    slug, period, worklist = _make_recurring_sweep(repo, monkeypatch)
+
+    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+
+    _, entries = rw.parse_worklist(worklist.read_text())
+    assert [(e.slug, e.branch, e.worktree) for e in entries] == [
+        (slug, "feature-x", "/nowhere/coga-feature-x")
+    ]
+    # The per-run report still lands on the period task for the run record
+    # and the autofix analyst, and it names where the durable copy went.
+    report = period.read_text()
+    assert am.RETIRE_REPORT_HEADING in report
+    assert f"`coga retire {slug}`" in report
+    assert str(worklist) in report
+    out = capsys.readouterr().out
+    assert am.RETIRE_REPORT_HEADING not in out
+    assert f"retire worklist {worklist}: 1 open, 1 recorded" in out
+
+
+def test_the_worklist_survives_deleting_and_recreating_the_period_task(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    slug, period, worklist = _make_recurring_sweep(repo, monkeypatch)
+    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+    capsys.readouterr()
+
+    # What `coga recurring` does at the next period boundary: delete the
+    # prior-period task, then create a fresh one at the same stable path.
+    period.unlink()
+    period.parent.rmdir()
+    assert slug in worklist.read_text()
+    _write_workflow_less_task(
+        repo, slug="recurring/autoclose-merged", status="in_progress"
+    )
+
+    # The next period closes nothing, so it only reconciles: the entry is
+    # still live (its branch cannot be checked here, so it is kept) and the
+    # fresh period task gets no report.
+    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+
+    assert slug in worklist.read_text()
+    assert am.RETIRE_REPORT_HEADING not in period.read_text()
+    assert f"retire worklist {worklist}: 1 open" in capsys.readouterr().out
+
+
+def test_a_rerun_that_strands_the_same_slug_keeps_one_entry_and_its_date(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    slug, _, worklist = _make_recurring_sweep(repo, monkeypatch)
+    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+    first = worklist.read_bytes()
+    capsys.readouterr()
+
+    # The same ticket, stranded again by a later sweep with a different date.
+    change = rw.reconcile_worklist(
+        load_config(repo),
+        worklist,
+        root=repo,
+        pending=[
+            rw.RetireFollowUp(
+                slug=slug,
+                branch="feature-x",
+                worktree="/nowhere/coga-feature-x",
+                recorded="2099-01-01",
+            )
+        ],
+    )
+
+    assert not change.written
+    assert worklist.read_bytes() == first
+    assert worklist.read_text().count(f"`{slug}`") == 1
+
+
+def test_a_recurring_run_drops_discharged_debt_and_keeps_live_debt(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    slug, _, worklist = _make_recurring_sweep(repo, monkeypatch)
+    still_here = tmp_path / "still-here"
+    still_here.mkdir()
+    worklist.write_text(
+        rw.RETIRE_WORKLIST_HEADER
+        + "\n"
+        + rw.RetireFollowUp("retired", "", str(tmp_path / "absent"), "2026-09-01").render()
+        + "\n"
+        + rw.RetireFollowUp("stranded", "", str(still_here), "2026-09-01").render()
+        + "\n"
+    )
+
+    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+
+    _, entries = rw.parse_worklist(worklist.read_text())
+    assert sorted(e.slug for e in entries) == sorted([slug, "stranded"])
+    out = capsys.readouterr().out
+    assert "2 open, 1 recorded, 1 discharged (`retired`)" in out
+
+
+def test_a_non_recurring_task_keeps_the_ordinary_blackboard_surface(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    slug, _ = _make_task(
+        repo,
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/24",
+        branch="feature-x",
+    )
+    (repo / "recurring" / "autoclose-merged").mkdir(parents=True)
+    (repo / "recurring" / "autoclose-merged" / "ticket.md").write_text("t\n")
+    _, host = _make_task(repo, title="Autoclose merged", status="draft")
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(host))
+    monkeypatch.setenv("COGA_TASK_SLUG", "autoclose-merged")
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/24": "MERGED"})
+    _capture_posts(monkeypatch)
+
+    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+
+    assert f"`coga retire {slug}`" in host.read_text()
+    assert not (repo / "recurring" / "autoclose-merged" / "retires.md").exists()
+    assert "retire worklist" not in capsys.readouterr().out
+
+
+def test_a_run_with_no_task_keeps_stdout_and_touches_no_worklist(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    slug, _ = _make_task(
+        repo, on_final=True, pr_url="https://github.com/o/r/pull/24", branch="feature-x"
+    )
+    (repo / "recurring" / "autoclose-merged").mkdir(parents=True)
+    (repo / "recurring" / "autoclose-merged" / "ticket.md").write_text("t\n")
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/24": "MERGED"})
+    _capture_posts(monkeypatch)
+
+    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+
+    out = capsys.readouterr().out
+    assert f"`coga retire {slug}`" in out
+    assert "retire worklist" not in out
+    assert not (repo / "recurring" / "autoclose-merged" / "retires.md").exists()
+
+
+def test_a_period_task_inherited_from_another_checkout_selects_no_worklist(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    # A nested `coga run autoclose` inherits the outer session's period task;
+    # `blackboard_from_env` already refuses it as outside this root, and the
+    # worklist derivation follows that verdict rather than the slug.
+    slug, _ = _make_task(
+        repo, on_final=True, pr_url="https://github.com/o/r/pull/24", branch="feature-x"
+    )
+    (repo / "recurring" / "autoclose-merged").mkdir(parents=True)
+    (repo / "recurring" / "autoclose-merged" / "ticket.md").write_text("t\n")
+    other = tmp_path / "other" / "coga" / "tasks" / "recurring" / "autoclose-merged"
+    other.mkdir(parents=True)
+    (other / "ticket.md").write_text("outer\n")
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(other / "ticket.md"))
+    monkeypatch.setenv("COGA_TASK_SLUG", "recurring/autoclose-merged")
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/24": "MERGED"})
+    _capture_posts(monkeypatch)
+
+    assert am.run_autoclose_recipe(load_config(repo), []) == 0
+
+    assert f"`coga retire {slug}`" in capsys.readouterr().out
+    assert not (repo / "recurring" / "autoclose-merged" / "retires.md").exists()
+
+
+def test_a_corrupt_worklist_fails_the_run_loudly_after_closing(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    slug, period, worklist = _make_recurring_sweep(repo, monkeypatch)
+    posts = _capture_posts(monkeypatch)
+    worklist.write_text("# Someone else's file\n")
+
+    assert am.run_autoclose_recipe(load_config(repo), []) == 2
+
+    captured = capsys.readouterr()
+    assert "retire worklist has no" in captured.err
+    assert worklist.read_text() == "# Someone else's file\n"
+    # The closure itself is not undone by a reporting failure.
+    from coga.tasks import resolve_task
+
+    assert Ticket.read(resolve_task(load_config(repo), slug).ticket_path).status == "done"
+    # The per-run surfaces the durable one was added *beside* still get the
+    # follow-up: the ticket is done on disk, so a refused worklist must not
+    # leave the retire recorded nowhere. The report does not claim a durable
+    # copy that was never written.
+    report = period.read_text()
+    assert f"`coga retire {slug}`" in report
+    assert str(worklist) not in report
+    assert any(f"`coga retire {slug}`" in text for text in posts)
+
+
+def test_a_corrupt_worklist_is_reported_when_the_sweep_itself_fails(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The worklist failure must not escape the handler reporting a gh error."""
+    slug, period, worklist = _make_recurring_sweep(repo, monkeypatch)
+    worklist.write_text("# Someone else's file\n")
+    real_bump = am.mark_done
+
+    def close_then_break(*args, **kwargs):
+        result = real_bump(*args, **kwargs)
+        raise am.GhError("gh fell over after the close")
+
+    monkeypatch.setattr(am, "mark_done", close_then_break)
+
+    assert am.run_autoclose_recipe(load_config(repo), []) == 2
+
+    captured = capsys.readouterr()
+    assert "retire worklist has no" in captured.err
+    assert "gh fell over after the close" in captured.err
+    assert f"`coga retire {slug}`" in period.read_text()
+
+
+@pytest.mark.parametrize("failure", ["read", "write", "decode", "disk-full"])
+@pytest.mark.parametrize("sweep_error", [None, am.GhError, RuntimeError])
+def test_worklist_io_failure_preserves_followups_and_original_sweep_error(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    failure: str,
+    sweep_error: type[Exception] | None,
+) -> None:
+    slug, period, worklist = _make_recurring_sweep(repo, monkeypatch)
+    posts = _capture_posts(monkeypatch)
+    if failure == "read":
+        worklist.write_text(rw.RETIRE_WORKLIST_HEADER)
+        read_bytes = Path.read_bytes
+
+        def denied_read(path: Path) -> bytes:
+            if path == worklist:
+                raise PermissionError("worklist read denied")
+            return read_bytes(path)
+
+        monkeypatch.setattr(Path, "read_bytes", denied_read)
+        diagnostic = "worklist read denied"
+    elif failure in {"write", "disk-full"}:
+        def failed_write(*args: Any, **kwargs: Any) -> None:
+            raise OSError("worklist disk full")
+
+        monkeypatch.setattr(rw, "atomic_write_text", failed_write)
+        if failure == "disk-full":
+            monkeypatch.setattr(am, "_append_blackboard_report", failed_write)
+        diagnostic = "worklist disk full"
+    else:
+        worklist.write_bytes(b"\xff")
+        diagnostic = "utf-8"
+
+    if sweep_error is not None:
+        mark_done = am.mark_done
+
+        def close_then_fail(*args: Any, **kwargs: Any) -> None:
+            mark_done(*args, **kwargs)
+            raise sweep_error("original sweep failure")
+
+        monkeypatch.setattr(am, "mark_done", close_then_fail)
+
+    cfg = load_config(repo)
+    if sweep_error is RuntimeError:
+        with pytest.raises(RuntimeError, match="original sweep failure"):
+            am.run_autoclose_recipe(cfg, [])
+    else:
+        assert am.run_autoclose_recipe(cfg, []) == 2
+
+    from coga.tasks import resolve_task
+
+    assert Ticket.read(resolve_task(cfg, slug).ticket_path).status == "done"
+    captured = capsys.readouterr()
+    assert diagnostic in captured.err
+    if sweep_error is am.GhError:
+        assert "original sweep failure" in captured.err
+    report = captured.out if failure == "disk-full" else period.read_text()
+    assert f"`coga retire {slug}`" in report
+    assert "Recorded in the durable worklist" not in report
+    assert any(f"`coga retire {slug}`" in text for text in posts)
 
 
 # --- status stays read-only --------------------------------------------------

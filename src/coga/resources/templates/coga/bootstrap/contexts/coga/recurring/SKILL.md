@@ -785,6 +785,23 @@ do **not** need to re-teach the launched run *where* state lives — the
 creator auto-attaches the `coga/period-task` context to every period
 task, which carries that rule.
 
+A durable *worklist* a run maintains can instead be a sibling file of the
+template, when it is machine-written in a fixed shape and a blackboard
+region would be the wrong container for it. The shipped instance is
+`coga/recurring/<name>/retires.md`, the autoclose sweep's list of stranded
+`coga retire <slug>` follow-ups, owned by `src/coga/retire_worklist.py`. The
+sweep resolves that path from the period task it is running under
+(`tasks/recurring/<name>/` names the template; nothing hardcodes
+`autoclose-merged`), reconciles it on every recurring run — records the run's
+follow-ups keyed by slug, drops entries whose recorded worktree directory and
+local branch are both gone — and `coga retire <slug>` drops its own entry the
+same way. The write is barrier-held, compare-and-swap, and atomic; the file is
+`merge=union` like `log.md`, so union-merge duplicates and resurrected lines
+heal on the next reconcile rather than needing a second mechanism. A run that
+is not a period task never touches a worklist. The 2026-09-03 defect this
+replaces wrote the only copy of that list to the period task's blackboard,
+where the next period's scan deleted it.
+
 ## The creation contract
 
 - **Instantiated task ref** is `recurring/<name>`, backed by
@@ -934,8 +951,10 @@ The output is unchanged; the loop is what got added after it
    that still has a recorded branch or worktree, `_report_retire_followups`
    renders the pending-retire report and `_append_blackboard_report` writes it
    to the period task, so that run does give the analyst more than the seeded
-   placeholder. A sweep that closed nothing, or nothing needing retire, still
-   leaves only the placeholder. `branch-sweep` writes a `## Branch Sweep`
+   placeholder. That section is the run record, not the worklist — the same
+   run records the follow-ups in the template's durable `retires.md` (see
+   "Last-run state" below). A sweep that closed nothing, or nothing needing
+   retire, still leaves only the placeholder. `branch-sweep` writes a `## Branch Sweep`
    section on every run — outcome lists plus each per-branch decision — since
    the 2026-09-08 period landed with an empty blackboard and no record of
    what the sweep decided. `blocker-reminders` still hands the analyst a

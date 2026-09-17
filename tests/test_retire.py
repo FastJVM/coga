@@ -9,6 +9,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
+from coga import retire_worklist as rw
 from coga.cli import app
 from coga.branchcleanup import WorktreeCleanupResult
 from coga.commands.retire import _checkout_cleanup_section
@@ -346,13 +347,13 @@ def test_retire_prunes_merged_branch_before_launch(
     )
 
 
-def test_retire_removes_linked_worktree_then_prunes_its_branch(
+def _merged_worktree_ticket(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The worktree goes first, which is what lets the pinned branch be deleted.
+) -> tuple[str, Path]:
+    """A done ticket whose merged branch is still checked out in a linked worktree.
 
-    A branch still checked out in a linked worktree is undeletable, so before
-    this retire step the branch survived every sweep.
+    Returns `(slug, feature_worktree)`; the checkout is what retire's cleanup
+    is expected to dispose of.
     """
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
@@ -396,6 +397,18 @@ def test_retire_removes_linked_worktree_then_prunes_its_branch(
         """,
     )
     (task_dir / "log.md").write_text("")
+    return slug, feature
+
+
+def test_retire_removes_linked_worktree_then_prunes_its_branch(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The worktree goes first, which is what lets the pinned branch be deleted.
+
+    A branch still checked out in a linked worktree is undeletable, so before
+    this retire step the branch survived every sweep.
+    """
+    slug, feature = _merged_worktree_ticket(repo, tmp_path, monkeypatch)
 
     result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
 
@@ -413,6 +426,76 @@ def test_retire_removes_linked_worktree_then_prunes_its_branch(
         ).returncode
         != 0
     )
+
+
+def _seed_retire_worklist(repo: Path, *entries: rw.RetireFollowUp) -> Path:
+    """The autoclose sweep's durable worklist, naming `entries` as owed retires."""
+    template = repo / "recurring" / "autoclose-merged"
+    template.mkdir(parents=True)
+    (template / "ticket.md").write_text("template\n")
+    path = template / rw.RETIRE_WORKLIST_FILENAME
+    path.write_text(rw.render_worklist(rw.RETIRE_WORKLIST_HEADER, entries))
+    return path
+
+
+def test_retire_drops_its_slug_from_the_autoclose_worklist_once_the_checkout_is_gone(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Retire is the event that discharges an autoclose follow-up, so it clears
+    the worklist line itself rather than waiting for the next daily sweep."""
+    slug, feature = _merged_worktree_ticket(repo, tmp_path, monkeypatch)
+    other_dir = tmp_path / "other-checkout"
+    other_dir.mkdir()
+    worklist = _seed_retire_worklist(
+        repo,
+        rw.RetireFollowUp(slug, "fix-retry-branch", str(feature), "2026-09-04"),
+        rw.RetireFollowUp("other", "other-branch", str(other_dir), "2026-09-04"),
+    )
+
+    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+
+    assert result.exit_code == 0, result.output
+    assert f"Retire: dropped {slug} from {worklist}." in result.output
+    _, entries = rw.parse_worklist(worklist.read_text())
+    # The retired slug is gone; the unrelated live entry is untouched.
+    assert [e.slug for e in entries] == ["other"]
+
+
+def test_retire_keeps_the_worklist_line_for_a_checkout_it_preserved(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, feature = _merged_worktree_ticket(repo, tmp_path, monkeypatch)
+    # Dirty local state makes retire preserve the checkout.
+    (feature / "scratch.txt").write_text("unsaved")
+    worklist = _seed_retire_worklist(
+        repo, rw.RetireFollowUp(slug, "fix-retry-branch", str(feature), "2026-09-04")
+    )
+
+    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+
+    assert result.exit_code == 0, result.output
+    assert feature.exists()
+    assert "Retire: dropped" not in result.output
+    _, entries = rw.parse_worklist(worklist.read_text())
+    assert [e.slug for e in entries] == [slug]
+
+
+def test_retire_reports_an_undecodable_worklist_without_aborting(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, feature = _merged_worktree_ticket(repo, tmp_path, monkeypatch)
+    worklist = _seed_retire_worklist(
+        repo, rw.RetireFollowUp(slug, "fix-retry-branch", str(feature), "2026-09-04")
+    )
+    worklist.write_bytes(b"\xff")
+
+    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+
+    assert result.exit_code == 0, result.output
+    assert "Retire: retire worklist not updated" in result.output
+    assert "utf-8" in result.output
+    assert worklist.read_bytes() == b"\xff"
+    assert (repo / "tasks" / f"retire-{slug}.md").is_file()
 
 
 def test_retire_leaves_dirty_worktree_in_place(
