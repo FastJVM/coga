@@ -1,6 +1,6 @@
 ---
 title: Adjudicate parked and active tickets whose premises have moved
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:411e23c3-a66a-4c8f-9f07-dd224b450dff
 ---
 
 ## Description
