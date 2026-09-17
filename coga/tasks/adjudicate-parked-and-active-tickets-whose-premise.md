@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: 411e23c3-a66a-4c8f-9f07-dd224b450dff
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -113,4 +112,60 @@ that would have caught most of these earlier.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Adjudication session 2026-09-16 (megalaunch queue, unattended)
+
+Every premise below was re-verified against `main` in this session before any
+verdict; the 2026-09-08 scan held on all eleven. Overlaps reconciled first:
+`adjudicate-the-eight-premise-dead-v2-drafts` is still `draft` (not live), so
+the two strays were ruled here rather than added to it, and its three
+overlapping cohort members are ruled here too with a note left in its body;
+`docs-and-contt` is left to `interview-the-owner-on-the-17-title-only-v2-stubs`,
+which already carries it (row 5) at its owner gate. Lifecycle verdicts were
+applied with `coga mark` on `main` from this checkout (irreversible; the
+ticket's stated outcome for premise-dead drafts, same mechanics as
+`four-parked-tickets-carry-premises-that-have-since`); prose verdicts ride the
+PR. No draft was cancelled for the validate gate — `split-context` is the
+proof: it sat on one of the four errors and was kept.
+
+### Verdict table
+
+| ticket | before | verdict | evidence | applied |
+| --- | --- | --- | --- | --- |
+| `v2/pass-secrets-to-skills-with-per-skill-scope` | draft | **cancel** | `config.py` refuses `[secrets]` with the "declare inline" error; `coga/secrets` is per-ticket `secrets:`; `ticket.py` and agent phases get the same declared set (architecture). Residue named: per-skill scope. | `mark canceled` on main |
+| `v2/audit-rules-md-usage-across-relay-and-decide-wheth` | draft | **cancel** | `rules_path`, `rules.md`, "Global rules" absent from `src/`, `coga/`, `docs/`; only hit is the stale-artifact fixture in `tests/test_init.py`. | `mark canceled` |
+| `v2/file-locking-for-concurrent-task-mutation` | draft | **cancel** | `git.state_publication_barrier` takes `fcntl.flock(LOCK_EX)`/`LOCK_UN` (tests in `test_git.py`); architecture: `git worktree add` doubles as the concurrency lock; residual window recorded in `coga/blackboard`; paired `atomic-writes-…` draft absent. | `mark canceled` |
+| `v2/debug-surface-for-recurring-tasks-streamed-output` | draft | **cancel** | zero `mode:` in the recurring context; `enforce-mode-auto-…` absent from tasks and log; reqs 1–2 shipped by the REPL supervisor + `recurring launch --interactive`. Residue named: phase step-through. | `mark canceled` |
+| `v2/wire-recurring-sweep-into-system-cron` | draft | **cancel** | no `cron.sh` anywhere; `docs/operations.md` "Point a single cron entry at `coga recurring`"; recurring context "operator-owned scheduler outside Coga"; `nightly-auto-drain` canceled. | `mark canceled` |
+| `v2/document-workflow-less-concept-capture-drafts-as-s` | draft | **done by other means** | architecture "Workflow gated at activation, not draft time"; validator emits `active-no-workflow` only, no `missing-workflow`; sibling `resolve-missing-workflow-…` absent. | `mark active` → `mark done` |
+| `v2/overload-ticket-locally-easily` | paused | **done by other means + residue** | architecture: local skills override bundled by ref, `coga ticket` injects `bootstrap/ticket`; extension-model: local-first override without core change. Residue sentence added to architecture (both twins) in this PR. | `mark active` → `mark done`; PR |
+| `v2/split-context-to-doc-user-accessible-and-editable` | draft | **keep — rewrite + guard** | subject unbuilt: `paths.repo_context_path` still hardcodes `coga/context.md`, `compose.py` still emits the layer; #704 knob covers the contexts dir only; `redo-documentation` (step 3, owner gate) explicitly leaves it deferred. Body rewritten to current surfaces, blackboard synthesized to `## Production notes`, pull-forward guarded on that gate. | PR |
+| `v2/docs-and-contt-block-should-be-merged` | draft | **defer** | title-only stub; README says only the author rules; already row 5 (lean cancel) of the interview ticket at `review-design`. Ruling it here would duplicate an ask the owner is about to answer. | none |
+| `v2/implement-accepted-ticket-interview-improvements` | paused | **rewrite pointer** | source ticket retired in `ffb0a383`; "Ranked changes" reachable via `git show ffb0a383^:…`; changes 2–4 still absent from the packaged skill, 5 shipped, 6 partly (name confirmation + Proposals present, the "needs that exact body" gate absent); `the-ticket-interview-never-asks-…` keeps only change 1. | PR |
+| `vendored-skills-carry-no-coga-source-json-so-coga` | active, step 1 | **narrow** | `coga/skills/clarity/.coga-source.json` exists; template rewritten in #743/#776/#796/#804 (twins identical); `IDENTICAL_LIVE_PACKAGED_PAIRS` is derived, not a registry. Body narrowed to the one residue (name `ATTRIBUTION.md` / `NOTICE.txt`). Stays active for its own run. | PR |
+
+### Decisions and notes for the reviewer
+
+- Cancel reasons are in `coga/log.md` (2026-09-16), each naming what replaced
+  the draft and any residue not carried forward.
+- `overload-ticket` was marked done before its residue sentence merges; the
+  closing log line names this PR as where the sentence lands. If the PR is
+  rejected, that sentence is the only thing lost.
+- `adjudicate-the-eight-premise-dead-v2-drafts` now expects to clear at most
+  one validate error; its `unfrozen-workflow` warning is pre-existing.
+- Repo-wide `coga validate` after this work: three `unsynthesized-draft-blackboard`
+  errors remain (`autotrigger-ticket-type`, `measure-relay-prompt-scope…`,
+  `use-worktree-when-starting-a-dev-task`), all owned by sibling tickets.
+- Nothing here was decided from the slug alone or from the validate gate.
+
+## Dev
+
+branch: adjudicate-moved-premises
+worktree: /home/n/Code/claude/coga-adjudicate-moved-premises
+
+One commit (`0da8ac09`, "Adjudicate parked tickets whose premises moved") on
+top of `main` `1d825fba`, which already carries the nine lifecycle commits.
+`git fetch origin main && git rebase FETCH_HEAD` → up to date. Verification
+from the feature checkout: `python -m pytest` **2561 passed**; the four edited
+tickets validate (only the feature checkout's expected `missing-user` warn);
+`git diff --check` clean. Twin `coga/contexts/coga/architecture/SKILL.md` ↔
+`templates/coga/bootstrap/contexts/coga/architecture/SKILL.md` byte-identical.
