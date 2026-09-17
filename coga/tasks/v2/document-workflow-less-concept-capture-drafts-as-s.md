@@ -1,6 +1,6 @@
 ---
 title: Document workflow-less concept-capture drafts as supported state
-status: active
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -20,7 +20,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
