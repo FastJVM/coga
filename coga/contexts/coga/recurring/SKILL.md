@@ -755,9 +755,13 @@ This extension seam has six important constraints:
   `run_recipe(load_config(), "<name>", [])` rather than importing the recipe
   function — copies the recipe's stderr while it runs and, on a non-zero
   return or an escaping exception (traceback included), appends a
-  `## Recipe Failure` section (recipe, exit, task, the stderr tail bounded to
-  what the run record can carry) to the blackboard `blackboard_from_env`
-  resolves. No blackboard means no extra write: `coga run` from a shell
+  `## Recipe Failure` section (recipe, exit, task, and stderr tail) to the
+  blackboard `blackboard_from_env` resolves against the recipe's effective
+  target root, including `--cwd`. A refusal by that containment check cannot
+  be bypassed by using the invoking config's root for the failure report.
+  The whole section fits the run record's per-task budget, and diagnostics
+  are indented so quoted ticket fences and headings remain data. No
+  blackboard means no extra write: `coga run` from a shell
   already showed its stderr. A refused or failed write is a stderr warning and
   never replaces the recipe's exit. Do not add a per-recipe copy of that write
   for the stderr tail; put the recipe's structured detail on top of it. A
@@ -973,8 +977,9 @@ The output is unchanged; the loop is what got added after it
    *built*, not scraped: tee-ing fd 1 would make `isatty` false and every
    interactive agent launch would then refuse itself. The blackboard is read
    instead because it is the only durable per-run channel Coga owns; the
-   console is not one. **It is populated only by runs that choose to write to
-   it.** Nothing in the `ticket.py` contract asks for a run report — the
+   console is not one. **Successful runs populate it only when they choose to
+   write a report.** Failures follow the recipe reporting contract above.
+   Nothing in the `ticket.py` contract asks for a successful run report — the
    completion-contract bullet above asks a script to run headlessly, close its
    own step, and record an unavailable prerequisite with `coga block`, and no
    more. Of the shipped templates `skill-update` writes one on every run,

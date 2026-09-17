@@ -703,7 +703,7 @@ def script_task_slug_from_env() -> str | None:
     return os.environ.get("COGA_TASK_SLUG")
 
 
-def run_validate_drift_recipe(cfg: Config, argv: list[str]) -> int:
+def recipe_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the validate-drift Dream skill.")
     parser.add_argument(
         "--cwd",
@@ -737,7 +737,11 @@ def run_validate_drift_recipe(cfg: Config, argv: list[str]) -> int:
     )
     parser.add_argument("--idle-hours", type=float)
     parser.add_argument("--max-blackboard-kb", type=float)
-    args = parser.parse_args(argv)
+    return parser
+
+
+def run_validate_drift_recipe(cfg: Config, argv: list[str]) -> int:
+    args = recipe_parser().parse_args(argv)
 
     blackboard = blackboard_from_env(discover_coga_os_root(args.cwd))
     task_slug = script_task_slug_from_env()

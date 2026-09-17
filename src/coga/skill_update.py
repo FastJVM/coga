@@ -324,6 +324,26 @@ def script_task_slug_from_env() -> str | None:
     return os.environ.get("COGA_TASK_SLUG")
 
 
+def recipe_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Run the skill-update maintenance skill.")
+    parser.add_argument(
+        "--cwd",
+        type=Path,
+        help="Run the update from this repo directory. Defaults to the current directory.",
+    )
+    parser.add_argument(
+        "--pr-title",
+        default="Update Coga-managed skills",
+        help="Title for the skill-update PR.",
+    )
+    parser.add_argument(
+        "--no-pr",
+        action="store_true",
+        help="Collect and classify updates without opening a PR.",
+    )
+    return parser
+
+
 def run_skill_update_recipe(
     cfg: Config, argv: list[str], *, result: SkillUpdateReport | None = None
 ) -> int:
@@ -348,23 +368,7 @@ def run_skill_update_recipe(
     Do not add a per-recipe failure write elsewhere for the stderr tail alone.
     """
     report_out = result if result is not None else SkillUpdateReport()
-    parser = argparse.ArgumentParser(description="Run the skill-update maintenance skill.")
-    parser.add_argument(
-        "--cwd",
-        type=Path,
-        help="Run the update from this repo directory. Defaults to the current directory.",
-    )
-    parser.add_argument(
-        "--pr-title",
-        default="Update Coga-managed skills",
-        help="Title for the skill-update PR.",
-    )
-    parser.add_argument(
-        "--no-pr",
-        action="store_true",
-        help="Collect and classify updates without opening a PR.",
-    )
-    args = parser.parse_args(argv)
+    args = recipe_parser().parse_args(argv)
 
     blackboard = blackboard_from_env(discover_coga_os_root(args.cwd))
     task_slug = script_task_slug_from_env()

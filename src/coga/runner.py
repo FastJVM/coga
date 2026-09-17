@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import contextlib
+import io
 import os
 import sys
 import traceback
+from dataclasses import replace
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Protocol, TextIO, cast
 
 import typer
@@ -18,14 +21,21 @@ from coga.branchsweep import run_branch_sweep_recipe
 from coga.config import Config
 from coga.delete_task import run_delete_task_recipe
 from coga.dream_cleanup_orphan_markers import (
+    coga_os_root as orphan_markers_root,
     run_cleanup_orphan_markers_recipe,
 )
-from coga.dream_validate_drift import run_validate_drift_recipe
+from coga.dream_validate_drift import (
+    recipe_parser as validate_drift_parser,
+    run_validate_drift_recipe,
+)
 from coga.open_pr import run_open_pr_recipe
 from coga.recurring_autofix import run_autofix_analyze_recipe
 from coga.recurring_runner import run_recurring_scan_recipe
-from coga.skill_update import run_skill_update_recipe
-from coga.task_env import blackboard_from_env
+from coga.skill_update import (
+    recipe_parser as skill_update_parser,
+    run_skill_update_recipe,
+)
+from coga.task_env import blackboard_from_env, discover_coga_os_root
 from coga.text import strip_ansi
 
 
@@ -48,9 +58,9 @@ RECIPES: dict[str, RecipeFn] = {
 
 RECIPE_FAILURE_HEADING = "Recipe Failure"
 # Matches the per-task budget the sweep's run record keeps for a blackboard
-# (`recurring_autofix._MAX_BLACKBOARD_CHARS_PER_TASK`): a failure section
-# longer than what the record can carry would only be truncated there.
-FAILURE_DETAIL_CHARS = 4000
+# (`recurring_autofix._MAX_BLACKBOARD_CHARS_PER_TASK`). Budget the whole
+# section so a long diagnostic cannot evict its recipe/exit/task header.
+FAILURE_REPORT_CHARS = 4000
 
 
 class UnknownRecipeError(ValueError):
@@ -68,7 +78,7 @@ class _StderrTail:
     write themselves.
     """
 
-    def __init__(self, stream: TextIO, limit: int = FAILURE_DETAIL_CHARS) -> None:
+    def __init__(self, stream: TextIO, limit: int = FAILURE_REPORT_CHARS) -> None:
         self._stream = stream
         self._limit = limit
         self.tail = ""
@@ -132,7 +142,9 @@ def run_recipe(cfg: Config, name: str, argv: list[str]) -> int:
         # Outside the redirect, so a write refusal or warning reaches the real
         # stderr rather than the tail it is reporting on.
         if failure is not None:
-            _record_failure(cfg, name, failure[0], stderr=tail.tail, detail=failure[1])
+            _record_failure(
+                cfg, name, argv, failure[0], stderr=tail.tail, detail=failure[1]
+            )
 
 
 def _escaping_exit_code(exc: BaseException) -> int | None:
@@ -152,30 +164,57 @@ def _escaping_exit_code(exc: BaseException) -> int | None:
     return 1
 
 
+def _failure_root(cfg: Config, name: str, argv: list[str]) -> Path | None:
+    """Use the same target selection as the registered recipe being reported.
+
+    The two --cwd recipes may operate outside the invoking config's root.
+    Reuse their actual parsers, including abbreviation and --cwd= spelling;
+    unknown arguments can still leave a known target for an argv refusal.
+    Suppress this second parse's help/errors: the recipe already emitted them.
+    """
+    if name in {"validate-drift", "skill-update"}:
+        parser = (
+            validate_drift_parser() if name == "validate-drift" else skill_update_parser()
+        )
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            try:
+                args, _ = parser.parse_known_args(argv)
+            except SystemExit:
+                return None
+        return discover_coga_os_root(args.cwd)
+    if name == "cleanup-orphan-markers":
+        return orphan_markers_root()
+    return cfg.repo_root
+
+
 def _record_failure(
-    cfg: Config, name: str, exit_code: int, *, stderr: str, detail: str
+    cfg: Config, name: str, argv: list[str], exit_code: int, *, stderr: str, detail: str
 ) -> None:
-    if not os.environ.get("COGA_TASK_BLACKBOARD"):
+    target = os.environ.get("COGA_TASK_BLACKBOARD")
+    if not target:
         return
-    root = getattr(cfg, "repo_root", None)
-    if root is None:
-        return
-    blackboard = blackboard_from_env(root)
-    if blackboard is None:
-        return
-    report = render_failure_section(
-        name,
-        exit_code,
-        generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        task_slug=os.environ.get("COGA_TASK_SLUG"),
-        stderr=stderr,
-        detail=detail,
-    )
     try:
-        append_blackboard_report(cfg, blackboard, report)
+        root = _failure_root(cfg, name, argv)
+        blackboard = blackboard_from_env(root)
+        if root is None or blackboard is None:
+            return
+        report = render_failure_section(
+            name,
+            exit_code,
+            generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            task_slug=os.environ.get("COGA_TASK_SLUG"),
+            stderr=stderr,
+            detail=detail,
+        )
+        # Containment proved this root owns the target. Its publication barrier
+        # must protect the append even when --cwd selected a different checkout.
+        append_blackboard_report(replace(cfg, repo_root=root), blackboard, report)
     except Exception as write_exc:  # never outrank the recipe's own failure
         sys.stderr.write(
-            f"Warning: could not record the {name} failure on {blackboard}: "
+            f"Warning: could not record the {name} failure on {target}: "
             f"{write_exc}\n"
         )
 
@@ -199,9 +238,12 @@ def render_failure_section(
     lines.append("")
     parts = [strip_ansi(part).strip() for part in (stderr, detail)]
     body = "\n\n".join(part for part in parts if part)
-    if len(body) > FAILURE_DETAIL_CHARS:
-        body = "…" + body[-FAILURE_DETAIL_CHARS:]
-    lines.append("```")
-    lines.append(body or "no stderr output")
-    lines.append("```")
-    return "\n".join(lines) + "\n"
+    # A fenced code block does not protect an own-line blackboard separator
+    # (or a ## heading) from Coga's structural readers. Indentation does, and
+    # also makes embedded Markdown fences harmless when a human reads it.
+    body = "\n".join("    " + line for line in (body or "no stderr output").splitlines())
+    header = "\n".join(lines) + "\n"
+    available = FAILURE_REPORT_CHARS - len(header) - 1
+    if len(body) > available:
+        body = "    …" + body[-(available - 5):]
+    return header + body + "\n"
