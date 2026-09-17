@@ -70,9 +70,12 @@ nothing; the third is the durable worklist:
   delete the ticket, so that entry's `coga retire <slug>` no longer resolves —
   dispose of the recorded worktree and branch by hand, or let the weekly
   branch sweep take the branch, and the entry clears by the same rule. A
-  worklist the sweep cannot safely rewrite fails the run (exit 2) only after
-  the per-run report and Slack line are written, so a refused durable record
-  never leaves the follow-up unrecorded everywhere. The reconcile is a
+  worklist the sweep cannot safely rewrite, including a filesystem or text
+  encoding failure, fails the run (exit 2) only after
+  the per-run report and Slack line are emitted. If the task blackboard also
+  fails with an I/O or encoding error, the report falls back to stdout and
+  the run still fails, so a refused durable record never hides the follow-up
+  on every surface. The reconcile is a
   barrier-held, compare-and-swap, atomic rewrite; the file is `merge=union`
   like `log.md`, and a line union merge resurrects or duplicates is healed by
   the next reconcile. A run that recorded, refreshed, or dropped nothing, and
@@ -81,9 +84,12 @@ nothing; the third is the durable worklist:
   recurring period task — a hand-run `coga run autoclose`, or a task that is
   not `tasks/recurring/<name>/` — no worklist is touched. Each line reads
   ``- `<slug>` — branch `<branch>`, worktree `<path>`, recorded `<YYYY-MM-DD>` ``
-  under a `## Follow-ups (open)` heading, so a human can hand-edit or backfill
-  it; a malformed line fails the sweep loudly rather than growing a second
-  section nobody would find.
+  under a `## Follow-ups (open)` heading. Field values use UTF-8 percent
+  encoding, retaining `/` and `:`: for example, a backtick is `%60`, a literal
+  percent is `%25`, and a space is `%20`. Decode the fields before using the
+  recorded path or branch; use the same encoding when hand-editing or
+  backfilling. A malformed line fails the sweep loudly rather than growing a
+  second section nobody would find.
 
 Autoclose still never removes a worktree or branch. Recording a follow-up and
 destroying a checkout stay separate: the worklist names the retire, and

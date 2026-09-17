@@ -30,6 +30,7 @@ The one line shape is::
 
     - `<slug>` — branch `<branch>`, worktree `<path>`, recorded `<YYYY-MM-DD>`
 
+Field encoding for hand-edited entries is documented in `coga/autoclose/sweep`.
 A line that does not parse, or a file without the `## Follow-ups (open)`
 heading, fails loud rather than growing a second section no reader would find.
 The file is `merge=union` like `log.md`, so a slug recorded on two branches can
@@ -45,6 +46,7 @@ import subprocess
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from urllib.parse import quote, unquote
 
 from coga import git
 from coga.atomicio import atomic_write_text
@@ -69,6 +71,8 @@ exists — retire preserved the checkout and then deleted the ticket — is stil
 debt: dispose of the recorded worktree and branch by hand (or let the weekly
 branch sweep take the branch) and the entry clears by the same rule.
 
+For the line format and field encoding, see the `coga/autoclose/sweep` skill.
+
 {RETIRE_WORKLIST_HEADING}
 """
 _ENTRY_RE = re.compile(
@@ -91,9 +95,15 @@ class RetireFollowUp:
     recorded: str
 
     def render(self) -> str:
+        # Keep the line parseable even when a path contains a backtick or a
+        # newline. Escaping percent itself makes decoding unambiguous.
+        slug, branch, worktree, recorded = (
+            quote(value, safe="/:")
+            for value in (self.slug, self.branch, self.worktree, self.recorded)
+        )
         return (
-            f"- `{self.slug}` — branch `{self.branch}`, "
-            f"worktree `{self.worktree}`, recorded `{self.recorded}`"
+            f"- `{slug}` — branch `{branch}`, "
+            f"worktree `{worktree}`, recorded `{recorded}`"
         )
 
 
@@ -173,7 +183,12 @@ def parse_worklist(text: str) -> tuple[str, list[RetireFollowUp]]:
         match = _ENTRY_RE.match(line)
         if match is None:
             raise RetireWorklistError(f"unparsable retire worklist line: {line}")
-        entry = RetireFollowUp(**match.groupdict())
+        entry = RetireFollowUp(
+            **{
+                key: unquote(value, errors="strict")
+                for key, value in match.groupdict().items()
+            }
+        )
         existing = by_slug.get(entry.slug)
         if existing is not None:
             entry = replace(entry, recorded=existing.recorded)

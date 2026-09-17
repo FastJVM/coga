@@ -221,7 +221,7 @@ def _discharge_worklist_entry(cfg: Config, ref: TaskRef) -> None:
             return
         for path in discharge_slug(cfg, ref.id_slug, root=root):
             typer.echo(f"Retire: dropped {ref.id_slug} from {path}.")
-    except (GitError, OSError, RetireWorklistError) as exc:
+    except (GitError, OSError, UnicodeError, RetireWorklistError) as exc:
         typer.echo(f"Retire: retire worklist not updated ({exc}).")
 
 

@@ -163,8 +163,8 @@ both gone; `coga retire <slug>` clears its own line the moment it disposes of
 the checkout. Read that file, not the period task's blackboard, when you want
 to know what is left to retire: the period task is deleted at the next period.
 The rules — what an entry means, when it clears, the line shape for a
-hand-written backfill — are in the `coga/autoclose/sweep` skill and in the
-file's own header.
+hand-written backfill and its field encoding — are in the
+[`coga/autoclose/sweep` skill](../coga/skills/coga/autoclose/sweep/SKILL.md).
 
 **Adopting it in a repo initialized before Coga shipped this** (the sweep
 formerly wrote the list only to the period task, so follow-ups older than a

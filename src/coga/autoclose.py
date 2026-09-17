@@ -652,13 +652,11 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
     is a plain live `post` rather than a `notify` outcome: the `notify` kinds
     are per-ticket outcomes, which a sweep-level summary is not.
 
-    Returns False when the durable worklist could not be safely rewritten —
-    reported on stderr, never raised, and only after every per-run surface has
-    been written: the tickets are already `done` on disk, so the
-    blackboard/stdout report and the Slack line must survive the new surface
-    failing, or the follow-ups would be recorded nowhere at all. Every caller,
-    including the recipe's error handlers, can therefore call this without
-    guarding it.
+    Returns False when the durable worklist or task report cannot be written.
+    Expected I/O and encoding failures are reported on stderr; a failed task
+    report falls back to stdout before the live summary is attempted. The
+    tickets are already `done` on disk, so these reporting failures must not
+    erase their follow-ups or mask an earlier sweep error.
     """
     pending = result.retire_pending
     # Scoped to the root this sweep actually walked, so an inherited blackboard
@@ -670,7 +668,7 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
         return True
     now = datetime.now(timezone.utc)
     worklist = worklist_for_period_task(cfg, blackboard)
-    failure: RetireWorklistError | None = None
+    failure: RetireWorklistError | OSError | UnicodeError | None = None
     if worklist is not None:
         # The durable half: record this run's follow-ups keyed by slug and drop
         # the ones `coga retire` (or the branch sweep) has since discharged.
@@ -690,7 +688,7 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
                     for item in pending
                 ],
             )
-        except RetireWorklistError as exc:
+        except (RetireWorklistError, OSError, UnicodeError) as exc:
             # The closures are already on disk; a worklist this run cannot
             # safely rewrite is a loud failure of the run, not a swallowed
             # warning — but the per-run surfaces below still get written.
@@ -710,7 +708,16 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
         worklist=None if failure is not None else worklist,
     )
     if blackboard:
-        _append_blackboard_report(cfg, blackboard, report)
+        try:
+            _append_blackboard_report(cfg, blackboard, report)
+        except (OSError, UnicodeError) as exc:
+            # Disk exhaustion can affect both durable files. Keep the commands
+            # visible on stdout and still attempt the live summary.
+            failure = exc
+            sys.stderr.write(
+                f"[autoclose] could not write retire report to {blackboard}: {exc}\n"
+            )
+            sys.stdout.write(report)
     else:
         sys.stdout.write(report)
 
@@ -723,7 +730,7 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
             else blackboard
         ),
         # The tickets are already `done` on disk and the report is already
-        # written; an undeliverable hint must not fail the recurring run. A
+        # emitted; an undeliverable hint must not fail the recurring run. A
         # task-scoped run supplies its validated task path above, so the miss
         # is also durable in the repo-global audit log.
         fatal=False,

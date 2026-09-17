@@ -480,6 +480,24 @@ def test_retire_keeps_the_worklist_line_for_a_checkout_it_preserved(
     assert [e.slug for e in entries] == [slug]
 
 
+def test_retire_reports_an_undecodable_worklist_without_aborting(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, feature = _merged_worktree_ticket(repo, tmp_path, monkeypatch)
+    worklist = _seed_retire_worklist(
+        repo, rw.RetireFollowUp(slug, "fix-retry-branch", str(feature), "2026-09-04")
+    )
+    worklist.write_bytes(b"\xff")
+
+    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+
+    assert result.exit_code == 0, result.output
+    assert "Retire: retire worklist not updated" in result.output
+    assert "utf-8" in result.output
+    assert worklist.read_bytes() == b"\xff"
+    assert (repo / "tasks" / f"retire-{slug}.md").is_file()
+
+
 def test_retire_leaves_dirty_worktree_in_place(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

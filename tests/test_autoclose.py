@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 from textwrap import dedent
+from typing import Any
 
 import pytest
 import requests
@@ -1273,6 +1274,69 @@ def test_a_corrupt_worklist_is_reported_when_the_sweep_itself_fails(
     assert "retire worklist has no" in captured.err
     assert "gh fell over after the close" in captured.err
     assert f"`coga retire {slug}`" in period.read_text()
+
+
+@pytest.mark.parametrize("failure", ["read", "write", "decode", "disk-full"])
+@pytest.mark.parametrize("sweep_error", [None, am.GhError, RuntimeError])
+def test_worklist_io_failure_preserves_followups_and_original_sweep_error(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    failure: str,
+    sweep_error: type[Exception] | None,
+) -> None:
+    slug, period, worklist = _make_recurring_sweep(repo, monkeypatch)
+    posts = _capture_posts(monkeypatch)
+    if failure == "read":
+        worklist.write_text(rw.RETIRE_WORKLIST_HEADER)
+        read_bytes = Path.read_bytes
+
+        def denied_read(path: Path) -> bytes:
+            if path == worklist:
+                raise PermissionError("worklist read denied")
+            return read_bytes(path)
+
+        monkeypatch.setattr(Path, "read_bytes", denied_read)
+        diagnostic = "worklist read denied"
+    elif failure in {"write", "disk-full"}:
+        def failed_write(*args: Any, **kwargs: Any) -> None:
+            raise OSError("worklist disk full")
+
+        monkeypatch.setattr(rw, "atomic_write_text", failed_write)
+        if failure == "disk-full":
+            monkeypatch.setattr(am, "_append_blackboard_report", failed_write)
+        diagnostic = "worklist disk full"
+    else:
+        worklist.write_bytes(b"\xff")
+        diagnostic = "utf-8"
+
+    if sweep_error is not None:
+        mark_done = am.mark_done
+
+        def close_then_fail(*args: Any, **kwargs: Any) -> None:
+            mark_done(*args, **kwargs)
+            raise sweep_error("original sweep failure")
+
+        monkeypatch.setattr(am, "mark_done", close_then_fail)
+
+    cfg = load_config(repo)
+    if sweep_error is RuntimeError:
+        with pytest.raises(RuntimeError, match="original sweep failure"):
+            am.run_autoclose_recipe(cfg, [])
+    else:
+        assert am.run_autoclose_recipe(cfg, []) == 2
+
+    from coga.tasks import resolve_task
+
+    assert Ticket.read(resolve_task(cfg, slug).ticket_path).status == "done"
+    captured = capsys.readouterr()
+    assert diagnostic in captured.err
+    if sweep_error is am.GhError:
+        assert "original sweep failure" in captured.err
+    report = captured.out if failure == "disk-full" else period.read_text()
+    assert f"`coga retire {slug}`" in report
+    assert "Recorded in the durable worklist" not in report
+    assert any(f"`coga retire {slug}`" in text for text in posts)
 
 
 # --- status stays read-only --------------------------------------------------

@@ -148,6 +148,59 @@ def test_parse_fails_loudly_on_an_unparsable_line() -> None:
         rw.parse_worklist(text)
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        "`leading-and-trailing`",
+        "embedded`backtick",
+        "%60-is-literal",
+        "space and é",
+        "line\nbreak",
+        "carriage\rreturn",
+        "unicode\u2028separator",
+        r"C:\work\path",
+    ],
+)
+def test_worklist_fields_round_trip_without_breaking_entry_lines(value: str) -> None:
+    entry = rw.RetireFollowUp(value, value, value, value)
+    rendered = rw.render_worklist(rw.RETIRE_WORKLIST_HEADER, [entry])
+
+    _, entries = rw.parse_worklist(rendered)
+
+    assert entries == [entry]
+    body = rendered.partition(rw.RETIRE_WORKLIST_HEADING + "\n")[2]
+    assert len(body.splitlines()) == 2
+
+
+def test_reconcile_preserves_distinct_backtick_and_percent_paths(
+    repo: Path, tmp_path: Path
+) -> None:
+    path = _seed_template(repo) / rw.RETIRE_WORKLIST_FILENAME
+    cfg = load_config(repo)
+    tick = tmp_path / "feature`tree"
+    percent = tmp_path / "feature%60tree"
+    tick.mkdir()
+    percent.mkdir()
+    pending = [
+        _entry("tick", branch="", worktree=str(tick)),
+        _entry("percent", branch="", worktree=str(percent)),
+    ]
+    rw.reconcile_worklist(cfg, path, root=tmp_path, pending=pending)
+    first = path.read_bytes()
+
+    change = rw.reconcile_worklist(cfg, path, root=tmp_path)
+
+    assert not change.written
+    assert path.read_bytes() == first
+    assert set(change.open) == set(pending)
+
+    tick.rmdir()
+    change = rw.reconcile_worklist(cfg, path, root=tmp_path)
+
+    assert change.dropped == [pending[0]]
+    assert change.open == [pending[1]]
+
+
 # --- the discharge rule ----------------------------------------------------
 
 
