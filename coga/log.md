@@ -5417,3 +5417,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-16 17:29 [v2/absorb-compound-engineering-leaf-skills-as-a-coga] [human:nicktoper] created (status=draft)
 2026-09-16 17:35 [adjudicate-parked-and-active-tickets-whose-premise] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-16 17:35 [adjudicate-parked-and-active-tickets-whose-premise] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-09-16 17:35 [adjudicate-parked-and-active-tickets-whose-premise] [megalaunch] launched via coga megalaunch
