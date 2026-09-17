@@ -1,6 +1,6 @@
 ---
 title: 'Define the recipe reporting contract: report durability and failure surface'
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
