@@ -574,21 +574,79 @@ reflects ticket state) **and** lands the same files on the control branch
 without ever checking out `main`: it builds the control branch's tree in a
 *temporary index* (`GIT_INDEX_FILE`), overlays the working-tree task dir,
 `commit-tree`s onto the fetched control tip, and pushes that commit straight to
-`refs/heads/<control>`. The feature working tree — staged and unstaged code
-alike — is never touched, stashed, or reset. A detached HEAD normally takes the
+`refs/heads/<control>`. This temporary-index landing leaves staged and unstaged product code
+alone; the later feature-payload reconciliation can merge control into the
+invoking checkout, as described below. A detached HEAD normally takes the
 same cross-branch path without a local commit; any dirty `merge=union` files
 that would otherwise have ridden that local commit are union-merged directly
 into the control-branch commit. Narrow strict-state publishers are the
 exception described below: they seal their exact generated paths in a scoped
 detached commit so later broad sync cannot replay already-published bytes.
 
+### Policy — the control branch is canonical
+
+The owner settled this policy on 2026-08-25:
+
+- **Machine-generated Coga state and audit history are canonical on the
+  configured control branch.** This includes lifecycle frontmatter,
+  command-appended blackboard records, reminder watermarks, generated `pr:`
+  records, and `coga/log.md`.
+- **A feature checkout may mirror that state while a session runs.** The mirror
+  lets the session read current ticket state; it is operational state, not
+  review payload. A successful control landing must precede removal of the
+  duplicate from the feature payload. Failed or skipped sync can leave the
+  only copy of a new write locally — canonical ownership is not permission to
+  discard unpublished state.
+- **Hand-authored Coga changes need review regardless of who committed them.**
+  Contexts, skills, workflows, config, and deliberate ticket prose are feature
+  work. The current catch-all sweep can nevertheless publish dirty hand-edits
+  to control and reconcile their duplicates out of the branch. Commit review
+  work yourself before running a mutating Coga command; property 3 of the
+  publication boundary below describes this existing exception.
+
+**Where reconciliation writes.** These are scopes of writers, not three
+necessarily distinct checkouts. Recording a feature branch or `worktree:` on a
+ticket does not by itself make that checkout a sync destination.
+
+1. **The publisher's checkout.** Publishers write and commit their selected
+   state in the checkout they operate on. Ordinary feature-branch sync through
+   `sync_task_state`/`sync_paths`, `sync_log`, or `sync_coga_state` can then
+   call `_reconcile_feature_payload` to adopt or merge the accepted control
+   commit into that same checkout. This can bring in control's product code
+   too (see "What the merge costs"). Strict publication and recurring-create
+   paths have separate handling; a successful sync does not universally imply
+   this merge. Detached publishers normally skip the local commit, with the
+   scoped strict-state and rewind exceptions described below.
+2. **The linked checkout holding the control branch.** After a cross-branch
+   landing, `_try_update_local_ref` best-effort updates the local control ref
+   in that same Git repository: `update-ref` if no worktree holds it, otherwise
+   `merge --ff-only` through the holding worktree so its ref, index, and files
+   move together. It never targets a checkout holding another branch or an
+   independent clone. `sync_paths(update_local_control_ref=False)` deliberately
+   skips this update for Retro's isolated direct delete.
+3. **The launch checkout.** `refresh_coga_state_from_control` runs at launch
+   teardown and in recurring per-child preflight, scoped to the checkout
+   containing `cfg.repo_root`. On control it fast-forwards; on a feature branch
+   it overlays control's changed `coga/tasks/**`, union-merges `coga/log.md`,
+   and commits locally, subject to the dirty-file, divergence, and regression
+   guards described under "The launch-end pull-back". A detached HEAD skips.
+   Launch in a feature checkout therefore can refresh that checkout; launch
+   in the primary checkout does not refresh a separately recorded feature
+   worktree.
+
+A feature worktree whose Coga publishers and launch teardown all run in the
+primary checkout receives no refresh through these paths. Its mirror can go
+stale. The guard's caller inventory and lifecycle/claim rules below define its
+protection; they do not cover every publisher or prose change. Compare authored
+prose and unpublished local writes separately. Do not infer that nothing can
+write into a feature checkout from `_try_update_local_ref` alone.
+
 ### The feature-branch publication boundary
 
-That local feature commit is a **mirror, not review payload**. Machine-generated
-Coga state and audit history are canonical on the control branch; a feature
-checkout holds them so the session reads current state, and nothing more. Left
-alone, the mirror strands a duplicate: the same ticket bytes committed twice,
-once on control and once on the branch, so the PR's file list carries
+That local feature commit is the mirror the policy above describes —
+operational state, not review payload. Left alone, it strands a duplicate:
+the same ticket bytes committed twice, once on control and once on the
+branch, so the PR's file list carries
 `coga/tasks/**`, `coga/log.md`, and mixed-purpose files like a period ticket
 whose `## Blocker reminders` watermark sits beside its authored prose (the
 retired digest's `### Digest State` cursor was the original case) — and the
@@ -1186,12 +1244,11 @@ and `control_branch` defaults `main`. `enabled` may be overridden in
 
 ### The launch-end pull-back — `refresh_coga_state_from_control`
 
-Everything above publishes: state flows from the running command *to* the
-control branch, and the only local thing that moves is the control ref's
-best-effort fast-forward. A checkout parked on a feature branch therefore
-rendered a stale world after every launch — the operator watched a run finish,
-typed `coga status` in the same terminal, and saw the old step with no signal
-that the view was stale.
+Publishing lands state on control and can reconcile the publisher's own
+feature checkout, as the policy inventory above describes. The launch checkout
+may be a different checkout from the publisher, and other writers can advance
+control after a local sync. Refreshing the launch checkout closes that remaining
+gap so `coga status` there reflects the completed run.
 
 `coga launch` closes that loop at the end of every run (bump handoff,
 `mark done`, `mark canceled`, `block`, agent exit, a failed setup after state
