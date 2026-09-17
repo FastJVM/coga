@@ -164,6 +164,15 @@ Rules:
   the ticket's `## Context` body instead of attaching the whole context.
 - If the same narrow fact recurs across tickets, create or propose a smaller
   focused context rather than repeatedly attaching a broad one.
+- **Cite, don't attach, a large context the task uses a few facts from.**
+  Name its ref and path in `## Context`, say it is cited rather than attached,
+  name the sections to read, copy the facts the step depends on, and leave the
+  ref off `contexts:`. The threshold, the citation form, and the rule that a
+  cite leaves the same-PR context-update obligation untouched are owned by
+  `coga/architecture` (`Prompt composition` → `Attach or cite`). Follow its
+  measurement procedure with the candidate refs present, accounting for every
+  planned step. Never write the context's size or token count into the ticket
+  as the justification — it rots.
 - **Do not attach a context the ticket is going to edit.** When the job is to
   change a context, name its exact path in `## Context` and leave the ref off
   `contexts:`. Files being edited are read, not composed — the agent opens them
@@ -344,13 +353,18 @@ Hand the evaluator the path to the ticket and ask it to assess:
 - Are the attached contexts relevant? Anything important missing?
 - Are any attached contexts broad enough that the needed fact should have been
   copied into `## Context` instead?
+- Does any cited context (named in `## Context`, off `contexts:`) need to be
+  attached after all because any planned step depends on rules spread across
+  it, and does any cite quote a size or token count as its justification?
 - Is the scope reasonable, or does it bundle multiple tickets' worth of
   work?
 - Any assumptions that should be questioned before launch?
 
 Also hand the evaluator the composed prompt's size breakdown, which the
 ticket file alone cannot show — the ticket lists context *refs*, and how
-many tokens each one actually costs only exists after composition:
+many tokens each one actually costs only exists after composition. Follow
+the measurement procedure in `coga/architecture` → `Attach or cite`, including
+its checkout precautions or read-only alternative. The CLI form is:
 
 ```
 coga launch <slug> --prompt-report
