@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: baa2e472-856f-4f7c-8f09-8cd1d74283ae
 ---
 
 ## Description
@@ -80,3 +79,49 @@ Verification: `.venv/bin/python -m pytest` in the feature worktree — 2565
 passed, run before and again after rebasing onto `origin/main` (three
 ticket-state commits came in; nothing broke). Branch is clean and contains
 current `origin/main`. Not pushed; no PR.
+
+## Peer review
+
+`codex review --base main` **returned** successfully from the recorded feature
+worktree on `review-closing-act` with no findings. Its focused verification
+passed all 28 tests in `tests/test_bootstrap_workflow_review_sections.py`,
+`tests/test_packaging.py`, and `tests/test_retire.py` using the primary
+checkout's test interpreter with `PYTHONPATH` set to the feature checkout's
+absolute `src` path. No must-fix changes were needed.
+
+Manually read all four owner-facing review sections against the packaged
+`coga/cli` retirement contract and `src/coga/commands/retire.py`: they name the
+explicit owner action after `done` and retain the command reference as the
+semantics owner. Confirmed there are no live workflow twins. This diff changes
+plain markdown instructions and a content test; no terminal, pager, TTY prompt,
+or rendered notification behavior changed.
+
+Ran `git fetch origin main` then `git rebase FETCH_HEAD` in the feature
+worktree. The rebase onto `f9c9182d` succeeded without conflicts; the four
+incoming commits change only this ticket and the log. Full-suite verification
+on the rebased branch passed:
+
+- `PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m pytest`
+  from the feature worktree — **2565 passed** in 273.54 seconds. The only
+  warning was pytest's inability to write its optional cache in the read-only
+  worktree; no tests failed. Confirmed `import coga` resolves to the feature
+  checkout's `src/coga/__init__.py`.
+- `coga validate --task packaged-code-workflows-never-name-coga-retire-as --json`
+  from the primary checkout — one valid task, no issues.
+- `git diff --check main...HEAD` — clean.
+
+The feature worktree is clean and contains one committed change ahead of
+`origin/main` (`170c7b98`); there are no incoming commits relative to the fetched
+base. No separate review-fix commit was necessary. The branch remains
+unpushed, with no PR; the next step owns publication.
+
+## PR
+
+Packaged code and docs review steps currently stop at marking a ticket `done`,
+leaving owners without the closing instruction for its recorded checkout and
+branch. Name `coga retire <slug>` as the owner's next action in all four
+checkout-bearing workflows, explain the cleanup and retro handoff, and keep
+detailed command semantics in the `coga/cli` context. A parametrized content
+test covers every affected review section.
+
+Test plan: `PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m pytest` (2565 passed); `coga validate --task packaged-code-workflows-never-name-coga-retire-as --json` (no issues); `git diff --check main...HEAD` (clean).
