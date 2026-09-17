@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
-step: 1 (sweep)
 ---
 
 ## Description
@@ -53,3 +52,17 @@ nothing.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-09-17T18:02:04+00:00
+Task: `recurring/autoclose-merged`
+
+6 auto-closed ticket(s) still have a recorded feature checkout. Autoclose never removes one — `coga retire` owns the worktree and branch safety proofs:
+
+- `autofix/stop-one-failing-ticket-py-from-starving-the-rest` "Stop one failing ticket.py from starving the rest of the sweep": worktree `/home/n/Code/claude/coga-sweep-abandoned-record`, branch `sweep-abandoned-record` — `coga retire autofix/stop-one-failing-ticket-py-from-starving-the-rest`
+- `branch-sweep-strands-squash-merged-branches-whose` "Branch sweep strands squash-merged branches whose tip moved": worktree `/home/n/Code/claude/coga-branch-sweep-landed`, branch `branch-sweep-landed` — `coga retire branch-sweep-strands-squash-merged-branches-whose`
+- `dream-2026-w38-extract-backlog-4-findings-phase-4` "Dream 2026-W38 extract backlog: 4 findings Phase 4 could not consume": worktree `/home/n/Code/claude/coga-dream-w38-extract-backlog`, branch `dream-w38-extract-backlog` — `coga retire dream-2026-w38-extract-backlog-4-findings-phase-4`
+- `recurring-sweep-aborts-and-orphans-a-deleted-done` "Recurring sweep aborts and orphans a deleted done period task when a template's workflow is missing": worktree `/home/n/Code/claude/coga-recurring-missing-workflow`, branch `recurring-missing-workflow` — `coga retire recurring-sweep-aborts-and-orphans-a-deleted-done`
+- `the-autofix-analyst-ticket-closed-without-shipping` "The autofix analyst ticket closed without shipping any of its three defects": worktree `/home/n/Code/claude/coga-autofix-analyst-fixes`, branch `autofix-analyst-fixes` — `coga retire the-autofix-analyst-ticket-closed-without-shipping`
+- `title-only-tickets-have-no-convention-and-no-valid` "Title-only tickets have no convention and no validator": worktree `/home/n/Code/claude/coga-title-only-validator`, branch `title-only-validator` — `coga retire title-only-tickets-have-no-convention-and-no-valid`
