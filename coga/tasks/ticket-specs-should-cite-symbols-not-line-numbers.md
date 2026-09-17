@@ -22,8 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: ccbbcfe8-1e31-4ac0-bcb1-6cb31eabf923
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -91,11 +90,64 @@ which fails identically on unmodified `main`: the repo `.venv` has no `pip`, so 
 `python -m pip wheel` subprocess cannot run. Environmental, not caused by this change.
 No `example/` fixture carries a `code/design` copy, so no fixture update was needed.
 
-## Adjacent, not fixed here
+## Related work
 
-`coga/tasks/no-rule-says-ticket-context-must-cite-symbols-not.md` (status `draft`) is the
-sibling of this ticket, from the same Dream scan. It targets the *ticket-authoring* skill
-`bootstrap/ticket`, and explicitly leaves open "whether this belongs in `bootstrap/ticket`
-alone, or also in `code/design` and in the ticket `_template`". This ticket answers the
-`code/design` half. Whoever picks that one up should treat `code/design` as done and decide
-only on `bootstrap/ticket` and `_template`; the wording here is reusable.
+The sibling `coga/tasks/no-rule-says-ticket-context-must-cite-symbols-not.md`
+landed as `e41d0262` (PR #793) while this branch was parked. Its
+`bootstrap/ticket` skill owns the detailed citation rule and examples. This
+branch keeps that pointer and extends the design skill's existing guidance
+from `## Context` to all code claims in the spec.
+
+## Peer review
+
+Review (2026-09-17) on `design-cite-symbols` in the recorded
+feature worktree. The branch was clean at `e787fd1b`. Fetched `origin/main`
+at `9919d9c7` and started the required rebase; both design skill copies and
+`tests/test_packaging.py` conflicted.
+
+Rebase decisions: preserve current main's composed-section layout and frozen
+workflow handoff. The sibling ticket has now landed as `e41d0262` (PR #793),
+adding citation guidance for `## Context`; this change extends the rule to
+the whole spec and its acceptance checklist. Consolidate the overlapping
+guidance. Keep main's automatic twin discovery, which already covers
+`code/design`, instead of restoring the obsolete manual pair registry.
+
+The rebase completed at `a9c6d6f7` with a clean feature worktree and three
+changed files: the identical skill pair and the existing content test.
+`codex review --base origin/main` **returned**, exit 0: "No actionable
+regressions found." It verified the skill pair and passed 20 targeted tests
+with `PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m pytest
+tests/test_code_design_skill.py tests/test_bootstrap_ticket_skill_template.py
+tests/test_packaging.py -q --tb=short`. Full review output is in
+`/tmp/coga-design-cite-symbols-review-20260917.log`. No must-fix findings
+remain and no additional review-fix commit was needed after the rebase.
+
+Manual surface review: read both Markdown skill copies and checked the
+all-spec scope, optional navigation ranges, module/symbol example, current
+composed-section layout, and frozen-workflow handoff. No terminal, pager,
+prompt widget, or Slack rendering behavior changed; no TTY exercise applies.
+
+Full suite: `PYTHONPATH=/home/n/Code/claude/coga-design-cite-symbols/src
+/home/n/Code/claude/coga/.venv/bin/python -m pytest` **passed: 2655 tests in
+194.62 seconds**, exit 0. Confirmed Python 3.12.12 imports Coga from the
+feature worktree. This environment has both `pip` and `hatchling`; the
+implementation-stage wheel-test limitation is resolved. Output is in
+`/tmp/coga-design-cite-symbols-pytest-20260917.log`.
+
+`PYTHONPATH=/home/n/Code/codex/coga/src coga validate --task
+ticket-specs-should-cite-symbols-not-line-numbers --json` passed: one valid
+task, no issues. `git diff --check` and byte comparison of the skill pair
+also passed.
+
+Ready for handoff: `a9c6d6f7` is committed on `design-cite-symbols`, directly
+on fetched `origin/main` (`9919d9c7`). No review findings or blockers remain.
+
+## PR
+
+Promote the citation guidance in `code/design` from the `## Context`
+subsection to a standalone rule for code claims throughout the spec.
+Require a file and symbol, allow line ranges only as navigation aids, and
+add an acceptance check in both synchronized skill copies. Keep
+`bootstrap/ticket` as the reference for detailed examples.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-design-cite-symbols/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` — 2655 passed; `git diff --check` — passed.
