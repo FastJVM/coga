@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: 3e373db0-252a-425e-883d-62698e615ecc
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -89,3 +88,120 @@ the same section.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: recipe-reporting-contract
+worktree: /home/n/Code/claude/coga-recipe-reporting-contract
+
+Separate-checkout layout: the primary checkout runs the megalaunch queue and
+stays on `main`.
+
+## Plan
+
+- **Part 1 (report durability)** is a context paragraph, not code. Owner: the
+  recurring context's "deterministic half" constraint bullet (the passage
+  written for `ticket.py` authors), with its packaged twin. The codebase
+  context gets one sentence pointing there from the `blackboard_from_env`
+  containment bullet, since that bullet is where a code reader lands.
+- **Part 2 (failure surface)** goes in `runner.run_recipe`, the one seam every
+  registered recipe crosses: it tees `sys.stderr` while the recipe runs and,
+  on a non-zero return or an escaping exception, appends a `## Recipe Failure`
+  section (recipe, exit, task, stderr tail / traceback) to the period
+  blackboard resolved by `blackboard_from_env(cfg.repo_root)`. No blackboard
+  → nothing extra (stderr already reaches the console). A write failure never
+  replaces the recipe's own exit code.
+- The four shipped `ticket.py` shims (live + packaged twins) switch from
+  importing `run_<x>_recipe` directly to `run_recipe(load_config(), "<name>", [])`
+  so the deterministic firing crosses the layer; `tests/test_recurring_shims.py`
+  is updated to pin that shape, and the four skill docs that say the shim
+  "calls `run_x_recipe` directly" are corrected (with twins).
+- `run_skill_update_recipe`'s docstring stops naming the debt and instead
+  names the layer; its own exit-2 `## Skill Update` report stays because it
+  carries what stderr cannot (the PR-not-confirmed state).
+
+## Findings
+
+- PR #774 (merged) already corrected the recurring context's "every ticket.py
+  writes to the blackboard" claim: the analyst-channel paragraph now says the
+  record "is populated only by runs that choose to write to it". PR #817
+  (open) edits the period-task context only and says "Nothing in the
+  ticket.py contract asks a recipe to write a run report there" — still true
+  after this change for *successful* runs; the new obligation is on the
+  layer, for failures, and the wording here is kept consistent with that.
+- PR #820 (open, `persist-autoclose-retire-follow-ups`) adds a paragraph to
+  the recurring context's "Last-run state" section about `retires.md`. Part 1
+  is placed in the constraint bullet instead, so the two do not collide, and
+  cites `retires.md` as that ticket's proposal.
+- The failure surface chain is: period blackboard → sweep run record
+  (`recurring_autofix.blackboard_for_ref`) → `.coga/recurring-runs/<stamp>.md`
+  and, when ticketed, the committed `run-log.md`. A failed `ticket.py` leaves
+  the period `in_progress`, so the section also survives on the ticket until
+  the retry succeeds and Dream reaps it.
+- The ticket counts "five of seven" `ticket.py` templates; on current `main`
+  it is four of six (`digest` was removed). Not material to the change.
+
+## Implement — done
+
+Commit `4ca44bea` on `recipe-reporting-contract` (rebased on `origin/main`,
+already current). Not pushed; no PR yet.
+
+What changed:
+
+- `src/coga/runner.py` — `run_recipe` tees `sys.stderr` (`_StderrTail`, a
+  transparent proxy so `isatty`/`fileno` still describe the console) and on a
+  non-zero return or an escaping `Exception`/`SystemExit`/`typer.Exit` (zero
+  codes are returns, not failures) appends `## Recipe Failure` via
+  `append_blackboard_report` to `blackboard_from_env(cfg.repo_root)`.
+  `render_failure_section` bounds the body to 4000 chars (the run record's
+  per-task budget) and strips ANSI. A write failure warns on the real stderr
+  and never outranks the recipe's exit.
+- Four shims × two copies now `run_recipe(load_config(), "<name>", [])`;
+  four skill docs (with twins) say so; `tests/test_recurring_shims.py` and
+  `tests/test_skill_update.py::test_skill_update_ships_as_a_recurring_template`
+  pin the new shape.
+- Recurring context: new sixth constraint bullet "The recipe reporting
+  contract" (Part 1 + Part 2), plus one sentence in the dispatch bullet
+  saying what "the failure is recorded" records. Codebase context: the
+  `runner.py` source-layout line and the `blackboard_from_env` containment
+  bullet point at the contract. All twins byte-identical.
+- `run_skill_update_recipe` docstring: names the layer instead of the debt;
+  its own exit-2 report stays (carries the PR-not-confirmed state).
+
+Decisions:
+
+- Layer = `run_recipe`, not `launch_script.run_script_phase`. Capturing the
+  child's fd 2 there would cover non-recipe `ticket.py` files too, but the
+  child inherits the console and the docstring names the recipe layer; the
+  context tells a non-recipe `ticket.py` author to route through `run_recipe`
+  or write their own reason.
+- Universal, blackboard-gated: `open-pr`/`delete-task`/`recurring-scan` get
+  the same property when run inside a task session. Judged desirable (a
+  failed `coga open-pr` leaves its reason on the ticket) and harmless
+  otherwise (no blackboard → nothing).
+- Skill-update keeps a one-line duplication on exit 2 (its report + the
+  layer's stderr tail). Accepted over a heuristic "skip if the recipe already
+  wrote" that autoclose's unrelated retire report would defeat.
+- Tests call recipe functions directly and are unaffected; only
+  `run_recipe` callers see the section.
+
+Verification: `PYTHONPATH=<worktree>/src .venv/bin/python -m pytest`
+→ 2569 passed (full suite; run in two invocations after fixing the one
+template-shape assertion). `git diff --check` clean. `coga validate --json`
+in the worktree matches main's standing baseline plus `missing-user` (no
+`coga.local.toml` there). Note for the next agent: a relative `PYTHONPATH`
+makes subprocess `ticket.py` children import the editable install on `main`
+instead of the worktree — use the absolute path.
+
+Adjacent observations (not fixed here):
+
+- PR #817 (period-task context) says "Nothing in the `ticket.py` contract
+  asks a recipe to write a run report there" — still true for success; if
+  it lands after this, no edit needed. PR #820 adds a `retires.md` paragraph
+  under "Last-run state"; the new bullet cites that ticket by slug and stays
+  correct either way, though "gives autoclose a `retires.md`" reads as
+  present tense once #820 merges — fine.
+- `recurring_runner._run_delegated_task`'s docstring still references
+  `_run_recipe_task`, which no longer exists.
+- `tests/test_recurring_shims.py` module docstring says "five recurring
+  templates"; there are four shims.
