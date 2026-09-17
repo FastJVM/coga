@@ -571,17 +571,19 @@ recurring walls that don't appear on a normal dev machine:
   `v2/measure-relay-prompt-scope-and-agent-precision`,
   `v2/split-context-to-doc-user-accessible-and-editable`, and
   `v2/use-worktree-when-starting-a-dev-task`. Everything else it prints is a
-  warning. If your verification sees exactly those four errors and nothing
-  else, that is the standing baseline: note "4 known baseline errors" and move
-  on; do not re-derive it, and do not synthesize, cancel, or otherwise touch
+  warning. If your verification matches that error set, report the count as
+  known baseline errors and move on; do not re-derive it, and do not
+  synthesize, cancel, or otherwise touch
   those drafts to make the gate green. The check fires only on
   `status == "draft"` (`validate.py`, the `unsynthesized-draft-blackboard`
   branch of `validate_task` via `prelaunch_blackboard_synthesis_reason`), so
   each error clears only by adjudicating or synthesizing its draft, and that
   belongs to the drafts' own adjudication tickets — a green validate is never
-  a reason to cancel a draft. A fifth error, or one of the four vanishing, is a
-  real change worth reporting. Whoever clears the last of the four deletes
-  this bullet in the same PR.
+  a reason to cancel a draft. Any additional or missing error is a real change
+  worth reporting. Any PR that clears a listed error must update
+  this bullet's date, remaining error count, and task-ref list in the same
+  change, keeping its packaged twin identical. Delete this bullet when no
+  listed errors remain.
 
 ### Which checkout you invoke coga from
 
