@@ -5500,3 +5500,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-17 11:29 [packaged-code-workflows-never-name-coga-retire-as] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-17 11:29 [packaged-code-workflows-never-name-coga-retire-as] [megalaunch] launched via coga megalaunch
 2026-09-17 11:31 [give-the-three-kinds-of-work-taxonomy-an-owning-do] [human:nicktoper] created (status=draft)
+2026-09-17 11:31 [keep-agent-edits-to-contexts-and-skills-off-the-co] [human:nicktoper] created (status=draft)
