@@ -5477,3 +5477,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-17 11:02 [cleanup/handle-a-bare-slack-webhook-url-during-empty-repo] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-17 11:02 [cleanup/handle-a-bare-slack-webhook-url-during-empty-repo] [megalaunch] launched via coga megalaunch
 2026-09-17 11:07 [stop-recurring-on-inactive-repo] [human:nicktoper] created (status=draft)
+2026-09-17 11:07 [bootstrap/orient] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
