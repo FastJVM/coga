@@ -1,9 +1,37 @@
 ---
 title: Adjudicate the eight premise-dead v2 drafts
-status: draft
+status: active
 owner: nicktoper
 agent: claude
-workflow: code/design-then-implement
+workflow:
+  name: code/design-then-implement
+  steps:
+  - name: design
+    skills:
+    - code/design
+    assignee: agent
+  - name: evaluate-design
+    skills:
+    - code/review-design
+    assignee: other-agent
+  - name: review-design
+    skills: []
+    assignee: owner
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+step: 1 (design)
 ---
 
 ## Description
