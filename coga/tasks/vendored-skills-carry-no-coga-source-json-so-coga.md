@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: 61922469-8269-4ff3-98f1-1329d5ccca5c
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -154,3 +153,38 @@ overrides. This step only adds the requested attribution pointers; it does not
 change update behavior or those existing statements. No dedicated follow-up
 was found in the current tasks by searching the classification and affected
 context terms. Carry this finding into the retro handoff.
+
+## Peer review
+
+- Refreshed the recorded feature worktree with `git fetch origin main && git
+  rebase FETCH_HEAD`; the rebase completed without conflicts. The attribution
+  commit is now `927d43e6`, based on `origin/main` at `55667b7f`.
+- `codex review --base main` from `/tmp/coga-skill-attribution` **returned**
+  with exit 0 and no findings. It confirmed the attribution references and
+  template parity. Its packaging pytest attempt used ambient Python and hit
+  the already-known missing `tomlkit` dependency; its direct parity checks
+  passed. No must-fix findings or corrective commit were needed.
+- Post-rebase `PYTHONPATH=/tmp/coga-skill-attribution/src
+  /tmp/coga-skill-attribution-venv/bin/python -m pytest` completed successfully:
+  **2,654 passed in 178.62s**, including the packaging/twin checks.
+- Manually checked the added sentence against `ATTRIBUTION.md` and `NOTICE.txt`.
+  Both provenance pointers are accurate and the two skill categories remain
+  distinct. Post-rebase `git diff --check` and template `cmp` pass; the diff
+  still contains only the same five-line addition in the two templates.
+  Read the surrounding description to confirm updater categories, allowlist
+  guidance, and exit-code paragraphs remain intact. This prose-only change
+  affects no terminal, pager, prompt, or rendered Slack surface.
+- The feature worktree is clean and contains one committed change ahead of
+  fetched `origin/main`. The adjacent local-override documentation finding
+  above remains deferred for the retro handoff. The review is complete and
+  the PR body below is ready for the next step.
+
+## PR
+
+The weekly skill-update description now names the human-readable attribution
+files for hand-vendored `anthropic/skill-creator` and the separate
+`browser/playwright` local override. Both live and packaged templates point to
+the Anthropic `ATTRIBUTION.md` pin (`anthropics/skills` at `f458cee3`) and the
+Playwright `NOTICE.txt` source (`microsoft/playwright-cli`).
+
+Test plan: `PYTHONPATH=/tmp/coga-skill-attribution/src /tmp/coga-skill-attribution-venv/bin/python -m pytest` (2,654 passed); `git diff --check`; `cmp coga/recurring/skill-update/ticket.md src/coga/resources/templates/coga/recurring/skill-update/ticket.md`.
