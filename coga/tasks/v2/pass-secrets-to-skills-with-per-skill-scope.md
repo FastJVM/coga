@@ -1,6 +1,6 @@
 ---
 title: Pass secrets to skills with per-skill scope
-status: draft
+status: canceled
 owner: nicktoper
 agent: claude
 workflow: null
