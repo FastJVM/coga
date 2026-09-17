@@ -2,21 +2,41 @@
 
 from __future__ import annotations
 
-from typing import Protocol
+import contextlib
+import io
+import os
+import sys
+import traceback
+from dataclasses import replace
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Protocol, TextIO, cast
+
+import typer
 
 from coga.autoclose import run_autoclose_recipe
+from coga.blackboard import append_blackboard_report
 from coga.blocker_reminders import run_blocker_reminders_recipe
 from coga.branchsweep import run_branch_sweep_recipe
 from coga.config import Config
 from coga.delete_task import run_delete_task_recipe
 from coga.dream_cleanup_orphan_markers import (
+    coga_os_root as orphan_markers_root,
     run_cleanup_orphan_markers_recipe,
 )
-from coga.dream_validate_drift import run_validate_drift_recipe
+from coga.dream_validate_drift import (
+    recipe_parser as validate_drift_parser,
+    run_validate_drift_recipe,
+)
 from coga.open_pr import run_open_pr_recipe
 from coga.recurring_autofix import run_autofix_analyze_recipe
 from coga.recurring_runner import run_recurring_scan_recipe
-from coga.skill_update import run_skill_update_recipe
+from coga.skill_update import (
+    recipe_parser as skill_update_parser,
+    run_skill_update_recipe,
+)
+from coga.task_env import blackboard_from_env, discover_coga_os_root
+from coga.text import strip_ansi
 
 
 class RecipeFn(Protocol):
@@ -36,9 +56,43 @@ RECIPES: dict[str, RecipeFn] = {
     "delete-task": run_delete_task_recipe,
 }
 
+RECIPE_FAILURE_HEADING = "Recipe Failure"
+# Matches the per-task budget the sweep's run record keeps for a blackboard
+# (`recurring_autofix._MAX_BLACKBOARD_CHARS_PER_TASK`). Budget the whole
+# section so a long diagnostic cannot evict its recipe/exit/task header.
+FAILURE_REPORT_CHARS = 4000
+
 
 class UnknownRecipeError(ValueError):
     """A requested name is outside Coga's fixed recipe surface."""
+
+
+class _StderrTail:
+    """Pass writes through to the real stderr while keeping a bounded tail.
+
+    Everything but `write` is delegated, so `isatty`, `fileno` and `encoding`
+    still describe the underlying stream: a recipe that hands `sys.stderr` to a
+    child process keeps its console, and click keeps its colour decision. A
+    child's own stderr therefore bypasses the tail — the recipes wrap the
+    subprocess output they care about into the exception or message they
+    write themselves.
+    """
+
+    def __init__(self, stream: TextIO, limit: int = FAILURE_REPORT_CHARS) -> None:
+        self._stream = stream
+        self._limit = limit
+        self.tail = ""
+
+    def write(self, text: str) -> int:
+        written = self._stream.write(text)
+        self.tail = (self.tail + text)[-self._limit :]
+        return written
+
+    def flush(self) -> None:
+        self._stream.flush()
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._stream, name)
 
 
 def run_recipe(cfg: Config, name: str, argv: list[str]) -> int:
@@ -48,6 +102,20 @@ def run_recipe(cfg: Config, name: str, argv: list[str]) -> int:
     parameters without affecting ``coga run``. Several use that to offer an
     optional ``result=`` out-parameter, filled in with what the run did while
     the return value stays the exit code this function reads.
+
+    This is also the recipe layer's failure surface. The recurring sweep
+    discards a `ticket.py` child's stderr and reads only the period task's
+    blackboard into its run record, so a recipe that exited non-zero to stderr
+    alone showed up there as a failed task with a blank blackboard and no
+    reason. Every recipe crosses this function — `coga run`, and the shipped
+    `ticket.py` shims — so the rule lives here once: when a recipe returns
+    non-zero or lets an exception escape, the stderr it wrote (and the
+    traceback, for an exception) is appended as a `## Recipe Failure` section
+    to the blackboard `blackboard_from_env` resolves. Without a blackboard
+    nothing extra happens — stderr already reached the console. A recipe may
+    still write a richer report of its own; this is the floor, not a
+    replacement. The exit code and the exception are never replaced by a
+    failed write.
     """
     try:
         recipe = RECIPES[name]
@@ -56,4 +124,126 @@ def run_recipe(cfg: Config, name: str, argv: list[str]) -> int:
         raise UnknownRecipeError(
             f"unknown recipe {name!r}; known recipes: {known}"
         ) from exc
-    return recipe(cfg, list(argv))
+    tail = _StderrTail(sys.stderr)
+    failure: tuple[int, str] | None = None
+    try:
+        with contextlib.redirect_stderr(cast(TextIO, tail)):
+            try:
+                code = recipe(cfg, list(argv))
+            except (Exception, SystemExit) as exc:
+                exit_code = _escaping_exit_code(exc)
+                if exit_code is not None:
+                    failure = (exit_code, "".join(traceback.format_exception(exc)))
+                raise
+        if code:
+            failure = (code, "")
+        return code
+    finally:
+        # Outside the redirect, so a write refusal or warning reaches the real
+        # stderr rather than the tail it is reporting on.
+        if failure is not None:
+            _record_failure(
+                cfg, name, argv, failure[0], stderr=tail.tail, detail=failure[1]
+            )
+
+
+def _escaping_exit_code(exc: BaseException) -> int | None:
+    """The process exit an escaping exception produces, or None for a clean exit.
+
+    `SystemExit` is how argparse refuses argv; `typer.Exit` is how a nested
+    command refuses. Both can carry zero, which is a return, not a failure.
+    Anything else the interpreter turns into a traceback and exit 1.
+    """
+    if isinstance(exc, SystemExit):
+        code = exc.code
+        if code is None or code == 0:
+            return None
+        return code if isinstance(code, int) else 1
+    if isinstance(exc, typer.Exit):
+        return exc.exit_code or None
+    return 1
+
+
+def _failure_root(cfg: Config, name: str, argv: list[str]) -> Path | None:
+    """Use the same target selection as the registered recipe being reported.
+
+    The two --cwd recipes may operate outside the invoking config's root.
+    Reuse their actual parsers, including abbreviation and --cwd= spelling;
+    unknown arguments can still leave a known target for an argv refusal.
+    Suppress this second parse's help/errors: the recipe already emitted them.
+    """
+    if name in {"validate-drift", "skill-update"}:
+        parser = (
+            validate_drift_parser() if name == "validate-drift" else skill_update_parser()
+        )
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            try:
+                args, _ = parser.parse_known_args(argv)
+            except SystemExit:
+                return None
+        return discover_coga_os_root(args.cwd)
+    if name == "cleanup-orphan-markers":
+        return orphan_markers_root()
+    return cfg.repo_root
+
+
+def _record_failure(
+    cfg: Config, name: str, argv: list[str], exit_code: int, *, stderr: str, detail: str
+) -> None:
+    target = os.environ.get("COGA_TASK_BLACKBOARD")
+    if not target:
+        return
+    try:
+        root = _failure_root(cfg, name, argv)
+        blackboard = blackboard_from_env(root)
+        if root is None or blackboard is None:
+            return
+        report = render_failure_section(
+            name,
+            exit_code,
+            generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            task_slug=os.environ.get("COGA_TASK_SLUG"),
+            stderr=stderr,
+            detail=detail,
+        )
+        # Containment proved this root owns the target. Its publication barrier
+        # must protect the append even when --cwd selected a different checkout.
+        append_blackboard_report(replace(cfg, repo_root=root), blackboard, report)
+    except Exception as write_exc:  # never outrank the recipe's own failure
+        sys.stderr.write(
+            f"Warning: could not record the {name} failure on {target}: "
+            f"{write_exc}\n"
+        )
+
+
+def render_failure_section(
+    name: str,
+    exit_code: int,
+    *,
+    generated_at: str,
+    task_slug: str | None,
+    stderr: str,
+    detail: str = "",
+) -> str:
+    """Render the `## Recipe Failure` section for one failed recipe run."""
+    lines = [f"## {RECIPE_FAILURE_HEADING}", ""]
+    lines.append(f"Recipe: `{name}`")
+    lines.append(f"Exit: {exit_code}")
+    if task_slug:
+        lines.append(f"Task: `{task_slug}`")
+    lines.append(f"Recorded: {generated_at}")
+    lines.append("")
+    parts = [strip_ansi(part).strip() for part in (stderr, detail)]
+    body = "\n\n".join(part for part in parts if part)
+    # A fenced code block does not protect an own-line blackboard separator
+    # (or a ## heading) from Coga's structural readers. Indentation does, and
+    # also makes embedded Markdown fences harmless when a human reads it.
+    body = "\n".join("    " + line for line in (body or "no stderr output").splitlines())
+    header = "\n".join(lines) + "\n"
+    available = FAILURE_REPORT_CHARS - len(header) - 1
+    if len(body) > available:
+        body = "    …" + body[-(available - 5):]
+    return header + body + "\n"

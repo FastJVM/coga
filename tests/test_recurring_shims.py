@@ -19,7 +19,8 @@ from coga.cli import app
 from coga.config import load_config
 from coga.launch_script import SCRIPT_ENTRY_POINT
 from coga.recurring import create_named
-from coga.runner import RECIPES
+from coga.runner import RECIPES, run_recipe
+from coga.taskfile import read_blackboard
 from coga.tasks import read_ticket
 
 
@@ -41,13 +42,16 @@ SHIMMED_TEMPLATES = (
 def test_shim_calls_the_registered_recipe_and_bumps_through_the_cli(
     template: str, recipe_name: str
 ) -> None:
-    """Each shim imports core directly and completes its own step.
+    """Each shim runs its recipe through the registry and completes its own step.
 
-    Two things this pins. The import must resolve to the *same* function the
-    `coga run` registry exposes — a typo would only surface on the next
-    scheduled firing. And the step must be completed by subprocessing the CLI:
-    calling the Typer command function in-process passes `OptionInfo`
-    sentinels instead of real option defaults.
+    Three things this pins. The shim must reach the recipe through
+    `coga.runner.run_recipe`, not by importing the recipe function: that
+    function is the recipe layer's failure surface, the one place a non-zero
+    exit is recorded on the period blackboard, and a direct import would skip
+    it. The name it passes must be a registry key — a typo would only surface
+    on the next scheduled firing. And the step must be completed by
+    subprocessing the CLI: calling the Typer command function in-process passes
+    `OptionInfo` sentinels instead of real option defaults.
     """
     script = PACKAGED / "recurring" / template / SCRIPT_ENTRY_POINT
     source = script.read_text()
@@ -64,12 +68,11 @@ def test_shim_calls_the_registered_recipe_and_bumps_through_the_cli(
     # calling it is the `OptionInfo`-sentinel bug this shape exists to avoid.
     assert not [name for name in imported.values() if name.endswith("bump")]
 
-    assert imported.pop("load_config") == "coga.config"
-    (symbol, module_name), = imported.items()
-    module = importlib.import_module(module_name)
-    assert getattr(module, symbol) is RECIPES[recipe_name]
+    assert imported == {"load_config": "coga.config", "run_recipe": "coga.runner"}
+    assert getattr(importlib.import_module("coga.runner"), "run_recipe") is run_recipe
 
-    assert f"{symbol}(load_config(), [])" in source
+    assert recipe_name in RECIPES
+    assert f'run_recipe(load_config(), "{recipe_name}", [])' in source
 
     argv = _subprocess_argv(tree)
     assert argv[:1] == [_SYS_EXECUTABLE]
@@ -200,6 +203,49 @@ def test_period_task_left_unfinished_when_its_shim_fails(seeded: Path) -> None:
     assert result.exit_code == 17, result.output
     # The launcher never advances the workflow on the script's behalf.
     assert read_ticket(ref).status == "in_progress"
+
+
+def test_failing_recipe_leaves_its_reason_on_the_period_blackboard(
+    seeded: Path,
+) -> None:
+    """End-to-end for the recipe layer's failure surface.
+
+    The launcher hands `ticket.py` the period task's `COGA_TASK_BLACKBOARD`;
+    a recipe run through `run_recipe` that exits non-zero has its stderr
+    appended there as `## Recipe Failure`, which is what the sweep's run
+    record reads. The console output the child produced is discarded by the
+    sweep, so this section is the only reason the period keeps.
+    """
+    shutil.copytree(
+        PACKAGED / "recurring" / "blocker-reminders",
+        seeded / "recurring" / "blocker-reminders",
+    )
+    shutil.copy(
+        PACKAGED / "workflows" / "blocker-reminders" / "run.md",
+        _mkdir(seeded / "workflows" / "blocker-reminders") / "run.md",
+    )
+    cfg = load_config(seeded)
+    ref = create_named(cfg, "blocker-reminders").ref
+    (ref.task_dir / SCRIPT_ENTRY_POINT).write_text(
+        "import sys\n"
+        "from coga import runner\n"
+        "from coga.config import load_config\n"
+        "def fail(cfg, argv):\n"
+        "    sys.stderr.write('[blockers] webhook refused the reminder\\n')\n"
+        "    return 2\n"
+        "runner.RECIPES['blocker-reminders'] = fail\n"
+        "sys.exit(runner.run_recipe(load_config(), 'blocker-reminders', []))\n"
+    )
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 2, result.output
+    assert read_ticket(ref).status == "in_progress"
+    blackboard = read_blackboard(ref.ticket_path)
+    assert "## Recipe Failure" in blackboard
+    assert "Recipe: `blocker-reminders`" in blackboard
+    assert f"Task: `{ref.id_slug}`" in blackboard
+    assert "[blockers] webhook refused the reminder" in blackboard
 
 
 def _mkdir(path: Path) -> Path:

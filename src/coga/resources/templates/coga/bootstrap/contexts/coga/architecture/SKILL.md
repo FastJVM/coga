@@ -730,8 +730,9 @@ Deterministic core jobs use `coga run <recipe> [args...]`. The fixed
 or executable-skill plugin surface. Recipes receive ordinary argv, preserve
 argument boundaries and option spelling, propagate their integer return code
 and stdout/stderr, and re-derive `COGA_TASK_*` for instantiated recurring
-tasks — including a ticket's own `ticket.py`, which may import a registered
-recipe function directly. A recurring template's deterministic path is that
+tasks. A ticket's own `ticket.py` calls registered recipes through
+`runner.run_recipe` to preserve the reporting contract in `coga/recurring`.
+A recurring template's deterministic path is that
 `ticket.py` sibling; without one, its period task is agent work and therefore
 needs a TTY at admission. That agent work takes one of two shapes: by default
 an agent session launched on the period task itself, or — with

@@ -6,9 +6,10 @@ description: Close final-step Coga tickets whose linked GitHub PR has merged.
 # Autoclose Merged Tickets
 
 This skill documents the merged-ticket auto-close sweep behind the
-`recurring/autoclose-merged/` ticket. That ticket's `ticket.py` calls
-`coga.autoclose.run_autoclose_recipe` directly — no agent, no composed
-prompt — and the same sweep is available as `coga run autoclose`. It is the
+`recurring/autoclose-merged/` ticket. That ticket's `ticket.py` runs the
+registered `autoclose` recipe (`coga.autoclose.run_autoclose_recipe`)
+through `coga.runner.run_recipe` — no agent, no composed prompt — and the
+same sweep is available as `coga run autoclose`. It is the
 sole trigger for closing tickets whose PR has merged:
 
 1. scan active and in-progress tickets,

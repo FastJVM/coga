@@ -6,9 +6,10 @@ description: Update remotely managed GitHub/URL skills into one reviewable PR, s
 # Skill Update
 
 This skill documents the skill-update run behind the
-`recurring/skill-update/` task, whose `ticket.py` calls
-`coga.skill_update.run_skill_update_recipe` directly — no agent, no composed
-prompt. The run performs `coga skill update --all --pr`: each installed
+`recurring/skill-update/` task, whose `ticket.py` runs the registered
+`skill-update` recipe (`coga.skill_update.run_skill_update_recipe`) through
+`coga.runner.run_recipe` — no agent, no composed prompt. The run performs
+`coga skill update --all --pr`: each installed
 GitHub-backed skill (one whose `SKILL.md` frontmatter carries `gh skill`'s
 `metadata.github-repo`) is handed to `gh skill update` one at a time and
 reports what `gh` did to it, while URL-backed skills use Coga's digest and

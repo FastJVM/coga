@@ -324,28 +324,7 @@ def script_task_slug_from_env() -> str | None:
     return os.environ.get("COGA_TASK_SLUG")
 
 
-def run_skill_update_recipe(
-    cfg: Config, argv: list[str], *, result: SkillUpdateReport | None = None
-) -> int:
-    """Run the recurring skill-update job.
-
-    `result` is the optional out-parameter described on `run_recipe`: the
-    results, PR link and rendered report this wrapper already holds as locals
-    are recorded on it as they are computed, so a caller summarizing the run
-    reads them directly. The attempted `command` and `pr_requested` are
-    recorded before the update runs, so the exit-2 path reports what it tried;
-    the exit-1 path additionally carries everything it collected. Both non-zero
-    exits leave a `## Skill Update` section on the blackboard: exit 2 writes the
-    failure detail there rather than to stderr alone, which the recurring sweep
-    discards.
-
-    That exit-2 blackboard write is the first instance of a property the other
-    recipes still lack — `dream_validate_drift`, `dream_cleanup_orphan_markers`,
-    `branchsweep`, `autoclose`, `blocker_reminders` and `recurring_autofix` all
-    exit non-zero to stderr alone. It belongs in the recipe layer rather than
-    here; do not paste a seventh copy, generalize it instead.
-    """
-    report_out = result if result is not None else SkillUpdateReport()
+def recipe_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the skill-update maintenance skill.")
     parser.add_argument(
         "--cwd",
@@ -362,7 +341,34 @@ def run_skill_update_recipe(
         action="store_true",
         help="Collect and classify updates without opening a PR.",
     )
-    args = parser.parse_args(argv)
+    return parser
+
+
+def run_skill_update_recipe(
+    cfg: Config, argv: list[str], *, result: SkillUpdateReport | None = None
+) -> int:
+    """Run the recurring skill-update job.
+
+    `result` is the optional out-parameter described on `run_recipe`: the
+    results, PR link and rendered report this wrapper already holds as locals
+    are recorded on it as they are computed, so a caller summarizing the run
+    reads them directly. The attempted `command` and `pr_requested` are
+    recorded before the update runs, so the exit-2 path reports what it tried;
+    the exit-1 path additionally carries everything it collected. Both non-zero
+    exits leave a `## Skill Update` section on the blackboard: exit 2 writes the
+    failure detail there rather than to stderr alone, which the recurring sweep
+    discards.
+
+    The generic half of that property now lives in the recipe layer:
+    `runner.run_recipe` appends a `## Recipe Failure` section carrying the
+    stderr tail of any recipe that exits non-zero, so a run through `coga run`
+    or a `ticket.py` shim records its reason without per-recipe code. This
+    recipe keeps its own exit-2 report on top because the report carries what
+    stderr cannot — the command it attempted and the PR-not-confirmed state.
+    Do not add a per-recipe failure write elsewhere for the stderr tail alone.
+    """
+    report_out = result if result is not None else SkillUpdateReport()
+    args = recipe_parser().parse_args(argv)
 
     blackboard = blackboard_from_env(discover_coga_os_root(args.cwd))
     task_slug = script_task_slug_from_env()

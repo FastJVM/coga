@@ -478,8 +478,10 @@ def test_skill_update_ships_as_a_recurring_template() -> None:
     assert "`coga skill install-local` is a third supported installation path" in ticket
     assert "weekly report neither lists nor verifies them" in ticket
 
-    assert "from coga.skill_update import run_skill_update_recipe" in script
-    assert "run_skill_update_recipe(load_config(), [])" in script
+    # Through the registry, so the recipe layer's failure surface applies;
+    # `tests/test_recurring_shims.py` pins the shape structurally.
+    assert "from coga.runner import run_recipe" in script
+    assert 'run_recipe(load_config(), "skill-update", [])' in script
 
     assert "name: skill-update/run" in workflow
     assert "- bootstrap/skill-update" in workflow
