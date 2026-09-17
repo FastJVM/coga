@@ -64,6 +64,28 @@ buckets, both current task shapes, and the evaluator severity/synthesis rules;
 
 ## Context
 
+**Premise re-checked 2026-09-16 (`adjudicate-parked-and-active-tickets-whose-premise`).**
+The subject is alive: changes 2, 3, and 4 are absent from the packaged skill
+(its Step 3 context prompt is still "what's the agent going to wish they
+knew?", the Step 6 evaluator list carries no severity marking or must-fix
+gate, and there is no thin-answer follow-up rule). Two have moved:
+
+- **Change 5 shipped.** The "Ticket format — read this first" section now
+  names both layouts (`coga/tasks/<slug>.md` or `coga/tasks/<slug>/ticket.md`)
+  and says when each applies. Skip it.
+- **Change 6 is partly shipped.** Step 4 already confirms namespace and name
+  with the human and routes speculative gaps to a `## Proposals` blackboard
+  section. What remains is the gate itself — create a file inline *only* when
+  the future launched agent needs that exact body — in place of the current
+  "create the file inline rather than leaving it as a TODO" bias.
+
+**The source ticket is retired.** `improve-prompt-for-relay-ticket` was deleted
+from `coga/tasks/` after closing (commit `ffb0a383`), so its blackboard is
+reachable only through git history:
+`git show ffb0a383^:coga/tasks/improve-prompt-for-relay-ticket.md`. Its
+"Ranked changes" section holds the exact suggested prompt wording for each
+change; read it from there.
+
 **Change 1 ("Ask for \"done\" up front") moved out on 2026-09-01.** It is now
 owned by `the-ticket-interview-never-asks-what-done-means`, together with the
 P2 `## Acceptance Criteria` section this ticket deferred and the parked
@@ -88,8 +110,8 @@ Description/greeting wording to the successor.
   severity marking, and the must-fix-before-close gate — not the fold-back
   itself.
 - Exact suggested prompt wording for each change is in the "Ranked changes"
-  section of `improve-prompt-for-relay-ticket`'s blackboard — read it first;
-  the quoted texts are ready to adapt.
+  section of the retired source ticket's blackboard (git-history pointer
+  above) — read it first; the quoted texts are ready to adapt.
 - Keep it lean: the skill deliberately targets a 4–6 question interview
   (`docs/vision.md`, Coga principles). Fold "done" into existing questions
   rather than adding new ones.
