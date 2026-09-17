@@ -20,7 +20,7 @@ import coga.logfile as logfile
 from coga.cli import app
 from coga.commands import init as init_cmd
 from coga.commands import update as update_cmd
-from coga.config import load_config
+from coga.config import ConfigError, load_config
 from coga.managed_skills import ManagedSkillError, ManagedSkillSummary
 from coga.notification import post
 from coga.skill_manager import SkillResult
@@ -1263,6 +1263,37 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
     assert "Skipped the onboarding ticket" in result.output
     assert "Run `coga build`" not in result.output
     assert (target / "coga" / "log.md").read_text() == ""
+
+
+@pytest.mark.parametrize("filled", [False, True], ids=["empty-repo", "filled-repo"])
+def test_init_tolerates_bare_slack_webhook_env_on_both_paths(
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch, filled: bool
+) -> None:
+    """A bare `SLACK_WEBHOOK_URL` in the operator's environment must not crash
+    init. The empty-repo path loads the scaffolded config for its own audit
+    write, where the bare-env migration guard used to raise a traceback; the
+    filled path never loads config. Both must finish and print the same
+    opt-in tip, while the guard itself stays armed for the next command."""
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/xxx")
+    target = _make_git_repo(tmp_path / "company")
+    if filled:
+        (target / "README.md").write_text("hi")
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+
+    assert result.exit_code == 0, result.output
+    assert "Bare `SLACK_WEBHOOK_URL`" not in result.output
+    assert "$SLACK_WEBHOOK_URL is already set, so opting in is one step" in (
+        result.output
+    )
+    assert (target / "coga" / "tasks" / "coga-build.md").is_file() is not filled
+    log = (target / "coga" / "log.md").read_text()
+    assert ("[coga-build] [coga:init] created" in log) is not filled
+    # The tolerance is scoped to init's one internal read: the variable is
+    # still exported afterwards, and an ordinary config load still refuses it.
+    assert os.environ["SLACK_WEBHOOK_URL"] == "https://hooks.slack.com/services/xxx"
+    with pytest.raises(ConfigError, match="Bare `SLACK_WEBHOOK_URL`"):
+        load_config(target / "coga")
 
 
 def test_init_next_steps_name_the_agent_cli_prerequisite(

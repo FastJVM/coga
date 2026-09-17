@@ -175,6 +175,13 @@ no-channel branch — one stderr line, no crash. When `[notification].channels`
 is absent entirely, Slack is inferred only from the presence of a
 `[notification.slack]` table; without one, channels resolve to `()`.
 
+`coga init` itself completes with a bare `SLACK_WEBHOOK_URL` exported, on
+both the empty-repo and the filled-repo path, and its closing tip says how to
+opt in. The empty-repo path reads the scaffolded config once, for the seeded
+onboarding audit line; `init._load_scaffolded_config` hides the variable for
+that read only. The bare-env guard on config load (below) stays armed for the
+user's next command.
+
 Once Slack *is* selected and enabled (`[notification.slack].enabled` defaults
 to true), the fail-loud contract holds — commands crash on any live
 Slack-channel failure:
