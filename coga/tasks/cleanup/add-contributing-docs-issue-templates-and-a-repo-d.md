@@ -1,6 +1,6 @@
 ---
 title: Add contributing docs, issue templates and a repo description
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
