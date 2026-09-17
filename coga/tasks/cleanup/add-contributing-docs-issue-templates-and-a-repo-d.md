@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: 9535297c-0a9a-401d-8ecd-1a59752892bb
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -69,4 +68,68 @@ before the marketing materials ship.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: docs/contributing
+worktree: /tmp/coga-contributing-docs
+
+Separate linked feature checkout; the primary checkout owns task state and
+runs workflow transitions.
+
+## Implementation decisions
+
+- Add a short `CONTRIBUTING.md` with setup, tests, and a pointer to the
+  ticket convention in `coga/contexts/coga/principles/SKILL.md`; link to
+  `docs/development.md` for the detailed development guide.
+- Add minimal Markdown bug-report, feature-request, and PR templates, plus
+  a contributor link from the README. Keep GitHub reports easy to file while
+  making the Coga ticket the durable record for substantive implementation.
+- Read-only GitHub check on 2026-09-17 confirmed the old description, empty
+  homepage, and admin access. Apply the README tagline and the existing
+  `project.urls.Homepage` from `pyproject.toml`
+  (`https://github.com/FastJVM/coga`); no new community destination is implied.
+- The code of conduct is conditional on the owner's preference, which is not
+  supplied. Leave it unadopted; the requested docs/templates/settings can
+  proceed without inventing an enforcement policy or reporting contact.
+- `marketing/discord` still treats the community home as a draft campaign
+  choice; this change does not select one.
+- The primary checkout already had an unrelated edit to
+  `coga/tasks/correct-the-v2-known-stale-surfaces-table-and-rout.md`; preserve it.
+
+## Implemented
+
+- `CONTRIBUTING.md` explains setup, testing, issue intake, the existing
+  substantive-work ticket convention, and focused PRs. It links to the owning
+  principle and the development guide rather than reproducing the full rules.
+- `.github/ISSUE_TEMPLATE/bug_report.md` asks for observed/expected behavior,
+  a reproduction, and environment; `feature_request.md` asks for a concrete
+  problem and desired outcome. `.github/pull_request_template.md` asks for
+  the change, ticket/issue references, and exact verification results.
+- README links to the contributor guide. No runtime, workflow, fixture, or
+  shipped Coga OS changes are needed.
+- Applied and re-read GitHub settings successfully on 2026-09-17:
+  `gh repo edit FastJVM/coga --description 'A company OS for small teams in the agentic era' --homepage 'https://github.com/FastJVM/coga'`.
+  `gh repo view FastJVM/coga --json description,homepageUrl` returned those
+  exact values. This external change is already live.
+
+## Verification and handoff
+
+- Created an isolated test environment in the feature checkout with
+  `python -m venv .venv`; `.venv/bin/python -m pip install -e '.[test]'`
+  succeeded after retrying outside the network-restricted sandbox.
+- Parsed both issue templates with PyYAML and checked their nonempty
+  `name`/`about` metadata and bodies. Checked all 16 local README/contributor
+  links, including the ticket-principle heading anchor, and the PR template's
+  expected path; all passed.
+- `PYTHONPATH=/tmp/coga-contributing-docs/src .venv/bin/python -m pytest`
+  passed: **2,654 passed in 178.52 seconds** on Python 3.12.12.
+- `PYTHONPATH=/tmp/coga-contributing-docs/src .venv/bin/python -m coga.cli --version`
+  returned `coga 0.3.2`; the same command with `--help` exited 0.
+- `git diff --check` and `git diff --cached --check` passed.
+- Committed as `a720e5d5` (`Add contributor guide and GitHub templates`).
+  Feature checkout is clean. Post-commit `git fetch origin main` then
+  `git rebase FETCH_HEAD` reported already up to date; `origin/main` is an
+  ancestor and the feature branch has exactly one additional commit.
+- No push or PR in this step. Ready for the frozen workflow's peer-review
+  step. The optional code of conduct remains unadopted pending an explicit
+  owner preference; there are no required implementation blockers.
