@@ -1,6 +1,6 @@
 ---
 title: overload ticket locally easily
-status: active
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -21,7 +21,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
