@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
-launch_generation: e916d4af-e084-4042-be6f-d5ee55073298
+step: 4 (review)
 ---
 
 ## Description
