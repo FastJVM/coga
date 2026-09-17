@@ -1,6 +1,6 @@
 ---
 name: coga/period-task
-description: For the agent running one firing of a recurring task. Persistent state lives in the parent recurring task's blackboard, not this period's blackboard. Auto-attached to every period task by the creator.
+description: For whoever runs one firing of a recurring task — an agent session or the template's deterministic `ticket.py`. Persistent state lives in the parent recurring task's blackboard, not this period's blackboard. Auto-attached to every period task by the creator.
 ---
 
 # You are a period task
@@ -15,6 +15,56 @@ knowledge PR first, so write anything worth keeping down; if it survives, a
 later recurring scan deletes it before recreating the path for a new period. The composed prompt header gives your exact task directory. Your
 own blackboard (the region of your `ticket.md`, below the
 `<!-- coga:blackboard -->` fence) disappears when that cleanup happens.
+
+## Who runs this period: an agent, or the template's `ticket.py`
+
+The creator attaches this context to every period task unconditionally
+(`_create_at_slug` in `src/coga/recurring.py` appends `coga/period-task`;
+`_template_frontmatter` strips a copy a promoted template already carries),
+but who reads it depends on the materialized period's frozen dispatch:
+
+- **No `ticket.py` or `delegate:`: the current step's routing applies.**
+  For an agent-owned step, `coga launch` composes this context into the
+  agent's prompt. A step assigned to the owner is a human handoff; launch
+  requires an explicit `--agent <type>` assist. An unfinished handoff
+  may be paused by the recurring sweep; see `coga/recurring` for that
+  completion contract.
+- **A `delegate:` target: an agent runs the bootstrap ticket.** That
+  target's prompt does not include the period ticket's contexts, so the
+  delegated agent does not receive these bookkeeping instructions. See
+  the delegation contract in `coga/recurring`.
+- **A copied `ticket.py` sibling: the recipe runs first, headless.** The
+  creator copies the script into the period task; `coga launch` runs it as
+  a subprocess with no prompt composed. When it closes its last step itself
+  — the shape every shipped
+  `ticket.py` template is written for, ending in a shell-out to `coga bump`
+  or `coga mark done` — no agent starts and **nobody reads this context for
+  that firing**. Each step of the shape below is then performed in code: the
+  recipe reads any cursor it needs from the parent blackboard, does the
+  period's work, writes the cursor back, and closes the step. Dispatch is not
+  binary, though: a script that exits 0 leaving its step open — on its first
+  run, or when the chain re-runs it on a later agent-owned step its bump
+  reached — hands the *same* period to an agent phase that does get this
+  prompt. In that case "you" is that agent and the period is already
+  `in_progress`. The period blackboard (`COGA_TASK_BLACKBOARD`) carries any
+  per-run handoff notes into the agent prompt; the parent blackboard holds
+  cross-run state. The three outcomes are specified by the dispatch bullet
+  and the completion contract in `coga/recurring`.
+
+So read the rest of this context as addressed to *whoever runs this period*:
+the recipe author when the reader is code, the agent otherwise. The state
+contract does not change with the reader — persistent state lives in the
+parent's blackboard, this period's blackboard is scratch, code goes through
+the fence-aware API, and the `state_keys` check runs on the `coga bump` /
+`coga mark done` a script shells out to exactly as it does on an agent's.
+
+One consequence for anyone reading a finished period: a completed
+deterministic run whose period blackboard still holds nothing but the seeded
+placeholder is the normal signature of a `ticket.py` firing, not evidence
+that the run skipped its bookkeeping. Nothing in the `ticket.py` contract asks
+a recipe to write a run report there (see the analyst-channel note in
+`coga/recurring`); its cross-run state, if it has any, is in the parent's
+blackboard, and the period it serviced is in `coga/log.md`.
 
 ## Your task ref names your parent
 
@@ -52,7 +102,9 @@ Every period-task run that carries state follows the same shape:
 2. Do this period's work.
 3. Before finishing, update that same file with whatever the next run
    needs. Then finish the current workflow step with `coga bump` — or
-   `coga mark done` when your workflow's only step is `direct/body`.
+   `coga mark done` when your workflow's only step is `direct/body`. A
+   `ticket.py` does the same by shelling out to the CLI; it is never
+   advanced on its behalf.
 
 The recurring task's `ticket.md` body names *which* keys it persists
 (e.g. `last_commit`, a cursor section). That's the contract; this
@@ -75,7 +127,9 @@ report with the file's newline convention: `replace_blackboard` and
 `append_blackboard_report` currently do not add that missing separator.
 
 If the recurring task declares `state_keys:` in its frontmatter, those
-keys are checked: when you `coga mark done`, any declared key still
+keys are checked: when the run completes — `coga mark done`, or the `coga
+bump` that closes the last step, whether an agent or a `ticket.py` ran it —
+any declared key still
 holding the value it had when this period started is flagged (a local
 warning, an important Slack alert, and a `coga validate` issue) — the
 signal that you did the work but forgot to record the new high-water mark,
