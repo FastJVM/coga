@@ -1,6 +1,6 @@
 ---
 title: 'Define the recipe reporting contract: report durability and failure surface'
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:3e373db0-252a-425e-883d-62698e615ecc
 ---
 
 ## Description
