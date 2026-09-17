@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
-launch_generation: a57947d5-cafb-41f8-8659-5305d766df81
+step: 4 (review)
 ---
 
 ## Description
@@ -190,3 +189,15 @@ the Anthropic `ATTRIBUTION.md` pin (`anthropics/skills` at `f458cee3`) and the
 Playwright `NOTICE.txt` source (`microsoft/playwright-cli`).
 
 Test plan: `PYTHONPATH=/tmp/coga-skill-attribution/src /tmp/coga-skill-attribution-venv/bin/python -m pytest` (2,654 passed); `git diff --check`; `cmp coga/recurring/skill-update/ticket.md src/coga/resources/templates/coga/recurring/skill-update/ticket.md`.
+
+## Open-PR
+
+- Confirmed the `## Peer review` note records the `codex review --base main`
+  as returned with no findings before publishing.
+- `coga open-pr` ran from the primary control checkout (`main`, clean) against
+  the recorded worktree on `docs/skill-attribution` at `927d43e6`. It reported
+  `origin/main` had advanced only through non-overlapping task/log state,
+  pushed the branch, and opened PR #829 (non-draft, `docs/skill-attribution`
+  → `main`). `pr:` is recorded under `## Dev`.
+- The deferred local-override documentation finding (codebase context groups
+  Playwright with the Anthropic import) still carries forward to the retro.
