@@ -1,7 +1,7 @@
 ---
 title: Audit rules.md usage across relay and decide whether to keep, gut, or remove
   it
-status: draft
+status: canceled
 owner: nicktoper
 agent: claude
 workflow: null
