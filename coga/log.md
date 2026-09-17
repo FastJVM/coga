@@ -5453,3 +5453,9 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-16 22:31 [define-the-split-a-ticket-mechanic-shared-by-code] [system] {"agent":"claude","agent_turns":11,"cache_creation_input_tokens":183042,"cache_read_input_tokens":5248621,"cli":"claude","content_status":"ok","elapsed_seconds":556.617944,"ended_at":"2026-09-17T05:31:52.535660Z","human_turns":0,"input_tokens":130,"model":"claude-opus-5","outcome":"Validation issues are all pre-existing and none on this ticket. Rebase was clean (no new commits on `origin/main`). Now the handoff on the blackboard, then bump.","outcome_status":"completed","output_tokens":53721,"provider":"anthropic","request":null,"schema":2,"session_id":"25f743ae-f19d-4116-a20d-15677f0257bd","slug":"define-the-split-a-ticket-mechanic-shared-by-code","started_at":"2026-09-17T05:22:35.917716Z","step":"implement","title":"Define the split-a-ticket mechanic shared by code design and implement","ts":"2026-09-17T05:31:52.535660Z","usage_status":"ok"}
 2026-09-16 22:31 [define-the-split-a-ticket-mechanic-shared-by-code] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-09-16 22:31 [define-the-split-a-ticket-mechanic-shared-by-code] [megalaunch] launched via coga megalaunch
+2026-09-17 11:01 [recurring/autoclose-merged] [system] created (status=active)
+2026-09-17 11:01 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-09-17
+2026-09-17 11:01 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-09-17
+2026-09-17 11:01 [recurring/blocker-reminders] [system] created (status=active)
+2026-09-17 11:01 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-09-17
+2026-09-17 11:01 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-09-17
