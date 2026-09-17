@@ -61,7 +61,10 @@ no in-memory state.
   ticket-level frontmatter field exists for skill refs that apply to the
   ticket as a whole; `bootstrap/ticket` is the authoring interview and must
   never appear there — `coga ticket` injects it into the launch prompt
-  only, never persists it on the ticket.
+  only, never persists it on the ticket. That ref resolves local-first like
+  any other, so a repo-local `coga/skills/bootstrap/ticket/SKILL.md`
+  substitutes its own interview with no alias or code change — an alias only
+  rewrites argv and cannot redirect the hardcoded ref.
 - **Workflows** are ordered step definitions. A repo's own workflows live in
   `coga/workflows/`; package-backed reusable workflows (the core `code/*`
   loop, `code/with-self-review`, `docs/create-google-doc`, and

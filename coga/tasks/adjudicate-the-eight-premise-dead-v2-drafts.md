@@ -18,7 +18,7 @@ human-only, which is why this ticket runs `code/design-then-implement`: the `des
 an evidence-graded verdict table, the owner approves it at `review-design`, and only then does
 `implement` execute the confirmed cancels.
 
-Expected to clear 2 of the 4 `coga validate` errors — but only if the evidence lands that way.
+Expected to clear at most one standing `coga validate` error (`autotrigger-ticket-type`) — but only if the evidence lands that way.
 
 ## Context
 
@@ -46,6 +46,29 @@ cancelling or synthesizing. Everything else `coga validate` prints is a WARN. Tw
 `correct-the-v2-known-stale-surfaces-table-and-rout`, two in
 `adjudicate-the-eight-premise-dead-v2-drafts`. **A green validate is never a reason to cancel a
 draft** — it is a consequence of correct verdicts, never an input to them.
+
+### Four of the eight are already ruled — do not re-adjudicate them
+
+Two sibling triage tickets reached these before this one activated; their
+verdicts are in `coga/log.md` and are not reopened here.
+
+- `audit-rules-md-usage-across-relay-and-decide-wheth` — **canceled** 2026-09-16
+  by `adjudicate-parked-and-active-tickets-whose-premise` (premise-dead, reason
+  in the log).
+- `document-workflow-less-concept-capture-drafts-as-s` — **done** 2026-09-16 by
+  the same ticket (closed as already satisfied by `coga/architecture`).
+- `split-context-to-doc-user-accessible-and-editable` — **kept**, rewritten
+  against current surfaces and guarded on the `redo-documentation` owner gate
+  by the same ticket; it passes both README questions and must not be
+  cancelled for the validate gate.
+- `dev-loop-git-hygiene-lift-sync-with-main-into-code` — **done** 2026-09-12 by
+  `four-parked-tickets-carry-premises-that-have-since` (already satisfied;
+  evidence in its closing log line).
+
+The remaining four (`autotrigger-ticket-type`, `skill-update-aborts-on-uncommitted-log-file`,
+`relay-design-repositories`, `add-relay-skill-search-with-candidate-eval`)
+are this ticket's live cohort. The grading below is kept intact for the
+record.
 
 ### The cohort, graded by evidence — do not treat it as a flat list
 
@@ -92,8 +115,9 @@ gate. Spelling: `coga mark canceled v2/<slug> --message "<reason>"`.
 
 ### The incentive to watch
 
-Two of the four `coga validate` errors sit on `autotrigger-ticket-type` and `split-context-to-doc`,
-so ruling them dead is the cheapest route to a green gate. **A green validate is never a reason to
+One of the standing `coga validate` errors sits on `autotrigger-ticket-type` (the
+`split-context-to-doc` one cleared with its 2026-09-16 rewrite), so ruling it dead is the cheapest
+route to a green gate. **A green validate is never a reason to
 cancel.** Adjudicate on the README's two questions alone and accept a still-red validate if that is
 where the evidence lands — the sibling ticket clears the other two errors regardless.
 
