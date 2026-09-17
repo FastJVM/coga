@@ -26,41 +26,37 @@ step: 1 (implement)
 
 ## Description
 
-Implement the six accepted changes (all P0 + P1 items; P2 deferred) from the
+Implement changes 2–4 and the remaining gate from change 6 of the accepted
 interview-improvement proposal on `improve-prompt-for-relay-ticket`'s
-blackboard. All are edits to the `bootstrap/ticket` skill text plus tests — no
-CLI behavior changes:
+blackboard (recover it from git history as described in Context). The
+original proposal numbers below identify the remaining work. All are edits
+to the `bootstrap/ticket` skill text plus tests — no CLI behavior changes:
 
-1. **Ask for "done" up front** — the new-title greeting and the Step 3
-   Description prompt become "what should it do, why now, and what would count
-   as done?"; done criteria land as a sentence in `## Description`, not a new
-   section.
-2. **Checklist-shaped context question** — replace the Step 3 "what will the
-   agent wish they knew?" prompt with concrete buckets: files/modules/commands
-   to inspect, related tickets or PRs, constraints and out-of-scope lines,
-   known traps, verification commands, safety/rollback. One targeted follow-up
-   on a thin answer (code vs docs variants are drafted in the proposal).
-3. **Evaluator severity rubric** — Step 6 evaluator assesses the axes
-   Objective, Done, Scope, Knowledge, Workflow fit, Safety, and marks each
-   finding `must-fix before launch` / `nice-to-have` / `question for human`.
-   The authoring agent must resolve must-fix items (edit the body directly, or
-   ask the human one concrete question and then edit) before the session ends.
-4. **Thin-answer recovery rule** — never write a blank/title-only
-   `## Description`, or a blank `## Context` on a non-concept-capture ticket,
-   without one follow-up; deliberate concept-capture stays a workflow-less
-   draft with one sentence in the body saying so.
-5. **Fix stale task-shape guidance** — example/path wording must cover both
-   real layouts: flat `coga/tasks/<slug>.md` and nested
-   `coga/tasks/<group>/<slug>/ticket.md`, excluding support files.
-6. **Conservative Step 4** — create a context/skill inline only when the future
-   launched agent needs that exact body and the human confirms the name;
-   speculative gaps go to a `## Proposals` blackboard note instead.
+- **Change 2: Checklist-shaped context question** — replace the Step 3 "what
+  will the agent wish they knew?" prompt with concrete buckets:
+  files/modules/commands to inspect, related tickets or PRs, constraints and
+  out-of-scope lines, known traps, verification commands, safety/rollback.
+  One targeted follow-up on a thin answer (code vs docs variants are drafted
+  in the proposal).
+- **Change 3: Evaluator severity rubric** — Step 6 evaluator assesses the axes
+  Objective, Done, Scope, Knowledge, Workflow fit, Safety, and marks each
+  finding `must-fix before launch` / `nice-to-have` / `question for human`.
+  The authoring agent must resolve must-fix items (edit the body directly, or
+  ask the human one concrete question and then edit) before the session ends.
+- **Change 4: Thin-answer recovery rule** — never write a blank/title-only
+  `## Description`, or a blank `## Context` on a non-concept-capture ticket,
+  without one follow-up; deliberate concept-capture stays a workflow-less
+  draft with one sentence in the body saying so.
+- **Change 6, remaining gate: Conservative Step 4** — create a context/skill
+  inline only when the future launched agent needs that exact body. Preserve
+  the existing human confirmation of namespace/name and the routing of
+  speculative gaps to a `## Proposals` blackboard note.
 
-Done means: the packaged skill text carries all six changes while keeping the
-4–6-question interview budget; `tests/test_bootstrap_ticket_skill_template.py`
-asserts the shipped template mentions done-criteria, the concrete context
-buckets, both current task shapes, and the evaluator severity/synthesis rules;
-`python -m pytest` passes.
+Done means: the packaged skill text carries changes 2–4 and the exact-body
+gate from change 6 while keeping the 4–6-question interview budget;
+`tests/test_bootstrap_ticket_skill_template.py` covers the concrete context
+buckets, evaluator severity and must-fix resolution, thin-answer recovery,
+and the exact-body gate; `python -m pytest` passes.
 
 ## Context
 
@@ -90,8 +86,9 @@ change; read it from there.
 owned by `the-ticket-interview-never-asks-what-done-means`, together with the
 P2 `## Acceptance Criteria` section this ticket deferred and the parked
 `v2/acceptance-criteria` draft — one ticket settles section-vs-sentence rather
-than two landing in conflict. **Changes 2–6 remain this ticket's scope and are
-unaffected.** If this ticket is unpaused first, skip change 1 and leave the
+than two landing in conflict. **Only changes 2–4 and the exact-body gate from
+change 6 remain this ticket's scope.** Skip changes 1 and 5 and preserve the
+shipped parts of change 6. If this ticket is unpaused first, leave the
 Description/greeting wording to the successor.
 
 
@@ -113,8 +110,8 @@ Description/greeting wording to the successor.
   section of the retired source ticket's blackboard (git-history pointer
   above) — read it first; the quoted texts are ready to adapt.
 - Keep it lean: the skill deliberately targets a 4–6 question interview
-  (`docs/vision.md`, Coga principles). Fold "done" into existing questions
-  rather than adding new ones.
+  (`docs/vision.md`, Coga principles). Refine existing prompts within that
+  budget; the Description/greeting change belongs to the successor above.
 - Out of scope: a formal `Acceptance Criteria` body section (P2 — deliberately
   deferred); changes to `coga ticket` command behavior unless the text change
   exposes a real CLI mismatch.

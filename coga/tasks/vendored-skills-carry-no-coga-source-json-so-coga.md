@@ -36,17 +36,18 @@ and its packaged twin) now describes every skill category it services —
 GitHub-backed packs delegated to `gh skill`, URL installs carrying
 `.coga-source.json`, `install-local` directories, twins of bundled skills, and
 hand-vendored packs "outside every updater path" with "the same unmanaged
-update posture". What it still does not say is **where a hand-vendored pack's
-provenance lives instead**: those packs are deliberately not machine-managed and
-carry human-readable attribution in place of `.coga-source.json` —
-`coga/skills/anthropic/skill-creator/ATTRIBUTION.md` pins `anthropics/skills`
-at `f458cee3`, and `coga/skills/browser/playwright/NOTICE.txt` names
-`microsoft/playwright-cli`.
+update posture". What it still does not say is **where human-readable
+attribution lives**: the deliberately unmanaged, hand-vendored
+`anthropic/skill-creator` carries
+`coga/skills/anthropic/skill-creator/ATTRIBUTION.md`, pinning `anthropics/skills`
+at `f458cee3`; separately, the package-backed `browser/playwright`
+`local-override` carries `coga/skills/browser/playwright/NOTICE.txt`, naming
+`microsoft/playwright-cli` as the source of its adapted material.
 
 Add that one statement to the template's `## Description`, next to the
-existing hand-vendored sentences, in both copies. Do not backfill
-`.coga-source.json` for those packs (see Context), and do not touch
-`skill_manager.py`.
+existing hand-vendored sentences, in both copies, keeping the hand-vendored
+and local-override categories distinct. Do not backfill `.coga-source.json`
+for either skill (see Context), and do not touch `skill_manager.py`.
 
 ## Context
 
