@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: 7ab37cdc-0dc3-43fa-ab3c-b8e173f599a5
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -104,3 +103,43 @@ Adjacent, not fixed: the tip says "Coga runs without them", but with the bare
 variable still exported the very next command (`coga status`) exits 2 with the
 guard message — a clean error, not a traceback. Pre-existing on both paths;
 the wording could say "unset it or declare it before your next command".
+
+## Peer review
+
+- `codex review --base main` **returned**, exit 0: no actionable regressions.
+  The reviewer confirmed the init-only scope and environment restoration;
+  its 260 targeted init, config, and packaging tests passed. No fixes or
+  additional feature commit needed.
+- Ran `git fetch origin main` then `git rebase FETCH_HEAD` in the recorded
+  feature worktree. Rebase was conflict-free onto `e291585d`; the feature
+  commit is now `cb66863f`, one commit ahead. Only task/log state arrived from
+  main, so the reviewed product diff is unchanged. `git diff --check
+  origin/main...HEAD` passed and the worktree is clean.
+- Drove the real CLI in a PTY at **80x24 and 120x40**, with a dummy bare
+  `SLACK_WEBHOOK_URL`, for both empty Git repos and repos containing a README
+  (four runs). Used the repo's Python 3.12 test environment with the feature
+  source pinned via absolute `PYTHONPATH`. Every init exited 0, printed the
+  common opt-in tip without a traceback, committed generated state, and
+  seeded/pruned the onboarding ticket and audit line appropriately. Each
+  subsequent `status` exited 2 with the intentional bare-env guard and no
+  traceback. Fixtures: `/tmp/coga-init-peer-review-372ljezn/`.
+  Optional managed-skill downloads emitted network warnings in this sandbox;
+  they did not prevent init or obscure its final tip. An initial attempt with
+  the ambient Python lacked `tomlkit`; the test environment resolved that.
+- Post-rebase full suite **passed: 2563 tests**, exit 0 (253.96s):
+  `PYTHONPATH=/home/n/Code/claude/coga-init-bare-slack-env/src /home/n/Code/claude/coga/.venv/bin/python -m pytest`.
+  One warning: the sandbox could not write the optional pytest cache in the
+  feature worktree. No tests failed or were skipped.
+
+## PR
+
+Fix `coga init --user tester` crashing in an empty Git repository when
+`SLACK_WEBHOOK_URL` is already exported. Ignore the variable only while
+reading the freshly scaffolded config for the onboarding audit entry, then
+restore it so both init paths print the existing opt-in tip and later commands
+retain the config-load guard.
+
+Add regression coverage for empty and filled repositories and document the
+exception in the live and packaged `coga/sync` contexts.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-init-bare-slack-env/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` — 2563 passed; real-terminal init checks for both repository paths at 80x24 and 120x40 passed.
