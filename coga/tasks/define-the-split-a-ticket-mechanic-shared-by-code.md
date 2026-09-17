@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: cc86b528-7b6d-46b7-acd6-5f6a4511aedd
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -106,6 +105,45 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - **Parked draft:** cancel `v2/skill-for-split-into-sibling-ticket-discipline`
   with a pointer here — its adjacent-finding half shipped in
   `retro/done-ticket`, its split half ships on this branch.
+
+## Implemented (commit c6d71231 on `split-ticket-contract`)
+
+- `coga/skills/code/implement/SKILL.md` + packaged twin — new
+  `## Splitting a ticket` section (five numbered rules: `coga create` drafts
+  named for their own outcome, `## Split` heading on the source blackboard,
+  `**Split from …**` cross-link opening each sibling's `## Context`,
+  co-equal vs sequenced with the `After:` line and the block-at-activation
+  rule, narrow-or-cancel the source); the Gotchas bullet now points at it;
+  step 1 tells the implementer of a sequenced successor to block on its
+  `After:` ticket before setting up a checkout.
+- `coga/skills/code/design/SKILL.md` + packaged twin — the identical section;
+  step 5 now splits by the contract (spec covers the slice the source keeps,
+  each sibling draft carries its own; the owner can cancel a sibling in
+  `review-design`) instead of merely recommending one.
+- `tests/test_code_split_contract.py` — mirrors
+  `tests/test_code_implement_skill.py`: the two packaged sections are
+  byte-identical, the contract's load-bearing spellings are present, both
+  step skills point at it. The comment there records why the section has no
+  single owner file.
+- Example slugs inside the contract are invented, not this repo's tickets,
+  because the skill ships as a bundled battery.
+- Control (`main`): `coga mark canceled v2/skill-for-split-into-sibling-ticket-discipline`
+  with a `Superseded by …` reason naming this ticket and the branch.
+
+Verification: `PYTHONPATH=<worktree>/src .venv/bin/python -m pytest` →
+2564 passed; live/packaged `cmp` identical for all four skill copies;
+`coga validate --json` → only pre-existing warnings/errors, none on this
+ticket; `git diff --check` clean. Rebased on `origin/main` (no new
+commits). Not pushed, no PR.
+
+Not done here, for retro: the three ad-hoc "sibling ticket" links the Dream
+evidence cites predate the contract and are left as they are — retro deletes
+them on completion, and rewriting live tickets' prose is not this ticket's
+scope. `ticket-relationships-and-ownership-have-no-mechani` stays blocked on
+its own peer-review question; this contract adopts its part-2 conclusion
+(blocker ask naming the exact slug) without waiting on it, so if that ticket
+later lands a `## Ticket relationships` section in `coga/architecture`, the
+dependency spelling there and rule 4 here should be checked for agreement.
 
 ## Dev
 
