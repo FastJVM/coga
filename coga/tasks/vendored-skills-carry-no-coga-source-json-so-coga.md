@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: 6ec8a21d-7b06-4ae9-bcd2-1db9c2b9241d
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -95,4 +94,62 @@ Two follow-ups that arrived here from Dream Phase 6 have their own tickets:
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: docs/skill-attribution
+worktree: /tmp/coga-skill-attribution
+
+## Implement plan
+
+- Add one human-readable attribution sentence beside the existing unmanaged
+  skill wording in both recurring template copies. Keep the hand-vendored
+  Anthropic skill distinct from the package-backed Playwright local override.
+- Verified the Anthropic attribution pins `anthropics/skills` at `f458cee3`
+  and the Playwright notice names adapted material from
+  `microsoft/playwright-cli`. The current templates are identical and still
+  lack these attribution pointers.
+- Use the existing packaging check and full `python -m pytest` suite for this
+  documentation-only change; no new prose-matching test or example change is
+  needed. Commit the templates, refresh against `origin/main`, then bump from
+  this primary checkout. No implementation push or PR in this step.
+
+## Implementation notes
+
+- Added the attribution sentence to both template descriptions, immediately
+  after the existing hand-vendored update-posture sentence. Existing updater
+  categories, allowlist guidance, and exit-code paragraphs are unchanged;
+  neither provenance JSON nor `skill_manager.py` was modified.
+- `git diff --check` and the template `cmp` pass. Initial `python -m pytest`
+  could not collect the CLI tests because ambient Python lacks the declared
+  `tomlkit` dependency. Installed `.[test]` in
+  `/tmp/coga-skill-attribution-venv` (package-index access required escalation
+  after sandbox DNS failure). The full suite passed: **2,654 tests in 185.03s**,
+  including packaging/twin checks, with
+  `PYTHONPATH=/tmp/coga-skill-attribution/src /tmp/coga-skill-attribution-venv/bin/python -m pytest`.
+
+## Implement handoff
+
+- Committed as `c1f3b3aa` (`Clarify skill-update attribution locations`): only
+  the live recurring template and its packaged twin changed, by the same
+  five-line sentence.
+- Post-commit `git fetch origin main && git rebase FETCH_HEAD` completed;
+  the branch was already up to date. `git merge-base --is-ancestor origin/main
+  HEAD` passed and `git status --short` is empty in the feature checkout.
+  The freshness retry required escalation because the sandbox mounted the
+  linked worktree's Git metadata read-only.
+- No branch push or PR. Ready for the frozen workflow's `peer-review` step;
+  the primary checkout holds the authoritative blackboard and will bump.
+
+## Adjacent finding — deferred
+
+The `Hand-vendored upstream skills` bullet in
+`coga/contexts/coga/codebase/SKILL.md` still groups Playwright with the
+Anthropic import. `src/coga/skill_manager.py`'s `_local_override_result`
+identifies a repo copy shadowing a bundled skill, and `_bundled_update_result`
+explicitly explains that upgrading the package does not change that installed
+repo copy. The ticket's existing refresh-with-package claim and the template's
+general bundled-refresh wording merit a separate clarification for local
+overrides. This step only adds the requested attribution pointers; it does not
+change update behavior or those existing statements. No dedicated follow-up
+was found in the current tasks by searching the classification and affected
+context terms. Carry this finding into the retro handoff.
