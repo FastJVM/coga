@@ -1,6 +1,6 @@
 ---
 title: Yank the PyPI 0.0.1 placeholder and document the failure
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
