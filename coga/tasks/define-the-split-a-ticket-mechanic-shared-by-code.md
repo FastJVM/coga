@@ -1,6 +1,6 @@
 ---
 title: Define the split-a-ticket mechanic shared by code design and implement
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
