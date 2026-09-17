@@ -1,6 +1,6 @@
 ---
 title: 'Debug surface for recurring tasks: streamed output + step-through'
-status: draft
+status: canceled
 owner: nicktoper
 agent: claude
 workflow:
@@ -21,7 +21,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (design)
 ---
 
 ## Description
