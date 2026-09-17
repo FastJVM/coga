@@ -21,6 +21,41 @@ site-specific layer on top of two substrates:
 DocHub is the chosen e-sign target (v7). Use this skill when a ticket attaches
 it for placing annotations, placing a signature, and sending for signature.
 
+## Why the browser, not the API
+
+Tickets using this workflow should attach `browser/api-first` and cite this
+dated check as their API answer.
+
+**Answer (checked 2026-09-16): No usable public API found for this workflow.**
+The check found no documented endpoints for document upload, annotation or
+signature-field placement, signer assignment, or sending sign requests.
+Continue using the browser for those operations. This is a finding from the
+sources below, not proof that DocHub has no API of any kind.
+
+**Sources checked on 2026-09-16:**
+
+- DocHub Support's [“Automatically Filling Forms via API” answer](https://support-backend.usrsprt.com/support/dochub/community-forum/question/c91a6950-fa12-401f-93e5-cbc88a6db133)
+  (public help-center thread record, answered 2024-04-11) says the API was
+  still in development and directs users to the browser. Its age limits what
+  it establishes about current availability.
+- The [help center](https://help.dochub.com/) API search, [pricing](https://dochub.com/pricing),
+  and [integrations](https://www.dochub.com/en/integrations) did not yield a
+  public API reference for this workflow. Search hits about Google APIs and
+  SSO do not document these document-preparation and e-sign operations.
+- The [PandaDoc API pricing comparison](https://www.dochub.com/compare/dochub-vs-pandadocs-api-pricing)
+  claims a DocHub REST API, SDKs, an OpenAPI specification, and a sandbox plan,
+  but supplies no link to their reference or developer dashboard. This
+  conflicting claim alone is insufficient to build an API integration.
+
+Keep the scriptable part local: pre-fill AcroForm text, radio, and checkbox
+values with pypdf before upload, as described below. The browser then handles
+the remaining document preparation and sending.
+
+Re-check for a different workflow, new API documentation or access, or when
+this check is more than a year old. If documented endpoints become available,
+update this section and use them for the operations they cover. Revisit
+Technique B if field placement can move to the API.
+
 ## Before you start: pre-fill the PDF (AcroForm)
 
 If the document is a fillable AcroForm PDF, set its **text / radio / checkbox**
