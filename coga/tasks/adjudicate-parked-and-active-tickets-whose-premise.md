@@ -1,6 +1,6 @@
 ---
 title: Adjudicate parked and active tickets whose premises have moved
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
