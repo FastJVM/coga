@@ -1,6 +1,6 @@
 ---
 title: Correct the v2 known-stale-surfaces table and route future Dream gap findings
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:9b211dd5-c409-4447-bf9e-bb7045f0939c
 ---
 
 ## Description
