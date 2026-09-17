@@ -1,6 +1,6 @@
 ---
 title: Adjudicate the eight premise-dead v2 drafts
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -32,6 +32,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (design)
+launch_generation: pending:700ab781-008d-4967-8c2f-910081dd210f
 ---
 
 ## Description
