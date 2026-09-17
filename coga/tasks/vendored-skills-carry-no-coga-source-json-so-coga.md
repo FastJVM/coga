@@ -1,6 +1,7 @@
 ---
-title: Correct recurring/skill-update's provenance claim to match how skills are actually managed
-status: active
+title: Correct recurring/skill-update's provenance claim to match how skills are actually
+  managed
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -23,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:6ec8a21d-7b06-4ae9-bcd2-1db9c2b9241d
 ---
 
 ## Description
