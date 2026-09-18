@@ -73,6 +73,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/831
 branch: resources-pkg-init
 worktree: /home/n/Code/claude/coga-resources-pkg-init
 
