@@ -1,6 +1,6 @@
 ---
 title: Attribute headless recurring completions to system
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:cc9588ed-2cec-4afa-b2d2-f3c107334340
 ---
 
 ## Description
