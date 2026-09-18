@@ -216,3 +216,12 @@ use a regular package, with regression checks for the package type,
 multi-segment template paths, and inclusion of the marker in the built wheel.
 
 Test plan: `PYTHONPATH="$PWD/src" /tmp/coga-resources-pkg-init-py311/bin/python -m pytest` and `PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m pytest` — 2656 passed each on Python 3.11.15 and 3.12.12; clean-clone wheel build and `python -m coga.cli init --user tester` from the installed wheel on 3.11 passed.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r`
+Recorded: 2026-09-18T17:38:13+00:00
+
+    Branch 'resources-pkg-init' is not safe to publish. current branch does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase FETCH_HEAD`. Reconcile it and relaunch, or `coga block --task cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r`.
