@@ -1,6 +1,6 @@
 ---
 title: Triage five review comments that merged unanswered in Aug-Sep 2026
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: draft-for-human
@@ -16,6 +16,7 @@ workflow:
     assignee: agent
 step: 1 (agent-produces)
 agent: claude
+launch_generation: pending:dc6c93dc-b535-4790-8e11-94594af87ec6
 ---
 
 ## Description
