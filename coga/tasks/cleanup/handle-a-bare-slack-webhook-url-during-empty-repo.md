@@ -1,6 +1,6 @@
 ---
 title: Handle a bare SLACK_WEBHOOK_URL during empty-repo init
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description
