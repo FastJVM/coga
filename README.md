@@ -166,6 +166,7 @@ Full documentation lives under [`docs/`](docs/README.md):
 - **Model:** [Concepts](docs/concepts.md)
 - **Reference:** [CLI commands](docs/reference.md)
 - **Operations:** [Notifications, recurring work, secrets](docs/operations.md)
+- **Contributing:** [Report a problem or make a change](CONTRIBUTING.md)
 - **Development:** [Working on Coga itself](docs/development.md)
 - **Evidence:** [Velocity report](docs/velocity-report.md)
 
