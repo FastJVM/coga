@@ -188,3 +188,12 @@ Test plan: `PYTHONPATH=/tmp/coga-contributing-docs/src .venv/bin/python -m pytes
 (2,654 passed); issue-template metadata, all 16 local README/contributor links,
 and `git diff --check origin/main...HEAD` passed. `codex review --base main`
 returned with no actionable findings.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `cleanup/add-contributing-docs-issue-templates-and-a-repo-d`
+Recorded: 2026-09-18T19:26:51+00:00
+
+    Branch 'docs/contributing' is not safe to publish. current branch does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase FETCH_HEAD`. Reconcile it and relaunch, or `coga block --task cleanup/add-contributing-docs-issue-templates-and-a-repo-d`.
