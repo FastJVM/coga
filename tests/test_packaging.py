@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import zipfile
+from importlib.resources import files
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -12,10 +13,15 @@ import tomllib
 if TYPE_CHECKING:
     import pytest
 
+import coga.resources
+from coga.paths import packaged_template_path
 from coga.ticket import Ticket
 
 
 EXPECTED_BOOTSTRAP_RESOURCES = (
+    # Keeps `coga.resources` a regular package in the built wheel, not a
+    # namespace package — see `test_coga_resources_is_a_regular_package`.
+    "coga/resources/__init__.py",
     "coga/resources/managed-skills.toml",
     # Every top-level resource, not just the two that had a test. These ride
     # the `packages` walk rather than the `bootstrap/` force-include, so a
@@ -333,6 +339,38 @@ def test_package_includes_coga_resources() -> None:
     for wheel_name in EXPECTED_BOOTSTRAP_RESOURCES:
         source_name = wheel_name.removeprefix("coga/resources/")
         assert (repo_root / "src" / "coga" / "resources" / source_name).is_file()
+
+
+def test_coga_resources_is_a_regular_package() -> None:
+    """`coga.resources` must not degrade back into a namespace package.
+
+    `importlib.resources.files()` returns a plain `pathlib.Path` for a regular
+    package but a `MultiplexedPath` for a namespace one, and on Python 3.11 —
+    the oldest interpreter Coga supports — `MultiplexedPath.joinpath` accepts
+    exactly one segment (it only became `joinpath(*descendants)` in 3.12). That
+    made every multi-segment resource lookup raise `TypeError` on 3.11 and
+    crashed `coga init`. Deleting `resources/__init__.py` as a stray empty
+    marker reintroduces the crash, and 3.12 would not notice — so assert the
+    invariant directly rather than relying on the interpreter under test.
+    """
+    assert coga.resources.__file__ is not None
+    assert isinstance(files("coga.resources"), Path)
+
+
+def test_packaged_template_path_accepts_multiple_segments() -> None:
+    """The multi-segment lookup `coga init` makes must resolve to a real file.
+
+    This is the call shape that raised `TypeError: MultiplexedPath.joinpath()
+    takes 2 positional arguments but 7 were given` under a namespace
+    `coga.resources` on Python 3.11 (`coga init` itself died one frame earlier
+    in `packaged_template_root`, on the two-segment `templates/coga`).
+    """
+    workflow = packaged_template_path(
+        "bootstrap", "workflows", "code", "with-review.md"
+    )
+
+    assert isinstance(workflow, Path)
+    assert workflow.is_file()
 
 
 def test_no_launch_entrypoint_run_py_files_remain() -> None:
