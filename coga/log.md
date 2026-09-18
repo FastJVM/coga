@@ -5574,3 +5574,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-18 08:33 [define-the-recipe-reporting-contract-report-durabi] [human:nicktoper] auto-bumped on merge of PR #827 → done
 2026-09-18 08:33 [document-when-to-attach-a-large-context-versus-cit] [human:nicktoper] auto-bumped on merge of PR #821 → done
 2026-09-18 08:33 [persist-autoclose-retire-follow-ups] [human:nicktoper] auto-bumped on merge of PR #820 → done
+2026-09-18 08:33 [record-dochub-s-why-not-the-api-answer-that-browse] [human:nicktoper] auto-bumped on merge of PR #822 → done
