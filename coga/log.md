@@ -5616,3 +5616,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-18 12:32 [triage-five-review-comments-that-merged-unanswered] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-18 12:32 [triage-five-review-comments-that-merged-unanswered] [megalaunch] launched via coga megalaunch
 2026-09-18 12:42 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-18 13:26 [refresh-recurring-ledger-before-first-create-sync] [human:nicktoper] created (status=draft)
