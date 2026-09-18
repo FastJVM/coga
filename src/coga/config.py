@@ -117,6 +117,10 @@ class Config:
     git_enabled: bool = True
     git_remote: str = "origin"
     git_control_branch: str = "main"
+    # What a publishing command does when the checkout is not on the control
+    # branch: "allow" (the default, today's behaviour), "warn", or "refuse".
+    # Shared `[git].publish_off_control`; see `coga.cli._guard_publish_off_control`.
+    git_publish_off_control: str = "allow"
     # Liveness limits for the interactive REPLs `coga recurring` spawns, from
     # the shared `[launch]` table. None = no limit from config. The idle timeout
     # also keeps a presence flag because that limit has a built-in default:
@@ -336,6 +340,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
     ticket_fields = _parse_ticket_fields(shared.get("ticket"))
     git_enabled = _resolve_git_enabled(shared.get("git"), local.get("git"))
     git_remote, git_control_branch = _parse_git(shared.get("git"))
+    git_publish_off_control = _parse_publish_off_control(shared.get("git"))
     (
         launch_idle_timeout,
         launch_idle_timeout_present,
@@ -387,6 +392,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         git_enabled=git_enabled,
         git_remote=git_remote,
         git_control_branch=git_control_branch,
+        git_publish_off_control=git_publish_off_control,
         launch_idle_timeout=launch_idle_timeout,
         launch_idle_timeout_present=launch_idle_timeout_present,
         launch_max_session=launch_max_session,
@@ -476,9 +482,11 @@ _ALLOWED_SHARED_GIT_KEYS: frozenset[str] = frozenset({
     "enabled",
     "remote",
     "control_branch",
+    "publish_off_control",
 })
-# Only `enabled` is machine-local. `remote` and `control_branch` are shared
-# repo policy and `_parse_git` intentionally reads them only from coga.toml.
+# Only `enabled` is machine-local. `remote`, `control_branch`, and
+# `publish_off_control` are shared repo policy, read only from coga.toml: one
+# clone must not opt itself out of a guard the team turned on.
 _ALLOWED_LOCAL_GIT_KEYS: frozenset[str] = frozenset({"enabled"})
 _ALLOWED_LAUNCH_KEYS: frozenset[str] = frozenset(
     {"idle_timeout", "max_session"}
@@ -1108,6 +1116,27 @@ def _parse_git(shared: dict | None) -> tuple[str, str]:
             raise ConfigError("[git].control_branch must be a non-empty string")
         control_branch = value.strip()
     return remote, control_branch
+
+
+PUBLISH_OFF_CONTROL_MODES: tuple[str, ...] = ("allow", "warn", "refuse")
+
+
+def _parse_publish_off_control(shared: dict | None) -> str:
+    """Parse `[git].publish_off_control`; defaults to `"allow"`.
+
+    Kept apart from `_parse_git` so that parser's `(remote, control_branch)`
+    contract, which `coga init` also reads, stays unchanged. `_parse_git` has
+    already rejected a non-table `[git]` by the time this runs.
+    """
+    if not isinstance(shared, dict) or "publish_off_control" not in shared:
+        return "allow"
+    value = shared["publish_off_control"]
+    if not isinstance(value, str) or value not in PUBLISH_OFF_CONTROL_MODES:
+        allowed = ", ".join(repr(mode) for mode in PUBLISH_OFF_CONTROL_MODES)
+        raise ConfigError(
+            f"[git].publish_off_control must be one of {allowed} (got {value!r})"
+        )
+    return value
 
 
 def _parse_layout(raw: object, repo_root: Path) -> Path | None:

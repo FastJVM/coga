@@ -5879,6 +5879,226 @@ def test_sweep_skips_when_live_config_is_invalid(monkeypatch, capsys):
     )
 
 
+# --- `[git].publish_off_control` (`cli._guard_publish_off_control`) -----------
+#
+# Opt-in refusal of publishing commands off the control branch. The default,
+# "allow", keeps upstream's publish-from-any-branch design untouched.
+
+
+def test_publish_off_control_defaults_to_allow(tmp_path):
+    cfg = load_config(_write_config(tmp_path))
+    assert cfg.git_publish_off_control == "allow"
+
+
+@pytest.mark.parametrize("mode", ["allow", "warn", "refuse"])
+def test_publish_off_control_parses_each_mode(tmp_path, mode):
+    cfg = load_config(
+        _write_config(tmp_path, shared_extra=f'[git]\npublish_off_control = "{mode}"\n')
+    )
+    assert cfg.git_publish_off_control == mode
+
+
+def test_publish_off_control_rejects_unknown_mode(tmp_path):
+    with pytest.raises(ConfigError, match="publish_off_control must be one of"):
+        load_config(
+            _write_config(tmp_path, shared_extra='[git]\npublish_off_control = "block"\n')
+        )
+
+
+def test_publish_off_control_is_shared_policy_only(tmp_path):
+    """One clone must not opt itself out of a guard the team turned on."""
+    with pytest.raises(ConfigError, match="publish_off_control"):
+        load_config(
+            _write_config(tmp_path, local_extra='[git]\npublish_off_control = "allow"\n')
+        )
+
+
+@pytest.mark.parametrize(
+    ("argv", "publishes"),
+    [
+        # Read-only surfaces stay usable from a feature worktree.
+        (["coga"], False),
+        (["coga", "status"], False),
+        (["coga", "show", "demo"], False),
+        (["coga", "validate", "--json"], False),
+        (["coga", "usage"], False),
+        (["coga", "skill", "status", "--check"], False),
+        (["coga", "recurring", "list"], False),
+        (["coga", "secret", "get", "env:FOO"], False),
+        (["coga", "mark"], False),
+        (["coga", "skill"], False),
+        (["coga", "bump", "--help"], False),
+        (["coga", "--version"], False),
+        (["coga", "init", "--update"], False),
+        (["coga", "not-a-command"], False),
+        (["coga", "recurring", "--all", "/tmp/workspaces"], False),
+        (["coga", "run", "recurring-scan", "--require-fresh-control"], False),
+        # Sweeping commands.
+        (["coga", "create", "x"], True),
+        (["coga", "bump", "demo"], True),
+        (["coga", "launch", "demo", "--prompt-report"], True),
+        (["coga", "mark", "done", "demo"], True),
+        (["coga", "skill", "update"], True),
+        (["coga", "slack", "--task", "demo", "--message", "hi"], True),
+        (["coga", "run", "autoclose"], True),
+        (["coga", "recurring"], True),
+        (["coga", "recurring", "--force"], True),
+        (["coga", "recurring", "launch", "digest"], True),
+        # Publishers the catch-all sweep skips, which a sweep-keyed guard misses.
+        (["coga", "bump", "demo", "--backward"], True),
+        (["coga", "bump", "--to=1", "demo"], True),
+        (["coga", "recurring", "promote", "demo"], True),
+    ],
+)
+def test_publishes_coga_state_classifies_every_publication_path(argv, publishes):
+    from coga import cli
+
+    assert cli._publishes_coga_state(argv) is publishes
+
+
+def _guard_cfg(git_repo, mode: str) -> Config:
+    config = git_repo.coga_os / "coga.toml"
+    config.write_text(
+        config.read_text() + f'[git]\npublish_off_control = "{mode}"\n'
+    )
+    return load_config(git_repo.coga_os)
+
+
+def test_publish_guard_refuses_off_control_and_publishes_nothing(
+    git_repo, monkeypatch, capsys
+):
+    """End to end through `main()`: exit 2 before dispatch, and the dirty
+    branch work that the sweep would have landed on control stays put."""
+    from coga import cli
+
+    _guard_cfg(git_repo, "refuse")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "opt in")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/wip")
+    wip = git_repo.coga_os / "contexts" / "wip" / "SKILL.md"
+    wip.parent.mkdir(parents=True)
+    wip.write_text("---\nname: wip\n---\n\nunfinished\n")
+    before = git_repo.origin_subjects()
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+    dispatched: list[bool] = []
+    monkeypatch.setattr(cli, "app", lambda: dispatched.append(True))
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "create", "anything"])
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+
+    assert exc.value.code == 2
+    assert dispatched == []
+    assert git_repo.origin_subjects() == before
+    assert not git_repo.origin_tracks("coga/contexts/wip/SKILL.md")
+    assert "?? coga/contexts/" in git_repo.git("status", "--porcelain")
+    err = capsys.readouterr().err
+    assert "Refused" in err
+    assert "'feature/wip'" in err
+    assert "'main'" in err
+
+
+def test_publish_guard_refuses_detached_head(git_repo, monkeypatch, capsys):
+    from coga import cli
+
+    cfg = _guard_cfg(git_repo, "refuse")
+    git_repo.git("checkout", "--detach")
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "bump", "demo", "--backward"])
+
+    with pytest.raises(SystemExit) as exc:
+        cli._guard_publish_off_control(cfg)
+
+    assert exc.value.code == 2
+    assert "detached HEAD" in capsys.readouterr().err
+
+
+def test_publish_guard_warns_and_continues(git_repo, monkeypatch, capsys):
+    from coga import cli
+
+    cfg = _guard_cfg(git_repo, "warn")
+    git_repo.checkout_branch("feature/wip")
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "mark", "done", "demo"])
+
+    cli._guard_publish_off_control(cfg)
+
+    err = capsys.readouterr().err
+    assert "WARNING" in err
+    assert "'feature/wip'" in err
+
+
+def test_publish_guard_allow_is_silent_off_control(git_repo, monkeypatch, capsys):
+    from coga import cli
+
+    cfg = load_config(git_repo.coga_os)
+    assert cfg.git_publish_off_control == "allow"
+    git_repo.checkout_branch("feature/wip")
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "bump", "demo"])
+
+    cli._guard_publish_off_control(cfg)
+
+    assert capsys.readouterr().err == ""
+
+
+def test_publish_guard_leaves_read_only_commands_alone(
+    git_repo, monkeypatch, capsys
+):
+    from coga import cli
+
+    cfg = _guard_cfg(git_repo, "refuse")
+    git_repo.checkout_branch("feature/wip")
+    for argv in (
+        ["coga", "status"],
+        ["coga", "skill", "status", "--check"],
+        ["coga", "recurring", "list"],
+    ):
+        monkeypatch.setattr(cli.sys, "argv", argv)
+        cli._guard_publish_off_control(cfg)
+
+    assert capsys.readouterr().err == ""
+
+
+def test_publish_guard_exempts_the_assist_scope(git_repo, monkeypatch, capsys):
+    """The single-checkout assist publishes through its own exact lease."""
+    from coga import cli
+    from coga.repl_supervisor import ASSIST_BRANCH_ENV, EXPECTED_TASK_ENV
+
+    cfg = _guard_cfg(git_repo, "refuse")
+    git_repo.checkout_branch("feature/wip")
+    monkeypatch.setenv(ASSIST_BRANCH_ENV, "feature/wip")
+    monkeypatch.setenv(EXPECTED_TASK_ENV, str(git_repo.coga_os / "tasks" / "demo"))
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "bump", "demo"])
+
+    cli._guard_publish_off_control(cfg)
+
+    assert capsys.readouterr().err == ""
+
+
+def test_publish_guard_passes_a_linked_worktree_on_control(
+    git_repo, monkeypatch, tmp_path, capsys
+):
+    """The recurring runner services a repo from a linked worktree that has
+    the control branch checked out; the guard keys on the branch, not on
+    linked-vs-primary, so that run is untouched."""
+    from coga import cli
+
+    _guard_cfg(git_repo, "refuse")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "opt in")
+    git_repo.checkout_branch("feature/wip")
+    linked = tmp_path / "control-worktree"
+    git_repo.git("worktree", "add", str(linked), "main")
+    cfg = load_config(linked / "coga", require_user=False)
+    monkeypatch.chdir(linked / "coga")
+    monkeypatch.setattr(
+        cli.sys, "argv", ["coga", "run", "recurring-scan", "--control-worktree"]
+    )
+
+    cli._guard_publish_off_control(cfg)
+
+    assert capsys.readouterr().err == ""
+
+
 # --- direct/body stranding guard (`stranded_product_paths`, terminal finish) ----
 #
 # A `direct/body` workflow has no push/PR step, so product code the agent commits
@@ -7131,7 +7351,7 @@ def test_cli_main_skips_end_of_command_sweep_on_retryable_state_exit(monkeypatch
     from coga import cli
 
     calls: list[object] = []
-    cfg = SimpleNamespace(aliases={})
+    cfg = SimpleNamespace(aliases={}, git_publish_off_control="allow")
     monkeypatch.setattr(cli, "find_repo_root", lambda: None)
     monkeypatch.setattr(cli, "load_config", lambda **k: cfg)
     monkeypatch.setattr(cli, "_register_alias_placeholder", lambda *a, **k: None)

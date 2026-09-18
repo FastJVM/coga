@@ -203,6 +203,124 @@ def _should_sweep_coga_state(argv: list[str]) -> bool:
     return False
 
 
+# Surfaces `[git].publish_off_control` leaves alone. Everything else a known
+# built-in dispatches is treated as publishing, so a command added later is
+# guarded by default. This is deliberately wider than `_should_sweep_coga_state`:
+# a `bump --backward`/`--to` rewind and `recurring promote` skip the catch-all
+# sweep but still land state on control through their own scoped publishers.
+_READ_ONLY_COMMANDS = frozenset({"status", "show", "validate", "usage"})
+# Lifecycle commands, like the sweep's exclusion: they create or remove the repo
+# itself and may run before a usable config exists.
+_UNGUARDED_LIFECYCLE_COMMANDS = frozenset({"init", "uninstall"})
+_READ_ONLY_SUBCOMMANDS = {
+    "skill": frozenset({"status"}),
+    "recurring": frozenset({"list"}),
+    "secret": frozenset({"get"}),
+}
+# Command groups whose bare invocation prints help. Bare `recurring` is not one:
+# it runs the scan.
+_HELP_ONLY_GROUPS = frozenset({"skill", "mark", "secret"})
+
+
+def _publishes_coga_state(argv: list[str]) -> bool:
+    """Whether this invocation may land coga state on the control branch.
+
+    Covers every publication path, not only the end-of-command sweep: the
+    per-command syncs (`git.sync_task_state`, `git.sync_paths`, `git.sync_log`)
+    and the scoped publishers of commands the sweep skips. An unknown command
+    is not publishing — Typer rejects it before anything runs.
+    """
+    args = argv[1:]
+    if not args:
+        return False
+    if "--help" in args or "-h" in args:
+        return False
+    command = args[0]
+    if command.startswith("-") or command not in _BUILTIN_COMMANDS:
+        return False
+    if command in _READ_ONLY_COMMANDS or command in _UNGUARDED_LIFECYCLE_COMMANDS:
+        return False
+    subcommand = args[1] if len(args) > 1 else None
+    if command in _HELP_ONLY_GROUPS and subcommand is None:
+        return False
+    if subcommand in _READ_ONLY_SUBCOMMANDS.get(command, frozenset()):
+        return False
+    if command == "recurring" and "--all" in args[1:]:
+        # The parent dispatcher owns no repo state; each child runs its own
+        # guard in its own repo.
+        return False
+    if (
+        command == "run"
+        and subcommand == "recurring-scan"
+        and "--require-fresh-control" in args[2:]
+    ):
+        # A `recurring --all` child. It carries its own branch/freshness gate,
+        # and off control it deliberately services the repo from a temporary
+        # control-branch worktree (`_service_from_control_worktree`), whose
+        # inner scan passes this guard on its own.
+        return False
+    return True
+
+
+def _guard_publish_off_control(cfg: Config | None) -> None:
+    """Apply `[git].publish_off_control` before a publishing command dispatches.
+
+    Upstream's sync is designed to land coga state on control from any branch
+    (`git._dispatch_branch_sync`). Where the product itself lives under `coga/`,
+    that turns one mutating command in a feature worktree into publishing the
+    branch's unfinished work to control. `warn` says so and carries on;
+    `refuse` exits 2 here, before `app()` runs and outside `main()`'s sweep
+    boundary, so nothing is written, synced, or swept.
+
+    The check is the checkout's branch, not "is a linked worktree": the
+    recurring runner deliberately runs coga in a linked worktree that has the
+    control branch checked out. A detached HEAD counts as off control. The
+    single-checkout assist scope is exempt, because it publishes through its own
+    exact feature/control lease by design.
+    """
+    if cfg is None or cfg.git_publish_off_control == "allow":
+        return
+    if not cfg.git_enabled or not _publishes_coga_state(sys.argv):
+        return
+    if _inherited_assist_scope():
+        return
+    try:
+        root = git._toplevel(cfg.repo_root)
+        if root is None:
+            return
+        branch = git._current_branch(root)
+    except git.GitError:
+        # An unborn or unreadable checkout has no control branch to publish to.
+        return
+    control = cfg.git_control_branch
+    if branch == control:
+        return
+    where = "a detached HEAD" if branch == "HEAD" else f"branch {branch!r}"
+    command = " ".join(sys.argv[1:3])
+    detail = (
+        f"`coga {command}` is running on {where}, not the control branch "
+        f"{control!r}. A publishing command here lands this checkout's coga "
+        f"state on {control!r}, including unfinished branch work."
+    )
+    if cfg.git_publish_off_control == "warn":
+        typer.secho(
+            f"WARNING: {detail} Continuing because "
+            '[git].publish_off_control = "warn".',
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        return
+    typer.secho(
+        f"Refused: {detail} Run it from a checkout on {control!r}. "
+        "Read-only commands (status, show, validate, usage, skill status, "
+        "recurring list, secret get) still work here. "
+        '(Set by [git].publish_off_control = "refuse" in coga.toml.)',
+        fg=typer.colors.RED,
+        err=True,
+    )
+    sys.exit(2)
+
+
 def _inherited_assist_scope() -> bool:
     """Whether this process must leave all fallback publication disabled.
 
@@ -364,6 +482,8 @@ def main() -> None:
         typer.secho(f"→ coga {' '.join(full)}", fg=typer.colors.BLUE, err=True)
         sys.argv = [sys.argv[0]] + full
 
+    # Before the sweep boundary below: a refusal must publish nothing.
+    _guard_publish_off_control(cfg)
     inherited_assist = _inherited_assist_scope()
     try:
         app()

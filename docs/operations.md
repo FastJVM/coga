@@ -131,6 +131,14 @@ To opt out (a repo with no remote — dev, test, solo branches), set `[git].enab
 the recurring `owner` gate below still reads the remote if one is configured,
 so a machine-local setting can't quietly hand recurring back to a stale clone.
 
+Publishing from a feature branch is deliberate, but in a repo whose product
+lives under `coga/` it means one mutating command in a feature worktree lands
+that branch's unfinished work on control. Such a repo can set
+`[git].publish_off_control = "refuse"` (or `"warn"`) in `coga.toml`: off the
+control branch, every command except the read-only ones (`status`, `show`,
+`validate`, `usage`, `skill status`, `recurring list`, `secret get`) then stops
+with exit 2 before it runs. The default, `"allow"`, changes nothing.
+
 ## Recurring maintenance
 
 Recurring work lives as **templates** under `coga/recurring/<name>/`. `coga

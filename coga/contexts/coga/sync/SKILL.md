@@ -1242,6 +1242,21 @@ Config lives in `[git]`: `enabled` defaults true, `remote` defaults `origin`,
 and `control_branch` defaults `main`. `enabled` may be overridden in
 `coga.local.toml`; remote and branch are shared repo policy.
 
+`publish_off_control` (shared-only; `"allow"`, `"warn"`, or `"refuse"`,
+default `"allow"`) is the opt-in exception to publishing from any branch. With
+it set, a command that can land coga state on control — anything but the
+read-only surfaces (`status`, `show`, `validate`, `usage`, `skill status`,
+`recurring list`, `secret get`), help, and `init`/`uninstall` — checks the
+checkout's branch before it dispatches (`cli._guard_publish_off_control`). Off
+the control branch (detached HEAD included), `warn` prints a warning and
+continues; `refuse` exits 2 before the command runs, so nothing is written,
+synced, or swept. It is for repos whose product lives under `coga/`, where one
+mutating command in a feature worktree publishes the branch's unfinished work.
+The single-checkout assist scope is exempt, and so is a `recurring --all`
+child, which services an off-control repo from a temporary control worktree.
+Under `refuse`, the single-checkout layout outside an assist launch is refused
+too: such a repo works from a separate feature worktree.
+
 ### The launch-end pull-back — `refresh_coga_state_from_control`
 
 Publishing lands state on control and can reconcile the publisher's own

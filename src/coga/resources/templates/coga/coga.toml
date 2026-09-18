@@ -132,6 +132,13 @@ channels = []
 # like [notification.slack]):
 #   [git]
 #   enabled = false
+#
+# Sync lands state on the control branch from any branch. Where the product
+# itself lives under `coga/`, set `publish_off_control = "refuse"` (or
+# "warn") so a mutating command run off the control branch stops before it
+# publishes that branch's unfinished work. Default "allow"; coga.toml only.
+#   [git]
+#   publish_off_control = "refuse"
 
 # --- Aliases ---
 # Thin sugar for often-used commands. Each entry maps a name to an
