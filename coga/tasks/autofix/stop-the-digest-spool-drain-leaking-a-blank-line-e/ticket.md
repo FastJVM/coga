@@ -1,6 +1,6 @@
 ---
 title: Stop the digest spool drain leaking a blank line every run
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -25,6 +25,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:d2159094-da20-48cb-a252-8ade2270851b
 ---
 
 ## Description
