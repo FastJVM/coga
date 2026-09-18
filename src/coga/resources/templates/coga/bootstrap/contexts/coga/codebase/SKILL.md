@@ -903,10 +903,10 @@ wrong checkout silently produces wrong results in both directions:
   concerns need triage.** `verify-the-pr-review-comment-loop-once-the-review`
   (2026-09-13) queried `reviewThreads` on every PR merged in its window and
   found these threads with no reply and no code change at the flagged line.
-  Each remaining concern needs a human verdict (fix / won't fix / moot) and, for a fix, its
-  own ticket — the brief is draft
-  `triage-five-review-comments-that-merged-unanswered`; none has a fix ticket
-  yet. Re-verify against the current tree before acting.
+  Each remaining concern needs a human verdict (fix / won't fix / moot) and,
+  for a fix, its own ticket — the brief is
+  `triage-five-review-comments-that-merged-unanswered`. Re-verify against the
+  current tree before acting.
   - PR 699 (P1), `recurring_runner.py` near the `_LEDGER_LOADED = "yes"` mark:
     the control ledger is marked loaded unconditionally after the pre-scan
     catch-up, so a competing checkout that publishes the same period between
@@ -914,10 +914,15 @@ wrong checkout silently produces wrong results in both directions:
   - PR 704, `config.py` context-artifact check: `path.is_file() or
     path.is_symlink()` accepts any symlink, including one whose target lies
     outside the checkout, so another clone composes a different prompt.
-  - PR 705, confirmed live: the recurring `ticket.py` shims finish via plain
-    `coga bump`, so headless completions log as `[human:<user>] task done`
-    (`recurring/autoclose-merged` entries on 2026-09-10 and 09-11); the ask was
-    a system-attributed completion path.
+  - PR 705, fixed by `attribute-headless-recurring-completions-to-system`:
+    `launch_script.run_script_phase` supplies task-scoped system attribution
+    and clears the outer done sentinel. `commands.common.completion_identity`
+    separates completion identity from the assigned operator for `bump` and
+    `mark done`; publication still goes through their normal lifecycle
+    writers. See the attribution contract in `coga/architecture`. Tests run
+    all four shipped shims through real child CLI bumps with recipes stubbed,
+    and cover intermediate steps and strict assist publication. Historical
+    human-attributed entries remain unchanged.
   - PR 747, `commands/launch.py` released-witness reconciliation captures
     `FileMutationRollback` after the control fetch instead of from the
     validated current bytes, so a manual ticket edit made during the fetch can

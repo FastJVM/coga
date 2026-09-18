@@ -1,4 +1,4 @@
-"""The five recurring templates' `ticket.py` deterministic halves.
+"""The four recurring templates' `ticket.py` deterministic halves.
 
 Coga's own bundled scripts are covered from `tests/`, never by collecting the
 live dogfooded `coga/` tree: the contract checks read the *packaged* templates,
@@ -146,29 +146,32 @@ def seeded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return dest / "coga"
 
 
+@pytest.mark.parametrize(("template", "recipe_name"), SHIMMED_TEMPLATES)
 def test_period_task_runs_its_shim_headlessly_and_closes_its_own_step(
     seeded: Path,
+    template: str,
+    recipe_name: str,
+    capfd: pytest.CaptureFixture[str],
 ) -> None:
     """End-to-end: install a packaged template, create its period task, launch.
 
-    `blocker-reminders` is the shim that can run for real in a fixture — no
-    network, no `gh`, and a repo with nothing blocked is a clean no-op. The run
-    proves the whole chain: `_create_at_slug` copies `ticket.py`, `coga launch`
-    classifies the period task from that file, the recipe runs with no agent
+    Replace the registry with one no-op recipe in the copied shim so production
+    maintenance never runs. The run proves the whole chain: `_create_at_slug`
+    copies `ticket.py`, `coga launch` classifies it, the recipe runs with no agent
     and no TTY (CliRunner supplies neither), and the shim's own `coga bump`
     finishes the one-step workflow.
     """
     shutil.copytree(
-        PACKAGED / "recurring" / "blocker-reminders",
-        seeded / "recurring" / "blocker-reminders",
+        PACKAGED / "recurring" / template,
+        seeded / "recurring" / template,
     )
-    shutil.copy(
-        PACKAGED / "workflows" / "blocker-reminders" / "run.md",
-        _mkdir(seeded / "workflows" / "blocker-reminders") / "run.md",
+    shutil.copytree(
+        PACKAGED / "workflows" / template,
+        seeded / "workflows" / template,
     )
 
     cfg = load_config(seeded)
-    outcome = create_named(cfg, "blocker-reminders")
+    outcome = create_named(cfg, template)
     ref = outcome.ref
 
     assert outcome.created is True
@@ -177,11 +180,22 @@ def test_period_task_runs_its_shim_headlessly_and_closes_its_own_step(
     assert sorted(path.name for path in ref.task_dir.iterdir()) == sorted(
         ("ticket.md", SCRIPT_ENTRY_POINT)
     )
+    script = ref.task_dir / SCRIPT_ENTRY_POINT
+    script.write_text(script.read_text().replace(
+        "from coga.runner import run_recipe",
+        "from coga.runner import RECIPES, run_recipe\n"
+        "RECIPES.clear()\n"
+        f"RECIPES[{recipe_name!r}] = lambda cfg, args: 0",
+    ))
 
     result = CliRunner().invoke(app, ["launch", ref.id_slug])
 
     assert result.exit_code == 0, result.output
     assert read_ticket(ref).status == "done"
+    audit = (seeded / "log.md").read_text()
+    assert audit.count("[system] task done") == 1
+    assert "[human:marc] task done" not in audit
+    assert f"system finished *{ref.id_slug}*" in capfd.readouterr().err
 
 
 def test_period_task_left_unfinished_when_its_shim_fails(seeded: Path) -> None:

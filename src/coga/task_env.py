@@ -10,10 +10,14 @@ from coga.config import Config, ConfigError, find_repo_root
 from coga.tasks import BootstrapRef, TargetRef
 from coga.ticket import Ticket
 
+# Attribution for the deterministic phase only; never an ownership witness or
+# a publication capability. Its value is the launched target's absolute path.
+SCRIPT_TASK_ENV = "COGA_SCRIPT_TASK"
+
 # Every task-scoped variable `apply_task_env` owns. The metadata members are
-# rebuilt by `build_task_env`; narrower launch capabilities are cleared here
-# and re-minted only by the caller that re-verifies them. No member can survive
-# by inheritance.
+# rebuilt by `build_task_env`; script attribution and narrower launch
+# capabilities are cleared here and re-minted only at the appropriate launch
+# boundary. No member can survive by inheritance.
 TASK_ENV_KEYS = (
     "COGA_TASK_SLUG",
     "COGA_TASK_DIR",
@@ -22,10 +26,17 @@ TASK_ENV_KEYS = (
     "COGA_TASK_STEP",
     "COGA_COGA_OS_ROOT",
     "COGA_REPO_ROOT",
+    SCRIPT_TASK_ENV,
     "COGA_ASSIST_AGENT",
     "COGA_ASSIST_BRANCH",
     "COGA_ASSIST_PR",
 )
+
+
+def is_script_task(ref: TargetRef) -> bool:
+    """Whether this target is the deterministic child named by the launcher."""
+    script_task = os.environ.get(SCRIPT_TASK_ENV, "").strip()
+    return bool(script_task) and Path(script_task).resolve() == ref.path.resolve()
 
 
 def host_repo_root(cfg: Config) -> Path:

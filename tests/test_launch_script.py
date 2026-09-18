@@ -178,8 +178,12 @@ def test_classifier_reserves_only_ticket_py_in_a_task_directory(
 def test_script_only_launch_is_headless_and_receives_task_contract(
     script_repo: Path,
     monkeypatch: pytest.MonkeyPatch,
+    capfd: pytest.CaptureFixture[str],
 ) -> None:
     observed_path = script_repo.parent / "observed.json"
+    sentinel = script_repo.parent / "outer-done"
+    monkeypatch.setenv("COGA_DONE_SENTINEL", str(sentinel))
+    monkeypatch.setenv("COGA_SCRIPT_TASK", "/outer/script")
     monkeypatch.setenv("SCRIPT_TOKEN_SOURCE", "resolved-secret")
     monkeypatch.setenv("COGA_SUPERVISED", "outer")
     monkeypatch.setenv("COGA_EXPECTED_TASK", "/outer/task")
@@ -199,6 +203,7 @@ def test_script_only_launch_is_headless_and_receives_task_contract(
             "COGA_TASK_TICKET",
             "COGA_TASK_BLACKBOARD",
             "COGA_TASK_STEP",
+            "COGA_SCRIPT_TASK",
             "COGA_COGA_OS_ROOT",
             "COGA_REPO_ROOT",
             "SCRIPT_TOKEN",
@@ -213,6 +218,7 @@ def test_script_only_launch_is_headless_and_receives_task_contract(
                     "COGA_SUPERVISED",
                     "COGA_EXPECTED_TASK",
                     "COGA_EXPECTED_STEP",
+                    "COGA_DONE_SENTINEL",
                 )
             }},
         }}))
@@ -265,6 +271,7 @@ def test_script_only_launch_is_headless_and_receives_task_contract(
         "COGA_TASK_TICKET": str(ref.ticket_path.resolve()),
         "COGA_TASK_BLACKBOARD": str(ref.ticket_path.resolve()),
         "COGA_TASK_STEP": "1 (execute)",
+        "COGA_SCRIPT_TASK": str(ref.path.resolve()),
         "COGA_COGA_OS_ROOT": str(script_repo.resolve()),
         "COGA_REPO_ROOT": str(script_repo.parent.resolve()),
         "SCRIPT_TOKEN": "resolved-secret",
@@ -273,9 +280,46 @@ def test_script_only_launch_is_headless_and_receives_task_contract(
         "COGA_SUPERVISED": None,
         "COGA_EXPECTED_TASK": None,
         "COGA_EXPECTED_STEP": None,
+        "COGA_DONE_SENTINEL": None,
     }
     task_log = (script_repo / "log.md").read_text()
     assert task_log.count("task done") == 1
+    assert "[system] task done" in task_log
+    assert f"system finished *{ref.id_slug}*" in capfd.readouterr().err
+    assert not sentinel.exists()
+
+
+def test_script_chain_attributes_each_child_bump_to_system(
+    script_repo: Path,
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    ref = _create_two_step_script_task(
+        script_repo,
+        """
+        import os
+        import subprocess
+        import sys
+
+        raise SystemExit(subprocess.run([
+            sys.executable, "-m", "coga.cli", "bump",
+            os.environ["COGA_TASK_SLUG"], "--message", "deterministic result",
+        ]).returncode)
+        """,
+    )
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(ref.ticket_path).status == "done"
+    task_log = (script_repo / "log.md").read_text()
+    assert task_log.count("[system] advanced to step 2 (finish)") == 1
+    assert task_log.count("[system] task done") == 1
+    assert task_log.count("launched as a script") == 2
+    output = capfd.readouterr().err
+    assert output.count(f"system advanced *{ref.id_slug}*") == 1
+    assert output.count(f"system finished *{ref.id_slug}*") == 1
+    assert "claude advanced" not in output
+    assert "claude finished" not in output
 
 
 def test_script_block_returns_internal_script_stop_kind(
@@ -1203,6 +1247,7 @@ def test_zero_exit_hands_blackboard_to_agent_on_the_same_step(
     script_repo: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("COGA_SCRIPT_TASK", "/outer/script")
     ref = _create_script_task(
         script_repo,
         """
@@ -1250,6 +1295,7 @@ def test_zero_exit_hands_blackboard_to_agent_on_the_same_step(
     assert all("script finding: retry ceiling is 30s" in p for p in prompts)
     assert len(child_envs) == 1
     assert child_envs[0]["COGA_TASK_STEP"] == "1 (execute)"
+    assert "COGA_SCRIPT_TASK" not in child_envs[0]
     ticket = Ticket.read(ref.ticket_path)
     assert ticket.status == "in_progress"
     assert ticket.step == "1 (execute)"
@@ -1402,6 +1448,7 @@ def test_open_script_step_fails_loud_when_no_agent_can_continue(
         ticket = Ticket.read(ref.ticket_path)
         hold_by_owner(ticket)
         ticket.write(ref.ticket_path)
+        monkeypatch.setenv("COGA_SCRIPT_TASK", str(ref.path))
 
     monkeypatch.setattr(launch_module, "compose_prompt", _fail("prompt composed"))
     monkeypatch.setattr(
