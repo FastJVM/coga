@@ -13,7 +13,11 @@ code.
 ## Prerequisites
 
 - **Python 3.11+.** Coga uses the standard-library `tomllib`, so 3.11 is the
-  floor.
+  floor. If `pip install coga` reports
+  `Could not find a version that satisfies the requirement coga` with
+  `Requires-Python` notes, check `python3 --version` and use Python 3.11+.
+  An older interpreter may instead install the old `0.0.1` placeholder
+  successfully without providing a `coga` command.
 - **Git.** `coga init` requires it, and Git is Coga's sync layer — every state
   change is a commit.
 - **An agent CLI**, installed and authenticated: either
