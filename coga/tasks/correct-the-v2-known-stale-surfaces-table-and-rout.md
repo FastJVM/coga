@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: 9b211dd5-c409-4447-bf9e-bb7045f0939c
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -124,4 +123,67 @@ note it for the sibling ticket rather than acting on it.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: v2-stale-surfaces
+worktree: /tmp/coga-v2-stale-surfaces
+
+Separate linked feature checkout. Primary stays on `main` and owns this
+blackboard and the workflow transition. Implementation commit: `c6a56e83`
+(`Clarify v2 workflow paths and Dream gap routing`). No push or PR.
+
+## Decisions and implementation (2026-09-17)
+
+- README splits context renames from workflow resolution, matching
+  `src/coga/paths.py::resolve_workflow_path` and `bootstrap_workflow_path`.
+  Local workflows take precedence; this repo's `code/*` workflows are packaged.
+- No `script:` row, per the ticket's W38 scope correction. The v2 drafts have
+  no such field and `ticket.py` no longer has the old migration reader.
+- The owner already settled routing in PR #799:
+  https://github.com/FastJVM/coga/pull/799. GitHub records `nicktoper` merging it
+  on 2026-09-15 UTC as `8816fa5315ed069de2d7e7be4afa8435a830c668`. Its Phase 6
+  rules explicitly cover the question: reconcile with open owners, file new
+  Dream drafts at the task root, and leave parking in `v2/` to humans after
+  triage. This satisfies the ticket's owner-confirmation requirement without
+  asking again or choosing a new policy. README summarizes and links to the
+  owning Dream template and the roadmap's existing deferral rule. Dream behavior
+  did not change, so no roadmap/template edit was needed. No packaged twin
+  exists for this repo's v2 README.
+- Prompt-scope draft: folded implementation provenance, historical measurements
+  and verification, and the owner's context-selection correction into the body.
+  Old `## Dev` pointers are historical provenance, no longer launch state.
+  Remaining on-disk signals and the cut A/B scope remain as authored.
+- Worktree draft: folded interview decisions and open cleanup, optional branch
+  deletion, and sequencing questions into the body. Existing safety requirements
+  remain intact; synthesis does not approve a new checkout contract.
+- Both drafts retain their original frontmatter bytes and prior body text.
+  Body syntheses were appended; authoring blackboards were replaced through
+  `taskfile.replace_blackboard` with the stock placeholder. No lifecycle
+  changes, cancellations, or sibling-cohort adjudications were made.
+
+## Verification and handoff
+
+- `PYTHONPATH=/tmp/coga-v2-stale-surfaces/src /home/n/Code/claude/coga/.venv/bin/python -m pytest`
+  — **2654 passed** in 199.95 seconds. The initial ambient-Python attempt
+  could not collect because `tomlkit` was absent; the existing test venv has
+  the dependencies and was verified to import this feature checkout.
+- Primary baseline: `coga validate --json` — 3 errors (the ticket's count of
+  4 was dated), 48 warnings. Feature check:
+  `PYTHONPATH=/tmp/coga-v2-stale-surfaces/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --json`
+  — exactly the two requested synthesis errors cleared. The remaining error
+  is `v2/autotrigger-ticket-type`, owned by sibling
+  `adjudicate-the-eight-premise-dead-v2-drafts`; it stays out of scope.
+  Feature validation adds only the expected `missing-user` warning because
+  this checkout has no ignored local config. Exit 1 is that known remaining
+  error, not a new regression. JSON evidence is in
+  `/tmp/coga-v2-validate-before.json` and `/tmp/coga-v2-validate-after.json`.
+- Read-only checks verified all three `code/*` workflow paths, local
+  `build/onboarding` and `direct/body`, README relative links, unchanged draft
+  frontmatter/prior bodies, and the synthesis gate failing on each original
+  blackboard and passing on each edited one.
+- `git diff --check origin/main...HEAD` passed. After the commit,
+  `git fetch origin main` and `git rebase FETCH_HEAD` confirmed freshness;
+  `git merge-base --is-ancestor origin/main HEAD` passed against
+  `c85725aaefda0618b6336f338d960150eb485c6c`. Feature checkout is clean.
+
+Ready for peer review; no unresolved implementation blocker.

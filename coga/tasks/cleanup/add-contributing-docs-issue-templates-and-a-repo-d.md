@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: c4a4cd02-28c5-432b-82c1-76bc1c6f7e2c
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -134,3 +133,57 @@ runs workflow transitions.
 - No push or PR in this step. Ready for the frozen workflow's peer-review
   step. The optional code of conduct remains unadopted pending an explicit
   owner preference; there are no required implementation blockers.
+
+## Peer review
+
+- `codex review --base main` from `/tmp/coga-contributing-docs` on
+  `docs/contributing` **returned successfully (exit 0)** with no actionable
+  findings. It initially failed to
+  initialize its app-server client in the read-only sandbox, then started
+  successfully with the approved `codex review` escalation. Review transcript:
+  `/tmp/coga-contributing-peer-review.log`.
+- The reviewer also ran
+  `PYTHONPATH="$PWD/src" .venv/bin/python -m pytest tests/test_cli.py -q`:
+  **15 passed**. No must-fix changes or additional implementation commit were
+  needed.
+- Manually checked the five-file Markdown diff against the development guide
+  and the canonical ticketed-work principle. The templates keep issue intake
+  short and point substantive implementation to a Coga ticket.
+- Rechecked issue-template YAML metadata and bodies, the PR template's path
+  and sections, and all 16 local README/contributor links (including the one
+  heading anchor); all passed.
+- `gh repo view FastJVM/coga --json description,homepageUrl` confirmed the
+  requested description and homepage remain live on 2026-09-17.
+- Ran `git fetch origin main` and then `git rebase FETCH_HEAD`
+  unconditionally. Rebase succeeded without conflicts onto `d88dcb4d`;
+  implementation commit is now `8fb06fc5`. `git range-diff` confirmed the
+  reviewed patch is unchanged; upstream changes were only this ticket and
+  `coga/log.md`.
+- After the rebase,
+  `PYTHONPATH=/tmp/coga-contributing-docs/src .venv/bin/python -m pytest`
+  **returned successfully: 2,654 passed in 171.35 seconds**. Test transcript:
+  `/tmp/coga-contributing-peer-review-pytest.log`.
+- `git diff --check origin/main...HEAD` and `git diff --check` passed.
+  The feature checkout is clean, and `git rev-list --left-right --count
+  origin/main...HEAD` returned `0 1`: one committed change ahead of fetched
+  main. The unrelated primary-checkout task edit remains untouched.
+- Peer review is complete with no required changes or blockers. The PR body
+  below is ready for the next workflow step.
+
+## PR
+
+New contributors had no contributor guide or GitHub issue/PR templates. Adds a
+short guide linked from the README, plus minimal bug-report, feature-request,
+and pull-request templates. The guide explains setup and testing, links to the
+development guide, and routes substantive changes through the existing Coga
+ticket convention.
+
+The GitHub repository description now matches the README tagline, and its
+homepage uses the existing package homepage URL, `https://github.com/FastJVM/coga`.
+Those settings were applied and verified separately from this diff. The optional
+code of conduct remains unadopted pending an owner preference.
+
+Test plan: `PYTHONPATH=/tmp/coga-contributing-docs/src .venv/bin/python -m pytest`
+(2,654 passed); issue-template metadata, all 16 local README/contributor links,
+and `git diff --check origin/main...HEAD` passed. `codex review --base main`
+returned with no actionable findings.

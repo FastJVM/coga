@@ -65,6 +65,7 @@ before the marketing materials ship.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/830
 branch: docs/pypi-placeholder-note
 worktree: /tmp/coga-pypi-placeholder-note
 
