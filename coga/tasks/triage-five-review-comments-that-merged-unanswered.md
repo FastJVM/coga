@@ -1,8 +1,21 @@
 ---
 title: Triage five review comments that merged unanswered in Aug-Sep 2026
-status: draft
+status: active
 owner: nicktoper
-workflow: draft-for-human
+workflow:
+  name: draft-for-human
+  steps:
+  - name: agent-produces
+    skills: []
+    assignee: agent
+  - name: human-owns-and-finishes
+    skills: []
+    assignee: owner
+  - name: report-to-coga
+    skills: []
+    assignee: agent
+step: 1 (agent-produces)
+agent: claude
 ---
 
 ## Description
