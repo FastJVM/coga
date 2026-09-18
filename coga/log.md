@@ -5578,3 +5578,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-18 08:33 [record-or-clear-the-standing-repo-wide-coga-valida] [human:nicktoper] auto-bumped on merge of PR #823 → done
 2026-09-18 08:33 [state-which-branch-is-canonical-for-machine-genera] [human:nicktoper] auto-bumped on merge of PR #824 → done
 2026-09-18 08:33 [the-period-task-context-never-covers-the-determini] [human:nicktoper] auto-bumped on merge of PR #817 → done
+2026-09-18 08:33 [the-v2-parking-area-premise-check-has-four-holes] [human:nicktoper] auto-bumped on merge of PR #819 → done
