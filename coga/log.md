@@ -5586,3 +5586,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-18 08:34 [cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-09-18 08:34 [cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r] [megalaunch] launched via coga megalaunch
 2026-09-18 10:27 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-18 10:37 [cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r] [agent:codex] advanced to step 3 (open-pr) → claude

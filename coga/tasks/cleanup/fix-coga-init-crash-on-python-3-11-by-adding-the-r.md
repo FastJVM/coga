@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: 51846452-24a0-43bd-81c3-11c6d7a00902
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -172,3 +171,47 @@ checkout was fast-forwarded and these blackboard edits re-applied onto the new
 path with the new slug preserved; no other frontmatter field changed. The
 feature branch rebased onto `c1254655` without conflict — it touches only
 `src/` and `tests/`.
+
+## Peer review
+
+- `codex review --base origin/main` ran from the recorded feature worktree
+  and **returned** with exit 0 and no findings. Its focused packaging, init,
+  path, and managed-skill checks passed (157 tests), as did its Python 3.11
+  resource-lookup smoke check. Review log:
+  `/tmp/coga-resources-pkg-init-peer-review.log`.
+- Fetched `origin main` and rebased onto `70f7aeae`. Resolved the sole
+  conflict in `tests/test_packaging.py` by retaining both main's
+  `TYPE_CHECKING`/`pytest` imports and this change's resource imports.
+  The rebased feature commit is `bf5e62ae`; no review fixes were required.
+- Post-rebase full suite on Python 3.12.12:
+  `PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m pytest`
+  — **2656 passed**. The explicit import path was checked against the
+  recorded feature worktree before testing.
+- Built a wheel from a pristine independent clone at
+  `/tmp/coga-resources-pkg-init-clean`:
+  `/tmp/coga-resources-pkg-init-py311/bin/python -m pip wheel --no-build-isolation --no-deps --no-index . --wheel-dir /tmp/coga-resources-pkg-init-wheel`
+  — succeeded. Installed that wheel with `pip install --no-deps --no-index
+  --target /tmp/coga-resources-pkg-init-installed` and verified imports came
+  from that installation, not the editable source tree.
+- `/tmp/coga-resources-pkg-init-py311/bin/python /tmp/coga-resources-pkg-init-wheel-smoke.py`
+  — passed on Python 3.11.15: resource lookup returns `PosixPath`, the bundled
+  workflow exists, and the real `python -m coga.cli init --user tester`
+  creates all expected paths in a disposable git repo. Managed skills were
+  reported as `skipped-old-gh=7`; template initialization completed.
+  The diff changes no terminal interaction or rendering.
+- `coga validate --task cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r --json`
+  — 1 valid task, no issues. `git diff --check origin/main...HEAD` passed.
+- Post-rebase full suite on Python 3.11.15:
+  `PYTHONPATH="$PWD/src" /tmp/coga-resources-pkg-init-py311/bin/python -m pytest`
+  — **2656 passed**. Both full-suite processes returned exit 0.
+- The feature branch is clean and committed, one commit ahead of the fetched
+  main. Ready for the mechanical `open-pr` step.
+
+## PR
+
+`coga init` crashes on Python 3.11 because namespace-package resources reject
+multi-segment `joinpath` calls. Add `resources/__init__.py` so resource lookups
+use a regular package, with regression checks for the package type,
+multi-segment template paths, and inclusion of the marker in the built wheel.
+
+Test plan: `PYTHONPATH="$PWD/src" /tmp/coga-resources-pkg-init-py311/bin/python -m pytest` and `PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m pytest` — 2656 passed each on Python 3.11.15 and 3.12.12; clean-clone wheel build and `python -m coga.cli init --user tester` from the installed wheel on 3.11 passed.
