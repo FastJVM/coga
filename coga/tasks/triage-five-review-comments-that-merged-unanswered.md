@@ -102,4 +102,21 @@ the same PR; list those touchpoints in that draft.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Assessment in progress — 2026-09-18
+
+Control checkout: `main` at `4d828256d28bf772d17aa8ffa1b47d6f436ca57b`
+(`origin/main` matched at the start). Scope is triage and unactivated draft
+preparation only; owner verdicts remain unset.
+
+- Read the five original GitHub threads through the read-only GraphQL API.
+  Each target thread still has one comment, is unresolved, and is not outdated;
+  neither that state nor the merged PR establishes whether the concern survives.
+- PR 699 first: the pre-scan ledger remains marked loaded and both create-sync
+  guards reuse it. `_validate_control_serviced_period` also trusts a loaded
+  snapshot. Checking the competing-checkout/reaped-task scenario in isolation.
+- PR 755 is partial: the exact archive section is excluded from draft synthesis
+  checks, while composition still includes it. The proposal to move it above
+  the fence has not been approved.
+- The source PR tickets remain present. The retired audit is recoverable at
+  `6c305673^:coga/tasks/verify-the-pr-review-comment-loop-once-the-review.md`.
+  Existing-ticket/history search and focused probes are in progress.

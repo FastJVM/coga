@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
-launch_generation: f4c6cfd8-3cfa-4a57-8b23-340e3842a4c0
+step: 4 (review)
 ---
 
 ## Description
@@ -189,6 +188,12 @@ runs workflow transitions.
   Transcript: `/tmp/coga-contributing-open-pr-pytest.log`.
 - `gh repo view FastJVM/coga --json description,homepageUrl` confirmed the
   requested description and homepage remain live on 2026-09-18.
+- Retried `coga open-pr cleanup/add-contributing-docs-issue-templates-and-a-repo-d`
+  successfully. It pushed the branch, opened
+  https://github.com/FastJVM/coga/pull/832, and recorded the URL under `## Dev`.
+- `gh pr view 832 --repo FastJVM/coga` confirmed an open, non-draft, mergeable
+  PR from `docs/contributing` to `main`, with the prepared title and body.
+  Both checkouts are clean. Publication is complete and ready for owner review.
 
 ## PR
 
