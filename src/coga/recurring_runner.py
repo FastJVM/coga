@@ -723,6 +723,9 @@ def _run_repo_recurring(
     `_service_from_control_worktree` names the mirrored Coga workspace itself
     so config discovery works for both root and deeply nested layouts.
     """
+    # `cli._is_recurring_all_child` recognises this exact argv shape to skip
+    # the host-checkout exit sweep when the child services the repo from a
+    # temporary control worktree. Keep the two in step.
     command = [
         sys.executable,
         "-m",

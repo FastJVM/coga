@@ -131,6 +131,17 @@ To opt out (a repo with no remote — dev, test, solo branches), set `[git].enab
 the recurring `owner` gate below still reads the remote if one is configured,
 so a machine-local setting can't quietly hand recurring back to a stale clone.
 
+The first property cuts both ways. The end-of-command sweep commits *everything*
+dirty under `coga/` and lands it on control from whichever branch you ran the
+command on — a context or skill you were still editing for a PR included. Commit
+in-flight `coga/` edits onto the feature branch before running any mutating
+`coga` command there; the incidents and the exact command set are recorded in
+the `coga/codebase` context under "Which checkout you invoke coga from". A repo
+whose product lives under `coga/` and wants that rule enforced rather than
+remembered can wrap `coga` in a shell function or git hook that refuses
+mutating commands when `HEAD` is not the control branch; Coga ships no switch
+for it, by design (it is repo policy, not core behavior).
+
 ## Recurring maintenance
 
 Recurring work lives as **templates** under `coga/recurring/<name>/`. `coga
