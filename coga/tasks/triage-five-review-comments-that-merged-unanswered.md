@@ -14,9 +14,8 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 1 (agent-produces)
+step: 2 (human-owns-and-finishes)
 agent: claude
-launch_generation: dc6c93dc-b535-4790-8e11-94594af87ec6
 ---
 
 ## Description
@@ -102,21 +101,151 @@ the same PR; list those touchpoints in that draft.
 
 <!-- coga:blackboard -->
 
-## Assessment in progress — 2026-09-18
+## Owner review — assessment 2026-09-18
 
-Control checkout: `main` at `4d828256d28bf772d17aa8ffa1b47d6f436ca57b`
-(`origin/main` matched at the start). Scope is triage and unactivated draft
-preparation only; owner verdicts remain unset.
+Assessed `main` at **`4d828256d28bf772d17aa8ffa1b47d6f436ca57b`**;
+local `origin/main` and the read-only GitHub `refs/heads/main` query matched.
+Subsequent Coga draft creation advances control state, but source, tests and
+contexts still match that assessment commit. Began with PR 699's P1.
 
-- Read the five original GitHub threads through the read-only GraphQL API.
-  Each target thread still has one comment, is unresolved, and is not outdated;
-  neither that state nor the merged PR establishes whether the concern survives.
-- PR 699 first: the pre-scan ledger remains marked loaded and both create-sync
-  guards reuse it. `_validate_control_serviced_period` also trusts a loaded
-  snapshot. Checking the competing-checkout/reaped-task scenario in isolation.
-- PR 755 is partial: the exact archive section is excluded from draft synthesis
-  checks, while composition still includes it. The proposal to move it above
-  the fence has not been approved.
-- The source PR tickets remain present. The retired audit is recoverable at
-  `6c305673^:coga/tasks/verify-the-pr-review-comment-loop-once-the-review.md`.
-  Existing-ticket/history search and focused probes are in progress.
+**Recommendation: fix all five residual concerns.** PR 755's synthesis-gate
+subconcern is already moot; its prompt-inclusion concern remains. These are
+agent recommendations, not owner decisions. All five new follow-ups were
+created through `coga create`, are **draft**, use **code/with-review**, and are
+owned by **nicktoper**. No draft has been activated or accepted.
+
+| Exact original comment | Original priority | Current evidence | Recommendation and tradeoff | Separate follow-up | Owner verdict |
+| --- | --- | --- | --- | --- | --- |
+| [PR 699 / r3806973475](https://github.com/FastJVM/coga/pull/699#discussion_r3806973475) | P1 | **Verified in local Git:** another checkout's same-period record, with its task already absent, lands after pre-scan catch-up. The preloaded cache lets the first checkout republish the task and keep it launch-eligible. The non-preloaded comparison skips it. Loaded `_validate_control_serviced_period` does not refresh it. | **Fix.** Revalidate the pre-publication snapshot. Preserve bounded reads and the shared-log protection against mistaking this sweep's own pending records for a rival's. | [Refresh recurring ledger before first create sync](refresh-recurring-ledger-before-first-create-sync.md) — provisional draft | **Unset** |
+| [PR 704 / r3834289315](https://github.com/FastJVM/coga/pull/704#discussion_r3834289315) | P2 | **Verified:** a tracked external-target `SKILL.md` symlink passes config and task validation and its external content enters the prompt. Removing the external file changes resolution while config still loads. Root-component checks do not protect the artifact. | **Fix.** Reject unreproducible context targets. This constrains local symlink setups; accepting only provably publishable internal targets versus rejecting artifact symlinks altogether is explicit scope input for the owner. | [Reject context artifacts that escape the checkout](reject-context-artifacts-that-escape-the-checkout.md) — provisional draft | **Unset** |
+| [PR 705 / r3834701954](https://github.com/FastJVM/coga/pull/705#discussion_r3834701954) | P2 | **Verified through a real child CLI:** deterministic script completion logs `[human:marc] task done` and says `claude finished`, with no agent run. The live log still has `[human:nicktoper]` autoclose completion on 2026-09-18 08:33. Digest was removed, but four shims remain. | **Fix residual behavior.** Carry narrow system attribution through script completion without granting lifecycle/owner authority or signaling an outer agent session. No historical log rewrite or digest restoration. | [Attribute headless recurring completions to system](attribute-headless-recurring-completions-to-system.md) — provisional draft | **Unset** |
+| [PR 747 / r3932656206](https://github.com/FastJVM/coga/pull/747#discussion_r3932656206) | P2 | **Verified in local Git:** a manual correction injected during control fetch is lost by reconciliation, for both matching pending and already-admitted remote claims. The helper captures its rollback baseline after the fetch. | **Fix.** Compare/capture against the validated bytes. A concurrent manual correction should produce a recoverable refusal; preserving it costs a retry. This is a fix for the reported fetch window, not a global editor lock. | [Preserve edits during released claim recovery](preserve-edits-during-released-claim-recovery.md) — provisional draft | **Unset** |
+| [PR 755 / r3937900285](https://github.com/FastJVM/coga/pull/755#discussion_r3937900285) | P2 | **Partial fix verified:** a 1,558-character exact archive passes synthesis and unrelated scratch still fails. All 60 abandoned-design markers nevertheless enter the prompt. `4e544d35`, merged in `c4482fae` / PR 755, covers the gate, not composition. | **Fix prompt inclusion; gate already moot.** Propose retaining the archive on disk and excluding it from automatic composition with a pointer. This removes historical alternatives from automatic context, so keep relevant current rationale live. The above-fence move is an unapproved alternative. | [Exclude superseded designs from launch prompts](exclude-superseded-designs-from-launch-prompts.md) — provisional draft | **Unset** |
+
+### Evidence and limits
+
+- **PR 699:** `src/coga/recurring_runner.py` symbols `_broadcast_scan`
+  (4876; loaded mark 4917), `_sync_recurring_create_paths` (3562),
+  `_land_recurring_create_on_control_branch` (3827),
+  `_control_serviced_period_cached` (4071), and
+  `_validate_control_serviced_period` (4114). The two-checkout probe starts
+  from a successful catch-up, calls `scan_due`, then pushes the competing
+  `created recurring/weekly-check for 2026-W24` record to a local bare remote
+  with no remaining task. `_broadcast_scan(control_is_fresh=True)` republishes
+  and retains the task; `False` suppresses it. This reproduces publication and
+  admission, **not a second production side effect**; duplicate dispatch is
+  the consequence inferred from the retained launch list. Later period
+  comparison/validation and generation guards do not repair this cache window.
+- **PR 704:** `config._require_trackable_context_entry` (1256), including
+  the trackable set and the subsequent `rglob("SKILL.md")` membership check,
+  never establish target containment. `paths.resolve_context_path` (131)
+  follows `is_file`; `compose_prompt_report` reads that path. The probe uses a
+  committed artifact symlink under a real configured root and validates a
+  task attached to it, then removes only the external target. Prompt content
+  and resolution change as reported. This is a controlled missing-target
+  simulation, not evidence that a production clone has already diverged.
+  Root rejection remains covered by existing tests. The accepting expression
+  dates to merge `11372a0c` / PR 704.
+- **PR 705:** `launch_script.run_script_phase` strips `COGA_SUPERVISED`
+  at line 276; the successful shim invokes a separate CLI process with the
+  task slug. `commands/bump.py` terminal handling (275–301) selects the human
+  actor when there is no assist while deriving the finisher from the configured
+  operator. A real script → child `python -m coga.cli bump` probe, with Git and
+  notifications disabled in its disposable fixture, reaches exactly this
+  result. No production recipe ran. Live log evidence extends the original
+  09-10/11 observations through 09-18. `5b5f3e1f` / PR 786 removes digest;
+  `368ae080` / PR 827 adds recipe failure reporting but retains ordinary bump
+  in autoclose, blocker-reminders, branch-sweep and skill-update.
+- **PR 747:** `_reconcile_released_launch_admission` validates
+  `current_bytes` before `_control_base_for_attempt`, then captures
+  `FileMutationRollback` at line 612. The probe performs the real local-remote
+  fetch, inserts a manual body correction before it returns, and observes
+  successful admission with the correction missing locally and from the
+  published ticket. Both control-generation variants reproduce. This models
+  an ordinary editor that does not acquire the Coga publication barrier.
+  `git log -L` shows no later change to this helper since `5c91ed74` / PR 747.
+- **PR 755:** `blackboard.prelaunch_blackboard_synthesis_reason_text` (206)
+  removes exact archive sections; `compose_prompt_report` (300) still inserts
+  the unfiltered blackboard. Fixing change:
+  [`4e544d356a53b94a332c24e793ca8d6a1c833d51`](https://github.com/FastJVM/coga/commit/4e544d356a53b94a332c24e793ca8d6a1c833d51),
+  merged via [`c4482fae9cb6e63e41c47dd156c08f66f2fee09c`](https://github.com/FastJVM/coga/commit/c4482fae9cb6e63e41c47dd156c08f66f2fee09c).
+  Existing tests prove synthesis and activation preservation, including
+  unrelated scratch before/after an archive; the additional probe proves
+  continued composition. **Prompt inclusion and its token cost are verified;
+  an agent following an abandoned plan is a plausible risk, not an observed
+  production failure.**
+
+### Original threads and later-work search
+
+Read the original threads with GitHub GraphQL `reviewThreads`, including all
+comments and pagination checks. Each target is still unresolved, not outdated,
+and has only its opening comment; no target thread or comment page was omitted.
+This metadata is not used as proof that the behavior survives. The other
+resolved PR 747 threads were not substituted for its final unanswered comment.
+
+All five source PR tickets are still present and linked in their respective
+drafts. Recovered the retired audit with
+`git show 6c305673^:coga/tasks/verify-the-pr-review-comment-loop-once-the-review.md`
+and read its phase-2 table. Searched current task bodies/titles, path history,
+symbol history and relevant commits for equivalent fixes. None was found for
+the five residual scopes. Relevant adjacent work:
+
+- [Blackboard-bloat remedy](document-the-remedy-for-a-bloated-blackboard-sibli.md)
+  is at its PR-preparation step and teaches manual archival. Its documented
+  changes do not exclude the standard superseded section automatically, so
+  it is not an equivalent PR 755 follow-up. Coordinate shared context hunks.
+- [Documentation redesign](redo-documentation-dir-and-merge-it-with-context-b.md)
+  names context relocation/resolution as source anchors; it does not own
+  rejection of external context artifacts.
+- [Unanswered-thread reporting](autoclose-should-name-unanswered-review-threads-on.md)
+  remains separate; no dependency on its shipping or an empty live queue.
+- `v2/document-design-pivot-in-blackboard-convention` is canceled and the
+  shipped PR 755 source ticket is done; neither is a residual-composition fix.
+
+The historical `coga/codebase` assertion that no fix tickets exist is now
+superseded by the five links above. Each draft names the owning behavioral
+context and packaged twin to update with its eventual implementation; no
+behavioral context was changed or fixing PR opened in this triage step.
+
+### Verification
+
+**7 diagnostic cases passed**, asserting the observations above (two PR 699
+cache variants, PR 704, real-child PR 705, two PR 747 control variants, and
+PR 755). Temporary probe script: `/tmp/test_coga_review_triage_20260918.py`;
+the durable reproduction methods and outputs are summarized above. The file
+is disposable, not a shipped regression suite. Exact invocation:
+
+```sh
+PYTHONPATH=/home/n/Code/codex/coga/src:/home/n/Code/codex/coga/tests /home/n/Code/claude/coga/.venv/bin/python -m pytest -p conftest /tmp/test_coga_review_triage_20260918.py -q -s -o cache_dir=/tmp/coga-triage-pytest-cache
+```
+
+**19 existing focused tests passed** (7.61 s), using this checkout's source
+with the available development interpreter:
+
+```sh
+PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/claude/coga/.venv/bin/python -m pytest tests/test_blackboard.py::test_prelaunch_blackboard_preserves_large_superseded_design tests/test_mark.py::test_mark_active_preserves_intentional_blackboard tests/test_launch.py::test_released_launch_admission_reconciles_control_ticket tests/test_config.py::test_layout_contexts_symlink_to_checkout_root_rejected tests/test_config.py::test_layout_contexts_internal_symlink_rejected tests/test_config.py::test_layout_contexts_ignored_context_rejected_even_with_trackable_marker tests/test_recurring.py::test_broadcast_reuses_the_fresh_prescan_control_ledger tests/test_recurring.py::test_recurring_create_sync_restores_control_ledger_for_handled_period tests/test_recurring.py::test_control_ledger_rejects_malformed_period tests/test_recurring_shims.py -q -o cache_dir=/tmp/coga-triage-existing-pytest-cache
+```
+
+These passing tests do not assert the missing protections; the diagnostic
+cases deliberately assert current behavior. No live recurring run, GitHub
+reply, thread resolution, merge-policy change or implementation was performed.
+
+Final authoring checks: `coga validate --task <slug> --json` returned one
+valid task and zero issues for this ticket and each of the five linked draft
+slugs. `coga validate --json` returned 219 OK, 49 warnings and four
+`unsynthesized-draft-blackboard` errors elsewhere; none concerns these six
+tickets. `git diff --check` passed. Verified all five table rows have unset
+verdicts, all follow-up links resolve to unactivated `code/with-review` drafts,
+and this ticket's entire region above the fence is unchanged from the
+assessment commit. The final blackboard remains below the 32 KiB warning
+threshold.
+
+### Handoff and draft disposition
+
+All five drafts are **provisional, unactivated, awaiting owner disposition**.
+At the owner gate, record a dated fix / won't fix / already moot decision and
+reason in each row, approve or revise each accepted scope, and decide whether
+any rejected draft should be revised or canceled. In particular, choose the
+PR 704 symlink policy and PR 755 archive treatment before activation. No
+cancellation is currently authorized. The report step must reconcile these
+decisions and dispositions before the triage ticket can close.

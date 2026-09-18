@@ -5621,3 +5621,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-18 14:45 [attribute-headless-recurring-completions-to-system] [human:nicktoper] created (status=draft)
 2026-09-18 14:46 [preserve-edits-during-released-claim-recovery] [human:nicktoper] created (status=draft)
 2026-09-18 14:47 [exclude-superseded-designs-from-launch-prompts] [human:nicktoper] created (status=draft)
+2026-09-18 14:52 [triage-five-review-comments-that-merged-unanswered] [agent:claude] advanced to step 2 (human-owns-and-finishes) → nicktoper — Triage ready: five residual fixes recommended, five unactivated code/with-review drafts linked, all owner verdicts unset. PR 755 synthesis gate is fixed; prompt inclusion remains. Seven diagnostic cases and 19 existing focused tests passed; all six tickets validate cleanly.
