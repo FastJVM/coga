@@ -5556,3 +5556,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-17 16:40 [cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-17 16:40 [cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-17 16:40 [cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f] [megalaunch] launched via coga megalaunch
+2026-09-17 22:20 [cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f] [agent:claude] advanced to step 2 (peer-review) → codex
