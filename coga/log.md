@@ -5619,3 +5619,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-18 13:26 [refresh-recurring-ledger-before-first-create-sync] [human:nicktoper] created (status=draft)
 2026-09-18 14:45 [reject-context-artifacts-that-escape-the-checkout] [human:nicktoper] created (status=draft)
 2026-09-18 14:45 [attribute-headless-recurring-completions-to-system] [human:nicktoper] created (status=draft)
+2026-09-18 14:46 [preserve-edits-during-released-claim-recovery] [human:nicktoper] created (status=draft)
