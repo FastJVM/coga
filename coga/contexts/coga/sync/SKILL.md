@@ -1254,6 +1254,10 @@ synced, or swept. It is for repos whose product lives under `coga/`, where one
 mutating command in a feature worktree publishes the branch's unfinished work.
 The single-checkout assist scope is exempt, and so is a `recurring --all`
 child, which services an off-control repo from a temporary control worktree.
+The off-control child's outer CLI skips its catch-all host-checkout sweep; the
+inner CLI on the control branch performs the real sweep. This keeps dirty
+feature-checkout state out of control while preserving the recurring run's
+ordinary publication boundary.
 Under `refuse`, the single-checkout layout outside an assist launch is refused
 too: such a repo works from a separate feature worktree.
 

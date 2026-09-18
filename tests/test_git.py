@@ -6099,6 +6099,60 @@ def test_publish_guard_passes_a_linked_worktree_on_control(
     assert capsys.readouterr().err == ""
 
 
+def test_recurring_all_child_does_not_sweep_the_off_control_host(
+    git_repo, monkeypatch
+):
+    """The temporary control-worktree child owns the real sweep; after it
+    returns, the outer child must not publish dirty host feature state."""
+    from coga import cli
+
+    _guard_cfg(git_repo, "refuse")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "opt in")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/wip")
+    wip = git_repo.coga_os / "contexts" / "wip" / "SKILL.md"
+    wip.parent.mkdir(parents=True)
+    wip.write_text("---\nname: wip\n---\n\nunfinished\n")
+    before = git_repo.origin_subjects()
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+    dispatched: list[bool] = []
+    monkeypatch.setattr(cli, "app", lambda: dispatched.append(True))
+    monkeypatch.setattr(
+        cli.sys,
+        "argv",
+        ["coga", "run", "recurring-scan", "--require-fresh-control"],
+    )
+
+    cli.main()
+
+    assert dispatched == [True]
+    assert git_repo.origin_subjects() == before
+    assert not git_repo.origin_tracks("coga/contexts/wip/SKILL.md")
+    assert "?? coga/contexts/" in git_repo.git("status", "--porcelain")
+
+
+def test_recurring_all_child_retains_the_control_worktree_sweep(
+    git_repo, monkeypatch
+):
+    """The delegated inner child runs on control and still owns a sweep."""
+    from coga import cli
+
+    cfg = _guard_cfg(git_repo, "refuse")
+    calls: list[Config] = []
+    monkeypatch.setattr(cli.git, "sync_coga_state", calls.append)
+    monkeypatch.setattr(
+        cli.sys,
+        "argv",
+        ["coga", "run", "recurring-scan", "--require-fresh-control"],
+    )
+
+    cli._sweep_coga_state(cfg)
+
+    assert len(calls) == 1
+    assert calls[0].repo_root == cfg.repo_root
+
+
 # --- direct/body stranding guard (`stranded_product_paths`, terminal finish) ----
 #
 # A `direct/body` workflow has no push/PR step, so product code the agent commits

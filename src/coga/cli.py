@@ -147,6 +147,23 @@ def _sweep_coga_state(cfg: Config | None) -> None:
     """
     if cfg is None or not _should_sweep_coga_state(sys.argv):
         return
+    if _is_recurring_all_child(sys.argv):
+        # An off-control `recurring --all` child services the repo from a
+        # temporary control-branch worktree. That inner CLI performs the real
+        # catch-all sweep; sweeping again here would publish dirty state from
+        # the untouched host feature checkout. On control, this is the inner
+        # CLI (or an ordinary direct invocation), so retain the normal sweep.
+        try:
+            root = git._toplevel(cfg.repo_root)
+            if (
+                root is not None
+                and git._current_branch(root) != cfg.git_control_branch
+            ):
+                return
+        except git.GitError:
+            # Preserve the established best-effort sweep when checkout state
+            # cannot be inspected; `sync_coga_state` owns its normal handling.
+            pass
     try:
         # A launched agent may edit coga.toml and move the context tree while
         # the command is running. The eager config fed aliases at dispatch;
@@ -222,6 +239,17 @@ _READ_ONLY_SUBCOMMANDS = {
 _HELP_ONLY_GROUPS = frozenset({"skill", "mark", "secret"})
 
 
+def _is_recurring_all_child(argv: list[str]) -> bool:
+    """Whether this is the freshness-gated child of `recurring --all`."""
+    args = argv[1:]
+    return (
+        len(args) >= 3
+        and args[0] == "run"
+        and args[1] == "recurring-scan"
+        and "--require-fresh-control" in args[2:]
+    )
+
+
 def _publishes_coga_state(argv: list[str]) -> bool:
     """Whether this invocation may land coga state on the control branch.
 
@@ -249,11 +277,7 @@ def _publishes_coga_state(argv: list[str]) -> bool:
         # The parent dispatcher owns no repo state; each child runs its own
         # guard in its own repo.
         return False
-    if (
-        command == "run"
-        and subcommand == "recurring-scan"
-        and "--require-fresh-control" in args[2:]
-    ):
+    if _is_recurring_all_child(argv):
         # A `recurring --all` child. It carries its own branch/freshness gate,
         # and off control it deliberately services the repo from a temporary
         # control-branch worktree (`_service_from_control_worktree`), whose
