@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: f1dece1b-2b78-40b5-8c42-27fa6433d123
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -126,3 +125,48 @@ worktree: /tmp/coga-pypi-placeholder-note
    then verify unpinned pip resolution for Python 3.9 and 3.10 fails with the
    Python-version explanation. Complete this action before merging the
    documentation PR or closing the review.
+
+## Peer review
+
+- `codex review --base main` **returned successfully** with no actionable
+  findings. The first attempt could not initialize its app server on the
+  sandbox's read-only filesystem; the unsandboxed retry completed with exit 0.
+  No must-fix changes or additional implementation commit were needed.
+- Ran `git fetch origin main && git rebase FETCH_HEAD` from
+  `/tmp/coga-pypi-placeholder-note`. Rebase onto `d000f157` succeeded without
+  conflicts; the implementation commit is now `c3c46d9e`. The reviewed diff is
+  only the prerequisite note in `docs/getting-started.md`. Repeated the
+  fetch/rebase before handoff on 2026-09-18; `main` was unchanged and the branch
+  remained up to date.
+- Post-rebase verification:
+  `PYTHONPATH=/tmp/coga-pypi-placeholder-note/src /tmp/coga-pypi-placeholder-tests/bin/python -m pytest`
+  — **2654 passed** on Python 3.12.12 in 200.46 seconds; `git diff --check`
+  passed. The feature checkout is clean and one commit ahead of `main`.
+- `PYTHONPATH=/home/n/Code/codex/coga/src coga validate --task cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f --json`
+  passed with no issues in the primary checkout.
+- Read the note in its surrounding install instructions and checked the
+  Python floor against `pyproject.toml` and the related compatibility ticket.
+  This prose-only change touches no terminal, pager, prompt, Slack rendering,
+  template, or fixture surface requiring an interactive check.
+- Rechecked [public PyPI metadata](https://pypi.org/pypi/coga/json) on
+  2026-09-18: both 0.0.1 files are still unyanked with `Requires-Python: >=3.9`;
+  both 0.2.0 files require `>=3.11`. The owner's external action above remains
+  pending for final review and must precede merge/closure.
+
+## PR
+
+On Python 3.9 or 3.10, `pip install coga` can select the old 0.0.1 placeholder
+and succeed without installing a `coga` command. The getting-started Python
+prerequisite now explains that symptom and the version-resolution error after
+the placeholder is yanked, with `python3 --version` and Python 3.11+ as recovery.
+This is an onboarding-doc change; no runtime, context, template, or fixture
+behavior changes.
+
+**Before merging:** the owner must yank (not delete) PyPI `coga` 0.0.1, confirm
+both artifacts report `yanked: true`, and verify unpinned pip resolution for
+Python 3.9 and 3.10 fails with the Python-version explanation. That external
+action is still pending.
+
+Test plan: `codex review --base main` returned no actionable findings;
+`PYTHONPATH=/tmp/coga-pypi-placeholder-note/src /tmp/coga-pypi-placeholder-tests/bin/python -m pytest`
+— 2654 passed; `git diff --check` passed.
