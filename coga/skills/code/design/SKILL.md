@@ -18,7 +18,20 @@ build, and it should not have to re-derive intent.
 2. **Investigate before you write.** Locate the real files, functions,
    and call sites the change touches. A spec that names the wrong
    module is worse than no spec.
-3. **Write the spec where the next step will read it.** Only three
+3. **Cite symbols, not line numbers.** Apply this to code claims anywhere
+   in the spec. Write the file and the symbol — `src/coga/git.py`,
+   `sync_task_state()` — never a bare `git.py:597-640`. Line citations
+   can drift before the ticket is implemented.
+   - When a range helps navigate a long module, name the symbol first
+     and mark the range as a navigational aid that is
+     expected to drift, not as a fact the spec rests on.
+   - For each code claim, state the *relationship* that makes the fact
+     load-bearing, such as which caller passes a value to which callee.
+     This gives the implementer something to verify after the code moves.
+
+   See "Citing code in `## Context`" in `bootstrap/ticket` for the full
+   citation rule and examples.
+4. **Write the spec where the next step will read it.** Only three
    regions of the ticket compose into a launched agent's prompt:
    `## Description`, the inline `## Context`, and the blackboard.
    Composition takes one `##` heading and stops at the next one, so a
@@ -37,25 +50,20 @@ build, and it should not have to re-derive intent.
      - *Out of scope* — what this ticket deliberately does *not* do,
        so the implement step doesn't scope-creep.
    - `## Context` — codebase facts, file paths, and references the
-     implementer needs that are not the spec itself. Cite code as module
-     plus symbol (`git.sync_task_state`), never a bare line number — lines
-     drift before the implement step runs. If a range helps, name the
-     symbol first and mark the range as an aid. State the relationship
-     that makes a fact load-bearing, not its coordinates; see "Citing code
-     in `## Context`" in `bootstrap/ticket` for the full rule.
+     implementer needs that are not the spec itself.
 
    Do not park spec content in a fourth `##` section and assume the
    next step will see it. If it isn't under `## Description`,
    `## Context`, or on the blackboard, it is not in the prompt.
-4. **Record open questions on the blackboard.** Anything you could not
+5. **Record open questions on the blackboard.** Anything you could not
    resolve from the codebase — a genuine product or design choice —
    goes under an `## Open Questions` section in the ticket's blackboard region. The
    owner answers them in `review-design`; when the frozen workflow includes an
    independent evaluator, that evaluator first tests whether they are complete.
-5. **Split the ticket if it is too big.** If the honest Proposed Shape
+6. **Split the ticket if it is too big.** If the honest Proposed Shape
    is more than one PR's worth of work, say so on the blackboard and
    recommend a split rather than writing a spec you know is oversized.
-6. **Bump — this is what ends the step.** Run `coga bump <slug>`. It
+7. **Bump — this is what ends the step.** Run `coga bump <slug>`. It
    advances the workflow to its next frozen step and is the only thing that
    does so — there is no autobump. If you stop without running it, the
    workflow stalls here and the spec never reaches its next reviewer.
@@ -66,6 +74,8 @@ build, and it should not have to re-derive intent.
   shape, and what is out of scope, all specific to this codebase — and
   all of it under `## Description` or `## Context`, not in sibling `##`
   sections the implement step never composes.
+- Every source citation in the spec names a file and a symbol. No claim
+  rests on a bare line number.
 - Any unresolved design questions are on the blackboard under
   `## Open Questions`.
 - No branch, no code, no PR.
