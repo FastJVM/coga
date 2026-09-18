@@ -71,6 +71,7 @@ before the marketing materials ship.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/832
 branch: docs/contributing
 worktree: /tmp/coga-contributing-docs
 
@@ -171,6 +172,24 @@ runs workflow transitions.
 - Peer review is complete with no required changes or blockers. The PR body
   below is ready for the next workflow step.
 
+## Open PR
+
+- Confirmed the peer review returned successfully with no actionable findings.
+  Both checkouts were clean at the start of this step.
+- The first `coga open-pr` attempt refused the stale feature branch before
+  publishing. Ran `git fetch origin main` and `git rebase FETCH_HEAD` in
+  `/tmp/coga-contributing-docs`; the rebase completed without conflicts onto
+  `611acffa`. Implementation commit is now `8214f1cb`.
+- `git range-diff d88dcb4d..8fb06fc5 origin/main..HEAD` confirmed the reviewed
+  patch is unchanged. `git diff --check origin/main...HEAD` passed; the feature
+  checkout is clean and one commit ahead of fetched main (`0 1`).
+- The required post-rebase full test run returned successfully:
+  `PYTHONPATH=/tmp/coga-contributing-docs/src .venv/bin/python -m pytest`
+  (**2,655 passed in 216.55 seconds**).
+  Transcript: `/tmp/coga-contributing-open-pr-pytest.log`.
+- `gh repo view FastJVM/coga --json description,homepageUrl` confirmed the
+  requested description and homepage remain live on 2026-09-18.
+
 ## PR
 
 New contributors had no contributor guide or GitHub issue/PR templates. Adds a
@@ -185,7 +204,7 @@ Those settings were applied and verified separately from this diff. The optional
 code of conduct remains unadopted pending an owner preference.
 
 Test plan: `PYTHONPATH=/tmp/coga-contributing-docs/src .venv/bin/python -m pytest`
-(2,654 passed); issue-template metadata, all 16 local README/contributor links,
+(2,655 passed after the publishing rebase); issue-template metadata, all 16 local README/contributor links,
 and `git diff --check origin/main...HEAD` passed. `codex review --base main`
 returned with no actionable findings.
 
