@@ -5571,3 +5571,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-18 08:33 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
 2026-09-18 08:33 [adjudicate-parked-and-active-tickets-whose-premise] [human:nicktoper] auto-bumped on merge of PR #826 → done
 2026-09-18 08:33 [cleanup/handle-a-bare-slack-webhook-url-during-empty-repo] [human:nicktoper] auto-bumped on merge of PR #825 → done
+2026-09-18 08:33 [define-the-recipe-reporting-contract-report-durabi] [human:nicktoper] auto-bumped on merge of PR #827 → done
