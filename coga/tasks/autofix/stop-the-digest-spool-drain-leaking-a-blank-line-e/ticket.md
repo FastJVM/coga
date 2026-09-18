@@ -1,6 +1,6 @@
 ---
 title: Stop the digest spool drain leaking a blank line every run
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -24,8 +24,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: d2159094-da20-48cb-a252-8ade2270851b
 ---
 
 ## Description
@@ -88,4 +86,56 @@ transient or already fixed.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Already satisfied
+
+Verified on 2026-09-18 against `main` at `61190e7d`. The ticket's
+`run-log.md` records the successful 2026-09-04 digest sweep. Historical spool
+contents confirm its diagnosis: `e93ad8a5` has 19 blank lines and five records;
+`6290c7c8` has 20 blank lines and two records.
+
+The later owner-approved removal, [PR #786](https://github.com/FastJVM/coga/pull/786),
+landed as `5b5f3e1f14a5b5729faf4e71fae81b26cf46d37e` on 2026-09-11 and
+is an ancestor of this checkout. Its source ticket is
+`remov-digest-in-recurring`; the removal explicitly supersedes this autofix.
+
+Evidence against each requested fix:
+
+1. **Stop growth / normalize drain:** the removal deleted `src/coga/spool.py`
+   (`_SECTION_RE`, `drain`, and `append_record`) and
+   `src/coga/commands/digest.py`. There is no drain left to accumulate
+   whitespace. `src/coga/runner.py`'s `RECIPES` and `src/coga/cli.py`'s `app`
+   no longer register digest; `src/coga/notification/__init__.py`'s `notify`
+   forwards outcomes directly to `post`.
+2. **Preserve concurrent appends:** there are no spool producers, consumers,
+   or anchors to reconcile. The live and packaged `.gitattributes` both
+   dropped `**/spool.md merge=union` in the same removal. The current
+   `coga/sync` context documents the remaining notification and git contracts.
+3. **Regression coverage:** repeated-drain tests no longer apply to the
+   removed feature; `tests/test_digest.py` was deleted with it. Existing
+   recipe-registry, live-notification, recurring-shim, and packaging tests
+   cover the surviving behavior. Validation result is recorded below.
+4. **Clean live spool / preserve twin consistency:** both
+   `coga/recurring/digest/spool.md` and
+   `src/coga/resources/templates/coga/recurring/digest/spool.md` were deleted,
+   along with their recurring job directories. Neither path has been
+   restored since the removal, so there is no accumulated noise to clean.
+
+Decision: use `code/implement`'s already-satisfied path and close with
+`coga mark done`; no implementation branch or PR is needed. Do not restore
+the retired feature to add a whitespace fix or tests for its deleted API.
+
+## Verification
+
+- Historical spool counts and current file/registry inspection completed.
+- `git merge-base --is-ancestor 5b5f3e1f HEAD` passed.
+- Focused tests: **122 passed** in 2.29 seconds:
+
+  ```sh
+  PYTHONPATH=/home/n/Code/codex/coga/src /tmp/coga-digest-verification-q46cvo2f/venv/bin/python -m pytest tests/test_runner.py tests/test_notification.py tests/test_notification_messages.py tests/test_recurring_shims.py tests/test_packaging.py
+  ```
+
+  The default Python initially failed collection because `tomlkit` was absent;
+  a temporary venv with `python -m pip install -e '.[test]'` supplied the
+  declared dependencies. This run includes live/packaged twin checks and an
+  actual wheel build. No source, context, template, or configuration changes
+  were needed.
