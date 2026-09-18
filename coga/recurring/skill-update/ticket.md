@@ -67,11 +67,15 @@ reinstalls explicitly. They currently produce no per-skill update result, so
 the weekly report neither lists nor verifies them; omission is not evidence
 that their source or installed bytes are current. Hand-vendored directories
 have the same unmanaged update posture.
-Human-readable attribution for hand-vendored `anthropic/skill-creator` lives in
-`coga/skills/anthropic/skill-creator/ATTRIBUTION.md`, pinning `anthropics/skills`
-at `f458cee3`; the separate package-backed `browser/playwright` `local-override`
-carries `coga/skills/browser/playwright/NOTICE.txt`, naming
-`microsoft/playwright-cli` as the source of its adapted material.
+Attribution for such a skill is a human-readable file beside its `SKILL.md`,
+not `.coga-source.json`. In Coga's own source checkout, the hand-vendored
+`anthropic/skill-creator` carries `ATTRIBUTION.md` (pinning `anthropics/skills`
+at `f458cee3`); that directory is not part of the package, so it exists only
+where an operator vendored it. The package-backed `browser/playwright` skill
+ships `NOTICE.txt` (naming `microsoft/playwright-cli` as the source of its
+adapted material) in the installed package's `bootstrap/skills/browser/playwright/`;
+a repo that copies it as a `local-override` carries the same file under
+`coga/skills/browser/playwright/`.
 Bundled (package-backed) skills are not touched here — they refresh when the
 coga package is upgraded.
 
