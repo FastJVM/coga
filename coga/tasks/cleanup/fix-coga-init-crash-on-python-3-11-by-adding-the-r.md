@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
-launch_generation: 2442af9c-e0e5-40ab-a277-3e950625b567
+step: 4 (review)
 ---
 
 ## Description
@@ -208,6 +207,18 @@ feature branch rebased onto `c1254655` without conflict — it touches only
   — **2656 passed**. Both full-suite processes returned exit 0.
 - The feature branch is clean and committed, one commit ahead of the fetched
   main. Ready for the mechanical `open-pr` step.
+
+## Open-PR
+
+- First `coga open-pr` run refused: `main` had advanced by lifecycle commits
+  (`8d9cd958`, `3661dbc3`) since the peer-review rebase. Rebased the feature
+  worktree onto `3661dbc3` (clean, diff unchanged: `src/coga/resources/__init__.py`
+  + `tests/test_packaging.py`), feature commit now `43a5fe0e`.
+- Post-rebase full suite: **2657 passed** on Python 3.11.15 and on 3.12.12
+  (same `PYTHONPATH="$PWD/src"` invocations as peer review).
+- Re-ran `coga open-pr` from the primary control checkout after
+  fast-forwarding it: opened https://github.com/FastJVM/coga/pull/831
+  (non-draft, `resources-pkg-init` → `main`).
 
 ## PR
 
