@@ -1,6 +1,6 @@
 ---
 title: Nothing exercises Python 3.11, the declared floor
-status: in_progress
+status: blocked
 owner: nicktoper
 agent: claude
 workflow:
@@ -24,7 +24,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
-launch_generation: 6490d609-03b2-4068-8fe4-26ed0950b86f
 ---
 
 ## Description
@@ -71,4 +70,96 @@ reads a red suite as evidence here.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: ci/python311-floor
+worktree: /tmp/coga-python311-ci
+
+## Implementation plan
+
+- Add a small GitHub Actions matrix for Python 3.11 and 3.12 on pull requests
+  and pushes to main. Install `.[test]`, then run the complete pytest suite,
+  including the wheel build; preserve the declared `>=3.11` floor.
+- Update the codebase context and its packaged twin: use an explicit 3.11
+  verification command, require package markers for resource anchors, and
+  replace the obsolete publish-only CI posture. Link the owning guidance
+  from the contributor documentation.
+- Keep implementation changes in the recorded feature checkout; write task
+  state and perform the terminal transition from this primary checkout.
+
+## Findings
+
+- `pyproject.toml` already declares both pytest and hatchling in the test
+  extra; the normal editable test install supplies the wheel test backend.
+- The referenced resource fix is still awaiting review/merge:
+  `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r`, PR
+  https://github.com/FastJVM/coga/pull/831. The freshly fetched main still
+  lacks `src/coga/resources/__init__.py`. The actual 3.11 failure was
+  reproduced below; this branch does not duplicate that ticket's source fix.
+
+## Changes
+
+- `.github/workflows/tests.yml`: Python 3.11/3.12 jobs for pull requests and
+  pushes to main, read-only repository permissions, explicit interpreter
+  selection, `python -m pip install -e ".[test]"`, absolute source
+  `PYTHONPATH`, and `python -m pytest`. Both jobs run even if one fails.
+- `coga/contexts/coga/codebase/SKILL.md` and its packaged twin now require
+  package markers for `files("coga.<pkg>")` anchors and verification on the
+  declared floor, and describe the test workflow separately from publishing.
+- `docs/development.md` creates the example venv with Python 3.11 and links
+  to the owning verification/resource guidance. No runtime, fixture,
+  configuration, or release-workflow changes.
+- Action versions and inputs checked against the official
+  https://github.com/actions/setup-python and
+  https://github.com/actions/checkout documentation.
+
+## Verification
+
+- Fresh Python 3.11.15 venv `/tmp/coga-python311-ci-venv` successfully
+  installed `.[test]` after network access was granted for the package index.
+- Workflow YAML structure, matrix, commands, declared `>=3.11` floor,
+  feature-checkout import resolution, and context byte identity checked.
+- `PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m pytest`
+  — Python 3.12.12: **2655 passed** in 205.62 seconds, exit 0; log
+  `/tmp/coga-python311-ci-py312.log`.
+- `PYTHONPATH="$PWD/src" /tmp/coga-python311-ci-venv/bin/python -m pytest`
+  — Python 3.11.15: **426 failed, 2229 passed** in 257.99 seconds, exit 1;
+  log `/tmp/coga-python311-ci-py311.log`. Resource lookups raise the known
+  `MultiplexedPath.joinpath` error; CLI tests also fail downstream of those
+  lookups. All 11 packaging tests passed on both interpreters, including the
+  wheel build. This is not the earlier missing-Hatchling environment error.
+- The unchanged primary checkout independently reproduces the resource bug:
+  `PYTHONPATH=/home/n/Code/codex/coga/src /tmp/coga-python311-ci-venv/bin/python -c 'from coga.paths import packaged_template_path; print(packaged_template_path("bootstrap", "contexts"))'`
+  raises `TypeError: MultiplexedPath.joinpath() takes 2 positional arguments
+  but 5 were given`. The failing symbol is `paths.packaged_template_path`
+  in `src/coga/paths.py`. The same call succeeds on 3.12 against the feature
+  checkout; this branch changes no Python implementation or tests.
+
+## Commit
+
+- `28541821` — `Exercise Python 3.11 and 3.12 in test CI`.
+- `git fetch origin main` followed by `git rebase FETCH_HEAD` confirmed the
+  branch is current with `a0a18ffa`; no new commits arrived.
+- `git diff --check origin/main...HEAD` passed; feature checkout is clean.
+  No branch push or PR was performed.
+
+## Dependency handoff
+
+Implementation is committed, but the implement step cannot meet its green-suite
+acceptance until `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r`
+lands. PR https://github.com/FastJVM/coga/pull/831 was rechecked after both
+suites and remains open, with no merge commit. Per `code/implement`, unrelated
+test failures must be recorded and escalated rather than masked.
+
+Merge that resource-package fix, then resume this task in the recorded feature
+worktree, fetch/rebase main, and rerun both full-suite commands above. Do not
+skip the failing 3.11 tests or raise the Python floor. If both suites pass,
+update these results and run `coga bump` from the primary checkout to complete
+implement. The queued dependency reason must contain the exact path-qualified
+slug above so megalaunch can recognize its completion.
+
+---
+
+## Blockers
+
+- [ ] [2026-09-18 11:04] [agent:claude] id=20260918T110453 Merge PR #831 for cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r, then resume this implement step to rebase and rerun both suites. Current main reproduces the Python 3.11 MultiplexedPath.joinpath crash: 426 failed, 2229 passed; Python 3.12 has 2655 passed. CI and guidance changes are committed as 28541821 on ci/python311-floor.

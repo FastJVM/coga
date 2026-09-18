@@ -5600,3 +5600,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-18 10:52 [nothing-exercises-python-3-11-the-declared-floor] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-18 10:52 [nothing-exercises-python-3-11-the-declared-floor] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-18 10:53 [nothing-exercises-python-3-11-the-declared-floor] [megalaunch] launched via coga megalaunch
+2026-09-18 11:04 [nothing-exercises-python-3-11-the-declared-floor] [agent:claude] blocked: Merge PR #831 for cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r, then resume this implement step to rebase and rerun both suites. Current main reproduces the Python 3.11 MultiplexedPath.joinpath crash: 426 failed, 2229 passed; Python 3.12 has 2655 passed. CI and guidance changes are committed as 28541821 on ci/python311-floor.
