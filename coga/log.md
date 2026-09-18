@@ -5581,3 +5581,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-18 08:33 [the-v2-parking-area-premise-check-has-four-holes] [human:nicktoper] auto-bumped on merge of PR #819 → done
 2026-09-18 08:33 [recurring/autoclose-merged] [human:nicktoper] task done
 2026-09-18 08:33 [recurring/autoclose-merged] [system] script exited with code 0
+2026-09-18 08:34 [cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f] [agent:claude] advanced to step 4 (review) → nicktoper — PR #830 open; owner must yank PyPI coga 0.0.1 before merging

@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
-launch_generation: b4ddb7a2-d774-44e0-a5f7-b0f63c53ad23
+step: 4 (review)
 ---
 
 ## Description
@@ -154,6 +153,19 @@ worktree: /tmp/coga-pypi-placeholder-note
   2026-09-18: both 0.0.1 files are still unyanked with `Requires-Python: >=3.9`;
   both 0.2.0 files require `>=3.11`. The owner's external action above remains
   pending for final review and must precede merge/closure.
+
+## Open PR
+
+- 2026-09-18: `coga open-pr` opened [PR #830](https://github.com/FastJVM/coga/pull/830)
+  from `docs/pypi-placeholder-note` (`c3c46d9e`, one commit ahead of `main`).
+  `origin/main` had advanced only through non-overlapping task/log commits, so
+  no rebase was required. The command's control-branch `Sync coga state`
+  commit (`8d4d697f`) also swept in the pre-existing blackboard drift of two
+  unrelated tickets that were left modified in the primary checkout; that is
+  the command's own state sync, not a hand commit, and nothing of theirs was
+  edited here.
+- Owner action (yank PyPI 0.0.1) remains pending and must precede merge; see
+  the section above.
 
 ## PR
 
