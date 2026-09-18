@@ -1,6 +1,6 @@
 ---
 title: Nothing exercises Python 3.11, the declared floor
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
