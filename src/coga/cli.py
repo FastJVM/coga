@@ -184,13 +184,19 @@ def _is_recurring_all_child(argv: list[str]) -> bool:
 
 def _checkout_is_off_control(cfg: Config) -> bool:
     """Whether the checkout holding `cfg.repo_root` is not on the control
-    branch. Unreadable checkout state reads as on-control so the established
-    best-effort sweep is preserved; `sync_coga_state` owns its own handling."""
+    branch (a detached HEAD is off control). Unreadable checkout state reads
+    as on-control so the established best-effort sweep is preserved;
+    `sync_coga_state` owns its own handling."""
     try:
         root = git._toplevel(cfg.repo_root)
         if root is None:
             return False
-        return git._current_branch(root) != cfg.git_control_branch
+        # Not `rev-parse --abbrev-ref HEAD`: with a tag named like the
+        # control branch it answers `heads/main`, which would misclassify the
+        # control worktree as off control and skip its only sweep.
+        # `branch --show-current` is unambiguous and empty when detached.
+        branch = git._run_git(root, "branch", "--show-current").strip()
+        return branch != cfg.git_control_branch
     except git.GitError:
         return False
 

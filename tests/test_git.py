@@ -5932,6 +5932,24 @@ def test_recurring_all_child_retains_the_control_worktree_sweep(
     assert calls[0].repo_root == cfg.repo_root
 
 
+def test_recurring_all_child_sweeps_on_control_despite_a_same_named_tag(
+    git_repo, monkeypatch
+):
+    """`rev-parse --abbrev-ref HEAD` answers `heads/main` once a tag `main`
+    exists; the probe must still read the control checkout as on control."""
+    from coga import cli
+
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("tag", cfg.git_control_branch)
+    calls: list[Config] = []
+    monkeypatch.setattr(cli.git, "sync_coga_state", calls.append)
+    monkeypatch.setattr(cli.sys, "argv", list(_RECURRING_ALL_CHILD_ARGV))
+
+    cli._sweep_coga_state(cfg)
+
+    assert len(calls) == 1
+
+
 def test_ordinary_run_still_sweeps_off_control(git_repo, monkeypatch):
     """Only the `recurring --all` child shape is exempt: the documented
     publish-from-any-branch contract of every other mutating command holds."""
