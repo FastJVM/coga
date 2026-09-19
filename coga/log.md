@@ -5721,3 +5721,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-19 10:08 [coga] [git] refresh failed: `git merge --ff-only --quiet 968dcfd5036a2529267756a89719abc34b65fb3e` failed (exit 128): fatal: Not possible to fast-forward, aborting.
 2026-09-19 10:08 [automerge/fix-let-a-lot-of-open-craps] [git] sync refused: coga/tasks/automerge/fix-let-a-lot-of-open-craps.md: step would move backward from '4 (review)' to '1 (implement)'; blackboard would shrink from 12330 to 4321 bytes
 2026-09-19 10:09 [narrative-candidates-md-publishes-log-text-the-own] [human:nicktoper] activated (draft → active) — auto on launch
+2026-09-19 10:09 [narrative-candidates-md-publishes-log-text-the-own] [git] sync failed: could not reapply local changes after rebasing 'main' onto origin/main; restored pre-sync state
+2026-09-19 10:09 [narrative-candidates-md-publishes-log-text-the-own] [human:nicktoper] started (active → in_progress) via coga launch
