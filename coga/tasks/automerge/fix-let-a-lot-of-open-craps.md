@@ -1,6 +1,6 @@
 ---
 title: fix let a lot of open craps
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 contexts:
