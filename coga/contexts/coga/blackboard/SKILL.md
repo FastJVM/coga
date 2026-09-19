@@ -7,9 +7,9 @@ description: The contract for writing to a ticket blackboard — how the fence i
 
 The blackboard is the region of a task's `.md` ticket (or a directory task's
 `ticket.md`) below the `<!-- coga:blackboard -->` fence: the free-form working
-memory shared by human
-and agent, composed into the next launch alongside the ticket's Description and
-Context. This context is the writer's contract. It describes what shipped
+memory shared by human and agent. Its live state composes into the next launch
+alongside the ticket's Description and Context; `coga/architecture` owns that
+projection. This context is the writer's contract. It describes what shipped
 code and the shipped contexts already do; where this context and the source
 disagree, the source wins.
 
@@ -97,7 +97,7 @@ editing one silently reroutes later launches. A specialized authoring skill may
 grant an explicit exception; absent that, the allowlist holds.
 
 Note also what composes: layer 6 of a launch prompt carries `## Description`,
-`## Context`, and the blackboard region, and nothing else. Any other `##`
+`## Context`, and the live blackboard with an archive pointer, and nothing else. Any other `##`
 section above the fence is dropped silently. Content a later step must read
 belongs under one of those two headings or on the blackboard (see
 `coga/architecture`).
@@ -144,11 +144,12 @@ section is appended at the end of the region.
 
 Two constraints shape the choice:
 
-- **The blackboard is composed into the next prompt**, so it must stay small;
+- **The live blackboard is composed into the next prompt**, so it must stay small;
   `coga/log.md` is never composed and may grow without bound.
   Working state the next run must read goes on the blackboard; lifecycle
   history goes in the log. `blackboard_size_warning` warns above
-  `BLACKBOARD_WARN_BYTES` (32 KiB), measuring the region alone.
+  `BLACKBOARD_WARN_BYTES` (32 KiB), measuring live notes and the archive pointer
+  rather than stored design history. See `coga/architecture` for composition.
 - **CLI audit history lives in the log.** The recurring scan's
   serviced-period ledger lives in the union-merged `coga/log.md` precisely so
   that a co-writer rewriting a region of a template's blackboard cannot destroy
@@ -165,8 +166,9 @@ Two constraints shape the choice:
   fence into exactly one `## Superseded designs` section, as a dated entry with
   `Superseded by:` and `Reason:` lines and retained headings nested at `####`
   or deeper. The body keeps at most a one-line pointer to it. Do not scatter
-  the same history under improvised headings, and keep the archive concise — it
-  is composed into every launch prompt. `dev/code` owns the full shape.
+  the same history under improvised headings. Keep current decision rationale
+  in live notes, since only an archive pointer composes. `dev/code` owns the
+  full shape.
 - **Resolving a blocker preserves the ask.** `coga unblock` marks it resolved
   with its answer appended, so asks and resolutions stay readable in place.
 - **A period task's own blackboard disappears** at Dream's retro cleanup, so

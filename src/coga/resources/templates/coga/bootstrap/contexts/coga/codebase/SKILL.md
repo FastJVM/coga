@@ -990,10 +990,9 @@ wrong checkout silently produces wrong results in both directions:
   concerns need triage.** `verify-the-pr-review-comment-loop-once-the-review`
   (2026-09-13) queried `reviewThreads` on every PR merged in its window and
   found these threads with no reply and no code change at the flagged line.
-  Each remaining concern needs a human verdict (fix / won't fix / moot) and,
-  for a fix, its own ticket — the brief is
-  `triage-five-review-comments-that-merged-unanswered`. Re-verify against the
-  current tree before acting.
+  `triage-five-review-comments-that-merged-unanswered` records the per-thread
+  verdicts and follow-up tickets. These are dated observations; re-verify
+  against the current tree before acting.
   - PR 699 (P1), fixed by `refresh-recurring-ledger-before-first-create-sync`:
     `recurring_runner._control_serviced_period_cached` used to trust the
     pre-scan cache after a newer create-sync fetch. A local two-checkout test
@@ -1029,12 +1028,14 @@ wrong checkout silently produces wrong results in both directions:
     `FileMutationRollback` after the control fetch instead of from the
     validated current bytes, so a manual ticket edit made during the fetch can
     be overwritten by the stale released revision.
-  - PR 755, the `dev/code` "Design pivots" section: superseded designs below
-    the blackboard fence still compose into later prompts; the remaining ask
-    is to keep the archive above the fence. The synthesis-gate concern is
-    fixed: `prelaunch_blackboard_synthesis_reason_text` removes each exact
-    `## Superseded designs` section before applying the size gate, so a large
-    archive under that heading no longer blocks activation.
+  - PR 755 is addressed by `exclude-superseded-designs-from-launch-prompts`:
+    `blackboard.blackboard_for_prompt` projects live notes and an archive
+    pointer for `compose.compose_prompt_report` and the size warning. It shares
+    archive recognition with `prelaunch_blackboard_synthesis_reason_text`,
+    so fenced heading examples cannot split history into live notes. Keep
+    those consumers aligned; the archive convention is owned by `dev/code`
+    and the prompt contract by `coga/architecture`. History stays on disk;
+    activation still checks unrelated scratch.
   Two more dropped threads were overtaken out of band and need nothing: PR 696
   (fixed by `a-slack-repo-without-important-webhook-can-abort-t`, PR 761) and
   PR 706 (`scripts/human_minutes.py` PR regex rewritten by PR 784).
