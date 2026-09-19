@@ -25,7 +25,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -185,4 +185,120 @@ dirty or claimed one; `coga retire` unchanged after the shared-function move.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: dispose-checkouts
+worktree: /home/n/Code/coga-dispose-checkouts
+
+## Plan (2026-09-18, implement step, attended)
+
+Layout: separate feature checkout (linked worktree above, cut from
+`origin/main` at 46362627). The primary checkout sits on another ticket's
+branch (`gh-backed-readonly-context`, PR #836); control-plane writes for this
+ticket stay here as the earlier steps' commits did.
+
+Decisions taken with the owner in-session:
+
+- Preserved entries and their refusal reasons go to Slack on **coga-important**
+  (`notification.post(..., important=True)`, non-fatal): a preserved checkout is
+  work a human must do. `retires.md` keeps its line format; the per-run report
+  (period blackboard / stdout) carries every proof note.
+- The import cycle (`autoclose` -> new disposal module -> `branchcleanup` ->
+  `autoclose` parsers) is broken with one lazy import inside the autoclose
+  recipe, same precedent as `step_gate.py`. Extracting the `## Dev` parsers and
+  gh lookups into a leaf module is a possible follow-up, not this PR.
+
+Shape:
+
+- `branchcleanup`: `remove_worktree` / `delete_branch` take
+  `(branch, worktree, pr_url)`; the `*_ticket_*` names stay as thin `## Dev`
+  parsers. Merge authorization with no `pr:` URL falls back to merged PRs by
+  head name (`prs_for_head`), the signal branch sweep already trusts.
+- new `checkout_disposal.py`: `live_checkout_claim` (moved from
+  `commands/retire.py`) + `dispose_checkout` (claim -> worktree -> local ->
+  remote). Consumers: retire, autoclose, branch sweep.
+- `autoclose`: after the sweep, dispose closed tickets' checkouts and every open
+  worklist entry (all `retires.md`, ticket-less entries included); hand runs
+  reconcile every worklist but record new entries only under a period task.
+  Off the control branch: preserve everything, say so.
+- `branchsweep`: `[git] worktrees_ticket_owned` (default false) gates removing a
+  landed, pristine, unclaimed linked worktree before the existing delete path.
+
+## Findings (implement)
+
+- `git_repo`-harness tests (`tests/test_autoclose_dispose.py`) exercise the
+  whole path for real: worktree removed, local `-d`, leased remote delete.
+- The claim scan (`discover_coga_repos(root, strict=True)`) returns `[]`
+  inside a recurring temp control worktree (`_is_within_control_worktree`),
+  so a sweep serviced that way preserves every checkout with
+  "current Coga workspace ... was not found". Not hit today: the recurring
+  clone `/home/n/Code/claude/coga` sits on `main`, so the scheduler runs the
+  recipe in place. Worth a follow-up if the host checkout ever moves off
+  `main`; not changed here (discovery's exclusion is deliberate for
+  scheduler targets).
+- Retire's `## Checkout cleanup` retro section now also carries a checkout
+  whose proof *raised* (previously the exception left `worktree_result`
+  None and the section was omitted). Intentional: a durable record beats a
+  scrolled-away echo.
+- `coga/coga.toml` (live) is untouched — the base prompt forbids it; the key
+  is documented in the packaged template, `docs/operations.md`, `coga/sync`,
+  and `dev/code`. Turning it on in this repo is the owner's call at review.
+- Not done in this PR (possible follow-up): extracting the `## Dev` parsers
+  and `gh` lookups out of `autoclose.py` into a leaf module so
+  `branchcleanup` / `step_gate` / `checkout_disposal` stop importing the
+  sweep module for them.
+
+## Implement handoff (2026-09-18)
+
+Branch `dispose-checkouts` at dae56dc4, one commit, rebased onto
+`origin/main` b6e96b34 (main moved only Coga state since the branch point).
+Not pushed, no PR.
+
+What changed (34 files, +2317/-585):
+
+- `src/coga/branchcleanup.py`: `remove_worktree` / `delete_branch` direct
+  forms; `remove_ticket_worktree` / `delete_ticket_branch` are parsers over
+  them. `inspect_worktree_for_removal` + `remove_inspected_worktree` split
+  the structural/pristine proofs from the git removal so branch sweep can
+  supply its own authorization. `_pr_cleanup_authorization(branch, pr_url=)`
+  falls back to `prs_for_head(branch, "merged")` when there is no URL.
+  Public `local_branch_exists`.
+- new `src/coga/checkout_disposal.py`: `live_checkout_claim` (moved from
+  `commands/retire.py`), `dispose_checkout`, `CheckoutDisposal`.
+- `src/coga/autoclose.py`: `_dispose_checkouts` (closures + every worklist's
+  open entries; control-branch guard; lazy import), `CheckoutOutcome`,
+  `AutocloseResult.checkouts/disposal_skipped/disposed/preserved`,
+  `retire_pending` excludes disposed closures, report renderer rewritten,
+  `render_disposed_summary` (coga-flow) + `render_preserved_summary`
+  (coga-important, `post(..., important=True, fatal=False)`); hand runs
+  reconcile every worklist, record only under a period task.
+- `src/coga/branchsweep.py`: `_remove_pinning_worktree` behind
+  `cfg.git_worktrees_ticket_owned`; `worktree_removed` outcome in result,
+  report, and `[branch-sweep] removed-worktree:` stdout line.
+- `src/coga/config.py`: `[git].worktrees_ticket_owned` (shared only, bool,
+  default false); `commands/init.py` adjusted for the 3-tuple.
+- `retire_worklist.RETIRE_WORKLIST_HEADER` + live `retires.md` header.
+- Text: `coga/autoclose/sweep`, `coga/branch-sweep/sweep`, both recurring
+  tickets, `dev/code` (new "Worktrees are ticket-owned" subsection),
+  `coga/sync`, `coga/codebase`, `coga/recurring`, packaged `coga/cli`,
+  packaged `coga.toml`, `docs/operations.md`; all twins byte-identical.
+- Tests: new `tests/test_autoclose_dispose.py` (dispose / preserve+important
+  +worklist / ticket-less drain / claimed entry / off-control hand run),
+  branch-sweep key on/off + dirty + claimed + recipe report, direct-form
+  by-head-name proofs in `test_branchcleanup.py`, config key tests; retire
+  tests unchanged and green after the move.
+
+Verification: `python -m pytest` in the feature worktree — 2676 passed
+(174 s). `tests/test_packaging.py` re-run after the rebase, green. Tests ran
+from a throwaway `uv venv .venv` + `uv pip install -e ".[test]"` (plus `pip`,
+which the wheel test needs); the venv was removed afterwards so retire can
+dispose of the worktree — recreate it with those two commands to run tests
+there again.
+
+For the PR body / reviewer: the destructive change is declared in the skill
+and recurring-ticket text, not only in Python; setting
+`worktrees_ticket_owned = true` in this repo's `coga/coga.toml` is the
+owner's call. The coga-important line is re-posted on every run while any
+entry stays preserved (owner's decision this session: a preserved checkout is
+work a human must do). The 10-entry backlog on the recurring clone drains on
+its next `coga run autoclose`; that clone's ~33 unrecorded worktrees need the
+key on plus a `coga run branch-sweep` there.
