@@ -898,16 +898,51 @@ where the next period's scan deleted it.
   recorded, repeated scans resolve from the tail. A malformed record reached
   before the target remains a template error; older unreachable malformed
   history is allowed to heal. When the pre-scan control catch-up succeeds, the
-  sweep carries this pre-create result into the control guard as its pinned
-  snapshot instead of materializing the same Git blob again. If catch-up could
-  not be confirmed and the later best-effort control fetch succeeds, that
-  fallback applies the same complete target set to one pinned control read.
-- **One shared file, so a sweep pins one snapshot.** Because every template
-  records into the same log, the first sync of a sweep publishes records for
-  templates it has not synced yet. The cross-checkout "did someone else handle
-  this?" check therefore reads control's ledger once per run, before the sweep
-  publishes anything — otherwise a template mistakes its own pending record
-  for a rival's and deletes the task it just created.
+  sweep binds this pre-create result to the caught-up checkout revision. The
+  create guard reuses it while the fetched control revision matches, without
+  materializing the Git log blob again. Before the first successful create
+  publication, a different fetched revision refreshes the snapshot for the
+  **complete target set**, including on a non-fast-forward push retry. This
+  prevents a competing completed/reaped period published after the scan from
+  being recreated. Without a confirmed catch-up, the first successful control
+  fetch supplies the same target-aware snapshot. Changed-revision reads may
+  materialize the control log; unchanged-revision local reads remain bounded.
+- **One shared file, so publication changes the freshness rule.** The first
+  create publication carries pending log records for other templates in the
+  same sweep. The guard retains its competitor snapshot and records each
+  successful own publication's revision instead of treating those pending
+  records as rival work. When control subsequently advances, a Git diff of the
+  log against that known revision identifies templates whose serviced-record
+  lines were added, removed, or changed externally. Those templates refuse
+  admission visibly for the rest of the sweep; unchanged templates remain
+  serviceable. Even a changed line with the same period is conservatively
+  refused: the merged log cannot establish which checkout owns that claim.
+  Ordinary audit appends and revisions with no ledger change do not invalidate
+  another template's decision. The same rule applies to later create retries.
+- **Freshness refusals are not best-effort sync failures.** An unreadable
+  fetched ledger, or ambiguous ledger changes after own publication, raises a
+  recurring admission error and excludes the task from dispatch. A rejected
+  local create is restored to the fetched control task or its absence, so it
+  cannot survive as a local-only orphan and bypass create-sync on the next
+  sweep. Peer tasks and their generations are preserved. Reused tasks also
+  fetch and validate the ledger; malformed records cannot be bypassed by reuse.
+  The append-only audit remains intact, including local create records for
+  refused candidates; refusal does not prove execution, and an intentional
+  rerun uses the existing explicit override. `--force` and named launches
+  bypass period dedup, while still validating the freshly observed ledger and
+  respecting task/generation guards. A forced reuse preserves operator edits.
+- **This is an observed-revision boundary, not global exactly-once execution.**
+  A rival advancing control before a create push rejects that push; the bounded
+  retry fetches again and applies the refresh/refusal rules above. A rival can
+  still advance after a successful publication. The existing exact per-child
+  admission checks then guard task bytes, generation, and launchable status;
+  the ledger is not a distributed execution lock. A byte-identical competing
+  record, or intervening changes with no net ledger diff, cannot be attributed
+  by the post-publication guard. Initial fetch failures retain
+  the existing best-effort generic sync fallback, and exhausted transport
+  failures keep their existing reporting. The stricter remote-backed child
+  admission and `--all` pre-scan catch-up requirements remain as described in
+  **Recurring runs start on the control branch**.
 - Period tasks create **straight to `status: active`** — ready jobs, not
   drafts to triage. Because every active task must carry a workflow, a
   template that declares none creates with `direct/body` (it would otherwise
