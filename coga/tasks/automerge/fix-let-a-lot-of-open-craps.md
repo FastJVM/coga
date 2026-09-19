@@ -25,7 +25,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -360,6 +360,17 @@ unchanged tickets (`clean-up-all-the-working-trees`, `v2/autotrigger-ticket-type
 `v2/use-worktree-when-starting-a-dev-task`) and 53 warnings, including the
 expected missing-user warning in this feature checkout. No validation repairs
 were requested or applied.
+
+## Open-PR handoff (2026-09-19, attended)
+
+`coga open-pr` ran from the primary checkout on `main` (borrowed from
+`gh-backed-readonly-context`, returned afterwards; no stash needed because both
+branches carried identical bytes for the dirty task/log paths). It pushed
+`dispose-checkouts` at a59b214c, opened PR #839 (non-draft, base `main`), and
+recorded `pr:` above. The command's exit sweep committed the step-3 ticket state
+on `main` as 3a35173b and pushed it, so the live copy is on `main`; bump ran
+there. Next step is the owner-controlled review gate: merge, plus the
+`worktrees_ticket_owned` decision for `coga/coga.toml`.
 
 ## PR
 
