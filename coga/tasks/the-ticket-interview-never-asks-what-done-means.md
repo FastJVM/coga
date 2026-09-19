@@ -446,6 +446,7 @@ which do compose. Read `## Context` → "Exact replacement wording".
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/837
 branch: ticket-done-criteria
 worktree: /home/n/Code/coga-ticket-done-criteria
 
