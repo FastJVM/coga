@@ -2,8 +2,6 @@
 title: Simplify git sync
 status: draft
 owner: nicktoper
-contexts:
-  - coga/principles
 workflow: code/design-then-implement
 ---
 
@@ -80,11 +78,14 @@ covered by tests.
   rewritten. The packaged twin
   `src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md`
   must be updated byte-identically (`tests/test_packaging.py`).
-- Principles the design cannot trade away (see attached `coga/principles`):
-  markdown on disk is the source of truth, git is the durable transport,
-  the control branch is canonical for task state, no hidden state, failures
-  are loud and non-fatal (a sync miss never crashes a command or loses the
-  on-disk edit).
+- Principles the design cannot trade away — `coga/principles`
+  (`coga/contexts/coga/principles/SKILL.md`) is cited, not attached; the
+  design step reads `## 1. Hackable`, `## 3. Obvious`, and `## 6. Fail loud`
+  in full. The facts the design depends on: markdown on disk is the source
+  of truth, git is the durable transport, the control branch is canonical for
+  task state, no hidden state, boring standard git operations over clever
+  ones, and failures are loud and non-fatal (a sync miss never crashes a
+  command or loses the on-disk edit).
 - Multi-checkout reality the design has to cover: the owner runs coga from
   several repos, sometimes offline, sometimes from a PR branch, sometimes
   with linked worktrees (`is_linked_worktree`). Concurrent agents push to the
