@@ -74,7 +74,10 @@ worklist (step 3). The worklist lives on this ticket's blackboard, under a
    in `narrative-candidates.md` beside this ticket (they were on the
    blackboard until 2026-09-03 and were moved out to keep composed prompts
    small); `marketing/post-async-megalaunch` reads them from there. Note the
-   owner has since ruled all of them unpublishable. Read-only — do not modify those repos. `~/Code/admin`
+   owner has since ruled all of them unpublishable, and the attachment was
+   deleted from the tree by the
+   `narrative-candidates-md-publishes-log-text-the-own` ticket — nothing
+   quoted from those repos belongs in this public repository. Read-only — do not modify those repos. `~/Code/admin`
    and `~/Code/patents` are likely confidential: flag any candidate whose
    literal text is not publishable rather than dropping it silently. If the
    non-Coga repos don't yield 5, say so — don't pad from this repo.
@@ -156,10 +159,13 @@ deleted:
   megalaunch narrative honesty, the distribution surfaces, the
   token-measurement mechanism draft, and prepared replies. Read it before
   re-running any check.
-- **`narrative-candidates.md`** — the ten candidates with literal log text,
-  the per-repo table, best picks, and the shortfall statement. **The owner
-  ruled every one unpublishable on 2026-09-03**, so this is evidence of the
-  practice, not source material for a post.
+- **`narrative-candidates.md`** (since deleted) — held the ten candidates
+  with literal log text, best picks, and the shortfall statement. **The owner
+  ruled every one unpublishable on 2026-09-03**, and because this repository
+  is public the `narrative-candidates-md-publishes-log-text-the-own` ticket
+  removed the file from the tree rather than keep quoted private-repo text
+  as "evidence of the practice". The non-quoting per-repo table survives in
+  `step-1-findings.md`.
 
 **Headline results, so this file stands alone.** There is no working first run
 from PyPI today: 0.2.0's `coga init` crashes, 3.11 crashes on every version,

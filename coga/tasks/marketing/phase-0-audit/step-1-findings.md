@@ -79,13 +79,14 @@ to triage (see worklist).
 
 ### 3. Narrative material — non-Coga repos
 
-Yielded **10 candidates, no shortfall**: eight strong ones with no
-confidentiality concern (six queued judgment questions, one morning
-sequence, one clean megalaunch sweep — all from `magicator` and `xpllm`),
-plus two from `admin` that need the owner's confidentiality pass. Full
-literal text is in `narrative-candidates.md` beside the ticket, which
-`marketing/post-async-megalaunch` reads. The owner has since ruled every
-candidate unpublishable — see the ticket's worklist.
+Yielded 10 candidates (six queued judgment questions, one morning sequence,
+three megalaunch sweeps) from `magicator`, `xpllm` and `admin`. **The owner
+ruled every one of them unpublishable**: those repos are
+confidential, and their literal log text, slugs and block reasons must not be
+quoted. The attachment that held the literal text
+(`narrative-candidates.md`) was deleted from the tree by the
+`narrative-candidates-md-publishes-log-text-the-own` ticket because this
+repository is public; no candidate from a non-Coga repo is quotable.
 
 Per-repo size of practice (read-only; `coga-hosting-probes` is a second
 checkout of `multiply` and adds nothing):
@@ -100,21 +101,18 @@ checkout of `multiply` and adds nothing):
 | tablet | 52 | 5 | 06-17 → 07-29 | 1 (mechanical) | 0 |
 | demo-hackathon | 140 | 4 | 05-28 → 07-20 | 4 (mechanical) | 12 |
 
-Two things the owner should know before quoting:
+Two things the audit flagged, both settled by the owner's ruling above:
 
 - **The ticket assumed `multiply` first; it is the weakest source.** Its
   three blocks are all sequencing gates canceled the next morning in a
   pivot. The story lives in `magicator` and `xpllm` — the owner's JVM /
-  LLM research repos. Quoting their slugs and block reasons reveals
-  research direction (JVMTI hidden-class capture, LLVM slice gates,
-  DaCapo benchmark sourcing). **Owner to confirm those repos, or the
-  quoted lines, are publishable** — not flagged as confidential in the
-  ticket, but they are not public repos as far as this audit can tell.
-- **Admin candidates 9 and 10** come from the company admin repo where
-  the human is `zach`, not the essay's narrator, and sit next to Slack
+  LLM research repos. Quoting their slugs and block reasons would reveal
+  research direction; the owner ruled both repos confidential.
+- **Admin candidates 9 and 10** came from the company admin repo where
+  the human is `zach`, not the essay's narrator, and sat next to Slack
   lines naming a trademark serial, Xero reconciles, payroll/tax questions
-  and a named accountant. The step-advance lines quoted are probably safe;
-  the surrounding lines are not.
+  and a named accountant. The owner ruled the admin repo confidential as
+  well; none of its lines are quotable.
 
 ### 4. Megalaunch state — can post 1 describe it in present tense?
 
