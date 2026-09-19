@@ -1,11 +1,31 @@
 ---
 title: fix let a lot of open craps
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 contexts:
-  - dev/code
-workflow: code/with-review
+- dev/code
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+step: 1 (implement)
 ---
 
 ## Description
@@ -44,6 +64,15 @@ ticket, remove the worktree first and then delete the local and remote branch
 under the sweep's existing landed-branch authorization. Worktrees that fail
 any of those proofs are reported with the reason, as today.
 
+**Make the assumption explicit.** Removing an unrecorded worktree rests on
+one repo-level assumption: every linked worktree of this repository belongs
+to a Coga ticket, so a landed, pristine one nobody claims is finished work,
+not someone's scratch checkout. Declare it as a `[git]` setting in
+`coga.toml` (new key, e.g. `worktrees_ticket_owned = true`, default `false`),
+gate the weekly worktree GC on it — off, the sweep keeps today's
+`skipped-worktree-pinned` — and write the assumption down in the context that
+owns the checkout convention.
+
 Done means: on the recurring clone, one `coga run autoclose` closes and
 disposes of every recorded checkout the proofs admit and drains the worklist
 down to preserved entries with reasons; one `coga run branch-sweep` removes
@@ -51,7 +80,8 @@ every pristine landed worktree and its branches; `coga/autoclose/sweep`,
 `coga/branch-sweep/sweep`, both recurring ticket texts, and the
 `retire_worklist.RETIRE_WORKLIST_HEADER` constant describe the new behavior;
 tests cover dispose / preserve / backlog-drain / remote-delete /
-worktree-GC paths and `coga retire` after the shared-function move.
+worktree-GC (key on and off) paths and `coga retire` after the
+shared-function move.
 
 ## Context
 
@@ -122,6 +152,25 @@ packaged twins byte-identical
 `tests/test_packaging.py` enforces it). `retires.md` has no packaged twin —
 do not create one.
 
+**The ticket-owned-worktrees setting.** `[git]` is shared config
+(`config.py` — `git_remote` / `git_control_branch` come from it; see
+`coga.git`). Add the new key beside them with a `false` default, so a repo
+that never declares it keeps the conservative behavior — destructive
+behavior is never implicit, and a repo opts in by writing the assumption
+down. Document the key where the other `[git]` keys are documented, and
+state the assumption itself in `dev/code` → "Checkout boundary", which owns
+the worktree convention (one owner per fact; `coga/architecture` may link,
+not restate). Setting the key to `true` in this repo's `coga/coga.toml` is
+the owner's call at the review step, not the agent's — the base prompt
+forbids agents editing `coga.toml`; say so in the PR body. Autoclose's daily
+path does not depend on the key: it only ever touches worktrees a ticket
+recorded.
+
+**For the peer reviewer.** The behavior change is as much in the skill and
+recurring-ticket text as in the code: review the `coga/autoclose/sweep` and
+`coga/branch-sweep/sweep` diffs against the proofs actually implemented, not
+just the Python.
+
 **Out of scope.** Dream; a manual `automerge` command; the paused
 `v2/automerge-ticket` (agent-merged PRs — unrelated, this is cleanup after a
 human merge); splitting `dev/code` into a smaller core context (the evaluator
@@ -137,22 +186,3 @@ dirty or claimed one; `coga retire` unchanged after the shared-function move.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Evaluator review
-
-**Clarity.** Good. A fresh agent can start: the problem, four numbered outcomes, a "done means", file/symbol map, and out-of-scope are all present. Every cited symbol exists (`autoclose.sweep_merged`/`_try_bump_one`/`_report_retire_followups`, `retire_worklist.parse_worklist`/`is_discharged`/`discharge_slug`/`reconcile_worklist`, `branchcleanup.remove_ticket_worktree`/`delete_ticket_branch`/`delete_remote_branch`, `commands/retire._live_checkout_claim`/`_cleanup_checkout`, `recurring_runner._current_branch`, `runner.RECIPES["autoclose"]`, `tests/test_autoclose.py`, both packaged twins).
-
-**Workflow fit.** `code/with-review` fits: Python change, tests, PR. No mismatch. Note `review` step text says autoclose closes the ticket after merge — this ticket changes what that closure then does, so the peer-reviewer should read the sweep skill diff, not just code.
-
-**Contexts.** `dev/code` is the only attachment and is what its own frontmatter demands. `coga/architecture` and `coga/recurring` are cited with section names, not sizes — correct. Neither needs attaching: the one architecture rule is quoted into `## Context`, and the recurring precondition is a single fact. Nothing important missing, except `coga/codebase` (microkernel rule) is neither cited nor quoted, and the ticket moves a helper into core on the ≥2-consumers rule — one sentence citing it would suffice.
-
-**Prompt size.** `ticket_context dev/code` = 24.1 KiB, 64% of the composed prompt. It is over the 40% flag. Not this ticket's fault (frontmatter mandates it), but the fix is structural: split `dev/code` into the ~8 KiB `## Dev` line-shape + checkout-boundary core that every branch ticket needs, and cite the rest (design pivots, superseded designs, review-threads-that-merge-unanswered) from it. Worth a separate ticket; the paused `attach-vs-cite` work is adjacent.
-
-**Scope.** Two tickets' worth. (1) dispose-in-run + shared-proof move is one coherent change. (2) "Drain the backlog" from `retires.md` entries with no ticket requires a new `(branch, worktree)` proof signature and a ticketless live-claim scan; the ticket itself flags it as an open design choice. Recommend splitting drain into a follow-up.
-
-**Assumptions to question before launch.**
-- **The evidence and the fix don't meet.** The seven stale worktrees in this clone (`/tmp/coga-pr817..826-review`) are review checkouts recorded nowhere — not on any `## Dev` line, not on the worklist. The proofs only act on the *recorded* worktree, so the change as written removes none of them, and `delete_local_branch` will refuse the five branches they pin.
-- **The ten worklist entries point at another clone.** All nine surviving recorded worktrees (`/home/n/Code/claude/coga-*`) have `--git-common-dir` = `/home/n/Code/claude/coga/.git`, not this repo's. From `/home/n/Code/coga`, `_is_linked_worktree_of` preserves every one as "independent clone". "Ten entries clear on the first run" is only true if the run is from that other clone. State which clone hosts the cron.
-- **Control-branch precondition: right conclusion, incomplete reason.** `_refuse_non_control_branch` gates `coga recurring`, but the runner also services deterministic phases from a temporary control worktree (`_service_from_control_worktree`) when the host is off-control. That path still passes the guard (the temp checkout *is* on `main`, same common dir), so it works — but the hand-run `coga run autoclose` today has no branch guard at all; the ticket must add one, not "keep" one.
-- `RETIRE_WORKLIST_HEADER` in `retire_worklist.py` says "Autoclose only ever names the follow-up" — that constant, plus the existing `retires.md` header on disk, must change too; the ticket lists only the skill and recurring ticket.
-- Packaged twin for `retires.md` does not exist; fine, but don't create one.
