@@ -17,7 +17,9 @@ failures in live repos (`fix-git-sync-failure` is the latest; that ticket's
 `multiply` repo also carries orphaned coga stashes from a September run).
 
 Design a simpler sync model first, agree on it with the owner, then implement
-it. The design must state, in a page or two: what the sync invariants are
+it. The design may rewrite the consumer contract — the ~14 public entry points
+and the ~30 call sites that reach into underscore helpers are inputs, not
+constraints — as long as every `src/coga` consumer is accounted for. The design must state, in a page or two: what the sync invariants are
 (what must never be lost, what must never move backward, which branch is
 canonical), the small set of git operations that satisfy them, which of the
 current special cases survive and which are dropped, and how the
@@ -37,8 +39,10 @@ covered by tests.
   `refresh_coga_state_from_control` (2), `sync_coga_state` (1), plus a few
   one-off helpers. 30 modules import it.
 - Where the complexity lives, as things the design must explicitly keep or
-  drop (each is a section of `coga/contexts/coga/sync/SKILL.md` under
-  `## Git — durable task-state sync`):
+  drop (the first four are `###` sections of `coga/contexts/coga/sync/SKILL.md`
+  under `## Git — durable task-state sync`; the stash/rebase hardening is
+  under `## Control-branch contention and merge=union`; barriers are
+  specified in `coga/architecture`, see below):
   - *Feature-branch publication boundary* — landing state on control while
     the checkout is on a PR branch; assist publication with
     `force-with-lease`; the "verified single push destination" for forks;
@@ -59,7 +63,12 @@ covered by tests.
     should remove it.
   - *Stash-based dirty-tree handling* (`_rebase_onto_remote`,
     `_stash_if_dirty`, `_restore_to_orig`) — the orphaned stashes in
-    `multiply` show the restore path does not always run.
+    `multiply` show the restore path does not always run, contradicting the
+    "no leftover stash" claim in the contention section of the sync context.
+  - *Underscore reach-in* — roughly 30 call sites outside `git.py` import
+    private helpers directly (`_toplevel` ×15, `_run_git` ×14, `_tree_bytes`
+    ×5, `_remote_configured` ×4, `_commit_paths` ×4, `_fetch_branch_oid` ×3,
+    …). The real surface is about twice the public list above.
   - *Barriers and leases* (`state_publication_barrier`,
     `FeaturePublicationLease`, `FileMutationRollback`) — in-process
     transactions around ticket writes.
@@ -68,14 +77,19 @@ covered by tests.
 - Contexts cited, not attached. `coga/sync`
   (`coga/contexts/coga/sync/SKILL.md`) is the spec this ticket rewrites, so
   it is read at the design step, not composed; the design step must read
-  `## Git — durable task-state sync` through `## Design rule for new
-  features` in full. `coga/codebase` (`coga/contexts/coga/codebase/SKILL.md`)
+  `## Control-branch contention and merge=union` and `## Git — durable
+  task-state sync` through `## Design rule for new features` in full. (The
+  context also cites `git.py::_union_merge_paths`; the symbol is
+  `union_merge_paths` — fix in the rewrite.) `coga/codebase` (`coga/contexts/coga/codebase/SKILL.md`)
   owns the microkernel rule and test expectations; the fact that matters:
   `git.py` is shared infra (≥2 consumers) and stays in core, but a
   single-consumer helper does not belong there. `coga/architecture`
-  (`coga/contexts/coga/architecture/SKILL.md`, `Where a fact lives: docs vs
-  contexts`) decides which surface owns each fact when the sync context is
-  rewritten. The packaged twin
+  (`coga/contexts/coga/architecture/SKILL.md`): `Where a fact lives: docs vs
+  contexts` decides which surface owns each fact when the sync context is
+  rewritten, and the "state admission/publication barrier" paragraphs under
+  `## Status is the signal` are the spec for `state_publication_barrier` /
+  `FeaturePublicationLease` — read them before deciding what a barrier must
+  still guarantee. The packaged twin
   `src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md`
   must be updated byte-identically (`tests/test_packaging.py`).
 - Principles the design cannot trade away — `coga/principles`
@@ -92,7 +106,14 @@ covered by tests.
   same control branch (contention is real; `_MAX_SYNC_ATTEMPTS`).
 - Sequencing: `fix-git-sync-failure` lands first as the minimal live fix.
   The design step here should treat its rebase-on-refresh change as an
-  input, not a constraint.
+  input, not a constraint; if that ticket has not merged when design starts,
+  treat the change as hypothetical.
+- Expect a split: `code/design-then-implement` has one `implement` step and
+  no fan-out. The design step should propose how the implementation
+  divides (a plausible shape: context rewrite; control-branch core + tests;
+  feature-branch/PR consumers; barrier/lease consumers) and this ticket then
+  becomes a directory of child tickets, one per PR. Do not pre-split before
+  the design exists.
 - Out of scope: the notification half of `coga/sync` (Slack), the
   `coga usage` transcript-matching ambiguity seen in the same `multiply`
   session (separate ticket if it recurs).
