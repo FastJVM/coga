@@ -1113,7 +1113,7 @@ def test_mark_done_slack_text(repo: Path, monkeypatch: pytest.MonkeyPatch) -> No
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
-    assert any(f"🎉 claude finished *{slug}*" in m for m in posts)
+    assert any(f"🎉 marc finished *{slug}*" in m for m in posts)
 
 
 def test_mark_canceled_slack_text_includes_reason(

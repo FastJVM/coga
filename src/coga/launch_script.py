@@ -27,8 +27,9 @@ from coga.repl_supervisor import (
     ASSIST_PR_ENV,
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
+    SENTINEL_ENV,
 )
-from coga.task_env import apply_task_env, host_repo_root
+from coga.task_env import SCRIPT_TASK_ENV, apply_task_env, host_repo_root
 from coga.tasks import (
     BootstrapRef,
     TargetRef,
@@ -271,11 +272,14 @@ def run_script_phase(
     env = apply_task_env(env, cfg, ref, ticket)
     # A normal ticket script must not inherit ownership witnesses from an outer
     # agent session. A strict human assist re-mints only the narrow task and PR
-    # capability needed by in-script block/unblock operations. It deliberately
-    # remains non-supervised, so it cannot signal an outer REPL's done marker.
+    # capability needed by in-script lifecycle operations. Clear the sentinel
+    # itself too: lifecycle writers signal it even outside supervised sessions.
+    # Script attribution is separate from both ownership and publication.
     env.pop("COGA_SUPERVISED", None)
+    env.pop(SENTINEL_ENV, None)
     env.pop(EXPECTED_TASK_ENV, None)
     env.pop(EXPECTED_STEP_ENV, None)
+    env[SCRIPT_TASK_ENV] = str(ref.path.resolve())
     if strict_assist:
         env[EXPECTED_TASK_ENV] = str(ref.path.resolve())
         env[EXPECTED_STEP_ENV] = ticket.step or ""
@@ -570,9 +574,9 @@ def run_script_chain(
             )
         if publish_aligned_branch is not None:
             # The override authorizes the human-held phase only. Once a
-            # deterministic bump hands control to an agent step, every
-            # immediately chained script phase is attributed to that step's
-            # derived operator.
+            # deterministic bump hands control to an agent step, each chained
+            # script uses that step's derived agent for its assist publication
+            # capability. Deterministic completion still credits system.
             phase_assist_agent = operator.name
         current = after
 

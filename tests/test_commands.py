@@ -260,6 +260,25 @@ def test_bump_rewind_refuses_supervised_agent(repo: Path) -> None:
     assert t.step == "2 (pr)"
 
 
+@pytest.mark.parametrize("selector", [["--backward"], ["--to", "1"]])
+def test_bump_rewind_refuses_ticket_script(repo: Path, selector: list[str]) -> None:
+    slug, task_path = _make_task(repo)
+    runner = CliRunner()
+    assert runner.invoke(app, ["bump", slug]).exit_code == 0
+    before = task_path.read_bytes()
+    audit = _log_text(repo, slug)
+
+    result = runner.invoke(
+        app, ["bump", slug, *selector],
+        env={"COGA_SCRIPT_TASK": str(task_path)},
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "scripts cannot rewind" in result.output
+    assert task_path.read_bytes() == before
+    assert _log_text(repo, slug) == audit
+
+
 def _advance_then_set_status(repo: Path, status: str) -> tuple[str, Path]:
     """A task parked on step 2 with `status`, the shape a rewind lands on."""
     slug, task_path = _make_task(repo)
@@ -610,7 +629,7 @@ def test_bump_on_final_step_uses_mark_done_notification_shape(
     text, kwargs = notifications[0]
     assert (
         text
-        == f'🎉 claude finished *{slug}* "Work": merge → done'
+        == f'🎉 marc finished *{slug}* "Work": merge → done'
         " — shipped and verified"
     )
     assert kwargs["kind"] == "done"
@@ -782,10 +801,13 @@ def test_bump_gate_accepts_an_annotated_pr_line(repo: Path) -> None:
     assert Ticket.read(task_path).step == "2 (pr)"
 
 
+@pytest.mark.parametrize("script_identity", [False, True])
 def test_bump_final_step_requires_artifact_before_marking_done(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+    repo: Path, monkeypatch: pytest.MonkeyPatch, script_identity: bool
 ) -> None:
     slug, task_path = _make_task(repo)
+    if script_identity:
+        monkeypatch.setenv("COGA_SCRIPT_TASK", str(task_path))
     _set_step_requires(task_path, 2, "pr")
     runner = CliRunner()
     runner.invoke(app, ["bump", slug])
