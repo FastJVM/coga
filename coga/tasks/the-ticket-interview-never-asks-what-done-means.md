@@ -27,7 +27,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (review-design)
+step: 3 (implement)
 ---
 
 ## Description
