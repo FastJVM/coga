@@ -27,7 +27,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (open-pr)
+step: 5 (review)
 ---
 
 ## Description
@@ -510,3 +510,17 @@ Task: `the-ticket-interview-never-asks-what-done-means`
 Recorded: 2026-09-19T01:49:10+00:00
 
     `coga open-pr` must run from the primary control checkout on 'main', not branch 'gh-backed-readonly-context'. Return to the control checkout and rerun it; the command will still push the recorded feature branch by name.
+
+## Open-PR notes (2026-09-18)
+
+PR #837 opened by `coga open-pr`: https://github.com/FastJVM/coga/pull/837.
+No independent review was ordered by `implement` (`code/implement` calls for
+self-review only, and the workflow has no self-qa/peer-review step), so
+nothing was in flight. The command refused from `gh-backed-readonly-context`
+(control branch is the default `main`); it was run from `main` per the
+borrow-and-return procedure — nothing to stash, ticket bytes identical on both
+branches — which committed `pr:` on `main` as `52b887e6` (pushed), then `main`
+was merged back into `gh-backed-readonly-context` (owner's choice, matching
+the branch's existing merge pattern) so the live ticket carries the line for
+the `requires: pr` gate. Next step (`review`, owner-held): merge or comment on
+#837.
