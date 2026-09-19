@@ -27,9 +27,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 0c2099a2-09cf-4b7b-a174-3c52c05f0a29
 ---
 
 ## Description
@@ -159,3 +158,53 @@ the older `remov-digest-in-recurring` blackboard discusses related audit landing
 Retro should carry this finding into its durable owning context/follow-up before
 deleting this ticket. Current tests assert local attribution and preserve the
 existing checks that task state reaches both refs; no publication changes here.
+
+## Peer review
+
+`codex review --base main` **returned** successfully (exit 0) from
+`/tmp/coga-system-completion`: **no actionable regressions**. The reviewer ran
+all **2,684 tests** on the original feature commit. Transcript:
+`/tmp/coga-headless-peer-review-20260918.log`. No must-fix changes were needed.
+
+`git fetch origin main` and `git rebase FETCH_HEAD` succeeded without conflicts.
+The implementation is now **0477f3dc**, based on **10959762**. `git range-diff
+c6fcfcb1..047c353e origin/main..HEAD` confirms the reviewed patch is unchanged.
+A final fetch found no further main changes; the feature checkout is clean and
+committed, with zero commits behind and one ahead of `origin/main`.
+
+Final verification:
+
+- `PYTHONPATH=/tmp/coga-system-completion/src /tmp/coga-system-completion-venv/bin/python -m pytest -q` — **2,686 passed in 256.07s** after rebase.
+- From the primary checkout: `PYTHONPATH=/tmp/coga-system-completion/src /tmp/coga-system-completion-venv/bin/python -m coga.cli validate --task attribute-headless-recurring-completions-to-system --json` — one valid ticket, no issues.
+- `git diff --check origin/main...HEAD` — clean. Separate `cmp` checks confirmed byte-identical architecture, codebase, and launch-internals live/packaged pairs after rebase.
+- `PYTHONPATH=/tmp/coga-system-completion/src /tmp/coga-system-completion-venv/bin/python /tmp/coga-headless-terminal-check.py` — real launcher → two script phases → child CLI bumps in **80×24** and **120×30** PTYs. The visible text said `system advanced` and `system finished`, each transition occurred once, and the outer sentinel remained unchanged. Isolated fixtures used disabled Git/notification channels; no production maintenance recipe or live test notification ran. The existing Slack formatter is covered by payload assertions; no renderer changed.
+
+The previously recorded strict-assist audit-publication finding remains outside
+this identity change. Its baseline reproduction and Retro handoff are preserved
+above. The PR body below is ready for the next frozen step.
+
+## PR
+
+### Problem and change
+
+Headless recurring `ticket.py` children previously logged completion as the local
+human while announcing the configured agent as finisher. Carry a task-scoped
+script identity across the subprocess boundary so `bump` and `mark done` credit
+`system`. Clear the inherited outer done sentinel and retain the existing
+lifecycle gates and strict assist publication checks. Human CLI calls,
+supervised agents, and verified assists retain distinct attribution.
+
+Update the architecture, launch-internals, and PR 705 codebase contract plus
+packaged twins. Tests exercise all four recurring shims through real child CLI
+bumps with maintenance recipes stubbed.
+
+Ticket: [Attribute headless recurring completions to system](https://github.com/FastJVM/coga/blob/main/coga/tasks/attribute-headless-recurring-completions-to-system.md).
+
+### Verification
+
+Test plan: full suite, scoped ticket validation, and isolated real-subprocess terminal checks.
+
+- `PYTHONPATH=/tmp/coga-system-completion/src /tmp/coga-system-completion-venv/bin/python -m pytest -q` — **2,686 passed** after rebase.
+- `PYTHONPATH=/tmp/coga-system-completion/src /tmp/coga-system-completion-venv/bin/python -m coga.cli validate --task attribute-headless-recurring-completions-to-system --json` (primary checkout) — no issues.
+- `PYTHONPATH=/tmp/coga-system-completion/src /tmp/coga-system-completion-venv/bin/python /tmp/coga-headless-terminal-check.py` — 80×24 and 120×30 PTY checks passed; system wording, exactly one transition per step, and outer-sentinel isolation verified.
+- `git diff --check origin/main...HEAD` and live/packaged context comparisons — clean. `codex review --base main` returned with no actionable findings.
