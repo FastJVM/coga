@@ -44,7 +44,9 @@ def _is_within_control_worktree(path: Path) -> bool:
     )
 
 
-def discover_coga_repos(root: Path, *, strict: bool = False) -> list[Path]:
+def discover_coga_repos(
+    root: Path, *, strict: bool = False, allow_control_worktree_root: bool = False
+) -> list[Path]:
     """Return every ``coga/`` workspace at or below ``root``.
 
     Below the scan root a workspace is identified by a directory named ``coga``
@@ -62,12 +64,17 @@ def discover_coga_repos(root: Path, *, strict: bool = False) -> list[Path]:
     would then report the current workspace as missing and every `coga retire`
     would skip its worktree and branch cleanup.
 
+    ``allow_control_worktree_root`` lets cleanup inspect an explicitly
+    selected Git checkout inside a recurring temporary parent. It does not
+    make nested temporary parents discoverable, and scheduler callers retain
+    the default exclusion.
+
     ``strict`` makes an unreadable directory fail the scan instead of being
     silently omitted. Destructive callers use that mode so incomplete
     discovery preserves shared state; parent schedulers retain best-effort
     discovery and report configuration/dispatch failures per workspace.
     """
-    if _is_within_control_worktree(root):
+    if not allow_control_worktree_root and _is_within_control_worktree(root):
         return []
     if (root / "coga.toml").is_file():
         return [root]

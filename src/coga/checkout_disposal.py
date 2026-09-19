@@ -74,7 +74,7 @@ class CheckoutDisposal:
         The same rule `retire_worklist.is_discharged` applies to a worklist
         entry; the remote ref is best effort and the weekly sweep's to catch.
         """
-        return self.worktree_gone and not self.local_branch_remains
+        return self.claim is None and self.worktree_gone and not self.local_branch_remains
 
     @property
     def reason(self) -> str:
@@ -219,7 +219,9 @@ def live_checkout_claim(
     if branch is None and source_worktree is None:
         return None
 
-    workspaces = discover_coga_repos(root, strict=True)
+    workspaces = discover_coga_repos(
+        root, strict=True, allow_control_worktree_root=True
+    )
     current_workspace = cfg.repo_root.resolve()
     if current_workspace not in {workspace.resolve() for workspace in workspaces}:
         raise RuntimeError(
