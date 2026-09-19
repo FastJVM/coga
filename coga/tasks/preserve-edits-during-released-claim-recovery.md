@@ -22,16 +22,19 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 1333126c-d74c-4a1b-8378-0277e2582484
+contexts:
+- coga/launch-internals
+- coga/codebase
+- dev/code
 ---
 
 ## Description
 
 Preserve a manual ticket edit made while released-launch recovery fetches control. Reconciliation currently validates one local revision, fetches remotely, then captures a fresh rollback snapshot and overwrites that later revision with the earlier admitted form.
 
-This is a provisional P2 fix scope from [the triage](triage-five-review-comments-that-merged-unanswered.md). Owner verdict is unset; keep the draft unactivated.
+This P2 fix scope comes from [the triage](triage-five-review-comments-that-merged-unanswered.md). The ticket is now activated for implementation.
 
 ### Evidence and source
 
@@ -58,6 +61,40 @@ Tradeoff: a concurrent manual correction causes a recoverable refusal and anothe
 
 ## Context
 
+- `src/coga/commands/launch.py::_reconcile_released_launch_admission` validates local released bytes, fetches control, and normalizes only an exact matching pending/admitted revision. Its mutation baseline must remain the validated local revision throughout that fetch.
+- `src/coga/git.py::FileMutationRollback.require_unchanged` compares live bytes with `originals` before an unarmed mutation; constructing `FileMutationRollback` from validated bytes reuses that guard without changing shared rollback behavior.
+
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: fix/released-claim-edits
+worktree: /tmp/coga-released-claim-edits
+
+## Implementation plan
+
+- Follow the active `implement` assignment; the earlier draft-only triage sentence predates activation and has been updated to reflect the current ticket state.
+- Reproduce the manual-edit fetch window with the local bare-remote fixture for both pending and admitted control revisions, before changing production code.
+- Bind the rollback baseline to validated `current_bytes`, retain the existing immediate pre-write check, and preserve remote compare-and-set and barrier-held rollback behavior.
+- Update the owning launch-internals invariant and codebase PR 747 gotcha with byte-identical packaged twins; run focused recovery/packaging checks and the complete suite, commit, refresh against main, and bump from the primary checkout.
+
+## Findings and verification
+
+- Confirmed PR 747's original review comment and the unchanged post-fetch snapshot in `commands/launch.py::_reconcile_released_launch_admission`.
+- Before the fix, the local bare-remote regression matrix reproduced all four cases (body/blackboard × pending/admitted): launch reported reconciliation success instead of refusing. The two unchanged recoveries, two mismatched-control refusals, and two publication-failure restorations passed (4 failed, 6 passed).
+- Use `PYTHONPATH=/tmp/coga-released-claim-edits/src .venv/bin/python -m pytest` from the feature checkout. Its isolated `.venv` has the declared `.[test]` tools, including hatchling so the wheel build is exercised. No shared rollback code change or example-layout/workflow change is needed.
+- After the fix, the same focused command passes all 10 cases. The four edit cases exercise the ordinary CLI and assert retry-without-sweep exit 75, the loud changed-input error, exact edited bytes and `released:held-generation`, unchanged local/remote tips, and no agent spawn.
+- Updated `coga/launch-internals` as the invariant owner and the PR 747 summary in `coga/codebase`, including both packaged twins. A search of `docs/` found no released-witness specification to reconcile; existing architecture/sync summaries remain accurate. Scope is the control-fetch window, with no atomic editor-lock claim.
+
+Commands run from `/tmp/coga-released-claim-edits`:
+
+- `PYTHONPATH=/tmp/coga-released-claim-edits/src .venv/bin/python -m pytest -q tests/test_launch.py -k 'released_admission_changed_during_control_fetch or released_launch_admission' --tb=short` — red 4/green 10 as above.
+- `PYTHONPATH=/tmp/coga-released-claim-edits/src .venv/bin/python -m pytest -q tests/test_packaging.py tests/test_git.py tests/test_megalaunch.py tests/test_launch.py` — 594 passed, including the real wheel build and twin checks.
+- `PYTHONPATH=/tmp/coga-released-claim-edits/src .venv/bin/python -m pytest` — 2,665 passed before the final rebase and again on final commit `4d3f65bc` (207.02 seconds).
+- `git diff --check` — clean.
+
+## Handoff
+
+- Implementation commit: `4d3f65bc` (`Preserve edits during released claim recovery`). Feature checkout is clean; the feature branch remains unpushed and no PR was opened. Ready for peer review.
+- Final `git fetch origin main` brought six generated task/log commits (`3cc80827..becfa9d3`); `git rebase FETCH_HEAD` succeeded without conflicts and `git rev-list --left-right --count origin/main...HEAD` reports `0 1`.
+- No adjacent bug was discovered. The existing barrier and conditional rollback are unchanged; a concurrent editor write after the last local comparison remains outside this fix's promised fetch-window scope.
