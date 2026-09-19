@@ -355,12 +355,19 @@ the held child. A post-release admission failure kills the child but retains
 the audit and records `released:<uuid>` locally before retaining it for
 reconciliation. `coga launch <slug>` is the supported retry: it verifies the
 whole remote ticket is the matching pending or already-admitted revision,
-strictly publishes the plain UUID, and refuses to spawn if that proof or Git
-publication fails. Thus an edit during the append cannot start stale work or
-publish a false launch record, and no audit failure or release-boundary
-interrupt starts unrecorded work. It never compensates backward to `active`;
-the retained pending, released, or admitted claim is the durable reconciliation
-witness. Another megalaunch refuses every form before it can rotate the claim.
+then rechecks the local ticket against the exact released bytes validated
+before fetching control. If those local bytes changed, recovery refuses before
+admission or publication and preserves the edited bytes and released generation
+without restoring over them or spawning. The publication barrier serializes
+Coga writers, not ordinary editors: this pre-write comparison closes the fetch
+window without providing a filesystem-wide atomic editor lock. With unchanged
+local bytes, recovery strictly publishes the plain UUID and refuses to spawn
+if the remote proof or Git publication fails. Thus an edit during the append
+cannot start stale work or publish a false launch record, and no audit failure
+or release-boundary interrupt starts unrecorded work. It never compensates
+backward to `active`; the retained pending, released, or admitted claim is the
+durable reconciliation witness. Another megalaunch refuses every form before
+it can rotate the claim.
 
 Git-disabled repositories use a plain generation and retain both exact local
 rereads and the local admission barrier without claiming a nonexistent control

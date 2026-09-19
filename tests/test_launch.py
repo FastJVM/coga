@@ -29,7 +29,7 @@ from coga.commands.launch import (
     missing_launch_file_message,
     spawn_agent_session,
 )
-from coga.config import AgentType, load_config
+from coga.config import AgentType, Config, load_config
 from coga.github_preflight import CheckResult
 from coga.launch_script import ScriptPublicationError, run_script_phase
 from coga.repl_supervisor import (
@@ -3792,14 +3792,9 @@ def test_launch_reconciles_a_released_megalaunch_admission_before_spawn(
     assert Ticket.read(ticket_md).launch_generation == "held-generation"
 
 
-@pytest.mark.parametrize(
-    "control_generation",
-    ["pending:held-generation", "held-generation"],
-)
-def test_released_launch_admission_reconciles_control_ticket(
+def _seed_released_launch_admission(
     git_repo, control_generation: str,
-) -> None:
-    """Recovery accepts only the matching pending/already-admitted remote."""
+) -> tuple[Config, TaskRef, bytes]:
     cfg = load_config(git_repo.coga_os)
     created = create_task(
         cfg=cfg,
@@ -3827,6 +3822,20 @@ def test_released_launch_admission_reconciles_control_ticket(
     released.frontmatter["launch_generation"] = "released:held-generation"
     released_bytes = released.render().encode()
     released.write(ref.ticket_path)
+    return cfg, ref, released_bytes
+
+
+@pytest.mark.parametrize(
+    "control_generation",
+    ["pending:held-generation", "held-generation"],
+)
+def test_released_launch_admission_reconciles_control_ticket(
+    git_repo, control_generation: str,
+) -> None:
+    """Recovery accepts only the matching pending/already-admitted remote."""
+    cfg, ref, released_bytes = _seed_released_launch_admission(
+        git_repo, control_generation
+    )
 
     admitted_bytes = launch_module._reconcile_released_launch_admission(
         cfg,
@@ -3838,11 +3847,123 @@ def test_released_launch_admission_reconciles_control_ticket(
         "held-generation"
     )
     assert Ticket.read(ref.ticket_path).launch_generation == "held-generation"
+    ticket_rel = str(ref.ticket_path.relative_to(git_repo.root))
     remote = Ticket.parse(
         git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
     )
     assert remote.launch_generation == "held-generation"
     assert git_repo.git("status", "--porcelain") == ""
+
+
+@pytest.mark.parametrize(
+    "control_generation",
+    ["pending:held-generation", "held-generation"],
+)
+@pytest.mark.parametrize("edit_region", ["body", "blackboard"])
+def test_launch_refuses_released_admission_changed_during_control_fetch(
+    git_repo, monkeypatch: pytest.MonkeyPatch,
+    control_generation: str, edit_region: str,
+) -> None:
+    """A real control fetch must not make a manual correction disposable."""
+    _cfg, ref, released_bytes = _seed_released_launch_admission(
+        git_repo, control_generation
+    )
+    correction = b"\nManual correction during released-admission recovery.\n"
+    fence = b"<!-- coga:blackboard -->"
+    edited_bytes = (
+        released_bytes.replace(fence, correction + b"\n" + fence)
+        if edit_region == "body"
+        else released_bytes + correction
+    )
+    local_head = git_repo.git("rev-parse", "HEAD")
+    remote_head = git_repo.git("rev-parse", "main", cwd=git_repo.origin)
+    real_control_base = coga_git._control_base_for_attempt
+    fetched: list[str] = []
+
+    def edit_during_fetch(*args, **kwargs):  # type: ignore[no-untyped-def]
+        base = real_control_base(*args, **kwargs)
+        if not fetched:
+            assert ref.ticket_path.read_bytes() == released_bytes
+            ref.ticket_path.write_bytes(edited_bytes)
+        fetched.append(base)
+        return base
+
+    def refuse_spawn(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        pytest.fail("changed released admission must not spawn an agent")
+
+    monkeypatch.setattr(coga_git, "_control_base_for_attempt", edit_during_fetch)
+    monkeypatch.setattr(launch_module, "spawn_agent_session", refuse_spawn)
+    _allow_interactive_tty(monkeypatch)
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.output
+    assert "strict mutation input changed before writing" in result.output
+    assert "recoverable local witness was retained" in result.output
+    assert len(fetched) == 1
+    assert ref.ticket_path.read_bytes() == edited_bytes
+    assert Ticket.read(ref.ticket_path).launch_generation == (
+        "released:held-generation"
+    )
+    assert git_repo.git("rev-parse", "HEAD") == local_head
+    assert git_repo.git("rev-parse", "main", cwd=git_repo.origin) == remote_head
+
+
+@pytest.mark.parametrize(
+    "control_generation",
+    ["pending:held-generation", "held-generation"],
+)
+def test_released_launch_admission_refuses_changed_control_ticket(
+    git_repo, control_generation: str,
+) -> None:
+    cfg, ref, released_bytes = _seed_released_launch_admission(
+        git_repo, control_generation
+    )
+    ticket_rel = str(ref.ticket_path.relative_to(git_repo.root))
+    control_bytes = git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
+    git_repo.push_competing_commit(ticket_rel, control_bytes + "\nRemote correction.\n")
+    local_head = git_repo.git("rev-parse", "HEAD")
+    remote_head = git_repo.git("rev-parse", "main", cwd=git_repo.origin)
+
+    with pytest.raises(coga_git.StateRegressionError, match="control ticket changed"):
+        launch_module._reconcile_released_launch_admission(
+            cfg, ref.ticket_path, expected_ticket_bytes=released_bytes
+        )
+
+    assert ref.ticket_path.read_bytes() == released_bytes
+    assert git_repo.git("rev-parse", "HEAD") == local_head
+    assert git_repo.git("rev-parse", "main", cwd=git_repo.origin) == remote_head
+
+
+@pytest.mark.parametrize(
+    "control_generation",
+    ["pending:held-generation", "held-generation"],
+)
+def test_released_launch_admission_restores_witness_on_publication_failure(
+    git_repo, monkeypatch: pytest.MonkeyPatch, control_generation: str,
+) -> None:
+    cfg, ref, released_bytes = _seed_released_launch_admission(
+        git_repo, control_generation
+    )
+    local_head = git_repo.git("rev-parse", "HEAD")
+    remote_head = git_repo.git("rev-parse", "main", cwd=git_repo.origin)
+
+    def fail_publication(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        assert Ticket.read(ref.ticket_path).launch_generation == "held-generation"
+        raise coga_git.GitError("simulated admission publication failure")
+
+    monkeypatch.setattr(coga_git, "_sync_paths_without_barrier", fail_publication)
+
+    with pytest.raises(
+        coga_git.GitError, match="simulated admission publication failure"
+    ):
+        launch_module._reconcile_released_launch_admission(
+            cfg, ref.ticket_path, expected_ticket_bytes=released_bytes
+        )
+
+    assert ref.ticket_path.read_bytes() == released_bytes
+    assert git_repo.git("rev-parse", "HEAD") == local_head
+    assert git_repo.git("rev-parse", "main", cwd=git_repo.origin) == remote_head
 
 
 def test_launch_auto_activate_bails_without_workflow(

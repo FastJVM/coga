@@ -527,8 +527,9 @@ def _reconcile_released_launch_admission(
     control only when the whole remote ticket is either the matching pending
     revision (publication definitely failed) or the matching plain revision
     (an ambiguous push actually landed), then strictly publishes/normalizes the
-    plain UUID. Every failure restores the local ``released:`` witness so a
-    later retry remains recognizable, and no broad state sweep can admit it.
+    plain UUID. Failed publication conditionally restores the local
+    ``released:`` witness; concurrent local edits remain for explicit
+    reconciliation, and no broad state sweep can admit it.
     """
     with git.state_publication_barrier(cfg):
         try:
@@ -609,7 +610,12 @@ def _reconcile_released_launch_admission(
                 "launch-admission reconciliation"
             )
 
-        mutation = git.FileMutationRollback.capture((ticket_path,))
+        # The control fetch can outlast an ordinary editor write. Only the
+        # released revision validated above is safe to normalize.
+        mutation = git.FileMutationRollback(
+            originals={ticket_path: current_bytes},
+            union_paths=frozenset(),
+        )
         mutation.require_unchanged(ticket_path)
         admit_pending = control_bytes == pending_bytes
         try:
