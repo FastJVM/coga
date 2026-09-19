@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -78,4 +78,136 @@ A revision/freshness check adds synchronization cost and must preserve attributi
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: fix/recurring-ledger-freshness
+worktree: /tmp/coga-recurring-ledger-freshness
+
+## Implementation notes
+
+- Owner confirmed the implementation plan in the attended session on 2026-09-18.
+- Rechecked `recurring_runner._control_serviced_period_cached`: the preloaded
+  cache has no revision binding; create and retry fetches reuse it unchanged.
+- Implement in the separate feature checkout; preserve the primary checkout's
+  pre-existing generated log edit. No push or PR in this step.
+- Plan: bind pre-create cache to control revision, refresh all requested targets
+  before first publication when it changes, and recognize this sweep's own
+  published log. If a later external log change cannot be safely attributed,
+  refuse visibly and clean up the local candidate so it cannot bypass admission
+  on a second sweep. Keep unchanged-log reuse and existing transport behavior.
+- Regression reproduced on the fresh feature checkout: the reaped/preloaded
+  case republished the task; fallback and existing-peer cases passed. No live
+  dispatch was used. The new tests also assert removal from `scan.due`.
+- Implemented revision binding, complete-target refresh before first successful
+  publication (including rejected-push retries), and tracking of known own
+  publications. Afterwards, a Git log diff identifies externally changed
+  template ledger lines; those templates refuse conservatively while unrelated
+  templates remain serviceable. Explicit overrides still refresh/validate but
+  bypass dedup comparisons.
+- Tests run from `/tmp/coga-ledger-test-env` (editable feature install), with
+  absolute `PYTHONPATH=/tmp/coga-recurring-ledger-freshness/src` to avoid source
+  skew. Initial recurring suite: 374 passed, 2 failures caused by skip-reason
+  ordering; preserving the generation-change check before handled-period skip
+  fixed both. Expanded race/retry/refusal and full verification results follow.
+- Focused verification passed: `PYTHONPATH=/tmp/coga-recurring-ledger-freshness/src
+  /tmp/coga-ledger-test-env/bin/python -m pytest tests/test_recurring.py
+  tests/test_packaging.py -q` — **402 passed**. Includes preloaded/fallback,
+  reaped/done/active peer, initial and post-publication push retries on both
+  control and feature branches, full-target cache reuse, unaffected templates,
+  second-sweep suppression after refusal, read failures, and forced validation.
+- Updated the owning recurring contract, current-direction pointer, and PR 699
+  codebase gotcha; copied both existing packaged twins. No task-layout, prompt,
+  or workflow-schema change, so no example fixture change is required.
+- Guarantee limit: before any own publication, refreshed control suppresses a
+  competitor's serviced period. Afterwards, only observable changed ledger
+  lines can be attributed conservatively; byte-identical competing records or
+  changes with no net diff cannot be distinguished. This is not exactly-once
+  execution. Existing outer transport fallback and per-child leases remain.
+- Full verification passed: `PYTHONPATH=/tmp/coga-recurring-ledger-freshness/src
+  /tmp/coga-ledger-test-env/bin/python -m pytest` — **2674 passed in 200.39s**.
+- Committed as `632942a8` (`Refresh recurring ledger before create publication`)
+  after fetching and rebasing onto `origin/main` at `4425d829`. Upstream changed
+  only another ticket and `coga/log.md`; implementation/source/test/context
+  bytes are unchanged by the rebase. Post-rebase focused rerun: **402 passed in
+  53.10s** using the exact focused command above. `git diff --check` passed and
+  `git merge-base --is-ancestor origin/main HEAD` confirmed freshness. Feature
+  checkout is clean. No implementation push or PR.
+
+## Implement handoff
+
+Implementation complete; ready for peer review. The reviewed guarantee should
+match the owning recurring context's observed-revision boundary, especially
+conservative post-publication refusal and byte-identical/net-zero-diff limits.
+All tests use local Git remotes and mocked dispatch; no live recurring jobs ran.
+
+
+## Peer review
+
+- `codex review --base main` **returned** (exit 0) on 2026-09-18.
+  Review transcript: `/tmp/coga-ledger-peer-review.log` (local artifact).
+- One must-fix P2: a transient first create-fetch failure followed by a
+  successful `git.sync_paths` fallback publishes pending sweep ledger records
+  without updating the cache's own-publication provenance. The next template
+  refreshes and mistakes its own pending record for a competitor, suppressing
+  its work. The reviewer reproduced this with two templates; only the first
+  remained due. The existing recurring suite passed (389 tests).
+- Owner approved the fallback-provenance fix in this attended session.
+- Generic path sync now returns the accepted control revision for ordinary
+  publication. The recurring fallback uses its existing guard for ledger
+  admission/retry checks and records that exact revision as its own publication.
+  A subsequent fetch cannot accidentally attribute an intervening peer push to
+  this sweep. Transport failures still save the local create and remain
+  best-effort; ledger refusals do not enter that fallback.
+- Added 16 local-Git cases covering control/feature branches, cold/preloaded
+  caches, and no competitor or a competitor before/during/after fallback
+  publication. With existing fallback cases, 20 targeted tests passed.
+- Focused verification initially exposed the existing offline local-commit
+  contract (417 passed, 1 failed); restored local commit after a non-publishing
+  generic fallback; the final verification below passes that regression.
+- No raw-terminal, pager, TTY prompt, or rendered Slack surface changed; this
+  diff changes recurring admission and plain console skip diagnostics.
+- Follow-up `codex review --base main` **returned** (exit 0), with one
+  additional P2 in the same provenance boundary: after a first create loses
+  its push retry, the subsequent audit-only push publishes pending records
+  without marking them as this sweep's own. Transcript:
+  `/tmp/coga-ledger-peer-review-followup.log` (local artifact).
+- Fixed both returned findings. Generic fallback publications return their
+  accepted control OID and guard ledger admission/retries; audit-only pushes
+  bind the cache to pushed HEAD and refresh the competitor snapshot on retry.
+  Added four audit-publication cases alongside the sixteen fallback cases.
+  All 25 targeted tests passed, including existing transport/offline contracts.
+- Committed the fixes, then rebased unconditionally onto fetched main at
+  `460ea14c`. Feature HEAD is `df6ed6cb` (implementation `96ada5de`). Rebase
+  brought only an unrelated ticket update; feature checkout is clean and
+  `git diff origin/main...HEAD --check` passes. Both returned findings are
+  addressed, and the PR description is authored below.
+- Final post-rebase verification, importing this checkout's source explicitly
+  under Python 3.12.12:
+  - `PYTHONPATH=/tmp/coga-recurring-ledger-freshness/src /tmp/coga-ledger-test-env/bin/python -m pytest tests/test_recurring.py tests/test_packaging.py -q`
+    — **422 passed in 63.65s**.
+  - `PYTHONPATH=/tmp/coga-recurring-ledger-freshness/src /tmp/coga-ledger-test-env/bin/python -m pytest`
+    — **2694 passed in 207.95s**.
+- Feature branch is clean, committed, and ahead of fetched main; no feature
+  push or PR was performed in peer review. Ready for the mechanical open-pr
+  step. The primary checkout's existing generated log changes were preserved.
+
+## PR
+
+A competing checkout can finish and reap a recurring period after the sweep
+scans it but before its first create sync. Bind the pre-create ledger cache to
+control's revision and refresh every requested target before publication and
+on rejected-push retries, so the losing create is excluded from dispatch.
+
+Track this sweep's own publications, including recovered generic sync and
+log-only pushes, so pending records do not suppress other due templates.
+Refuse ambiguous later ledger changes visibly and discard local candidates
+that could bypass admission on the next sweep. Preserve explicit reruns,
+malformed-ledger checks, offline local saves, and bounded unchanged-revision
+reads. Update the recurring contract, current-direction summary, and codebase
+gotcha, with packaged context twins kept identical.
+
+The guarantee is tied to observed control revisions: byte-identical competing
+records and intervening changes with no net ledger diff are not distinguishable;
+this does not provide global exactly-once execution.
+
+Test plan: `PYTHONPATH=/tmp/coga-recurring-ledger-freshness/src /tmp/coga-ledger-test-env/bin/python -m pytest tests/test_recurring.py tests/test_packaging.py -q` (422 passed); `PYTHONPATH=/tmp/coga-recurring-ledger-freshness/src /tmp/coga-ledger-test-env/bin/python -m pytest` (2694 passed). Local Git remotes and mocked dispatch only; no live recurring jobs.
