@@ -24,7 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -159,3 +159,53 @@ Single-checkout layout: branch created in place from `main`.
 - `tests/test_packaging.py`: 13 passed (twin parity holds).
 - Rebased onto `origin/main` (68ad9cd8; incoming commits were task/log state
   only).
+
+## Peer review
+
+- `codex review --base main` ran in `/home/n/Code/coga` on
+  `gh-backed-readonly-context` and **returned** (exit 0): no actionable
+  regressions; the documented installer/update behavior matches the source,
+  and the live context and packaged twin are byte-identical. No must-fix
+  findings or design changes.
+- The review's targeted tests could not collect under the default Python
+  because `tomlkit` was missing. Verified the existing Python 3.12 test venv
+  `/tmp/coga-skill-attribution-venv` has the declared test dependencies;
+  final validation used it with this checkout's absolute `PYTHONPATH`.
+- Independently checked the GitHub/URL install and update paths, managed
+  manifest, upstream-install commit `321e6231`, and subsequent pack refresh
+  commits. PR #773 is merged and its counter-instruction remains intact.
+- No terminal, pager, prompt, or rendered-message behavior changes in this
+  docs-only diff; no interactive-surface exercise is applicable.
+- Ran `git fetch origin main` then `git rebase FETCH_HEAD` unconditionally;
+  rebased cleanly onto `ca52f488`. Git dropped two state commits already
+  upstream; the context changes are unchanged.
+- Moved the stale, ignored `bootstrap/open-pr/` directory (only
+  `__pycache__/recipe.cpython-312.pyc`) to
+  `/tmp/coga-gh-backed-readonly-stale-cache-_gs420bl/open-pr`. No tracked
+  files changed.
+- After rebasing, ran
+  `PATH=/tmp/coga-skill-attribution-venv/bin:$PATH PYTHONPATH=/home/n/Code/coga/src python -m pytest`:
+  **2657 passed** in 185.63 seconds, including the previously failing
+  open-PR test and all 13 packaging checks.
+- `git diff --check origin/main...HEAD` and `cmp` of the live and packaged
+  codebase contexts both passed.
+
+## PR
+
+GitHub-backed managed skills have no Coga digest guard, so upstream refreshes
+can overwrite local adaptations. Document their read-only handling and the
+options to fix them upstream or hand-vendor attributed copies in the codebase
+context and its packaged twin. Record why the seven Google packs are retained as the
+repo's real GitHub install/update exercise, alongside the existing rule against
+running their upstream installer.
+
+Test plan: `PATH=/tmp/coga-skill-attribution-venv/bin:$PATH PYTHONPATH=/home/n/Code/coga/src python -m pytest` (2657 passed, including packaging parity); `git diff --check origin/main...HEAD`.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `installer-managed-skills-the-local-adaptation-guar`
+Recorded: 2026-09-19T00:59:14+00:00
+
+    Recorded worktree '/home/n/Code/coga' has uncommitted changes. The implement/peer-review steps must commit implementation work before open-pr. This is the single-checkout layout: preserve live task/log edits here and commit them separately from implementation work. Then relaunch.
