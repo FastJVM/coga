@@ -96,8 +96,8 @@ useful hint, so do offer it by name.
 with `Status: draft`. `coga ticket "<title>"` just scaffolded this draft and
 launched you against it. Its body is still empty — that's expected, not a
 signal of anything. Open with:
-> "Your `<slug>` ticket has been created (draft). What should it do, and why?
-> I'll turn your answer into the ticket."
+> "Your `<slug>` ticket has been created (draft). What should it do, why now,
+> and what would count as done? I'll turn your answer into the ticket."
 
 - **Existing-ticket edit** — kickoff `Begin (editing existing ticket)`; a real
 `tasks/<slug>` at any status (`draft`, `active`, `in_progress`, `blocked`,
@@ -110,7 +110,8 @@ create` and then opened here. Open with:
   Preserve existing useful body text and frontmatter; ask only about the parts
   they want to change. If the body is empty there's nothing to preserve, so
   greet as an edit but pivot straight to filling it ("…it's empty right now, so:
-  what should it do, and why?") — never announce it "has been created". For an
+  what should it do, why now, and what would count as done?") —
+  never announce it "has been created". For an
   `in_progress`, `blocked`, `done`, or `canceled` ticket, note you are revising
   one already in flight, blocked, or finished — confirm intent if the change
   looks substantive.
@@ -216,8 +217,18 @@ Cover these, in this order, in plain conversation. Stop pulling once you
 have enough — don't ask every question if the title already implies the
 answer.
 
-1. **Description** — what needs to happen and why, in 2–4 sentences. This
-   becomes the `## Description` body.
+1. **Description and done** — what needs to happen, why now, and the smallest
+   observable result that means the ticket is finished, in 2–4 sentences. This
+   becomes the `## Description` body. Write the done criteria as prose inside
+   `## Description` — do **not** add an `## Acceptance Criteria` section.
+   `coga launch` composes only `## Description`, `## Context`, and the
+   blackboard into an agent's prompt, so anything written under another `##`
+   heading never reaches the agent who has to satisfy it. When the workflow
+   has a `code/design` step, that step expands the done sentence into the
+   *Acceptance criteria* checklist under `## Description`; `code/design` is
+   the only author of that checklist, so leave it a sentence here. If the
+   human's answer leaves done implicit, ask one targeted follow-up ("how will
+   you know it worked?") rather than inventing a criterion.
 2. **Context** — what's the agent who picks this up later going to wish they
    knew? Codebase pointers, gotchas, related tickets, out-of-scope notes.
    This becomes the `## Context` body.
@@ -349,6 +360,8 @@ Hand the evaluator the path to the ticket and ask it to assess:
 
 - Is the description clear enough that an agent with no prior context could
   start work?
+- Is it clear what would count as done — could a reviewer tell whether the
+  finished work satisfies the ticket?
 - Does the chosen workflow fit the shape of the work? Any obvious mismatch?
 - Are the attached contexts relevant? Anything important missing?
 - Are any attached contexts broad enough that the needed fact should have been

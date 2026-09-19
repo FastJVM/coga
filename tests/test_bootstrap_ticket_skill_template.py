@@ -132,3 +132,33 @@ def test_bootstrap_ticket_context_cites_symbols_not_line_numbers() -> None:
         "State the relationship that makes the fact load-bearing, not its "
         "coordinates." in normalized
     )
+
+
+def test_bootstrap_ticket_interview_asks_what_done_means() -> None:
+    """The interview elicits a definition of done in its first substantive
+    question — greeting, empty-body pivot, and Step 3 item 1 alike — without
+    adding a seventh question, and lands it as prose inside `## Description`.
+    A separate `##` section would never compose into the implement prompt;
+    `code/design` is the only author of the acceptance-criteria checklist."""
+    text = BOOTSTRAP_TICKET_SKILL.read_text()
+    normalized = " ".join(text.split())
+
+    # The greeting and the empty-body pivot both ask for done up front.
+    assert normalized.count("what would count as done?") >= 2
+    assert (
+        "What should it do, why now,\n> and what would count as done? I'll turn "
+        "your answer into the ticket." in text
+    )
+    assert (
+        "it's empty right now, so: what should it do, why now, and what would "
+        "count as done?" in normalized
+    )
+    # Step 3 item 1 grows to cover done; the question count does not.
+    assert "1. **Description and done**" in text
+    assert "the smallest observable result that means the ticket is finished" in normalized
+    assert "do **not** add an `## Acceptance Criteria` section" in normalized
+    assert "`code/design` is the only author of that checklist" in normalized
+    assert 'ask one targeted follow-up ("how will you know it worked?")' in normalized
+    assert "Keep the interview short — 4–6 questions, not a survey." in normalized
+    # The cold evaluator checks for it too.
+    assert "Is it clear what would count as done" in normalized
