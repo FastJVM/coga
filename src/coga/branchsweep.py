@@ -203,8 +203,11 @@ def sweep_branches(
 
         try:
             merged = _merged_prs(branch)
-            # Checked second so a branch with no PR at all costs one gh call.
-            open_pr = bool(merged) and bool(prs_for_head(branch, "open"))
+            # Checkout removal also checks open PRs without a prior merged PR.
+            open_pr = (
+                bool(merged)
+                or (cfg.git_worktrees_ticket_owned and branch in worktree_branches)
+            ) and bool(prs_for_head(branch, "open"))
         except GhError as exc:
             result.gh_unavailable = str(exc)
             result.skipped.append(branch)
@@ -248,6 +251,17 @@ def sweep_branches(
                     echo,
                     f"Branch sweep: {branch!r} has a landed ref but is checked out "
                     f"in worktree {worktree_branches[branch]!r} — left in place.",
+                )
+                continue
+            # A merged remote ref does not vouch for newer local work.
+            # Authorize the checkout itself before removing its directory.
+            if open_pr or not (local_merged or local_landed):
+                result.worktree_pinned.append(branch)
+                reason = "has an open PR" if open_pr else "local tip has not landed"
+                _note(
+                    result, echo,
+                    f"Branch sweep: {branch!r} {reason} — worktree "
+                    f"{worktree_branches[branch]!r} and both refs left in place.",
                 )
                 continue
             cleanup = _remove_pinning_worktree(

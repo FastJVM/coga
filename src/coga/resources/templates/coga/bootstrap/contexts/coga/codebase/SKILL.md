@@ -1056,6 +1056,15 @@ and credentials go in `coga.local.toml` via `env:VAR_NAME`
 references. Secrets get injected as env vars at launch time by
 `coga launch`.
 
+## Cleanup claim discovery
+
+Checkout disposal scans all Coga workspaces in its selected Git checkout,
+including a recurring runner's temporary control checkout. The shared
+`discover_coga_repos` call uses `allow_control_worktree_root=True` only for
+this claim inspection; scheduler discovery retains its default exclusion of
+owned temporary checkouts. A refused or incomplete claim scan keeps even a
+branch-only disposal pending, so autoclose reports it and retains its follow-up.
+
 ## What this context does NOT cover
 
 - The mental model of coga primitives — see `coga/architecture`.

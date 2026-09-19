@@ -45,11 +45,11 @@ which:
    merged head through Coga's own state-sync commits; a ref carrying real
    unmerged source commits stays, with the offending paths named. The remote
    ref takes only a merged PR at its exact tip,
-5. for a branch that landed either way but is still held by a live worktree,
+5. for a branch whose local tip landed either way but is still held by a live worktree,
    preserves both refs and reports the distinct, non-fatal
    `skipped-worktree-pinned` outcome — unless `[git].worktrees_ticket_owned`
    is `true`, the repo's declaration that every linked worktree of its git
-   repository belongs to a Coga ticket. Then a landed worktree that is linked
+   repository belongs to a Coga ticket. With no open PR, a landed worktree linked
    to the clone this sweep runs from, checked out on that branch, locally
    pristine (no tracked or untracked files; ignored regenerable caches are
    fine), and recorded by no non-terminal ticket is removed first, reported

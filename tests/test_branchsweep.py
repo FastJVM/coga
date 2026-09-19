@@ -1151,3 +1151,45 @@ def test_recipe_reports_local_cleanup_when_remote_listing_fails(
     assert "stopped early" not in report
     assert not _branch_exists_local(repo, "feat")
     assert _git(repo, "ls-remote", "--heads", "origin", "feat").stdout.strip()
+
+
+@pytest.mark.parametrize("open_pr", [False, True])
+def test_gc_preserves_checkout_with_new_local_work(
+    repo: Path, tmp_path: Path, monkeypatch, open_pr: bool,
+) -> None:
+    _push_branch(repo, "reuse")
+    merged = _tip(repo, "reuse")
+    worktree = tmp_path / "new-work"
+    _git(repo, "worktree", "add", str(worktree), "reuse")
+    _commit(worktree, "new.txt", "not merged", "new source work")
+    _own_worktrees(repo)
+    _fake_gh(monkeypatch, {"reuse": merged},
+             open_heads=frozenset({"reuse"}) if open_pr else frozenset())
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert worktree.is_dir()
+    assert (worktree / "new.txt").read_text() == "not merged"
+    assert _branch_exists_local(repo, "reuse")
+    assert _git(repo, "ls-remote", "--heads", "origin", "reuse").stdout.strip()
+    assert not result.worktree_removed
+
+
+@pytest.mark.parametrize("has_merged_pr", [False, True])
+def test_gc_preserves_landed_checkout_with_open_pr(
+    repo: Path, tmp_path: Path, monkeypatch, has_merged_pr: bool,
+) -> None:
+    _push_branch(repo, "reuse", land_in_main=True)
+    worktree = tmp_path / "open-pr"
+    _git(repo, "worktree", "add", str(worktree), "reuse")
+    _own_worktrees(repo)
+    _fake_gh(monkeypatch,
+             {"reuse": _tip(repo, "reuse")} if has_merged_pr else {},
+             open_heads=frozenset({"reuse"}))
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert worktree.is_dir()
+    assert _branch_exists_local(repo, "reuse")
+    assert result.worktree_pinned == ["reuse"]
+    assert not result.local_deleted and not result.remote_deleted

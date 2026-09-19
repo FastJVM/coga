@@ -52,7 +52,9 @@ a ticket is deleted without going through retire or a session dies mid-flight.
    fetched from `refs/pull/<number>/head` without writing a ref. The remote
    ref takes only a merged PR at its exact tip: its objects are usually not
    local, and ancestry never authorizes deleting `<remote>/<branch>`,
-5. for a branch that landed either way but is still held by a live worktree:
+5. for a branch whose **local tip** landed either way but is still held by
+   a live worktree, require no open PR before removing the checkout. A merged
+   remote tip alone never authorizes removing newer unmerged local work:
    with `[git].worktrees_ticket_owned` unset or `false` (the default),
    preserve both refs and report the distinct, non-fatal
    `skipped-worktree-pinned` outcome. With it `true`, the repo has declared

@@ -363,3 +363,60 @@ def test_hand_run_off_the_control_branch_preserves_everything(
         )
         for _url, text in posts
     )
+
+
+@pytest.mark.parametrize("scan_raises", [False, True])
+def test_branch_only_refusal_is_reported_and_recorded(
+    git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    scan_raises: bool,
+) -> None:
+    worktree = _landed_checkout(git_repo, tmp_path)
+    slug, ticket = _final_step_ticket(git_repo, branch="feature-x", worktree=worktree)
+    blackboard = read_blackboard(ticket).replace(f"worktree: {worktree}\n", "")
+    replace_blackboard(ticket, blackboard)
+    _route_important(git_repo)
+    _, worklist = _period_task(git_repo, monkeypatch)
+    _stub_gh(monkeypatch, git_repo)
+    posts = _capture_posts(monkeypatch)
+
+    def refuse(*args, **kwargs):
+        if scan_raises:
+            raise OSError("claim scan unreadable")
+        return "live ticket claims branch"
+
+    monkeypatch.setattr("coga.checkout_disposal.live_checkout_claim", refuse)
+    result = am.AutocloseResult()
+    assert am.run_autoclose_recipe(load_config(git_repo.coga_os), [], result=result) == 0
+
+    assert not result.disposed
+    assert [item.slug for item in result.preserved] == [slug]
+    assert [item.slug for item in result.retire_pending] == [slug]
+    assert _local_branch_exists(git_repo.root, "feature-x")
+    _, entries = rw.parse_worklist(worklist.read_text())
+    assert [entry.slug for entry in entries] == [slug]
+    assert any("⚠️" in text and slug in text for _, text in posts)
+
+
+def test_disposal_from_recurring_control_checkout(
+    git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from coga.checkout_disposal import dispose_checkout
+    from coga.workspace_discovery import CONTROL_WORKTREE_OWNER_FILE
+
+    worktree = _landed_checkout(git_repo, tmp_path)
+    _stub_gh(monkeypatch, git_repo)
+    parent = tmp_path / "coga-recurring-review"
+    parent.mkdir()
+    (parent / CONTROL_WORKTREE_OWNER_FILE).write_text("{}")
+    control = parent / "checkout"
+    _git(git_repo.root, "switch", "-c", "operator-work")
+    _git(git_repo.root, "worktree", "add", str(control), "main")
+    cfg = load_config(control / "coga", require_user=False)
+
+    outcome = dispose_checkout(cfg, control, branch="feature-x",
+                               worktree=str(worktree), pr_url=PR_URL)
+
+    assert outcome.disposed
+    assert not worktree.exists()
+    assert not _local_branch_exists(control, "feature-x")
+    assert not _remote_branch_exists(control, "feature-x")
