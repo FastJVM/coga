@@ -24,7 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -201,6 +201,15 @@ repo's real GitHub install/update exercise, alongside the existing rule against
 running their upstream installer.
 
 Test plan: `PATH=/tmp/coga-skill-attribution-venv/bin:$PATH PYTHONPATH=/home/n/Code/coga/src python -m pytest` (2657 passed, including packaging parity); `git diff --check origin/main...HEAD`.
+
+## Open-PR
+
+- First `coga open-pr` run refused: the peer-review bump's sync had failed
+  (`index.lock: Read-only file system`, see log), leaving `step: 3` and the
+  launch log line uncommitted. The failed run's own lifecycle sync committed
+  that state (`Sync coga state`, merged main); the re-run opened PR #836 and
+  recorded `pr:` under `## Dev`. The `## Recipe Failure` note below is that
+  first attempt's record and is resolved.
 
 ## Recipe Failure
 
