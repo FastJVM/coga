@@ -74,6 +74,7 @@ Tradeoff: an explicit identity must cross a subprocess without becoming a privil
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/835
 branch: fix/headless-completion-system
 worktree: /tmp/coga-system-completion
 
