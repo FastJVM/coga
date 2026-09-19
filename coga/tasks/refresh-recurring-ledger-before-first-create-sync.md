@@ -80,6 +80,7 @@ A revision/freshness check adds synchronization cost and must preserve attributi
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/838
 branch: fix/recurring-ledger-freshness
 worktree: /tmp/coga-recurring-ledger-freshness
 
