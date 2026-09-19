@@ -855,7 +855,8 @@ writes it to a temp file. Layers, in order:
 5. Ticket-level skills and the current workflow step's skill (if any).
 6. The ticket itself, last and contiguous, in the order it sits on disk:
    `## Description`, then the inline `## Context`, then the blackboard region
-   below the fence — those three regions and nothing else (see below).
+   below the fence with superseded designs replaced by an archive pointer —
+   those three regions and nothing else (see below).
 
 Layer 6 is one block on purpose. These were three separate layers scattered
 across the prompt, with skills wedged between them, back when they were three
@@ -867,9 +868,15 @@ contiguous block.
 
 **Layer 6 is a three-region extract, not the whole ticket body.** The section
 extractor takes one `##` heading and stops at the next `##`, so composition
-carries exactly `## Description`, `## Context`, and the blackboard region below
-the fence. Every other `##` section above the fence is dropped silently — no
-warning, no `--prompt-report` line, nothing the authoring step can observe.
+carries exactly `## Description`, `## Context`, and live state from the
+blackboard region below the fence. Exact superseded-design sections are filtered from that
+state in memory, following the heading boundaries owned by `dev/code`; one
+short pointer names the ticket file and archive heading for deliberate reading.
+The stored ticket is unchanged. This same projection feeds the blocker
+preamble, the `--prompt-report` blackboard measurement, and the blackboard size
+warning, so archived text neither resurfaces as current asks nor inflates the
+reported launch content. Every other `##` section above the fence is dropped
+silently — no warning, no `--prompt-report` line, nothing the authoring step can observe.
 Content a later step must read therefore has to sit under one of those two
 headings or on the blackboard. A sibling `## Acceptance Criteria` or
 `## Proposed Shape` is legible to a human reading the file on disk and
@@ -948,7 +955,9 @@ The consequence is a hard division of labor: working state that the next run
 must read goes in the blackboard (and is therefore composed, so keep it
 small); lifecycle history goes in the log (never composed, so let it
 accumulate). Superseded ticket designs remain in the blackboard under
-`## Superseded designs`, following `dev/code`.
+`## Superseded designs`, following `dev/code`, but enter prompts only as the
+archive pointer described above. Keep decisions and rationale needed for
+current work in the live body or blackboard.
 Draft activation is also the first-launch readiness gate for the blackboard.
 The stock placeholder counts as empty, but substantive pre-launch notes —
 authoring/evaluator sections such as `## Evaluator review`, `## Ticket
