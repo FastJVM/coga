@@ -16,74 +16,129 @@ sole trigger for closing tickets whose PR has merged:
 2. read each ticket blackboard's `## Dev` `pr:` link,
 3. check the linked PR state with `gh pr view`, and
 4. mark the ticket `done` only when it is on its final workflow step, or has no
-   workflow, and the PR is merged, and
-5. report the `coga retire` follow-up for every ticket it closed that still
-   records a `branch:` or `worktree:` under `## Dev`, and — under a recurring
-   period task — record it in the template's durable `retires.md` worklist.
+   workflow, and the PR is merged,
+5. dispose of the feature checkout of every ticket it closed that still
+   records a `branch:` or `worktree:` under `## Dev`, and of every open entry
+   in every `retires.md` worklist, under the shared retire proofs, and
+6. report what it disposed of and what a proof refused, with the reason —
+   the refusals to the coga-important Slack channel and, under a recurring
+   period task, to the template's durable `retires.md` worklist.
 
-The scope is defined by `coga.autoclose.sweep_merged`.
+The scope is defined by `coga.autoclose.sweep_merged` (the close) and
+`coga.autoclose._dispose_checkouts` (the disposal).
 Mid-workflow merges stay untouched because they are suspicious and need a human
 to finish the ticket explicitly.
 
 ## The retire follow-up
 
-Closing a ticket does not dispose of its feature checkout — `coga retire` does,
-and it owns the safety proofs (same-repo linked worktree, no other live ticket
-sharing it, no open PR for the head, branch landed at the recorded merged head).
-Autoclose stays non-destructive and only *names* that follow-up, because
-implicit destruction cuts against the principle that destructive behavior is
-never implicit. Dream likewise leaves a checkout-bearing done ticket in place,
-so the named command and the `## Dev` evidence it consumes remain valid until a
-human retires it — the *evidence* is durable on the ticket, and the list of
-follow-ups is durable in the worklist (see below).
+Closing a ticket also disposes of its feature checkout, under exactly the
+proofs `coga retire` runs — both call the shared `coga.checkout_disposal`
+orchestration over `branchcleanup`. The earlier design only *named* a
+`coga retire <slug>` follow-up here, on the principle that destructive
+behavior is never implicit; that produced a ten-entry backlog nobody typed
+(the recurring clone was carrying 45 linked worktrees), so the sweep now runs
+the deterministic, narrow, named rule itself. This section names it.
 
-Three surfaces. The first two are per-run and silent when the sweep stranded
-nothing; the third is the durable worklist:
+**The proofs, in order, per checkout.** Each refusal preserves the checkout and
+carries its reason into every surface below:
 
-- a `## Autoclose Sweep: retire follow-ups` section listing the exact
-  `coga retire <slug>` per ticket — appended to the task blackboard when run
-  under a task, written to stdout otherwise. **That surface is per-run, not a
-  worklist.** Autoclose's only recurring caller is `recurring/autoclose-merged`,
-  and the `coga/recurring` context is explicit that a period task's blackboard
-  is scratch space for one firing, deleted with the task the next period. The
-  sweep only rediscovers tickets it closes in the *current* run, so a stranded
-  checkout is never re-listed there; the section exists so the run record and
-  the autofix analyst see what the run did, and under a period task it names
-  the worklist below;
-- one trailing Slack line for the whole sweep. The per-ticket `🎉 ... merged`
-  line is left alone: it announces a lifecycle event, while a retire hint is
-  an operational to-do;
+1. *No other live ticket claims it.* No non-terminal ticket in any Coga
+   workspace of the git repository records the same `branch:` or the same
+   `worktree:` path. A scan that cannot complete (an unreadable workspace or
+   ticket) counts as a refusal.
+2. *The worktree is disposable.* The recorded path is a linked worktree of
+   the checkout the sweep runs from (`branchcleanup._is_linked_worktree_of` —
+   an independent clone, an unrelated repository, and the primary checkout
+   are preserved), it is not the checkout running the sweep, it holds the
+   recorded branch, and it carries no tracked or untracked local state
+   (ignored regenerable caches — `__pycache__/`, `.pytest_cache/`,
+   `.ruff_cache/`, `.mypy_cache/` — are deleted with it; any other ignored
+   file preserves it). No PR is open for the branch, and the branch has
+   landed on the control branch or its local and remote tips equal the merged
+   PR's exact head. Then `git worktree remove`, unforced.
+3. *The local branch.* Plain `git branch -d` when the tip is reachable from
+   the control branch; a logged `-D` when the merged PR's exact head vouches
+   for it (the squash-merge shape), re-reading the tip first. A branch still
+   checked out anywhere, or with an open PR, or that advanced past the merged
+   head, is preserved.
+4. *The remote branch.* Deleted only when the live remote tip equals the
+   merged PR's exact head, with a `--force-with-lease` on that tip, and only
+   after the local branch is gone.
+
+The merge signal is the ticket's `pr:` link. A worklist entry whose ticket
+retire already deleted has none, so the proofs then use the merged PRs for
+the recorded **head branch name** (`gh pr list --head <branch> --state
+merged`) — the lookup the branch sweep already trusts — and compare the same
+exact heads.
+
+**Only from the control branch, only this clone's worktrees.** A hand-run
+`coga run autoclose` on a checkout that is not on `[git].control_branch`
+closes tickets as usual but preserves every recorded checkout and says so
+(`[autoclose] checkout disposal skipped (...)`): the claim scan reads that
+checkout's tickets and the branch proofs its refs. `coga recurring` services
+deterministic phases from a checkout on the control branch, so the scheduled
+run meets the guard. The sweep only ever touches worktrees a ticket or a
+worklist entry recorded, and only those linked to the clone it runs from: in
+this repo the recurring jobs run from `/home/n/Code/claude/coga`, whose
+`/home/n/Code/claude/coga-<branch>` worktrees are what the worklist names.
+Other clones' worktrees are preserved as independent clones and need their
+own `coga run branch-sweep`.
+
+**Four surfaces.** The first three are per-run and silent when the run touched
+no checkout; the fourth is the durable worklist:
+
+- a `## Autoclose Sweep: retire follow-ups` section — appended to the task
+  blackboard when run under a task, written to stdout otherwise — listing each
+  checkout disposed of, and each preserved one with its reason, the proof
+  notes, and the manual path (`coga retire <slug>` while the ticket exists;
+  otherwise dispose of the recorded worktree and branch by hand). **That
+  surface is per-run, not a worklist.** Autoclose's only recurring caller is
+  `recurring/autoclose-merged`, and the `coga/recurring` context is explicit
+  that a period task's blackboard is scratch space for one firing, deleted
+  with the task the next period; the section exists so the run record and the
+  autofix analyst see what the run did, and under a period task it names the
+  worklist below. When the disposal phase never ran (off the control branch,
+  or the sweep failed first), the section names `coga retire <slug>` per
+  closed ticket as it did before;
+- one coga-flow Slack line naming what the run disposed of;
+- one **coga-important** Slack line naming every checkout a proof refused,
+  with its reason. A preserved checkout is work a human must do — the proofs
+  will refuse it again tomorrow — which is the `coga/important` bar, so it is
+  re-posted on every run until the cause is fixed and the entry clears. The
+  per-ticket `🎉 ... merged` line is left alone: it announces a lifecycle
+  event, while a disposal summary is operational;
 - **the durable worklist `retires.md` beside the recurring template's
   `ticket.md`** — `coga/recurring/<name>/retires.md`, the template being the
   one the period task under `coga/tasks/recurring/<name>/` was minted from,
-  never a hardcoded `autoclose-merged`. `coga.retire_worklist` owns the file;
-  the sweep reconciles it on **every** recurring run, closures or not: it
-  records each new follow-up keyed by task slug (re-recording one refreshes
-  the branch and worktree it names and keeps the first sighting's date), and
-  drops every entry that is **discharged** — its recorded worktree path is no
-  longer a directory *and* its recorded branch is no longer a local branch.
-  Either half still on disk keeps the entry, and a branch list that cannot be
-  read keeps every entry: the failure mode is one listing too many, never a
-  forgotten checkout. `coga retire <slug>` drops its own line by the same rule
-  once its cleanup has really disposed of the checkout; a retire that
-  *preserved* the checkout (the worktree is the invoking checkout, another
-  ticket claims it, cleanup failed) keeps the line even though it goes on to
-  delete the ticket, so that entry's `coga retire <slug>` no longer resolves —
-  dispose of the recorded worktree and branch by hand, or let the weekly
-  branch sweep take the branch, and the entry clears by the same rule. A
-  worklist the sweep cannot safely rewrite, including a filesystem or text
-  encoding failure, fails the run (exit 2) only after
-  the per-run report and Slack line are emitted. If the task blackboard also
-  fails with an I/O or encoding error, the report falls back to stdout and
-  the run still fails, so a refused durable record never hides the follow-up
-  on every surface. The reconcile is a
-  barrier-held, compare-and-swap, atomic rewrite; the file is `merge=union`
-  like `log.md`, and a line union merge resurrects or duplicates is healed by
-  the next reconcile. A run that recorded, refreshed, or dropped nothing, and
-  has no open entries, prints nothing about the file; otherwise stdout carries
-  one `[autoclose] retire worklist <path>: N open, ...` line. Outside a
-  recurring period task — a hand-run `coga run autoclose`, or a task that is
-  not `tasks/recurring/<name>/` — no worklist is touched. Each line reads
+  never a hardcoded `autoclose-merged`. `coga.retire_worklist` owns the file.
+  On **every** run, hand-run or recurring, the sweep walks the open entries of
+  every worklist and runs the proofs above on each — that is how the backlog
+  drains without a hand-typed retire per entry — and then reconciles each
+  file: under a period task it records that run's preserved closures keyed by
+  task slug (re-recording one refreshes the branch and worktree it names and
+  keeps the first sighting's date), and everywhere it drops every entry that
+  is **discharged** — its recorded worktree path is no longer a directory
+  *and* its recorded branch is no longer a local branch. Either half still on
+  disk keeps the entry, and a branch list that cannot be read keeps every
+  entry: the failure mode is one listing too many, never a forgotten
+  checkout. `coga retire <slug>` drops its own line by the same rule once its
+  cleanup has really disposed of the checkout; a retire that *preserved* the
+  checkout keeps the line even though it goes on to delete the ticket, and the
+  next sweep re-judges that entry by head branch name. A worklist the sweep
+  cannot safely rewrite, including a filesystem or text encoding failure,
+  fails the run (exit 2) only after the per-run report and Slack lines are
+  emitted (its backlog is not walked that run). If the task blackboard also
+  fails with an I/O or encoding error, the report falls back to stdout and the
+  run still fails, so a refused durable record never hides the follow-up on
+  every surface. The reconcile is a barrier-held, compare-and-swap, atomic
+  rewrite; the file is `merge=union` like `log.md`, and a line union merge
+  resurrects or duplicates is healed by the next reconcile. A run that
+  recorded, refreshed, or dropped nothing, and has no open entries, prints
+  nothing about the file; otherwise stdout carries one
+  `[autoclose] retire worklist <path>: N open, ...` line per file. A hand-run
+  `coga run autoclose` never *records* a new entry — there is no period task
+  to own one — but it drains and prunes every existing worklist. Each line
+  reads
   ``- `<slug>` — branch `<branch>`, worktree `<path>`, recorded `<YYYY-MM-DD>` ``
   under a `## Follow-ups (open)` heading. Field values use UTF-8 percent
   encoding, retaining `/` and `:`: for example, a backtick is `%60`, a literal
@@ -92,12 +147,8 @@ nothing; the third is the durable worklist:
   backfilling. A malformed line fails the sweep loudly rather than growing a
   second section nobody would find.
 
-Autoclose still never removes a worktree or branch. Recording a follow-up and
-destroying a checkout stay separate: the worklist names the retire, and
-`coga retire` runs the safety proofs when a human types it.
-
 Run it directly with `coga run autoclose`. Live notification configuration is
 preflighted before each affected ticket closes. Later `gh` or task-validation
 failures remain hard failures, but any earlier closures are still reported.
-After the report exists, a transiently undeliverable retire summary is
+After the report exists, a transiently undeliverable Slack summary is
 non-fatal and is recorded against the period task in the repo-global log.

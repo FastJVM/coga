@@ -1242,8 +1242,13 @@ Failure model:
   recurring task-state writes after entry) remain non-fatal.
 
 Config lives in `[git]`: `enabled` defaults true, `remote` defaults `origin`,
-and `control_branch` defaults `main`. `enabled` may be overridden in
-`coga.local.toml`; remote and branch are shared repo policy.
+`control_branch` defaults `main`, and `worktrees_ticket_owned` defaults
+`false`. `enabled` may be overridden in `coga.local.toml`; the other three
+are shared repo policy. `worktrees_ticket_owned` is not a sync setting: it is
+the repo's declaration that every linked worktree belongs to a Coga ticket,
+which lets the weekly branch sweep remove a landed, pristine, unclaimed
+worktree — `dev/code` (*Checkout boundary*) states the assumption and
+`coga/branch-sweep/sweep` the proofs.
 
 ### The launch-end pull-back — `refresh_coga_state_from_control`
 

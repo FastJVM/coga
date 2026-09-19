@@ -132,6 +132,15 @@ channels = []
 # like [notification.slack]):
 #   [git]
 #   enabled = false
+#
+# `worktrees_ticket_owned` (default false, shared only) declares that every
+# linked worktree of this git repository belongs to a Coga ticket, so the
+# weekly branch sweep may remove a landed, locally pristine worktree that no
+# live ticket records before deleting its branch. Off, such a worktree keeps
+# pinning its branch (`skipped-worktree-pinned`). The `dev/code` context
+# states the assumption; set it only once everyone on the repo works that way.
+#   [git]
+#   worktrees_ticket_owned = true
 
 # --- Aliases ---
 # Thin sugar for often-used commands. Each entry maps a name to an

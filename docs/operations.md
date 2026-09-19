@@ -142,6 +142,13 @@ remembered can wrap `coga` in a shell function or git hook that refuses
 mutating commands when `HEAD` is not the control branch; Coga ships no switch
 for it, by design (it is repo policy, not core behavior).
 
+One more `[git]` key is about checkouts rather than sync:
+`worktrees_ticket_owned` (default `false`, `coga.toml` only) declares that
+every linked worktree of the repository belongs to a Coga ticket, which lets
+the weekly branch sweep remove a landed, pristine worktree no live ticket
+records instead of leaving its branch `skipped-worktree-pinned`. The
+`dev/code` context states the assumption a repo opts into.
+
 ## Recurring maintenance
 
 Recurring work lives as **templates** under `coga/recurring/<name>/`. `coga

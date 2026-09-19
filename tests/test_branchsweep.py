@@ -525,6 +525,133 @@ def test_rebasing_worktree_preserves_both_refs_with_distinct_outcome(
     assert linked.is_dir()
 
 
+def _own_worktrees(repo: Path) -> None:
+    """Opt the repo into `[git].worktrees_ticket_owned`."""
+    toml = repo / "coga" / "coga.toml"
+    toml.write_text(toml.read_text() + "[git]\nworktrees_ticket_owned = true\n")
+
+
+def test_pinning_worktree_is_removed_when_worktrees_are_ticket_owned(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    (repo / ".gitignore").write_text("__pycache__/\n")
+    _git(repo, "add", ".gitignore")
+    _git(repo, "commit", "-m", "ignore caches")
+    _push_branch(repo, "feat", land_in_main=True)
+    linked = tmp_path / "linked"
+    _git(repo, "worktree", "add", str(linked), "feat")
+    # A test run's caches are regenerable and do not make the checkout dirty.
+    (linked / "__pycache__").mkdir()
+    (linked / "__pycache__" / "x.pyc").write_bytes(b"")
+    _own_worktrees(repo)
+    _fake_gh(monkeypatch)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.worktree_removed == [str(linked)]
+    assert result.worktree_pinned == []
+    assert result.local_deleted == ["feat"]
+    assert result.remote_deleted == []  # no merged PR vouches for the remote ref
+    assert not linked.exists()
+    assert not _branch_exists_local(repo, "feat")
+    assert any("removed linked worktree" in note for note in result.notes)
+
+
+def test_pinning_worktree_stays_when_key_is_off(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    linked = tmp_path / "linked"
+    _git(repo, "worktree", "add", str(linked), "feat")
+    _fake_gh(monkeypatch)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.worktree_pinned == ["feat"]
+    assert result.worktree_removed == []
+    assert linked.is_dir()
+    assert _branch_exists_local(repo, "feat")
+
+
+def test_dirty_pinning_worktree_is_reported_not_removed(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    linked = tmp_path / "linked"
+    _git(repo, "worktree", "add", str(linked), "feat")
+    (linked / "scratch.txt").write_text("unsaved")
+    _own_worktrees(repo)
+    _fake_gh(monkeypatch)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.worktree_pinned == ["feat"]
+    assert result.worktree_removed == []
+    assert result.local_deleted == []
+    assert linked.is_dir()
+    assert (linked / "scratch.txt").is_file()
+    assert _branch_exists_local(repo, "feat")
+    assert any(
+        "contains tracked or untracked local state" in note for note in result.notes
+    )
+    assert any(
+        "worktree" in note and "was preserved — both refs left in place" in note
+        for note in result.notes
+    )
+
+
+def test_claimed_pinning_worktree_is_reported_not_removed(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    linked = tmp_path / "linked"
+    _git(repo, "worktree", "add", str(linked), "feat")
+    # A live ticket records the *path* under another branch name, which the
+    # branch-mention guard cannot see.
+    task_dir = repo / "coga" / "tasks"
+    task_dir.mkdir(parents=True, exist_ok=True)
+    (task_dir / "reuses-checkout.md").write_text(
+        _ticket_text(
+            "reuses-checkout",
+            status="in_progress",
+            body="",
+            blackboard=f"## Dev\nbranch: other\nworktree: {linked}",
+        )
+    )
+    _own_worktrees(repo)
+    _fake_gh(monkeypatch)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.worktree_pinned == ["feat"]
+    assert result.worktree_removed == []
+    assert linked.is_dir()
+    assert _branch_exists_local(repo, "feat")
+    assert any(
+        f"live ticket 'reuses-checkout' also records worktree '{linked.resolve()}'"
+        in note
+        for note in result.notes
+    )
+
+
+def test_recipe_reports_removed_worktrees(repo: Path, monkeypatch, capsys) -> None:
+    monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
+
+    def _sweep(_cfg, _root, *, echo, result=None):
+        result.worktree_removed.append("/w/coga-feat")
+        result.local_deleted.append("feat")
+        return result
+
+    monkeypatch.setattr(bs, "sweep_branches", _sweep)
+
+    assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 0
+
+    captured = capsys.readouterr()
+    assert "[branch-sweep] removed-worktree: /w/coga-feat" in captured.out
+    assert "1 worktree(s) removed" in captured.out
+    assert "- removed worktree: /w/coga-feat" in captured.out
+
+
 def test_worktree_prune_failure_stops_sweep(repo: Path, monkeypatch) -> None:
     def fail_prune(
         root: Path, *args: str
