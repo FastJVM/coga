@@ -17,6 +17,11 @@ Last updated: 2026-09-02.
   line. That append-only record *is* the dedup source — a mark in the template
   blackboard was reachable by any run rewriting that region, which made
   serviced periods re-fire.
+  The creation guard now revalidates that log against fetched control before
+  publication and distinguishes its own sweep's published records from later
+  competing changes. The freshness/refusal boundary, including push retries
+  and explicit overrides, is owned by **The creation contract** in
+  [`coga/recurring`](../recurring/SKILL.md); it is not an exactly-once guarantee.
 
 - **The lifecycle stays ordinary and Dream owns cleanup.** `coga recurring`
   creates a normal `active` task, `coga launch` moves it through the usual

@@ -907,10 +907,25 @@ wrong checkout silently produces wrong results in both directions:
   own ticket — the brief is draft
   `triage-five-review-comments-that-merged-unanswered`; none has a fix ticket
   yet. Re-verify against the current tree before acting.
-  - PR 699 (P1), `recurring_runner.py` near the `_LEDGER_LOADED = "yes"` mark:
-    the control ledger is marked loaded unconditionally after the pre-scan
-    catch-up, so a competing checkout that publishes the same period between
-    that catch-up and the first create sync can trigger a double launch.
+  - PR 699 (P1), fixed by `refresh-recurring-ledger-before-first-create-sync`:
+    `recurring_runner._control_serviced_period_cached` used to trust the
+    pre-scan cache after a newer create-sync fetch. A local two-checkout test
+    reproduced publication of a competing completed/reaped period (duplicate
+    dispatch was inferred in the original probe, not observed). The cache now
+    binds to a revision, refreshes before first publication and on retries,
+    and distinguishes known own publications from subsequent external ledger
+    changes. `_broadcast_scan` drops rejected creates from dispatch, and the
+    freshness-refusal cleanup prevents local candidate reuse. Preserve the
+    complete target set and multi-template self-collision protection when
+    editing this code, including a recovered generic sync after an initial
+    fetch failure: that publisher must return its accepted revision to the
+    recurring cache, and its guard must refresh before publication/retries.
+    An audit-only push after a create loses a race also publishes pending sweep
+    records and must advance that same provenance.
+    The guarantee and conservative post-publication refusal
+    boundary live in **The creation contract** in
+    [`coga/recurring`](../recurring/SKILL.md); this is not global exactly-once
+    execution and does not change the outer best-effort transport policy.
   - PR 704, `config.py` context-artifact check: `path.is_file() or
     path.is_symlink()` accepts any symlink, including one whose target lies
     outside the checkout, so another clone composes a different prompt.
