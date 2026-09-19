@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -82,4 +82,51 @@ again.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: remove-narrative-candidates
+worktree: /home/n/Code/coga-remove-narrative-candidates
+
+## Owner decision (2026-09-19, attended session)
+
+Owner chose **delete from the tree only; no history rewrite**. Rationale
+surfaced and accepted: the material is already in public history at
+`18cae534`, so a deletion diff adds no new exposure, while a
+`filter-repo` + force-push on a public repo with hundreds of PR refs is
+disruptive and GitHub caches may still serve the old blob. If the owner
+later wants a history purge, that is a separate ticket, not this PR.
+
+## What changed (commit `358f5b11`)
+
+- `git rm coga/tasks/marketing/phase-0-audit/narrative-candidates.md`.
+- `step-1-findings.md` §3: replaced the "eight strong ones with no
+  confidentiality concern" paragraph and the "Owner to confirm ... publishable"
+  / "probably safe" bullets with the ruling and a pointer to the deletion.
+  Also dropped the parenthetical paraphrasing the private repos' research
+  direction. The non-quoting per-repo table stays (it was always here, not
+  in the attachment).
+- `audit-history.md`: the two mentions of the attachment now say it was
+  deleted and why; no date changed.
+- `coga/contexts/marketing/map/SKILL.md`: the "Private-repo narrative
+  attachment" row now says the file is gone and must not be recovered from
+  history or re-collected. `marketing/*` has no packaged twin.
+- Left alone on purpose: `phase-0-audit/ticket.md`, the
+  `phase-0-audit-is-complete...` and `document-the-remedy...` tickets, and
+  `marketing/plan` — they reference this ticket or describe the historical
+  move without asserting quotability.
+
+## Verification
+
+- `uv run --python 3.12 --with-editable ".[test]" --no-project python -m pytest -q`
+  in the feature worktree: 2657 passed.
+- `coga validate --json`: same issue set as `main` (the only extra line is
+  the fresh worktree's missing `coga.local.toml` user).
+- `grep` for the quoted research topics and "eight strong" across `coga/`:
+  the only remaining hits are this ticket's own description.
+- Rebased on `origin/main` (already up to date). Nothing pushed, no PR.
+
+## Note for retro/done-ticket
+
+This ticket's own `## Description` paraphrases the private repos' research
+direction (it was written by Dream to explain the exposure). It is deleted
+with the ticket at retro; do not carry that paragraph into a context.
