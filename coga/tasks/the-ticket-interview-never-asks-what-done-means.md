@@ -27,7 +27,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (implement)
+step: 4 (open-pr)
 ---
 
 ## Description
@@ -443,3 +443,60 @@ This ticket dogfoods its own finding: `## Acceptance Criteria`,
 implement prompt. Everything the implementer needs — including the verbatim
 replacement wording — is deliberately in `## Description` and `## Context`,
 which do compose. Read `## Context` → "Exact replacement wording".
+
+## Dev
+
+branch: ticket-done-criteria
+worktree: /home/n/Code/coga-ticket-done-criteria
+
+Separate feature checkout (linked worktree off `origin/main`); control-plane
+writes and `coga bump` stay in the primary checkout on
+`gh-backed-readonly-context`. The worktree carries a throwaway `.venv`
+(gitignored) because the installed `coga` is an editable install from
+`/home/n/Code/claude/coga`, not this checkout, and no system interpreter has
+pytest.
+
+## Implement notes (2026-09-18)
+
+One commit, `1f182db8 Ask what done means in the ticket interview`, on tip of
+`origin/main`. Six files, all edge: the interview skill, both `code/design`
+twins, both `_template/ticket.md` twins, and one new test.
+
+**The spec drifted between design (09-02) and implement; the owner chose
+"adapt to the current shape" when asked.** What changed under the spec:
+
+- `code/design` no longer writes a `## Acceptance Criteria` section. PR #784
+  ("simplify ticket format") moved it to a `### Acceptance criteria`
+  subsection *under* `## Description`, and its step 4 plus closing paragraph
+  already explain that only Description / Context / blackboard compose. So
+  edit (e) was re-targeted at that subsection bullet ("this step is the only
+  author of that checklist; treat the interview's done sentence as the seed"),
+  and edit (f) — the compose gotcha — was **not added**: it would duplicate
+  step 4 verbatim.
+- `_template/ticket.md`'s `## Description` placeholder had already been
+  rewritten (PR #784) to say correctly that it composes. Edit (g) reduced to
+  "What needs to happen and why" → "…, why now, and what would count as done",
+  then re-wrapped to the file's column width.
+- `tests/test_packaging.py` now *derives* `IDENTICAL_LIVE_PACKAGED_PAIRS` from
+  the packaged tree (PR #758). Both twin pairs are already enforced — verified
+  by importing the constant — so Proposed Shape step 4 was moot; no test edit.
+- Edits (a), (b), (d) landed verbatim. Edit (c) kept every clause of the spec
+  wording but says "`code/design` is the only author of that *checklist*"
+  (not "that section") and names the `###` subsection it now lives in.
+
+Regression test: `test_bootstrap_ticket_interview_asks_what_done_means` in
+`tests/test_bootstrap_ticket_skill_template.py`, red before the skill edits,
+green after. It pins the greeting, the pivot, the Step 3 rename, the
+no-section rule, the sole-author clause, the follow-up question, the untouched
+4–6 budget line, and the Step 6 evaluator bullet.
+
+Verification: `python -m pytest` → 2645 passed + 13 packaging passed (the
+packaging wheel test needs `pip` in the venv; `uv venv` omits it — env issue,
+not a regression). `coga validate --json`: 221 ok / 55 issues in the control
+checkout vs 221 / 56 in the worktree; the one extra is `missing-user`
+because the worktree has no `coga.local.toml`. Ticket-level issue lists are
+byte-identical before and after.
+
+Nothing unresolved. The two recommended follow-ups from the design step
+(compose should carry acceptance criteria to `implement`; a validator check
+stays deferred until then) are unchanged and still not filed.
