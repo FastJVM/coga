@@ -3613,6 +3613,7 @@ def _sync_recurring_create_paths(
         ticket_rel = _relative_to_root(root, template_ticket)
         local_rels = _local_commit_rels(cfg, root, rels)
         branch = _current_branch(root)
+        task_rel = _relative_to_root(root, anchor_path)
 
         try:
             _fetch_control_branch(cfg, root)
@@ -3626,7 +3627,32 @@ def _sync_recurring_create_paths(
             )
             if local_ticket:
                 template_ticket.write_text(local_ticket)
-            git.sync_paths(cfg, anchor_path, paths, message=message)
+            def guard_fallback(base: str) -> None:
+                if _control_already_has_period(
+                    root, base, task_rel,
+                    log_rel=_relative_to_root(root, log_path(cfg)),
+                    template_ref=_template_ref_from_ticket_rel(ticket_rel),
+                    period_key=period_key,
+                    control_ledger=control_ledger,
+                    include_ledger=respect_handled_period,
+                    include_task=respect_existing_task,
+                    replaced_done_ticket_bytes=replaced_done_ticket_bytes,
+                ):
+                    raise _ControlLedgerChanged(
+                        base, "period already handled on control during fallback sync"
+                    )
+
+            published = git.sync_paths(
+                cfg, anchor_path, paths, message=message, guard=guard_fallback
+            )
+            if published is not None and control_ledger is not None:
+                control_ledger[_LEDGER_REVISION] = published
+                control_ledger[_LEDGER_PUBLISHED] = "yes"
+            elif published is None and branch != "HEAD":
+                # The guard's fetch can fail before generic sync commits.
+                # Preserve the existing offline local-save contract; admission
+                # refusals raise above and never reach this transport fallback.
+                git._commit_paths(root, local_rels, message)
             return original_ticket, True
         base = _rev_parse(root, "FETCH_HEAD")
         task_rel = _relative_to_root(root, anchor_path)
@@ -4027,7 +4053,24 @@ def _sync_recurring_create_on_checked_out_control_branch(
     # `_record_run`). Commit just that file so origin and the local control
     # branch reflect the history line and the tree is left clean.
     _commit_global_log(cfg, root, message)
-    git._push_control_branch(cfg, root)
+
+    def guard_log_publication(base: str) -> None:
+        _control_serviced_period_cached(
+            root, base, _relative_to_root(root, log_path(cfg)),
+            _template_ref_from_ticket_rel(ticket_rel), control_ledger,
+            resolve_at=(
+                {_template_ref_from_ticket_rel(ticket_rel): period_key}
+                if period_key is not None else None
+            ),
+            deduplicate=respect_handled_period,
+        )
+
+    git._push_control_branch(cfg, root, guard=guard_log_publication)
+    if control_ledger is not None:
+        # Even a rejected create publishes the audit log here, including other
+        # pending sweep targets. Bind to our pushed HEAD, not a later fetch.
+        control_ledger[_LEDGER_REVISION] = _rev_parse(root, "HEAD")
+        control_ledger[_LEDGER_PUBLISHED] = "yes"
     if already_handled:
         return (
             _control_template_or_local(
