@@ -9,7 +9,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from coga.blackboard import BLOCKER_TS_FORMAT, Blocker, parse_blockers_text
+from coga.blackboard import (
+    BLOCKER_TS_FORMAT,
+    Blocker,
+    blackboard_for_prompt,
+    parse_blockers_text,
+)
 from coga.config import Config
 from coga.paths import (
     PackagedResourceMissing,
@@ -173,6 +178,10 @@ def compose_prompt_report(
     body_above, blackboard_text = split_body(
         ticket.body, blackboard_required=not isinstance(task_ref, BootstrapRef)
     )
+    if blackboard_text is not None:
+        # Filter before every prompt consumer, including the blocker preamble:
+        # historical blocker examples must not reappear as current asks.
+        blackboard_text = blackboard_for_prompt(blackboard_text, task_ref.ticket_path)
 
     header = (
         f"# Coga task — {task_ref.id_slug}\n\n"

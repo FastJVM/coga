@@ -438,6 +438,8 @@ After confirmation, do one final cleanup pass before printing the closing line:
    section, including every dated entry, and reset the rest of the blackboard
    to the stock placeholder for this ticket title. Follow `dev/code` when
    archiving a pivot: keep retained headings nested inside the dated entry.
+   Launch supplies only an archive pointer, so keep any rationale needed for
+   current work in `## Description` or `## Context` during this cleanup.
    Do not leave empty authoring headings behind.
 4. If editing an existing non-draft ticket
    (`active`, `in_progress`, `blocked`, `paused`, `done`, or `canceled`),

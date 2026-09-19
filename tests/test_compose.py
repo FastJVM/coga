@@ -19,6 +19,7 @@ from coga.compose import (
 from conftest import hold_by_agent, hold_by_owner
 from coga.config import load_config
 from coga.tasks import list_tasks, read_ticket, resolve_bootstrap
+from coga.taskfile import replace_blackboard
 from coga.ticket import Ticket
 
 
@@ -637,6 +638,175 @@ def test_compose_prompt_report_tracks_layers_and_refs(repo: Path) -> None:
     assert ("workflow_skill", "infra/testing-conventions") in layers
     assert ("blackboard", "ticket.md##blackboard") in layers
     assert layers[("ticket_context", "email/payment-flow")].approx_tokens > 0
+
+
+@pytest.mark.parametrize("archive_repetitions", [1, 3000])
+@pytest.mark.parametrize("file_form", [False, True])
+def test_compose_omits_superseded_designs_without_rewriting_ticket(
+    repo: Path, archive_repetitions: int, file_form: bool
+) -> None:
+    cfg = load_config(repo)
+    slug = _write_workflow_less_task(repo, title="Archived design")
+    if file_form:
+        directory = repo / "tasks" / slug
+        (directory / "ticket.md").rename(repo / "tasks" / f"{slug}.md")
+        directory.rmdir()
+    ref = list_tasks(cfg)[0]
+    ticket = read_ticket(ref)
+    ticket.body = ticket.body.replace(
+        "## Description", "## Description\n\nCurrent requirements remain binding."
+    ).replace("## Context", "## Context\n\nCurrent decision and reason.")
+    ticket.write(ref.ticket_path)
+    live_before = "\n## Notes\n\nLive reasoning before the archive.\n\n"
+    archive = (
+        "## Superseded designs\n\n### 2026-09-18 — Abandoned plan\n\n"
+        "Superseded by: Current plan\n\nReason: Simpler implementation\n\n"
+        "#### Prior requirements\n\n"
+        + "ABANDONED-DESIGN-DETAIL — " * archive_repetitions
+        + "\n\n"
+    )
+    live_after = dedent(
+        """\
+        ## Dev
+        branch: feature/current
+        worktree: /tmp/current
+        pr: https://github.com/acme/repo/pull/1
+
+        ## Blockers
+        - [ ] [2026-09-18 12:00] [human:marc] id=current Current open question
+
+        ## Next steps
+        Live reasoning after the archive.
+        """
+    )
+    replace_blackboard(ref.ticket_path, live_before + archive + live_after)
+    before = ref.ticket_path.read_bytes()
+    ticket = read_ticket(ref)
+    original_body = ticket.body
+
+    composition = compose_prompt_report(cfg, ref, ticket)
+    prompt = compose_prompt(cfg, ref, ticket)
+    blackboard = next(layer for layer in composition.layers if layer.layer == "blackboard")
+
+    assert prompt == composition.prompt
+    assert "ABANDONED-DESIGN-DETAIL" not in prompt
+    assert "2026-09-18 — Abandoned plan" not in prompt
+    assert "Current requirements remain binding." in prompt
+    assert "Current decision and reason." in prompt
+    assert live_before + live_after in blackboard.text
+    assert "Current open question" in prompt
+    assert "Resolve the open blocker first" in prompt
+    assert str(ref.ticket_path) in blackboard.text
+    assert "`## Superseded designs`" in blackboard.text
+    assert "omitted" in blackboard.text
+    assert blackboard.byte_count == len(blackboard.rendered.encode())
+    assert blackboard.char_count == len(blackboard.rendered)
+    assert blackboard.approx_tokens == (blackboard.char_count + 3) // 4
+    assert blackboard.byte_count < 1200
+    assert composition.byte_count == len(prompt.encode())
+    assert ref.ticket_path.read_bytes() == before
+    assert ticket.body == original_body
+
+
+@pytest.mark.parametrize(
+    "example",
+    [
+        "## Superseded designs (notes)\n",
+        "## superseded designs\n",
+        "## Superseded designs ##\n",
+        "##  Superseded designs\n",
+        "### Superseded designs\n",
+        "# Superseded designs\n",
+        "Mention `## Superseded designs` in prose.\n",
+        "> ## Superseded designs\n",
+        "    ## Superseded designs\n",
+        " ## Superseded designs\n",
+        "```markdown\n## Superseded designs\nEXAMPLE\n```\n",
+        "~~~markdown\n## Superseded designs\nEXAMPLE\n~~~\n",
+        "````markdown\n```\n## Superseded designs\nEXAMPLE\n```\n````\n",
+        "   ~~~markdown\n## Superseded designs\nEXAMPLE\n   ~~~~\n",
+        "```markdown\n~~~\n## Superseded designs\nEXAMPLE\n```\n",
+        "```markdown\n```not-a-closer\n## Superseded designs\nEXAMPLE\n```\n",
+        "```markdown\n## Superseded designs\nUnclosed example.\n",
+    ],
+)
+def test_compose_keeps_similar_headings_and_archive_examples(
+    repo: Path, example: str
+) -> None:
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Heading examples")
+    ref = list_tasks(cfg)[0]
+    text = "\n## Notes\n\n" + example + "Live content.\n"
+    replace_blackboard(ref.ticket_path, text)
+
+    report = compose_prompt_report(cfg, ref, read_ticket(ref))
+    blackboard = next(layer for layer in report.layers if layer.layer == "blackboard")
+
+    assert blackboard.text == text
+
+
+@pytest.mark.parametrize("ending", ["", "\n", " \t\r\n"])
+def test_compose_archive_only_blackboard_keeps_a_pointer(repo: Path, ending: str) -> None:
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="History only")
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(ref.ticket_path, "\n## Superseded designs" + ending)
+    before = ref.ticket_path.read_bytes()
+
+    report = compose_prompt_report(cfg, ref, read_ticket(ref))
+    blackboard = next(layer for layer in report.layers if layer.layer == "blackboard")
+
+    assert str(ref.ticket_path) in blackboard.text
+    assert "`## Superseded designs`" in blackboard.text
+    assert "omitted" in blackboard.text
+    assert ref.ticket_path.read_bytes() == before
+
+
+def test_compose_omits_duplicate_archives_and_fenced_historical_headings(repo: Path) -> None:
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Repeated archive")
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(ref.ticket_path, "\n" + dedent(
+        """\
+        ## Superseded designs
+        ### 2026-09-17 — First discarded plan
+        #### Old requirements
+        ````markdown
+        ```
+        ## Dev
+        branch: abandoned
+        ```
+        ````
+        - [ ] [2026-09-17 12:00] [human:marc] id=old Abandoned open question
+
+        ## Notes
+        Live middle note.
+
+        ## Superseded designs
+        ### 2026-09-18 — Second discarded plan
+        ~~~markdown
+        ## Notes
+        Abandoned fenced note.
+        ~~~~
+        Abandoned trailing note.
+
+        # Current handoff
+        Live final note.
+        """
+    ))
+    before = ref.ticket_path.read_bytes()
+
+    report = compose_prompt_report(cfg, ref, read_ticket(ref))
+
+    assert "discarded plan" not in report.prompt
+    assert "Abandoned" not in report.prompt
+    assert "branch: abandoned" not in report.prompt
+    assert "Resolve the open blocker first" not in report.prompt
+    assert "Live middle note." in report.prompt
+    assert "Live final note." in report.prompt
+    blackboard = next(layer for layer in report.layers if layer.layer == "blackboard")
+    assert blackboard.text.count(str(ref.ticket_path)) == 1
+    assert ref.ticket_path.read_bytes() == before
 
 
 def test_compose_defaults_to_attended_session_conduct(repo: Path) -> None:
