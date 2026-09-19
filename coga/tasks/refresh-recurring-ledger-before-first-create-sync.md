@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
 ---
 
@@ -191,6 +191,16 @@ All tests use local Git remotes and mocked dispatch; no live recurring jobs ran.
 - Feature branch is clean, committed, and ahead of fetched main; no feature
   push or PR was performed in peer review. Ready for the mechanical open-pr
   step. The primary checkout's existing generated log changes were preserved.
+
+## Open PR
+
+- Confirmed the `## Peer review` note records both `codex review` runs as
+  returned with findings fixed; no review in flight. Feature checkout was clean
+  at `df6ed6cb`, two commits ahead; `origin/main` had advanced only through
+  generated task/log lifecycle commits.
+- `coga open-pr` ran from the primary control checkout on 2026-09-18 and
+  opened PR #838 (`fix/recurring-ledger-freshness` -> `main`, non-draft).
+  `pr:` recorded under `## Dev`. Merge is owner-controlled in the next step.
 
 ## PR
 
