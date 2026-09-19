@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -70,6 +70,7 @@ Tradeoff: automatic launch loses historical alternatives unless the live summary
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/840
 branch: codex/exclude-superseded-designs
 worktree: /tmp/coga-exclude-superseded-designs
 
@@ -159,3 +160,44 @@ This is pre-existing lifecycle parsing behavior, left unresolved in this
 composition-only change. No matching follow-up was found in the task tree.
 Peer review should keep this boundary visible; `retro/done-ticket` owns carrying
 the finding forward rather than expanding this ticket into blocker lifecycle work.
+
+
+## Peer review
+
+- `codex review --base main` **returned** successfully with no actionable
+  regressions. Its attempted tests could not collect because ambient Python
+  lacks `tomlkit`; the full suite passed separately using the existing
+  declared test environment. Review transcript:
+  `/tmp/exclude-superseded-peer-review.log`.
+- No must-fix findings or code changes. The adjacent stored-blocker parsing
+  issue above remains pre-existing and outside this composition-only change;
+  carry it forward through `retro/done-ticket`.
+- Ran `git fetch origin main` then `git rebase FETCH_HEAD` in the feature
+  checkout. Rebase was clean onto `3b85b182d141392a234dc74844028c5fd55771e3`;
+  reviewed commit is now `b454cebaed27f330cff199bd0ce743db663fcb01`.
+  `git range-diff 9530336d^..9530336d origin/main..HEAD` confirms the patch
+  is unchanged. `git diff --check origin/main...HEAD` is clean.
+- Inspected the rendered blackboard from `compose_prompt_report` against
+  `example/coga/tasks/auto/triage-inbound-email.md`: the exact file/heading
+  pointer and current Handoff render, and archived alternatives do not.
+  No interactive terminal, pager, TTY, or Slack rendering behavior changed.
+- Full post-rebase suite: `PYTHONPATH=/tmp/coga-exclude-superseded-designs/src /tmp/coga-system-completion-venv/bin/python -m pytest`
+  — **2,689 passed in 182.20s**, including packaging checks. Log:
+  `/tmp/exclude-superseded-peer-tests.log`. Feature checkout is clean with
+  one committed change ahead of fetched `origin/main`; no fix commit was needed.
+
+## PR
+
+Launch prompts now replace exact `## Superseded designs` blackboard sections
+with one pointer to the original ticket. Archived text stays unchanged on disk;
+live notes, current requirements, and Dev/Blockers sections still compose.
+The shared fence-aware filter also keeps the blocker preamble, prompt report,
+size warning, and draft synthesis checks aligned. Historical alternatives require
+deliberate reading; keep rationale needed for current work in live notes.
+
+Updates the owning contexts, packaged twins, authoring guidance, and seeded
+example. Covers short/large archives, duplicate sections, fenced examples,
+heading boundaries, activation preservation, and actual composed sizes.
+The pre-existing stored-blocker eligibility parser is outside this change.
+
+Test plan: `PYTHONPATH=/tmp/coga-exclude-superseded-designs/src /tmp/coga-system-completion-venv/bin/python -m pytest` (2,689 passed in 182.20s after rebase); inspect the composed example blackboard; `git diff --check origin/main...HEAD`.
