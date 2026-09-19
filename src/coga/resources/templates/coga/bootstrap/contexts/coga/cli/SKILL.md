@@ -521,13 +521,16 @@ ticket state as a side effect of rendering — principle 6, fail loud, names
 `status`/`show`/`validate` as forbidden mutators), and there is no post-merge
 git hook. It surfaces `gh` errors (missing, unauthed) loudly.
 
-Every ticket it closes that still records a `branch:` or `worktree:` gets a
-`coga retire <slug>` follow-up: reported per run (task blackboard or stdout,
-plus one trailing Slack line), and — when running as the recurring period
-task — recorded in the template's durable `coga/recurring/<name>/retires.md`,
-which the sweep also prunes of discharged entries on every run. The
-`coga/autoclose/sweep` skill owns those rules. Autoclose never removes a
-checkout itself.
+Every ticket it closes that still records a `branch:` or `worktree:` has its
+checkout disposed of under the same proofs `coga retire` runs (the shared
+`coga.checkout_disposal`): worktree removed, then local and remote branch
+deleted, each only where its proof admits it. What a proof refuses is
+reported per run (task blackboard or stdout), posted to coga-important with
+its reason, and — when running as the recurring period task — recorded in
+the template's durable `coga/recurring/<name>/retires.md`, whose open entries
+every run re-judges and prunes. The `coga/autoclose/sweep` skill owns those
+rules. Autoclose runs only from the control branch; elsewhere it closes
+tickets but preserves every checkout and says so.
 
 Posts a distinct Slack line with the ticket title, previous step, and linked
 PR (`🎉 *<slug>* "<title>": <prev> → done — <pr-url|PR #<N>> merged`), so the

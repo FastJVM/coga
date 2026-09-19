@@ -303,7 +303,7 @@ def test_reconcile_creates_the_worklist_with_the_documented_header(repo: Path) -
 
     assert change.written and change.added == [_entry("stranded")]
     text = path.read_text()
-    assert text.startswith("# Stranded `coga retire` follow-ups")
+    assert text.startswith("# Feature checkouts autoclose could not dispose of")
     assert rw.parse_worklist(text) == (rw.RETIRE_WORKLIST_HEADER, [_entry("stranded")])
 
 

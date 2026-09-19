@@ -62,6 +62,17 @@ Branch safety model:
 `gh` missing/unauthed means the merge state can't be confirmed: the gated
 deletes are skipped and reported, never forced.
 
+Two entry points per proof. `remove_ticket_worktree` / `delete_ticket_branch`
+take `## Dev` blackboard text and are thin parsers over `remove_worktree` /
+`delete_branch`, which take the branch, worktree path, and `pr:` URL directly.
+The direct forms exist because two callers have no ticket to parse: the
+autoclose sweep draining a `retires.md` entry whose ticket retire already
+deleted, and the branch sweep GC'ing a worktree no ticket ever recorded
+(`coga.checkout_disposal` orchestrates the shared proofs for all three). With
+no `pr:` URL the merge signal is the merged PRs for that **head branch name**
+(`prs_for_head`), the lookup branch sweep already trusts; the exact-head
+comparison is the same either way.
+
 Subprocess usage mirrors `autoclose.py` and `git.py`: plain `subprocess.run`
 with `check=False`, no third-party git binding.
 """
@@ -161,11 +172,7 @@ def remove_ticket_worktree(
 
     `root` is the git working-tree root retire runs from (the control checkout).
     `blackboard_text` is the ticket's blackboard region, read while the
-    `worktree:` line still exists. Returns a `WorktreeCleanupResult`; every
-    decision is echoed for the human watching the retire run.
-
-    Preserves anything it cannot prove is disposable — see the module docstring's
-    worktree safety model.
+    `worktree:` line still exists. Thin parser over `remove_worktree`.
     """
     result = WorktreeCleanupResult()
 
@@ -184,10 +191,112 @@ def remove_ticket_worktree(
             "checkout the worktree belongs to; left in place.",
         )
         return result
+    return remove_worktree(
+        cfg,
+        root,
+        recorded,
+        branch,
+        pr_url=parse_pr_url(blackboard_text),
+        echo=echo,
+        result=result,
+    )
 
-    path = Path(recorded).expanduser()
+
+def remove_worktree(
+    cfg: Config,
+    root: Path,
+    worktree: str,
+    branch: str,
+    *,
+    pr_url: str | None,
+    echo: Callable[[str], None] = print,
+    result: WorktreeCleanupResult | None = None,
+) -> WorktreeCleanupResult:
+    """Remove the linked worktree at `worktree` iff it holds the landed `branch`.
+
+    `worktree` is the recorded path (relative paths resolve against `root`);
+    `pr_url` is the ticket's `pr:` link, or None to authorize by merged PRs
+    for the head branch name. Returns a `WorktreeCleanupResult`; every decision
+    is echoed for the human watching the run.
+
+    Preserves anything it cannot prove is disposable — see the module docstring's
+    worktree safety model.
+    """
+    if result is None:
+        result = WorktreeCleanupResult(worktree=worktree)
+    path = resolve_worktree_path(root, worktree)
+    local_state = inspect_worktree_for_removal(
+        root, path, branch, result=result, echo=echo, recorded=worktree
+    )
+    if local_state is None:
+        return result
+
+    if not _branch_has_no_open_pr(
+        branch,
+        note=lambda message: _wnote(result, echo, message),
+        prefix="Worktree cleanup",
+    ):
+        return result
+
+    if not local_branch_landed(root, branch, cfg.git_control_branch):
+        authorization = _pr_cleanup_authorization(
+            cfg,
+            root,
+            branch,
+            pr_url=pr_url,
+            note=lambda message: _wnote(result, echo, message),
+            prefix="Worktree cleanup",
+        )
+        remote_safe = (
+            authorization.remote_known
+            and (
+                not authorization.remote_present
+                or authorization.remote_merged
+            )
+        )
+        if not authorization.local_merged or not remote_safe:
+            _wnote(
+                result,
+                echo,
+                f"Worktree cleanup: branch {branch!r} has not landed on "
+                f"{cfg.git_control_branch!r} and its current refs do not exactly "
+                "match the recorded merged PR — left in place.",
+            )
+            return result
+
+    return remove_inspected_worktree(
+        root, path, local_state, result=result, echo=echo, recorded=worktree
+    )
+
+
+def resolve_worktree_path(root: Path, worktree: str) -> Path:
+    """The recorded `worktree:` value as a path; relative values anchor at `root`."""
+    path = Path(worktree).expanduser()
     if not path.is_absolute():
         path = root / path
+    return path
+
+
+def inspect_worktree_for_removal(
+    root: Path,
+    path: Path,
+    branch: str,
+    *,
+    result: WorktreeCleanupResult,
+    echo: Callable[[str], None] = print,
+    recorded: str | None = None,
+) -> _WorktreeLocalState | None:
+    """Run the structural and pristine proofs on one checkout.
+
+    Returns the classified local state when `path` is a linked worktree of this
+    repository, holds `branch`, and carries nothing but regenerable caches —
+    the shape `remove_inspected_worktree` may then delete. Returns None after
+    noting why the checkout must be preserved (or that it is already gone,
+    with `result.already_gone` set). Merge authorization is the caller's:
+    `remove_worktree` proves it from a PR, branch sweep from its own landed
+    verdict.
+    """
+    recorded = recorded if recorded is not None else str(path)
     if not path.is_dir():
         result.already_gone = True
         _wnote(
@@ -195,7 +304,7 @@ def remove_ticket_worktree(
             echo,
             f"Worktree cleanup: recorded worktree {recorded!r} is already gone.",
         )
-        return result
+        return None
 
     if path.is_symlink():
         _wnote(
@@ -204,16 +313,16 @@ def remove_ticket_worktree(
             f"Worktree cleanup: recorded path {recorded!r} is a symlink — left "
             "in place rather than removing its target.",
         )
-        return result
+        return None
 
     if _same_path(root, path):
         _wnote(
             result,
             echo,
-            f"Worktree cleanup: {recorded!r} is the checkout running retire — "
-            "left in place.",
+            f"Worktree cleanup: {recorded!r} is the checkout running this "
+            "cleanup — left in place.",
         )
-        return result
+        return None
 
     if not _is_linked_worktree_of(root, path):
         _wnote(
@@ -223,7 +332,7 @@ def remove_ticket_worktree(
             "repository (independent clone, unrelated repo, or the primary "
             "checkout) — left in place.",
         )
-        return result
+        return None
 
     checked_out = _current_branch(path)
     if checked_out != branch:
@@ -234,7 +343,7 @@ def remove_ticket_worktree(
             f"Worktree cleanup: {recorded!r} holds {actual!r}, not the recorded "
             f"branch {branch!r} — left in place.",
         )
-        return result
+        return None
 
     local_state, status_error = _worktree_local_state(path)
     if status_error is not None:
@@ -244,7 +353,7 @@ def remove_ticket_worktree(
             f"Worktree cleanup: could not inspect local state in {recorded!r} "
             f"({status_error}) — left in place.",
         )
-        return result
+        return None
     if local_state.blocking:
         # Sample the *blocking* entries only: a test run leaves hundreds of
         # cache lines, and they used to drown the one entry that is the real
@@ -268,41 +377,21 @@ def remove_ticket_worktree(
                 f"Worktree cleanup: {recorded!r} contains tracked or untracked "
                 f"local state ({sample}) — left in place.",
             )
-        return result
+        return None
+    return local_state
 
-    if not _branch_has_no_open_pr(
-        branch,
-        note=lambda message: _wnote(result, echo, message),
-        prefix="Worktree cleanup",
-    ):
-        return result
 
-    if not local_branch_landed(root, branch, cfg.git_control_branch):
-        authorization = _pr_cleanup_authorization(
-            cfg,
-            root,
-            blackboard_text,
-            branch,
-            note=lambda message: _wnote(result, echo, message),
-            prefix="Worktree cleanup",
-        )
-        remote_safe = (
-            authorization.remote_known
-            and (
-                not authorization.remote_present
-                or authorization.remote_merged
-            )
-        )
-        if not authorization.local_merged or not remote_safe:
-            _wnote(
-                result,
-                echo,
-                f"Worktree cleanup: branch {branch!r} has not landed on "
-                f"{cfg.git_control_branch!r} and its current refs do not exactly "
-                "match the recorded merged PR — left in place.",
-            )
-            return result
-
+def remove_inspected_worktree(
+    root: Path,
+    path: Path,
+    local_state: _WorktreeLocalState,
+    *,
+    result: WorktreeCleanupResult,
+    echo: Callable[[str], None] = print,
+    recorded: str | None = None,
+) -> WorktreeCleanupResult:
+    """`git worktree remove` a checkout `inspect_worktree_for_removal` admitted."""
+    recorded = recorded if recorded is not None else str(path)
     # Unforced on purpose: it refuses modified-tracked and untracked files
     # (the gate above already did too) but deletes the ignored cache entries
     # the gate just classified as regenerable. No extra plumbing needed.
@@ -473,9 +562,7 @@ def delete_ticket_branch(
 
     `root` is the git working-tree root. `blackboard_text` is the ticket's
     blackboard region (read before the task directory is removed, so the
-    `branch:`/`pr:` lines are still present). Returns a `BranchCleanupResult`
-    describing the actions taken; every decision is also echoed for the human
-    watching the retire run.
+    `branch:`/`pr:` lines are still present). Thin parser over `delete_branch`.
     """
     result = BranchCleanupResult()
 
@@ -484,6 +571,33 @@ def delete_ticket_branch(
     if not branch:
         # No `## Dev` branch line — nothing to prune (e.g. a doc-only ticket).
         return result
+    return delete_branch(
+        cfg,
+        root,
+        branch,
+        pr_url=parse_pr_url(blackboard_text),
+        echo=echo,
+        result=result,
+    )
+
+
+def delete_branch(
+    cfg: Config,
+    root: Path,
+    branch: str,
+    *,
+    pr_url: str | None,
+    echo: Callable[[str], None] = print,
+    result: BranchCleanupResult | None = None,
+) -> BranchCleanupResult:
+    """Delete local `branch` and its `origin` counterpart iff safe.
+
+    `pr_url` is the ticket's `pr:` link, or None to authorize by merged PRs
+    for the head branch name. Returns a `BranchCleanupResult` describing the
+    actions taken; every decision is also echoed for the human watching the run.
+    """
+    if result is None:
+        result = BranchCleanupResult(branch=branch)
 
     if branch == cfg.git_control_branch:
         _note(result, echo, f"Branch cleanup: refusing to delete control branch {branch!r}.")
@@ -507,8 +621,8 @@ def delete_ticket_branch(
     authorization = _pr_cleanup_authorization(
         cfg,
         root,
-        blackboard_text,
         branch,
+        pr_url=pr_url,
         note=lambda message: _note(result, echo, message),
         prefix="Branch cleanup",
     )
@@ -583,53 +697,38 @@ def _branch_has_no_open_pr(
 def _pr_cleanup_authorization(
     cfg: Config,
     root: Path,
-    blackboard_text: str,
     branch: str,
     *,
+    pr_url: str | None,
     note: Callable[[str], None],
     prefix: str,
 ) -> _PrCleanupAuthorization:
-    """Authorize only refs equal to the recorded merged PR's exact head.
+    """Authorize only refs equal to a merged PR's exact head.
 
     The PR state alone is insufficient: a branch may be reused after merge, or
     another checkout may push a newer remote tip. Local and remote refs are
     checked independently so landed local cleanup can proceed without deleting
     a newer remote branch.
+
+    With `pr_url` the merged head is that PR's, and its head branch must be
+    `branch`. Without one — a worklist entry whose ticket is gone, a worktree
+    no ticket recorded — the heads are those of every merged PR whose head
+    branch is `branch`; a ref equal to any of them was landed by that PR.
     """
     authorization = _PrCleanupAuthorization()
-    url = parse_pr_url(blackboard_text)
-    if not url:
-        note(f"{prefix}: no `pr:` link recorded — cannot confirm merge.")
+    heads = _merged_pr_heads(branch, pr_url, note=note, prefix=prefix)
+    if not heads:
         return authorization
-    try:
-        state = pr_state(url)
-    except GhError as exc:
-        note(f"{prefix}: could not check PR state ({exc}).")
-        return authorization
-    if state != "MERGED":
-        note(f"{prefix}: PR is {state} (not MERGED).")
-        return authorization
-
-    try:
-        head_branch, head_oid = pr_head(url)
-    except GhError as exc:
-        note(f"{prefix}: could not check the merged PR head ({exc}).")
-        return authorization
-    if head_branch != branch:
-        note(
-            f"{prefix}: merged PR head is {head_branch!r}, not the recorded "
-            f"branch {branch!r}."
-        )
-        return authorization
+    shown = "/".join(head[:12] for head in heads)
 
     local_tip = _rev_parse(root, f"refs/heads/{branch}")
-    authorization.local_merged = bool(local_tip and local_tip == head_oid)
+    authorization.local_merged = bool(local_tip and local_tip in heads)
     if authorization.local_merged:
-        authorization.local_expected_tip = head_oid
+        authorization.local_expected_tip = local_tip
     if local_tip and not authorization.local_merged:
         note(
             f"{prefix}: local {branch!r} advanced past the merged PR head "
-            f"{head_oid[:12]} — preserving it."
+            f"{shown} — preserving it."
         )
 
     remote_known, remote_tip, remote_error = _remote_branch_tip(
@@ -643,15 +742,58 @@ def _pr_cleanup_authorization(
             f"({remote_error}) — preserving it."
         )
         return authorization
-    authorization.remote_merged = bool(remote_tip and remote_tip == head_oid)
+    authorization.remote_merged = bool(remote_tip and remote_tip in heads)
     if authorization.remote_merged:
-        authorization.remote_expected_tip = head_oid
+        authorization.remote_expected_tip = remote_tip
     if remote_tip and not authorization.remote_merged:
         note(
             f"{prefix}: {cfg.git_remote}/{branch} advanced past the merged PR "
-            f"head {head_oid[:12]} — preserving it."
+            f"head {shown} — preserving it."
         )
     return authorization
+
+
+def _merged_pr_heads(
+    branch: str,
+    pr_url: str | None,
+    *,
+    note: Callable[[str], None],
+    prefix: str,
+) -> list[str]:
+    """Head commits a merged PR vouches for; empty (and noted) when none does."""
+    if pr_url:
+        try:
+            state = pr_state(pr_url)
+        except GhError as exc:
+            note(f"{prefix}: could not check PR state ({exc}).")
+            return []
+        if state != "MERGED":
+            note(f"{prefix}: PR is {state} (not MERGED).")
+            return []
+        try:
+            head_branch, head_oid = pr_head(pr_url)
+        except GhError as exc:
+            note(f"{prefix}: could not check the merged PR head ({exc}).")
+            return []
+        if head_branch != branch:
+            note(
+                f"{prefix}: merged PR head is {head_branch!r}, not the recorded "
+                f"branch {branch!r}."
+            )
+            return []
+        return [head_oid]
+
+    try:
+        merged = prs_for_head(branch, "merged")
+    except GhError as exc:
+        note(f"{prefix}: could not list merged PRs for {branch!r} ({exc}).")
+        return []
+    heads = [
+        str(oid) for item in merged if (oid := item.get("headRefOid"))
+    ]
+    if not heads:
+        note(f"{prefix}: no `pr:` link recorded and no merged PR for head {branch!r}.")
+    return heads
 
 
 def _remote_branch_tip(
@@ -820,11 +962,15 @@ def _note(
     echo(message)
 
 
-def _local_branch_exists(root: Path, branch: str) -> bool:
+def local_branch_exists(root: Path, branch: str) -> bool:
+    """True iff `refs/heads/<branch>` exists in `root`'s repository."""
     return (
         _git(root, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}").returncode
         == 0
     )
+
+
+_local_branch_exists = local_branch_exists
 
 
 def local_branch_landed(
@@ -907,8 +1053,14 @@ __all__ = [
     "BranchCleanupResult",
     "WorktreeCleanupResult",
     "remove_ticket_worktree",
+    "remove_worktree",
+    "resolve_worktree_path",
+    "inspect_worktree_for_removal",
+    "remove_inspected_worktree",
     "delete_ticket_branch",
+    "delete_branch",
     "delete_remote_branch",
     "delete_local_branch",
+    "local_branch_exists",
     "local_branch_landed",
 ]

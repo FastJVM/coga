@@ -648,19 +648,111 @@ def test_sweep_omits_a_closed_ticket_that_recorded_no_checkout(
     assert result.retire_pending == []
 
 
-def test_render_retire_report_names_the_exact_retire_command() -> None:
+def test_render_retire_report_names_the_exact_retire_command_when_disposal_skipped() -> None:
+    # The disposal phase never ran (off the control branch, sweep failure, no
+    # git), so the report falls back to naming the manual command per ticket.
     report = am.render_retire_report(
         generated_at="2026-08-14T08:00:00+00:00",
         task_slug="recurring/autoclose-merged",
+        checkouts=[],
         pending=[_closed("fix-thing", branch="fix-thing", worktree="/w/coga-fix")],
+        skipped="checkout is on 'feature', not the control branch 'main'",
     )
 
     assert report.startswith(am.RETIRE_REPORT_HEADING)
     assert "Generated: 2026-08-14T08:00:00+00:00" in report
     assert "Task: `recurring/autoclose-merged`" in report
+    assert "Checkout disposal skipped (checkout is on 'feature'" in report
     assert (
         '- `fix-thing` "Work": worktree `/w/coga-fix`, branch `fix-thing` — '
         "`coga retire fix-thing`" in report
+    )
+
+
+def _outcome(
+    slug: str,
+    *,
+    title: str | None = "Work",
+    ticket_exists: bool = True,
+    worktree_removed: bool,
+    branch_remains: bool,
+    notes: list[str] | None = None,
+) -> am.CheckoutOutcome:
+    from coga.branchcleanup import WorktreeCleanupResult
+    from coga.checkout_disposal import CheckoutDisposal
+
+    worktree_result = WorktreeCleanupResult(
+        worktree=f"/w/{slug}", removed=worktree_removed, notes=list(notes or [])
+    )
+    disposal = CheckoutDisposal(
+        branch=slug,
+        worktree=f"/w/{slug}",
+        notes=list(notes or []),
+        worktree_result=worktree_result,
+        local_branch_remains=branch_remains,
+    )
+    return am.CheckoutOutcome(
+        slug=slug,
+        title=title,
+        branch=slug,
+        worktree=f"/w/{slug}",
+        ticket_exists=ticket_exists,
+        disposal=disposal,
+    )
+
+
+def test_render_retire_report_lists_disposed_and_preserved_with_reasons() -> None:
+    disposed = _outcome("gone", worktree_removed=True, branch_remains=False)
+    preserved = _outcome(
+        "kept",
+        title=None,
+        ticket_exists=False,
+        worktree_removed=False,
+        branch_remains=True,
+        notes=[
+            "Worktree cleanup: '/w/kept' contains tracked or untracked local "
+            "state ('?? scratch.txt') — left in place.",
+        ],
+    )
+
+    report = am.render_retire_report(
+        generated_at="2026-09-18T08:00:00+00:00",
+        task_slug="recurring/autoclose-merged",
+        checkouts=[disposed, preserved],
+        worklist=Path("/repo/coga/recurring/autoclose-merged/retires.md"),
+    )
+
+    assert "1 checkout(s) disposed of" in report
+    assert '- `gone` "Work": worktree `/w/gone`, branch `gone`' in report
+    assert "1 checkout(s) preserved" in report
+    # A backlog entry whose ticket is gone names the manual path, not a retire
+    # command that no longer resolves; the proof note travels with it.
+    assert (
+        "- `kept` (worklist backlog, ticket already deleted): worktree `/w/kept`, "
+        "branch `kept` — '/w/kept' contains tracked or untracked local state "
+        "('?? scratch.txt') — left in place. (dispose of the recorded worktree "
+        "and branch by hand)"
+    ) in report
+    assert "  - Worktree cleanup: '/w/kept' contains" in report
+    assert "Recorded in the durable worklist `/repo/coga/recurring/autoclose-merged/retires.md`" in report
+
+
+def test_render_disposed_and_preserved_summaries() -> None:
+    disposed = _outcome("gone", worktree_removed=True, branch_remains=False)
+    preserved = _outcome(
+        "kept",
+        worktree_removed=False,
+        branch_remains=True,
+        notes=["Worktree cleanup: '/w/kept' is a symlink — left in place."],
+    )
+
+    assert am.render_disposed_summary([disposed]) == (
+        "🧹 Autoclose disposed of 1 feature checkout (worktree and branch): `gone`"
+    )
+    assert am.render_preserved_summary([preserved]) == (
+        "⚠️ 1 feature checkout needs a human — autoclose could not dispose of it: "
+        "`kept` (worktree `/w/kept`, branch `kept`): '/w/kept' is a symlink — "
+        "left in place."
     )
 
 

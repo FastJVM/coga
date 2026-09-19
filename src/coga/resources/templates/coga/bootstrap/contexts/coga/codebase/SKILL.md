@@ -51,6 +51,16 @@ review bars.
   `retire_worklist.py` owns the autoclose sweep's durable `retires.md`
   worklist — parse, discharge rule, barrier-held atomic rewrite — for its two
   consumers, the `autoclose` recipe and `commands/retire.py`.
+  `branchcleanup.py` holds the individual checkout proofs (linked worktree,
+  exact branch, pristine, open PR, landed or merged head, leased deletes) in
+  two forms — `## Dev` text, or the branch / worktree / `pr:` values directly,
+  for callers with no ticket to parse — and `checkout_disposal.py` the proof
+  above them (no other live ticket claims the checkout) plus the claim →
+  worktree → local → remote order, for its three consumers: `commands/retire.py`,
+  the `autoclose` recipe's disposal phase, and `branchsweep.py`'s gated
+  worktree GC. `autoclose.py` imports it lazily inside the recipe because
+  `branchcleanup` imports the `## Dev` parsers and `gh` lookups from
+  `autoclose` at load time.
   `commands/slack.py` keeps the explicit FYI command spelling.
   `commands/block.py` and `commands/unblock.py` own blocked-state
   handoffs. `commands/megalaunch.py` is the manual drain entrypoint;

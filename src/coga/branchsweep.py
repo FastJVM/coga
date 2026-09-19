@@ -35,9 +35,18 @@ that name branches (this sweep's own, autoclose's retire follow-ups), so they
 pin only a recorded `## Dev` `branch:`.
 
 Before enumerating branches, the sweep prunes registrations for worktrees whose
-directories are gone. A merged branch that remains checked out in a live
-worktree is preserved deliberately and reported as worktree-pinned instead of
-falling through to a failed `git branch -d`/`-D`.
+directories are gone. A landed branch that remains checked out in a live
+worktree is, by default, preserved deliberately and reported as
+worktree-pinned instead of falling through to a failed `git branch -d`/`-D`.
+With `[git].worktrees_ticket_owned = true` the repo has declared that every
+linked worktree of this repository belongs to a Coga ticket (the `dev/code`
+context owns that assumption), so a landed, pristine one no live ticket claims
+is finished work: the sweep removes the worktree first
+(`branchcleanup.inspect_worktree_for_removal` — same-repo linked worktree,
+checked out on that branch, no tracked or untracked local state; then
+`checkout_disposal.live_checkout_claim`) and the branch then takes the
+ordinary delete path under the same landed authorization. A worktree that
+fails any proof is still reported worktree-pinned, with the reason.
 
 Reuses `branchcleanup.py`'s `delete_remote_branch` / `delete_local_branch`
 for the actual git plumbing (ancestry check, `-d` then logged `-D` fallback,
@@ -61,10 +70,14 @@ from coga.autoclose import GhError, parse_branch_name, prs_for_head
 from coga.blackboard import append_blackboard_report
 from coga.branchcleanup import (
     BranchCleanupResult,
+    WorktreeCleanupResult,
     delete_local_branch,
     delete_remote_branch,
+    inspect_worktree_for_removal,
     local_branch_landed,
+    remove_inspected_worktree,
 )
+from coga.checkout_disposal import live_checkout_claim
 from coga.config import Config
 from coga import git
 from coga.github_preflight import coga_root_prefix, is_coga_state_path
@@ -85,6 +98,8 @@ class BranchSweepResult:
     remote_deleted: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
     worktree_pinned: list[str] = field(default_factory=list)
+    worktree_removed: list[str] = field(default_factory=list)
+    """Linked worktrees the sweep removed under `[git].worktrees_ticket_owned`."""
     notes: list[str] = field(default_factory=list)
     gh_unavailable: str | None = None
     remote_unavailable: str | None = None
@@ -127,10 +142,12 @@ def sweep_branches(
 
     `root` is the git working-tree root. Prunes registrations for missing
     worktrees first. Never touches `cfg.git_control_branch`, the currently
-    checked-out branch, a branch recorded on a non-terminal ticket, or a merged
-    branch still checked out in a live worktree. If worktree state or `gh` is
-    unavailable, the rest of the sweep is skipped and reported rather than
-    deleting with incomplete safety information.
+    checked-out branch, or a branch recorded on a non-terminal ticket. A merged
+    branch still checked out in a live worktree is left alone unless
+    `cfg.git_worktrees_ticket_owned` admits removing that worktree first (see
+    the module docstring). If worktree state or `gh` is unavailable, the rest
+    of the sweep is skipped and reported rather than deleting with incomplete
+    safety information.
 
     `result`, when given, is used as the accumulator and returned — the same
     idiom `sweep_merged` offers, so a caller holding the object can read what
@@ -224,14 +241,23 @@ def sweep_branches(
             or local_merged
             or local_landed
         ):
-            result.worktree_pinned.append(branch)
-            _note(
-                result,
-                echo,
-                f"Branch sweep: {branch!r} has a landed ref but is checked out "
-                f"in worktree {worktree_branches[branch]!r} — left in place.",
+            if not cfg.git_worktrees_ticket_owned:
+                result.worktree_pinned.append(branch)
+                _note(
+                    result,
+                    echo,
+                    f"Branch sweep: {branch!r} has a landed ref but is checked out "
+                    f"in worktree {worktree_branches[branch]!r} — left in place.",
+                )
+                continue
+            cleanup = _remove_pinning_worktree(
+                cfg, root, branch, worktree_branches[branch], result, echo
             )
-            continue
+            if not (cleanup.removed or cleanup.already_gone):
+                result.worktree_pinned.append(branch)
+                continue
+            if cleanup.removed:
+                result.worktree_removed.append(worktree_branches[branch])
 
         # The cleanup helpers note into the sweep's own record, so each delete
         # and refusal lands in the run report in the order it happened.
@@ -282,6 +308,65 @@ def sweep_branches(
             result.skipped.append(branch)
 
     return result
+
+
+def _remove_pinning_worktree(
+    cfg: Config,
+    root: Path,
+    branch: str,
+    worktree: str,
+    result: BranchSweepResult,
+    echo: Callable[[str], None],
+) -> WorktreeCleanupResult:
+    """GC the live worktree holding landed `branch`.
+
+    The result's `removed` / `already_gone` say whether the branch is unpinned.
+
+    Only reached under `[git].worktrees_ticket_owned`, after the sweep has
+    already established that the branch landed and no live ticket names it.
+    The worktree proofs are retire's (`inspect_worktree_for_removal`: same-repo
+    linked worktree, checked out on `branch`, nothing but regenerable caches
+    locally) plus the claim scan on the *path*, which the branch-name guard
+    above cannot see. Every refusal is noted and keeps the branch
+    worktree-pinned, as before the key existed.
+    """
+    path = Path(worktree)
+    cleanup = WorktreeCleanupResult(worktree=worktree, notes=result.notes)
+    try:
+        claim = live_checkout_claim(cfg, root, branch=branch, worktree=worktree)
+    except Exception as exc:  # noqa: BLE001 — incomplete proof preserves checkout
+        _note(
+            result,
+            echo,
+            f"Branch sweep: {branch!r} has a landed ref but its worktree "
+            f"{worktree!r} could not be proven unclaimed ({exc}) — left in place.",
+        )
+        return cleanup
+    if claim is not None:
+        _note(
+            result,
+            echo,
+            f"Branch sweep: {branch!r} has a landed ref but {claim} — worktree "
+            f"{worktree!r} left in place.",
+        )
+        return cleanup
+    local_state = inspect_worktree_for_removal(
+        root, path, branch, result=cleanup, echo=echo
+    )
+    if local_state is None:
+        # `already_gone` (pruned between the listing and now) no longer pins
+        # the branch; every other refusal keeps both refs.
+        if not cleanup.already_gone:
+            _note(
+                result,
+                echo,
+                f"Branch sweep: {branch!r} has a landed ref but its worktree "
+                f"{worktree!r} was preserved — both refs left in place.",
+            )
+        return cleanup
+    return remove_inspected_worktree(
+        root, path, local_state, result=cleanup, echo=echo
+    )
 
 
 def _merged_prs(branch: str) -> list[tuple[str, str]]:
@@ -468,6 +553,11 @@ def run_branch_sweep_recipe(
     if result.failure:
         sys.stderr.write(f"[branch-sweep] {result.failure}\n")
         return 2
+    if result.worktree_removed:
+        sys.stdout.write(
+            "[branch-sweep] removed-worktree: "
+            f"{', '.join(result.worktree_removed)}\n"
+        )
     if result.worktree_pinned:
         sys.stdout.write(
             "[branch-sweep] skipped-worktree-pinned: "
@@ -500,12 +590,14 @@ def render_sweep_report(
     lines.append(
         f"{count_label}: {len(result.local_deleted)} local and "
         f"{len(result.remote_deleted)} remote branch(es) deleted, "
+        f"{len(result.worktree_removed)} worktree(s) removed, "
         f"{len(result.worktree_pinned)} skipped-worktree-pinned, "
         f"{len(result.skipped)} skipped."
     )
     for label, names in (
         ("deleted local", result.local_deleted),
         ("deleted remote", result.remote_deleted),
+        ("removed worktree", result.worktree_removed),
         ("skipped-worktree-pinned", result.worktree_pinned),
         ("skipped", result.skipped),
     ):

@@ -45,9 +45,16 @@ which:
    merged head through Coga's own state-sync commits; a ref carrying real
    unmerged source commits stays, with the offending paths named. The remote
    ref takes only a merged PR at its exact tip,
-5. preserves both refs for a branch that landed either way but is still held
-   by a live worktree and reports the distinct, non-fatal
-   `skipped-worktree-pinned` outcome,
+5. for a branch that landed either way but is still held by a live worktree,
+   preserves both refs and reports the distinct, non-fatal
+   `skipped-worktree-pinned` outcome — unless `[git].worktrees_ticket_owned`
+   is `true`, the repo's declaration that every linked worktree of its git
+   repository belongs to a Coga ticket. Then a landed worktree that is linked
+   to the clone this sweep runs from, checked out on that branch, locally
+   pristine (no tracked or untracked files; ignored regenerable caches are
+   fine), and recorded by no non-terminal ticket is removed first, reported
+   under `removed worktree`, and its refs continue to step 6; a worktree that
+   fails any of those proofs stays `skipped-worktree-pinned` with the reason,
 6. deletes the remote ref and/or local branch per the same policy
    `coga retire` uses (plain `git branch -d` when the tip is reachable from
    the control branch; log the tip SHA and force with `-D` for the
@@ -58,7 +65,10 @@ which:
    durable record for the recurring sweep's autofix analyst; run outside a
    task, the report goes to stdout instead.
 
-The sweep is defined in `coga.branchsweep.sweep_branches`. Its first run
+The sweep is defined in `coga.branchsweep.sweep_branches`. The worktree
+removal is a direct destructive change gated on a repo-level opt-in; the
+`dev/code` context states the assumption the key asserts, and the
+`coga/branch-sweep/sweep` skill names the proofs. Its first run
 also prunes the merged part of the branch backlog that accumulated before
 retire-time deletion shipped — abandoned no-PR branches are skipped and
 reported by design, so expect a residual manual pass rather than a fully

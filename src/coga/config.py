@@ -117,6 +117,12 @@ class Config:
     git_enabled: bool = True
     git_remote: str = "origin"
     git_control_branch: str = "main"
+    # `[git].worktrees_ticket_owned`: the repo declares that every linked
+    # worktree of its git repository belongs to a Coga ticket, so the weekly
+    # branch sweep may remove a landed, pristine one no live ticket claims
+    # (`branchsweep`). Off by default — destructive behavior is never implicit;
+    # the `dev/code` context states the assumption a repo opts into.
+    git_worktrees_ticket_owned: bool = False
     # Liveness limits for the interactive REPLs `coga recurring` spawns, from
     # the shared `[launch]` table. None = no limit from config. The idle timeout
     # also keeps a presence flag because that limit has a built-in default:
@@ -335,7 +341,9 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
     extensions = _parse_extensions(shared.get("extensions", {}))
     ticket_fields = _parse_ticket_fields(shared.get("ticket"))
     git_enabled = _resolve_git_enabled(shared.get("git"), local.get("git"))
-    git_remote, git_control_branch = _parse_git(shared.get("git"))
+    git_remote, git_control_branch, git_worktrees_ticket_owned = _parse_git(
+        shared.get("git")
+    )
     (
         launch_idle_timeout,
         launch_idle_timeout_present,
@@ -387,6 +395,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         git_enabled=git_enabled,
         git_remote=git_remote,
         git_control_branch=git_control_branch,
+        git_worktrees_ticket_owned=git_worktrees_ticket_owned,
         launch_idle_timeout=launch_idle_timeout,
         launch_idle_timeout_present=launch_idle_timeout_present,
         launch_max_session=launch_max_session,
@@ -476,9 +485,11 @@ _ALLOWED_SHARED_GIT_KEYS: frozenset[str] = frozenset({
     "enabled",
     "remote",
     "control_branch",
+    "worktrees_ticket_owned",
 })
-# Only `enabled` is machine-local. `remote` and `control_branch` are shared
-# repo policy and `_parse_git` intentionally reads them only from coga.toml.
+# Only `enabled` is machine-local. `remote`, `control_branch`, and
+# `worktrees_ticket_owned` are shared repo policy and `_parse_git`
+# intentionally reads them only from coga.toml.
 _ALLOWED_LOCAL_GIT_KEYS: frozenset[str] = frozenset({"enabled"})
 _ALLOWED_LAUNCH_KEYS: frozenset[str] = frozenset(
     {"idle_timeout", "max_session"}
@@ -1085,16 +1096,18 @@ def _resolve_git_enabled(shared: dict | None, local: dict | None) -> bool:
     return True
 
 
-def _parse_git(shared: dict | None) -> tuple[str, str]:
-    """Parse `[git]` for `remote` / `control_branch`, with sane defaults.
+def _parse_git(shared: dict | None) -> tuple[str, str, bool]:
+    """Parse `[git]` for `remote` / `control_branch` / `worktrees_ticket_owned`.
 
-    Defaults to `origin` / `main`. The `enabled` key is resolved separately
-    (`_resolve_git_enabled`) so it can pick up a `coga.local.toml` override.
+    Defaults to `origin` / `main` / `False`. The `enabled` key is resolved
+    separately (`_resolve_git_enabled`) so it can pick up a `coga.local.toml`
+    override.
     """
     remote = "origin"
     control_branch = "main"
+    worktrees_ticket_owned = False
     if shared is None:
-        return remote, control_branch
+        return remote, control_branch, worktrees_ticket_owned
     if not isinstance(shared, dict):
         raise ConfigError(f"[git] must be a table (got {type(shared).__name__})")
     if "remote" in shared:
@@ -1107,7 +1120,15 @@ def _parse_git(shared: dict | None) -> tuple[str, str]:
         if not isinstance(value, str) or not value.strip():
             raise ConfigError("[git].control_branch must be a non-empty string")
         control_branch = value.strip()
-    return remote, control_branch
+    if "worktrees_ticket_owned" in shared:
+        value = shared["worktrees_ticket_owned"]
+        if not isinstance(value, bool):
+            raise ConfigError(
+                "[git].worktrees_ticket_owned must be a boolean "
+                f"(got {type(value).__name__})"
+            )
+        worktrees_ticket_owned = value
+    return remote, control_branch, worktrees_ticket_owned
 
 
 def _parse_layout(raw: object, repo_root: Path) -> Path | None:

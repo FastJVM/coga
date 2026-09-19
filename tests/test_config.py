@@ -757,15 +757,43 @@ def test_unknown_git_key_rejected_local(repo: Path) -> None:
         load_config(repo)
 
 
-@pytest.mark.parametrize("key", ["remote", "control_branch"])
-def test_shared_only_git_keys_rejected_local(repo: Path, key: str) -> None:
+def test_git_worktrees_ticket_owned_defaults_off(repo: Path) -> None:
+    # Destructive behavior is never implicit: a repo opts in by writing the
+    # assumption down in `[git]`.
+    assert load_config(repo).git_worktrees_ticket_owned is False
+
+
+def test_git_worktrees_ticket_owned_opt_in(repo: Path) -> None:
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text() + "\n[git]\nworktrees_ticket_owned = true\n"
+    )
+    assert load_config(repo).git_worktrees_ticket_owned is True
+
+
+def test_git_worktrees_ticket_owned_must_be_boolean(repo: Path) -> None:
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text() + '\n[git]\nworktrees_ticket_owned = "yes"\n'
+    )
+    with pytest.raises(
+        ConfigError,
+        match=r"\[git\].worktrees_ticket_owned must be a boolean \(got str\)",
+    ):
+        load_config(repo)
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [("remote", '"upstream"'), ("control_branch", '"upstream"'),
+     ("worktrees_ticket_owned", "true")],
+)
+def test_shared_only_git_keys_rejected_local(repo: Path, key: str, value: str) -> None:
     _write(
         repo / "coga.local.toml",
         f"""
         user = "marc"
 
         [git]
-        {key} = "upstream"
+        {key} = {value}
         """,
     )
     with pytest.raises(
