@@ -25,7 +25,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -186,6 +186,7 @@ dirty or claimed one; `coga retire` unchanged after the shared-function move.
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/839
 branch: dispose-checkouts
 worktree: /home/n/Code/coga-dispose-checkouts
 
@@ -233,8 +234,8 @@ Shape:
   "current Coga workspace ... was not found". Not hit today: the recurring
   clone `/home/n/Code/claude/coga` sits on `main`, so the scheduler runs the
   recipe in place. Worth a follow-up if the host checkout ever moves off
-  `main`; not changed here (discovery's exclusion is deliberate for
-  scheduler targets).
+  `main`. Resolved in peer review below: explicit cleanup inspection now
+  permits this root while scheduler discovery keeps its exclusion.
 - Retire's `## Checkout cleanup` retro section now also carries a checkout
   whose proof *raised* (previously the exception left `worktree_result`
   None and the section was omitted). Intentional: a durable record beats a
@@ -302,3 +303,88 @@ entry stays preserved (owner's decision this session: a preserved checkout is
 work a human must do). The 10-entry backlog on the recurring clone drains on
 its next `coga run autoclose`; that clone's ~33 unrecorded worktrees need the
 key on plus a `coga run branch-sweep` there.
+
+
+## Peer review
+
+Codex `codex review --base main` **returned** successfully. Its three
+must-fix findings were confirmed and the owner approved all three fixes:
+
+- P1: a merged remote tip alone authorized removing a checkout with newer
+  unmerged local commits. Reproduced on a disposable real Git repository;
+  the directory disappeared while the local ref remained. Worktree removal
+  now requires the local tip's landed proof and no open PR (including branches
+  without an earlier merged PR).
+- P2: a refused or failed claim scan falsely classified branch-only cleanup
+  as disposed, dropping the new follow-up. Such outcomes now stay pending;
+  regression tests verify reporting, important notification, and the worklist.
+- P2: scheduler-owned temporary control checkouts were excluded from the claim
+  scan. Explicit claim inspection now permits that root; ordinary scheduler
+  discovery still excludes it. A real linked-control-worktree regression
+  verifies worktree, local branch, and remote deletion.
+
+Rebased unconditionally with `git fetch origin main` and `git rebase FETCH_HEAD`
+onto 415b673f; no conflicts. Reviewed both sweep skills and recurring tickets
+against the implementation, updated the local-tip/open-PR wording, and kept
+packaged twins synchronized. The implementation-stage temporary-control
+limitation is fixed, not deferred.
+
+Verification complete: focused suite (branchsweep, autoclose_dispose,
+workspace_discovery, retire, packaging) passed all 100 tests. Full suite
+`/tmp/coga-dispose-review-venv/bin/python -m pytest` passed **2684 tests**
+in 215.32 seconds. Dependencies installed
+using `uv pip install --python /tmp/coga-dispose-review-venv/bin/python -e
+'.[test]'`. The initial system-Python attempt failed collection because tomlkit
+was missing, before the isolated environment was created.
+
+Human-visible output: drove the report in a real PTY at 80 and 120 columns;
+refusal reason and manual follow-up remained present, with ordinary line
+wrapping and no cursor control. Inspected the synthetic Slack payload. This
+session has no Slack UI/browser capability; the owner accepted a live
+`coga slack --important` check instead. Sent a clearly labeled synthetic
+preservation alert via `coga slack --task automerge/fix-let-a-lot-of-open-craps
+--important --message ...`; it returned `posted` and exit 0. No production
+cleanup was performed by the test.
+
+
+Final handoff: `dispose-checkouts` at a59b214c (review fixes), with implementation
+commit 30b0933c, two commits ahead of main. Feature checkout is clean;
+`git diff --check` passed. Branch remains in the durable recorded checkout;
+no PR opened in this step. No machine-local config or virtualenv was placed
+in the feature checkout (only regenerable test caches remain).
+
+`/tmp/coga-dispose-review-venv/bin/python -m coga.cli validate --json` exited 1:
+222 checks passed; four existing `unsynthesized-draft-blackboard` errors on
+unchanged tickets (`clean-up-all-the-working-trees`, `v2/autotrigger-ticket-type`,
+`v2/measure-relay-prompt-scope-and-agent-precision`,
+`v2/use-worktree-when-starting-a-dev-task`) and 53 warnings, including the
+expected missing-user warning in this feature checkout. No validation repairs
+were requested or applied.
+
+## PR
+
+Merged tickets currently leave their checkouts behind until someone manually
+runs retire. Autoclose now disposes of recorded linked worktrees and branches
+under the shared retire proofs and retries open `retires.md` entries, including
+entries whose tickets were deleted. Refusals remain visible in the worklist,
+run report, and a coga-important notification on each run.
+
+Weekly branch sweep can also remove pristine, unclaimed linked worktrees when
+`[git].worktrees_ticket_owned = true`. The default is false. Removal requires
+the local tip to have landed and no open PR; an older merged remote tip never
+vouches for newer local work. Both sweeps share claim checks across the
+checkout's Coga workspaces, including recurring temporary control checkouts.
+Skills, recurring templates, contexts, and packaged twins describe the deletes
+and their proofs; manual retire keeps the same cleanup path.
+
+Owner action at review: this PR deliberately does not change this repo's
+`coga/coga.toml`. Enable `worktrees_ticket_owned = true` there only after
+accepting the ticket-owned-worktree assumption. Each sweep only cleans linked
+worktrees of its invoking clone; run the recurring cleanup from
+`/home/n/Code/claude/coga` after the change is installed there.
+
+Test plan: `/tmp/coga-dispose-review-venv/bin/python -m pytest` — 2684 passed;
+`git diff --check` passed; report preview in a real PTY at 80/120 columns and
+an owner-approved synthetic `coga slack --important` delivery test passed.
+`python -m coga.cli validate --json` reports four existing draft-blackboard
+errors on unchanged tickets (plus warnings); no new structural error was found.
