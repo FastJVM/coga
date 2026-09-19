@@ -500,3 +500,12 @@ byte-identical before and after.
 Nothing unresolved. The two recommended follow-ups from the design step
 (compose should carry acceptance criteria to `implement`; a validator check
 stays deferred until then) are unchanged and still not filed.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `the-ticket-interview-never-asks-what-done-means`
+Recorded: 2026-09-19T01:49:10+00:00
+
+    `coga open-pr` must run from the primary control checkout on 'main', not branch 'gh-backed-readonly-context'. Return to the control checkout and rerun it; the command will still push the recorded feature branch by name.
