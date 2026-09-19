@@ -1,20 +1,21 @@
-"""The durable worklist of stranded `coga retire` follow-ups.
+"""The durable worklist of feature checkouts the autoclose sweep could not dispose of.
 
-The autoclose sweep names a `coga retire <slug>` follow-up for every ticket it
-closes that still records a feature checkout, and it must never dispose of one
-itself — `coga retire` owns the worktree and branch safety proofs. When that
-sweep runs as a recurring period task, the period task's blackboard is the
-wrong place to keep the name: `coga recurring` deletes the period task at the
-start of the next period, and the sweep only rediscovers tickets it closes in
-the *current* run, so a follow-up nobody acted on in time disappeared from every
-surface while the checkout was still on disk.
+The autoclose sweep disposes of the feature checkout of every ticket it closes
+under the shared retire proofs (`coga.checkout_disposal`), and records a
+follow-up for every checkout a proof refused. When that sweep runs as a
+recurring period task, the period task's blackboard is the wrong place to keep
+the record: `coga recurring` deletes the period task at the start of the next
+period, and the sweep only rediscovers tickets it closes in the *current* run,
+so a follow-up nobody acted on in time disappeared from every surface while
+the checkout was still on disk.
 
 This module owns the file that survives that boundary: `retires.md` beside the
 recurring template's `ticket.md` under `coga/recurring/<name>/`. Two callers
 share it, which is what earns it a home in core:
 
-- the autoclose recipe reconciles it on every recurring run — it records the
-  run's new follow-ups and drops the ones already discharged;
+- the autoclose recipe walks every open entry on every run — hand-run or
+  recurring — re-runs the proofs on each (its ticket may be gone by then),
+  records the run's preserved closures, and drops the ones discharged;
 - `coga retire` drops its own slug once the retire has actually disposed of
   the checkout.
 
@@ -55,21 +56,27 @@ from coga.paths import recurring_dir, tasks_dir
 
 RETIRE_WORKLIST_FILENAME = "retires.md"
 RETIRE_WORKLIST_HEADING = "## Follow-ups (open)"
-RETIRE_WORKLIST_HEADER = f"""# Stranded `coga retire` follow-ups
+RETIRE_WORKLIST_HEADER = f"""# Feature checkouts autoclose could not dispose of
 
 Durable worklist of auto-closed tickets whose feature checkout still exists.
 The autoclose sweep records follow-ups here rather than in its period task
 under `coga/tasks/recurring/`, which `coga recurring` deletes at the start of
 the next period.
 
-Every entry means the same thing: run `coga retire <slug>` to dispose of the
-recorded worktree and branch. Autoclose only ever names the follow-up; retire
-owns the safety proofs. Entries are keyed by slug, so a later sweep refreshes
-one rather than duplicating it, and an entry is dropped once both its worktree
-directory and its local branch are gone. An entry whose ticket no longer
-exists — retire preserved the checkout and then deleted the ticket — is still
-debt: dispose of the recorded worktree and branch by hand (or let the weekly
-branch sweep take the branch) and the entry clears by the same rule.
+Every entry is a checkout a safety proof refused. Autoclose disposes of the
+recorded worktree and branch itself, under the same proofs `coga retire` runs
+(same-repo linked worktree on the recorded branch, locally pristine, no other
+live ticket claiming it, no open PR, landed or at the merged PR's exact head);
+it re-runs them on every open entry on every run and posts each refusal, with
+its reason, to the coga-important Slack channel. An entry therefore stays here
+only while a proof keeps refusing it — a dirty worktree, an independent clone,
+a branch another live ticket records — and clears on the next run after the
+cause is fixed. Run `coga retire <slug>` to see the proofs at first hand.
+Entries are keyed by slug, so a later sweep refreshes one rather than
+duplicating it, and an entry is dropped once both its worktree directory and
+its local branch are gone. An entry whose ticket no longer exists — retire
+preserved the checkout and then deleted the ticket — is still walked: the
+merge proof then uses the merged PRs for the recorded branch name.
 
 For the line format and field encoding, see the `coga/autoclose/sweep` skill.
 

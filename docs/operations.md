@@ -131,6 +131,13 @@ To opt out (a repo with no remote — dev, test, solo branches), set `[git].enab
 the recurring `owner` gate below still reads the remote if one is configured,
 so a machine-local setting can't quietly hand recurring back to a stale clone.
 
+One more `[git]` key is about checkouts rather than sync:
+`worktrees_ticket_owned` (default `false`, `coga.toml` only) declares that
+every linked worktree of the repository belongs to a Coga ticket, which lets
+the weekly branch sweep remove a landed, pristine worktree no live ticket
+records instead of leaving its branch `skipped-worktree-pinned`. The
+`dev/code` context states the assumption a repo opts into.
+
 ## Recurring maintenance
 
 Recurring work lives as **templates** under `coga/recurring/<name>/`. `coga

@@ -52,9 +52,29 @@ a ticket is deleted without going through retire or a session dies mid-flight.
    fetched from `refs/pull/<number>/head` without writing a ref. The remote
    ref takes only a merged PR at its exact tip: its objects are usually not
    local, and ancestry never authorizes deleting `<remote>/<branch>`,
-5. preserve both refs for a branch that landed either way but is still held by
-   a live worktree, and report it under the distinct, non-fatal
-   `skipped-worktree-pinned` outcome,
+5. for a branch whose **local tip** landed either way but is still held by
+   a live worktree, require no open PR before removing the checkout. A merged
+   remote tip alone never authorizes removing newer unmerged local work:
+   with `[git].worktrees_ticket_owned` unset or `false` (the default),
+   preserve both refs and report the distinct, non-fatal
+   `skipped-worktree-pinned` outcome. With it `true`, the repo has declared
+   that every linked worktree of its git repository belongs to a Coga ticket
+   (the assumption is stated in the `dev/code` context, *Checkout boundary*),
+   so a landed one nobody claims is finished work: GC the worktree first, then
+   fall through to step 6 for its refs. The worktree proofs are retire's,
+   shared through `branchcleanup.inspect_worktree_for_removal` and
+   `checkout_disposal.live_checkout_claim`: no non-terminal ticket in any
+   Coga workspace of the repository records that worktree path (the
+   branch-name guard in step 3 already covered the branch); the path is a
+   linked worktree of the checkout the sweep runs from — an independent clone
+   or another repository's worktree is preserved, so each clone GCs only its
+   own worktrees; it is not the checkout running the sweep; it holds that
+   branch; and it carries no tracked or untracked local state (ignored
+   regenerable caches — `__pycache__/`, `.pytest_cache/`, `.ruff_cache/`,
+   `.mypy_cache/` — go with it; any other ignored file preserves it). Then
+   `git worktree remove`, unforced, reported under `removed worktree`. A
+   worktree that fails any proof keeps both refs `skipped-worktree-pinned`,
+   with the reason in the run record,
 6. delete the remote ref (`git push <configured-remote> --delete`) when a
    merged PR covers its tip, and the local branch following the same policy
    retire uses: plain `git branch -d` on the ancestry path, or a logged `-D`
@@ -72,5 +92,10 @@ cannot be pruned/listed, or the Coga OS root cannot be located in git, the
 sweep fails before deleting anything. If `gh` is missing or unauthed, the
 sweep fails and performs no further gated deletes — never a delete with
 incomplete safety information.
+
+The sweep only sees worktrees linked to the clone it runs from. In this repo
+the recurring jobs run from `/home/n/Code/claude/coga`; another clone's
+review or scratch worktrees (`/home/n/Code/coga`'s `/tmp/coga-pr*-review`
+checkouts, say) need their own `coga run branch-sweep` from that clone.
 
 Run it directly with `coga run branch-sweep`.

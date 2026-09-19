@@ -3,21 +3,16 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
 import typer
 
 from coga import git
-from coga.autoclose import parse_branch_name, parse_worktree_path
-from coga.branchcleanup import (
-    WorktreeCleanupResult,
-    delete_ticket_branch,
-    remove_ticket_worktree,
-)
+from coga.autoclose import parse_branch_name, parse_pr_url, parse_worktree_path
+from coga.branchcleanup import WorktreeCleanupResult
+from coga.checkout_disposal import dispose_checkout
 from coga.config import Config, ConfigError, load_config
 from coga.create import create_task
 from coga.git import GitError
-from coga.lifecycle import TERMINAL_STATUSES
 from coga.paths import read_packaged_resource
 from coga.retire_worklist import RetireWorklistError, discharge_slug
 from coga.slugify import slugify
@@ -25,13 +20,10 @@ from coga.taskfile import TaskFileError, read_blackboard
 from coga.tasks import (
     TaskRef,
     TaskNotFoundError,
-    list_tasks,
     read_ticket,
     resolve_task,
 )
-from coga.ticket import TicketError
 from coga.validate import TaskValidationError
-from coga.workspace_discovery import discover_coga_repos
 
 
 def retire(
@@ -62,15 +54,16 @@ def retire(
     while the ticket (and thus the `worktree:` / `branch:` lines) still exists.
     The recorded linked worktree is removed first — which also unpins the branch
     Git would otherwise refuse to delete — then the local branch and its
-    `origin` counterpart. This is the lifecycle event that disposes of both: the
-    worktree removal requires an exact, unshared, locally pristine linked
-    checkout of this same repository, and the remote branch delete is gated on
-    the linked PR being merged at the current exact head with no other open PR
-    for that branch. Claims from sibling Coga workspaces in the same Git checkout
-    count as shared. It never removes the invoking checkout, `main`, or an
-    unrelated branch. (This deliberately overrides the former punt that branch
-    hygiene was a Dream concern — that punt is why branches and worktrees piled
-    up.)
+    `origin` counterpart. This is the manual lifecycle event that disposes of
+    both; the daily autoclose sweep runs the same shared proofs
+    (`coga.checkout_disposal`) for the tickets it closes. The worktree removal
+    requires an exact, unshared, locally pristine linked checkout of this same
+    repository, and the remote branch delete is gated on the linked PR being
+    merged at the current exact head with no other open PR for that branch.
+    Claims from sibling Coga workspaces in the same Git checkout count as
+    shared. It never removes the invoking checkout, `main`, or an unrelated
+    branch. (This deliberately overrides the former punt that branch hygiene
+    was a Dream concern — that punt is why branches and worktrees piled up.)
     """
     try:
         cfg = load_config()
@@ -155,13 +148,12 @@ def retire(
 def _cleanup_checkout(cfg: Config, ref: TaskRef) -> WorktreeCleanupResult | None:
     """Remove the retiring ticket's linked worktree and branch, best-effort.
 
-    Reads the `## Dev` blackboard section (still present pre-retro) and hands it
-    to `branchcleanup.remove_ticket_worktree`, then
-    `branchcleanup.delete_ticket_branch`. The worktree goes first so a branch it
-    holds is no longer checked out when branch cleanup runs. Any failure —
-    `git`/`gh` missing, a read error, git not enabled — is reported and
-    swallowed: checkout hygiene is a courtesy on top of retire, not a
-    precondition for it.
+    Reads the `## Dev` blackboard section (still present pre-retro) and hands
+    its `branch:` / `worktree:` / `pr:` values to
+    `checkout_disposal.dispose_checkout`, which runs the live-claim scan, then
+    the worktree removal, then the branch deletion. Any failure — `git`/`gh`
+    missing, a read error, git not enabled — is reported and swallowed:
+    checkout hygiene is a courtesy on top of retire, not a precondition for it.
 
     Returns the worktree result when one was attempted, so the caller can
     carry a *preserved* checkout into the retro task body — see
@@ -185,27 +177,15 @@ def _cleanup_checkout(cfg: Config, ref: TaskRef) -> WorktreeCleanupResult | None
     except (GitError, OSError, TaskFileError) as exc:
         typer.echo(f"Retire: checkout cleanup skipped ({exc}).")
         return None
-    try:
-        claim = _live_checkout_claim(cfg, ref, root, blackboard)
-    except Exception as exc:  # noqa: BLE001 — incomplete proof preserves checkout
-        typer.echo(
-            "Retire: checkout cleanup skipped "
-            f"(could not verify other live ticket claims: {exc})."
-        )
-        return None
-    if claim is not None:
-        typer.echo(f"Retire: checkout cleanup skipped ({claim}).")
-        return None
-    worktree_result: WorktreeCleanupResult | None = None
-    try:
-        worktree_result = remove_ticket_worktree(cfg, root, blackboard, echo=typer.echo)
-    except Exception as exc:  # noqa: BLE001 — never let cleanup abort retire
-        typer.echo(f"Retire: worktree cleanup failed ({exc}).")
-    try:
-        delete_ticket_branch(cfg, root, blackboard, echo=typer.echo)
-    except Exception as exc:  # noqa: BLE001 — never let cleanup abort retire
-        typer.echo(f"Retire: branch cleanup failed ({exc}).")
-    return worktree_result
+    disposal = dispose_checkout(
+        cfg,
+        root,
+        branch=parse_branch_name(blackboard),
+        worktree=parse_worktree_path(blackboard),
+        pr_url=parse_pr_url(blackboard),
+        echo=typer.echo,
+    )
+    return disposal.worktree_result
 
 
 def _discharge_worklist_entry(cfg: Config, ref: TaskRef) -> None:
@@ -223,98 +203,6 @@ def _discharge_worklist_entry(cfg: Config, ref: TaskRef) -> None:
             typer.echo(f"Retire: dropped {ref.id_slug} from {path}.")
     except (GitError, OSError, UnicodeError, RetireWorklistError) as exc:
         typer.echo(f"Retire: retire worklist not updated ({exc}).")
-
-
-def _live_checkout_claim(
-    cfg: Config,
-    source_ref: TaskRef,
-    root: Path,
-    source_blackboard: str,
-) -> str | None:
-    """Describe another non-terminal ticket claiming this checkout, if any.
-
-    Branches and linked worktrees belong to the whole Git repository, so the
-    claim scan covers every supported Coga workspace in a monorepo rather than
-    only the workspace that owns the retiring ticket.
-    """
-    source_branch = parse_branch_name(source_blackboard)
-    source_worktree = _normalized_worktree(root, source_blackboard)
-    if source_branch is None and source_worktree is None:
-        return None
-
-    workspaces = discover_coga_repos(root, strict=True)
-    current_workspace = cfg.repo_root.resolve()
-    if current_workspace not in {workspace.resolve() for workspace in workspaces}:
-        raise RuntimeError(
-            f"current Coga workspace {current_workspace} was not found under "
-            f"Git root {root}"
-        )
-
-    source_ticket = source_ref.ticket_path.resolve()
-    for workspace in workspaces:
-        workspace_path = workspace.resolve()
-        try:
-            workspace_cfg = (
-                cfg
-                if workspace_path == current_workspace
-                else load_config(workspace_path, require_user=False)
-            )
-        except ConfigError as exc:
-            raise RuntimeError(
-                f"cannot inspect Coga workspace {workspace_path}: {exc}"
-            ) from exc
-
-        for other_ref in list_tasks(workspace_cfg):
-            if other_ref.ticket_path.resolve() == source_ticket:
-                continue
-            try:
-                other_ticket = read_ticket(other_ref)
-            except (OSError, TicketError) as exc:
-                raise RuntimeError(
-                    f"cannot read {other_ref.ticket_path}: {exc}"
-                ) from exc
-            if other_ticket.status in TERMINAL_STATUSES:
-                continue
-            try:
-                other_blackboard = read_blackboard(
-                    other_ref.ticket_path, blackboard_required=False
-                )
-            except (OSError, TaskFileError) as exc:
-                raise RuntimeError(
-                    f"cannot read {other_ref.ticket_path}'s blackboard: {exc}"
-                ) from exc
-
-            ticket_label = (
-                other_ref.id_slug
-                if workspace_path == current_workspace
-                else f"{workspace_path}:{other_ref.id_slug}"
-            )
-            other_branch = parse_branch_name(other_blackboard)
-            if source_branch is not None and other_branch == source_branch:
-                return (
-                    f"live ticket {ticket_label!r} also records branch "
-                    f"{source_branch!r}"
-                )
-            other_worktree = _normalized_worktree(root, other_blackboard)
-            if source_worktree is not None and other_worktree == source_worktree:
-                return (
-                    f"live ticket {ticket_label!r} also records worktree "
-                    f"{str(source_worktree)!r}"
-                )
-    return None
-
-
-def _normalized_worktree(root: Path, blackboard: str) -> Path | None:
-    recorded = parse_worktree_path(blackboard)
-    if recorded is None:
-        return None
-    path = Path(recorded).expanduser()
-    if not path.is_absolute():
-        path = root / path
-    try:
-        return path.resolve()
-    except OSError:
-        return path.absolute()
 
 
 def _default_agent(cfg: Config) -> str:

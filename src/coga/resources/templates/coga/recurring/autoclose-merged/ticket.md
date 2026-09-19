@@ -21,21 +21,32 @@ forgets to run `coga mark done`. Once a day this recurring task fires. Its
 2. reads the `pr:` line under each ticket blackboard's `## Dev` section,
 3. checks the linked PR state with `gh pr view`,
 4. leaves non-final-step tickets alone as suspicious, and
-5. marks final-step or workflow-less tickets `done` when the PR is merged, and
-6. names the `coga retire` follow-up for each ticket it closed that still
-   records a `branch:` or `worktree:`, and records it in the durable worklist
-   `retires.md` beside this template, keyed by task slug.
+5. marks final-step or workflow-less tickets `done` when the PR is merged,
+6. disposes of the feature checkout of each ticket it closed that still
+   records a `branch:` or `worktree:`, and of every open entry in the durable
+   worklist `retires.md` beside this template — worktree removed, then local
+   branch, then remote branch, each under the same safety proofs `coga retire`
+   runs (same-repo linked worktree on the recorded branch, locally pristine,
+   no other live ticket claiming it, no open PR, landed or at the merged PR's
+   exact head), and
+7. reports what it disposed of and what a proof refused, with the reason: the
+   refusals go to the coga-important Slack channel and into `retires.md`,
+   keyed by task slug.
 
-Autoclose never disposes of a checkout itself — `coga retire` owns those safety
-proofs. Without step 6 an auto-closed ticket's worktree and branch outlive it
-silently. Dream preserves checkout-bearing done tickets rather than deleting
-the `## Dev` evidence the named command needs, so that debt stays actionable
-until a human retires it. The worklist is what keeps the *list* of that debt
-actionable: this period task is deleted at the next period boundary, so step 6
+Step 6 is a direct destructive change, declared here on purpose: the proofs
+are deterministic, narrow, and named in the `coga/autoclose/sweep` skill, and
+the earlier design — only *naming* a `coga retire` follow-up — left a
+ten-entry backlog nobody typed. It runs only when the checkout is on the
+control branch (a hand run elsewhere preserves everything and says so) and
+only touches worktrees linked to the clone it runs from. Dream preserves
+checkout-bearing done tickets rather than deleting the `## Dev` evidence the
+proofs need. The worklist is what keeps the *list* of refused checkouts
+actionable: this period task is deleted at the next period boundary, so step 7
 writes the entries to `coga/recurring/<name>/retires.md` for the template this
-task was minted from and, on every run, drops the entries already discharged —
-worktree directory gone and local branch gone. The rules are in the
-`coga/autoclose/sweep` skill.
+task was minted from; every run re-judges the open entries (an entry whose
+ticket is gone is proven by the merged PRs for its branch name) and drops the
+ones discharged — worktree directory gone and local branch gone. The rules
+are in the `coga/autoclose/sweep` skill.
 
 This sweep is the sole trigger for auto-closing merged tickets — there is
 no manual `automerge` command. The recurring task only changes when the
@@ -52,13 +63,13 @@ This blackboard persists across every run of this recurring task. The
 `autoclose` sweep keeps no durable state here - every run's output
 is the tickets it marks done and the live Done posts they produce.
 
-A run that closed a ticket still recording a feature checkout appends a
+A run that disposed of or preserved a feature checkout appends a
 `## Autoclose Sweep: retire follow-ups` section to the *period task's*
 blackboard for that firing (`autoclose._report_retire_followups` writes
 `COGA_TASK_BLACKBOARD`), not here. That section is a per-run report the
 scheduler deletes with the period task. The durable worklist is the sibling
 file `retires.md` next to this `ticket.md`: the same run records each
-follow-up there keyed by slug, every run drops the entries whose worktree and
-branch are both gone, and `coga retire <slug>` drops its own once it has
-disposed of the checkout. A sweep that stranded nothing and discharged
-nothing writes nothing.
+preserved closure there keyed by slug, every run re-judges the open entries
+and drops those whose worktree and branch are both gone, and
+`coga retire <slug>` drops its own once it has disposed of the checkout. A
+sweep that touched no checkout and discharged nothing writes nothing.
