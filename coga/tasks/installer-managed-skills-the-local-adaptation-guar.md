@@ -159,3 +159,21 @@ Single-checkout layout: branch created in place from `main`.
 - `tests/test_packaging.py`: 13 passed (twin parity holds).
 - Rebased onto `origin/main` (68ad9cd8; incoming commits were task/log state
   only).
+
+## Peer review
+
+- `codex review --base main` ran in `/home/n/Code/coga` on
+  `gh-backed-readonly-context` and **returned** (exit 0): no actionable
+  regressions; the documented installer/update behavior matches the source,
+  and the live context and packaged twin are byte-identical. No must-fix
+  findings or design changes.
+- The review's targeted tests could not collect under the default Python
+  because `tomlkit` was missing. Verified the existing Python 3.12 test venv
+  `/tmp/coga-skill-attribution-venv` has the declared test dependencies;
+  final validation will use it with this checkout's absolute `PYTHONPATH`.
+- Independently checked the GitHub/URL install and update paths, managed
+  manifest, upstream-install commit `321e6231`, and subsequent pack refresh
+  commits. PR #773 is merged and its counter-instruction remains intact.
+- No terminal, pager, prompt, or rendered-message behavior changes in this
+  docs-only diff; no interactive-surface exercise is applicable.
+- Full-suite validation and the required fresh-main rebase are pending.
