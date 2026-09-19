@@ -1,6 +1,6 @@
 ---
 title: narrative-candidates.md publishes log text the owner ruled confidential
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
