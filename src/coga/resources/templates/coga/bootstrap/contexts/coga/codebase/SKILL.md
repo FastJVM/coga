@@ -917,7 +917,12 @@ wrong checkout silently produces wrong results in both directions:
     changes. `_broadcast_scan` drops rejected creates from dispatch, and the
     freshness-refusal cleanup prevents local candidate reuse. Preserve the
     complete target set and multi-template self-collision protection when
-    editing this code. The guarantee and conservative post-publication refusal
+    editing this code, including a recovered generic sync after an initial
+    fetch failure: that publisher must return its accepted revision to the
+    recurring cache, and its guard must refresh before publication/retries.
+    An audit-only push after a create loses a race also publishes pending sweep
+    records and must advance that same provenance.
+    The guarantee and conservative post-publication refusal
     boundary live in **The creation contract** in
     [`coga/recurring`](../recurring/SKILL.md); this is not global exactly-once
     execution and does not change the outer best-effort transport policy.

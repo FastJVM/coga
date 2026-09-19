@@ -919,6 +919,14 @@ where the next period's scan deleted it.
   refused: the merged log cannot establish which checkout owns that claim.
   Ordinary audit appends and revisions with no ledger change do not invalidate
   another template's decision. The same rule applies to later create retries.
+  If the first create fetch fails and generic path sync recovers, its existing
+  publication guard refreshes the competitor snapshot before landing and on
+  retries. Its accepted control revision becomes a known own publication too;
+  a later template must not refresh through this sweep's pending records.
+  Audit-only pushes after a create loses a race also count as own publications,
+  with the same ledger guard on a rejected audit-push retry.
+  The revision comes from the publisher, not a subsequent fetch that could
+  accidentally attribute a rival's intervening commit to this sweep.
 - **Freshness refusals are not best-effort sync failures.** An unreadable
   fetched ledger, or ambiguous ledger changes after own publication, raises a
   recurring admission error and excludes the task from dispatch. A rejected

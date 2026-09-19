@@ -1276,7 +1276,7 @@ def _sync_paths_without_barrier(
     raise_state_regression: bool = False,
     raise_git_error: bool = False,
     allow_launch_claim_admission: bool = False,
-) -> None:
+) -> str | None:
     """Commit explicit paths and push them to the control branch.
 
     This is the multi-path variant used by `coga ticket` authoring, where the
@@ -1438,7 +1438,7 @@ def _sync_paths_without_barrier(
             else []
         )
 
-        _dispatch_branch_sync(
+        return _dispatch_branch_sync(
             cfg,
             root,
             local_rels=local_rels,
@@ -1522,11 +1522,16 @@ def sync_paths(
     generated_paths: Mapping[Path, bytes | None] | None = None,
     raise_state_regression: bool = False,
     raise_git_error: bool = False,
-) -> None:
-    """Run an explicit-path state publisher behind the local barrier."""
+) -> str | None:
+    """Run an explicit-path state publisher behind the local barrier.
+
+    Ordinary publication returns its accepted control revision. A skipped,
+    failed, or strict publication may return None; callers must not infer
+    publication from a normal return alone.
+    """
     try:
         with state_publication_barrier(cfg):
-            _sync_paths_without_barrier(
+            return _sync_paths_without_barrier(
                 cfg,
                 anchor_path,
                 paths,
@@ -2386,7 +2391,7 @@ def _dispatch_branch_sync(
     after_strict_publication: Callable[[], None] | None = None,
     generated_paths: Mapping[str, bytes | None] | None = None,
     guard_before_local_commit: bool = True,
-) -> None:
+) -> str | None:
     """Commit `local_rels` on the current branch and land `overlay_rels` on the
     control branch — the branch-aware core shared by `sync_paths` and
     `sync_coga_state`.
@@ -2498,7 +2503,9 @@ def _dispatch_branch_sync(
         # claim a save that never happened.
         if not remote_ok and committed:
             sys.stderr.write(_no_remote_message(cfg) + f" ({message})\n")
-        return
+        if remote_ok and committed:
+            return _run_git(root, "rev-parse", "HEAD").strip()
+        return None
 
     if branch == "HEAD":
         # Detached HEAD normally has no local commit. Narrow publishers are the
@@ -2700,7 +2707,7 @@ def _dispatch_branch_sync(
                 after_strict_publication=None,
             )
             return
-        _land_paths_on_control_branch(
+        return _land_paths_on_control_branch(
             cfg,
             root,
             overlay_rels,
@@ -2710,7 +2717,6 @@ def _dispatch_branch_sync(
             update_local_control_ref=update_local_control_ref,
             initial_base=detached_control_base,
         )
-        return
     else:
         strict_control_tip: str | None = None
         assist_push_url: str | None = None
@@ -3104,6 +3110,7 @@ def _dispatch_branch_sync(
         if isinstance(exc, StateRegressionError) and before is not None:
             _restore_unpushed_sync_commit(root, before, local_rels)
         raise
+    return accepted_control_oid
 
 
 def _restore_strict_state_commit(
