@@ -1,7 +1,7 @@
 ---
 title: 'Installer-managed skills: the local-adaptation guard misses github-backed
   packs'
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
