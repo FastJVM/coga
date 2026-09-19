@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
 ---
 
@@ -201,3 +201,16 @@ heading boundaries, activation preservation, and actual composed sizes.
 The pre-existing stored-blocker eligibility parser is outside this change.
 
 Test plan: `PYTHONPATH=/tmp/coga-exclude-superseded-designs/src /tmp/coga-system-completion-venv/bin/python -m pytest` (2,689 passed in 182.20s after rebase); inspect the composed example blackboard; `git diff --check origin/main...HEAD`.
+
+## Open-PR
+
+- `coga open-pr` ran from the primary checkout on `main` and opened
+  [PR #840](https://github.com/FastJVM/coga/pull/840) from `codex/exclude-superseded-designs`
+  at `b454ceba`; the freshness gate reported `origin/main` advanced only through
+  non-overlapping task/log state.
+- The primary checkout was found parked on `gh-backed-readonly-context` with this
+  ticket's step-3 state uncommitted: the peer-review bump's sync to `main` had
+  failed on `index.lock: Read-only file system`. With the owner's OK the drift
+  was carried onto `main` (identical bytes at both tips) rather than stashed, so
+  `open-pr` and `bump` read the live step-3 ticket; the bump's own sync lands it.
+  The checkout is returned to `gh-backed-readonly-context` after the bump.
