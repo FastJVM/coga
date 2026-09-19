@@ -24,7 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -200,3 +200,12 @@ repo's real GitHub install/update exercise, alongside the existing rule against
 running their upstream installer.
 
 Test plan: `PATH=/tmp/coga-skill-attribution-venv/bin:$PATH PYTHONPATH=/home/n/Code/coga/src python -m pytest` (2657 passed, including packaging parity); `git diff --check origin/main...HEAD`.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `installer-managed-skills-the-local-adaptation-guar`
+Recorded: 2026-09-19T00:59:14+00:00
+
+    Recorded worktree '/home/n/Code/coga' has uncommitted changes. The implement/peer-review steps must commit implementation work before open-pr. This is the single-checkout layout: preserve live task/log edits here and commit them separately from implementation work. Then relaunch.
