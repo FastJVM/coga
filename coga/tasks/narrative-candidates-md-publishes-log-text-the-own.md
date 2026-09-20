@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -84,6 +84,7 @@ again.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/841
 branch: remove-narrative-candidates
 worktree: /home/n/Code/coga-remove-narrative-candidates
 
@@ -130,3 +131,37 @@ later wants a history purge, that is a separate ticket, not this PR.
 This ticket's own `## Description` paraphrases the private repos' research
 direction (it was written by Dream to explain the exposure). It is deleted
 with the ticket at retro; do not carry that paragraph into a context.
+
+
+## Peer review
+
+- `codex review --base main` **returned** successfully: no actionable
+  regressions or must-fix findings in this documentation-only change.
+  The first attempt could not initialize its app-server in the filesystem
+  sandbox; the successful retry ran with approved escalation.
+- Inspected the surviving audit text and marketing map. The attachment is
+  deleted, the contradictory quotability claims are gone, and the map forbids
+  recovering or re-collecting the private material for a writing source packet.
+  No terminal, pager, prompt, or rendered notification surface changed.
+- Ran `git fetch origin main` and `git rebase FETCH_HEAD` in the recorded
+  feature worktree. Rebased cleanly over two new main commits; the feature
+  commit is now `226630f5`. No review-fix commit was needed.
+- `git diff --check origin/main...HEAD` passed. The feature branch is clean
+  and contains one committed change ahead of origin/main.
+- Post-rebase verification: `uv run --python 3.12 --with-editable ".[test]" --no-project python -m pytest -q`
+  **passed: 2657 tests in 184.04 seconds**. Plain `python -m pytest -q`
+  initially could not collect because system Python lacks `tomlkit`; uv
+  supplied the declared dependencies. Its cache required approved escalation.
+- The final feature worktree status is clean. Review and verification are
+  complete; ready for the mechanical open-pr step.
+
+## PR
+
+Delete the private-repo narrative attachment from the public repository tree,
+following the owner's decision. Correct the audit's superseded publishability
+claims and record the deletion in the audit history and marketing catalogue,
+including the instruction against recovering the material for writing sources.
+Git history remains unchanged by this removal; any purge is a separate owner
+decision. No package code, templates, or fixtures change.
+
+Test plan: `uv run --python 3.12 --with-editable ".[test]" --no-project python -m pytest -q` (2657 passed); `git diff --check origin/main...HEAD` (passed).
