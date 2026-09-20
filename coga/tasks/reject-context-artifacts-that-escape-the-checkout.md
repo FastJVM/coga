@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
 ---
 
@@ -153,3 +153,13 @@ fixtures to verify rejection and successful publication in fresh clones.
 Test plan: `/tmp/coga-context-test-env/bin/python -m pytest -q` (2688 passed,
 including packaging); `env -u SLACK_WEBHOOK_URL /tmp/coga-context-test-env/bin/coga
 validate --json` from `example/coga` (4 valid, no issues); `git diff --check`.
+
+## Open-PR handoff
+
+- Confirmed peer review **returned** (see `## Peer review`) before publishing.
+- Ran `coga open-pr reject-context-artifacts-that-escape-the-checkout` from the
+  primary control checkout; the feature branch was one generated `coga/log.md`
+  commit behind `origin/main`, which the command classified as safe overlap.
+- Pushed `fix/context-artifacts` (`c6de5b7bc`) and opened
+  https://github.com/FastJVM/coga/pull/844 (non-draft, base `main`).
+  `pr:` recorded under `## Dev`. Merge decision belongs to the next step.
