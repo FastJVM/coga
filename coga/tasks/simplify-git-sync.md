@@ -1,6 +1,6 @@
 ---
 title: Simplify git sync
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
