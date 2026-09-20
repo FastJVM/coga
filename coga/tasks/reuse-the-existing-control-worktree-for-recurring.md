@@ -218,6 +218,7 @@ layout this ticket exists to serve. Options weighed under `## Open question`.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/846
 branch: recurring-control-worktree
 worktree: /home/n/Code/codex/coga-recurring-control-worktree
 
