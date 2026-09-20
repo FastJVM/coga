@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: f1703b7f-13e1-40f4-b796-e81f35907d93
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -326,3 +325,81 @@ which is exactly why a create-a-worktree design cannot serve this layout.
   file problem in a *created* worktree and can reuse it instead of seeding.
 - Out of scope and untouched, as the ticket directs: the `--all` path, worktree
   *creation*, the diverged-control case, and `coga launch recurring/<name>`.
+
+
+## Peer review
+
+Codex `codex review --base main` **returned** with no actionable findings.
+Independent real-CLI verification found a must-fix the tool missed:
+`cli.main` ran the parent checkout's catch-all state sweep after the relay,
+committing dirty operator files and advancing the feature HEAD. The existing
+mocked-child tests never exercised that boundary. Human approved fixing it.
+
+The fix marks relay dispatch in a process-local `ContextVar`, scoped and reset
+by `cli.main`. The parent skips its state sweep on success, child failure,
+spawn failure, and interruption; the child keeps its normal sweep. Regression
+coverage invokes real CLI children for `dream`, bare recurring, and the direct
+interactive recipe, including a failing script, and checks staged/unstaged/
+untracked/ignored bytes, branch, HEAD, porcelain status, stash list, completed
+period state, and the ledger on a real local bare remote. Separate boundary
+tests cover exceptions and reset between CLI invocations.
+
+Included the existing worktree edits with the human's approval: mirrored
+workspace lookup for nested/root layouts and the packaged recurring context.
+The old blackboard assertion that no packaged twin exists is stale: the live
+context and `src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md`
+are now kept identical.
+
+Ran `git fetch origin main` and `git rebase FETCH_HEAD`. The only conflict was
+independent appended tests in `tests/test_git.py`; retained both sets.
+
+Real terminal verification: disposable repo + linked control worktree + local
+bare remote, `python -m coga.cli dream` at 80x24 and 120x40. The actual script
+asserted stdin/stdout `isatty()`, printed `TTY INHERITED`, bumped to done, and
+published the ledger. Both runs preserved the operator checkout snapshot.
+This proves inherited terminal transport; no real external agent was launched.
+
+Fixture note: the smoke repo needs the tracked audit log an initialized Coga
+workspace normally has. Starting with an untracked first `log.md` hits an
+existing on-control rebase limitation; this change does not alter that path.
+
+The second `codex review --base main` **returned** with one P2 finding:
+PID-targeted SIGTERM killed the forwarding parent but left its child running.
+Human approved the fix. The relay now uses `Popen`, preserves inherited stdio,
+forwards SIGTERM (including a signal arriving during spawn), waits for the child,
+and returns 143. It restores the prior signal handler afterward. Real-process
+regressions prove the child's shutdown marker exists before the parent returns;
+the focused relay suite passed 20 tests. The terminal smoke passed again after
+this fix.
+
+The human confirmed the final commit and additional cancellation coverage from
+another session are complete. Final feature HEAD is `947a983c0`; it contains
+all review fixes and was rebased onto origin/main `575c025da`. Worktree is clean,
+live/packaged contexts compare identical, and `git diff --check origin/main...HEAD`
+passes. Final full suite **returned: 2683 passed in 197.45s** on `947a983c0`.
+Exact command:
+`PATH=/tmp/coga-recurring-review-venv/bin:$PATH PYTHONPATH=/home/n/Code/codex/coga-recurring-control-worktree/src /tmp/coga-recurring-review-venv/bin/python -m pytest`.
+Both required review invocations returned; their must-fix findings are addressed.
+The branch is clean, committed, and three commits ahead of its fetched main base.
+Peer-review work is complete; ready to bump once to the mechanical open-pr step.
+Test environment: `/tmp/coga-recurring-review-venv`, editable test-extra install,
+absolute `PYTHONPATH` pointing at the feature worktree's `src`, and its `bin`
+prepended to PATH so subprocesses test this branch too.
+
+
+## PR
+
+Single-repo recurring commands now reuse the existing worktree holding the
+configured control branch. A `coga dream` invoked from a dirty feature checkout
+runs the control checkout's templates and period tasks, while leaving the
+operator's branch, HEAD, index, files, and stash unchanged. If no usable control
+worktree exists, the refusal explains the missing checkout and remedy.
+
+The child receives the operator's machine-local config through `COGA_LOCAL_CONFIG`,
+inherits the terminal for agent/delegated launches, and retains ordinary
+control-branch publication. The forwarding CLI skips its own state sweep and
+forwards SIGTERM before waiting for the child to stop. No checkout is created;
+the `--all` path and direct `coga launch recurring/<name>` behavior are unchanged.
+Live and packaged recurring contexts document the contract.
+
+Validation: `python -m pytest` — 2683 passed (absolute feature-source PYTHONPATH and test-venv PATH); real CLI/remote-ledger and cancellation regressions; terminal smoke at 80x24 and 120x40; `git diff --check origin/main...HEAD`.
