@@ -302,15 +302,43 @@ def test_a_live_linked_worktree_still_holds_the_entry(tmp_path: Path) -> None:
     assert not rw.is_discharged(entry, root=root, branches=frozenset())
 
 
-def test_an_independent_clone_does_not_hold_the_entry(tmp_path: Path) -> None:
-    # The `dev/code` sandbox fallback checkout. Retire preserves it exactly as
-    # it preserves the primary checkout, so it is not debt retire can discharge.
+def test_an_independent_clone_still_holds_the_entry(tmp_path: Path) -> None:
+    # The `dev/code` sandbox fallback checkout. `coga retire` preserves it, but
+    # a human disposes of it by hand and this file is the only durable trace
+    # once the ticket is deleted — so it stays listed until the directory goes.
     root = _git_repo_with_branch(tmp_path / "repo", "feature-x")
     clone = tmp_path / "clone"
     _git(root, "clone", "--no-hardlinks", "-q", str(root), str(clone))
     entry = _entry("x", branch="", worktree=str(clone))
 
-    assert rw.is_discharged(entry, root=root, branches=frozenset())
+    assert not rw.is_discharged(entry, root=root, branches=frozenset())
+
+
+def test_another_repositorys_worktree_still_holds_the_entry(tmp_path: Path) -> None:
+    # Cross-repo upstream work records exactly this shape: a ticket in one repo
+    # naming a linked worktree of another. Retire will not touch it and its
+    # branch is not in this repo's branch list, so dropping the worktree half
+    # would discharge the whole entry on the sweep that created it and leave
+    # the checkout untracked anywhere.
+    root = _git_repo_with_branch(tmp_path / "repo", "unused")
+    other = _git_repo_with_branch(tmp_path / "other", "unused")
+    foreign = _linked_worktree(other, tmp_path / "other-feature-x", "feature-x")
+    entry = _entry("x", branch="feature-x", worktree=str(foreign))
+
+    assert not rw.is_discharged(entry, root=root, branches=frozenset())
+
+
+def test_a_worktree_of_this_repo_read_from_a_linked_worktree_holds_the_entry(
+    tmp_path: Path,
+) -> None:
+    # A sweep run from a linked worktree anchors `root` on that worktree. The
+    # primary checkout must still classify as primary, or the stranded entry
+    # comes back whenever the operator sweeps from a worktree.
+    root = _git_repo_with_branch(tmp_path / "repo", "unused")
+    worktree = _linked_worktree(root, tmp_path / "coga-feature-x", "feature-x")
+    entry = _entry("x", branch="", worktree=str(root))
+
+    assert rw.is_discharged(entry, root=worktree, branches=frozenset())
 
 
 def test_a_checkout_git_cannot_classify_holds_the_entry(tmp_path: Path) -> None:

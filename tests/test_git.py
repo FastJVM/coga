@@ -7701,48 +7701,73 @@ def test_sync_log_reconciles_before_publishing_to_an_open_pr_branch(git_repo):
     ).strip()
 
 
-# --- is_linked_worktree_of ----------------------------------------------------
+# --- classify_checkout --------------------------------------------------------
 
 
-def test_is_linked_worktree_of_accepts_only_a_linked_worktree_of_this_repo(
+def test_classify_checkout_separates_primary_linked_and_foreign(
     git_repo, tmp_path: Path
 ) -> None:
-    """The probe `coga retire` and the retire worklist both classify with.
+    """Three verdicts off one probe, because three callers need different ones.
 
-    Retire removes exactly one shape of checkout, so the three it preserves —
-    the primary checkout, an independent clone, another repository's linked
-    worktree — must all read `False`, never `True`.
+    `branchcleanup` removes only `"linked"`; the retire worklist declines to
+    count only `"primary"`; `"foreign"` is a checkout retire preserves and a
+    human still disposes of by hand.
     """
     linked = tmp_path / "linked"
     git_repo.git("worktree", "add", "-b", "feature-x", str(linked), "main")
     clone = tmp_path / "clone"
-    subprocess.run(
-        ["git", "clone", "--no-hardlinks", str(git_repo.root), str(clone)],
-        check=True, capture_output=True, text=True,
+    git_repo.git(
+        "clone", "--no-hardlinks", str(git_repo.root), str(clone), cwd=tmp_path
     )
     foreign_linked = tmp_path / "foreign-linked"
-    subprocess.run(
-        ["git", "-C", str(clone), "worktree", "add", "-b", "other",
-         str(foreign_linked), "HEAD"],
-        check=True, capture_output=True, text=True,
+    git_repo.git(
+        "worktree", "add", "-b", "other", str(foreign_linked), "HEAD", cwd=clone
     )
 
-    assert git.is_linked_worktree_of(git_repo.root, linked) is True
-    assert git.is_linked_worktree_of(git_repo.root, git_repo.root) is False
-    assert git.is_linked_worktree_of(git_repo.root, clone) is False
-    assert git.is_linked_worktree_of(git_repo.root, foreign_linked) is False
+    assert git.classify_checkout(git_repo.root, git_repo.root) == "primary"
+    assert git.classify_checkout(git_repo.root, linked) == "linked"
+    assert git.classify_checkout(git_repo.root, clone) == "foreign"
+    assert git.classify_checkout(git_repo.root, foreign_linked) == "foreign"
 
 
-def test_is_linked_worktree_of_is_none_when_it_cannot_tell(
+def test_classify_checkout_reads_the_primary_checkout_from_a_linked_worktree(
     git_repo, tmp_path: Path
 ) -> None:
-    """No answer is its own state: callers must not read it as either verdict.
+    """The verdict compares common dirs, not the two paths.
 
-    Retire preserves what it cannot prove disposable, and the retire worklist
-    keeps the entry — opposite fail-safes off the same probe.
+    A sweep run from a linked worktree anchors on that worktree, and must still
+    see the repository's primary checkout as `"primary"` — otherwise the
+    stranded-entry bug comes back whenever the operator sweeps from a worktree.
     """
+    linked = tmp_path / "linked"
+    git_repo.git("worktree", "add", "-b", "feature-x", str(linked), "main")
+
+    assert git.classify_checkout(linked, git_repo.root) == "primary"
+    assert git.classify_checkout(linked, linked) == "linked"
+
+
+def test_classify_checkout_is_none_when_it_cannot_tell(
+    git_repo, tmp_path: Path
+) -> None:
+    """No answer is its own state: every caller fails closed on it."""
     outside = tmp_path / "outside"
     outside.mkdir()
 
-    assert git.is_linked_worktree_of(git_repo.root, outside) is None
-    assert git.is_linked_worktree_of(outside, git_repo.root) is None
+    assert git.classify_checkout(git_repo.root, outside) is None
+    assert git.classify_checkout(outside, git_repo.root) is None
+
+
+def test_classify_checkout_survives_an_undecodable_path(
+    git_repo, tmp_path: Path
+) -> None:
+    """A path that does not decode under the locale must not raise.
+
+    The probe replaced `branchcleanup`'s, which used `surrogateescape` for
+    exactly this; without it a `UnicodeDecodeError` escapes mid-sweep, after
+    tickets are already marked `done` on disk.
+    """
+    raw = os.fsdecode(b"linked-\xff")
+    linked = tmp_path / raw
+    git_repo.git("worktree", "add", "-b", "feature-x", str(linked), "main")
+
+    assert git.classify_checkout(git_repo.root, linked) == "linked"

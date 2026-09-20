@@ -126,7 +126,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 from uuid import uuid4
 
 from coga.config import Config
@@ -6380,42 +6380,61 @@ def is_linked_worktree(start: Path) -> bool:
     return Path(git_dir).resolve() != Path(common_dir).resolve()
 
 
-def is_linked_worktree_of(root: Path, path: Path) -> bool | None:
-    """Whether `path` is a linked worktree of the *same* repository as `root`.
+CheckoutKind = Literal["primary", "linked", "foreign"]
 
-    Tri-state on purpose, because the two callers need opposite fail-safes:
 
-    - `True`  — `path` has its own administrative git dir while sharing
-      `root`'s common dir. This is the one shape `coga retire` will ever
-      remove.
-    - `False` — proven otherwise: the primary checkout, an independent clone
-      (including the sandbox `/tmp` fallback checkout), or a linked worktree
-      belonging to some *other* repository. All three report either matching
-      git dirs or a foreign common dir.
-    - `None`  — no answer. `path` or `root` is not a readable git checkout, or
-      `git` could not be run. Retire preserves the checkout; the retire
-      worklist keeps the entry.
+def classify_checkout(root: Path, path: Path) -> CheckoutKind | None:
+    """How `path` relates to the repository `root` belongs to.
 
-    `is_linked_worktree` above answers the unscoped question — "is this
-    checkout linked at all" — for Retro's control-branch guard, and folds its
-    own unknowns into `False`. Keep the two separate: a caller that must prove
-    a checkout is *disposable* cannot treat "could not tell" as an answer.
+    One probe with three verdicts, because the callers need different ones off
+    the same three `rev-parse` reads and must not answer the question twice:
+
+    - `"primary"` — `path` is *the* primary checkout of `root`'s repository:
+      its administrative git dir and the repository's common dir are the same
+      path. Nobody disposes of it, so the retire worklist does not count it as
+      debt.
+    - `"linked"` — a linked worktree of `root`'s repository: its own
+      administrative git dir under the shared common dir. The one shape
+      `coga retire` will ever remove.
+    - `"foreign"` — a checkout of some *other* repository: an independent clone
+      (including the sandbox `/tmp` fallback), or another repository's linked
+      worktree. Retire will not touch it, but a human still disposes of it by
+      hand, so it stays debt worth listing.
+    - `None` — no answer. `path` or `root` is not a readable git checkout, or
+      `git` could not be run. Every caller fails closed on it.
+
+    The comparison is between common dirs, never between `root` and `path`
+    themselves, so the verdict does not change when the sweep itself runs from
+    a linked worktree rather than from the primary checkout.
+
+    `is_linked_worktree` above answers a different, unscoped question — "is
+    this checkout linked at all" — for Retro's control-branch guard, and folds
+    its own unknowns into `False`.
     """
     git_dir = _rev_parse_path(path, "--git-dir")
     common_dir = _rev_parse_path(path, "--git-common-dir")
     root_common_dir = _rev_parse_path(root, "--git-common-dir")
     if git_dir is None or common_dir is None or root_common_dir is None:
         return None
-    return git_dir != common_dir and common_dir == root_common_dir
+    if common_dir != root_common_dir:
+        return "foreign"
+    return "primary" if git_dir == common_dir else "linked"
 
 
 def _rev_parse_path(cwd: Path, flag: str) -> Path | None:
-    """One absolute `rev-parse` path, or `None` when it cannot be read."""
+    """One absolute `rev-parse` path, or `None` when it cannot be read.
+
+    `errors="surrogateescape"` because a path need not decode under the
+    ambient locale, and a classification probe must return "no answer" rather
+    than raise `UnicodeDecodeError` into the middle of a sweep. Both probed
+    paths get the same treatment, so the comparison above still holds.
+    """
     try:
         result = subprocess.run(
             ["git", "-C", str(cwd), "rev-parse", "--path-format=absolute", flag],
             capture_output=True,
             text=True,
+            errors="surrogateescape",
             check=False,
         )
     except OSError:
@@ -7319,10 +7338,10 @@ __all__ = [
     "FeaturePublicationLease",
     "GitError",
     "StateRegressionError",
+    "classify_checkout",
     "feature_publication_lease",
     "guard_ticket_state",
     "is_linked_worktree",
-    "is_linked_worktree_of",
     "refresh_coga_state_from_control",
     "restore_files_under_barrier",
     "state_publication_barrier",

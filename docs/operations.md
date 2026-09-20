@@ -159,12 +159,15 @@ deletes their feature checkouts — that is `coga retire`'s job, with its safety
 proofs. The sweep keeps the list of retires still owed in
 `coga/recurring/autoclose-merged/retires.md`, a plain markdown file beside the
 template, and prunes it on every run once a checkout's branch is gone and its
-worktree is no longer a linked worktree of the repo; `coga retire <slug>`
-clears its own line the moment it disposes of the checkout. Only a linked
-worktree is retire's to remove, so a ticket worked in the primary checkout —
-or in an independent clone — is listed for its branch alone rather than for a
-disposal that could never happen. Read that file, not the period task's blackboard, when you want
-to know what is left to retire: the period task is deleted at the next period.
+worktree is either gone or this repo's own primary checkout; `coga retire
+<slug>` clears its own line the moment it disposes of the checkout. Nobody
+disposes of the primary checkout, so a ticket worked in place is listed for its
+branch alone rather than for a disposal that could never happen. A checkout
+retire itself preserves — an independent clone, or another repo's worktree, the
+shape cross-repo upstream work records — stays listed until you remove it by
+hand, because this file is its only durable trace. Read that file, not the
+period task's blackboard, when you want to know what is left to retire: the
+period task is deleted at the next period.
 The rules — what an entry means, when it clears, the line shape for a
 hand-written backfill and its field encoding — are in the
 [`coga/autoclose/sweep` skill](../coga/skills/coga/autoclose/sweep/SKILL.md).
@@ -188,8 +191,8 @@ sweep with no template edit. Then, in your repo:
    `done` ticket that still carries a `branch:` or `worktree:` under `## Dev`,
    add one line under `## Follow-ups (open)` in the file's documented shape.
    The next sweep validates every line (a malformed one fails the run loudly)
-   and drops any entry whose checkout is already gone, or was never retire's to
-   remove, so seeding a generous list is safe.
+   and drops any entry whose checkout is already gone, or is this repo's own
+   primary checkout, so seeding a generous list is safe.
 
 A repo that carried a private maintenance script for the same file can drop
 it: the shipped sweep and `coga retire` now perform its add and prune.

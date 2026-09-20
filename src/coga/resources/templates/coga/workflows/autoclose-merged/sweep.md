@@ -17,7 +17,8 @@ their `## Dev` `pr:` link, check GitHub merge state with `gh pr view`, and mark
 only final-step or workflow-less tickets done when the linked PR has merged.
 The command exits successfully when there is nothing to close. It then names
 the `coga retire` follow-up for each closed ticket that still records a
-`branch:` or `worktree:` — it never removes one itself, and Dream preserves the
+`branch:`, or a `worktree:` somebody still has to dispose of — it never removes
+one itself, and Dream preserves the
 source ticket until that human-typed retirement happens. Under this period task
 the follow-ups are also recorded in the template's durable
 `coga/recurring/<name>/retires.md`, keyed by slug and pruned of discharged

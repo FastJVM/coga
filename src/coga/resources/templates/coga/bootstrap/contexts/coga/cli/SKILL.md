@@ -521,7 +521,8 @@ ticket state as a side effect of rendering — principle 6, fail loud, names
 `status`/`show`/`validate` as forbidden mutators), and there is no post-merge
 git hook. It surfaces `gh` errors (missing, unauthed) loudly.
 
-Every ticket it closes that still records a `branch:` or `worktree:` gets a
+Every ticket it closes that still records a `branch:`, or a `worktree:`
+somebody still has to dispose of, gets a
 `coga retire <slug>` follow-up: reported per run (task blackboard or stdout,
 plus one trailing Slack line), and — when running as the recurring period
 task — recorded in the template's durable `coga/recurring/<name>/retires.md`,
@@ -586,8 +587,9 @@ best-effort: a cleanup failure is reported and never aborts the retire run.
 Sweeping branches with no live ticket remains the separate `branch-sweep`
 job's. After cleanup, retire drops the slug from any recurring template's
 `retires.md` — the autoclose sweep's durable worklist of stranded retires —
-but only once the recorded worktree directory and local branch are both gone;
-a preserved checkout keeps its line (`Retire: dropped <slug> from <path>.`).
+but only once the recorded branch is gone and the recorded worktree is gone or
+is this repo's own primary checkout; a checkout retire preserved for you to
+remove by hand keeps its line (`Retire: dropped <slug> from <path>.`).
 
 ## coga skill
 

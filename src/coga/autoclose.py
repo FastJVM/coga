@@ -85,10 +85,11 @@ class ClosedTicket:
     which checkout belongs to this ticket, and a later reader may find them
     gone — retire clears them, and a deleted task takes them with it.
 
-    `worktree` is the one field the sweep filters rather than copies: a path
-    `coga retire` provably will not remove is dropped by
-    `_disposable_worktree`, so the follow-up names only work that running the
-    command can actually finish.
+    `worktree` is the one field the sweep filters rather than copies:
+    `_disposable_worktree` drops this repository's own primary checkout, the
+    one recorded path no disposal could ever clear. It is not a promise that
+    `coga retire <slug>` will finish every follow-up it names — retire has its
+    own preservation gates, and a `"foreign"` checkout is disposed of by hand.
     """
 
     slug: str
@@ -373,21 +374,25 @@ def _candidate(ticket: Ticket) -> bool:
 
 
 def _disposable_worktree(cfg: Config, recorded: str | None) -> str | None:
-    """The recorded `worktree:` as retire debt, or `None` when it is not debt.
+    """The recorded `worktree:` as debt, or `None` when nothing can ever clear it.
 
-    `coga retire` removes exactly one shape of checkout: a linked worktree of
-    this repository. A ticket worked in the single-checkout layout records the
-    primary checkout as its own `worktree:`, and the `dev/code` sandbox
-    fallback records an independent clone; `remove_ticket_worktree` preserves
-    both by design. Naming either as a retire follow-up asks for a disposal
-    that can never happen — and, once written to the durable worklist, an entry
-    no run could ever discharge.
+    One path is dropped: **this repository's primary checkout**. A ticket
+    worked in the single-checkout layout records it as its own `worktree:`, and
+    naming it as a follow-up asks for a disposal that will never happen — no
+    `coga retire` run removes it and no operator deletes it, so the durable
+    worklist grew an entry nothing could ever discharge.
+
+    Everything else is kept, including a checkout `coga retire` itself
+    preserves: a `"foreign"` clone or another repository's worktree is disposed
+    of by hand, and `retires.md` is its only durable trace. See
+    `retire_worklist`'s module docstring for why that is tracked rather than
+    filtered, and `retire_worklist.worktree_outstanding` for the mirror rule,
+    applied through the same `git.classify_checkout` probe.
 
     Probes only when there is something to probe, and keeps the path on every
     unknown: a checkout outside any git repository, one `git` cannot answer
     for, or a path already gone (which the worklist discharges on its own next
-    reconcile). `retire_worklist.worktree_outstanding` applies the mirror rule
-    through the same `git.is_linked_worktree_of` probe.
+    reconcile).
     """
     if not recorded:
         return None
@@ -399,7 +404,7 @@ def _disposable_worktree(cfg: Config, recorded: str | None) -> str | None:
         path = root / path
     if not path.is_dir():
         return recorded
-    if git.is_linked_worktree_of(root, path) is False:
+    if git.classify_checkout(root, path) == "primary":
         return None
     return recorded
 

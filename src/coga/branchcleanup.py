@@ -216,7 +216,7 @@ def remove_ticket_worktree(
         )
         return result
 
-    if not _is_linked_worktree_of(root, path):
+    if git.classify_checkout(root, path) != "linked":
         _wnote(
             result,
             echo,
@@ -326,18 +326,6 @@ def remove_ticket_worktree(
         "place for manual inspection.",
     )
     return result
-
-
-def _is_linked_worktree_of(root: Path, path: Path) -> bool:
-    """True only when retire has proved `path` is `root`'s linked worktree.
-
-    `git.is_linked_worktree_of` is the shared probe — `coga.retire_worklist`
-    asks it the mirror-image question, so that what retire declines to remove
-    and what the worklist counts as outstanding debt cannot drift apart. Here
-    an unprobeable checkout (`None`) collapses to "not disposable": retire
-    preserves anything it cannot prove.
-    """
-    return git.is_linked_worktree_of(root, path) is True
 
 
 def _same_path(left: Path, right: Path) -> bool:

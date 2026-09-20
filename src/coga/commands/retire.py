@@ -209,11 +209,13 @@ def _cleanup_checkout(cfg: Config, ref: TaskRef) -> WorktreeCleanupResult | None
 
 
 def _discharge_worklist_entry(cfg: Config, ref: TaskRef) -> None:
-    """Drop this slug from the autoclose retire worklist once its checkout is gone.
+    """Drop this slug from the autoclose retire worklist once nothing is owed.
 
-    Best effort, like the cleanup above: never abort retire over it. Only a
-    checkout that is really gone loses its line — see `discharge_slug` and the
-    `coga/autoclose/sweep` skill for what happens to a preserved one.
+    Best effort, like the cleanup above: never abort retire over it. A checkout
+    this run preserved keeps its line, because somebody still has to dispose of
+    it by hand; the exception is the repository's own primary checkout, which
+    was never counted as debt. See `discharge_slug` and the
+    `coga/autoclose/sweep` skill.
     """
     try:
         root = git._toplevel(ref.ticket_path)

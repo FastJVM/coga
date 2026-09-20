@@ -847,9 +847,9 @@ region would be the wrong container for it. The shipped instance is
 sweep resolves that path from the period task it is running under
 (`tasks/recurring/<name>/` names the template; nothing hardcodes
 `autoclose-merged`), reconciles it on every recurring run — records the run's
-follow-ups keyed by slug, drops entries whose recorded worktree directory and
-local branch are both gone — and `coga retire <slug>` drops its own entry the
-same way. The write is barrier-held, compare-and-swap, and atomic; the file is
+follow-ups keyed by slug, drops entries whose recorded branch is gone and
+whose recorded worktree is gone or is this repo's own primary checkout — and
+`coga retire <slug>` drops its own entry the same way. The write is barrier-held, compare-and-swap, and atomic; the file is
 `merge=union` like `log.md`, so union-merge duplicates and resurrected lines
 heal on the next reconcile rather than needing a second mechanism. A run that
 is not a period task never touches a worklist. The 2026-09-03 defect this

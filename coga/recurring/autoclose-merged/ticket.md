@@ -23,8 +23,9 @@ forgets to run `coga mark done`. Once a day this recurring task fires. Its
 4. leaves non-final-step tickets alone as suspicious, and
 5. marks final-step or workflow-less tickets `done` when the PR is merged, and
 6. names the `coga retire` follow-up for each ticket it closed that still
-   records a `branch:` or `worktree:`, and records it in the durable worklist
-   `retires.md` beside this template, keyed by task slug.
+   records a `branch:`, or a `worktree:` somebody still has to dispose of, and
+   records it in the durable worklist `retires.md` beside this template, keyed
+   by task slug.
 
 Autoclose never disposes of a checkout itself — `coga retire` owns those safety
 proofs. Without step 6 an auto-closed ticket's worktree and branch outlive it
@@ -34,8 +35,8 @@ until a human retires it. The worklist is what keeps the *list* of that debt
 actionable: this period task is deleted at the next period boundary, so step 6
 writes the entries to `coga/recurring/<name>/retires.md` for the template this
 task was minted from and, on every run, drops the entries already discharged —
-worktree directory gone and local branch gone. The rules are in the
-`coga/autoclose/sweep` skill.
+branch gone, and the worktree gone or this repo's own primary checkout. The
+rules are in the `coga/autoclose/sweep` skill.
 
 This sweep is the sole trigger for auto-closing merged tickets — there is
 no manual `automerge` command. The recurring task only changes when the
@@ -58,7 +59,7 @@ blackboard for that firing (`autoclose._report_retire_followups` writes
 `COGA_TASK_BLACKBOARD`), not here. That section is a per-run report the
 scheduler deletes with the period task. The durable worklist is the sibling
 file `retires.md` next to this `ticket.md`: the same run records each
-follow-up there keyed by slug, every run drops the entries whose worktree and
-branch are both gone, and `coga retire <slug>` drops its own once it has
-disposed of the checkout. A sweep that stranded nothing and discharged
+follow-up there keyed by slug, every run drops the entries whose branch is
+gone and whose worktree is gone or is the primary checkout, and
+`coga retire <slug>` drops its own once it has disposed of the checkout. A sweep that stranded nothing and discharged
 nothing writes nothing.

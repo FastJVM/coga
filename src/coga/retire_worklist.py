@@ -26,14 +26,17 @@ list or git root that cannot be read, a checkout git cannot answer for) keeps
 the entry — the failure mode is "listed one time too many", never "silently
 forgotten".
 
-The rule's other half is that debt has to be *dischargeable*. Only a linked
-worktree of this repository is ever removed by `coga retire`, so only one holds
-an entry open; a `worktree:` naming the primary checkout, an independent
-fallback clone, or another repository's worktree is not debt this worklist can
-ever clear, and counting it kept such an entry listed forever. `autoclose`
-declines to record those paths and `worktree_outstanding` ignores an already
-written one, both through the single `git.is_linked_worktree_of` probe, so the
-recording and discharge sides cannot disagree.
+The rule's other half is that debt has to be *clearable by somebody*. One
+recorded `worktree:` never is: this repository's own primary checkout, which a
+ticket worked in the single-checkout layout records as its own, and which no
+`coga retire` run removes and no operator deletes — so counting it kept such an
+entry listed forever. `autoclose` declines to record that path and
+`worktree_outstanding` ignores an already written one, both through the single
+`git.classify_checkout` probe, so the recording and discharge sides cannot
+disagree. A checkout retire itself preserves but a human can dispose of — an
+independent fallback clone, or another repository's linked worktree, which is
+what cross-repo upstream work records — stays listed, because this file is its
+only durable trace once the ticket is gone.
 
 The file is plain markdown so a human can read, hand-edit, or backfill it.
 The one line shape is::
@@ -76,13 +79,14 @@ Every entry means the same thing: run `coga retire <slug>` to dispose of the
 recorded worktree and branch. Autoclose only ever names the follow-up; retire
 owns the safety proofs. Entries are keyed by slug, so a later sweep refreshes
 one rather than duplicating it, and an entry is dropped once its local branch
-is gone and its worktree is no longer a linked worktree of this repository.
-Only a linked worktree is retire's to remove, so a recorded path that is the
-primary checkout or an independent clone never holds an entry open. An entry
-whose ticket no longer exists — retire preserved the checkout and then deleted
-the ticket — is still debt: dispose of the recorded worktree and branch by hand
-(or let the weekly branch sweep take the branch) and the entry clears by the
-same rule.
+is gone and its recorded worktree is either gone or this repository's own
+primary checkout. Nobody ever disposes of the primary checkout, so recording it
+never holds an entry open. Every other checkout does: `coga retire` removes a
+linked worktree of this repository, and you remove an independent clone or
+another repository's worktree by hand. An entry whose ticket no longer exists —
+retire preserved the checkout and then deleted the ticket — is still debt:
+dispose of the recorded worktree and branch by hand (or let the weekly branch
+sweep take the branch) and the entry clears by the same rule.
 
 For the line format and field encoding, see the `coga/autoclose/sweep` skill.
 
@@ -251,22 +255,19 @@ def local_branches(root: Path) -> frozenset[str] | None:
 
 
 def worktree_outstanding(entry: RetireFollowUp, *, root: Path | None) -> bool:
-    """Whether the entry's recorded checkout is still `coga retire`'s to remove.
+    """Whether the entry's recorded checkout is still somebody's to dispose of.
 
     A path that is not a directory is gone, so nothing is outstanding. A path
-    that exists is outstanding only while it could be a **linked worktree of
-    this repository** — the one shape `branchcleanup.remove_ticket_worktree`
-    will ever remove. The primary checkout (a ticket worked in the
-    single-checkout layout records it as its own `worktree:`), an independent
-    fallback clone, and another repository's worktree are all preserved by
-    retire by design, so counting them as outstanding made an entry that no
-    `coga retire` run could ever discharge: permanent false debt in a durable
-    worklist. `autoclose` declines to record those same paths, and the two
-    sides share one probe so they cannot drift apart.
+    that exists is outstanding unless it is **this repository's primary
+    checkout** (`git.classify_checkout` → `"primary"`), the one recorded
+    `worktree:` no action could ever clear. A `"foreign"` checkout stays
+    outstanding even though `coga retire` will not remove it, because a human
+    still will; the module docstring above has the why, and `autoclose`
+    declines to record the primary checkout through the same probe.
 
     Unknowns stay outstanding, as everywhere else here: no git root to anchor a
-    relative path (`root is None`), or a checkout `git.is_linked_worktree_of`
-    could not read (`None`).
+    relative path (`root is None`), or a checkout `git.classify_checkout` could
+    not read (`None`).
     """
     if not entry.worktree:
         return False
@@ -279,7 +280,7 @@ def worktree_outstanding(entry: RetireFollowUp, *, root: Path | None) -> bool:
         return False
     if root is None:
         return True
-    return git.is_linked_worktree_of(root, path) is not False
+    return git.classify_checkout(root, path) != "primary"
 
 
 def is_discharged(
@@ -365,11 +366,13 @@ def reconcile_worklist(
 def discharge_slug(cfg: Config, slug: str, *, root: Path) -> list[Path]:
     """Drop `slug` from every worklist where it is now discharged.
 
-    `coga retire`'s hook: after checkout cleanup, the entry goes only if the
-    worktree and branch really are gone — a preserved checkout keeps its line.
-    Any other discharged entry in the same file is dropped too; the rule is
-    the same and the file is being rewritten anyway. Returns the worklists
-    that changed.
+    `coga retire`'s hook: after checkout cleanup, the entry goes only if
+    `is_discharged` says nothing is left to dispose of — a checkout retire
+    preserved and a human still has to remove keeps its line. The one
+    exception is this repository's own primary checkout, which the same rule
+    never counted as debt. Any other discharged entry in the same file is
+    dropped too; the rule is the same and the file is being rewritten anyway.
+    Returns the worklists that changed.
     """
     changed: list[Path] = []
     for path in all_worklists(cfg):

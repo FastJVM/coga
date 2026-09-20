@@ -18,9 +18,9 @@ sole trigger for closing tickets whose PR has merged:
 4. mark the ticket `done` only when it is on its final workflow step, or has no
    workflow, and the PR is merged, and
 5. report the `coga retire` follow-up for every ticket it closed that still
-   records a `branch:`, or a `worktree:` retire could actually remove, under
-   `## Dev`, and — under a recurring period task — record it in the template's
-   durable `retires.md` worklist.
+   records a `branch:`, or a `worktree:` somebody still has to dispose of,
+   under `## Dev`, and — under a recurring period task — record it in the
+   template's durable `retires.md` worklist.
 
 The scope is defined by `coga.autoclose.sweep_merged`.
 Mid-workflow merges stay untouched because they are suspicious and need a human
@@ -62,8 +62,9 @@ nothing; the third is the durable worklist:
   records each new follow-up keyed by task slug (re-recording one refreshes
   the branch and worktree it names and keeps the first sighting's date), and
   drops every entry that is **discharged** — its recorded worktree is no longer
-  outstanding *and* its recorded branch is no longer a local branch. Either
-  half still to dispose of keeps the entry, and a branch list that cannot be
+  outstanding (gone, or this repository's own primary checkout) *and* its
+  recorded branch is no longer a local branch. Either half still to dispose of
+  keeps the entry, and a branch list that cannot be
   read keeps every entry: the failure mode is one listing too many, never a
   forgotten checkout. `coga retire <slug>` drops its own line by the same rule
   once its cleanup has really disposed of the checkout; a retire that
@@ -93,24 +94,35 @@ nothing; the third is the durable worklist:
   backfilling. A malformed line fails the sweep loudly rather than growing a
   second section nobody would find.
 
-### Only a checkout retire can remove counts
+### The primary checkout is not debt
 
-A recorded `worktree:` is outstanding while it is a directory that is — or
-still might be — a **linked worktree of this repository**. That is the one
-shape `coga retire` removes; it preserves the primary checkout, an independent
-fallback clone, and another repository's worktree by design. So a ticket worked
-in the single-checkout layout records the primary checkout as its own
-`worktree:`, and naming that as retire debt asks for a disposal that can never
-happen: before this rule such an entry stayed listed forever, because the
-primary checkout is always a directory.
+A recorded `worktree:` is outstanding while it is a directory that somebody
+still has to dispose of. Exactly one recorded path never is: **this
+repository's own primary checkout**. A ticket worked in the single-checkout
+layout records it as its own `worktree:`, and no `coga retire` run removes it
+and no operator deletes it — so before this rule such an entry stayed listed
+forever, because the primary checkout is always a directory.
 
-Both halves apply it, through one probe, so they cannot disagree: the sweep
-declines to record such a path at all (a ticket with a live branch still gets a
-branch-only follow-up; one with neither gets none), and an entry already on
-disk stops counting its worktree half and clears as soon as its branch is gone
-— no hand edit of `retires.md`. Unknowns keep counting, as everywhere else
-here: a relative path with no git root to anchor it, or a checkout `git` cannot
-answer for.
+Both halves apply that through one probe, `git.classify_checkout`, so they
+cannot disagree: the sweep declines to record the primary checkout at all (a
+ticket with a live branch still gets a branch-only follow-up; one with neither
+gets none), and an entry already on disk stops counting its worktree half and
+clears as soon as its branch is gone — no hand edit of `retires.md`.
+
+**A checkout `coga retire` will not remove is still listed.** Retire disposes
+of one shape, a linked worktree of this repository; an independent fallback
+clone and another repository's linked worktree it preserves by design, and the
+operator removes those by hand. They stay on the worklist until the directory
+goes, because this file is their only durable trace once the ticket is deleted
+— the ticket's own `## Dev` section dies with it, and another repository's
+sweeps never see a ticket here. Cross-repo upstream work records exactly that
+shape, so this is the common case, not the exotic one. An entry may therefore
+name a disposal that `coga retire <slug>` itself will decline; that is the same
+hand-disposal case the worklist already documents for an entry whose ticket is
+gone.
+
+Unknowns keep counting, as everywhere else here: a relative path with no git
+root to anchor it, or a checkout `git` cannot answer for.
 
 Autoclose still never removes a worktree or branch. Recording a follow-up and
 destroying a checkout stay separate: the worklist names the retire, and
