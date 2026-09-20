@@ -20,7 +20,6 @@ from coga import git, pr_assist
 from coga.commands.common import completion_identity
 from coga.config import Config, ConfigError, load_config
 from coga.lifecycle import CANCELABLE_STATUSES
-from coga.logfile import log_path
 from coga.mark import (
     BlackboardNeedsSynthesis,
     MainAgentUnavailable,
@@ -36,9 +35,7 @@ from coga.mark import mark_done as _mark_done
 from coga.mark import mark_paused as _mark_paused
 from coga.repl_supervisor import emit_done_marker
 from coga.notification import preflight_post
-from coga.period_state import parent_ticket_path, read_snapshot
 from coga.tasks import TaskNotFoundError, TaskRef, read_ticket, resolve_task
-from coga.ticket import Ticket
 from coga.validate import TaskValidationError
 from coga.workflow import WorkflowError
 
@@ -123,72 +120,22 @@ def paused(
 ) -> None:
     """Set status to `paused`. Allowed from `active` or `in_progress`."""
     cfg, ref, ticket = _load(task)
-    ticket, rollback = _capture_assist_transition(
-        cfg,
-        ref,
-        include_period_parent=False,
-    )
     _require_message_nonempty(message)
     _check_transition(ref.id_slug, ticket.status, _PAUSED_FROM, "paused")
-    assist = _acquire_assist_transition(cfg, ref, rollback)
+    assist = _assist_session(cfg, ref)
 
     suffix = f" — {message}" if message else ""
-    actor = (
-        f"agent:{assist.agent}"
-        if assist is not None
-        else f"human:{cfg.current_user}"
-    )
     log_message = f"paused ({ticket.status} → paused){suffix}"
-    publication_succeeded = False
-
-    def record_publication() -> None:
-        nonlocal publication_succeeded
-        publication_succeeded = True
 
     try:
         _mark_paused(
             cfg, ref, ticket,
-            actor=actor,
+            actor=_actor(cfg, assist),
             log_message=log_message,
             echo=f"{ref.id_slug}: paused",
-            feature_publication=(assist.lease if assist is not None else None),
-            feature_publication_guard=(
-                assist.guard if assist is not None else None
-            ),
-            mutation_snapshot=rollback,
-            after_sync=record_publication if rollback is not None else None,
-        )
-    except git.FeaturePublicationError as exc:
-        _bail_strict_transition(
-            cfg,
-            ref,
-            "paused",
-            exc,
-            rollback,
-            publication_succeeded=publication_succeeded,
         )
     except TaskValidationError as exc:
-        if rollback is not None:
-            _bail_strict_transition(
-                cfg,
-                ref,
-                "paused",
-                exc,
-                rollback,
-                publication_succeeded=publication_succeeded,
-            )
         _bail(str(exc))
-    except BaseException as exc:
-        if rollback is None:
-            raise
-        _bail_strict_transition(
-            cfg,
-            ref,
-            "paused",
-            exc,
-            rollback,
-            publication_succeeded=publication_succeeded,
-        )
 
 
 @app.command("done")
@@ -208,15 +155,14 @@ def done(
 ) -> None:
     """Set status to `done`. Allowed from `active` or `in_progress`."""
     cfg, ref, ticket = _load(task)
-    ticket, rollback = _capture_assist_transition(
-        cfg,
-        ref,
-        include_period_parent=True,
-    )
     _require_message_nonempty(message)
     _check_transition(ref.id_slug, ticket.status, _DONE_FROM, "done")
-    _preflight_outcome(cfg, ref, rollback)
-    assist = _acquire_assist_transition(cfg, ref, rollback)
+    # `done` posts its outcome live with `fatal=False`, so an unresolved
+    # webhook discovered after the write is reported and dropped rather than
+    # crashing the session-ending command; this is the one place a
+    # misconfigured channel can still refuse.
+    preflight_post(cfg)
+    assist = _assist_session(cfg, ref)
 
     suffix = f" — {message}" if message else ""
     actor, finisher = completion_identity(
@@ -230,11 +176,6 @@ def done(
         f"🎉 {finisher} finished *{ref.id_slug}* "
         f"\"{ticket.title}\"{transition}{suffix}"
     )
-    publication_succeeded = False
-
-    def record_publication() -> None:
-        nonlocal publication_succeeded
-        publication_succeeded = True
 
     try:
         _mark_done(
@@ -245,32 +186,8 @@ def done(
             image_url=cfg.gif_for("done"),
             echo=f"{ref.id_slug}: done",
             force=force,
-            feature_publication=(assist.lease if assist is not None else None),
-            feature_publication_guard=(
-                assist.guard if assist is not None else None
-            ),
-            mutation_snapshot=rollback,
-            after_sync=record_publication if rollback is not None else None,
-        )
-    except git.FeaturePublicationError as exc:
-        _bail_strict_transition(
-            cfg,
-            ref,
-            "done",
-            exc,
-            rollback,
-            publication_succeeded=publication_succeeded,
         )
     except StrandedProductCode as exc:
-        if rollback is not None:
-            _bail_strict_transition(
-                cfg,
-                ref,
-                "done",
-                exc,
-                rollback,
-                publication_succeeded=publication_succeeded,
-            )
         listed = "\n".join(f"    {p}" for p in exc.paths)
         _bail(
             f"Cannot finish {ref.id_slug}: its {exc.workflow_name} workflow has "
@@ -283,27 +200,7 @@ def done(
             f"re-run with --force to finish anyway and keep the code stranded."
         )
     except TaskValidationError as exc:
-        if rollback is not None:
-            _bail_strict_transition(
-                cfg,
-                ref,
-                "done",
-                exc,
-                rollback,
-                publication_succeeded=publication_succeeded,
-            )
         _bail(str(exc))
-    except BaseException as exc:
-        if rollback is None:
-            raise
-        _bail_strict_transition(
-            cfg,
-            ref,
-            "done",
-            exc,
-            rollback,
-            publication_succeeded=publication_succeeded,
-        )
 
     # `mark done` is a session-end transition; tell a supervising
     # `coga launch` to tear down the agent's REPL. Other `mark`
@@ -325,35 +222,21 @@ def canceled(
 ) -> None:
     """Set status to `canceled`. Allowed from every non-terminal status."""
     cfg, ref, ticket = _load(task)
-    ticket, rollback = _capture_assist_transition(
-        cfg,
-        ref,
-        include_period_parent=False,
-    )
     reason = message.strip()
     if not reason:
         _bail("--message cannot be empty")
     _check_transition(ref.id_slug, ticket.status, _CANCELED_FROM, "canceled")
-    _preflight_outcome(cfg, ref, rollback)
-    assist = _acquire_assist_transition(cfg, ref, rollback)
+    preflight_post(cfg)
+    assist = _assist_session(cfg, ref)
 
     canceler = assist.agent if assist is not None else cfg.current_user
-    publication_succeeded = False
-
-    def record_publication() -> None:
-        nonlocal publication_succeeded
-        publication_succeeded = True
 
     try:
         _mark_canceled(
             cfg,
             ref,
             ticket,
-            actor=(
-                f"agent:{canceler}"
-                if assist is not None
-                else f"human:{canceler}"
-            ),
+            actor=_actor(cfg, assist),
             reason=reason,
             slack_text=(
                 f"🚫 {canceler} canceled *{ref.id_slug}* "
@@ -361,44 +244,9 @@ def canceled(
             ),
             image_url=cfg.gif_for("canceled"),
             echo=f"{ref.id_slug}: canceled — {reason}",
-            feature_publication=(assist.lease if assist is not None else None),
-            feature_publication_guard=(
-                assist.guard if assist is not None else None
-            ),
-            mutation_snapshot=rollback,
-            after_sync=record_publication if rollback is not None else None,
-        )
-    except git.FeaturePublicationError as exc:
-        _bail_strict_transition(
-            cfg,
-            ref,
-            "canceled",
-            exc,
-            rollback,
-            publication_succeeded=publication_succeeded,
         )
     except (CancellationError, TaskValidationError) as exc:
-        if rollback is not None:
-            _bail_strict_transition(
-                cfg,
-                ref,
-                "canceled",
-                exc,
-                rollback,
-                publication_succeeded=publication_succeeded,
-            )
         _bail(str(exc))
-    except BaseException as exc:
-        if rollback is None:
-            raise
-        _bail_strict_transition(
-            cfg,
-            ref,
-            "canceled",
-            exc,
-            rollback,
-            publication_succeeded=publication_succeeded,
-        )
 
     # Cancellation is terminal and can happen from inside a launched agent
     # session. Release the same supervisor sentinel as `mark done` / `block`.
@@ -423,121 +271,16 @@ def _load(task: str):
     return cfg, ref, ticket
 
 
-def _capture_assist_transition(
-    cfg: Config,
-    ref: TaskRef,
-    *,
-    include_period_parent: bool,
-) -> tuple[Ticket, git.FileMutationRollback | None]:
-    """Pin exact lifecycle inputs before a possible inherited assist lease."""
-    if not pr_assist.assist_publication_requested(ref):
-        return read_ticket(ref), None
-
-    paths = [log_path(cfg)]
-    union_paths = [log_path(cfg)]
-    if include_period_parent:
-        snapshot = read_snapshot(ref.path)
-        if snapshot is not None:
-            parent_ticket = parent_ticket_path(cfg, snapshot)
-            if parent_ticket.parent.is_dir():
-                paths.append(parent_ticket)
-    rollback = git.capture_task_mutation_snapshot(
-        ref.path,
-        extra_paths=paths,
-        union_paths=union_paths,
-    )
-    ticket_bytes = rollback.originals[ref.ticket_path]
-    if ticket_bytes is None:
-        _bail(
-            f"Task {ref.id_slug} has no ticket.md.",
-            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-        )
-    return Ticket.parse(ticket_bytes.decode("utf-8")), rollback
-
-
-def _acquire_assist_transition(
-    cfg: Config,
-    ref: TaskRef,
-    rollback: git.FileMutationRollback | None,
-) -> pr_assist.AssistPublication | None:
-    if rollback is None:
-        return None
+def _assist_session(cfg: Config, ref: TaskRef) -> pr_assist.AssistSession | None:
+    """The inherited human-step assist identity, if this command runs in one."""
     try:
-        assist = pr_assist.assist_publication_from_env(
-            cfg,
-            ref,
-            mutation_snapshot=rollback,
-        )
-    except git.FeaturePublicationError as exc:
-        _bail(
-            f"Could not verify the recorded assist branch before changing "
-            f"{ref.id_slug}: {exc}",
-            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-        )
-    if assist is None:
-        _bail(
-            f"Could not rebuild {ref.id_slug}'s recorded assist capability.",
-            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-        )
-    return assist
+        return pr_assist.assist_session_from_env(cfg, ref)
+    except git.GitError as exc:
+        _bail(f"Could not rebuild {ref.id_slug}'s recorded assist session: {exc}")
 
 
-def _preflight_outcome(
-    cfg: Config,
-    ref: TaskRef,
-    rollback: git.FileMutationRollback | None,
-) -> None:
-    """Validate the live outcome channel before the mutation.
-
-    `done` and `canceled` post their outcome live with `fatal=False`, so an
-    unresolved webhook discovered after the write is reported and dropped
-    rather than crashing the session-ending command. This is therefore the
-    one place a misconfigured channel can still refuse — for every outcome
-    command, not only a recorded assist. The assist path exits with the
-    no-sweep code so the strict checkout stays untouched.
-    """
-    try:
-        preflight_post(cfg)
-    except typer.Exit:
-        if rollback is None:
-            raise
-        _bail(
-            f"Could not complete {ref.id_slug} from the recorded assist: "
-            "notification configuration must be valid before strict state "
-            "publication.",
-            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-        )
-
-
-def _bail_strict_transition(
-    cfg: Config,
-    ref: TaskRef,
-    transition: str,
-    exc: BaseException,
-    rollback: git.FileMutationRollback | None,
-    *,
-    publication_succeeded: bool,
-) -> None:
-    rollback_note = ""
-    if publication_succeeded or isinstance(exc, git.UncertainFeaturePublicationError):
-        rollback_note = (
-            "; generated state was retained because publication succeeded "
-            "or could not be determined"
-        )
-    elif rollback is not None and rollback.generated is not None:
-        refused = git.restore_files_under_barrier(cfg, rollback)
-        if refused:
-            names = ", ".join(str(path) for path in refused)
-            rollback_note = (
-                "; concurrent edits were retained instead of being "
-                f"overwritten at {names}"
-            )
-    detail = str(exc).strip() or type(exc).__name__
-    _bail(
-        f"Could not complete {ref.id_slug}'s strict {transition} transition "
-        f"after {type(exc).__name__}: {detail}{rollback_note}",
-        exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-    )
+def _actor(cfg: Config, assist: pr_assist.AssistSession | None) -> str:
+    return f"agent:{assist.agent}" if assist is not None else f"human:{cfg.current_user}"
 
 
 def _require_message_nonempty(message: str | None) -> None:

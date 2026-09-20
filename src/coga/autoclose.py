@@ -876,7 +876,7 @@ def _worklist_root(cfg: Config) -> Path | None:
     recorded branch — the fail-closed reading of debt the worklist exists for.
     """
     try:
-        return git._toplevel(cfg.repo_root)
+        return git.toplevel(cfg.repo_root)
     except git.GitError:
         return None
 

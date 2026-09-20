@@ -52,7 +52,7 @@ def update_blackboard_under_barrier(
     compared again at replacement, so an editor that does not participate in
     Coga's barrier still wins loudly instead of being overwritten.
     """
-    with git.state_publication_barrier(cfg):
+    with git.state_lock(cfg):
         raw = ticket_path.read_bytes()
         if expected_bytes is not None and raw != expected_bytes:
             raise TaskFileError(
@@ -102,7 +102,7 @@ def append_blackboard_report(
             separator = newline * 2
         return region + separator + normalized_report
 
-    with git.state_publication_barrier(cfg):
+    with git.state_lock(cfg):
         # Never recreate a task that deletion removed while this writer was
         # waiting to enter the barrier. Report targets are existing task files;
         # a missing file is a stale launch context, not an empty blackboard.

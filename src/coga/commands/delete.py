@@ -13,6 +13,7 @@ import sys
 import typer
 
 from coga import git
+from coga.paths import log_path
 from coga.config import ConfigError, load_config
 from coga.delete_task import DeleteTaskError, run_delete_task
 from coga.tasks import TaskNotFoundError, resolve_task
@@ -57,17 +58,18 @@ def delete(
     # broadcast every other state mutation posts. Without this, `coga delete`
     # leaves an uncommitted working-tree deletion — the one command that
     # bypassed the sync layer (create/mark/bump/block all call it). The task
-    # dir is gone now, so anchor on its still-present parent for git-root
-    # resolution while staging the deleted dir itself as the pathspec;
-    # `sync_paths` already handles a removed path (it `git rm`s a missing
-    # pathspec and drops it from the landed tree).
-    git.sync_paths(
-        cfg,
-        ref.path.parent,
-        [ref.path],
-        message=f"Ticket: {ref.id_slug} — deleted",
-        update_local_control_ref=not keep_control_checkout,
-    )
+    # dir is gone now; `publish` lands the deletion from the working tree's
+    # `git status`, and `fast_forward=False` is Retro's isolated delete: leave
+    # the operator's control checkout untouched after the remote landing.
+    try:
+        git.publish(
+            cfg,
+            [ref.path, log_path(cfg)],
+            f"Ticket: {ref.id_slug} — deleted",
+            fast_forward=not keep_control_checkout,
+        )
+    except git.GitError as exc:
+        typer.secho(f"[git] sync failed: {exc}", fg=typer.colors.YELLOW, err=True)
 
 
 def _bail(msg: str) -> None:

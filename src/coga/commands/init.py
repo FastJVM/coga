@@ -43,7 +43,7 @@ from coga.config import (
     resolve_layout_contexts_path,
 )
 from coga.dependencies import DEPENDENCIES, install_hint
-from coga.git import GitError, _control_branch_present, _symbolic_head
+from coga.git import GitError, control_branch_present, symbolic_head
 from coga.logfile import append_log
 from coga.managed_skills import (
     ManagedSkillError,
@@ -615,7 +615,7 @@ def _detect_control_branch(
 
     `coga init` must not create the mismatch every later command complains
     about, so the trigger here is the local/cached-ref portion of the predicate
-    behind that warning: `git._control_branch_present`. Init deliberately does
+    behind that warning: `git.control_branch_present`. Init deliberately does
     not contact a remote while scaffolding. Returns `(branch, None)` when the
     configured control branch is absent and a safe replacement can be recorded,
     `(None, None)` when the configured value already fits, and `(None, reason)`
@@ -630,8 +630,8 @@ def _detect_control_branch(
         # `symbolic-ref` resolves an unborn HEAD, which `rev-parse` cannot. If
         # it already names the configured branch, the init commit will create
         # that ref; do not write a redundant table or claim the branch is absent.
-        branch = _symbolic_head(target)
-    except OSError:
+        branch = symbolic_head(target)
+    except (OSError, GitError):
         # The up-front dependency check owns a missing Git executable. Some
         # unit fixtures deliberately supply only an empty `.git/` marker.
         return None, None
@@ -639,7 +639,7 @@ def _detect_control_branch(
         return None, None
 
     try:
-        if _control_branch_present(
+        if control_branch_present(
             target, control_branch, remote, probe_remote=False
         ):
             return None, None
@@ -686,7 +686,7 @@ def _detect_control_branch(
         if reason is not None:
             return None, reason
         try:
-            if _control_branch_present(
+            if control_branch_present(
                 target, remote_default, remote, probe_remote=False
             ):
                 return remote_default, None

@@ -85,7 +85,7 @@ from coga.config import (
 )
 from coga.dependencies import agent_cli_missing_message
 from coga.github_preflight import check_git_auth, check_git_remote
-from coga.logfile import first_activity_map
+from coga.logfile import first_activity_map, retract_log_lines
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.mark import (
     BlackboardNeedsSynthesis,
@@ -470,12 +470,7 @@ def _drain_satisfied_blockers(
             # The earlier read established that this task is worth considering;
             # this snapshot is the source lease for the actual activation plus
             # resolution publication, so a peer edit cannot be overlaid.
-            audit_path = log_path(cfg)
-            activation_snapshot = git.FileMutationRollback.capture(
-                (ref.ticket_path, audit_path),
-                union_paths=(audit_path,),
-            )
-            captured = activation_snapshot.originals[ref.ticket_path]
+            captured = _ticket_bytes(ref)
             if captured is None:
                 drained_slugs.add(ref.id_slug)
                 _replace_result(
@@ -571,7 +566,7 @@ def _drain_satisfied_blockers(
                     f"resolved finished dependency {dependency}"
                 ),
                 prepared=prepared,
-                mutation_snapshot=activation_snapshot,
+                source_bytes=captured,
                 blocker_resolution=("system", answer),
             )
             if failure is not None:
@@ -835,18 +830,13 @@ def _run_selection(
             continue
         blocked_resume = ticket.status == "blocked"
         needs_activation = ticket.status in {"draft", "paused", "blocked"}
-        activation_snapshot: git.FileMutationRollback | None = None
+        activation_bytes: bytes | None = None
         if needs_activation:
             # Bind preparation, every launch preflight, and the eventual write
             # to one exact ticket revision. Reading the parsed ticket back from
-            # the snapshot closes the read/capture gap; mark_active consumes
-            # the same snapshot immediately before its write.
-            audit_path = log_path(cfg)
-            activation_snapshot = git.FileMutationRollback.capture(
-                (ref.ticket_path, audit_path),
-                union_paths=(audit_path,),
-            )
-            captured = activation_snapshot.originals[ref.ticket_path]
+            # the captured bytes closes the read/capture gap; the activation
+            # compares those same bytes immediately before its write.
+            captured = activation_bytes = _ticket_bytes(ref)
             if captured is None:
                 results.append(
                     _result(ref, "failed", "ticket disappeared before launch")
@@ -911,7 +901,7 @@ def _run_selection(
             max_session=max_session,
             blocked_resume=blocked_resume,
             activate=needs_activation,
-            activation_snapshot=activation_snapshot,
+            activation_bytes=activation_bytes,
             explicit=True,
         )
         # A selected candidate can cross a current-step, routing, or terminal
@@ -1179,7 +1169,7 @@ def _launch_until_stop(
     max_session: float | None = None,
     blocked_resume: bool = False,
     activate: bool = False,
-    activation_snapshot: git.FileMutationRollback | None = None,
+    activation_bytes: bytes | None = None,
     explicit: bool = False,
 ) -> MegalaunchResult:
     # `ticket` is `active` / `in_progress` unless `activate` is set — the sweep
@@ -1346,7 +1336,7 @@ def _launch_until_stop(
                 ref,
                 ticket,
                 prepared=prepared_activation,
-                mutation_snapshot=activation_snapshot,
+                source_bytes=activation_bytes,
             )
             if failure is not None:
                 return failure
@@ -1357,15 +1347,9 @@ def _launch_until_stop(
         # revision with this loop's stale in-memory ticket. The same guard also
         # closes the preflight window for an already-active sweep candidate.
         prior_start_status = ticket.status
-        audit_path = log_path(cfg)
-        start_snapshot = git.FileMutationRollback.capture(
-            (ref.ticket_path, audit_path),
-            union_paths=(audit_path,),
-        )
-        if (
-            start_snapshot.originals[ref.ticket_path]
-            != prepared_launch.source_ticket_bytes
-        ):
+        start_bytes = _ticket_bytes(ref)
+        log_before = _log_bytes(cfg)
+        if start_bytes != prepared_launch.source_ticket_bytes:
             return _result(
                 ref,
                 "failed",
@@ -1385,26 +1369,14 @@ def _launch_until_stop(
                     else "claimed in_progress resume via coga megalaunch"
                 ),
                 echo=None,
-                mutation_snapshot=start_snapshot,
-                state_guard=(
-                    git.ticket_state_guard(
-                        cfg,
-                        ref.ticket_path,
-                        expected_ticket_bytes=(
-                            prepared_launch.source_ticket_bytes
-                        ),
-                        allow_launch_claim_acquisition=True,
-                    )
-                    if cfg.git_enabled
-                    else None
-                ),
-                strict_state_guard=cfg.git_enabled,
-                strict_state_sync=cfg.git_enabled,
+                strict=cfg.git_enabled,
             )
         except TaskValidationError as exc:
-            git.restore_files_under_barrier(cfg, start_snapshot)
+            _restore_ticket_bytes(cfg, ref, start_bytes, log_before=log_before)
             return _result(ref, "failed", str(exc), _operator_name(cfg, ref, ticket))
-        except git.UncertainFeaturePublicationError as exc:
+        except git.UncertainPublishError as exc:
+            # Unknown: keep the pending claim on disk as the legible evidence
+            # for reconciliation.
             return _result(
                 ref,
                 "failed",
@@ -1413,7 +1385,10 @@ def _launch_until_stop(
                 _operator_name(cfg, ref, ticket),
             )
         except git.GitError as exc:
-            git.restore_files_under_barrier(cfg, start_snapshot)
+            # Definitely not on control: another checkout won the claim, this
+            # one is stale, or the push never got through. Put the pre-write
+            # bytes back.
+            _restore_ticket_bytes(cfg, ref, start_bytes, log_before=log_before)
             return _result(
                 ref,
                 "failed",
@@ -1658,7 +1633,7 @@ def _activate_for_launch(
     *,
     log_message: str | None = None,
     prepared: Ticket | None = None,
-    mutation_snapshot: git.FileMutationRollback | None = None,
+    source_bytes: bytes | None = None,
     blocker_resolution: tuple[str, str] | None = None,
 ) -> MegalaunchResult | None:
     """Commit a picked or dependency-drained ticket to `active`.
@@ -1669,122 +1644,118 @@ def _activate_for_launch(
     step), so the caller's launch loop continues off the same object.
 
     The durable half. A deferred picker launch supplies the exact prospective
-    ticket its preflight saw plus a mutation snapshot of the source revision.
+    ticket its preflight saw plus the source bytes that preflight read.
     `mark_active` therefore sees an already-prepared `active` ticket (so it
-    cannot freeze a changed workflow definition) and refuses immediately
-    before writing if a peer changed the ticket. A dependency drain also
-    supplies an actor/answer pair: after activation validates and writes, its
-    blocker update joins the same snapshot and exact control publication. Thus
-    the next launch claim leases resolved bytes rather than a local-only edit.
+    cannot freeze a changed workflow definition) and the write is refused
+    before it happens if a peer changed the ticket meanwhile. A dependency
+    drain also supplies an actor/answer pair: after activation validates and
+    writes, its blocker update joins the same exact control publication. Thus
+    the next launch claim builds on resolved bytes rather than a local-only
+    edit. A refused or failed publication restores the source bytes; an
+    unknown one keeps the local write for reconciliation.
     """
     prior = ticket.status
-    strict_source_bytes: bytes | None = None
     strict_activation = (
-        cfg.git_enabled
-        and prepared is not None
-        and mutation_snapshot is not None
+        cfg.git_enabled and prepared is not None and source_bytes is not None
     )
-    if blocker_resolution is not None and (
-        prepared is None or mutation_snapshot is None
-    ):
+    if blocker_resolution is not None and (prepared is None or source_bytes is None):
         return _result(
             ref,
             "failed",
             "dependency resolution requires an exact activation snapshot",
             _operator_name(cfg, ref, ticket),
         )
-    if strict_activation:
-        strict_source_bytes = mutation_snapshot.originals.get(ref.ticket_path)
-        if strict_source_bytes is None:
-            return _result(
-                ref,
-                "failed",
-                "ticket disappeared before deferred activation",
-                _operator_name(cfg, ref, ticket),
-            )
     if prepared is not None:
         ticket.frontmatter = dict(prepared.frontmatter)
         ticket.body = prepared.body
+    log_before = _log_bytes(cfg)
     try:
-        mark_active(
-            cfg,
-            ref,
-            ticket,
-            actor="megalaunch",
-            log_message=(
-                log_message
-                or f"activated ({prior} → active) — explicit megalaunch pick"
-            ),
-            echo=None,
-            sync_state=not strict_activation and blocker_resolution is None,
-            mutation_snapshot=mutation_snapshot,
-        )
-        if blocker_resolution is not None:
-            assert mutation_snapshot is not None
-            generated = mutation_snapshot.generated
-            if generated is None or generated.get(ref.ticket_path) is None:
-                raise git.FeaturePublicationError(
-                    "activation did not arm dependency-resolution ticket bytes"
+        with git.state_lock(cfg):
+            if source_bytes is not None and _ticket_bytes(ref) != source_bytes:
+                return _result(
+                    ref,
+                    "failed",
+                    "ticket changed before deferred activation; retry",
+                    _operator_name(cfg, ref, ticket),
                 )
-            actor, answer = blocker_resolution
-            try:
-                with git.state_publication_barrier(cfg):
-                    resolved = resolve_open_blockers(
-                        ref.ticket_path,
-                        actor=actor,
-                        answer=answer,
-                        expected_bytes=generated[ref.ticket_path],
-                        after_write=lambda written: mutation_snapshot.arm(
-                            {ref.ticket_path: written}
-                        ),
-                    )
-            except (OSError, UnicodeError, TaskFileError) as exc:
-                raise git.FeaturePublicationError(
-                    f"could not resolve dependency blocker: {exc}"
-                ) from exc
-            if not resolved:
-                raise git.FeaturePublicationError(
-                    "dependency blocker changed before its guarded resolution"
-                )
-        if strict_activation:
-            assert mutation_snapshot is not None
-            assert strict_source_bytes is not None
-            git.sync_task_state(
+            mark_active(
                 cfg,
-                ref.path,
-                message=f"Ticket: {ref.id_slug} — active",
-                guard=git.ticket_state_guard(
-                    cfg,
-                    ref.ticket_path,
-                    expected_ticket_bytes=strict_source_bytes,
+                ref,
+                ticket,
+                actor="megalaunch",
+                log_message=(
+                    log_message
+                    or f"activated ({prior} → active) — explicit megalaunch pick"
                 ),
-                generated_paths=mutation_snapshot.generated,
-                raise_state_regression=True,
-                raise_git_error=True,
+                echo=None,
+                sync_state=not strict_activation and blocker_resolution is None,
             )
-    except git.UncertainFeaturePublicationError as exc:
+            if blocker_resolution is not None:
+                actor, answer = blocker_resolution
+                try:
+                    resolved = resolve_open_blockers(
+                        ref.ticket_path, actor=actor, answer=answer
+                    )
+                except (OSError, UnicodeError, TaskFileError) as exc:
+                    raise git.GitError(
+                        f"could not resolve dependency blocker: {exc}"
+                    ) from exc
+                if not resolved:
+                    raise git.GitError(
+                        "dependency blocker changed before its guarded resolution"
+                    )
+            if strict_activation:
+                git.sync_task_state(
+                    cfg,
+                    ref.path,
+                    message=f"Ticket: {ref.id_slug} — active",
+                    strict=True,
+                )
+    except git.UncertainPublishError as exc:
         return _activation_refusal(
             cfg,
             ref,
             ticket,
             prior,
-            git.FeaturePublicationError(
+            git.GitError(
                 "activation publication outcome is uncertain; generated "
                 f"local state retained for reconciliation — {exc}"
             ),
         )
-    except (
-        *_PREPARE_ACTIVE_ERRORS,
-        TaskValidationError,
-        git.GitError,
-    ) as exc:
-        if (
-            isinstance(exc, (TaskValidationError, git.GitError))
-            and mutation_snapshot is not None
-        ):
-            git.restore_files_under_barrier(cfg, mutation_snapshot)
+    except (*_PREPARE_ACTIVE_ERRORS, TaskValidationError, git.GitError) as exc:
+        if isinstance(exc, (TaskValidationError, git.GitError)) and strict_activation:
+            _restore_ticket_bytes(cfg, ref, source_bytes, log_before=log_before)
         return _activation_refusal(cfg, ref, ticket, prior, exc)
     return None
+
+
+def _ticket_bytes(ref: TaskRef) -> bytes | None:
+    try:
+        return ref.ticket_path.read_bytes()
+    except (FileNotFoundError, IsADirectoryError):
+        return None
+
+
+def _log_bytes(cfg: Config) -> bytes | None:
+    path = log_path(cfg)
+    return path.read_bytes() if path.is_file() else None
+
+
+def _restore_ticket_bytes(
+    cfg: Config, ref: TaskRef, data: bytes | None, *, log_before: bytes | None = None
+) -> None:
+    """Undo a lifecycle write whose publication was definitely refused.
+
+    The ticket goes back to its pre-write bytes and the audit lines that
+    write appended are retracted, so nothing on disk claims a transition
+    control never accepted.
+    """
+    with git.state_lock(cfg):
+        if data is None:
+            ref.ticket_path.unlink(missing_ok=True)
+        else:
+            ref.ticket_path.write_bytes(data)
+        retract_log_lines(cfg, ref.id_slug, log_before)
 
 
 def _revalidate_launch_claim_before_spawn(
@@ -1825,27 +1796,19 @@ def _revalidate_launch_claim_before_spawn(
         return
 
     try:
-        root = git._toplevel(ref.path)
+        root = git.toplevel(ref.path)
         if root is None:
             raise git.GitError(
                 "strict launch-claim verification requires a Git checkout"
             )
-        guard = git.ticket_state_guard(
-            cfg,
-            ref.ticket_path,
-            expected_ticket_bytes=expected_started_bytes,
+        base = git.fetch_control(cfg, root)
+        control_bytes = git.tree_bytes(
+            root, base, git.relative_to_root(root, ref.ticket_path)
         )
-        for push_url in git._remote_push_urls(root, cfg.git_remote):
-            control_tip = git._fetch_branch_oid(
-                root,
-                push_url,
-                cfg.git_control_branch,
+        if control_bytes != expected_started_bytes:
+            raise _LaunchClaimRefused(
+                "launch claim changed on control before agent spawn"
             )
-            guard(control_tip)
-    except git.StateRegressionError as exc:
-        raise _LaunchClaimRefused(
-            f"launch claim changed on control before agent spawn: {exc}"
-        ) from exc
     except git.GitError as exc:
         raise _LaunchClaimRefused(
             f"launch claim could not be verified before agent spawn: {exc}"
@@ -1914,64 +1877,38 @@ def _admit_launch_claim_after_release(
             f"manual reconciliation is required: {exc}"
         ) from exc
 
-    audit_path = log_path(cfg)
-    mutation = git.FileMutationRollback.capture(
-        (ref.ticket_path, audit_path),
-        union_paths=(audit_path,),
-    )
     try:
-        mutation.require_unchanged(ref.ticket_path)
         ticket.frontmatter["launch_generation"] = admitted_generation
-        admitted_bytes = ticket.render().encode("utf-8")
         ticket.write(ref.ticket_path)
-        mutation.arm({ref.ticket_path: admitted_bytes})
-        # The supervisor already holds ``state_publication_barrier`` through
-        # this callback. Re-entering it would deadlock, so use the shared
-        # publisher's narrow no-barrier form for this exact transition.
-        git._sync_paths_without_barrier(
+        # The supervisor already holds `state_lock` through this callback;
+        # `publish` re-enters it. `expect` pins the pending control copy the
+        # seal accepts this exact prefix-stripped transition against.
+        git.publish(
             cfg,
-            ref.path,
-            (ref.ticket_path,),
-            message=f"Ticket: {ref.id_slug} — launch admitted",
-            guard=git.ticket_state_guard(
-                cfg,
-                ref.ticket_path,
-                expected_ticket_bytes=current_bytes,
-                allow_launch_claim_admission=True,
-            ),
-            generated_paths=mutation.generated,
-            raise_state_regression=True,
-            raise_git_error=True,
-            allow_launch_claim_admission=True,
+            [ref.ticket_path, log_path(cfg)],
+            f"Ticket: {ref.id_slug} — launch admitted",
+            expect={ref.ticket_path: current_bytes},
         )
-    except git.UncertainFeaturePublicationError as exc:
-        refused = mutation.restore()
-        detail = ""
-        if refused:
-            paths = ", ".join(str(path) for path in refused)
-            detail = f"; released witness could not be restored from {paths}"
-        raise _LaunchClaimRefused(
-            "launch-admission publication outcome is uncertain; admitted "
-            "child was terminated and released local state was retained for "
-            f"`coga launch {ref.id_slug}` reconciliation — {exc}{detail}"
-        ) from exc
-    except git.GitError as exc:
-        refused = mutation.restore()
-        detail = ""
-        if refused:
-            paths = ", ".join(str(path) for path in refused)
-            detail = f"; generated bytes could not be restored from {paths}"
-        raise _LaunchClaimRefused(
-            "launch admission could not be published; admitted child was "
-            "terminated and released local state was retained for "
-            f"`coga launch {ref.id_slug}` reconciliation: {exc}{detail}"
-        ) from exc
-    except (OSError, ValueError) as exc:
-        refused = mutation.restore()
-        detail = ""
-        if refused:
-            paths = ", ".join(str(path) for path in refused)
-            detail = f"; generated bytes could not be restored from {paths}"
+    except (git.GitError, OSError, ValueError) as exc:
+        # Whether the publish was refused, failed, or is unknown, the local
+        # `released:` witness is what lets `coga launch` reconcile it.
+        try:
+            released_ticket.write(ref.ticket_path)
+            detail = ""
+        except OSError as restore_exc:
+            detail = f"; released witness could not be restored: {restore_exc}"
+        if isinstance(exc, git.StateRegressionError):
+            raise _LaunchClaimRefused(
+                "launch admission could not be published; admitted child was "
+                "terminated and released local state was retained for "
+                f"`coga launch {ref.id_slug}` reconciliation: {exc}{detail}"
+            ) from exc
+        if isinstance(exc, git.GitError):
+            raise _LaunchClaimRefused(
+                "launch-admission publication outcome is uncertain; admitted "
+                "child was terminated and released local state was retained for "
+                f"`coga launch {ref.id_slug}` reconciliation — {exc}{detail}"
+            ) from exc
         raise _LaunchClaimRefused(
             f"launch admission could not be recorded: {exc}{detail}"
         ) from exc

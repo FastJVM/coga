@@ -44,11 +44,11 @@ from coga.git import (
     GitError,
     is_linked_worktree,
     sync_log,
-    sync_paths,
-    ticket_state_guard,
+    sync_task_state,
     union_merge_paths,
 )
 from coga.lifecycle import TERMINAL_STATUSES
+from coga.paths import log_path, recurring_dir, tasks_dir
 from coga.repl_supervisor import EXPECTED_TASK_ENV
 from coga.taskfile import TaskFileError, split_body
 from coga.tasks import TaskNotFoundError, read_ticket, resolve_task
@@ -311,27 +311,14 @@ def _sync_pr_record(
     blackboard_path: Path,
     slug: str,
 ) -> None:
-    """Land a single-checkout ticket's generated `pr:` line on both branches.
+    """Publish a single-checkout ticket's generated `pr:` line to control.
 
-    Routes through the same `sync_paths` primitive the `requires: pr` bump uses,
-    so the record reaches the control branch as well as the feature branch.
-    Publishing only the feature branch leaves `coga/tasks/<slug>/ticket.md`
-    divergent between the two tips, and the freshness check accepts an
-    overlapping generated path only while both tips carry identical bytes — the
-    next `coga open-pr` would then reject its own record as a stale branch.
-
-    Sync failure is reported, not raised. By this point the PR is open and its
-    URL is on the live ticket, so a failed push must not fail the command: the
-    recorded artifact is the gate, and the following bump's own publishing sync
-    lands the same state.
-
-    Guarded like every other publisher of a specific ticket's state. The
-    terminal-status check at the top of `open_pr` reads the *local* ticket; this
-    reads the committed control copy at each landing attempt, which is the only
-    place a concurrent close is visible. Without it the overlay would replace a
-    ticket another checkout had already finished — writing a `pr:` line over a
-    `done` copy — and the non-fast-forward retry would faithfully rebuild that
-    overwrite on the refetched tip.
+    Same `sync_task_state` every other publisher uses: control only, never
+    the feature branch (Coga does not commit on any local branch). Failure is
+    reported, not raised: by this point the PR is open and its URL is on the
+    live ticket, so the recorded artifact is the gate and the following bump
+    or sweep lands the same state. The publish's provenance check refuses to
+    overlay a ticket another checkout has already finished.
     """
     checkout_root = _git_checkout_root(worktree)
     if checkout_root is None:
@@ -347,14 +334,7 @@ def _sync_pr_record(
             f"checkout {str(checkout_root)!r}; refusing to commit the PR URL."
         ) from exc
 
-    sync_paths(
-        cfg,
-        blackboard_path.parent,
-        [blackboard_path],
-        message=f"Ticket: {slug} — PR opened",
-        publish_current_branch=True,
-        guard=ticket_state_guard(cfg, blackboard_path),
-    )
+    sync_task_state(cfg, blackboard_path, message=f"Ticket: {slug} — PR opened")
 
 
 def _pr_body(ticket: Ticket, blackboard: str, above: str, slug: str) -> str:
@@ -487,15 +467,22 @@ def open_pr(
             "separate line. Otherwise, check it out there before open-pr runs."
         )
 
+    dirty_pathspecs = ["--", "."]
     if single_checkout:
         # A supervised agent launch appends its audit line before the agent runs,
         # while the normal teardown sync happens only after the agent bumps and
-        # exits. In the primary-checkout layout that generated write is in this
-        # same feature checkout, so commit exactly the union-safe log before the
+        # exits. In the single-checkout layout this feature checkout holds the
+        # live task-state copy, which Coga publishes to control but never
+        # commits on the branch: task, log, and recurring state are dirty here
+        # by design, so publish the log now and leave that state out of the
         # cleanliness gate. Any product or other Coga dirt still fails below.
         sync_log(cfg, message=f"Log: {slug}")
+        dirty_pathspecs += [
+            f":(exclude){path}"
+            for path in (tasks_dir(cfg), log_path(cfg), recurring_dir(cfg))
+        ]
 
-    dirty = _git(["status", "--porcelain"], cwd=worktree)
+    dirty = _git(["status", "--porcelain", *dirty_pathspecs], cwd=worktree)
     if dirty.returncode != 0:
         raise OpenPrError(
             f"`git status` failed in {worktree!r}: {dirty.stderr.strip() or 'no output'}"
@@ -503,8 +490,9 @@ def open_pr(
     if dirty.stdout.strip():
         if single_checkout:
             remediation = (
-                "This is the single-checkout layout: preserve live task/log "
-                "edits here and commit them separately from implementation work. "
+                "This is the single-checkout layout: live task/log state is "
+                "already excluded, so the remaining dirt is product or other "
+                "Coga work; commit or discard it. "
             )
         else:
             remediation = (

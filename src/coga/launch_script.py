@@ -11,14 +11,14 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, NamedTuple
+from typing import NamedTuple
 
 import typer
 
 from coga import git
 from coga.bump import OperatorResolutionError, resolve_operator
 from coga.config import Config, build_launch_env, load_config
-from coga.logfile import append_log, log_path
+from coga.logfile import append_log
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.notification import post, preflight_post
 from coga.repl_supervisor import (
@@ -67,7 +67,7 @@ class ScriptChainResult(NamedTuple):
 
 
 class ScriptPublicationError(RuntimeError):
-    """A recorded-assist script could not stay inside its publication lease."""
+    """A recorded-assist script launch is missing part of its assist identity."""
 
 
 def script_entry_point(ref: TargetRef) -> Path | None:
@@ -92,10 +92,9 @@ def run_script_phase(
     ticket: Ticket,
     *,
     stateless: bool,
-    publish_aligned_branch: str | None = None,
+    assist_branch: str | None = None,
     assist_agent: str | None = None,
     assist_pr_url: str | None = None,
-    feature_publication_guard: Callable[[str], None] | None = None,
     failure_important: bool = False,
 ) -> ScriptPhaseResult:
     """Run one target-owned deterministic phase without composing a prompt.
@@ -105,17 +104,17 @@ def run_script_phase(
     runs from the host repository root under Coga's current Python
     interpreter.  The launcher, never this helper, decides whether an agent
     phase follows.
+
+    A recorded human-step assist (`assist_branch` and friends) runs the same
+    phase; the child additionally inherits the assist identity so its
+    lifecycle commands name the assisting agent, and its ticket result is
+    published to control right after it exits.
     """
 
-    strict_assist = publish_aligned_branch is not None
-    if strict_assist and (
-        not assist_agent
-        or not assist_pr_url
-        or feature_publication_guard is None
-    ):
+    strict_assist = assist_branch is not None
+    if strict_assist and (not assist_agent or not assist_pr_url):
         raise ScriptPublicationError(
-            "recorded-assist script launch is missing its agent, PR, or "
-            "publication guard"
+            "recorded-assist script launch is missing its agent or PR"
         )
 
     entry = script_entry_point(ref)
@@ -179,23 +178,10 @@ def run_script_phase(
 
     if not stateless:
         append_log(cfg, ref.id_slug, "system", "launched as a script (ticket.py)")
-        # Commit the launch line before user code runs: an entry point may
-        # switch branches, and a dirty tracked log would make git refuse it.
-        log_synced = git.sync_log(
-            cfg,
-            message=f"Log: {ref.id_slug}",
-            publish_if_remote_aligned=strict_assist,
-            expected_feature_branch=publish_aligned_branch,
-            allow_feature_fast_forward=not strict_assist,
-            feature_publication_guard=feature_publication_guard,
-        )
-        if strict_assist and not log_synced:
-            raise ScriptPublicationError(
-                "the recorded PR branch moved or could not publish the "
-                "pre-script audit record"
-            )
+        # Publish the launch line before user code runs.
+        git.sync_log(cfg, message=f"Log: {ref.id_slug}")
 
-    pre_sync_identity = git.ticket_routing_state(ticket)
+    pre_sync_identity = _routing_identity(ticket)
 
     # The lifecycle and launch-log syncs above may fetch/rebase a control
     # checkout. Re-derive every input after that last moving boundary: a peer
@@ -232,7 +218,7 @@ def run_script_phase(
 
     if not stateless and (
         ticket.status != "in_progress"
-        or git.ticket_routing_state(ticket) != pre_sync_identity
+        or _routing_identity(ticket) != pre_sync_identity
     ):
         # The moving sync above is authoritative. A peer may have closed or
         # parked the task, advanced it to a configured agent after a human
@@ -247,26 +233,6 @@ def run_script_phase(
             cfg=cfg,
             ref=ref,
         )
-
-    result_publication: git.FeaturePublicationLease | None = None
-    result_snapshot: git.FileMutationRollback | None = None
-    if strict_assist:
-        assert isinstance(ref, TaskRef)
-        result_snapshot = _capture_script_result_state(cfg, ref)
-        try:
-            result_publication = git.feature_publication_lease(
-                cfg,
-                ref.path,
-                publish_aligned_branch or "",
-            )
-            assert feature_publication_guard is not None
-            feature_publication_guard(result_publication.remote_oid)
-            _require_script_result_state_unchanged(result_snapshot, cfg, ref)
-        except git.FeaturePublicationError as exc:
-            raise ScriptPublicationError(
-                "the recorded assist could not lease ticket.py's result "
-                f"publication before execution: {exc}"
-            ) from exc
 
     env = build_launch_env(cfg, ticket.secrets)
     env = apply_task_env(env, cfg, ref, ticket)
@@ -284,7 +250,7 @@ def run_script_phase(
         env[EXPECTED_TASK_ENV] = str(ref.path.resolve())
         env[EXPECTED_STEP_ENV] = ticket.step or ""
         env[ASSIST_AGENT_ENV] = assist_agent or ""
-        env[ASSIST_BRANCH_ENV] = publish_aligned_branch or ""
+        env[ASSIST_BRANCH_ENV] = assist_branch or ""
         env[ASSIST_PR_ENV] = assist_pr_url or ""
 
     completed = subprocess.run(
@@ -302,119 +268,23 @@ def run_script_phase(
             after = Ticket.read(ref.ticket_path)
         except (OSError, UnicodeError, TicketError) as exc:
             ticket_read_error = exc
-    ticket_validation_error: Exception | None = None
-    if strict_assist and after is not None:
-        # Local import keeps this module importable by coga.validate, which
-        # imports the fixed entry-point classifier above.
-        from coga.validate import TaskValidationError, assert_task_valid
-
-        try:
-            assert_task_valid(cfg, ref, action="publish ticket.py result")
-        except TaskValidationError as exc:
-            ticket_validation_error = exc
-    audit_append: bytes | None = None
     if not stateless:
         # The audit belongs to the launch, not to the continued existence or
         # parseability of ticket.md. Record it even when user code deleted or
         # malformed its own ticket, and never let that reread replace a
         # non-zero child result.
-        audit_append = append_log(
+        append_log(
             cfg,
             ref.id_slug,
             "system",
             f"script exited with code {exit_code}",
         )
-
-    if strict_assist and not stateless:
-        try:
-            assert isinstance(ref, TaskRef)
-            assert result_publication is not None
-            assert result_snapshot is not None
-            assert audit_append is not None
-            _arm_script_result_state(result_snapshot, cfg, ref)
-            invalid_detail: str | None = None
-            if ticket_read_error is not None:
-                invalid_detail = f"unreadable ticket result: {ticket_read_error}"
-            elif after is None:
-                invalid_detail = "removed ticket result"
-            elif ticket_validation_error is not None:
-                invalid_detail = f"invalid ticket result: {ticket_validation_error}"
-
-            if invalid_detail is not None:
-                # A nested strict lifecycle command may already have moved and
-                # published the feature/control pair before ticket.py damaged
-                # its ticket.  Lease the exact *current* published tip while
-                # the invalid bytes still match our captured post-child
-                # snapshot, then recover from that authoritative revision —
-                # never from the stale pre-child snapshot.
-                recovery_publication = git.feature_publication_lease(
-                    cfg,
-                    ref.path,
-                    publish_aligned_branch or "",
-                    allow_append_only_log=True,
-                    allowed_dirty_paths=result_snapshot.generated,
-                )
-                assert feature_publication_guard is not None
-                feature_publication_guard(recovery_publication.remote_oid)
-                rollback_note = _restore_invalid_script_result(
-                    result_snapshot,
-                    cfg,
-                    ref,
-                    revision=recovery_publication.local_oid,
-                )
-                if rollback_note:
-                    raise ScriptPublicationError(
-                        "the recorded assist could not restore ticket.py's "
-                        f"{invalid_detail}{rollback_note}"
-                    )
-                after = Ticket.read(ref.ticket_path)
-                _publish_restored_script_failure(
-                    cfg,
-                    ref,
-                    branch=publish_aligned_branch or "",
-                    feature_publication_guard=feature_publication_guard,
-                    publication=recovery_publication,
-                )
-                ticket_read_error = None
-                if exit_code == 0:
-                    raise ScriptPublicationError(
-                        "the recorded assist restored and audited ticket.py's "
-                        f"{invalid_detail}, but a zero exit cannot count as a "
-                        "successful deterministic result"
-                    )
-            else:
-                # A nested strict lifecycle command may already have published
-                # the task and moved the exact branch/control pair. In that
-                # case only the trailing exit audit remains dirty, so replace
-                # the pre-child lease with a fresh append-only-log lease.
-                # Direct ticket.py output stays dirty and deliberately falls
-                # back to the pre-child lease plus its exact byte snapshot.
-                try:
-                    refreshed_publication = git.feature_publication_lease(
-                        cfg,
-                        ref.path,
-                        publish_aligned_branch or "",
-                        allow_append_only_log=True,
-                    )
-                except git.FeaturePublicationError:
-                    publication = result_publication
-                else:
-                    publication = refreshed_publication
-                assert feature_publication_guard is not None
-                feature_publication_guard(publication.remote_oid)
-                git.sync_task_state(
-                    cfg,
-                    ref.path,
-                    message=f"Ticket: {ref.id_slug} — script result",
-                    feature_publication=publication,
-                    feature_publication_guard=feature_publication_guard,
-                    generated_paths=result_snapshot.generated,
-                )
-        except git.FeaturePublicationError as exc:
-            raise ScriptPublicationError(
-                "the recorded assist could not publish ticket.py's result: "
-                f"{exc}"
-            ) from exc
+        if strict_assist:
+            # The assist session ends with this phase's result, so publish it
+            # now rather than waiting for the end-of-command sweep.
+            git.sync_task_state(
+                cfg, ref.path, message=f"Ticket: {ref.id_slug} — script result"
+            )
 
     if exit_code != 0 and not stateless:
         observed = after or ticket
@@ -435,7 +305,6 @@ def run_script_phase(
                 # The deterministic failure and its exit code are already
                 # durable; a notification outage must not replace that result.
                 fatal=False,
-                record_failure=not strict_assist,
             )
         except typer.Exit:
             if not strict_assist:
@@ -476,10 +345,9 @@ def run_script_chain(
     ticket: Ticket,
     ran_steps: set[str | None],
     *,
-    publish_aligned_branch: str | None = None,
+    assist_branch: str | None = None,
     assist_agent: str | None = None,
     assist_pr_url: str | None = None,
-    feature_publication_guard: Callable[[str], None] | None = None,
     failure_important: bool = False,
 ) -> ScriptChainResult:
     """Run ``ticket.py`` once per consecutive step until agent work remains."""
@@ -498,10 +366,9 @@ def run_script_chain(
             ref,
             before,
             stateless=stateless,
-            publish_aligned_branch=publish_aligned_branch,
+            assist_branch=assist_branch,
             assist_agent=phase_assist_agent,
             assist_pr_url=assist_pr_url,
-            feature_publication_guard=feature_publication_guard,
             failure_important=failure_important,
         )
         cfg = phase.cfg or cfg
@@ -513,7 +380,7 @@ def run_script_chain(
                 ref,
                 phase.ticket,
                 stateless=stateless,
-                strict_assist=publish_aligned_branch is not None,
+                strict_assist=assist_branch is not None,
             )
         if phase.exit_code != 0:
             return ScriptChainResult(
@@ -572,7 +439,7 @@ def run_script_chain(
                 cfg,
                 ref,
             )
-        if publish_aligned_branch is not None:
+        if assist_branch is not None:
             # The override authorizes the human-held phase only. Once a
             # deterministic bump hands control to an agent step, each chained
             # script uses that step's derived agent for its assist publication
@@ -641,141 +508,19 @@ def _classify_script_handoff(
     return ScriptChainResult(0, ticket, True, None, cfg, ref)
 
 
-def _task_file_bytes(ref: TaskRef) -> dict[Path, bytes]:
-    """Capture regular task leaves without following a generated symlink."""
-    return git.capture_task_file_bytes(
-        ref.path,
-        context="strict script result",
-    )
+def _routing_identity(ticket: Ticket) -> tuple[object, ...]:
+    """The persisted inputs that decide who holds a ticket, plus its status.
 
-
-def _capture_script_result_state(
-    cfg: Config,
-    ref: TaskRef,
-) -> git.FileMutationRollback:
-    """Capture the exact task tree and union log before strict user code runs."""
-    audit = log_path(cfg)
-    originals: dict[Path, bytes | None] = dict(_task_file_bytes(ref))
-    originals[audit] = audit.read_bytes() if audit.is_file() else None
-    return git.FileMutationRollback(
-        originals=originals,
-        union_paths=frozenset((audit,)),
-    )
-
-
-def _require_script_result_state_unchanged(
-    snapshot: git.FileMutationRollback,
-    cfg: Config,
-    ref: TaskRef,
-) -> None:
-    """Refuse a lease-time local edit before ticket.py owns the transaction."""
-    audit = log_path(cfg)
-    current_task_paths = set(_task_file_bytes(ref))
-    captured_task_paths = set(snapshot.originals) - {audit}
-    if current_task_paths != captured_task_paths:
-        raise git.FeaturePublicationError(
-            "the task tree changed while leasing ticket.py result publication"
-        )
-    for path in snapshot.originals:
-        snapshot.require_unchanged(path)
-
-
-def _arm_script_result_state(
-    snapshot: git.FileMutationRollback,
-    cfg: Config,
-    ref: TaskRef,
-) -> None:
-    """Arm exact post-child task/log bytes for one scoped strict commit."""
-    audit = log_path(cfg)
-    current = _task_file_bytes(ref)
-    for path in set(current) - set(snapshot.originals):
-        snapshot.originals[path] = None
-    updates: dict[Path, bytes | None] = {
-        path: current.get(path)
-        for path in snapshot.originals
-        if path != audit
-    }
-    updates[audit] = audit.read_bytes() if audit.is_file() else None
-    snapshot.arm(updates)
-
-
-def _restore_invalid_script_result(
-    snapshot: git.FileMutationRollback,
-    cfg: Config,
-    ref: TaskRef,
-    *,
-    revision: str,
-) -> str:
-    """Restore invalid generated task bytes from a verified published tip.
-
-    The audit log is deliberately left untouched: it already contains the
-    child's exit record and, after a nested lifecycle command, the lifecycle
-    audit now committed at ``revision``.  Rewinding the whole pre-child
-    snapshot would remove that durable transition and make the next strict
-    lease reject the stale checkout.
+    Compared across the moving syncs above: a peer edit to any of them
+    reroutes the next phase, so the pre-sync classification must not run.
     """
-    assert snapshot.generated is not None
-    audit = log_path(cfg)
-    authoritative = git.capture_revision_file_bytes(
-        ref.path,
-        revision,
-        context="invalid script recovery",
+    workflow = ticket.workflow
+    steps = workflow.get("steps") if isinstance(workflow, dict) else None
+    roles = tuple(
+        (step.get("assignee") if isinstance(step, dict) else step)
+        for step in (steps if isinstance(steps, list) else [])
     )
-    generated = {
-        path: data
-        for path, data in snapshot.generated.items()
-        if path != audit
-    }
-    paths = set(authoritative) | set(generated)
-    recovery = git.FileMutationRollback(
-        originals={path: authoritative.get(path) for path in paths},
-        union_paths=frozenset(),
-        generated={path: generated.get(path) for path in paths},
-    )
-    try:
-        # Check the whole generated tree once before the first replacement so
-        # a peer edit normally produces an all-or-nothing refusal.  ``restore``
-        # repeats the byte CAS per path to cover a later race as well.
-        for path in paths:
-            recovery.require_unchanged(path)
-    except git.FeaturePublicationError:
-        refused = tuple(sorted(paths, key=str))
-    else:
-        refused = git.restore_files_under_barrier(cfg, recovery)
-    if not refused:
-        return ""
-    names = ", ".join(str(path) for path in refused)
-    return f"; concurrent edits were retained instead of overwritten at {names}"
-
-
-def _publish_restored_script_failure(
-    cfg: Config,
-    ref: TaskRef,
-    *,
-    branch: str,
-    feature_publication_guard: Callable[[str], None] | None,
-    publication: git.FeaturePublicationLease | None = None,
-) -> None:
-    """Publish the restored valid task plus a malformed-child exit audit."""
-    if feature_publication_guard is None:
-        raise git.FeaturePublicationError(
-            "restored script failure is missing its publication guard"
-        )
-    publication = publication or git.feature_publication_lease(
-        cfg, ref.path, branch, allow_append_only_log=True
-    )
-    feature_publication_guard(publication.remote_oid)
-    generated: dict[Path, bytes | None] = dict(_task_file_bytes(ref))
-    audit = log_path(cfg)
-    generated[audit] = audit.read_bytes() if audit.is_file() else None
-    git.sync_task_state(
-        cfg,
-        ref.path,
-        message=f"Ticket: {ref.id_slug} — invalid script result audited",
-        feature_publication=publication,
-        feature_publication_guard=feature_publication_guard,
-        generated_paths=generated,
-    )
+    return (ticket.status, ticket.step, ticket.owner, ticket.agent, roles)
 
 
 def _echo_script_iteration(

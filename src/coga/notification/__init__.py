@@ -64,7 +64,7 @@ def post(
     not be delivered exits 1. Pass `fatal=False` for a broadcast that
     *announces a state change already written to disk* — a bump, mark, or block
     transition. Three reasons, the same ones git sync already answers to
-    (`coga.git.sync_paths`): the markdown on disk is the source of truth, so
+    (`coga.git.publish`): the markdown on disk is the source of truth, so
     the transition happened either way; the miss is already loud on stderr and
     in `log.md`; and crashing aborts the command *after* the write but before
     its remaining work — for the session-ending commands that means skipping
@@ -84,10 +84,8 @@ def post(
     scan table. `preflight_post` remains the fail-fast configuration gate, and
     it runs before the mutation rather than after it.
 
-    A strict feature publisher may set ``record_failure=False`` after it has
-    atomically published lifecycle state. Delivery still fails loud on stderr,
-    but the backend must not append a new, unleased audit line that would dirty
-    or later sweep the protected feature checkout.
+    ``record_failure=False`` keeps a delivery failure on stderr only, without
+    the audit line the default appends to `log.md`.
     """
     channels = _channels(cfg)
     if not channels:

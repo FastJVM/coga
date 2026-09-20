@@ -1763,7 +1763,7 @@ def apply_safe_fixes(cfg: Config, only: list[TaskRef] | None = None) -> list[Fix
     fixes: list[Fix] = []
     targets = list(only) if only is not None else list_tasks(cfg)
     for ref in targets:
-        with git.state_publication_barrier(cfg):
+        with git.state_lock(cfg):
             ticket_path = ref.ticket_path
             if not ticket_path.is_file():
                 continue

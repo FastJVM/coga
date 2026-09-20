@@ -1,20 +1,23 @@
-"""Shared authorization for publishing state from a human-step PR assist."""
+"""Identity of a human-step PR assist: which agent acts, on which PR branch.
+
+A recorded single-checkout assist (`coga launch <task> --agent <name>` on an
+owner-held step whose blackboard records a PR) runs its lifecycle commands
+with these values in the environment so audit lines name the assisting agent.
+Coga publishes their state to the control branch only — never to the PR
+branch — so there is no lease here; `verify_recorded_assist_pr_head` is the
+one live check launch still runs, proving the recorded PR is open on the
+configured remote before aligning the checkout to it.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 import os
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from coga import git
-from coga.autoclose import (
-    GhError,
-    parse_branch_name,
-    parse_pr_url,
-    pr_view,
-)
+from coga.autoclose import GhError, parse_pr_url, pr_view
 from coga.config import Config
 from coga.github_source import redacted_git_source
 from coga.repl_supervisor import (
@@ -24,17 +27,17 @@ from coga.repl_supervisor import (
     EXPECTED_TASK_ENV,
 )
 from coga.taskfile import split_body
-from coga.tasks import TaskRef, read_ticket
+from coga.tasks import TaskRef
 from coga.ticket import Ticket
 
 
 @dataclass(frozen=True)
-class AssistPublication:
-    """A one-transition lease plus its live open-PR publication guard."""
+class AssistSession:
+    """The assisting agent and recorded PR branch inherited by an in-session command."""
 
-    lease: git.FeaturePublicationLease
-    guard: Callable[[str], None]
     agent: str
+    branch: str
+    pr_url: str
 
 
 def _git_remote_repository_identity(
@@ -81,11 +84,11 @@ def verify_recorded_assist_pr_head(
     _, blackboard = split_body(ticket.body)
     pr_url = parse_pr_url(blackboard or "")
     if not pr_url:
-        raise git.FeaturePublicationError(
+        raise git.GitError(
             "recorded assist checkout has no `pr:` link under `## Dev`"
         )
     if expected_pr_url is not None and pr_url != expected_pr_url:
-        raise git.FeaturePublicationError(
+        raise git.GitError(
             f"recorded assist PR changed from {expected_pr_url} to {pr_url}"
         )
     try:
@@ -94,7 +97,7 @@ def verify_recorded_assist_pr_head(
             "state,url,headRefName,headRefOid,headRepository,headRepositoryOwner",
         )
     except GhError as exc:
-        raise git.FeaturePublicationError(
+        raise git.GitError(
             f"could not verify recorded PR {pr_url}: {exc}"
         ) from exc
 
@@ -112,25 +115,25 @@ def verify_recorded_assist_pr_head(
         str(owner.get("login", "")).strip() if isinstance(owner, dict) else ""
     )
     if state != "OPEN":
-        raise git.FeaturePublicationError(
+        raise git.GitError(
             f"recorded PR {pr_url} is {state or 'missing a state'}, not OPEN"
         )
     if head_branch != branch:
-        raise git.FeaturePublicationError(
+        raise git.GitError(
             f"recorded PR {pr_url} uses head branch {head_branch!r}, not "
             f"recorded branch {branch!r}"
         )
     if not head_oid or not repository_name or not owner_login:
-        raise git.FeaturePublicationError(
+        raise git.GitError(
             f"recorded PR {pr_url} returned incomplete head repository/OID data"
         )
 
-    root = git._toplevel(cfg.repo_root)
+    root = git.toplevel(cfg.repo_root)
     if root is None:
-        raise git.FeaturePublicationError(
+        raise git.GitError(
             "recorded assist checkout is not inside a git repository"
         )
-    push_url = git._single_assist_push_url(root, cfg.git_remote)
+    push_url = git.run_git(root, "remote", "get-url", "--push", cfg.git_remote).strip()
     pr_host = (urlsplit(pr_url).hostname or "").casefold()
     expected_identity = (
         pr_host,
@@ -140,14 +143,14 @@ def verify_recorded_assist_pr_head(
     remote_identity = _git_remote_repository_identity(push_url)
     safe_push_url = redacted_git_source(push_url)
     if remote_identity is None:
-        raise git.FeaturePublicationError(
+        raise git.GitError(
             f"configured remote {cfg.git_remote!r} push URL "
             f"{safe_push_url!r} does not identify a GitHub repository"
         )
     if remote_identity != expected_identity:
         remote_repo = "/".join(remote_identity[1:])
         pr_repo = f"{owner_login}/{repository_name}"
-        raise git.FeaturePublicationError(
+        raise git.GitError(
             f"configured remote {cfg.git_remote!r} push URL "
             f"{safe_push_url!r} identifies "
             f"{remote_identity[0]}/{remote_repo}, but recorded PR {pr_url} "
@@ -156,113 +159,27 @@ def verify_recorded_assist_pr_head(
     return head_oid
 
 
-def assist_pr_publication_guard(
-    cfg: Config,
-    ref: TaskRef,
-    branch: str,
-    *,
-    expected_pr_url: str | None = None,
-) -> Callable[[str], None]:
-    """Re-prove the same open recorded PR immediately before a generated push."""
-
-    def guard(expected_remote_oid: str) -> None:
-        try:
-            current = read_ticket(ref)
-        except Exception as exc:
-            raise git.FeaturePublicationError(
-                "could not re-read the recorded assist ticket"
-            ) from exc
-        _, blackboard = split_body(current.body)
-        recorded_branch = parse_branch_name(blackboard or "")
-        if recorded_branch != branch:
-            raise git.FeaturePublicationError(
-                f"recorded assist branch changed from {branch!r} to "
-                f"{recorded_branch!r}"
-            )
-        live_pr_oid = verify_recorded_assist_pr_head(
-            cfg,
-            current,
-            branch,
-            expected_pr_url=expected_pr_url,
-        )
-        if live_pr_oid != expected_remote_oid:
-            raise git.FeaturePublicationError(
-                f"recorded PR head moved from expected {expected_remote_oid} "
-                f"to {live_pr_oid}"
-            )
-
-    return guard
-
-
-def assist_publication_from_env(
-    cfg: Config,
-    ref: TaskRef,
-    *,
-    mutation_snapshot: git.FileMutationRollback | None = None,
-) -> AssistPublication | None:
-    """Rebuild a scoped assist capability inherited by an in-session command."""
+def assist_session_from_env(cfg: Config, ref: TaskRef) -> AssistSession | None:
+    """The assist identity an in-session lifecycle command inherited, if any."""
     agent = os.environ.get(ASSIST_AGENT_ENV, "").strip()
     branch = os.environ.get(ASSIST_BRANCH_ENV, "").strip()
     expected_task = os.environ.get(EXPECTED_TASK_ENV, "").strip()
-    expected_pr_url = os.environ.get(ASSIST_PR_ENV, "").strip()
+    pr_url = os.environ.get(ASSIST_PR_ENV, "").strip()
     if not branch or not expected_task:
         return None
     if Path(expected_task).resolve() != ref.path.resolve():
         return None
-    if not expected_pr_url:
-        raise git.FeaturePublicationError(
-            "inherited assist capability is missing its recorded PR"
-        )
+    if not pr_url:
+        raise git.GitError("inherited assist session is missing its recorded PR")
     if not agent:
-        raise git.FeaturePublicationError(
-            "inherited assist capability is missing its effective launch agent"
-        )
+        raise git.GitError("inherited assist session is missing its launch agent")
     if agent not in cfg.agents:
-        raise git.FeaturePublicationError(
-            f"inherited assist capability names unknown launch agent {agent!r}"
-        )
-    lease = git.feature_publication_lease(
-        cfg,
-        ref.path,
-        branch,
-        allow_append_only_log=mutation_snapshot is not None,
-        allowed_dirty_paths=(
-            mutation_snapshot.originals
-            if mutation_snapshot is not None
-            else None
-        ),
-    )
-    return AssistPublication(
-        lease=lease,
-        guard=assist_pr_publication_guard(
-            cfg,
-            ref,
-            branch,
-            expected_pr_url=expected_pr_url,
-        ),
-        agent=agent,
-    )
-
-
-def assist_publication_requested(ref: TaskRef) -> bool:
-    """Whether inherited environment state scopes a strict assist to ``ref``.
-
-    This is deliberately a local, non-authorizing predicate. Lifecycle
-    commands use it only to capture every possible mutation target before the
-    network-backed lease is acquired; ``assist_publication_from_env`` remains
-    the operation that validates the complete capability.
-    """
-    branch = os.environ.get(ASSIST_BRANCH_ENV, "").strip()
-    expected_task = os.environ.get(EXPECTED_TASK_ENV, "").strip()
-    if not branch or not expected_task:
-        return False
-    return Path(expected_task).resolve() == ref.path.resolve()
+        raise git.GitError(f"inherited assist session names unknown launch agent {agent!r}")
+    return AssistSession(agent=agent, branch=branch, pr_url=pr_url)
 
 
 __all__ = [
-    "AssistPublication",
-    "assist_publication_requested",
-    "assist_pr_publication_guard",
-    "assist_publication_from_env",
+    "AssistSession",
+    "assist_session_from_env",
     "verify_recorded_assist_pr_head",
 ]

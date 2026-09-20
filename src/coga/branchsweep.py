@@ -540,7 +540,7 @@ def run_branch_sweep_recipe(
             f"branch-sweep: unexpected arguments: {' '.join(repr(arg) for arg in argv)}\n"
         )
         return 2
-    root = git._toplevel(cfg.repo_root)
+    root = git.toplevel(cfg.repo_root)
     if root is None:
         sys.stderr.write(f"[branch-sweep] {cfg.repo_root} is not inside a git repo\n")
         return 2

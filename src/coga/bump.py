@@ -7,7 +7,7 @@ rewinds move to an earlier workflow step. Status transitions
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -16,7 +16,7 @@ import typer
 from coga import git
 from coga.config import Config
 from coga.lifecycle import TERMINAL_STATUSES
-from coga.logfile import append_log, log_path
+from coga.logfile import append_log
 from coga.notification import post
 from coga.tasks import TaskRef
 from coga.ticket import Ticket
@@ -322,11 +322,6 @@ def advance_step(
     notify_slack: bool = False,
     echo: str | None = None,
     rewind: bool = False,
-    publish_current_branch: bool = False,
-    feature_publication: git.FeaturePublicationLease | None = None,
-    feature_publication_guard: Callable[[str], None] | None = None,
-    mutation_snapshot: git.FileMutationRollback | None = None,
-    after_sync: Callable[[], None] | None = None,
 ) -> None:
     """Move a ticket to a workflow step.
 
@@ -335,24 +330,16 @@ def advance_step(
     transition has no assignment to write and cannot leave a stale one behind.
     Callers still resolve the prospective operator beforehand — to refuse a move
     whose role cannot resolve, and to name the handoff — but that answer is
-    reported, never persisted. Step movement is normally
-    silent in Slack; callers set `notify_slack=True` only for an explicit
-    operator FYI such as `coga bump --message`. A completion gate may request
-    that the transition commit also update the current feature branch; the PR
-    gate uses this in primary-checkout development so the PR branch and control
-    branch receive the same final ticket state.
+    reported, never persisted. Step movement is normally silent in Slack;
+    callers set `notify_slack=True` only for an explicit operator FYI such as
+    `coga bump --message`.
 
     `rewind=True` marks a human `coga bump --to/--backward`, the one deliberate
-    backward step move. It relaxes exactly the step-backward rule in the sync
-    guard — the human is the authority on their own rewind — while requiring
-    the control and working statuses to match exactly. Because rewind never
-    changes status, a mismatch proves this checkout is stale. That mismatch is
-    propagated before output or notification so the CLI can retain the local
-    rewind while suppressing its broader end-of-command state sweep.
-
-    A recorded-assist caller supplies ``feature_publication`` and an armed
-    ``mutation_snapshot`` so the step and audit reach the PR and control refs
-    under one exact lease before any handoff notification is emitted.
+    backward step move. Its publication runs before any output or notification
+    and a refusal propagates (`StateRegressionError`): the publish's provenance
+    check accepts the rewind from a checkout level with control and refuses it
+    from a stale one, and the CLI then retains the local rewind while
+    suppressing its end-of-command sweep.
     """
     owner = ticket.owner or cfg.current_user
     # Validate the prospective move before committing it, the way
@@ -380,102 +367,27 @@ def advance_step(
         ticket_override=prospective,
     )
     ticket.frontmatter = prospective.frontmatter
-    ticket_bytes = git.write_ticket_under_barrier(
-        cfg,
-        ticket,
-        ref.ticket_path,
-        mutation_snapshot=mutation_snapshot,
-    )
-    audit_append = append_log(cfg, ref.id_slug, actor, log_message)
-    if mutation_snapshot is not None:
-        mutation_snapshot.arm_append(log_path(cfg), audit_append)
+    git.write_ticket(cfg, ticket, ref.ticket_path)
+    append_log(cfg, ref.id_slug, actor, log_message)
 
     def sync_state() -> None:
-        message = f"Ticket: {ref.id_slug} — step {next_step} ({new_step_name})"
-        guard = git.ticket_state_guard(
-            cfg, ref.ticket_path, allow_step_rewind=rewind
-        )
-        if feature_publication is None:
-            git.sync_task_state(
-                cfg,
-                ref.path,
-                message=message,
-                guard=guard,
-                publish_current_branch=publish_current_branch,
-                **(
-                    {
-                        "commit_detached": True,
-                        "raise_state_regression": True,
-                    }
-                    if rewind
-                    else {}
-                ),
-            )
-            return
         git.sync_task_state(
             cfg,
             ref.path,
-            message=message,
-            guard=guard,
-            publish_current_branch=publish_current_branch,
-            feature_publication=feature_publication,
-            feature_publication_guard=feature_publication_guard,
-            after_strict_publication=after_sync,
-            generated_paths=(
-                mutation_snapshot.generated
-                if mutation_snapshot is not None
-                else None
-            ),
+            message=f"Ticket: {ref.id_slug} — step {next_step} ({new_step_name})",
+            strict=rewind,
         )
 
-    # A recorded-assist child owns a strict feature/control transaction. A
-    # rewind also needs its narrower status-equality publication to complete
-    # before any user-visible output or notification; if it refuses, the CLI
-    # exits through the no-sweep retry path. Ordinary forward bumps keep their
-    # established output-before-sync ordering.
-    if feature_publication is not None or rewind:
+    if rewind:
         sync_state()
     if echo is not None:
         typer.echo(echo)
     if notify_slack:
-        notification_log = log_path(cfg)
-        log_before_notification = (
-            notification_log.read_bytes()
-            if rewind
-            and feature_publication is None
-            and notification_log.is_file()
-            else None
-        )
         # `fatal=False`: the step advance is already on disk above. An
         # undeliverable FYI must not abort `coga bump` before it reaches
         # `emit_done_marker`, or the supervised REPL hangs to its idle timeout.
-        post(
-            cfg,
-            slack_text,
-            task_path=ref.path,
-            owner=owner,
-            fatal=False,
-            record_failure=feature_publication is None,
-        )
-        if (
-            rewind
-            and feature_publication is None
-            and notification_log.is_file()
-            and notification_log.read_bytes() != log_before_notification
-        ):
-            # Rewinds deliberately suppress the broad CLI sweep so it cannot
-            # bypass their exact-status ticket guard. A failed live post adds
-            # one audit line after the scoped rewind publication; publish only
-            # that merge=union log, never the ticket again.
-            git.sync_paths(
-                cfg,
-                notification_log,
-                [notification_log],
-                message=f"Log: {ref.id_slug} — rewind notification failure",
-                land_union_files_to_control=True,
-                commit_detached=True,
-            )
-    if feature_publication is None and not rewind:
+        post(cfg, slack_text, task_path=ref.path, owner=owner, fatal=False)
+    if not rewind:
         sync_state()
 
 

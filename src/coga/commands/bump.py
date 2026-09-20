@@ -15,13 +15,11 @@ from coga.bump import (
     resolve_operator,
     rewind_status_error,
 )
-from coga.config import Config, ConfigError, load_config
-from coga.logfile import log_path
+from coga.config import ConfigError, load_config
 from coga.mark import StrandedProductCode, mark_done
 from coga.notification import preflight_post
 from coga.paths import resolve_workflow_path
-from coga.period_state import parent_ticket_path, read_snapshot
-from coga.step_gate import gate_publishes_current_branch, gate_unmet_reason
+from coga.step_gate import gate_unmet_reason
 from coga.taskfile import read_blackboard
 from coga.task_env import is_script_task
 from coga.repl_supervisor import (
@@ -100,28 +98,19 @@ def bump(
             "script with `coga bump <id> --to <step>`."
         )
 
-    assist_requested = pr_assist.assist_publication_requested(ref)
-    if rewind and assist_requested:
+    try:
+        assist = pr_assist.assist_session_from_env(cfg, ref)
+    except git.GitError as exc:
+        _bail(f"Could not rebuild {ref.id_slug}'s recorded assist session: {exc}")
+    if rewind and assist is not None:
         _bail(
             "Agents cannot rewind from a recorded assist. Call `coga block "
             "--task <id> --reason \"...\"`; a human can rewind outside the "
             "assist with `coga bump <id> --to <step>`."
         )
-    if assist_requested:
-        pre_lease_snapshot = git.capture_task_mutation_snapshot(
-            ref.path,
-            extra_paths=(log_path(cfg),),
-            union_paths=(log_path(cfg),),
-        )
-    else:
-        pre_lease_snapshot = git.FileMutationRollback.capture(
-            (ref.ticket_path, log_path(cfg)),
-            union_paths=(log_path(cfg),),
-        )
-    ticket_bytes = pre_lease_snapshot.originals[ref.ticket_path]
-    if ticket_bytes is None:
+    if not ref.ticket_path.is_file():
         _bail(f"Task {ref.id_slug} has no ticket.md. Cannot advance.")
-    ticket = Ticket.parse(ticket_bytes.decode("utf-8"))
+    ticket = Ticket.parse(ref.ticket_path.read_text(encoding="utf-8"))
 
     # A forward bump finishes work, so it requires a ticket that is being
     # worked on. A rewind only repositions `step:` and never touches `status:`,
@@ -148,19 +137,8 @@ def bump(
         if not ticket.step:
             ticket.frontmatter["step"] = f"1 ({wf_def.steps[0].name})"
         try:
-            if assist_requested:
-                # The strict mutation must remain one exact transaction. Keep
-                # the frozen workflow in memory until the final step/done
-                # writer consumes the pre-lease ticket snapshot.
-                assert_task_valid(
-                    cfg,
-                    ref,
-                    action="freeze workflow on bump",
-                    ticket_override=ticket,
-                )
-            else:
-                git.write_ticket_under_barrier(cfg, ticket, ref.ticket_path)
-                assert_task_valid(cfg, ref, action="freeze workflow on bump")
+            git.write_ticket(cfg, ticket, ref.ticket_path)
+            assert_task_valid(cfg, ref, action="freeze workflow on bump")
         except TaskValidationError as exc:
             _bail(str(exc))
 
@@ -203,7 +181,6 @@ def bump(
     # (`coga/step_gate`), not an exit-code check: a step like `open-pr` that
     # declares `requires: pr` cannot be bumped past until `coga open-pr` has
     # written `pr:` under `## Dev`.
-    publish_current_branch = False
     if not rewind and 1 <= current_idx <= total:
         requires = steps[current_idx - 1].get("requires")
         if requires is not None:
@@ -213,71 +190,14 @@ def bump(
             reason = gate_unmet_reason(requires, blackboard, slug=ref.id_slug)
             if reason:
                 _bail(reason)
-            publish_current_branch = gate_publishes_current_branch(requires)
-
-    # Only terminal bump delegates to an outcome writer that also owns the
-    # period parent's state. Add that leaf to the original snapshot now — still
-    # before the network lease — without making ordinary step advances own it.
-    if finish and assist_requested:
-        state_snapshot = read_snapshot(ref.path)
-        if state_snapshot is not None:
-            parent_ticket = parent_ticket_path(cfg, state_snapshot)
-            if parent_ticket.parent.is_dir():
-                pre_lease_snapshot.originals[parent_ticket] = (
-                    parent_ticket.read_bytes()
-                    if parent_ticket.is_file()
-                    else None
-                )
 
     # Every bump that will post live — the terminal outcome, or a step advance
     # carrying --message — validates the notification configuration *before*
     # the mutation. `mark_done` / `bump_step` announce with `fatal=False`, so
     # an unresolved webhook found after the write is reported and dropped, not
-    # a crash; the only place it can still refuse is here. A recorded assist
-    # additionally exits with the no-sweep code so the strict checkout is left
-    # untouched.
+    # a crash; the only place it can still refuse is here.
     if finish or message is not None:
-        try:
-            preflight_post(cfg)
-        except typer.Exit:
-            if not assist_requested:
-                raise
-            _bail(
-                f"Could not advance {ref.id_slug} from the recorded assist: "
-                "notification configuration must be valid before strict "
-                "state publication.",
-                exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-            )
-
-    try:
-        assist = (
-            pr_assist.assist_publication_from_env(
-                cfg,
-                ref,
-                mutation_snapshot=pre_lease_snapshot,
-            )
-            if assist_requested
-            else None
-        )
-    except git.FeaturePublicationError as exc:
-        _bail(
-            f"Could not verify the recorded assist branch before advancing "
-            f"{ref.id_slug}: {exc}",
-            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-        )
-    if assist_requested and assist is None:
-        _bail(
-            f"Could not rebuild {ref.id_slug}'s recorded assist capability.",
-            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-        )
-    assist_publication = assist.lease if assist is not None else None
-    assist_guard = assist.guard if assist is not None else None
-    rollback = pre_lease_snapshot if assist is not None else None
-    publication_succeeded = False
-
-    def record_publication() -> None:
-        nonlocal publication_succeeded
-        publication_succeeded = True
+        preflight_post(cfg)
 
     if finish:
         actor, finisher = completion_identity(
@@ -299,31 +219,8 @@ def bump(
                 image_url=cfg.gif_for("done"),
                 echo=f"{ref.id_slug}: done",
                 force=force,
-                publish_current_branch=publish_current_branch,
-                feature_publication=assist_publication,
-                feature_publication_guard=assist_guard,
-                mutation_snapshot=rollback,
-                after_sync=record_publication if rollback is not None else None,
-            )
-        except git.FeaturePublicationError as exc:
-            _bail_strict_transition(
-                cfg,
-                ref,
-                "done",
-                exc,
-                rollback,
-                publication_succeeded=publication_succeeded,
             )
         except StrandedProductCode as exc:
-            if rollback is not None:
-                _bail_strict_transition(
-                    cfg,
-                    ref,
-                    "done",
-                    exc,
-                    rollback,
-                    publication_succeeded=publication_succeeded,
-                )
             listed = "\n".join(f"    {path}" for path in exc.paths)
             _bail(
                 f"Cannot finish {ref.id_slug}: its {exc.workflow_name} workflow "
@@ -337,27 +234,7 @@ def bump(
                 f"and keep the code stranded."
             )
         except TaskValidationError as exc:
-            if rollback is not None:
-                _bail_strict_transition(
-                    cfg,
-                    ref,
-                    "done",
-                    exc,
-                    rollback,
-                    publication_succeeded=publication_succeeded,
-                )
             _bail(str(exc))
-        except BaseException as exc:
-            if rollback is None:
-                raise
-            _bail_strict_transition(
-                cfg,
-                ref,
-                "done",
-                exc,
-                rollback,
-                publication_succeeded=publication_succeeded,
-            )
 
         if os.environ.get("COGA_SUPERVISED"):
             typer.secho(
@@ -436,53 +313,17 @@ def bump(
             notify_slack=message is not None,
             echo=f"{ref.id_slug}: step {next_step} ({new_step_name}){handoff}",
             rewind=rewind,
-            publish_current_branch=publish_current_branch,
-            feature_publication=assist_publication,
-            feature_publication_guard=assist_guard,
-            mutation_snapshot=rollback,
-            after_sync=record_publication if rollback is not None else None,
-        )
-    except git.FeaturePublicationError as exc:
-        _bail_strict_transition(
-            cfg,
-            ref,
-            f"step {next_step} ({new_step_name})",
-            exc,
-            rollback,
-            publication_succeeded=publication_succeeded,
         )
     except git.StateRegressionError as exc:
-        if not rewind:
-            raise
         _bail(
             f"Could not publish {ref.id_slug}'s rewind because control state "
-            f"changed: {exc}. The local debug rewind was retained for "
-            "inspection. Reconcile this checkout with control before running "
-            "any other mutating Coga command here, then retry.",
+            f"changed: {exc}. The local rewind was retained for inspection. "
+            "Reconcile this checkout with control before running any other "
+            "mutating Coga command here, then retry.",
             exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
         )
     except TaskValidationError as exc:
-        if rollback is not None:
-            _bail_strict_transition(
-                cfg,
-                ref,
-                f"step {next_step} ({new_step_name})",
-                exc,
-                rollback,
-                publication_succeeded=publication_succeeded,
-            )
         _bail(str(exc))
-    except BaseException as exc:
-        if rollback is None:
-            raise
-        _bail_strict_transition(
-            cfg,
-            ref,
-            f"step {next_step} ({new_step_name})",
-            exc,
-            rollback,
-            publication_succeeded=publication_succeeded,
-        )
 
     # When this bump ran inside a supervised `coga launch`, the supervisor
     # tears down the agent's REPL via the done marker (see
@@ -518,37 +359,6 @@ def bump(
     # cwd never matched what the supervisor polled for and the REPL hung. The
     # slug is identical from any checkout.
     emit_done_marker(session_id=ref.id_slug)
-
-
-def _bail_strict_transition(
-    cfg: Config,
-    ref: TaskRef,
-    transition: str,
-    exc: BaseException,
-    rollback: git.FileMutationRollback | None,
-    *,
-    publication_succeeded: bool,
-) -> None:
-    rollback_note = ""
-    if publication_succeeded or isinstance(exc, git.UncertainFeaturePublicationError):
-        rollback_note = (
-            "; generated state was retained because publication succeeded "
-            "or could not be determined"
-        )
-    elif rollback is not None and rollback.generated is not None:
-        refused = git.restore_files_under_barrier(cfg, rollback)
-        if refused:
-            names = ", ".join(str(path) for path in refused)
-            rollback_note = (
-                "; concurrent edits were retained instead of being "
-                f"overwritten at {names}"
-            )
-    detail = str(exc).strip() or type(exc).__name__
-    _bail(
-        f"Could not complete {ref.id_slug}'s strict {transition} transition "
-        f"after {type(exc).__name__}: {detail}{rollback_note}",
-        exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-    )
 
 
 def _bail(msg: str, *, exit_code: int = 2) -> None:
