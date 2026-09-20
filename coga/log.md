@@ -5807,3 +5807,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-20 11:20 [marketing/add-telemetry] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-20 11:20 [marketing/add-telemetry] [git] sync failed: could not reapply local changes after rebasing 'main' onto origin/main; restored pre-sync state
 2026-09-20 11:20 [marketing/add-telemetry] [human:nicktoper] started (active → in_progress) via coga launch
+2026-09-20 11:20 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
