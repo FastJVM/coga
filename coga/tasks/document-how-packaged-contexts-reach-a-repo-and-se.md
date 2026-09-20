@@ -24,7 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -205,3 +205,13 @@ bundled tickets' context attachments and update the init/browser fixtures.
 Test plan: `PYTHONPATH=src /tmp/coga-dispose-review-venv/bin/python -m pytest`
 (2658 passed); `git diff --check`; `codex review --base main` returned with no
 actionable findings.
+
+## Open PR
+
+- Confirmed `## Peer review` records the review returned with no must-fix
+  findings before publishing. `origin/main` was 5 generated task/log commits
+  ahead of the rebase point (`c8218398`); none overlap the feature diff, and
+  `coga open-pr` reported the branch safe to publish.
+- Ran `coga open-pr` from the primary control checkout (separate-worktree
+  layout). Pushed `packaged-context-states`, opened PR #843 (non-draft),
+  `pr:` recorded under `## Dev`. Next step is the owner's merge decision.
