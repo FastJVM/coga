@@ -495,6 +495,7 @@ resolutions, which amend the shape above where they conflict:
 <!-- coga:blackboard -->
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/848
 branch: publish-sync
 worktree: /home/n/Code/coga-publish-sync
 
