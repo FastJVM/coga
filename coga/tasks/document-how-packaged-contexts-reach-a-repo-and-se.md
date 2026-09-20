@@ -1,7 +1,7 @@
 ---
 title: Document how packaged contexts reach a repo, and settle the packaged-only cli
   context
-status: draft
+status: active
 owner: nicktoper
 agent: claude
 workflow:
