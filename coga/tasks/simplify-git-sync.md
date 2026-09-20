@@ -16,20 +16,49 @@ the `coga/sync` context that specifies it is ~90 KB. It still produces sync
 failures in live repos (`fix-git-sync-failure` is the latest; that ticket's
 `multiply` repo also carries orphaned coga stashes from a September run).
 
-Design a simpler sync model first, agree on it with the owner, then implement
-it. The design may rewrite the consumer contract — the ~14 public entry points
-and the ~30 call sites that reach into underscore helpers are inputs, not
-constraints — as long as every `src/coga` consumer is accounted for. The design must state, in a page or two: what the sync invariants are
-(what must never be lost, what must never move backward, which branch is
-canonical), the small set of git operations that satisfy them, which of the
-current special cases survive and which are dropped, and how the
-`coga/sync` context shrinks to match. Done means a `git.py` an engineer can
-read end to end, a `coga/sync` git section that fits the same page as the
-design, and the existing behavioral guarantees that the design keeps still
-covered by tests.
+The problem is established; do not re-prove it. The `design` step
+delivers two things, in one document on this ticket:
+
+1. **A usage audit** of what sync is actually asked to do, taken from the
+   repos coga runs in (listed under `## Context`), not from the code's own
+   claims: which `git.py` entry points fire on real transitions and from
+   which checkout shapes (main checkout, linked worktree, PR branch,
+   offline); which special cases have ever been exercised outside the test
+   suite; and every sync failure or leftover artifact that occurred in
+   practice, with its cause where it can be recovered. The audit is the
+   evidence for every keep/drop decision the plan makes.
+2. **A simplification plan**, a page or two, that states the sync
+   invariants (what must never be lost, what must never move backward,
+   which branch is canonical), the small set of git operations that
+   satisfy them, which current special cases survive and which are dropped
+   — each tied to an audit finding — how the `coga/sync` git section
+   shrinks to match, and a proposed implementation split into child
+   tickets, one per PR. The plan may rewrite the consumer contract — the
+   ~14 public entry points and the ~30 call sites that reach into
+   underscore helpers are inputs, not constraints — as long as every
+   `src/coga` consumer is accounted for.
+
+The owner decides at `review-design` whether to implement here or to create
+the child tickets the plan proposes. Done, for the whole effort, means a
+`git.py` an engineer can read end to end, a `coga/sync` git section that
+fits the same page as the plan, and the behavioral guarantees the plan keeps
+still covered by tests.
 
 ## Context
 
+- Audit scope — every checkout with `coga/coga.toml` under `~/Code` on the
+  owner's machine, as of this writing: `admin`, `coga`, `demo-hackathon`,
+  `magicator`, `multiply`, `patents`, `tablet`, `xpllm`, plus linked
+  worktrees `coga-*` (4) and `multiply-*` (3). Several sit on a non-`main`
+  branch (`dream/*`, `codex/*`, PR branches); `multiply` and its worktrees
+  share 2 orphaned coga stashes. Evidence per repo: `coga/log.md`
+  transitions (which sync paths ran, retries, failures), `.coga/` run
+  records, `git stash list` and `git reflog` on the control branch for
+  leftover artifacts and force-pushes, and `git log` of `coga/**` on control
+  vs. feature branches for state that landed in the wrong place. Also read
+  the `fix-git-sync-failure` ticket and blackboard for the recorded live
+  failure. Re-run the discovery (`find ~/Code -maxdepth 2 -name coga.toml`)
+  rather than trusting this list.
 - Public surface of `git.py` today, by consumer count across `src/coga`
   (the design should decide which of these remain): `sync_task_state` (21),
   `ticket_state_guard` (11), `write_ticket_under_barrier` /
@@ -108,12 +137,13 @@ covered by tests.
   The design step here should treat its rebase-on-refresh change as an
   input, not a constraint; if that ticket has not merged when design starts,
   treat the change as hypothetical.
-- Expect a split: `code/design-then-implement` has one `implement` step and
-  no fan-out. The design step should propose how the implementation
+- Split is decided by the plan, not up front: `code/design-then-implement`
+  has one `implement` step and no fan-out. The plan proposes how the work
   divides (a plausible shape: context rewrite; control-branch core + tests;
-  feature-branch/PR consumers; barrier/lease consumers) and this ticket then
-  becomes a directory of child tickets, one per PR. Do not pre-split before
-  the design exists.
+  feature-branch/PR consumers; barrier/lease consumers); at `review-design`
+  the owner either bumps to `implement` (plan small enough for one PR) or
+  creates the child tickets, one per PR, and this ticket becomes their
+  parent directory. Do not pre-split before the plan exists.
 - Out of scope: the notification half of `coga/sync` (Slack), the
   `coga usage` transcript-matching ambiguity seen in the same `multiply`
   session (separate ticket if it recurs).
