@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -387,6 +387,20 @@ Test environment: `/tmp/coga-recurring-review-venv`, editable test-extra install
 absolute `PYTHONPATH` pointing at the feature worktree's `src`, and its `bin`
 prepended to PATH so subprocesses test this branch too.
 
+
+## Open-pr
+
+Found the feature worktree dirty at handoff: a Ctrl-C follow-up (drop the
+parent's second SIGINT to the relay child; parametrize the real-process
+shutdown test over terminal SIGINT; matching sentence in both recurring
+contexts) authored by a still-live peer-review session. Human chose to commit
+it and publish. The other session committed it as `1661274dd` first; the
+focused relay suite (34 tests) passed against that exact content, and the
+live/packaged contexts compare identical. Ran `coga open-pr` from the primary
+control checkout `/home/n/Code/coga` (separate-worktree layout; the recorded
+worktree is linked to the `/home/n/Code/codex/coga` clone). PR #846 opened at
+`1661274dd`, four commits ahead of `origin/main`; drift check reported only
+non-overlapping generated task/log state on the base.
 
 ## PR
 
