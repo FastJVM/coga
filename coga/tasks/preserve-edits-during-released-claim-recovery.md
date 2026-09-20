@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
 contexts:
 - coga/launch-internals
@@ -98,6 +98,7 @@ Commands run from `/tmp/coga-released-claim-edits`:
 
 - Implementation commit: `4d3f65bc` (`Preserve edits during released claim recovery`). Feature checkout is clean; the feature branch remains unpushed and no PR was opened. Ready for peer review.
 - Final `git fetch origin main` brought six generated task/log commits (`3cc80827..becfa9d3`); `git rebase FETCH_HEAD` succeeded without conflicts and `git rev-list --left-right --count origin/main...HEAD` reports `0 1`.
+- open-pr step: `coga open-pr` ran from the primary control checkout on `main` and opened https://github.com/FastJVM/coga/pull/842 at `50c9cfe9`; `pr:` is recorded under `## Dev`. Next step is the owner-held `review` gate.
 - No adjacent bug was discovered. The existing barrier and conditional rollback are unchanged; a concurrent editor write after the last local comparison remains outside this fix's promised fetch-window scope.
 
 ## Peer review
