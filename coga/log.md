@@ -5832,3 +5832,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-20 15:28 [v2/propagate-local-coga-config-into-worktrees] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-20 12:28 [simplify-git-sync] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-09-20 15:33 [fix-git-sync-failure] [human:nicktoper] canceled (draft → canceled): Superseded by simplify-git-sync: the publish/refresh rewrite (PR from branch publish-sync) removes the local-first commit that caused the refresh failure; its repro cases are tests/test_git.py::test_refresh_* and test_teardown_refresh_then_claim_from_a_moved_remote_admits_the_pick
+2026-09-20 15:35 [simplify-git-sync] [agent:claude] advanced to step 5 (open-pr) — Implemented on branch publish-sync (worktree ../coga-publish-sync): one publish/refresh path, 2,400 tests green, contexts rewritten; size target landed at 1,095 lines / 50 functions — see blackboard.

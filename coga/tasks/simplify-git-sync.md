@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 agent: claude
 ---
 
@@ -352,24 +352,27 @@ resolutions, which amend the shape above where they conflict:
 
 ### Acceptance criteria
 
-- [ ] `src/coga/git.py` ≤ 900 lines and ≤ 30 top-level functions; no
+- [~] `src/coga/git.py` ≤ 900 lines and ≤ 30 top-level functions; no
       function longer than 80 lines; no `_`-prefixed name imported outside
-      the module (`grep -rn "git\._" src/coga` is empty).
-- [ ] Coga never creates a commit on a local branch: after any sequence of
+      the module (`grep -rn "git\._" src/coga` is empty). *Landed at 1,095
+      lines / 50 functions (longest 70 lines, reach-ins empty); the ceiling
+      is the number to renegotiate per Open Question 5 — see the
+      blackboard.*
+- [x] Coga never creates a commit on a local branch: after any sequence of
       `mark`/`bump`/`block`/`create`/`delete`/recurring create in a
       checkout on `<control>`, `git rev-list origin/<control>..<control>` is
       empty whenever the push succeeded, and `git stash list` is unchanged.
-- [ ] Offline publish leaves the file dirty and unchanged, writes one `sync
+- [x] Offline publish leaves the file dirty and unchanged, writes one `sync
       failed` line, exits 0; the next `sync_coga_state` with the remote back
       publishes it and leaves the tree clean.
-- [ ] Contention: two checkouts publishing different tickets on the same
+- [x] Contention: two checkouts publishing different tickets on the same
       base both land (second retries once); publishing the same ticket from a
       stale base is refused with the `git checkout origin/<control> -- <path>`
       hint; `coga/log.md` appended on both sides keeps both lines.
-- [ ] `expect` CAS: two megalaunch claims from the same control revision —
+- [x] `expect` CAS: two megalaunch claims from the same control revision —
       exactly one wins; the loser's local ticket is restored to its pre-write
       bytes and no commit reaches control.
-- [ ] Regression rules (E2): a path whose control blob differs from both the
+- [x] Regression rules (E2): a path whose control blob differs from both the
       checkout baseline (`merge-base HEAD origin/<control>`) and the working
       bytes is refused, with the `git checkout origin/<control> -- <path>`
       hint; an explicit `expect` overrides the baseline; a control copy
@@ -377,26 +380,26 @@ resolutions, which amend the shape above where they conflict:
       (E1); a working copy carrying `released:` is never published; an
       offline bump or rollover retried by the sweep lands when control did
       not move that path.
-- [ ] After a publish from a feature-branch or detached checkout in a repo
+- [x] After a publish from a feature-branch or detached checkout in a repo
       whose `main` is held by another worktree, that worktree's `main`, index,
       and files all advance to the new tip when it was at the base; when it
       was ahead, nothing there moves and one stderr line names `git pull
       --rebase`.
-- [ ] `refresh` on a control checkout that is behind fast-forwards (explicit
+- [x] `refresh` on a control checkout that is behind fast-forwards (explicit
       ancestry check, not `merge --ff-only`'s exit code); ahead or
       diverged reports the `pull --rebase` line and returns `False`; on a
       feature branch it touches nothing and returns `True`. A launch teardown
       followed by a megalaunch pick in a checkout whose remote moved meanwhile
       admits the pick (the `fix-git-sync-failure` end-to-end shape).
-- [ ] No `refs/coga/*` refs and no `FETCH_HEAD` reads remain in `src/coga`.
-- [ ] The sweep publishes only dirty paths under `tasks_dir(cfg)`,
+- [x] No `refs/coga/*` refs and no `FETCH_HEAD` reads remain in `src/coga`.
+- [x] The sweep publishes only dirty paths under `tasks_dir(cfg)`,
       `log_path(cfg)`, and `coga/recurring/`; a dirty context or skill is left
       alone.
-- [ ] `coga/contexts/coga/sync/SKILL.md`'s git section fits one page (≤ 150
+- [x] `coga/contexts/coga/sync/SKILL.md`'s git section fits one page (≤ 150
       lines) and states nothing `git.py` does not do; the packaged twin is
       byte-identical (`tests/test_packaging.py`); `docs/` carries no second
       copy of the contract.
-- [ ] `python -m pytest` passes; `tests/test_git.py` covers each bullet
+- [x] `python -m pytest` passes; `tests/test_git.py` covers each bullet
       above with a named test.
 
 ### Out of scope
@@ -494,6 +497,130 @@ resolutions, which amend the shape above where they conflict:
 
 branch: publish-sync
 worktree: /home/n/Code/coga-publish-sync
+
+## Implement handoff (2026-09-20)
+
+Branch `publish-sync` (worktree `/home/n/Code/coga-publish-sync`), three
+commits on top of `origin/main`: core+consumers, tests, contexts. Full suite:
+2,400 passed (`.venv/bin/python -m pytest`, worktree venv from
+`pip install -e ".[test]"`). `coga validate --json` from the worktree: the same
+pre-existing warnings/errors as before (nothing about this ticket).
+`fix-git-sync-failure` canceled with a pointer here.
+
+### What changed
+
+- `src/coga/git.py` rewritten: `publish` (candidates → base → provenance
+  check → temp-index tree with `merge-file --union` for union paths →
+  `commit-tree` + push, non-ff retry, ambiguous-failure re-read →
+  `fast_forward_control`), `refresh`, `state_lock` (thread-reentrant),
+  `write_ticket`, `fetch_control`, `ticket_regression_reason`, and a public
+  plumbing surface (`run_git`, `toplevel`, `tree_bytes`, `current_branch`,
+  `symbolic_head`, `remote_configured`, `remote_branch_oid`,
+  `control_branch_present`, `control_branch_mismatch_message`,
+  `relative_to_root`, `union_merge_paths`, `worktree_holding_branch`,
+  `is_linked_worktree`, `last_commit_times`, `stale_coga_task_rels`,
+  `summarize_git_failure`). 7,285 → 1,095 lines; 141 → 50 functions;
+  `grep -rn "git\._" src/coga` empty; no `refs/coga/*`, no `FETCH_HEAD`
+  (`github_preflight.check_branch_contains_control` now fetches into and
+  reads the remote-tracking ref too).
+- Consumers ported: `mark`/`bump` transitions take `strict=` instead of
+  guard/lease/snapshot kwargs (`mark._publish` reports or re-raises);
+  `commands/{bump,mark,block,unblock}` lose the assist lease/rollback code;
+  `pr_assist` is identity only (`AssistSession`, `verify_recorded_assist_pr_head`);
+  `launch_script` and `commands/launch` keep the assist alignment
+  (`_align_recorded_assist_checkout`: fetch, ancestry check, Coga-state-only
+  dirt, `merge --ff-only`) and attribution but publish to control only;
+  `megalaunch` claims/activates with `sync_task_state(strict=True)`, revalidates
+  via `fetch_control` + `tree_bytes`, admits with `publish(expect=pending)`;
+  `recurring_runner` creates with one `publish(expect={ledger, template})` in a
+  bounded loop that re-reads control on refusal and adopts a handled period,
+  verifies delegated leases with `_verify_period_on_control`, and catches up
+  with `git.refresh`; `open_pr` excludes live Coga state from the
+  single-checkout cleanliness gate; `step_gate` loses `publish_current_branch`;
+  `cli` loses the assist sweep suppression; `logfile.retract_log_lines` is the
+  shared audit-line undo for definitely-refused strict writes.
+- `stranded_product_paths` moved to `mark.py` (single consumer).
+- Tests: `tests/test_git.py` rewritten (48 tests, one per guarantee);
+  `test_launch.py` −49 lease/rollback/no-sweep tests, 12 assist tests adapted;
+  `test_recurring.py`, `test_megalaunch.py`, `test_mark.py`, `test_open_pr*.py`,
+  `test_launch_script.py`, `test_commands.py`, `test_cli.py`, `test_init.py`,
+  `test_validate.py`, `test_authoring.py`, `test_period_state.py`,
+  `test_layout_contexts.py` adapted; `conftest._stub_git` stubs `publish`.
+- Contexts: `coga/sync` git section is 143 lines; `coga/launch-internals`
+  rewritten; `coga/architecture` (barrier → state lock, admission paragraphs,
+  assist identity), `coga/codebase`, `coga/blackboard`, `coga/recurring`,
+  `coga/extension-model`, `dev/code`, `code/implement`, `code/open-pr`, the
+  packaged `coga/cli`, `docs/operations.md`, `docs/concepts.md`. Twins synced
+  (`tests/test_packaging.py` green).
+
+### Decisions made while implementing (beyond the E1–E8 resolutions)
+
+- **Provenance candidates include a per-worktree published tree.** A feature
+  or detached checkout's HEAD never advances with control, so its second
+  publish of the same ticket would fail a HEAD/merge-base-only baseline.
+  `refs/worktree/coga/published` (git keeps `refs/worktree/*` private to each
+  checkout; verified on git 2.43) records the blobs this checkout published;
+  it is the fourth candidate next to HEAD, merge-base, and the working bytes.
+  Inspectable with `git ls-tree refs/worktree/coga/published`; no `.coga/`
+  state.
+- **Candidates also include committed-ahead Coga state.** A clean file whose
+  HEAD copy moved past control from a copy this checkout derived from (a
+  feature branch that committed a ticket it had itself published) is
+  published; a clean file merely behind control is not. Without this the
+  blocked-resume reblock in a single checkout (ticket equal to a committed
+  copy) never reached control.
+- **Three failure classes, not two.** `GitError` = definitely not on control
+  (offline, or the post-failure re-read shows control lacks the commit);
+  `UncertainPublishError(GitError)` = push reported failure and control could
+  not be re-read; `StateRegressionError` = refused. Strict callers restore
+  and retract audit lines (`retract_log_lines`) on the first and third, keep
+  the write on the second. This is E6 made precise.
+- **`expect` on union paths.** An explicit `expect` for `coga/log.md` adds a
+  CAS the union path otherwise never has; the recurring create uses it to pin
+  the serviced ledger it decided from, so a peer's ledger line between fetch
+  and push refuses the duplicate period (the old per-attempt re-check).
+- **Seal before provenance.** The pending-claim message wins over the generic
+  "control copy changed" message when both apply.
+- **No-change publish fast-forwards only a control checkout.** A `False`
+  publish never reaches into another worktree (Retro's isolated delete
+  followed by the sweep must not move the primary).
+- **Missing git binary is a soft skip** ("`git` not found on PATH (sync
+  skipped)"), not a logged sync failure.
+- **`_align_recorded_assist_checkout`** no longer requires exactly one push
+  URL; the identity check reads `remote get-url --push`.
+- **PR 747 finding fixed in passing**: released-witness reconciliation
+  re-reads the witness after its fetch and refuses when it changed.
+
+### Acceptance deviations for the reviewer
+
+- Size: 1,095 lines / 50 functions vs the ≤ 900 / ≤ 30 target. Module and
+  function docstrings carry the contract (the sync context links to them);
+  folding further would replace explicit boundaries with dense helpers, which
+  the evaluator warned against. Open Question 5 anticipated this.
+- Behaviour changes worth knowing: a recurring named launch from a control
+  checkout that is ahead of origin now creates and publishes the period but
+  leaves that checkout un-fast-forwarded (one stderr line names
+  `git pull --rebase`); previously Coga rebased the human's commits.
+  `coga open-pr` in the single-checkout layout ignores dirty Coga state.
+  Assist sessions no longer get exit 75 on refusals — there is nothing to
+  retry-protect.
+
+### Adjacent findings (not fixed here)
+
+- `commands/init.py` still shells out to `subprocess.run` for `remote
+  get-url`; could use `git.remote_configured`. Cosmetic.
+- `recurring_runner._control_tip_owner` fetches from the push URL into the
+  remote-tracking ref; a remote whose fetch URL differs then has its tracking
+  ref pointing at the push repository's tip until the next fetch. Harmless
+  (same repository in every configured repo today) but worth a note in
+  `coga/recurring` if push/fetch URL splits ever appear.
+
+### Leftovers to clean by hand once merged (unchanged from the design step)
+
+`git update-ref -d refs/coga/fetch/<uuid>` in `multiply` and `xpllm`; the two
+agent stashes in `multiply`; `multiply`'s dirty `coga/tasks/v1/debug-messages.md`.
+Installed CLIs (`uv tool` editable at `/home/n/Code/claude/coga/src`) keep the
+old sync until that checkout is updated.
 
 ## Decisions (implement step, 2026-09-20)
 
@@ -711,79 +838,14 @@ The historical 15-checkout audit was treated as supplied evidence, not rerun.
 ## Audit
 
 Read-only inventory taken 2026-09-20 from every checkout with `coga/coga.toml`
-under `~/Code` (`find ~/Code -maxdepth 3 -name coga.toml`: 15 hits — 8 primary
-clones + 4 `coga-*` and 3 `multiply-*` linked worktrees). No repo overrides
-`[git]`: every one is `origin` / `main` / enabled. Method: `git rev-list
---left-right --count`, `git stash list`, `git for-each-ref refs/coga`, `git
-log --format=%s main -- coga/` bucketed by subject prefix, and every
-`sync failed` / `sync refused` / `refresh failed` line in `coga/log.md`
-classified by message text (script kept in the session scratchpad, not the
-repo). "unknown" means no trace either way.
-
-### Per checkout
-
-| checkout | shape | control | state commits on control `Ticket:` / `Log:` / `Sync coga state` (share of sweep) | failure lines by class | leftovers | recovered cause |
-|---|---|---|---|---|---|---|
-| `coga` | primary, on `main`, in sync with origin | main | 2573 / 990 / 786 (18 %) | 478 total: 185 read-only-FS (`FETCH_HEAD`/`index.lock`, Jun–Jul sandbox), 77 step/status-backward refusals, 70 launch-claim refusals (all Sept), 63 rebase/stash misses (`could not reapply local changes`, `could not rebase … CONFLICT`), 61 offline fetch, 13 `merge --ff-only` refresh misses | 2 stashes, both hand-made (`WIP on (no branch)` 09-09, a stranded worktree 08-27); `coga/log.md` dirty (this session); 0 `refs/coga/*` | Claim refusals: one ticket refused 18× over 24 h after an offline bump cleared its claim; a human hand-committed `Reconcile stranded step-3 bumps after failed sync` (09-10 22:22). Step-backward refusals: same file refused up to 14× (07-15) — a stale copy the sweep re-offers on every command. Refresh misses: local `main` ahead by coga's own offline commits (the `fix-git-sync-failure` shape). |
-| `multiply` | primary, on `main`, in sync | main | 685 / 408 / 388 (26 %) | 192: 143 offline fetch (DNS), 22 rebase/stash misses, 15 guard refusals, 8 refresh `--ff-only` misses, 3 read-only FS | 2 stashes (`coga log.md launch line (session b8b9626f)` 09-09, `coga open-pr borrow: …` 09-09) — **agent-made** (natural-language messages; `git.py`'s only stash message is `coga-sync-autostash`, present in no repo); 1 dirty ticket (`v1/debug-messages.md`, 46-line deletion); 1 orphaned `refs/coga/fetch/<uuid>` | All 15 refusals are `terminal status would change from 'done' to 'active'` on the three recurring period tickets (09-14 14:04, re-refused 16:13): the recurring rollover *recreates* a done ticket at the same path and the regression guard reads it as a backward move. Hand-fixed 30 h later: `Recurring: land the 2026-09-14 period tasks stranded by the digest crash` (09-15 20:43). |
-| `xpllm` | primary, on `main`, in sync | main | 563 / 117 / 236 (26 %) | 167: 160 read-only FS (Jul), 5 guard, 1 rebase, 1 offline | 2 stashes (May–Jun, human), 1 orphaned `refs/coga/fetch/<uuid>` | quiet since 09-14; recurring autofix creates dominate recent history |
-| `admin` | primary, on `main`, in sync | main | 834 / 297 / 291 (20 %) | 29: 20 offline, 5 read-only FS, 3 rebase, 1 fetch | none | 228 megalaunch lines — second-heaviest megalaunch user |
-| `magicator` | primary, **on a feature branch** (`observation-loop/…`, repo rule: single checkout, no worktrees), `main` in sync | main | 877 / 204 / 258 (19 %) + 2 `Refresh coga state after launch` (feature-branch refresh commits) | 82: 72 read-only FS, 7 offline, 1 rebase, 1 refresh | 3 stashes (`autostash` 08-25 — git's own, from a human rebase; two 2025 WIPs) | the originating repo of `stop-syncing-task-state-onto-the-feature-branch`; 27 `Ticket:` + 17 `Log:` commits sit on remote feature branches (all pre-PR #785); no coga command has run here since 08-28, so the post-#785 reconcile path is untested here |
-| `patents` | primary, on `main`, in sync | main | 416 / 85 / 86 (15 %) | 10: 4 read-only FS, 4 push 403/protected, 2 other | 3 stashes (May, human) | idle since 07-24 |
-| `demo-hackathon` | primary, **left on `dream/resync-phase4-retro-isolation`** by a Dream run; `main` in sync | main | 80 / 40 / 32 | 21: 20 read-only FS, 1 fetch | none | idle since 07-27; 2 hand-authored `coga/` commits on the dream branch (PR content, not state) |
-| `tablet` | primary, **left on `dream/notification-claims`** by a Dream run; `main` in sync | main | 116 / 28 / 37 | 0 | none | idle since 08-17 |
-| `coga-dispose-checkouts`, `coga-packaged-context-states`, `coga-remove-narrative-candidates`, `coga-ticket-done-criteria` | linked worktrees of `coga`, PR branches created 09-18/19, 1–2 ahead / 27–82 behind `main` | main | **0** state commits; 0 reconcile merges | — (share `coga`'s log) | 1–2 hand-authored `coga/` commits each (contexts/skills = PR content) | Coga commands never run in these worktrees: the launched agent's cwd is the primary checkout on `main`; the worktree is only where code is edited. |
-| `multiply-harness-evidence`, `multiply-harness-wording`, `multiply-optim-harness` | linked worktrees of `multiply`, 0–7 ahead / 16–168 behind | main | 0 state commits | — | none | same as above |
-
-Offline episodes: `multiply` 143 and `coga` 61 `Could not resolve host` fetch
-failures, concentrated Aug–Sep; every one is a transition that committed
-locally (on `main`) and never pushed until a later transition's rebase.
-
-### Where the primary checkout was on a PR branch by accident
-
-In `coga`, 09-18: the primary checkout sat on `gh-backed-readonly-context`
-(PR #836, 8 code commits) while two *other* tickets ran their steps. Result on
-that remote branch: 15 state commits (`Ticket:`/`Log:` for
-`the-ticket-interview-…` and `installer-managed-skills-…`) and 13
-`Merge main state into gh-backed-readonly-context` reconcile merges. The PR's
-`coga/` diff against `main` is clean (the reconcile did its job); the branch
-history is not. `cite-symbols-rule` (PR #793) shows the same: 19 reconcile
-merges. Those 31 merges are the only positive trace of the post-#785
-feature-branch machinery anywhere in the audited repos.
-
-### Per special case — exercised outside tests?
-
-| special case (symbols) | live trace | verdict |
-|---|---|---|
-| control-branch commit + push (`_sync_paths_on_control_branch`, `_push_control_branch`, `_commit_paths`) | ~11 000 `Ticket:`/`Log:`/`Sync coga state` commits across repos | dominant path |
-| push-reject → fetch + rebase with explicit stash (`_rebase_onto_remote`, `_stash_if_dirty`, `_restore_to_orig`) | 85 misses across repos (`could not reapply local changes after rebasing`, `could not rebase … CONFLICT` in a hand-edited context, `untracked working tree files would be overwritten`); successes leave no trace; **no `coga-sync-autostash` stash exists anywhere** | fires; its restore-on-failure holds; the "orphaned stashes" in `multiply` are not its doing |
-| cross-branch overlay landing (`_land_paths_on_control_branch`, `_build_overlay_tree`, temp `GIT_INDEX_FILE`, `commit-tree`) | magicator's history; `coga` 09-18 incident (state reached `main` while HEAD was a PR branch) | fires whenever a primary checkout is off `main` |
-| feature payload reconcile (`_reconcile_feature_payload`, adopt/merge, `_generated_commit_rels`, `_landed_generated_rels`, `_control_history_contains_generated_paths`, `_report_base_sync`) | 31 `Merge main state into …` commits since 09-11, all in `coga`, all from the accidental-branch case | fires; only by accident |
-| feature-branch publication / assist lease / force-with-lease / compensation trees (`_prepare_feature_branch_publication`, `feature_publication_lease`, `FeaturePublicationLease`, `_build_feature_compensation_tree`, `_inverse_compensated_bytes`, `_merge_inverse_bytes`, `_single_assist_push_url`) | `publish_current_branch` pushes are visible (the 09-18 state commits are on `origin/gh-backed-readonly-context`); 67 `launched (operator=…)` human-step assist launches in `coga`, 0 elsewhere; compensation trees fire only after a failed control landing that followed a feature push — no trace | push half: fires; lease/compensation half: **unknown** |
-| strict control publication (`_sync_paths_on_control_branch_strict`, `_land_strict_state_on_control`, `_raise_strict_control_landing_failure`, `_restore_strict_state_commit`) | megalaunch: 372 launches in `coga`, heavy in `admin`; `launch claim publication refused: … moved from verified tip` 09-18 17:17 (stderr only, per `fix-git-sync-failure`) | load-bearing for megalaunch; refuses correctly; its precondition (`HEAD == fetched tip`) is what the local-ahead branch breaks |
-| launch-claim seal (`_pending_launch_admission_reason`, `_ticket_launch_claim_change_reason`, `_changes_involve_launch_claim`, released-witness recovery) | 70 `published launch claim would be cleared without an authorized session-ending lifecycle transition` refusals in Sept (`coga`) | fires; the documented allowance for "retry of an offline bump" did **not** fire in the one incident it was written for — a human hand-committed the ticket 24 h later |
-| state-regression guard (`_ticket_state_regression_reason`, `_guard_coga_state_regressions`, `_STATUS_PROGRESS`) | 77 (`coga`) + 15 (`multiply`) + 5 (`xpllm`) refusals | fires; two false-positive shapes: recurring period rollover (done → recreated active) and a stale file re-refused on every subsequent command with no convergence |
-| catch-all sweep (`sync_coga_state`, `_coga_state_pathspecs`) | 15–26 % of all state commits per repo | fires constantly; it is also the *only* retry mechanism after an offline transition |
-| sweep extras: contexts relocation (`_removed_paths_from_previous_contexts_root`, `_previous_contexts_root_snapshot`, `_contexts_root_from_revision`), root layout (`_ROOT_LAYOUT_COGA_PATHS`) | no repo sets `[layout] contexts`; every repo is nested `coga/coga.toml` | **unknown** — no live consumer today |
-| launch-end pull-back (`refresh_coga_state_from_control`, `_refresh_branch_from_control`, `_refresh_log_from_control`) | 13 + 8 + 3 + 1 `refresh failed: merge --ff-only` misses; 2 `Refresh coga state after launch` feature-branch commits in magicator | fires; the control-branch half fails exactly when coga's own offline commits sit on local `main` |
-| local control ref fast-forward through the holding worktree (`_try_update_local_ref`, `_worktree_holding_branch`) | `main` reflog shows 2–78 `Fast-forward` entries per repo (mixed with human `pull`s) | fires; indistinguishable from human pulls |
-| UUID-scoped isolated fetch refs (`refs/coga/fetch/<uuid>`, `--no-write-fetch-head`) | present in every Sept fetch failure line; **1 orphaned ref each in `multiply` and `xpllm`** | fires; cleanup is not reliable |
-| contention loop exhaustion (`_MAX_SYNC_ATTEMPTS`) | 0 `after N attempts — contention` lines in any repo | **unknown** (never exhausted) |
-| detached-HEAD scoped commits (`commit_detached`, detached baselines) | 0 detached reflog entries in any repo; one hand stash `WIP on (no branch)` in `coga` | **unknown** |
-| barriers / rollback / snapshots (`state_publication_barrier`, `FileMutationRollback`, `restore_files_under_barrier`, `capture_*`) | in-process only; by design no trace | **unknown** — cannot be observed from repos |
-| no-remote / control-branch-mismatch / `enabled=false` soft skips | no repo lacks a remote or renames control; no `coga.local.toml` disables git | **unknown** outside `coga init` and tests |
-| `coga/log.md` union merge (`union_merge_paths`, `.gitattributes merge=union`) | every rebase/overlay that touched `log.md` — zero `log.md` conflicts in any failure line | works |
-| `recurring_runner._rebase_checked_out_branch_onto`, `_land_recurring_create_on_control_branch`, control-worktree service | recurring creates land daily; `STALE_CONTROL_EXIT_CODE` bails leave no log line | fires; a second sync implementation (~600 lines) outside `git.py` |
-
-### Size, for the plan's accounting
-
-`src/coga/git.py` 7 285 lines, 141 functions (21 public / 120 private), 10
-classes; 59 symbols consumed from 32 modules, 31 of them private. By bucket
-(definition lines): feature-branch lease/assist/compensation 972; overlay +
-reconcile 969; dispatch/entry points/log sync 1 075; barriers/rollback/
-snapshots 910; strict publication + claim seal 585; regression guard 469;
-refresh 510; plumbing 517; sweep + relocation 276; **control-branch
-push/rebase/stash 208**. `tests/test_git.py`: 225 tests — 72 feature/assist/
-lease, 27 overlay/reconcile/detached, 17 strict/claim, 17 guard, 16 sweep/
-layout, 13 refresh, 9 push/rebase/contention, 7 soft-skips, 4 barrier, 3
-union, 40 other; 12 other test files reach `git.py` symbols.
+under `~/Code` (15 hits: 8 primary clones, 7 linked worktrees, all
+`origin`/`main`). Its findings are the A1–A5 bullets in `## Description`; the
+full per-checkout and per-special-case tables are in this ticket's history
+(`git show 65a9e63e:coga/tasks/simplify-git-sync.md`, section `## Audit`).
+Headline numbers: ~11,000 state commits across repos; 478 `coga` failure
+lines (185 read-only-FS, 77 step-backward refusals, 70 claim refusals, 63
+rebase/stash misses, 61 offline, 13 refresh misses); 15 `multiply` refusals all
+from the recurring rollover; zero `coga-sync-autostash` stashes anywhere; one
+orphaned `refs/coga/fetch/<uuid>` each in `multiply` and `xpllm`; zero state
+commits in any linked worktree. `git.py` was 7,285 lines / 141 functions
+(31 private names reached from 32 modules); `tests/test_git.py` 225 tests.
