@@ -5808,3 +5808,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-20 11:20 [marketing/add-telemetry] [git] sync failed: could not reapply local changes after rebasing 'main' onto origin/main; restored pre-sync state
 2026-09-20 11:20 [marketing/add-telemetry] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-20 11:20 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-20 11:13 [simplify-git-sync] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-20 12:05 [simplify-git-sync] [agent:claude] advanced to step 2 (evaluate-design) → codex — Design done: audit on blackboard (## Audit), never-commit-locally plan with publish()/refresh()/state_lock and four child PRs under ## Description; five open questions on the blackboard.
