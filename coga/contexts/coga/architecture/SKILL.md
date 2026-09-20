@@ -1120,7 +1120,9 @@ Two boundaries this does not move:
   context with a live counterpart is byte-identical by test; a package-only
   context such as `coga/cli` (resolved through the bootstrap fallback in
   `paths.resolve_context_path`, with no live copy) is still a single owner.
-  The rule requires one owner, not a live one.
+  The rule requires one owner, not a live one. Why `coga/cli` stays
+  packaged-only, and where its edits are reviewed, is recorded in
+  `coga/codebase` beside the twin rule.
 - **`CLAUDE.md` / `AGENTS.md` are not a third surface.** The agent CLI loads
   them in every session, launched or not, so they carry pointers into the
   contexts plus only the rules an agent needs when it is *not* running under

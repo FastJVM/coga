@@ -366,6 +366,46 @@ rule, and it holds for skills and contexts too: **a live
 the packaged file *is* what this repo resolves and freezes.** Check which side
 is live before assuming an edit is downstream-only.
 
+### How packaged contexts reach a repo
+
+The packaged tree ships contexts in two directories, and they reach a repo by
+different mechanisms. A context is in exactly one of three states:
+
+- **Init-seeded** — `templates/coga/contexts/**` (today only the `_template`
+  scaffold). `coga init` copies it once, via
+  `commands/update.py::copy_fresh_templates` (`_copy_resource_tree` with
+  `skip_top={"bootstrap"}`), into the new repo's contexts directory. From then
+  on the repo owns the copy: it may edit or delete it, and **nothing reads the
+  packaged original at runtime** — it is never a fallback.
+- **Bootstrap-fallback** — `templates/coga/bootstrap/contexts/**` (`coga/*`,
+  `dev/code`, `browser/*`). `coga init` skips `bootstrap/` entirely, so the
+  copy is never installed; instead `paths.resolve_context_path` reads it from
+  the package when the repo's contexts directory has no `<ref>/SKILL.md`. A
+  repo overrides one by creating the local file.
+- **Local-only** — a file under the repo's contexts directory with no packaged
+  copy at all. Repo-specific, resolved first, and nothing outside the repo
+  knows it exists.
+
+`resolve_context_path` is the whole runtime rule: local first, then
+`bootstrap/contexts/`, then `None` — which `compose` turns into a
+`ComposeError` and `coga launch` refuses to start (`validate` and `create`
+reject the ref statically). The consequence for authors: **a bundled bootstrap
+ticket (`bootstrap/<verb>/ticket.md`), and any bundled skill that tells the
+agent to apply a context, may only name contexts that resolve from
+`bootstrap/contexts/`.** An init-seeded context is repo-owned and deletable, so
+a bundled launcher that depends on it cannot compose from bundled resources
+alone in any repo that predates the seed or pruned it. That shipped once: the
+`browser-automation` launcher attached `browser/api-first` while both browser
+contexts sat in the seeded tree, and two separate agents had to rediscover why
+by probing the package. They now live under `bootstrap/contexts/browser/`, and
+`tests/test_packaging.py::test_bundled_bootstrap_tickets_attach_only_bootstrap_contexts`
+enforces the rule for every bundled launcher. Skills and workflows have the
+same split: `resolve_skill_path` and `resolve_workflow_path` fall back to
+`bootstrap/{skills,workflows}/` only, while the seeded
+`templates/coga/{skills,workflows}/` (the `direct/body` skill, the
+recurring-job workflows, the `_template`s) are one-time init copies the repo
+owns. The same authoring rule applies to them.
+
 Three sharp gotchas live here:
 
 - **Do not *repair* bundled resources by copying them into
@@ -843,6 +883,20 @@ wrong checkout silently produces wrong results in both directions:
   in `INTENTIONALLY_DIVERGENT_TWINS` with its reason, and the
   suite fails if that entry outlives the divergence. That catches the drift
   after the fact; it does not catch it during the rebase, so still re-diff.
+  The derivation also means a **packaged file with no live counterpart is not
+  a pair and is not enforced** — and that is a deliberate shape, not a gap to
+  close by minting a live copy. `coga/cli` is the one bundled context in that
+  state: it is the command-behaviour contract, co-versioned with the package
+  it describes, and this repo resolves it through the bootstrap fallback like
+  any downstream repo does. Its edits are reviewed in the PR that changes the
+  command, together with the code, and a live copy would exist only to be
+  byte-identical — two edits per CLI change for no behavioural gain. Anyone
+  auditing "the canonical contexts" must therefore read
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/` as well as
+  `coga/contexts/coga/`; the live tree alone is incomplete by exactly that
+  one file. (`docs/reference.md` links the packaged path directly for the
+  same reason.) A second packaged-only context needs the same justification
+  written here, not just an absent twin.
   `CLAUDE.md` and `AGENTS.md` at the repo root are a third twin kept identical
   by hand: edit both and `cmp` them, because `test_packaging.py`'s discovery
   walks only the packaged template tree and never covers that root pair.
