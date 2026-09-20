@@ -295,6 +295,61 @@ If the owner prefers a single PR, 1–4 in one branch is ~the same diff;
 the split exists so each step is reviewable and the context shrinks with the
 code.
 
+### Evaluator findings — resolutions (owner-confirmed 2026-09-20, implement step)
+
+The evaluate-design step recorded eight must-resolve findings (blackboard,
+`## Evaluator review`). The owner advanced to `implement` with these
+resolutions, which amend the shape above where they conflict:
+
+- **E1 — pending seal.** `ticket_regression_reason` keeps today's byte-exact
+  admission rule unconditionally: when control's copy carries
+  `pending:<uuid>`, the only accepted replacement is the identical ticket with
+  the prefix stripped; `expect` never overrides it, and a working copy carrying
+  `released:` is refused outright. The final-fetch-to-release race test stays.
+- **E2/E5 — a real baseline replaces the lifecycle ladder (closes Open
+  Question 3).** `publish` defaults `expect` for every path to the blob at
+  `git merge-base HEAD refs/remotes/<remote>/<control>` — what this checkout
+  last integrated from control. The CAS passes when control's blob equals that
+  baseline **or** already equals the working bytes (idempotent retry). An
+  explicit `expect` entry overrides the default per path. Consequences: the
+  offline bump/rollover retry converges with no hidden state; a same-ticket
+  stale write is refused with the `git checkout origin/<control> -- <path>`
+  hint; different tickets from one base both land; a peer blackboard edit is
+  never overlaid. `_STATUS_PROGRESS`, `allow_step_rewind`, and
+  `allow_terminal_change` are dropped: a `bump --backward` from a fresh
+  checkout passes the CAS, from a stale one it is refused.
+- **E3 — one integration function.** `fast_forward_control(root, new,
+  published)` checks `git merge-base --is-ancestor <local> <new>` *first*
+  (ahead or diverged: one stderr line naming `git pull --rebase`, index
+  untouched, `False`); then, in the worktree holding `<control>`, writes the
+  *published* bytes (the union result for `coga/log.md`) into each published
+  path still equal to what `publish` read, `git add`s those, and
+  `merge --ff-only`. With no holder it is `update-ref` with the old-oid guard
+  after the same ancestry check. `refresh` is `fetch` + this function with no
+  published paths (I4).
+- **E4 — reentrant lock.** `state_lock` is process-reentrant (a module-level
+  held count over the same flock), so `publish` takes it inside megalaunch's
+  admission window without a `_without_barrier` escape hatch.
+- **E6/E8 — three outcomes.** `publish` returns `True` (pushed), `False` (the
+  built tree already equals control's), or `None` (soft-skipped). It raises
+  `StateRegressionError` for *definitely not landed* (refused before any push
+  was accepted) and `GitError` for *unknown or not durable*; either way the
+  working file stays as written. A push error that is not a clean
+  non-fast-forward rejection triggers one fetch, and `publish` returns `True`
+  when control now carries the commit. Megalaunch restores its pre-write
+  bytes only on `StateRegressionError`; on `GitError` it keeps the pending or
+  `released:` witness as today.
+- **E8 — no remote.** Stated exception to I1: with no remote configured,
+  `publish` builds the same commit on local `<control>` and skips the push —
+  canonical is local `<control>` when there is nothing to push to. When the
+  remote-tracking ref is absent after a fetch, `publish` bases on local
+  `<control>` and the push creates the remote branch. `fast_forward=False`
+  is a keyword of `publish` (Retro's isolated delete).
+- **E7 — one PR.** The frozen workflow has one `implement` and one `open-pr`;
+  the four-child split is dropped and every consumer port, `recurring_runner`
+  included, lands on this ticket's branch. `fix-git-sync-failure` is canceled
+  with a pointer here.
+
 ### Acceptance criteria
 
 - [ ] `src/coga/git.py` ≤ 900 lines and ≤ 30 top-level functions; no
@@ -314,17 +369,21 @@ code.
 - [ ] `expect` CAS: two megalaunch claims from the same control revision —
       exactly one wins; the loser's local ticket is restored to its pre-write
       bytes and no commit reaches control.
-- [ ] Regression rules: `done`/`canceled` on control is never replaced except
-      by a writer passing `expect` for that exact blob; `step`/status never
-      decrease except under `allow_step_rewind`; a ticket whose control copy
-      carries a `launch_generation` the local pre-write copy did not is
-      refused (Open Question 3 fixes the sweep's rule).
+- [ ] Regression rules (E2): a path whose control blob differs from both the
+      checkout baseline (`merge-base HEAD origin/<control>`) and the working
+      bytes is refused, with the `git checkout origin/<control> -- <path>`
+      hint; an explicit `expect` overrides the baseline; a control copy
+      carrying `pending:<uuid>` accepts only the prefix-stripped admission
+      (E1); a working copy carrying `released:` is never published; an
+      offline bump or rollover retried by the sweep lands when control did
+      not move that path.
 - [ ] After a publish from a feature-branch or detached checkout in a repo
       whose `main` is held by another worktree, that worktree's `main`, index,
       and files all advance to the new tip when it was at the base; when it
       was ahead, nothing there moves and one stderr line names `git pull
       --rebase`.
-- [ ] `refresh` on a control checkout that is behind fast-forwards; ahead or
+- [ ] `refresh` on a control checkout that is behind fast-forwards (explicit
+      ancestry check, not `merge --ff-only`'s exit code); ahead or
       diverged reports the `pull --rebase` line and returns `False`; on a
       feature branch it touches nothing and returns `True`. A launch teardown
       followed by a megalaunch pick in a checkout whose remote moved meanwhile
@@ -431,6 +490,22 @@ code.
 - Packaged twin: `src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md`.
 
 <!-- coga:blackboard -->
+## Dev
+
+branch: publish-sync
+worktree: /home/n/Code/coga-publish-sync
+
+## Decisions (implement step, 2026-09-20)
+
+- Owner confirmed (attended session): one PR here, every consumer ported on
+  this branch; the four-child split is dropped (E7).
+- Owner confirmed the two design deviations: the CAS on the checkout
+  baseline (`merge-base HEAD origin/<control>` blob) replaces the
+  `_STATUS_PROGRESS` ladder and `allow_step_rewind` (E2/E5); with no remote
+  configured `publish` commits on local `<control>` without pushing (E8).
+  Full resolutions are in the ticket body under
+  `### Evaluator findings — resolutions`.
+
 ## Evaluator review
 
 2026-09-20 — **Not ready for implementation.** The never-commit-locally
