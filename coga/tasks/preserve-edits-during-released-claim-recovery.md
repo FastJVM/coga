@@ -68,6 +68,7 @@ Tradeoff: a concurrent manual correction causes a recoverable refusal and anothe
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/842
 branch: fix/released-claim-edits
 worktree: /tmp/coga-released-claim-edits
 
