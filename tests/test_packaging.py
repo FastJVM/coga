@@ -373,6 +373,31 @@ def test_packaged_template_path_accepts_multiple_segments() -> None:
     assert workflow.is_file()
 
 
+def test_bundled_bootstrap_tickets_attach_only_bootstrap_contexts() -> None:
+    """A bundled bootstrap ticket must compose from bundled resources alone.
+
+    `paths.resolve_context_path` falls back to `bootstrap/contexts/` only.
+    `templates/coga/contexts/**` is seeded into a repo once by `coga init`
+    (`copy_fresh_templates`) and is never a runtime fallback, so a context that
+    lives only there is repo-owned and deletable — the shipped
+    `browser-automation` launcher once attached `browser/api-first` from that
+    tree and could not launch in a repo that had pruned it. The authoring rule
+    is stated in `coga/codebase`; this is its enforcement.
+    """
+    bootstrap_root = REPO_ROOT / PACKAGED_ROOT / "bootstrap"
+    launchers = sorted(bootstrap_root.glob("*/ticket.md"))
+    assert launchers
+
+    for launcher in launchers:
+        for ref in Ticket.read(launcher).contexts:
+            bundled = bootstrap_root / "contexts" / ref / "SKILL.md"
+            assert bundled.is_file(), (
+                f"{launcher.relative_to(REPO_ROOT)} attaches context {ref!r}, "
+                f"which does not resolve from {bundled.relative_to(REPO_ROOT)}; "
+                "a bundled bootstrap ticket may only attach bootstrap contexts."
+            )
+
+
 def test_no_launch_entrypoint_run_py_files_remain() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     packaged_root = repo_root / "src" / "coga" / "resources" / "templates" / "coga"
