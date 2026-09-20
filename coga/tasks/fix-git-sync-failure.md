@@ -1,6 +1,6 @@
 ---
 title: fix git sync failure
-status: draft
+status: canceled
 owner: nicktoper
 workflow: code/with-self-review
 ---
