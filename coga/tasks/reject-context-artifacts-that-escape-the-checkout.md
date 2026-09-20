@@ -1,6 +1,6 @@
 ---
 title: Reject context artifacts that escape the checkout
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
