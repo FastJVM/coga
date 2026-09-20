@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
 ---
 
@@ -115,6 +115,31 @@ The feature worktree is clean and contains one committed change ahead of
 `origin/main` (`170c7b98`); there are no incoming commits relative to the fetched
 base. No separate review-fix commit was necessary. The branch remains
 unpushed, with no PR; the next step owns publication.
+
+## Open PR
+
+First `coga open-pr` run refused: `origin/main` had advanced 271 commits
+(117 files, including source) past the branch's base `f9c9182d`, and the
+freshness gate only tolerates state-only Coga task/log drift. None of the
+five files on this branch were touched upstream, so the fix was the skill's
+prescribed remedy: `git fetch origin main` + `git rebase FETCH_HEAD` in the
+recorded feature worktree (clean, no conflicts; commit now `cd7632f5`, one
+ahead of `4007e387b`), full-suite re-run, then `coga open-pr` again from the
+control checkout. The recorded worktree is linked to the sibling
+`/home/n/Code/claude/coga` clone, not this checkout; `open-pr` treats that as
+the separate-checkout layout and operates on it by absolute path.
+
+Full suite on the rebased branch: 2660 passed, 1 failed —
+`tests/test_recurring.py::test_control_worktree_is_removed_and_unregistered_after_the_run`.
+It fails identically on `origin/main` and is caused by stale
+`/tmp/coga-recurring-repo-*` fixture directories left by earlier runs on this
+machine (the test globs the whole tempdir); after moving those aside it passes
+on both trees and cleans up after itself. Not a regression from this branch;
+noted as a pre-existing test-isolation gap on `main`, not fixed here.
+
+Second `coga open-pr` run succeeded: PR #847
+(https://github.com/FastJVM/coga/pull/847), title = ticket title, body from
+the `## PR` section above. `pr:` recorded under `## Dev`.
 
 ## PR
 
