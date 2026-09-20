@@ -297,6 +297,6 @@ semantics:
 - The primitives the homes are built from (tickets, workflows, skills, launch
   composition, the files-on-disk invariant) — see `coga/architecture`.
 - Where the kernel source lives and how to test it — see `coga/codebase`.
-- The strict publication invariants around a `ticket.py` phase and around
-  launch generally — leases, recorded-checkout and PR-head proofs,
-  compare-and-set publication, compensation — see `coga/launch-internals`.
+- The publication invariants around a `ticket.py` phase and around launch
+  generally — the assist's checkout alignment, the claim compare-and-swap,
+  admission generations — see `coga/launch-internals`.

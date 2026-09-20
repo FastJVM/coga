@@ -1,6 +1,6 @@
 ---
 name: coga/launch-internals
-description: The strict publication invariants behind coga launch, megalaunch, the recurring runner, and the requires-pr gate — recorded-checkout and PR-head proofs, leases, compare-and-set publication, compensation, and recurring admission generations. Attach only to tickets that change launch.py, megalaunch.py, the recurring runner, open-pr, or the step gates.
+description: The publication invariants behind coga launch, megalaunch, the recurring runner, and the requires-pr gate — the human-step assist's checkout alignment, megalaunch's claim compare-and-swap on control, recurring admission generations, and what open-pr must guarantee. Attach only to tickets that change launch.py, megalaunch.py, the recurring runner, open-pr, or the step gates.
 ---
 
 # Coga launch internals
@@ -8,370 +8,113 @@ description: The strict publication invariants behind coga launch, megalaunch, t
 These are the concurrency and publication guarantees behind `coga launch`,
 `coga megalaunch`, the recurring runner, and the `requires: pr` step gate. They
 are what a change to `commands/launch.py`, `megalaunch.py`, the recurring scan,
-`step_gate.py`, or `open_pr.py` must not break.
+`step_gate.py`, or `open_pr.py` must not break. Every publication below is one
+`git.publish` (`coga/sync`, *Git — durable task-state sync*): control is the
+only durable home, Coga never commits on a local branch, and the provenance
+check is the compare-and-swap every writer shares.
 
 **Not attached by default, on purpose.** `coga/architecture` carries the model
 an agent needs to *operate* — what runs when, what advances a step, what a
-handoff means, and where each of these sections picks up. Everything here is
-what the implementation must *guarantee* under concurrent writers, at several
-times the prompt weight of an ordinary attached context — a bill every
-ordinary ticket is better off not paying. Add `coga/launch-internals` to a
-ticket's `contexts:` list when the work touches those paths.
+handoff means. Everything here is what the implementation must *guarantee*
+under concurrent writers. Add `coga/launch-internals` to a ticket's
+`contexts:` list when the work touches those paths.
 
-## Strict human-assist publication
+## The human-step assist
 
 `coga launch <slug> --agent <type>` on a locally human-owned ticket is the
-strict assist path. `coga/architecture` describes when it is entered; this is
-what it must prove before and around every generated write.
+assist path. `coga/architecture` describes when it is entered; this is what
+it proves before the session and what it never does.
 
-### Around a `ticket.py` phase
+**Alignment before composition.** When launch runs from the exact recorded
+`worktree:` on the recorded `branch:` with a recorded `pr:` (primary checkouts,
+linked worktrees, and independent fallback clones alike), it first requires
+the PR to be open and proves its head repository, branch, and OID match the
+configured remote's push URL — a same-named base-repository branch cannot
+stand in for a fork PR head, and the recorded branch must not share the
+control branch's name. A merely-behind checkout is fast-forwarded to the
+verified PR head before the final config, ticket, skill-view, secrets,
+expected-step, and prompt reads, for every resumable status; launch then
+reloads that state from the aligned tree while preserving the task slug
+originally resolved from any user-supplied prefix. Alignment refuses an ahead
+or diverged tip and any checkout dirt other than Coga's own live state (task,
+log, recurring paths). A different, missing, or mismatched checkout gets
+ordinary launch handling with no alignment.
 
-A recorded single-checkout human assist first verifies and aligns its
-authoritative PR tip, publishes the
-started lifecycle and pre-script audit under the strict PR/control lease, then
-executes `ticket.py` with the same task-scoped assist capability. Valid direct
-ticket/blackboard output and the exit audit are republished from their exact
-post-child byte snapshot under a lease acquired before user code; ignored
-untracked leaves, including ignored non-regular local-environment entries, are
-never part of that snapshot; tracked symlinks remain a refusal. Task validation
-runs before publication, and an invalid result is restored and audited instead
-of reaching either ref. If a nested lifecycle command already published while
-the child ran, recovery restores the latest re-verified feature/control
-lifecycle rather than the stale pre-child state. Live notification
-configuration is preflighted before the child or any strict lifecycle/audit
-publication.
-Lifecycle commands invoked by that child (`bump`, `mark paused/done/canceled`,
-`block`, and `unblock`) capture their own exact task-tree mutation snapshot
-before acquiring a fresh inherited assist lease, publish earlier deterministic
-attachments plus the transition to feature and control together, and include
-the recurring parent high-water state when a period task completes. They leave
-only the trailing script-exit audit for the parent to renew under an append-only
-lease. While that scoped assist environment is present, the CLI's
-generic end-of-command Coga subtree sweep is disabled on success and failure;
-only an exact assist publisher may commit child state. Before every agent
-spawn, launch rebuilds the environment from the fresh ticket's secret
-declarations; after each child boundary it reloads config, target, and ticket
-again before classifying the handoff. An explicit override assisting an owner-held
-step expires when the script advances the workflow to an agent step, so that
-step's derived operator selects the next agent phase; the aligned checkout's
-strict publication capability continues through that configured-agent chain.
+**No publication to the PR branch.** The assist's lifecycle writes — the
+activation, the `in_progress` start, a `ticket.py` phase's result, in-session
+`bump`/`mark`/`block`/`unblock`, the usage record at teardown — all publish to
+the control branch only, exactly as every other checkout's do. The single
+checkout keeps that live state dirty by design; `coga open-pr` excludes it
+from its cleanliness gate. The child inherits `COGA_ASSIST_AGENT`,
+`COGA_ASSIST_BRANCH`, and `COGA_ASSIST_PR` so its lifecycle commands attribute
+audit lines to the assisting agent rather than the human ticket owner; the
+override expires for routing once `ticket.py` advances the workflow to an
+agent step, while the attribution continues through that chain.
 Deterministic completion uses the system attribution contract in
 `coga/architecture`, including inside an assist. Its marker is independent of
-the assist capability and cannot replace any lease or PR-head proof here.
+the assist capability and cannot replace the PR-head proof here.
 
-### Recorded checkout, PR head, and the publication lease
-
-The assist publishes to an already-open PR branch, so it proves its right to
-that branch before every generated push.
-
-Publication requires launch to run from the exact recorded `worktree:` on the
-recorded `branch:`; primary checkouts, linked worktrees, and independent
-fallback clones are all supported, while a separate, missing, or mismatched
-checkout keeps ordinary local-only log
-handling. Before touching that branch, launch requires the recorded `pr:` to be
-open and proves its actual head repository, branch, and OID match the
-configured remote's **single** effective push URL — a same-named
-base-repository branch cannot stand in for a fork PR head, a separate fetch URL
-cannot authorize pushes to another repository, and a multi-`pushurl` remote is
-refused because Git cannot update all of its destinations atomically. The
-recorded PR branch must also have a different local name from the configured
-control branch: Git exposes only one checked-out ref for that name, so Coga
-cannot give a same-named fork head a feature-only publication transaction.
-A merely-behind recorded checkout is then fast-forwarded before the final
-config, ticket, skill-view, secrets, expected-step, and prompt reads for every
-resumable status, including paused and blocked tickets; launch reloads that
-state from the aligned tree before deriving its operator, while preserving
-the exact task slug originally resolved from any user-supplied prefix. Every
-behind-checkout fast-forward rechecks the active branch and sampled HEAD
-immediately before merging, so a concurrent checkout switch cannot redirect
-the PR tip onto another branch. Strict alignment
-also rejects unexpected staged, tracked, or untracked checkout dirt even when
-the local tip already equals the remote; a genuinely append-only pending
-union-safe audit log is the sole explicit exception. That exception requires a
-non-empty byte suffix on the same regular file with the same Git mode; a
-chmod-only delta or a symlink/type replacement is ordinary unexpected dirt.
-On the agent path, draft, paused, and blocked activation and `in_progress`
-publication stay deferred through prompt composition, prompt-file and argv
-construction, and the pre-session audit commit. Two deterministic paths invert
-that order on purpose and are not instances of the bug this ordering fixed. A
-`ticket.py` phase resolves declared secrets through `build_launch_env` and then
-activates the ticket *before* every agent-only preflight, because a
-deterministic phase genuinely is work starting; CLI lookup, skill refresh,
+**Activation order.** On the agent path, draft, paused, and blocked
+activation and `in_progress` publication stay deferred through prompt
+composition, prompt-file and argv construction, and the pre-session audit. A
+`ticket.py` phase inverts that on purpose: it resolves declared secrets
+through `build_launch_env`, preflights live notification configuration and
+push auth, activates and starts the ticket, and only then runs the script —
+a deterministic phase genuinely is work starting; CLI lookup, skill refresh,
 prompt composition, and the remaining agent preflights stay deferred until
-`ticket.py` actually leaves agent work open.
+`ticket.py` actually leaves agent work open. Both paths share
+`_auto_activate` and `_start_session`.
 
-Which writer performs that activation depends on the path, and the two are an
-`if`/`elif` in `commands/launch.py` — only one ever runs. The ordinary
-(non-assist) `ticket.py` phase calls `_auto_activate`. A **strict human assist**
-(`single_checkout_assist_branch is not None`) never reaches it: it builds the
-environment, takes `_prospective_assist_ticket`, runs the notification and
-push-auth preflights, captures the exact ticket bytes, and activates through
-`_publish_assist_lifecycle_before_spawn` under the publication lease. So a
-change to `_auto_activate` does not carry to the assist path and cannot be
-assumed to preserve its behavior; a change to the deferral *order* has to be
-made in both. A forced recurring run's
-`recurring_runner._prepare_forced_launch` durably `mark_active`s the period
-ticket ahead of launch's own preflights — logged `activated (<prior> → active)
-for forced recurring run` — so a later preflight failure at least leaves the
-task live for a future normal sweep instead of silently burning the forced
-period. Grepping `mark_active` will surface both; neither is a deferral to
-restore. At the final pre-spawn boundary launch captures one exact ticket byte
-revision, parses the lifecycle from those bytes, and binds rollback to that
-same revision. It rechecks the bytes after the network-backed publication
-lease is acquired,
-re-proves that the exact recorded PR URL authorized during alignment is
-unchanged and open at the exact leased remote OID, and requires the committed
-feature ticket's `TicketRoutingState` — status plus the persisted routing
-inputs (`owner`, the main-agent choice, the frozen workflow's role
-declarations, and the current position) — to match a freshly fetched control
-copy. There is no cached assignment left to compare, so the lease compares what
-the assignment used to be derived from; a changed owner, main-agent choice, or
-role therefore still invalidates a same-step lease. It is computed from committed
-bytes without loading mutable config, so two checkouts of the same bytes cannot
-disagree because their `coga.local.toml` differs. The lease also records the exact control-side task object
-(ticket blob, or the directory tree including attachments), and every
-publication attempt requires that object to remain unchanged; even a
-same-lifecycle owner prose or attachment edit forces a fresh launch instead of
-being overlaid. After lifecycle publication, launch obtains a fresh lease and
-repeats the recorded-checkout, PR-head, and generated control-task proof before
-returning to the actual spawn call. The publication guard repeats that same-URL
-open-PR/OID proof immediately before every generated feature push. The lease
-also captures the sole verified push URL itself; feature, control,
-compensation, and outcome-probe operations use that URL directly, so a
-concurrent `.git/config` rewrite cannot redirect or add a second destination.
-Every fetched tip used by strict alignment, publication, compensation, and
-refresh is stored in a UUID-scoped command-owned ref and resolved from that
-ref. Strict paths never treat the checkout-wide `FETCH_HEAD` as authority:
-another local process may overwrite it between Coga's fetch and read
-subprocesses, even when both commands are otherwise correctly leased.
-Every strict control candidate is also pushed under an exact lease on the
-control base that just passed the task-object guard. A concurrent deletion or
-force-rewind therefore loses that attempt; any retry fetches and guards the
-new base before rebuilding instead of recreating a deleted ref or restoring
-rewound history from a stale parent.
-The
-combined lifecycle commit is built directly on the verified tip and moves the
-local branch with an expected-old-OID ref CAS. Its ticket and audit leaves come
-from the rollback snapshot armed by the state writer, while unchanged task
-attachments come from the leased feature tree; a concurrent worktree edit is
-left visible and dirty instead of being adopted into either durable ref. An
-interrupt around the local ref CAS rolls that exact generated commit back
-before any remote publication. The captured tree is then pushed
-under an exact remote-tip lease *before* the same captured state lands on
-control or a start notification is sent. A lost lease removes that commit only
-when the local ref still names it. An interrupt after the feature push probes
-the exact destination: when control has not accepted the state it compensates
-the feature branch before propagating, and when control has accepted it the
-publisher records that durable boundary before propagating so local rollback
-cannot split the two refs. If the control acceptance probe itself is
-inconclusive, the generated feature state is retained for explicit
-reconciliation; compensation is forbidden because control may already contain
-it. If the later control landing fails,
-compensation fetches the live feature descendant, applies only the inverse of
-Coga's generated paths on top, reverse-three-way-merging ordinary files so
-non-overlapping peer edits to the same path survive and refusing compensation
-when those edits overlap. The checkout rechecks its active branch and HEAD
-immediately before fast-forwarding to that compensation, and skips the local
-merge if another command switched it. A completed local fast-forward keeps the
-compensated descendant's worktree bytes, including same-path peer edits,
-instead of rewriting the stale failed transition over them. A lost
-acknowledgement for the compensating push is probed against that exact push
-destination; if that probe is inconclusive or shows the ambiguous push did not
-land, generated local bytes are retained for explicit reconciliation. The
-error still escapes and the caller
-restores an ordinary file only while it still equals an armed generated
-snapshot, while removing generated audit lines union-safely from a concurrently
-appended log; an unarmed rollback refuses rather than guessing that current
-bytes belong to Coga. Strict state writers therefore arm rollback from the
-exact bytes they constructed for each generated file write, never by rereading
-a live path that a peer may already have changed, before post-write validation
-can reject it; they then add the exact encoded audit append to that owned
-snapshot. Before replacing a ticket from an in-memory state object, they also
-require its live bytes to equal the latest captured revision. That comparison,
-replacement, and snapshot arming share the local publication barrier. A failed
-strict lifecycle mutation's generated-byte comparison and conditional restore
-share it too, so a peer lifecycle write cannot land in either compare/write
-gap. Their first blocker append or resolution is likewise conditional on the
-captured full-ticket bytes before the blackboard splice, including a resolution
-that would be a no-op because its last blocker was just resolved by a peer, so
-it cannot adopt
-a peer revision and label it generated. Strict `block`, `unblock`, and the
-automatic unresolved re-block capture that full-ticket revision before any
-network-backed publication lease or notification preflight, parse their state
-from the same captured bytes, and condition their first write on it. A peer
-edit during that pre-write window is retained instead of becoming the
-command's rollback baseline. A failure
-before lifecycle publication restores those generated bytes. If an interrupt
-lands only after both feature and control publication succeeded, launch retains
-the identical published `in_progress` state instead of locally rewinding into a
-dirty split; the same explicit launch can then retry the still-unstarted
-session. A resumed blocked assist also runs its automatic unresolved re-block
-on exceptional post-start exits such as signals, not only on a normal REPL
-return. No unrelated concurrent work is swept. Reproducible
-notification configuration errors are likewise checked before publication,
-including an explicit in-session `coga block`.
-If live delivery still fails after strict state publication, the failure stays
-loud on stderr but does not append a new unleased audit line to the protected
-checkout.
-The assist also commits its own launch-log append so
-Coga's audit line cannot trip the PR worktree's clean-tree gate. If the remote
-or control ticket moves after composition, launch refuses to spawn and
-requires a retry rather than working under stale instructions; a failed
-generated-log push undoes only that commit and leaves the append dirty for the
-retry. Behind-checkout audit alignment uses guarded replacement before the
-fast-forward and append-only union restoration on every exit around it,
-including interrupts before or after the ref moves, so an audit line appended
-during alignment is never overwritten. That retryable refusal exits with the
-no-sweep temporary-failure code,
-so neither launch refresh nor CLI teardown can immediately commit the retained
-append. TTY refusal still precedes recorded-checkout and remote validation, but
-it locally recognizes a sole unstaged append-only audit-log delta and uses that
-same no-sweep exit; a clean checkout or any other dirt keeps the ordinary exit
-2. Every failure after strict assist alignment has begun, including later
-ticket reads and other pre-session setup, uses the same no-sweep exit. A
-checkout switch after alignment is a retry-only refusal, never a silent
-downgrade to an ordinary launch. The child inherits a task-scoped recorded-branch,
-recorded-PR, and effective-agent capability,
-allowing required in-session state commands such as the blocked-resume
-`coga unblock`, an explicit `coga block`, and deterministic completion via
-`coga bump` or `coga mark paused/done/canceled` to acquire a fresh
-feature/control lease
-and re-prove the same PR is open immediately before their generated push,
-while attributing a blocker to the assisting agent rather than the ticket's
-owner, without granting it to nested ordinary launches. If that resumed session exits
-with its ask still open, launch obtains a fresh lease and republishes the
-automatic `blocked` transition before notifying the owner; a lost reblock lease
-restores the prior ticket and log bytes. That fresh lease admits a retained
-trailing usage record only when the dirty audit bytes are append-only. The pre-session log, trailing usage
-log, automatic unresolved re-block, and final generated control-state refresh
-remain pinned to the recorded branch, re-prove the recorded PR is still open,
-and publish captured generated OIDs only from a safely aligned, exact remote
-tip. Assist refresh also reads control state from that verified push
-destination, not a fork remote's potentially different fetch/base repository.
-A strict refresh verifies the expected branch and HEAD again before its first
-worktree write, retains its initial per-path byte sample, and rechecks each
-candidate's live dirt immediately before replacing it. A peer edit after the
-initial scan is skipped or defeats the expected-byte write rather than being
-adopted as refresh input. A lost refresh lease restores its pre-refresh tip only while the
-expected branch and HEAD still own the checkout, then restores ordinary bytes only when
-they still match the generated snapshot and removes generated audit lines
-union-safely around concurrent appends. Strict audit and refresh pushes catch
-interrupts as well as ordinary Git failures and probe the exact destination
-before deciding whether to retain or unwind their local generated commit. If the agent
-switches branches or the PR closes, teardown skips those commits instead of
-redirecting or advancing a merged branch and uses the same no-sweep exit. This
-normalization also wraps the teardown refresh call itself: SIGINT, SIGTERM, or
-another exceptional refresh exit after alignment becomes the no-sweep
-temporary failure rather than falling through CLI teardown with 130/143. This
-preserves the PR branch's local/remote alignment without the catch-all sweep
-committing retained state on an unrelated or closed branch. Megalaunch keeps a
-separate human gate and does not inherit this relaxation.
+**Blocked resumes.** A resumed blocked launch is allowed to become
+`in_progress` so the session can resolve the ask. Whatever ends the session
+without a resolution — a script failure, a pause or close, a handoff, an agent
+exit, an interrupt — `_reblock_unresolved_resume` returns the still-open ask to
+`blocked` (restoring the original step when a transition cleared it) and
+publishes that, so the ask stays visible to `status --blocked`, `unblock
+--all`, and blocker reminders.
 
 ## Megalaunch claim publication
 
 Megalaunch binds its preflight to exact source ticket bytes before either a
 deferred activation or an `in_progress` claim writes locally. A picker launch
-also parses status, routing, and open blocker asks from that captured revision
-and reclassifies it before activation; a blocker resolved in the read/capture
+parses status, routing, and open blocker asks from that captured revision and
+reclassifies it before activation; a blocker resolved in the read/capture
 window therefore remains `blocked` and is reported as ask-less instead of
 starting. An unattended sweep likewise treats its outer queue scan only as a
 hint: the exact preflight reread rechecks owner, status, blockers, and current
 step from the same captured bytes, so a peer edit between classification and
 launch cannot cross a stale gate. That gate-only reclassification is not a
-launch attempt and does not consume `--max-tasks`. Snapshot capture treats a
-ticket removed during the filesystem read as absent, so that pick fails without
-aborting later queue entries. With Git sync enabled, each lifecycle write uses
-a strict compare-and-set against the same whole-ticket bytes on a freshly
-fetched
-control tip. The generated local commit is unwound and the caller-owned ticket
-and audit bytes are restored when that lease or an ordinary publication attempt
-fails; an ambiguous accepted push retains generated evidence for explicit
-reconciliation. A session never reaches exec until its unique
-`launch_generation` claim is durably published as `pending:<uuid>`. This
-prevents two checkouts preflighted from one control revision from both starting.
-In a detached checkout, strict publication also seals the exact generated bytes
-in a scoped detached commit and overlays only those leaves on control,
-preserving newer sibling attachments. A successful pending claim is therefore
-clean before final validation or CLI teardown, rather than available for a
-later broad sweep to replay. The shared state publisher treats that pending
-control revision as sealed: no ticket edit, lifecycle transition, authoring
-write, or deletion can replace it. The sole exception is megalaunch's exact
-post-gate removal of `pending:` under the original whole-ticket lease. Once the
-plain admitted generation lands, normal same-generation blackboard and
-session-ending edits again require a committed ticket baseline equal to freshly
-fetched control. Each accepted detached edit advances that baseline with
-another exact-leaf commit. Another megalaunch cannot reclaim either form;
-ordinary `coga launch` refuses pending admission and is the explicit recovery
-path for a plain admitted claim. If post-release admission publication fails,
-the launcher instead retains `released:<uuid>` only in its checkout and kills
-the child. An explicit ordinary launch fetches control, accepts only the exact
-matching pending or already-admitted ticket, strictly normalizes both sides to
-the plain UUID, and only then starts recovery. Broad sweeps cannot publish the
-released witness, and another megalaunch refuses it. Workflow advancement and
-lifecycle transitions that end or park an admitted session clear the
-generation.
+launch attempt and does not consume `--max-tasks`. A ticket removed during the
+capture is absent, so that pick fails without aborting later queue entries.
 
-The dependency drain enters that boundary with one extra state change. It
-re-captures the exact `blocked` ticket and open asks, validates the prospective
-activation before writing, then arms the activation, audit line, and automatic
-blocker resolution in one rollback snapshot. Git-enabled runs publish that
-whole result through one exact control-ticket compare-and-set, so the following
-launch claim consumes the resolved `active` bytes rather than a local-only
-answer. An activation refusal leaves the ask open; an ordinary lease or
-publication failure restores the blocked bytes and removes only the generated
-audit line, while an ambiguous accepted push retains evidence for explicit
-reconciliation.
+With Git sync enabled, every lifecycle write is `sync_task_state(strict=True)`:
+the publish's provenance check is the compare-and-swap, so two checkouts
+preflighted from one control revision cannot both start — the second push is
+non-fast-forward, the rebuilt publish finds control's ticket carrying a
+`pending:<uuid>` it did not derive from, and is refused. A session never
+reaches exec until its unique `launch_generation` claim is durably published
+as `pending:<uuid>`. On `StateRegressionError` or `GitError` (definitely not
+on control) megalaunch restores the pre-write ticket bytes and retracts its
+own audit lines; on `UncertainPublishError` (the push reported failure and
+control could not be re-read) it keeps the pending local state as the legible
+evidence for reconciliation and reports.
 
-After strict publication returns, an exact local reread catches changes made
-during that synchronous boundary. The shared `validate_before_spawn` seam then
-repeats the local proof and freshly fetches every effective control push
-destination before the launch audit; each control ticket must still equal the
-whole preflighted pending `in_progress` revision. Megalaunch repeats that same
-proof at the `validate_after_spawn` seam after the PTY child exists but while a
-private pipe still holds it before exec, binding both `launch_generation` and
-prompt inputs at the actual executable boundary. It then appends the audit and
-repeats that held-child proof after the append. Only the second success writes
-the one-byte gate. A checkout-local state admission/publication barrier covers
-the append, second proof, pipe write, and post-release admission callback; every
-Coga task creator, lifecycle-ticket writer, blackboard/report writer, safe-fix
-writer, task deleter, and Git publisher in that checkout waits on the same
-kernel-released advisory lock. Across other checkouts, the shared explicit-path
-publisher rejects every change to the pending control ticket, even when its
-caller supplied no lifecycle guard. A remote transition arriving after the
-last fetch therefore cannot overtake release.
-
-After the gate byte is delivered and the child is marked released, the
-supervisor calls back before dropping the barrier. Megalaunch strips only
-`pending:` and strictly publishes the same UUID against the exact pending
-ticket. If the pipe write fails, the admission-failure hook instead removes the
-provisional audit and clears the session-started flag before the still-held
-child is killed. SIGINT and SIGTERM are masked across the atomic gate write and
-released-state update; if a pending handler raises when the prior mask is
-restored, the supervisor retains the audit and started state before terminating
-the now-launched child. A mismatch or unverifiable pre-release fetch
-conditionally removes the owned audit line, refuses the child, and retains the
-pending `in_progress` state for reconciliation; an audit failure likewise kills
-the held child. A post-release admission failure kills the child but retains
-the audit and records `released:<uuid>` locally before retaining it for
-reconciliation. `coga launch <slug>` is the supported retry: it verifies the
-whole remote ticket is the matching pending or already-admitted revision,
-then rechecks the local ticket against the exact released bytes validated
-before fetching control. If those local bytes changed, recovery refuses before
-admission or publication and preserves the edited bytes and released generation
-without restoring over them or spawning. The publication barrier serializes
-Coga writers, not ordinary editors: this pre-write comparison closes the fetch
-window without providing a filesystem-wide atomic editor lock. With unchanged
-local bytes, recovery strictly publishes the plain UUID and refuses to spawn
-if the remote proof or Git publication fails. Thus an edit during the append
-cannot start stale work or publish a false launch record, and no audit failure
-or release-boundary interrupt starts unrecorded work. It never compensates
-backward to `active`; the retained pending, released, or admitted claim is the
-durable reconciliation witness. Another megalaunch refuses every form before
-it can rotate the claim.
-
-Git-disabled repositories use a plain generation and retain both exact local
-rereads and the local admission barrier without claiming a nonexistent control
-publication.
+The shared publisher treats the pending control revision as sealed: no ticket
+edit, lifecycle transition, authoring write, or deletion can replace it. The
+sole exception is the identical ticket with the prefix stripped — megalaunch's
+post-gate admission, published with `expect` pinned to the pending copy while
+the supervisor still holds `state_lock` (reentrant within the thread).
+Before the audit append and again after it, `_revalidate_launch_claim_before_spawn`
+rereads the local bytes and control's copy after a fresh `fetch_control`;
+any difference refuses the held child. If the admission publish fails after
+release, the local `released:<uuid>` witness is retained; an ordinary
+`coga launch` reconciles it by fetching control, accepting only the matching
+pending or admitted revision, rereading the local ticket against the exact
+released bytes validated before the fetch — a manual edit made during that
+network wait refuses recovery before admission or publication and is
+preserved, since `state_lock` serializes Coga writers, not ordinary editors —
+then publishing the plain UUID with `expect`, and restoring the witness on
+any failure. The sweep never publishes a released witness on its own. Another megalaunch never reclaims any claim form.
 
 ## Recurring admission generations
 
@@ -379,91 +122,68 @@ publication.
 is the admission machinery that keeps a stale or replaced period task from
 starting, completing, or parking work at a stable path.
 
-A sweep or named recurring run performs full recurring admission at its
-outer boundary, freezes each period's exact ticket plus its creator-owned
-`period_generation` token, then launches through an internal typed seam. Every
-lease comparison on this path goes through `same_period_lease`: generation and
-the full ticket must both match, but a CRLF-versus-LF difference is not a
-change, because a line-ending-converting checkout (`core.autocrlf`) rewrites an
-untouched ticket on each restore from control while its blob stays LF. Immediately
-before each ordinary child, that seam refreshes control state, resolves only
-the exact ref (never a prefix sibling), and rechecks branch/owner plus the
-frozen generation. A task removed, paused, finished, or replaced while an
-earlier child ran is skipped; an unverified remote-backed refresh refuses
-rather than starting stale work. A Git checkout with no configured remote
-freezes that local-only class at outer admission and uses exact local control
-state; a remote that disappears afterward still refuses. A deterministic
-child retains that refreshed admission generation; immediately before every
-ordinary agent spawn, launch requires the same bounded token and the complete
-current ticket to match the launchable state just composed. On either child's
-unfinished exit, that token distinguishes a replacement from the same child's
-ticket and audit writes; only the latter acquires a fresh exact lease, and the
-guarded pause is derived from those newly leased bytes so concurrent
-same-generation edits survive. A replacement refuses teardown instead of
-parking the stable path's new owner.
-It does not re-enter the whole public launch path. A
-direct `coga launch recurring/<name>` has no such outer admission, so it gates
-and requires verified catch-up before resolving even a locally missing period
-ref when a remote is configured; without one, local `HEAD` is the sole control
-state. For a frozen
-delegation, the runner separately preflights the period task's push access
-and leases its exact ticket bytes plus creator-owned generation at start,
-final spawn, and post-child completion/timeout. The lifecycle publications
-are compare-and-sets against control and every attempted Git verification
-or publication failure propagates: an old or unverified child cannot start,
-nor mark a later generation at the stable path done or paused. A sweep
-continues after a delegated timeout only when its guarded pause publishes;
-a stale or failed pause refuses the run. Final spawn admission also leases
-the exact parent recurring ticket named by the period state snapshot against
-control. Delegated completion consumes that same parent input in its strict
-transaction, so a concurrent parent edit refuses instead of being
-overwritten and `done` cannot land without the child's cross-run cursor
-update. The live completion notification waits for durable publication. An
-unaccepted generated local commit is unwound before
-caller-owned file rollback. An ambiguous control push is probed by exact
-candidate OID across every effective push destination; disagreement or
-otherwise unknown acceptance retains local evidence and refuses for
-reconciliation instead of rolling back into split state. Direct
-launch may activate a paused/draft delegated period inline; scheduled and
-named recurring scans keep paused periods parked.
+A sweep or named recurring run performs full recurring admission at its outer
+boundary (`refresh` of a checked-out control branch; an `--all` child refuses
+with `STALE_CONTROL_EXIT_CODE` when it cannot be brought level), freezes each
+period's exact ticket plus its creator-owned `period_generation` token, then
+launches through an internal typed seam. Every lease comparison goes through
+`same_period_lease`: generation and the full ticket must both match, but a
+CRLF-versus-LF difference is not a change. Immediately before each ordinary
+child, that seam runs `refresh` again, resolves only the exact ref, and
+rechecks branch/owner plus the frozen generation; a task removed, paused,
+finished, or replaced while an earlier child ran is skipped, and an
+unverified remote-backed refresh (including a remote that disappeared after
+admission) refuses rather than starting stale work.
+
+The recurring create is one `publish` of the period task, the template's run
+cursors, and the log, with `expect` pinned to control's exact ledger and
+template copies read at the same fetch: a peer that serviced the period
+between that read and the push makes the publish refuse, and the create
+re-reads control — adopting the peer's period and publishing only its own log
+line when the period is already handled — instead of landing a duplicate.
+
+For a frozen delegation, the runner preflights the period task's push access
+and verifies its exact ticket bytes plus generation against freshly fetched
+control at start, final spawn, completion, and timeout
+(`_verify_period_on_control`); completion also verifies the exact parent
+recurring ticket named by the period's state snapshot, and publishes it with
+the `done` transition so `done` cannot land without the child's cross-run
+cursor update. Every lifecycle publication is strict: a refused or failed one
+restores the leased bytes and retracts the audit lines; an uncertain one
+retains the local write and refuses for reconciliation. A sweep continues
+after a delegated timeout only when its guarded pause publishes. The live
+completion notification waits for durable publication. Direct launch may
+activate a paused/draft delegated period inline; scheduled and named scans
+keep paused periods parked.
 
 ## The `requires: pr` gate's publication path
 
-`coga/architecture` describes the gate itself — a data check on the blackboard,
-run before `coga bump` advances off the step. This is what `coga open-pr` must
-guarantee when it writes the artifact the gate reads.
+`coga/architecture` describes the gate itself — a data check on the
+blackboard, run before `coga bump` advances off the step. `coga open-pr` proves
+live-ticket ownership with `COGA_EXPECTED_TASK`, which the outer step
+supervisor pins alongside `COGA_EXPECTED_STEP` to the exact task and frozen
+step used for prompt composition; nested task re-derivation never reassigns
+either witness, so they keep naming the outer session, separate a real session
+from an independent fallback clone, and make `coga bump` refuse a stale
+supervised session after another worker advanced the ticket.
 
-`coga open-pr` proves live-ticket ownership with `COGA_EXPECTED_TASK`, which
-the outer step supervisor (`coga launch` or `coga megalaunch`) pins alongside
-`COGA_EXPECTED_STEP` to the exact task and frozen step used for prompt
-composition. Unlike the `COGA_TASK_*`
-metadata, nested task re-derivation does not reassign either witness, so they
-keep naming the outer session rather than whatever the environment last
-described. The task witness separates a real session from an independent
-fallback clone; the pair also makes `coga bump` refuse a stale supervised
-session after another worker advances the ticket. The recipe
-pushes the recorded feature branch by name, opens or readies the PR, and writes
-`pr:` under `## Dev`; in the single-checkout layout it syncs that generated
-ticket write to the feature branch *and* the control branch, so the branch stays
-clean and both tips keep identical ticket bytes — otherwise the next run's
-freshness gate would reject the command's own record as a divergent overlap.
-That sync is reported but not fatal: the PR is already open once it runs, so a
-failed push must not fail the command. Before its clean-tree gate it commits the
-pending generated launch-log append, without exempting any other dirt. Its
-freshness gate accepts byte-identical generated task/log overlaps created when
-preceding lifecycle syncs committed the same state on the feature and control
-branches, but still rejects any divergent blob; lifecycle-only task/log commits
-do not satisfy the single-checkout branch's non-empty implementation guard.
-After the command, the successful `requires: pr` transition lands the updated
-ticket on control and republishes that transition commit to the PR branch, so
-its `step:` state cannot conflict at merge. Launch teardown then
-publishes the trailing usage-log commit to the already-open branch, keeping its
-remote and local tips aligned.
+The recipe pushes the recorded feature branch by name, opens or readies the
+PR, and writes `pr:` under `## Dev`, publishing that record to control
+(reported, never fatal — the PR is already open). In the single-checkout
+layout it first publishes the pending launch-log append, then excludes Coga's
+live task, log, and recurring state from its cleanliness gate; any other dirt
+still refuses. Its freshness check (`check_branch_contains_control`) reads the
+remote-tracking ref it fetched into, never `FETCH_HEAD`, and accepts only
+non-overlapping generated Coga state as drift; lifecycle-only commits never
+satisfy the branch's non-empty implementation guard. The successful
+`requires: pr` bump and the teardown usage record both land on control only.
 
 ## What this context does NOT cover
 
 - The model these invariants protect — what launch does, what advances a step,
   what a handoff means — see `coga/architecture`.
+- The git primitive itself — `publish`, `refresh`, the provenance check,
+  `state_lock` — see `coga/sync`.
 - The operator-facing behavior of the commands involved — see `coga/cli`.
 - Where the code lives and how to test it — see `coga/codebase`.
 - The recurring surface as a whole (schedules, templates, the autofix loop) —

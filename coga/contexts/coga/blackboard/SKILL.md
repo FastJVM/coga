@@ -187,30 +187,29 @@ ticket at the same time. **There is deliberately no ownership mutex.** From
 > branches) is visible and recoverable in git; the cost of a hard ownership
 > mutex (stale lock state, `--force` flags, orphan-lock cleanup) is not.
 
-What does exist is a narrow **state admission/publication barrier**, and
-"shipped blackboard writers use the same read/transform/compare/write
-boundary." Read that passage for the barrier's full scope; in code it is
-`update_blackboard_under_barrier`, which holds `git.state_publication_barrier`,
-captures the live bytes, and compares them again at replacement via
-`expected_bytes` — raising `TaskFileError` if a comparison detects a change,
-rather than overwriting it. This detects intervening edits even from an editor
-outside the barrier; it does not lock that editor.
+What does exist is a narrow **state lock**, and "shipped blackboard writers
+use the same read/transform/compare/write boundary." Read that passage for the
+lock's full scope; in code it is `update_blackboard_under_barrier`, which
+holds `git.state_lock`, captures the live bytes, and compares them again at
+replacement via `expected_bytes` — raising `TaskFileError` if a comparison
+detects a change, rather than overwriting it. This detects intervening edits
+even from an editor outside the lock; it does not lock that editor.
 
-Lifecycle writes have a narrower guarantee. `git.write_ticket_under_barrier`
-serializes the write, but compares the live ticket only when its caller supplies
-a `mutation_snapshot`; it does not reread the body. Ordinary `coga mark active`
-loads a `Ticket` before taking that barrier and supplies no snapshot. A
-blackboard update that finishes between that load and the lifecycle write can
-therefore be overwritten by the old `Ticket.body`. Preserving separate regions
-is safe without an intervening edit; concurrent preservation requires the
-read/transform/write to share the barrier or an unchanged-byte check covering
-the read. The ordinary lifecycle path does not yet provide that guarantee.
+Lifecycle writes have a narrower guarantee. `git.write_ticket` serializes the
+write but does not reread the body. Ordinary `coga mark active` loads a
+`Ticket` before taking that lock. A blackboard update that finishes between
+that load and the lifecycle write can therefore be overwritten by the old
+`Ticket.body`. Preserving separate regions is safe without an intervening
+edit; concurrent preservation requires the read/transform/write to share the
+lock or an unchanged-byte check covering the read. The ordinary lifecycle
+path does not yet provide that guarantee; megalaunch's strict writes do, by
+comparing the exact source bytes under the lock immediately before writing.
 
 For a programmatic section append, call `append_to_section_text` with the
 heading and entry inside the transform passed to
 `update_blackboard_under_barrier`. The low-level
 `append_to_section` and `replace_blackboard` helpers do not acquire the
-barrier themselves; command and recipe callers own admission and supply the
+lock themselves; command and recipe callers own admission and supply the
 captured `expected_bytes` when using those helpers directly.
 
 Atomicity is not a lock. As `coga/patterns` puts it under "Durability and

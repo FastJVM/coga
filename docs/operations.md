@@ -110,21 +110,25 @@ retract credentials from existing copies or logs.
 ## Git sync
 
 Git is the sync layer, the way Slack is the human sync layer. Every command that
-mutates ticket state commits the task directory under `coga/tasks/` and pushes it
-to the control branch, so the git-backed repo never drifts from the team's live
-state. This is on by default, with sensible defaults (`remote = "origin"`,
-`control_branch = "main"`) even with no `[git]` table.
+mutates ticket state publishes the task under `coga/tasks/` and the audit log
+straight to the control branch on the remote, so the git-backed repo never
+drifts from the team's live state. This is on by default, with sensible
+defaults (`remote = "origin"`, `control_branch = "main"`) even with no `[git]`
+table. The full contract is the `coga/sync` context; three properties matter
+in practice:
 
-Two properties matter in practice:
-
-- **It works from a feature branch.** When `HEAD` is the control branch, task
-  files are committed and pushed directly; on a feature branch (or detached
-  HEAD), the same files are landed on the control branch through a
-  working-tree-free plumbing path, so your feature checkout isn't disturbed.
+- **Coga never commits on your branch.** State is built into a commit on top
+  of the remote control tip and pushed there directly; a checkout on the
+  control branch fast-forwards to it, a feature checkout keeps its published
+  ticket dirty and is otherwise untouched (don't add `coga/tasks/**` or
+  `coga/log.md` to a PR). Coga never stashes or rebases your work.
 - **A failed push never blocks you.** The on-disk markdown is the source of
-  truth; Git is only the sync layer. A commit or push that can't reach the remote
-  is surfaced to stderr and the task's log, but it never aborts the local state
-  change.
+  truth; Git is only the sync layer. A push that can't reach the remote is
+  surfaced to stderr and the log, the file stays as written, and the next
+  Coga command retries it.
+- **Stale copies are refused, not overlaid.** If another checkout advanced a
+  ticket since yours last saw it, the publish is refused and names the fix
+  (`git checkout origin/main -- <path>`).
 
 To opt out (a repo with no remote — dev, test, solo branches), set `[git].enabled
 = false` in `coga.toml` or `coga.local.toml`. It turns off *sync*, not policy:

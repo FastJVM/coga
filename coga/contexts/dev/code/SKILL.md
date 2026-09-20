@@ -44,15 +44,15 @@ run `coga bump` and `coga open-pr` from that same checkout on that same branch â
 do not switch back to the control branch first. `coga open-pr` recognizes the
 layout in `_checkout_mode` (the recorded worktree resolves to this same Git
 checkout, this checkout is not itself a linked worktree, and `COGA_EXPECTED_TASK`
-proves the running session owns this exact ticket) and then: commits the
-launcher's pending generated `coga/log.md` append before its clean-tree gate;
-requires at least one committed *non-generated* path, because in this layout
-generated task/log commits are not implementation work
-(`_single_checkout_publishable_paths`), so a ticket that only moved task state
-will not open a PR; and syncs its own generated `pr:` write to the feature branch
-*and* the control branch, so both tips keep identical ticket bytes for the next
-run's freshness gate. The `coga/sync` and `coga/launch-internals` contexts carry
-the publishing rules in full.
+proves the running session owns this exact ticket) and then: publishes the
+launcher's pending `coga/log.md` append and excludes the live task, log, and
+recurring state from its clean-tree gate (Coga never commits that state on
+the branch, so it is dirty there by design â€” do not `git add` it); requires at
+least one committed *non-generated* path, because generated task/log commits
+are not implementation work (`_single_checkout_publishable_paths`), so a
+ticket that only moved task state will not open a PR; and publishes its own
+`pr:` write to the control branch only. The `coga/sync` and
+`coga/launch-internals` contexts carry the publishing rules in full.
 
 **Nothing places the agent in the feature checkout; the agent moves itself.**
 `coga launch` never chooses a working directory: `spawn_agent_session` calls
@@ -92,10 +92,11 @@ exit 2 before performing the requested action; the read-only views (`status`,
 variable or flag substitutes for it. The `coga/codebase` context lists what
 else a fresh checkout lacks and which of it self-heals.
 
-The CLI's exit sweep can still commit and publish dirty `coga/` files after
-that failure. Commit in-flight Coga context, skill, and other OS edits on
-the feature branch before invoking a mutating Coga command there, even when
-the local config is missing.
+The CLI's exit sweep can still publish dirty task, log, and recurring files
+to control after that failure; contexts, skills, and workflows are never
+swept. Commit deliberate ticket prose on the control branch before invoking a
+mutating Coga command from a feature checkout, even when the local config is
+missing.
 
 In the two standard layouts you never need the copy: the separate-checkout
 layout runs every control-plane command in the primary checkout, and the
