@@ -98,3 +98,13 @@ def test_resolve_workflow_path_falls_back_to_local_when_neither_exists(tmp_path)
     cfg = SimpleNamespace(repo_root=tmp_path)
 
     assert resolve_workflow_path(cfg, "code/nope") == workflow_path(cfg, "code/nope")
+
+
+def test_skill_symlink_remains_supported(tmp_path):
+    cfg = _cfg(tmp_path)
+    target = tmp_path / "local-skill.md"
+    target.write_text("skill body\n")
+    local = tmp_path / "skills" / "tools" / "example" / "SKILL.md"
+    local.parent.mkdir(parents=True)
+    local.symlink_to(target)
+    assert resolve_skill_path(cfg, "tools/example") == local

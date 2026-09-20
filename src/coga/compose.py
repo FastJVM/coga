@@ -15,7 +15,7 @@ from coga.blackboard import (
     blackboard_for_prompt,
     parse_blockers_text,
 )
-from coga.config import Config
+from coga.config import Config, ConfigError
 from coga.paths import (
     PackagedResourceMissing,
     context_resolution_paths,
@@ -257,7 +257,10 @@ def compose_prompt_report(
 
     # 4. ticket-attached contexts
     for ref in ticket.contexts:
-        cp = resolve_context_path(cfg, ref)
+        try:
+            cp = resolve_context_path(cfg, ref)
+        except ConfigError as exc:
+            raise ComposeError(f"Task {task_ref.id_slug!r}: {exc}") from exc
         if cp is None:
             checked = _checked_context_paths(cfg, ref)
             raise ComposeError(

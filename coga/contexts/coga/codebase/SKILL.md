@@ -1025,9 +1025,14 @@ wrong checkout silently produces wrong results in both directions:
     boundary live in **The creation contract** in
     [`coga/recurring`](../recurring/SKILL.md); this is not global exactly-once
     execution and does not change the outer best-effort transport policy.
-  - PR 704, `config.py` context-artifact check: `path.is_file() or
-    path.is_symlink()` accepts any symlink, including one whose target lies
-    outside the checkout, so another clone composes a different prompt.
+  - PR 704 context-artifact escape is fixed by `config.require_context_artifact`
+    and `paths.resolve_context_path`: checks run before `is_file()` or bundled
+    fallback, so dangling/cyclic links cannot masquerade as absent refs.
+    Keep the per-ref guard even with configured-root scanning: directory links
+    are not followed by that scan, and files can change after config load.
+    `tests/test_layout_contexts.py` covers rejection in a second clone and
+    successful publication/composition of ordinary files. The artifact policy
+    is owned by `coga/architecture`, “The contexts directory is relocatable.”
   - PR 705, fixed by `attribute-headless-recurring-completions-to-system`:
     `launch_script.run_script_phase` supplies task-scoped system attribution
     and clears the outer done sentinel. `commands.common.completion_identity`
