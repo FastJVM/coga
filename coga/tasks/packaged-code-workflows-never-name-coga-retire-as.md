@@ -125,3 +125,12 @@ detailed command semantics in the `coga/cli` context. A parametrized content
 test covers every affected review section.
 
 Test plan: `PYTHONPATH="$PWD/src" /home/n/Code/claude/coga/.venv/bin/python -m pytest` (2565 passed); `coga validate --task packaged-code-workflows-never-name-coga-retire-as --json` (no issues); `git diff --check main...HEAD` (clean).
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `packaged-code-workflows-never-name-coga-retire-as`
+Recorded: 2026-09-20T21:53:30+00:00
+
+    Branch 'review-closing-act' is not safe to publish. current branch does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase FETCH_HEAD`. Reconcile it and relaunch, or `coga block --task packaged-code-workflows-never-name-coga-retire-as`.
