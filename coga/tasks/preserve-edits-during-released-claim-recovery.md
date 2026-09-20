@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 contexts:
 - coga/launch-internals
@@ -98,3 +98,19 @@ Commands run from `/tmp/coga-released-claim-edits`:
 - Implementation commit: `4d3f65bc` (`Preserve edits during released claim recovery`). Feature checkout is clean; the feature branch remains unpushed and no PR was opened. Ready for peer review.
 - Final `git fetch origin main` brought six generated task/log commits (`3cc80827..becfa9d3`); `git rebase FETCH_HEAD` succeeded without conflicts and `git rev-list --left-right --count origin/main...HEAD` reports `0 1`.
 - No adjacent bug was discovered. The existing barrier and conditional rollback are unchanged; a concurrent editor write after the last local comparison remains outside this fix's promised fetch-window scope.
+
+## Peer review
+
+- `codex review --base main` ran from `/tmp/coga-released-claim-edits` and **returned** with no actionable findings. Its own test attempt failed collection because its interpreter lacked `tomlkit`; the complete suite below ran successfully through the prepared feature-checkout environment. Review transcript: `/tmp/coga-released-claim-peer-review.log` (local evidence).
+- No must-fix changes or design rethink were needed. Manual inspection confirmed the pre-write guard uses validated bytes and refuses before mutation/rollback; remote pending/admitted handling and the publication barrier remain unchanged. No terminal, pager, TTY prompt, or rendered-message surface changed.
+- `git fetch origin main` followed by `git rebase FETCH_HEAD` completed without conflicts onto `b7907dd1`. Final implementation commit: `50c9cfe9`. `git diff 4d3f65bc..HEAD -- src/coga tests` is empty: rebase changed no reviewed source or tests.
+- `PYTHONPATH=/tmp/coga-released-claim-edits/src .venv/bin/python -m pytest` — **2,665 passed in 192.17 seconds**, including recovery regressions, packaging/twin checks, and the wheel build.
+- `git diff --check` and direct `cmp` checks of both changed live/packaged context pairs passed. Feature checkout is clean, with one implementation commit ahead of fetched main. `git push -u origin fix/released-claim-edits` succeeded at `50c9cfe9`; no PR was opened in this step. This supersedes the earlier unpushed implementation handoff.
+
+## PR
+
+Released-claim recovery could overwrite a manual ticket correction made while it fetched control. Bind its rollback baseline to the exact local bytes validated before that fetch, so an intervening edit causes a retryable refusal while preserving the correction and released witness, without publishing or spawning stale work. An operator must reconcile and retry; this closes the fetch window without claiming an atomic editor lock.
+
+Add local bare-remote coverage for body and blackboard edits against both pending and already-admitted control claims, unchanged recovery, mismatched control, and publication failure. Update the owning launch-internals invariant and codebase summary with matching packaged copies.
+
+Test plan: `PYTHONPATH=/tmp/coga-released-claim-edits/src .venv/bin/python -m pytest` — 2,665 passed; `git diff --check` and both context-pair `cmp` checks passed.
