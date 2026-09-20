@@ -24,7 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -113,6 +113,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/843
 branch: packaged-context-states
 worktree: /home/n/Code/coga-packaged-context-states
 
@@ -165,3 +166,42 @@ Adjacent, not fixed here: `update.py::_LEGACY_COGA_GITIGNORE_ENTRIES` still
 lists `contexts/coga/{architecture,principles,cli}` from an era when init
 copied and gitignored them; harmless dedupe data, but a reader may infer the
 old behaviour from it.
+
+## Peer review
+
+- Ran `codex review --base main` in the recorded feature worktree. The review
+  **returned** successfully: no actionable regressions or must-fix findings.
+  Initial sandbox startup failed; the approved outside-sandbox retry returned.
+  Review transcript: `/tmp/packaged-context-review.log`.
+- Independently checked the diff against `paths.resolve_context_path` and
+  `commands/update.py::copy_fresh_templates`, documentation ownership, and
+  browser resource references. No additional findings; no fix commit needed.
+- Ran `git fetch origin main && git rebase FETCH_HEAD` unconditionally; clean
+  rebase onto `c8218398863a53194bdfb33bcb2d3db680f21b06`. Feature branch remains
+  clean with two commits: `b2c48a28` and `04ad5876`.
+- Post-rebase verification:
+  `PYTHONPATH=src /tmp/coga-dispose-review-venv/bin/python -m pytest` —
+  **2658 passed**, two sandbox cache-write warnings, 186.24 seconds.
+  The default Python and review subprocess lacked `tomlkit`; the complete
+  suite above used an existing dependency-equipped venv with imports forced
+  to this feature worktree. Log: `/tmp/packaged-context-pytest.log`.
+  `git diff --check` also passed.
+- No terminal, pager, prompt, or rendered notification surface changed; no
+  additional interactive surface check applies. No push or PR in this step.
+
+## PR
+
+Document how contexts reach a repository: init-seeded copies, package-backed
+bootstrap fallbacks, and local-only contexts. Record why `coga/cli` deliberately
+remains packaged-only and where its command-contract edits are reviewed; keep
+the live and packaged documentation twins synchronized.
+
+Move the browser contexts into the bootstrap fallback tree so the bundled
+`browser-automation` ticket can resolve them even when a repository never had
+or deleted the old seeded copies. New repositories use the bundled contexts;
+existing local copies continue to override them. Add a regression check for
+bundled tickets' context attachments and update the init/browser fixtures.
+
+Test plan: `PYTHONPATH=src /tmp/coga-dispose-review-venv/bin/python -m pytest`
+(2658 passed); `git diff --check`; `codex review --base main` returned with no
+actionable findings.
