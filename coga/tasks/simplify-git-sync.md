@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (open-pr)
+step: 6 (review)
 agent: claude
 ---
 
@@ -498,6 +498,16 @@ resolutions, which amend the shape above where they conflict:
 pr: https://github.com/FastJVM/coga/pull/848
 branch: publish-sync
 worktree: /home/n/Code/coga-publish-sync
+
+## Open-PR (2026-09-20)
+
+PR #848 opened by `coga open-pr` from the primary checkout (separate-worktree
+layout); `origin/main` was ahead only by this ticket's own generated task/log
+commits, which the command classified as safe. No review was ordered by the
+implement step (the frozen workflow has no self-qa/peer-review step), so
+nothing was in flight. Reviewer: see `### Acceptance deviations for the
+reviewer` above (size ceiling, three behaviour changes) and the hand-cleanup
+leftovers listed under the implement handoff.
 
 ## Implement handoff (2026-09-20)
 
