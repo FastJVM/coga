@@ -351,7 +351,8 @@ def _relay_to_control_worktree(
         try:
             code = process.wait()
         except KeyboardInterrupt:
-            process.send_signal(signal.SIGINT)
+            # Ctrl-C already reaches the child in our foreground process
+            # group. A second SIGINT would interrupt its shutdown cleanup.
             process.wait()
             raise
         if terminated:

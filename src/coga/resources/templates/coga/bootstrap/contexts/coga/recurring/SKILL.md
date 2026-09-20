@@ -453,6 +453,8 @@ child failure or interruption. Only the control-worktree child performs the
 ordinary sweep; returning to the caller must never commit its dirty files.
 SIGTERM sent to the forwarding PID is forwarded to the child, and the parent
 waits for its exit before returning 143. Terminal access remains inherited.
+Ctrl-C already reaches the child through the foreground process group; the
+parent waits for cleanup without sending a second SIGINT.
 
 ## An `--all` child services an off-branch checkout from a temporary worktree
 

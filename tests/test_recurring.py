@@ -12440,8 +12440,11 @@ def test_control_relay_forwards_sigterm_and_restores_handler(
     assert signal.getsignal(signal.SIGTERM) == prior
 
 
-def test_control_relay_sigterm_waits_for_real_child_shutdown(tmp_path: Path) -> None:
-    """Cancel only the invoking PID; its child must finish teardown before exit."""
+@pytest.mark.parametrize("terminal_interrupt", [False, True], ids=["pid-sigterm", "terminal-sigint"])
+def test_control_relay_waits_for_real_child_shutdown(
+    tmp_path: Path, terminal_interrupt: bool
+) -> None:
+    """PID termination and terminal Ctrl-C both allow child cleanup to finish."""
     import signal
     import sys
     import time
@@ -12453,10 +12456,13 @@ def test_control_relay_sigterm_waits_for_real_child_shutdown(tmp_path: Path) -> 
         import signal, time
         from pathlib import Path
         def stop(signum, frame):
+            with Path('signals').open('a') as log:
+                log.write(str(signum) + '\\n')
             time.sleep(0.2)
             Path('stopped').write_text('shutdown complete')
             raise SystemExit(0)
         signal.signal(signal.SIGTERM, stop)
+        signal.signal(signal.SIGINT, stop)
         Path('ready').write_text('ready')
         while True:
             time.sleep(0.05)
@@ -12471,7 +12477,11 @@ def test_control_relay_sigterm_waits_for_real_child_shutdown(tmp_path: Path) -> 
         runner.subprocess.Popen = lambda argv, **kw: spawn(
             [sys.executable, 'child.py'], **kw)
         cfg = SimpleNamespace(repo_root=Path.cwd(), git_control_branch='main')
-        raise SystemExit(runner._relay_to_control_worktree(cfg, Path.cwd(), []))
+        try:
+            code = runner._relay_to_control_worktree(cfg, Path.cwd(), [])
+        except KeyboardInterrupt:
+            code = 130
+        raise SystemExit(code)
     """))
     env = os.environ.copy()
     env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
@@ -12485,10 +12495,15 @@ def test_control_relay_sigterm_waits_for_real_child_shutdown(tmp_path: Path) -> 
         while not ready.exists() and process.poll() is None and time.monotonic() < deadline:
             time.sleep(0.02)
         assert ready.exists(), "relay child never became ready"
-        process.send_signal(signal.SIGTERM)
+        if terminal_interrupt:
+            os.killpg(process.pid, signal.SIGINT)
+        else:
+            process.send_signal(signal.SIGTERM)
         stdout, stderr = process.communicate(timeout=10)
-        assert process.returncode == 143, stdout + stderr
+        assert process.returncode == (130 if terminal_interrupt else 143), stdout + stderr
         assert stopped.read_text() == "shutdown complete"
+        expected_signal = signal.SIGINT if terminal_interrupt else signal.SIGTERM
+        assert (tmp_path / "signals").read_text().splitlines() == [str(expected_signal)]
     finally:
         # Clean up the fixture group even when an assertion detects an orphan.
         try:
