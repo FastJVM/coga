@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -431,6 +431,148 @@ code.
 - Packaged twin: `src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md`.
 
 <!-- coga:blackboard -->
+## Evaluator review
+
+2026-09-20 — **Not ready for implementation.** The never-commit-locally
+model fits the shared-infrastructure boundary and the accepted offline/feature
+checkout tradeoffs. The specified algorithm does not yet meet its safety and
+convergence criteria. These findings concern the ticket body on its own terms;
+the blackboard's open questions do not resolve the contradictions.
+
+### Must resolve before implementation
+
+1. **Preserve the pending admission seal, not just claim acquisition CAS.**
+   `expect` proves which blob a writer read; it does not authorize that writer
+   to replace a pending claim. A peer can read `pending:<uuid>` after the last
+   admission fetch and publish a bump with matching `expect` before child
+   release. The proposed lifecycle exception also permits that via the sweep.
+   This breaks the explicitly unchanged admission protocol. Evidence:
+   `architecture/SKILL.md` (under `coga/contexts/coga/`), **One shared
+   agent-spawn path**; `src/coga/git.py::_pending_launch_admission_reason`;
+   `tests/test_megalaunch.py::test_pending_claim_blocks_remote_lifecycle_between_final_fetch_and_gate`.
+   Specify how pending bytes remain sealed and how only the admission
+   transition can change them. Retain the final-fetch-to-release race test.
+
+2. **The sweep cannot prove freshness from lifecycle fields.** Two copies
+   with equal status, step, and generation but different blackboards pass the
+   proposed guard: the second overlay loses the first writer's prose. An old
+   claimless copy advancing a step also passes the session-ending exception
+   even if a peer has since acquired a claim. Thus I2/I3 and the stale-same-ticket
+   acceptance criterion conflict with the algorithm. Evidence:
+   `tests/test_git.py::test_same_claim_edit_refuses_when_control_changed_since_checkout_baseline`
+   and `test_catch_all_sync_cannot_release_a_claim_from_a_stale_baseline`
+   already cover these cases. This is especially consequential when successful
+   feature publication deliberately leaves a dirty file for every later sweep.
+   Choose a provable baseline/merge policy or explicitly revise the guarantees;
+   lifecycle comparison cannot establish the provenance asserted in Open
+   Question 3. Define deletion and newly added claim handling too, since a
+   missing blob has no lifecycle to compare.
+
+3. **The integration recipe fails its ordinary contention case and can
+   alter another checkout's index on refusal.** After union-merging remote
+   and local log appends, the published log differs from local bytes. Staging
+   the local file then running `merge --ff-only` refuses. I reproduced this in
+   a disposable repo: base log `base`, published log `base/remote/local`,
+   staged local log `base/local`; Git exits 1, “local changes ... would be
+   overwritten.” On a diverged holder, staging happens before the refusal,
+   violating the criterion that nothing there moves. From a feature checkout,
+   the holder may have independent edits to these same paths. Evidence:
+   `src/coga/git.py::_try_update_local_ref`, `_overlay_union_paths`, and
+   `_merge_union_bytes` distinguish remote tree bytes from holder bytes today.
+   Specify safe integration for merged bytes, unrelated staged/unstaged edits,
+   deletions, and holder races. Also share this integration with `refresh`
+   as I4 requires: its separate bare `merge --ff-only` recipe cannot handle
+   pending dirty writes. A second scratch check found an ahead-only checkout
+   returns 0 / “Already up to date,” contrary to the refresh acceptance
+   criterion. Require an explicit ancestry check. The no-holder `update-ref`
+   path also needs an ancestry check and old-OID comparison to honor “only
+   ever fast-forwards” when local human commits exist.
+
+4. **Renaming the unchanged flock and taking it inside every publish
+   deadlocks existing admission callers.**
+   `src/coga/git.py::state_publication_barrier` opens a separate descriptor
+   for each acquisition; it is not reentrant. The post-release publication in
+   `src/coga/megalaunch.py` explicitly calls `_sync_paths_without_barrier`
+   because the supervisor already holds this lock (the comment calls out the
+   deadlock). The new design removes that escape while making `publish` acquire
+   the lock. Define lock ownership/nesting for read-modify-write, publication,
+   and the entire admission window. Retain same-checkout concurrent-writer
+   tests; moving the lock to publication alone is insufficient.
+
+5. **Offline rollover still strands the exact case A3 promises to fix.**
+   A recurring writer can initially supply `expect=<done blob>`, but after
+   an offline failure its replacement remains dirty and the next sweep has
+   no `expect`. The terminal guard refuses it forever. The on-disk replacement
+   does not retain the authority to replace the terminal copy. Evidence:
+   the proposed `sync_coga_state` signature/rules and
+   `src/coga/recurring_runner.py::_land_recurring_create_on_control_branch`
+   / `_sync_recurring_create_on_checked_out_control_branch` (the current
+   rollover callers). Specify the retry owner and evidence that survive the
+   failure, and add an offline-rollover-then-sweep acceptance case. Resolve
+   the analogous retry of an explicitly authorized rewind.
+
+6. **A failed push response is not proof that control rejected the write.**
+   The server can accept a claim and the connection can fail before its
+   acknowledgement. Blindly restoring pre-write bytes leaves a live control
+   claim paired with an apparently unclaimed checkout; retrying the original
+   `expect` then refuses the already-landed write. The design deletes candidate
+   probes and uncertainty handling while saying admission/released-witness
+   semantics are unchanged. Evidence: `src/coga/git.py::UncertainFeaturePublicationError`,
+   `tests/test_git.py::test_strict_state_landing_probes_attempted_candidate_before_regression_cleanup`,
+   and the post-release error paths in `src/coga/megalaunch.py`. Specify accepted,
+   rejected, and unverifiable outcomes and their retained local state, including
+   post-release witness recovery. Test a push that accepts but reports failure;
+   the issue exists even with one remote destination.
+
+7. **The four PRs are not independently implementable as ordered.** Child 1
+   deletes `_commit_paths`, `_push_control_branch`, strict publication and
+   related APIs while `recurring_runner` still calls them until child 3.
+   Child 2 removes its barrier/snapshot dependencies before that migration too.
+   Evidence: `src/coga/recurring_runner.py` still calls `_commit_paths` four
+   times, `_push_control_branch`, and `_build_overlay_tree`; child 1's consumer
+   port list does not include all the other `sync_paths` users. Move each
+   consumer migration into the PR deleting its dependencies, or choose one
+   atomic PR. Require each proposed intermediate PR to pass the suite. The
+   frozen workflow is a single implementation/PR workflow; owner review must
+   also settle whether this ticket implements or coordinates child tickets.
+
+8. **Complete the public contract before handing it to an implementer.**
+   `allow_step_rewind` is required but absent from the proposed publish and
+   wrapper signatures; `fast_forward=False` appears only in the delete consumer
+   list. Define how a rewind reaches the guard without restoring removed
+   kwargs. `expect` is described both as concurrency validation and as permission
+   to replace a terminal ticket: specify which regression rules it overrides
+   (rollover may lower both status and step). Also, the “four existing soft-skips,
+   unchanged” claim is incorrect for no remote:
+   `src/coga/git.py::_sync_paths_on_control_branch(push=False)` deliberately
+   commits locally today. The new no-commit behavior is consistent with I1,
+   but must be stated as a change. Define bootstrap when the control branch
+   exists but its remote-tracking ref does not, and the distinction between
+   skipped/no-change/failed publication for strict launch callers. The current
+   boolean API and early no-change return do not explain how they establish
+   durable remote success.
+
+### Optional recommendations
+
+- Keep the size targets subordinate to correctness; avoid replacing explicit
+  protocol boundaries with dense helpers merely to meet 30 functions. Split
+  acceptance coverage between `test_git.py`, `test_megalaunch.py`, and recurring
+  tests where the behavior is actually observable.
+- Attach `coga/sync`, `coga/architecture`, and `coga/codebase` to implementation
+  work. This ticket has no `contexts` field; its source pointers are useful
+  but do not compose those behavioral contracts. Update architecture's
+  admission/baseline contract in the same PR that changes it, not only the
+  sync context and its packaged twin.
+
+### Verification and scope
+
+Read the frozen workflow, the shipped design-review skill/workflow, relevant
+source and tests, product thesis, and canonical context sections. Ran isolated
+Git plumbing probes in `/tmp` for union-result integration, ahead-only refresh,
+and staging before a divergent merge. No source, test, ticket-body, branch,
+or PR changes were made; no full suite was run for this design-only review.
+The historical 15-checkout audit was treated as supplied evidence, not rerun.
+
 ## Decisions (design step, 2026-09-20)
 
 - Owner confirmed the never-commit-locally model in the attended design
