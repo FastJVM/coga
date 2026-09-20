@@ -372,26 +372,22 @@ def test_mark_done_syncs_parent_blackboard_when_cursor_advanced(
     slug = _create_period(repo)
     _set_parent_state(repo, "### Dev Update State\n\nlast_commit: BBB\n")
 
-    synced: list[tuple[Path, list[Path], str]] = []
+    synced: list[tuple[list[Path], str]] = []
 
-    def _capture_sync(cfg, anchor_path, paths, *, message, guard=None):
-        synced.append((anchor_path, list(paths), message))
+    def _capture_publish(cfg, paths, message, **kwargs):
+        synced.append((list(paths), message))
 
-    def _unexpected_task_sync(*args, **kwargs):
-        raise AssertionError("state-keyed period tasks should sync explicit paths")
-
-    monkeypatch.setattr("coga.git.sync_paths", _capture_sync)
-    monkeypatch.setattr("coga.git.sync_task_state", _unexpected_task_sync)
+    monkeypatch.setattr("coga.git.publish", _capture_publish)
 
     result = CliRunner().invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
 
     task_dir = repo / "tasks" / slug
     # Single-file format: the parent's working state lives in its ticket.md
-    # blackboard region, so that's the file mark done syncs.
+    # blackboard region, so that's the file mark done publishes with the task.
     parent_ticket = repo / "recurring" / "dev-update" / "ticket.md"
     assert synced == [
-        (task_dir, [task_dir, parent_ticket], f"Ticket: {slug} — done")
+        ([task_dir, repo / "log.md", parent_ticket], f"Ticket: {slug} — done")
     ]
 
 

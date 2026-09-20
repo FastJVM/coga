@@ -812,19 +812,12 @@ def test_bump_final_step_requires_artifact_before_marking_done(
     runner = CliRunner()
     runner.invoke(app, ["bump", slug])
     runner.invoke(app, ["bump", slug])
-    published: list[bool] = []
+    published: list[str] = []
 
-    def capture_sync_task_state(
-        cfg,
-        task_path,
-        *,
-        message,
-        guard=None,
-        publish_current_branch=False,
-    ):  # type: ignore[no-untyped-def]
-        published.append(publish_current_branch)
+    def capture_publish(cfg, paths, message, **_kwargs):  # type: ignore[no-untyped-def]
+        published.append(message)
 
-    monkeypatch.setattr("coga.git.sync_task_state", capture_sync_task_state)
+    monkeypatch.setattr("coga.git.publish", capture_publish)
 
     blocked = runner.invoke(app, ["bump", slug])
 
@@ -842,7 +835,8 @@ def test_bump_final_step_requires_artifact_before_marking_done(
     ticket = Ticket.read(task_path)
     assert ticket.status == "done"
     assert ticket.step is None
-    assert published == [True]
+    # Control only: a satisfied `pr` gate publishes nowhere else.
+    assert published == [f"Ticket: {slug} — done"]
 
 
 def test_bump_rewind_ignores_requires_gate(repo: Path) -> None:
@@ -916,23 +910,15 @@ def test_bump_branch_gate_accepts_single_checkout_layout(
 
     The single-checkout assist layout has one copy of the ticket, so the write
     and the read can never diverge. The gate must not add a second checkout as
-    a precondition, and it does not publish to the feature branch the way the
-    `pr` gate does.
+    a precondition.
     """
     slug, task_path = _make_task(repo)
     _set_step_requires(task_path, 0, "branch")
     _record_dev(task_path, f"branch: feat/x\nworktree: {repo}")
-    published: list[bool] = []
+    published: list[str] = []
 
-    def capture_sync_task_state(
-        cfg,
-        task_path,
-        *,
-        message,
-        guard=None,
-        publish_current_branch=False,
-    ):  # type: ignore[no-untyped-def]
-        published.append(publish_current_branch)
+    def capture_sync_task_state(cfg, task_path, *, message, **_kwargs):  # type: ignore[no-untyped-def]
+        published.append(message)
 
     monkeypatch.setattr("coga.git.sync_task_state", capture_sync_task_state)
 
@@ -940,7 +926,7 @@ def test_bump_branch_gate_accepts_single_checkout_layout(
 
     assert result.exit_code == 0, result.output
     assert Ticket.read(task_path).step == "2 (pr)"
-    assert published == [False]
+    assert published == [f"Ticket: {slug} — step 2 (pr)"]
 
 
 def test_bump_rewind_ignores_branch_gate(repo: Path) -> None:
@@ -1169,7 +1155,7 @@ def test_task_deletion_waits_until_held_child_release(
     attempted = threading.Event()
     finished = threading.Event()
     errors: list[BaseException] = []
-    real_barrier = git_module.state_publication_barrier
+    real_barrier = git_module.state_lock
 
     @contextmanager
     def observed_barrier(cfg_):  # type: ignore[no-untyped-def]
@@ -1177,7 +1163,7 @@ def test_task_deletion_waits_until_held_child_release(
         with real_barrier(cfg_):
             yield
 
-    monkeypatch.setattr(git_module, "state_publication_barrier", observed_barrier)
+    monkeypatch.setattr(git_module, "state_lock", observed_barrier)
 
     def delete_task() -> None:
         try:
@@ -1209,7 +1195,7 @@ def test_task_creation_waits_until_held_child_release(
     attempted = threading.Event()
     finished = threading.Event()
     errors: list[BaseException] = []
-    real_barrier = git_module.state_publication_barrier
+    real_barrier = git_module.state_lock
 
     @contextmanager
     def observed_barrier(cfg_):  # type: ignore[no-untyped-def]
@@ -1217,7 +1203,7 @@ def test_task_creation_waits_until_held_child_release(
         with real_barrier(cfg_):
             yield
 
-    monkeypatch.setattr(git_module, "state_publication_barrier", observed_barrier)
+    monkeypatch.setattr(git_module, "state_lock", observed_barrier)
 
     def create_guarded_task() -> None:
         try:

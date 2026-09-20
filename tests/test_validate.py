@@ -2018,8 +2018,8 @@ def test_check_github_success(repo: Path, monkeypatch: pytest.MonkeyPatch) -> No
                     0, "git@github.com:o/r.git\n"
                 ),
                 ("git", "push", "--dry-run", "origin"): _FakeProc(0),
-                ("git", "fetch", "origin", "main"): _FakeProc(0),
-                ("git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"): (
+                ("git", "fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"): _FakeProc(0),
+                ("git", "merge-base", "--is-ancestor", "refs/remotes/origin/main", "HEAD"): (
                     _FakeProc(0)
                 ),
                 ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
@@ -2070,8 +2070,8 @@ def test_check_github_missing_gh(
                     0, "git@github.com:o/r.git\n"
                 ),
                 ("git", "push", "--dry-run", "origin"): _FakeProc(0),
-                ("git", "fetch", "origin", "main"): _FakeProc(0),
-                ("git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"): (
+                ("git", "fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"): _FakeProc(0),
+                ("git", "merge-base", "--is-ancestor", "refs/remotes/origin/main", "HEAD"): (
                     _FakeProc(0)
                 ),
                 ("gh", "--version"): FileNotFoundError(),
@@ -2096,8 +2096,8 @@ def test_check_github_gh_unauthenticated(
                     0, "git@ghe.example.com:o/r.git\n"
                 ),
                 ("git", "push", "--dry-run", "origin"): _FakeProc(0),
-                ("git", "fetch", "origin", "main"): _FakeProc(0),
-                ("git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"): (
+                ("git", "fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"): _FakeProc(0),
+                ("git", "merge-base", "--is-ancestor", "refs/remotes/origin/main", "HEAD"): (
                     _FakeProc(0)
                 ),
                 ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
@@ -2155,16 +2155,16 @@ def test_check_github_stale_branch(
                     0, "https://github.com/o/r.git\n"
                 ),
                 ("git", "push", "--dry-run", "origin"): _FakeProc(0),
-                ("git", "fetch", "origin", "main"): _FakeProc(0),
-                ("git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"): (
+                ("git", "fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"): _FakeProc(0),
+                ("git", "merge-base", "--is-ancestor", "refs/remotes/origin/main", "HEAD"): (
                     _FakeProc(1)
                 ),
-                ("git", "merge-base", "FETCH_HEAD", "HEAD"): _FakeProc(
+                ("git", "merge-base", "refs/remotes/origin/main", "HEAD"): _FakeProc(
                     0, "base-sha\n"
                 ),
                 (
                     "git", "diff", "--no-renames", "--name-only",
-                    "base-sha", "FETCH_HEAD",
+                    "base-sha", "refs/remotes/origin/main",
                 ): _FakeProc(0, "src/coga/changed.py\n"),
                 (
                     "git", "diff", "--no-renames", "--name-only",
@@ -2187,7 +2187,7 @@ def test_check_github_stale_branch(
         i for i in report.issues if i.kind == "github-git-branch-current"
     )
     assert "does not contain latest origin/main" in branch_issue.message
-    assert "git rebase FETCH_HEAD" in branch_issue.message
+    assert "git rebase origin/main" in branch_issue.message
 
 
 def test_check_github_accepts_non_overlapping_coga_state_drift(
@@ -2201,16 +2201,16 @@ def test_check_github_accepts_non_overlapping_coga_state_drift(
                     0, "https://github.com/o/r.git\n"
                 ),
                 ("git", "push", "--dry-run", "origin"): _FakeProc(0),
-                ("git", "fetch", "origin", "main"): _FakeProc(0),
-                ("git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"): (
+                ("git", "fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"): _FakeProc(0),
+                ("git", "merge-base", "--is-ancestor", "refs/remotes/origin/main", "HEAD"): (
                     _FakeProc(1)
                 ),
-                ("git", "merge-base", "FETCH_HEAD", "HEAD"): _FakeProc(
+                ("git", "merge-base", "refs/remotes/origin/main", "HEAD"): _FakeProc(
                     0, "base-sha\n"
                 ),
                 (
                     "git", "diff", "--no-renames", "--name-only",
-                    "base-sha", "FETCH_HEAD",
+                    "base-sha", "refs/remotes/origin/main",
                 ): _FakeProc(0, "coga/tasks/other.md\ncoga/log.md\n"),
                 (
                     "git", "diff", "--no-renames", "--name-only",
@@ -2260,16 +2260,16 @@ def test_check_github_scopes_state_drift_to_configured_coga_root(
                     0, "https://github.com/o/r.git\n"
                 ),
                 ("git", "push", "--dry-run", "origin"): _FakeProc(0),
-                ("git", "fetch", "origin", "main"): _FakeProc(0),
-                ("git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"): (
+                ("git", "fetch", "origin", "+refs/heads/main:refs/remotes/origin/main"): _FakeProc(0),
+                ("git", "merge-base", "--is-ancestor", "refs/remotes/origin/main", "HEAD"): (
                     _FakeProc(1)
                 ),
-                ("git", "merge-base", "FETCH_HEAD", "HEAD"): _FakeProc(
+                ("git", "merge-base", "refs/remotes/origin/main", "HEAD"): _FakeProc(
                     0, "base-sha\n"
                 ),
                 (
                     "git", "diff", "--no-renames", "--name-only",
-                    "base-sha", "FETCH_HEAD",
+                    "base-sha", "refs/remotes/origin/main",
                 ): _FakeProc(0, control_paths),
                 (
                     "git", "diff", "--no-renames", "--name-only",

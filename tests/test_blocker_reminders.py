@@ -178,7 +178,7 @@ def test_reminder_watermark_waits_until_held_child_release(
     finished = threading.Event()
     results: list[bool] = []
     errors: list[BaseException] = []
-    real_barrier = git_module.state_publication_barrier
+    real_barrier = git_module.state_lock
 
     @contextmanager
     def observed_barrier(cfg_):  # type: ignore[no-untyped-def]
@@ -186,7 +186,7 @@ def test_reminder_watermark_waits_until_held_child_release(
         with real_barrier(cfg_):
             yield
 
-    monkeypatch.setattr(git_module, "state_publication_barrier", observed_barrier)
+    monkeypatch.setattr(git_module, "state_lock", observed_barrier)
 
     def write_watermark() -> None:
         try:

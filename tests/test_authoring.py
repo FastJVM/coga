@@ -151,19 +151,16 @@ def test_finalize_authored_syncs_task_and_support_paths(
         """,
     )
 
-    calls: list[tuple[Path, list[Path], str]] = []
+    calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
-        "coga.authoring.git.sync_paths",
-        lambda cfg, anchor, paths, *, message: calls.append(
-            (anchor, list(paths), message)
-        ),
+        "coga.authoring.git.publish",
+        lambda cfg, paths, message: calls.append((list(paths), message)),
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=ref)
 
     assert calls == [
         (
-            ref.path,
             [ref.path, context_path, skill_path],
             "Ticket: sync-support — authored",
         )
@@ -206,19 +203,16 @@ def test_finalize_authored_syncs_relocated_contexts_dir(
         """,
     )
 
-    calls: list[tuple[Path, list[Path], str]] = []
+    calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
-        "coga.authoring.git.sync_paths",
-        lambda cfg, anchor, paths, *, message: calls.append(
-            (anchor, list(paths), message)
-        ),
+        "coga.authoring.git.publish",
+        lambda cfg, paths, message: calls.append((list(paths), message)),
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=ref)
 
     assert calls == [
         (
-            ref.path,
             [ref.path, context_path],
             "Ticket: relocated-contexts — authored",
         )
@@ -243,12 +237,10 @@ def test_finalize_authored_skips_deleted_ticket(
     else:
         ref.path.unlink()
 
-    calls: list[tuple[Path, list[Path], str]] = []
+    calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
-        "coga.authoring.git.sync_paths",
-        lambda cfg, anchor, paths, *, message: calls.append(
-            (anchor, list(paths), message)
-        ),
+        "coga.authoring.git.publish",
+        lambda cfg, paths, message: calls.append((list(paths), message)),
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=ref)
@@ -274,19 +266,16 @@ def test_finalize_authored_re_resolves_file_task_promoted_for_attachment(
     promoted_ref = resolve_task(cfg, original_ref.id_slug)
     assert promoted_ref.file_form is False
 
-    calls: list[tuple[Path, list[Path], str]] = []
+    calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
-        "coga.authoring.git.sync_paths",
-        lambda cfg, anchor, paths, *, message: calls.append(
-            (anchor, list(paths), message)
-        ),
+        "coga.authoring.git.publish",
+        lambda cfg, paths, message: calls.append((list(paths), message)),
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=original_ref)
 
     assert calls == [
         (
-            promoted_ref.path,
             [original_ref.path, promoted_ref.path],
             "Ticket: promote-for-attachment — authored",
         )
@@ -302,19 +291,16 @@ def test_finalize_authored_discovers_new_task_from_bootstrap_interview(
     created_ref = _create_task(repo, "Fresh idea")
     bootstrap_ref = resolve_bootstrap(cfg, "ticket")
 
-    calls: list[tuple[Path, list[Path], str]] = []
+    calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
-        "coga.authoring.git.sync_paths",
-        lambda cfg, anchor, paths, *, message: calls.append(
-            (anchor, list(paths), message)
-        ),
+        "coga.authoring.git.publish",
+        lambda cfg, paths, message: calls.append((list(paths), message)),
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=bootstrap_ref)
 
     assert calls == [
         (
-            created_ref.path,
             [created_ref.path],
             "Ticket: fresh-idea — authored",
         )
@@ -339,19 +325,16 @@ def test_finalize_authored_syncs_support_only_from_bootstrap_interview(
     )
     bootstrap_ref = resolve_bootstrap(cfg, "ticket")
 
-    calls: list[tuple[Path, list[Path], str]] = []
+    calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
-        "coga.authoring.git.sync_paths",
-        lambda cfg, anchor, paths, *, message: calls.append(
-            (anchor, list(paths), message)
-        ),
+        "coga.authoring.git.publish",
+        lambda cfg, paths, message: calls.append((list(paths), message)),
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=bootstrap_ref)
 
     assert calls == [
         (
-            repo,
             [context_path],
             "Ticket authoring — support files",
         )
@@ -377,19 +360,16 @@ def test_finalize_authored_syncs_deleted_support_only_with_live_anchor(
     context_path.unlink()
     bootstrap_ref = resolve_bootstrap(cfg, "ticket")
 
-    calls: list[tuple[Path, list[Path], str]] = []
+    calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
-        "coga.authoring.git.sync_paths",
-        lambda cfg, anchor, paths, *, message: calls.append(
-            (anchor, list(paths), message)
-        ),
+        "coga.authoring.git.publish",
+        lambda cfg, paths, message: calls.append((list(paths), message)),
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=bootstrap_ref)
 
     assert calls == [
         (
-            repo,
             [context_path],
             "Ticket authoring — support files",
         )

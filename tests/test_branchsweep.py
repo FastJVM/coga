@@ -677,7 +677,7 @@ def test_worktree_prune_failure_stops_sweep(repo: Path, monkeypatch) -> None:
 def test_recipe_reports_worktree_pinned_outcome(
     repo: Path, monkeypatch, capsys
 ) -> None:
-    monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
+    monkeypatch.setattr(bs.git, "toplevel", lambda _root: repo)
 
     def _sweep(_cfg, _root, *, echo, result=None):
         # Fills in the accumulator it was handed, as the real sweep does — the
@@ -698,7 +698,7 @@ def test_recipe_hands_back_the_deleted_branches(repo: Path, monkeypatch) -> None
     # The wrapper already computes this result; the out-parameter saves the
     # caller a second `ls-remote`/`for-each-ref` snapshot either side of the run.
     _push_branch(repo, "feat", land_in_main=True)
-    monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
+    monkeypatch.setattr(bs.git, "toplevel", lambda _root: repo)
     _merged_at_tip(monkeypatch, repo, "feat")
 
     result = bs.BranchSweepResult()
@@ -713,7 +713,7 @@ def test_recipe_hands_back_the_deleted_branches(repo: Path, monkeypatch) -> None
 def test_recipe_result_records_an_unavailable_remote(repo: Path, monkeypatch) -> None:
     # A failed sweep exits 2; the caller still gets the reason on the object it
     # passed in rather than having to re-read stderr.
-    monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
+    monkeypatch.setattr(bs.git, "toplevel", lambda _root: repo)
 
     def _sweep(_cfg, _root, *, echo, result=None):
         result.remote_unavailable = "remote unreachable"
@@ -1064,7 +1064,7 @@ def test_recipe_writes_report_to_task_blackboard(
     host = _host_task(repo)
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(host))
     monkeypatch.setenv("COGA_TASK_SLUG", "recurring/branch-sweep")
-    monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
+    monkeypatch.setattr(bs.git, "toplevel", lambda _root: repo)
     _merged_at_tip(monkeypatch, repo, "feat")
 
     assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 0
@@ -1084,7 +1084,7 @@ def test_recipe_writes_report_to_stdout_without_a_task(
     repo: Path, monkeypatch, capsys
 ) -> None:
     _push_branch(repo, "feat", land_in_main=True)
-    monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
+    monkeypatch.setattr(bs.git, "toplevel", lambda _root: repo)
     _merged_at_tip(monkeypatch, repo, "feat")
 
     assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 0
@@ -1108,7 +1108,7 @@ def test_recipe_records_a_failed_sweep_on_the_blackboard(
 ) -> None:
     host = _host_task(repo)
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(host))
-    monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
+    monkeypatch.setattr(bs.git, "toplevel", lambda _root: repo)
 
     def _sweep(_cfg, _root, *, echo, result=None):
         setattr(result, failure_field, "probe unavailable")
@@ -1127,7 +1127,7 @@ def test_recipe_reports_local_cleanup_when_remote_listing_fails(
     _push_branch(repo, "feat", land_in_main=True)
     host = _host_task(repo)
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(host))
-    monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
+    monkeypatch.setattr(bs.git, "toplevel", lambda _root: repo)
     _merged_at_tip(monkeypatch, repo, "feat")
     real_git = bs._git
 

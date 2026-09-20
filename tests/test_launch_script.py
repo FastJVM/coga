@@ -610,7 +610,6 @@ def test_recorded_assist_script_receives_capability_and_publishes_result(
 
     sync_log_calls: list[dict[str, object]] = []
     sync_state_calls: list[dict[str, object]] = []
-    guard_oids: list[str] = []
 
     def sync_log(*args, **kwargs):  # type: ignore[no-untyped-def]
         sync_log_calls.append(dict(kwargs))
@@ -621,24 +620,15 @@ def test_recorded_assist_script_receives_capability_and_publishes_result(
 
     monkeypatch.setattr("coga.launch_script.git.sync_log", sync_log)
     monkeypatch.setattr("coga.launch_script.git.sync_task_state", sync_state)
-    monkeypatch.setattr(
-        "coga.launch_script.git.feature_publication_lease",
-        lambda *args, **kwargs: git.FeaturePublicationLease(
-            branch="feature/review",
-            local_oid="published-oid",
-            remote_oid="published-oid",
-        ),
-    )
 
     result = run_script_phase(
         load_config(script_repo),
         ref,
         ticket,
         stateless=False,
-        publish_aligned_branch="feature/review",
+        assist_branch="feature/review",
         assist_agent="claude",
         assist_pr_url="https://github.com/example/repo/pull/1",
-        feature_publication_guard=guard_oids.append,
     )
 
     assert result.exit_code == 0
@@ -651,25 +641,9 @@ def test_recorded_assist_script_receives_capability_and_publishes_result(
         "COGA_ASSIST_BRANCH": "feature/review",
         "COGA_ASSIST_PR": "https://github.com/example/repo/pull/1",
     }
-    assert sync_log_calls == [
-        {
-            "message": f"Log: {ref.id_slug}",
-            "publish_if_remote_aligned": True,
-            "expected_feature_branch": "feature/review",
-            "allow_feature_fast_forward": False,
-            "feature_publication_guard": guard_oids.append,
-        }
-    ]
-    assert guard_oids == ["published-oid", "published-oid"]
-    assert len(sync_state_calls) == 1
-    publication = sync_state_calls[0]["feature_publication"]
-    assert isinstance(publication, git.FeaturePublicationLease)
-    assert publication.remote_oid == "published-oid"
-    generated = sync_state_calls[0]["generated_paths"]
-    assert isinstance(generated, dict)
-    assert ref.ticket_path in generated
-    assert ref.task_dir / "ticket.py" in generated
-    assert script_repo / "log.md" in generated
+    assert sync_log_calls == [{"message": f"Log: {ref.id_slug}"}]
+    # The assist's script result is published to control right after exit.
+    assert sync_state_calls == [{"message": f"Ticket: {ref.id_slug} — script result"}]
 
 
 @pytest.mark.parametrize("script_exit", [0, 17], ids=["success", "failure"])
@@ -708,9 +682,9 @@ def test_recorded_assist_aligns_before_running_ticket_script(
             return True, "remote-oid"
         return False, "remote-oid"
 
-    def fake_publish(cfg, target, **kwargs):  # type: ignore[no-untyped-def]
+    def fake_start(cfg, target, current, *, launch_agent):  # type: ignore[no-untyped-def]
         events.append("publish")
-        current = Ticket.read(target.ticket_path)
+        assert launch_agent == "claude"
         current.frontmatter["status"] = "in_progress"
         current.write(target.ticket_path)
 
@@ -720,7 +694,7 @@ def test_recorded_assist_aligns_before_running_ticket_script(
         events.append("script")
         assert current.title == "Fresh recorded ticket"
         assert current.status == "in_progress"
-        assert kwargs["publish_aligned_branch"] == "feature/review"
+        assert kwargs["assist_branch"] == "feature/review"
         assert kwargs["assist_agent"] == "claude"
         return ScriptChainResult(script_exit, current, False, "script complete")
 
@@ -739,11 +713,7 @@ def test_recorded_assist_aligns_before_running_ticket_script(
         "_align_recorded_assist_checkout",
         fake_align,
     )
-    monkeypatch.setattr(
-        launch_module,
-        "_publish_assist_lifecycle_before_spawn",
-        fake_publish,
-    )
+    monkeypatch.setattr(launch_module, "_start_session", fake_start)
     monkeypatch.setattr(
         launch_module,
         "_preflight_push_auth",
