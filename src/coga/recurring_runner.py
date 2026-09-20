@@ -247,7 +247,15 @@ _CONTROL_RELAY_ENV = "COGA_RECURRING_CONTROL_RELAY"
 
 
 def _existing_control_worktree(cfg: Config) -> Path | None:
-    """Another worktree of this repo that already holds the control branch.
+    """The Coga workspace of a worktree that already holds the control branch.
+
+    What comes back is the *workspace* directory — the control worktree's
+    counterpart of this run's own `repo_root` — not the checkout root, because
+    that is where the relayed child has to start. Mirroring the workspace's
+    position relative to the checkout is also what makes a monorepo keeping
+    Coga in a subdirectory work, and checking `coga.toml` at exactly that
+    mirrored path is what proves the other checkout really is the same Coga
+    workspace rather than a checkout that predates the install.
 
     None means "run here, or let `_refuse_non_control_branch` speak": this
     checkout is already on control, the workspace is exempt or unreadable, we
@@ -274,17 +282,20 @@ def _existing_control_worktree(cfg: Config) -> Path | None:
     # that far in the first place.
     if worktree is None or worktree.resolve() == root.resolve():
         return None
-    if not (worktree / "coga.toml").is_file() and not (
-        worktree / "coga" / "coga.toml"
-    ).is_file():
+    try:
+        workspace_rel = cfg.repo_root.resolve().relative_to(root.resolve())
+    except ValueError:
         return None
-    return worktree
+    workspace = worktree / workspace_rel
+    if not (workspace / "coga.toml").is_file():
+        return None
+    return workspace
 
 
 def _relay_to_control_worktree(
-    cfg: Config, worktree: Path, argv: list[str]
+    cfg: Config, workspace: Path, argv: list[str]
 ) -> int:
-    """Re-run this recurring command as a child rooted in `worktree`.
+    """Re-run this recurring command as a child rooted in `workspace`.
 
     The run only *starts from* the control checkout; nothing is re-pointed
     in-process. The child is an ordinary on-control run, so every existing
@@ -301,7 +312,7 @@ def _relay_to_control_worktree(
     """
     typer.secho(
         f"Not on the control branch {cfg.git_control_branch!r}; running from "
-        f"the worktree that already holds it: {worktree}",
+        f"the worktree that already holds it: {workspace}",
         fg=typer.colors.BRIGHT_BLACK,
     )
     env = os.environ.copy()
@@ -310,21 +321,9 @@ def _relay_to_control_worktree(
     if local.is_file():
         env[LOCAL_CONFIG_ENV] = str(local.resolve())
 
-    # Mirror where the Coga OS dir sits relative to the checkout, so a repo
-    # that keeps it in a monorepo subdir lands in the same subdir over there.
-    cwd = worktree
-    root = git._toplevel(cfg.repo_root)
-    if root is not None:
-        try:
-            cwd = worktree / cfg.repo_root.resolve().relative_to(root.resolve())
-        except ValueError:
-            cwd = worktree
-    if not cwd.is_dir():
-        cwd = worktree
-
     result = subprocess.run(
         [sys.executable, "-m", "coga.cli", *argv],
-        cwd=cwd,
+        cwd=workspace,
         env=env,
         check=False,
     )
@@ -338,9 +337,9 @@ def _relay_off_control_single_repo_run(cfg: Config, argv: list[str]) -> int | No
     return — either the relayed child's, or `2` for the refusal that stands
     when no worktree holds the control branch.
     """
-    worktree = _existing_control_worktree(cfg)
-    if worktree is not None:
-        return _relay_to_control_worktree(cfg, worktree, argv)
+    workspace = _existing_control_worktree(cfg)
+    if workspace is not None:
+        return _relay_to_control_worktree(cfg, workspace, argv)
     if _refuse_non_control_branch(cfg, no_control_worktree=True):
         return 2
     return None

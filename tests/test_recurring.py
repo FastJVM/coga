@@ -733,7 +733,9 @@ def test_recurring_named_refuses_non_control_branch_before_creating(
     assert "git switch main" in error
 
 
-def _add_control_worktree(git_repo, name: str = "control") -> Path:
+def _add_control_worktree(
+    git_repo, name: str = "control", workspace_rel: Path = Path("coga")
+) -> Path:
     """A second worktree of the fixture repo holding the control branch.
 
     Mirrors `git worktree add` as an operator runs it: `coga.local.toml` is
@@ -744,7 +746,7 @@ def _add_control_worktree(git_repo, name: str = "control") -> Path:
     """
     path = git_repo.root.parent / name
     git_repo.git("worktree", "add", str(path), "main")
-    assert not (path / "coga" / "coga.local.toml").exists()
+    assert not (path / workspace_rel / "coga.local.toml").exists()
     return path
 
 
@@ -940,6 +942,48 @@ def test_recurring_relay_skips_a_worktree_without_a_coga_root(
     assert "No linked worktree has 'main' checked out either" in (
         capsys.readouterr().err
     )
+
+
+@pytest.mark.parametrize(
+    "workspace_rel",
+    [Path("tools") / "ops" / "coga", Path(".")],
+    ids=["nested-monorepo", "root-layout"],
+)
+def test_recurring_relay_mirrors_the_workspace_position(
+    git_repo, monkeypatch: pytest.MonkeyPatch, relay_calls, workspace_rel: Path
+) -> None:
+    """The child starts in the control worktree's *mirrored* Coga workspace.
+
+    A layout that keeps `coga.toml` anywhere but `<checkout>/coga` must still
+    relay: probing a couple of fixed depths would refuse a monorepo outright,
+    and starting the child at the checkout root would let it discover some
+    other workspace.
+    """
+    moved = (git_repo.root / workspace_rel).resolve()
+    if moved != git_repo.coga_os.resolve():
+        moved.mkdir(parents=True, exist_ok=True)
+        for entry in list(git_repo.coga_os.iterdir()):
+            shutil.move(str(entry), str(moved / entry.name))
+        git_repo.coga_os.rmdir()
+    git_repo.coga_os = moved
+    # The seeded ignore names the workspace's original path; moving it would
+    # otherwise commit the machine-local file the relay exists to hand over.
+    (git_repo.root / ".gitignore").write_text("**/coga.local.toml\n")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "move coga workspace")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/mirrored-workspace")
+    control = _add_control_worktree(git_repo, workspace_rel=workspace_rel)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: pytest.fail("relay reached scan_due"),
+    )
+
+    assert recurring_cmd.run_recurring_scan(load_config(moved)) == 0
+
+    (call,) = relay_calls
+    assert call.cwd == (control / workspace_rel).resolve()
 
 
 def test_recurring_launch_spelling_keeps_the_plain_branch_refusal(

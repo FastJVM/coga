@@ -354,7 +354,11 @@ the branch requirement.
 Off that branch, the two single-repo entry points — the bare/forced sweep and
 `coga recurring launch <name>` — do not dead-end. They look for another
 worktree of the same repo that **already has the control branch checked out**
-and re-run themselves from there, returning that child's exit code. Nothing is
+and re-run themselves from there, returning that child's exit code. The child
+starts in that worktree's counterpart of your own Coga workspace — the same
+position relative to the checkout — so a monorepo keeping Coga in a
+subdirectory relays like any other layout, and a checkout with no `coga.toml`
+at that mirrored position is not treated as one. Nothing is
 created, copied, or deleted: no worktree is added, the operator's checkout is
 never switched or stashed, and no lock is held beyond what an ordinary
 on-control run holds. The relayed child is simply an ordinary on-control run
