@@ -72,6 +72,12 @@ def _git_repo_with_branch(root: Path, branch: str) -> Path:
     return root
 
 
+def _linked_worktree(root: Path, path: Path, branch: str) -> Path:
+    """A real linked worktree of `root` — the one checkout retire disposes of."""
+    _git(root, "worktree", "add", "-q", "-b", branch, str(path), "main")
+    return path
+
+
 # --- parse / render --------------------------------------------------------
 
 
@@ -272,6 +278,52 @@ def test_a_relative_worktree_resolves_against_the_root_not_the_cwd(
     assert rw.is_discharged(entry, root=elsewhere, branches=frozenset())
 
 
+def test_a_worktree_that_is_the_primary_checkout_never_holds_the_entry(
+    tmp_path: Path,
+) -> None:
+    # A ticket worked in the single-checkout layout records the primary
+    # checkout as its own `worktree:`. Retire will never remove it, so counting
+    # it as outstanding listed the entry forever: the primary checkout is
+    # always a directory. The branch half still has to clear on its own.
+    root = _git_repo_with_branch(tmp_path / "repo", "feature-x")
+    entry = _entry("x", branch="feature-x", worktree=str(root))
+
+    assert not rw.is_discharged(entry, root=root, branches=frozenset({"feature-x"}))
+    assert rw.is_discharged(entry, root=root, branches=frozenset())
+
+
+def test_a_live_linked_worktree_still_holds_the_entry(tmp_path: Path) -> None:
+    # The debt this worklist exists for: a checkout `coga retire` really will
+    # dispose of keeps its entry even after the branch is gone.
+    root = _git_repo_with_branch(tmp_path / "repo", "unused")
+    worktree = _linked_worktree(root, tmp_path / "coga-feature-x", "feature-x")
+    entry = _entry("x", branch="", worktree=str(worktree))
+
+    assert not rw.is_discharged(entry, root=root, branches=frozenset())
+
+
+def test_an_independent_clone_does_not_hold_the_entry(tmp_path: Path) -> None:
+    # The `dev/code` sandbox fallback checkout. Retire preserves it exactly as
+    # it preserves the primary checkout, so it is not debt retire can discharge.
+    root = _git_repo_with_branch(tmp_path / "repo", "feature-x")
+    clone = tmp_path / "clone"
+    _git(root, "clone", "--no-hardlinks", "-q", str(root), str(clone))
+    entry = _entry("x", branch="", worktree=str(clone))
+
+    assert rw.is_discharged(entry, root=root, branches=frozenset())
+
+
+def test_a_checkout_git_cannot_classify_holds_the_entry(tmp_path: Path) -> None:
+    # Fail closed on debt, as everywhere else here: a probe with no answer must
+    # not read as "not a worktree" and silently forget a live checkout.
+    root = tmp_path / "not-a-repo"
+    worktree = root / "live"
+    worktree.mkdir(parents=True)
+    entry = _entry("x", branch="", worktree=str(worktree))
+
+    assert not rw.is_discharged(entry, root=root, branches=frozenset())
+
+
 def test_local_branches_lists_heads_and_is_none_outside_a_repo(tmp_path: Path) -> None:
     repo = _git_repo_with_branch(tmp_path / "repo", "feature-x")
 
@@ -377,6 +429,35 @@ def test_reconcile_drops_discharged_entries_and_keeps_live_debt(
     assert [e.slug for e in change.dropped] == ["done"]
     assert [e.slug for e in change.open] == ["branch-lives", "dir-lives"]
     assert "`done`" not in path.read_text()
+
+
+def test_reconcile_drains_a_primary_checkout_entry_once_its_branch_is_gone(
+    repo: Path, tmp_path: Path
+) -> None:
+    # The stranded-entry case end to end: an entry already written against the
+    # primary checkout clears on an ordinary sweep, with no hand edit of
+    # `retires.md`, while a real linked worktree beside it stays listed.
+    cfg = load_config(repo)
+    root = _git_repo_with_branch(tmp_path / "repo", "in-place")
+    worktree = _linked_worktree(root, tmp_path / "coga-real", "real")
+    path = rw.template_worklist_path(cfg, "autoclose-merged")
+    rw.reconcile_worklist(
+        cfg,
+        path,
+        root=root,
+        pending=[
+            _entry("in-place", branch="in-place", worktree=str(root)),
+            _entry("real", branch="real", worktree=str(worktree)),
+        ],
+        branches=frozenset({"in-place", "real"}),
+    )
+    _git(root, "branch", "-D", "in-place")
+
+    change = rw.reconcile_worklist(cfg, path, root=root)
+
+    assert [e.slug for e in change.dropped] == ["in-place"]
+    assert [e.slug for e in change.open] == ["real"]
+    assert "`in-place`" not in path.read_text()
 
 
 def test_reconcile_refuses_when_the_file_moved_underneath_it(

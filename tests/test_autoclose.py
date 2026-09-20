@@ -631,6 +631,97 @@ def test_sweep_records_the_checkout_state_of_each_closed_ticket(
     ] == [(slug, "feature-x", "/w/coga-feature-x")]
 
 
+def _git_root_around(repo: Path) -> Path:
+    """Make the fixture's parent a real git root the sweep can classify against.
+
+    `_disposable_worktree` resolves a recorded `worktree:` against
+    `git rev-parse --show-toplevel`, so a recorded path only reads as the
+    primary checkout when there is a real repository to compare it with.
+    """
+    root = repo.parent
+    for args in (
+        ("init", "-q", "-b", "main"),
+        ("config", "user.email", "t@example.com"),
+        ("config", "user.name", "Tester"),
+        ("commit", "-q", "--allow-empty", "-m", "root"),
+    ):
+        subprocess.run(
+            ["git", "-C", str(root), *args], check=True, capture_output=True, text=True
+        )
+    return root
+
+
+def test_sweep_does_not_record_a_worktree_retire_could_never_remove(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The single-checkout layout records the primary checkout as the ticket's
+    # own `worktree:`. Retire preserves it by design, so naming it as a retire
+    # follow-up is debt no run can ever discharge. The live branch is real
+    # debt and still is named.
+    root = _git_root_around(repo)
+    slug, _ = _make_task(
+        repo,
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/30",
+        branch="in-place",
+        worktree=str(root),
+    )
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/30": "MERGED"})
+
+    result = am.sweep_merged(load_config(repo), quiet=True)
+
+    assert [
+        (item.slug, item.branch, item.worktree) for item in result.retire_pending
+    ] == [(slug, "in-place", None)]
+
+
+def test_sweep_strands_nothing_for_a_primary_checkout_ticket_with_no_branch(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = _git_root_around(repo)
+    _make_task(
+        repo,
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/31",
+        branch=None,
+        worktree=str(root),
+    )
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/31": "MERGED"})
+
+    result = am.sweep_merged(load_config(repo), quiet=True)
+
+    assert len(result.closed) == 1
+    assert result.retire_pending == []
+
+
+def test_sweep_records_a_real_linked_worktree(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # The other side of the same rule: the checkout retire really does dispose
+    # of must keep reaching the follow-up unchanged.
+    root = _git_root_around(repo)
+    worktree = tmp_path / "coga-feature-x"
+    subprocess.run(
+        ["git", "-C", str(root), "worktree", "add", "-q", "-b", "feature-x",
+         str(worktree), "main"],
+        check=True, capture_output=True, text=True,
+    )
+    slug, _ = _make_task(
+        repo,
+        on_final=True,
+        pr_url="https://github.com/o/r/pull/32",
+        branch="feature-x",
+        worktree=str(worktree),
+    )
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/32": "MERGED"})
+
+    result = am.sweep_merged(load_config(repo), quiet=True)
+
+    assert [
+        (item.slug, item.branch, item.worktree) for item in result.retire_pending
+    ] == [(slug, "feature-x", str(worktree))]
+
+
 def test_sweep_omits_a_closed_ticket_that_recorded_no_checkout(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

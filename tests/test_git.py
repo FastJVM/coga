@@ -7699,3 +7699,50 @@ def test_sync_log_reconciles_before_publishing_to_an_open_pr_branch(git_repo):
     assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
         "rev-parse", "refs/heads/feature/x", cwd=git_repo.origin
     ).strip()
+
+
+# --- is_linked_worktree_of ----------------------------------------------------
+
+
+def test_is_linked_worktree_of_accepts_only_a_linked_worktree_of_this_repo(
+    git_repo, tmp_path: Path
+) -> None:
+    """The probe `coga retire` and the retire worklist both classify with.
+
+    Retire removes exactly one shape of checkout, so the three it preserves —
+    the primary checkout, an independent clone, another repository's linked
+    worktree — must all read `False`, never `True`.
+    """
+    linked = tmp_path / "linked"
+    git_repo.git("worktree", "add", "-b", "feature-x", str(linked), "main")
+    clone = tmp_path / "clone"
+    subprocess.run(
+        ["git", "clone", "--no-hardlinks", str(git_repo.root), str(clone)],
+        check=True, capture_output=True, text=True,
+    )
+    foreign_linked = tmp_path / "foreign-linked"
+    subprocess.run(
+        ["git", "-C", str(clone), "worktree", "add", "-b", "other",
+         str(foreign_linked), "HEAD"],
+        check=True, capture_output=True, text=True,
+    )
+
+    assert git.is_linked_worktree_of(git_repo.root, linked) is True
+    assert git.is_linked_worktree_of(git_repo.root, git_repo.root) is False
+    assert git.is_linked_worktree_of(git_repo.root, clone) is False
+    assert git.is_linked_worktree_of(git_repo.root, foreign_linked) is False
+
+
+def test_is_linked_worktree_of_is_none_when_it_cannot_tell(
+    git_repo, tmp_path: Path
+) -> None:
+    """No answer is its own state: callers must not read it as either verdict.
+
+    Retire preserves what it cannot prove disposable, and the retire worklist
+    keeps the entry — opposite fail-safes off the same probe.
+    """
+    outside = tmp_path / "outside"
+    outside.mkdir()
+
+    assert git.is_linked_worktree_of(git_repo.root, outside) is None
+    assert git.is_linked_worktree_of(outside, git_repo.root) is None

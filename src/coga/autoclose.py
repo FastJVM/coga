@@ -84,6 +84,11 @@ class ClosedTicket:
     They are captured *during* the sweep on purpose: they are the only trace of
     which checkout belongs to this ticket, and a later reader may find them
     gone — retire clears them, and a deleted task takes them with it.
+
+    `worktree` is the one field the sweep filters rather than copies: a path
+    `coga retire` provably will not remove is dropped by
+    `_disposable_worktree`, so the follow-up names only work that running the
+    command can actually finish.
     """
 
     slug: str
@@ -367,6 +372,38 @@ def _candidate(ticket: Ticket) -> bool:
     return ticket.status in OPEN_STATUSES and _on_final_step(ticket)
 
 
+def _disposable_worktree(cfg: Config, recorded: str | None) -> str | None:
+    """The recorded `worktree:` as retire debt, or `None` when it is not debt.
+
+    `coga retire` removes exactly one shape of checkout: a linked worktree of
+    this repository. A ticket worked in the single-checkout layout records the
+    primary checkout as its own `worktree:`, and the `dev/code` sandbox
+    fallback records an independent clone; `remove_ticket_worktree` preserves
+    both by design. Naming either as a retire follow-up asks for a disposal
+    that can never happen — and, once written to the durable worklist, an entry
+    no run could ever discharge.
+
+    Probes only when there is something to probe, and keeps the path on every
+    unknown: a checkout outside any git repository, one `git` cannot answer
+    for, or a path already gone (which the worklist discharges on its own next
+    reconcile). `retire_worklist.worktree_outstanding` applies the mirror rule
+    through the same `git.is_linked_worktree_of` probe.
+    """
+    if not recorded:
+        return None
+    root = _worklist_root(cfg)
+    if root is None:
+        return recorded
+    path = Path(recorded).expanduser()
+    if not path.is_absolute():
+        path = root / path
+    if not path.is_dir():
+        return recorded
+    if git.is_linked_worktree_of(root, path) is False:
+        return None
+    return recorded
+
+
 def _try_bump_one(
     cfg: Config,
     ref: TaskRef,
@@ -430,7 +467,7 @@ def _try_bump_one(
         slug=ref.id_slug,
         title=ticket.title,
         branch=parse_branch_name(blackboard),
-        worktree=parse_worktree_path(blackboard),
+        worktree=_disposable_worktree(cfg, parse_worktree_path(blackboard)),
     )
     if before_close is not None:
         before_close(closed)
@@ -623,11 +660,13 @@ def render_retire_summary(pending: list[ClosedTicket]) -> str:
 
 
 def _worklist_root(cfg: Config) -> Path | None:
-    """The git root a worklist entry's relative `worktree:` resolves against.
+    """The git root a `worktree:` is resolved and classified against.
 
-    `None` when the checkout is not a git repository; the discharge rule then
-    keeps every entry it cannot judge without one — a relative worktree, or any
-    recorded branch — the fail-closed reading of debt the worklist exists for.
+    `None` when the checkout is not a git repository. Both consumers then fall
+    back to keeping what they cannot judge: the discharge rule keeps every
+    entry it cannot judge without a root — a relative worktree, or any recorded
+    branch — and `_disposable_worktree` records the path unfiltered. That is
+    the fail-closed reading of debt the worklist exists for.
     """
     try:
         return git._toplevel(cfg.repo_root)

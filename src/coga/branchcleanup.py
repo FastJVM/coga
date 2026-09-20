@@ -75,6 +75,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Callable
 
+from coga import git
 from coga.autoclose import (
     GhError,
     parse_branch_name,
@@ -328,32 +329,15 @@ def remove_ticket_worktree(
 
 
 def _is_linked_worktree_of(root: Path, path: Path) -> bool:
-    """True iff `path` is a linked worktree sharing `root`'s common git dir.
+    """True only when retire has proved `path` is `root`'s linked worktree.
 
-    A linked worktree has its own administrative git dir while sharing the
-    repository's common dir; the primary checkout and an independent clone
-    report the same path for both. Comparing the common dir against `root`'s
-    also rejects a linked worktree belonging to some *other* repository.
+    `git.is_linked_worktree_of` is the shared probe — `coga.retire_worklist`
+    asks it the mirror-image question, so that what retire declines to remove
+    and what the worklist counts as outstanding debt cannot drift apart. Here
+    an unprobeable checkout (`None`) collapses to "not disposable": retire
+    preserves anything it cannot prove.
     """
-    git_dir = _git_path(path, "--git-dir")
-    common_dir = _git_path(path, "--git-common-dir")
-    root_common_dir = _git_path(root, "--git-common-dir")
-    if git_dir is None or common_dir is None or root_common_dir is None:
-        return False
-    return git_dir != common_dir and common_dir == root_common_dir
-
-
-def _git_path(cwd: Path, flag: str) -> Path | None:
-    proc = _git(cwd, "rev-parse", "--path-format=absolute", flag)
-    if proc.returncode != 0:
-        return None
-    out = proc.stdout.strip()
-    if not out:
-        return None
-    try:
-        return Path(out).resolve()
-    except OSError:
-        return None
+    return git.is_linked_worktree_of(root, path) is True
 
 
 def _same_path(left: Path, right: Path) -> bool:

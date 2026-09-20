@@ -22,8 +22,18 @@ Entries are keyed by task slug, so re-recording one refreshes the checkout it
 names and keeps the first sighting's date. When an entry is **discharged** is
 `is_discharged`'s rule; the `coga/autoclose/sweep` skill owns the prose. The
 one design constant: the file is a record of debt, so every unknown (a branch
-list or git root that cannot be read) keeps the entry — the failure mode is
-"listed one time too many", never "silently forgotten".
+list or git root that cannot be read, a checkout git cannot answer for) keeps
+the entry — the failure mode is "listed one time too many", never "silently
+forgotten".
+
+The rule's other half is that debt has to be *dischargeable*. Only a linked
+worktree of this repository is ever removed by `coga retire`, so only one holds
+an entry open; a `worktree:` naming the primary checkout, an independent
+fallback clone, or another repository's worktree is not debt this worklist can
+ever clear, and counting it kept such an entry listed forever. `autoclose`
+declines to record those paths and `worktree_outstanding` ignores an already
+written one, both through the single `git.is_linked_worktree_of` probe, so the
+recording and discharge sides cannot disagree.
 
 The file is plain markdown so a human can read, hand-edit, or backfill it.
 The one line shape is::
@@ -65,11 +75,14 @@ the next period.
 Every entry means the same thing: run `coga retire <slug>` to dispose of the
 recorded worktree and branch. Autoclose only ever names the follow-up; retire
 owns the safety proofs. Entries are keyed by slug, so a later sweep refreshes
-one rather than duplicating it, and an entry is dropped once both its worktree
-directory and its local branch are gone. An entry whose ticket no longer
-exists — retire preserved the checkout and then deleted the ticket — is still
-debt: dispose of the recorded worktree and branch by hand (or let the weekly
-branch sweep take the branch) and the entry clears by the same rule.
+one rather than duplicating it, and an entry is dropped once its local branch
+is gone and its worktree is no longer a linked worktree of this repository.
+Only a linked worktree is retire's to remove, so a recorded path that is the
+primary checkout or an independent clone never holds an entry open. An entry
+whose ticket no longer exists — retire preserved the checkout and then deleted
+the ticket — is still debt: dispose of the recorded worktree and branch by hand
+(or let the weekly branch sweep take the branch) and the entry clears by the
+same rule.
 
 For the line format and field encoding, see the `coga/autoclose/sweep` skill.
 
@@ -237,26 +250,51 @@ def local_branches(root: Path) -> frozenset[str] | None:
     return frozenset(ref.removeprefix("refs/heads/") for ref in result.stdout.split())
 
 
+def worktree_outstanding(entry: RetireFollowUp, *, root: Path | None) -> bool:
+    """Whether the entry's recorded checkout is still `coga retire`'s to remove.
+
+    A path that is not a directory is gone, so nothing is outstanding. A path
+    that exists is outstanding only while it could be a **linked worktree of
+    this repository** — the one shape `branchcleanup.remove_ticket_worktree`
+    will ever remove. The primary checkout (a ticket worked in the
+    single-checkout layout records it as its own `worktree:`), an independent
+    fallback clone, and another repository's worktree are all preserved by
+    retire by design, so counting them as outstanding made an entry that no
+    `coga retire` run could ever discharge: permanent false debt in a durable
+    worklist. `autoclose` declines to record those same paths, and the two
+    sides share one probe so they cannot drift apart.
+
+    Unknowns stay outstanding, as everywhere else here: no git root to anchor a
+    relative path (`root is None`), or a checkout `git.is_linked_worktree_of`
+    could not read (`None`).
+    """
+    if not entry.worktree:
+        return False
+    path = Path(entry.worktree).expanduser()
+    if not path.is_absolute():
+        if root is None:
+            return True
+        path = root / path
+    if not path.is_dir():
+        return False
+    if root is None:
+        return True
+    return git.is_linked_worktree_of(root, path) is not False
+
+
 def is_discharged(
     entry: RetireFollowUp, *, root: Path | None, branches: frozenset[str] | None
 ) -> bool:
     """Whether `coga retire <slug>` has nothing left to dispose of.
 
-    Discharged means the recorded worktree path is no longer a directory *and*
-    the recorded branch is no longer a local branch; either half still on disk
-    keeps the entry. A relative `worktree:` resolves against the git root the
-    ticket lives in, never the process working directory. Every unknown keeps
-    the entry: a relative worktree with no git root to anchor it (`root is
-    None`), or a branch list that could not be read (`branches is None`).
+    Discharged means the recorded worktree is no longer outstanding (see
+    `worktree_outstanding`) *and* the recorded branch is no longer a local
+    branch; either half still to dispose of keeps the entry. Every unknown
+    keeps the entry, including a branch list that could not be read
+    (`branches is None`).
     """
-    if entry.worktree:
-        path = Path(entry.worktree).expanduser()
-        if not path.is_absolute():
-            if root is None:
-                return False
-            path = root / path
-        if path.is_dir():
-            return False
+    if worktree_outstanding(entry, root=root):
+        return False
     if entry.branch and (branches is None or entry.branch in branches):
         return False
     return True
@@ -360,4 +398,5 @@ __all__ = [
     "render_worklist",
     "template_worklist_path",
     "worklist_for_period_task",
+    "worktree_outstanding",
 ]

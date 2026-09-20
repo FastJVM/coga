@@ -6380,6 +6380,57 @@ def is_linked_worktree(start: Path) -> bool:
     return Path(git_dir).resolve() != Path(common_dir).resolve()
 
 
+def is_linked_worktree_of(root: Path, path: Path) -> bool | None:
+    """Whether `path` is a linked worktree of the *same* repository as `root`.
+
+    Tri-state on purpose, because the two callers need opposite fail-safes:
+
+    - `True`  — `path` has its own administrative git dir while sharing
+      `root`'s common dir. This is the one shape `coga retire` will ever
+      remove.
+    - `False` — proven otherwise: the primary checkout, an independent clone
+      (including the sandbox `/tmp` fallback checkout), or a linked worktree
+      belonging to some *other* repository. All three report either matching
+      git dirs or a foreign common dir.
+    - `None`  — no answer. `path` or `root` is not a readable git checkout, or
+      `git` could not be run. Retire preserves the checkout; the retire
+      worklist keeps the entry.
+
+    `is_linked_worktree` above answers the unscoped question — "is this
+    checkout linked at all" — for Retro's control-branch guard, and folds its
+    own unknowns into `False`. Keep the two separate: a caller that must prove
+    a checkout is *disposable* cannot treat "could not tell" as an answer.
+    """
+    git_dir = _rev_parse_path(path, "--git-dir")
+    common_dir = _rev_parse_path(path, "--git-common-dir")
+    root_common_dir = _rev_parse_path(root, "--git-common-dir")
+    if git_dir is None or common_dir is None or root_common_dir is None:
+        return None
+    return git_dir != common_dir and common_dir == root_common_dir
+
+
+def _rev_parse_path(cwd: Path, flag: str) -> Path | None:
+    """One absolute `rev-parse` path, or `None` when it cannot be read."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(cwd), "rev-parse", "--path-format=absolute", flag],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    out = result.stdout.strip()
+    if not out:
+        return None
+    try:
+        return Path(out).resolve()
+    except OSError:
+        return None
+
+
 def _current_branch(root: Path) -> str:
     """Return the current branch name (`HEAD` for a detached checkout)."""
     return _run_git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
@@ -7271,6 +7322,7 @@ __all__ = [
     "feature_publication_lease",
     "guard_ticket_state",
     "is_linked_worktree",
+    "is_linked_worktree_of",
     "refresh_coga_state_from_control",
     "restore_files_under_barrier",
     "state_publication_barrier",
