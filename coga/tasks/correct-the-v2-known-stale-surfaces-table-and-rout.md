@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -125,6 +125,7 @@ note it for the sibling ticket rather than acting on it.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/845
 branch: v2-stale-surfaces
 worktree: /tmp/coga-v2-stale-surfaces
 
@@ -187,3 +188,49 @@ blackboard and the workflow transition. Implementation commit: `c6a56e83`
   `c85725aaefda0618b6336f338d960150eb485c6c`. Feature checkout is clean.
 
 Ready for peer review; no unresolved implementation blocker.
+
+
+## Peer review
+
+- `codex review --base main` **returned** successfully with no findings.
+  It confirmed that the documentation preserves substantive requirements and
+  historical evidence, and that routing and workflow paths match the repo.
+  Initial sandbox initialization failed before review; the approved retry
+  completed. Review transcript: `/tmp/coga-v2-peer-review.txt`.
+- `git fetch origin main && git rebase FETCH_HEAD` completed without conflicts
+  before review and tests. Current implementation commit: `fd8997a8d`, on
+  `dd5415699` (`origin/main`). No review fixes or additional feature commit
+  were needed; the feature checkout is clean and one commit ahead.
+- Post-rebase verification:
+  `PYTHONPATH=/tmp/coga-v2-stale-surfaces/src /home/n/Code/claude/coga/.venv/bin/python -m pytest`
+  — **2657 passed** in 184.88 seconds.
+  `git diff --check origin/main...HEAD` passed.
+- `coga validate --json` on primary versus
+  `PYTHONPATH=/tmp/coga-v2-stale-surfaces/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --json`
+  on feature confirms exactly the two requested errors clear (4 → 2).
+  Remaining errors: `clean-up-all-the-working-trees` and
+  `v2/autotrigger-ticket-type`, both pre-existing and outside scope.
+  Warnings are 53 → 54, with the expected missing local user config warning.
+  Evidence: `/tmp/coga-v2-peer-baseline.json`,
+  `/tmp/coga-v2-peer-validate.json`, `/tmp/coga-v2-peer-pytest.txt`.
+- Read the changed Markdown and verified the linked Dream Phase 6 / roadmap
+  rules and workflow resolver. No terminal, pager, prompt, or Slack-rendered
+  surface changes are present, so no interactive surface exercise applies.
+
+## PR
+
+Correct the v2 stale-surface table so Relay-era workflow references resolve
+through repo-local workflows first, then packaged bootstrap workflows; this
+repo's `code/*` workflows are packaged-only. Link future Dream gap findings to
+the existing Phase 6 routing policy: reconcile with open owners, file new
+drafts at the task root, and leave v2 parking to human triage.
+
+Synthesize the prompt-scope and worktree drafts' authoring blackboards into
+their bodies, preserving requirements, historical evidence, and open design
+questions. No lifecycle changes or new Dream policy; the obsolete `script:`
+row is omitted per the corrected scope.
+
+Test plan: full `python -m pytest` with feature `PYTHONPATH` and the existing
+test venv (2657 passed); `coga validate --json` comparison confirms exactly
+the two targeted errors clear, with two unrelated baseline errors remaining;
+`git diff --check origin/main...HEAD` passes.
