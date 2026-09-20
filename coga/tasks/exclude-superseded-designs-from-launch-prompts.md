@@ -186,6 +186,12 @@ the finding forward rather than expanding this ticket into blocker lifecycle wor
   `/tmp/exclude-superseded-peer-tests.log`. Feature checkout is clean with
   one committed change ahead of fetched `origin/main`; no fix commit was needed.
 
+- A second peer-review session ran on a forked local `main` after this one
+  bumped: `codex review --base main` **returned** with no actionable defects
+  again; it rebased the same patch onto `ff15769a` (range-diff unchanged,
+  `b454ceba` → `78d6e8e6`) and the full suite passed (2,689 in 186.15s).
+  `78d6e8e6` is the head PR #840 now carries.
+
 ## PR
 
 Launch prompts now replace exact `## Superseded designs` blackboard sections
@@ -214,3 +220,10 @@ Test plan: `PYTHONPATH=/tmp/coga-exclude-superseded-designs/src /tmp/coga-system
   was carried onto `main` (identical bytes at both tips) rather than stashed, so
   `open-pr` and `bump` read the live step-3 ticket; the bump's own sync lands it.
   The checkout is returned to `gh-backed-readonly-context` after the bump.
+- A second open-pr session (14:06) ran from a local `main` that had forked
+  from `origin/main` at 10:08 (`git merge --ff-only` refresh failed). Its
+  `coga open-pr` reused PR #840 idempotently and pushed `78d6e8e6` as the head;
+  the sync guard refused to regress this ticket from step 4 to step 3. With the
+  owner's OK the fork was rebased onto `origin/main` (log lines union-merged,
+  origin's ticket states kept, backup at `backup/main-fork-20260919`); no
+  second bump was made because the ticket was already at this review gate.
