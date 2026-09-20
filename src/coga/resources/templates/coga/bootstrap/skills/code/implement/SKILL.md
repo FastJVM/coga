@@ -92,17 +92,24 @@ later `code/open-pr` step does that, after self-review and fixes.
    `coga block --task <slug> --reason "<specific capability or access needed>"`
    instead of merely saying "blocked" and leaving the supervised queue waiting.
 
-   **Whichever way you made it, the new checkout has no `coga.local.toml`.**
-   The file is gitignored, and every user-acting Coga command (`bump`,
-   `block`, `mark`, `create`, ...) exits 2 without it. In both layouts above
-   you never run those commands there, so nothing to do; if a user-acting
-   command *must* run inside the fresh checkout, seed it by the rule in the
-   `dev/code` context ("Seed the machine-local config"): an ordinary 0600 copy
-   at the same repo-relative path, never symlinked, staged, or committed, and
-   removed again before the checkout is retired.
+   **Seed or verify local config immediately after checkout creation**, for
+   both a linked worktree and the independent-clone fallback above. Before
+   the first Coga command in the feature checkout, invoke the ordinary
+   `seed_local_config.py` attachment beside this skill:
+
+   ```bash
+   python /resolved/code/implement/seed_local_config.py /primary/repo/coga /feature/repo
+   ```
+
+   The first argument is the primary directory containing `coga.toml`; the
+   second is the feature Git root. Resolve this skill local-first, falling
+   back to the installed bundled skill (see `dev/code`, "Seed the machine-local
+   config"). Stop on failure; never synthesize an actor. The same invocation
+   verifies a single checkout when both paths refer to that checkout.
 
    **On a resumed session** where `## Dev` already records a
-   `branch:` and `worktree:`, reuse them — and refresh first: from the
+   `branch:` and `worktree:`, reuse them, rerun the config helper above
+   before any Coga command, and refresh: from the
    clean feature worktree, `git fetch origin main && git rebase
    FETCH_HEAD`, re-running the tests if new commits came in. Work parked
    for days drifts; start from current `main`, not from where the last
