@@ -14,6 +14,7 @@ import sys
 import tempfile
 import tomllib
 from collections.abc import Callable, Iterable, Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path, PurePosixPath
@@ -245,6 +246,11 @@ def _control_remote_present_at_admission(cfg: Config) -> bool:
 # processes bounce between checkouts.
 _CONTROL_RELAY_ENV = "COGA_RECURRING_CONTROL_RELAY"
 
+# Scoped by cli.main: the forwarding process must not sweep its own checkout,
+# even when the child fails or is interrupted. This is process-local, so the
+# child retains its ordinary end-of-command publication.
+control_relay_started: ContextVar[bool] = ContextVar("control_relay_started", default=False)
+
 
 def _existing_control_worktree(cfg: Config) -> Path | None:
     """The Coga workspace of a worktree that already holds the control branch.
@@ -321,13 +327,38 @@ def _relay_to_control_worktree(
     if local.is_file():
         env[LOCAL_CONFIG_ENV] = str(local.resolve())
 
-    result = subprocess.run(
-        [sys.executable, "-m", "coga.cli", *argv],
-        cwd=workspace,
-        env=env,
-        check=False,
-    )
-    return result.returncode
+    control_relay_started.set(True)
+    process: subprocess.Popen[bytes] | None = None
+    terminated = False
+
+    def forward_termination(signum: int, _frame: object) -> None:
+        nonlocal terminated
+        terminated = True
+        if process is not None:
+            process.send_signal(signum)
+
+    # Keep the inherited foreground terminal. An isolated session would break
+    # interactive admission; PID-targeted cancellation instead reaches the
+    # child's ordinary launch/supervisor signal handling through this relay.
+    previous_sigterm = signal.signal(signal.SIGTERM, forward_termination)
+    try:
+        process = subprocess.Popen(
+            [sys.executable, "-m", "coga.cli", *argv], cwd=workspace, env=env
+        )
+        # A signal during spawn is remembered until the child PID is available.
+        if terminated:
+            process.send_signal(signal.SIGTERM)
+        try:
+            code = process.wait()
+        except KeyboardInterrupt:
+            process.send_signal(signal.SIGINT)
+            process.wait()
+            raise
+        if terminated:
+            return 128 + signal.SIGTERM
+        return 128 - code if code < 0 else code
+    finally:
+        signal.signal(signal.SIGTERM, previous_sigterm)
 
 
 def _relay_off_control_single_repo_run(cfg: Config, argv: list[str]) -> int | None:

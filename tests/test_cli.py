@@ -195,3 +195,30 @@ def test_validate_does_not_warn_when_user_set(clone: Path) -> None:
     assert result.exit_code == 0
     payload = json.loads(result.output)
     assert [i for i in payload["issues"] if i["kind"] == "missing-user"] == []
+
+
+@pytest.mark.parametrize("failure", [SystemExit(9), OSError("spawn failed"), KeyboardInterrupt()])
+def test_control_relay_suppresses_parent_sweep_and_resets_after_failure(
+    clone: Path, monkeypatch: pytest.MonkeyPatch, failure: BaseException
+) -> None:
+    from coga.recurring_runner import control_relay_started
+
+    monkeypatch.setattr("sys.argv", ["coga", "recurring"])
+    sweeps: list[object] = []
+    monkeypatch.setattr("coga.git.sync_coga_state", sweeps.append)
+    prior = control_relay_started.get()
+
+    def relay() -> None:
+        control_relay_started.set(True)
+        raise failure
+
+    monkeypatch.setattr("coga.cli.app", relay)
+    with pytest.raises(type(failure)):
+        main()
+    assert sweeps == []
+    assert control_relay_started.get() == prior
+
+    # A subsequent invocation in the same Python process still owns its sweep.
+    monkeypatch.setattr("coga.cli.app", lambda: None)
+    main()
+    assert len(sweeps) == 1

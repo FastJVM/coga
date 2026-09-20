@@ -448,6 +448,12 @@ inspection failure refuses rather than silently treating the checkout as
 unmanaged — and it refuses rather than relaying, so a broken probe can never be
 read as "no worktree holds control".
 
+The forwarding CLI skips its end-of-command state sweep, including after a
+child failure or interruption. Only the control-worktree child performs the
+ordinary sweep; returning to the caller must never commit its dirty files.
+SIGTERM sent to the forwarding PID is forwarded to the child, and the parent
+waits for its exit before returning 143. Terminal access remains inherited.
+
 ## An `--all` child services an off-branch checkout from a temporary worktree
 
 The branch gate above is right — the scan reads working-tree templates and
