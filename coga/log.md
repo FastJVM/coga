@@ -6023,3 +6023,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-21 12:22 [record-four-repeated-dev-loop-verification-gotchas] [human:nicktoper] created (status=draft)
 2026-09-21 12:22 [document-how-to-recover-a-retired-ticket-s-body-fr] [human:nicktoper] created (status=draft)
 2026-09-21 12:22 [the-retro-done-ticket-skill-should-verify-a-done-t] [human:nicktoper] created (status=draft)
+2026-09-21 12:22 [add-an-applying-a-batch-of-verdicts-section-to-the] [human:nicktoper] created (status=draft)
