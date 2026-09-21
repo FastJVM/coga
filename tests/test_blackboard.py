@@ -9,6 +9,7 @@ import pytest
 
 from coga.blackboard import (
     PRELAUNCH_SYNTHESIS_TEXT_CHARS,
+    blackboard_for_prompt,
     blackboard_size_warning,
     prelaunch_blackboard_synthesis_reason,
     prelaunch_blackboard_synthesis_reason_text,
@@ -140,6 +141,35 @@ def test_prelaunch_blackboard_ignores_historical_headings_inside_archive() -> No
     assert prelaunch_blackboard_synthesis_reason_text(
         text + "\n## Evaluator review\nLive scratch needs synthesis.\n"
     ) == "authoring section(s): ## Evaluator review"
+
+
+def test_superseded_designs_archive_ends_only_at_atx_headings(tmp_path: Path) -> None:
+    # `dev/code` narrows the boundary to ATX `#`/`##` lines: a Setext
+    # underline is not a boundary because `---` is also the blackboard's
+    # section separator and would split the archive at every separator.
+    text = dedent(
+        """        ## Notes
+        Live notes.
+
+        ## Superseded designs
+        ### 2026-09-18 — Old plan
+        Old plan text.
+        ---
+        Still archived after the separator.
+        Current handoff
+        ---------------
+        Still archived: a Setext underline is not a boundary.
+
+        ## Verification
+        Live again.
+        """
+    )
+    projected = blackboard_for_prompt(text, tmp_path / "ticket.md")
+    assert "Live notes." in projected
+    assert "Live again." in projected
+    assert "Old plan text." not in projected
+    assert "Still archived after the separator." not in projected
+    assert "Still archived: a Setext underline is not a boundary." not in projected
 
 
 def test_blackboard_size_warning_measures_live_prompt_content(tmp_path: Path) -> None:

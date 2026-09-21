@@ -144,7 +144,10 @@ def _without_superseded_designs(text: str) -> str:
 
     Only an unindented, case-sensitive ``## Superseded designs`` line
     (with optional trailing whitespace) starts an archive. It runs through
-    the next level-1/2 heading or EOF; deeper headings belong to the archive.
+    the next ATX level-1/2 heading (``#``/``##``) or EOF; deeper headings
+    belong to the archive. Setext underlines are deliberately not boundaries:
+    blackboards use ``---`` as a section separator, which CommonMark would
+    otherwise read as a level-2 underline for the line above it.
     Backtick/tilde fenced examples never start or end a section.
     """
     live: list[str] = []

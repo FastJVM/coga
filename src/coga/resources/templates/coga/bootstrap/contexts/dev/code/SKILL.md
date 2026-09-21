@@ -367,9 +367,13 @@ it deliberately follows that pointer.
 
 Recognition is deliberately narrow: the heading must be the exact,
 case-sensitive `## Superseded designs` at the start of a line, with optional
-trailing spaces or tabs. Its section ends at the next level-1 or level-2 heading
-outside a fenced code block, or at end of file. Deeper headings remain inside
-the archive. Similar names, indented archive headings, prose mentions, and
+trailing spaces or tabs. Its section ends at the next ATX level-1 or level-2
+heading (a line starting with `#` or `##`) outside a fenced code block, or at
+end of file. Deeper headings remain inside the archive. Setext headings (a
+text line underlined with `===` or `---`) are not boundaries: blackboards use
+`---` as a section separator, so treating underlines as headings would split
+the archive at every separator. Write the heading that ends the archive in
+ATX form. Similar names, indented archive headings, prose mentions, and
 backtick/tilde fenced examples do not start an archive. Composition and the
 draft synthesis gate use the same recognition. Every exact section is excluded
 defensively if a ticket has duplicates, but authors should still keep one.
