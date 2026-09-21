@@ -16,7 +16,7 @@ import yaml
 from croniter import CroniterError, croniter
 
 from coga.create import create_task
-from coga.config import Config
+from coga.config import Config, ConfigError
 from coga.delete_task import DeleteTaskError, run_delete_task
 from coga.launch_script import (
     SCRIPT_ENTRY_POINT,
@@ -1454,12 +1454,14 @@ def _create_at_slug(
             force_directory=True,
             created_by="system",
         )
-    except (TaskValidationError, ValueError, WorkflowError) as exc:
+    except (TaskValidationError, ValueError, WorkflowError, ConfigError) as exc:
         # create_task fails with TaskValidationError post-write, plain
         # ValueError pre-write (unknown contexts, slug collision, missing step
-        # skill, ...), and WorkflowError when `workflow:` itself does not
-        # load; all must become RecurringError so scan_due skips and reports
-        # this template instead of aborting the whole sweep.
+        # skill, ...), WorkflowError when `workflow:` itself does not load,
+        # and ConfigError when a listed context's local artifact is invalid
+        # (symlinked, ignored, outside the contexts root); all must become
+        # RecurringError so scan_due skips and reports this template instead
+        # of aborting the whole sweep.
         raise RecurringError(str(exc)) from exc
     out_ref = _task_with_slug(cfg, ref["slug"])
     if out_ref is None:
