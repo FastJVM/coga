@@ -5948,3 +5948,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-21 08:55 [recurring/resolve-conflicts] [system] created recurring/resolve-conflicts for 2026-W39
 2026-09-21 08:55 [recurring/blocker-reminders] [system] started (active → in_progress) via coga launch
 2026-09-21 08:55 [recurring/blocker-reminders] [system] launched as a script (ticket.py)
+2026-09-21 08:55 [recurring/blocker-reminders] [human:nicktoper] task done
