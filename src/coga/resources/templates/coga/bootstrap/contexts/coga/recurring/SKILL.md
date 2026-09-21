@@ -773,7 +773,10 @@ This extension seam has six important constraints:
   `coga recurring` sweep gets control back from an unfinished agent launch, it
   pauses the period task before continuing. That includes an intermediate
   human or unassigned handoff and a task that invoked `coga block`; the paused
-  run cannot use ordinary `bump` / `unblock` from that state. Watchdog timeouts
+  run cannot use ordinary `bump` / `unblock` from that state, and the
+  `blocker-reminders` sweep never surfaces its unresolved ask — that recipe
+  filters on `status: blocked` only, so a paused period's `## Blockers` entry
+  is reminded to nobody (see `coga/blockers/remind`). Watchdog timeouts
   keep failing subsequent sweeps until explicitly resumed: use
   `coga launch recurring/<name>` to continue the saved step, or
   `coga mark active recurring/<name>` to make the next sweep resume it.

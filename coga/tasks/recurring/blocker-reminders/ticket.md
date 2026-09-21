@@ -72,3 +72,10 @@ here. Do not read this template as covering it.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: blocker reminders never fire for a paused recurring agent period
