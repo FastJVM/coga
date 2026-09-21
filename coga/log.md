@@ -5975,3 +5975,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-21 10:02 [ticket-specs-should-cite-symbols-not-line-numbers] [human:nicktoper] auto-bumped on merge of PR #828 → done
 2026-09-21 10:02 [vendored-skills-carry-no-coga-source-json-so-coga] [human:nicktoper] auto-bumped on merge of PR #829 → done
 2026-09-21 10:02 [recurring/autoclose-merged] [human:nicktoper] task done
+2026-09-21 10:02 [recurring/autoclose-merged] [system] script exited with code 0
+2026-09-21 10:02 [bootstrap/resolve-conflicts] [human:nicktoper] launched (operator=claude, agent=claude)
