@@ -295,3 +295,15 @@ worktree was created.
   https://github.com/FastJVM/coga/pull/852 (non-draft, `quiet-first-run` →
   `main`), and recorded `pr:` under `## Dev`; checkout clean afterwards.
 - Next: owner `review` step (`code/address-pr-comments`).
+
+## Review assist
+
+- PR #852 is open with no review threads or requested fixes; the only PR
+  comment reports completion of the automated review. No replies needed.
+- Verified clean `quiet-first-run` checkout, authenticated GitHub access,
+  and the default `origin` push destination matching `FastJVM/coga`. A fresh
+  private-ref fetch, local HEAD, and the re-read PR head all matched
+  `e720cbfdd5ef03242d43651d93c4cbb91a520c4c`; temporary ref removed.
+- No implementation changes, fix commit, push, or tests in this assist.
+  Implementation verification remains recorded above. Ticket remains
+  `in_progress` on owner-controlled `review`.
