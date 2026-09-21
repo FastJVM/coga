@@ -1650,3 +1650,63 @@ def test_layout_contexts_cyclic_root_rejected(layout_repo: Path) -> None:
     _set_layout_contexts(layout_repo, "loop")
     with pytest.raises(ConfigError, match="cyclic symlink"):
         load_config(layout_repo)
+
+
+# --- [upstream] checkouts ------------------------------------------------------
+
+
+def _set_upstream_checkouts(repo: Path, value: str) -> None:
+    with (repo / "coga.local.toml").open("a") as f:
+        f.write(f"[upstream]\ncheckouts = {value}\n")
+
+
+def test_upstream_checkouts_absent_is_empty(repo: Path) -> None:
+    assert load_config(repo).upstream_checkouts == ()
+
+
+def test_upstream_checkouts_parsed_to_absolute_paths(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`~` expands and each entry resolves; a path that is not on disk is
+    kept, because the processor — not config load — decides what a moved
+    client checkout means. Failing here would brick every command."""
+    monkeypatch.setenv("HOME", str(repo))
+    _set_upstream_checkouts(
+        repo, '["~/clients/multiply", "/definitely/not/on/disk/magicator"]'
+    )
+    cfg = load_config(repo)
+    assert cfg.upstream_checkouts == (
+        (repo / "clients" / "multiply").resolve(),
+        Path("/definitely/not/on/disk/magicator"),
+    )
+
+
+def test_upstream_checkouts_must_be_a_list(repo: Path) -> None:
+    _set_upstream_checkouts(repo, '"/one/path"')
+    with pytest.raises(ConfigError, match=r"\[upstream\]\.checkouts must be a list"):
+        load_config(repo)
+
+
+def test_upstream_checkouts_elements_must_be_strings(repo: Path) -> None:
+    _set_upstream_checkouts(repo, '["/one/path", 2]')
+    with pytest.raises(
+        ConfigError, match=r"\[upstream\]\.checkouts\[1\] must be a non-empty string"
+    ):
+        load_config(repo)
+
+
+def test_upstream_unknown_key_rejected(repo: Path) -> None:
+    with (repo / "coga.local.toml").open("a") as f:
+        f.write('[upstream]\ncheckout = ["/one/path"]\n')
+    with pytest.raises(
+        ConfigError, match=r"\[upstream\] in coga.local.toml has unknown"
+    ):
+        load_config(repo)
+
+
+def test_upstream_in_shared_toml_rejected(repo: Path) -> None:
+    """Checkout paths are machine-specific, so `[upstream]` is local-only."""
+    with (repo / "coga.toml").open("a") as f:
+        f.write('[upstream]\ncheckouts = ["/one/path"]\n')
+    with pytest.raises(ConfigError, match=r"coga.toml has unknown key\(s\) \['upstream'\]"):
+        load_config(repo)

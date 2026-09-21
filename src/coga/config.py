@@ -147,6 +147,13 @@ class Config:
     # key is unset and the default location applies — read `contexts_root`, not
     # this field. See `_parse_layout` for the anchoring and containment rules.
     contexts_dir: Path | None = None
+    # Absolute paths of client checkouts whose `coga/upstream-coga.md` the
+    # `recurring/upstream-coga` job sweeps, from machine-local
+    # `[upstream] checkouts`. Empty means unconfigured and the job has nothing
+    # to read. Shape-validated only: a path that is not on disk stays in the
+    # tuple, because the processor is what skips a moved checkout — see
+    # `_parse_upstream`.
+    upstream_checkouts: tuple[Path, ...] = ()
     # Agent type name for the recurring sweep's autofix analyst, from the
     # shared `[autofix]` table. None means unset and `default_agent()` applies.
     # It sits between the explicit `coga recurring --agent` override and that
@@ -372,6 +379,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         launch_max_session,
     ) = _parse_launch(shared.get("launch"))
     contexts_dir = _parse_layout(shared.get("layout"), root)
+    upstream_checkouts = _parse_upstream(local.get("upstream"))
     autofix_agent = _parse_autofix(shared.get("autofix"), agents)
 
     # The operator's `user` must be set explicitly in `coga.local.toml` — coga
@@ -423,6 +431,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         launch_max_session=launch_max_session,
         owner=owner,
         contexts_dir=contexts_dir,
+        upstream_checkouts=upstream_checkouts,
         autofix_agent=autofix_agent,
     )
 
@@ -484,6 +493,7 @@ _ALLOWED_LOCAL_SECTIONS: frozenset[str] = frozenset({
     "agents",
     "notification",
     "git",
+    "upstream",
 })
 _ALLOWED_AGENT_KEYS: frozenset[str] = frozenset({
     "cli",
@@ -525,6 +535,11 @@ _ALLOWED_LAYOUT_KEYS: frozenset[str] = frozenset({"contexts"})
 # policy, and it is deliberately one key — not a per-command agent-routing
 # table. See `Config.autofix_agent`.
 _ALLOWED_AUTOFIX_KEYS: frozenset[str] = frozenset({"agent"})
+# `[upstream]` is the mirror image of `[layout]`: local-only, never shared.
+# Its `checkouts` are absolute paths to *other* repos on this machine, so
+# committing them in coga.toml would name directories no other clone has.
+# See `_parse_upstream` and `Config.upstream_checkouts`.
+_ALLOWED_UPSTREAM_KEYS: frozenset[str] = frozenset({"checkouts"})
 
 
 def _reject_unknown_sections(shared: dict, local: dict) -> None:
@@ -561,6 +576,9 @@ def _reject_unknown_sections(shared: dict, local: dict) -> None:
     )
     _reject_unknown_keys(
         shared.get("layout"), _ALLOWED_LAYOUT_KEYS, "[layout] in coga.toml"
+    )
+    _reject_unknown_keys(
+        local.get("upstream"), _ALLOWED_UPSTREAM_KEYS, "[upstream] in coga.local.toml"
     )
 
 
@@ -1191,6 +1209,39 @@ def _parse_layout(raw: object, repo_root: Path) -> Path | None:
     assert checkout is not None
     _require_trackable_context_entry(checkout, resolved)
     return resolved
+
+
+def _parse_upstream(raw: object) -> tuple[Path, ...]:
+    """Parse machine-local `[upstream] checkouts` into absolute paths.
+
+    Shape only: the value must be a list of non-empty strings, each `~`-expanded
+    and resolved to an absolute path. Existence is deliberately *not* checked
+    here. `load_config` runs before every `coga` command, so a hard failure on a
+    missing directory would brick the whole CLI on this machine the moment a
+    client repo is moved or deleted; the `recurring/upstream-coga` processor
+    is the consumer and it skips a missing checkout with a printed note.
+    """
+    if raw is None:
+        return ()
+    if not isinstance(raw, dict):
+        raise ConfigError(f"[upstream] must be a table (got {type(raw).__name__})")
+    checkouts = raw.get("checkouts")
+    if checkouts is None:
+        return ()
+    if not isinstance(checkouts, list):
+        raise ConfigError(
+            "[upstream].checkouts must be a list of path strings "
+            f"(got {type(checkouts).__name__})"
+        )
+    out: list[Path] = []
+    for i, item in enumerate(checkouts):
+        if not isinstance(item, str) or not item.strip():
+            raise ConfigError(
+                f"[upstream].checkouts[{i}] must be a non-empty string "
+                f"(got {item!r})"
+            )
+        out.append(Path(item.strip()).expanduser().resolve())
+    return tuple(out)
 
 
 def resolve_layout_contexts_path(raw: object, repo_root: Path) -> Path | None:
