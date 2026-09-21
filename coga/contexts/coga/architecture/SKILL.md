@@ -886,9 +886,11 @@ that line is how a bloated blackboard gets noticed — but they compose as one
 contiguous block.
 
 When the blackboard entry in `--prompt-report` is the largest layer, do not
-trim history by deleting it. Promote the task to directory form (the
-`mkdir <slug>/ && mv <slug>.md <slug>/ticket.md` move above) and move dated
-evidence into sibling attachments (`tasks/<slug>/<topic>.md`) that open with an
+trim history by deleting it. If the task is still file-form, promote it to
+directory form (the `mkdir <slug>/ && mv <slug>.md <slug>/ticket.md` move
+above); a task that already has `<slug>/ticket.md` uses its existing
+directory. Then move dated evidence into sibling attachments
+(`tasks/<slug>/<topic>.md`) that open with an
 HTML comment naming the task they belong to and the date they were moved out;
 leave the blackboard holding the current handoff, worklist and verification,
 with a pointer to each attachment. Keep `## Dev` and `## Blockers` in place
