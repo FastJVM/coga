@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -210,6 +210,7 @@ and its selector-carrying twin, and extend or parametrize
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/857
 branch: address-pr-comments-sweep
 worktree: /home/n/Code/coga-address-pr-comments
 
@@ -309,3 +310,71 @@ The stale primary checkout was synchronized with control; the supervisor's
 pre-existing log append was preserved. Git retained an autostash as recovery
 history after reconciling the duplicate blackboard. No second bump, feature
 push, PR, or live smoke launch was performed by this session.
+
+
+## Peer review
+
+Completed 2026-09-21 by Codex. `codex review --base main` **returned**
+(exit 0); transcript: `/tmp/coga-address-review.log`. Its one P2 finding:
+explicit `agent: claude` in the shipped recurring template prevents period
+creation in Codex-only repositories, even with a launch override. Owner
+approved using repository defaults: both requested `owner:` and `agent:`
+keys remain present but empty, with a comment explaining inheritance. Added
+an actual period-materialization regression with only Codex configured and
+asserted the repository owner, agent, and frozen delegate.
+
+A concurrent session supplied commit `21ba4e63` while review was running.
+Owner explicitly confirmed this session owns peer-review and the final bump.
+Retained and inspected that commit: it restores the skill's single push-URL
+and head-repository verification, fetches from the verified destination,
+and uses that exact URL for lease-protected publication. This closes the
+original gap from excluding all of skill section 1 while section 3 depends
+on its destination proof. No remaining must-fix findings.
+
+Feature checkout: `/home/n/Code/coga-address-pr-comments`, branch
+`address-pr-comments-sweep`, final HEAD `2270e88d`. Ran
+`git fetch origin main && git rebase FETCH_HEAD` successfully onto
+`be43bb90`; no conflicts. Peer-review commits:
+- `21ba4e63` peer-review: verify PR sweep publication destination
+- `2270e88d` peer-review: inherit repository routing for PR sweeps
+
+Verification:
+- `.venv/bin/python -m pytest` after the final change: **2662 passed**
+  (216.44s). One sandbox-only pytest cache-write warning; no test failures.
+- Focused Codex-only materialization and live/packaged identity checks:
+  **2 passed**.
+- `.venv/bin/coga validate --json`: exactly the same issue identities as the
+  primary main checkout, including four pre-existing
+  `unsynthesized-draft-blackboard` errors; no new feature issues. Validation
+  is not globally clean; unrelated draft cleanup is outside this change.
+- `.venv/bin/coga launch bootstrap/address-pr-comments --prompt-report`:
+  exit 0, 21.2 KiB / approximately 5424 tokens. Retried with filesystem
+  permission so the generated skill view refreshed successfully.
+- `git diff --check origin/main...HEAD`: passed; feature checkout clean.
+
+No raw-terminal loop, pager, prompt UI, or Slack renderer implementation was
+changed. Inspected composed prompt output. The two side-effecting live smoke
+checks remain explicitly deferred by the owner to the owner-controlled review
+step: `coga address-pr-comments <n>` and
+`coga recurring launch address-pr-comments`. This session neither pushed
+review fixes to a live PR nor posted GitHub replies.
+
+## PR
+
+Add `coga address-pr-comments [PR]` to address outstanding review threads,
+top-level PR comments, and applicable review summaries across this repo's
+open PRs targeting main. The stateless command reuses the existing review
+skill, verifies the publication destination and exact head lease, and marks
+its replies to avoid answering itself on later sweeps. It leaves merging,
+thread resolution, and ticket workflow decisions with the human.
+
+A daily 7am recurring template delegates to the command and inherits each
+repository's owner and agent defaults. Agent-backed recurring work runs on
+attended sweeps or explicit launches; headless cron sweeps skip it. Includes
+packaged/live templates, alias and delegate coverage, and extension/sync
+context and documentation updates.
+
+Test plan: `python -m pytest` (2662 passed); `coga validate --json` (unchanged
+baseline: four unrelated draft-blackboard errors); `coga launch
+bootstrap/address-pr-comments --prompt-report` (passes). Owner runs the two
+live, side-effecting smoke checks at review.
