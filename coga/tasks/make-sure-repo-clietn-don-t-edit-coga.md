@@ -641,6 +641,7 @@ owner gate, not design approval.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/855
 branch: client-repo-dream
 worktree: /home/n/Code/coga-client-repo-dream
 
@@ -743,3 +744,55 @@ the `repo-identity:` line; its corpus paths are what they were.
   `git push origin main` failed at 20:24 with GitHub unreachable. The feature
   branch was rebased onto `origin/main` (`9a251eca`) without it; the primary
   checkout's next sync publishes it.
+
+## Open-pr step (2026-09-20)
+
+The frozen workflow runs `implement` → `open-pr` with no self-QA or
+peer-review step, and `code/implement` orders no review, so no review is in
+flight; nothing to wait on before publishing. Worktree
+`/home/n/Code/coga-client-repo-dream` on `client-repo-dream`: clean, three
+implementation commits ahead of `origin/main`, no task/log files in the diff.
+
+## PR
+
+Dream in a client repo (a checkout with Coga installed but not the Coga source)
+audited the installed Coga OS files as if they were the client's own corpus, and
+spent shard budget on claims about `src/coga/` it cannot check there. This
+teaches Dream to recognise which repo it is in, keep Coga-owned files out of a
+client scan, and route what it still notices about Coga back to this repo.
+
+**Repo identity + Rule A (index time).** `scan-protocol/SKILL.md` gains
+`## Repo identity` (source repo iff `src/coga/resources/templates/coga/` is a
+directory, recorded once in `index.md` as `repo-identity:`), plus a runnable
+owned-path derivation reusing both `test_packaging.py` counterpart mappings with
+the documented carve-outs. In a client repo the set is subtracted per file while
+building `index.md` (`excluded-coga-owned: <N>`); the source repo's corpus is
+untouched.
+
+**Rule B + upstream capture.** `contract-audit` qualifies "code reality" for
+client repos; the finding block gains `owner: <local | coga>`; `owner: coga`
+findings never propose a local edit (`retro/done-ticket` states the mixed case).
+`coga/recurring/dream/ticket.md` Phase 6 appends them to
+`coga/upstream-coga.md` (append-only, parseable entry shape) and the summary
+vocabulary gains `upstream-captured`. Packaged twins edited together.
+
+**Config + processor.** `coga.local.toml` accepts `[upstream] checkouts`
+(shape-validated only; `Config.upstream_checkouts`). New unpackaged recurring
+job `coga/recurring/upstream-coga/` (`ticket.md` + sibling `ticket.py`,
+workflow `upstream-coga/run`) sweeps configured checkouts, dedupes by
+`upstream-id`, files draft tickets, keeps a per-checkout cursor on the
+template's blackboard, and refuses truncated files and ambiguous checkout
+names. Nothing added to `src/coga/` beyond the config section.
+
+**Test plan**
+
+- `python -m pytest`: full suite green (2662 passed) plus the 13 packaging tests
+  with `pip` available; new coverage in `tests/test_config.py`,
+  `tests/test_dream_worker_templates.py`, `tests/test_upstream_coga.py`.
+- `coga validate --json` passes with the new recurring task and workflow.
+- Rule A block run verbatim in `/home/n/Code/multiply` under the `coga`
+  tool-env interpreter: identity `client`, 44-file corpus → 28, 16 owned paths
+  excluded, client's own `coga/workflows/*` siblings retained.
+- Post-merge (needs this branch installed as the active `coga`): owner adds
+  `[upstream] checkouts = ["/home/n/Code/multiply"]` to `coga.local.toml`, then
+  a live Dream run in multiply and a live processor run here.
