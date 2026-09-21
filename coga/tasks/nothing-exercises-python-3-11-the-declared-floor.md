@@ -163,3 +163,9 @@ slug above so megalaunch can recognize its completion.
 ## Blockers
 
 - [ ] [2026-09-18 11:04] [agent:claude] id=20260918T110453 Merge PR #831 for cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r, then resume this implement step to rebase and rerun both suites. Current main reproduces the Python 3.11 MultiplexedPath.joinpath crash: 426 failed, 2229 passed; Python 3.12 has 2655 passed. CI and guidance changes are committed as 28541821 on ci/python311-floor.
+
+---
+
+## Blocker reminders
+
+- e780f0b1218a last_reminded: 2026-09-21 08:55
