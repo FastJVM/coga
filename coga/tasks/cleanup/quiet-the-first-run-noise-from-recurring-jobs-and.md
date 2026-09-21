@@ -27,44 +27,186 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (design)
+step: 2 (review-design)
 ---
 
 ## Description
 
-Decide and then fix what a stranger sees in the first minute. Two findings:
-`coga status` in a one-minute-old repo lists six recurring jobs as "due — not
-created", and `coga init` installs seven managed skills including the
-`google-agents-cli-*` set, pip-installing gmail and calendar dependencies into
-the venv. Both need network time and look odd in a repo that has no work in it
-yet.
+Make the first minute in a new repo quiet without concealing configured work.
+The owner chose **opt-in Google skills and a compact recurring summary** in
+this design session. Retain the shipped recurring templates and their schedules;
+replace their per-template status table with a summary and an explicit route to
+the full view. The tradeoff is one extra command to inspect schedules, and an
+explicit install before using a Google agent skill.
+
+The September 2 audit found automatic skill downloads, Gmail/calendar dependency
+installation, and six recurring rows saying "due — not created". Investigation
+of the current source confirms the seven Google skill downloads and the footer,
+but the Gmail/calendar pip-install path is already gone. Do not recreate or
+redesign dependency installation to solve a historical finding.
+
+### Acceptance criteria
+
+- [ ] Fresh `coga init` in both an empty and an existing project makes no
+  external skill-install calls, downloads no Google agent skills, and runs no
+  pip/dependency installation. It retains bundled capabilities, ordinary
+  scaffolding, and agent skill wiring. It emits no optional-install failure or
+  skipped-install noise for skills the user never requested.
+- [ ] Google skills remain available through the existing explicit command,
+  e.g. `coga skill install google/agents-cli google-agents-cli-workflow`.
+  Existing installed skills are preserved. `coga skill update --all` continues
+  updating installed managed skills and does not install missing Google packs.
+- [ ] With six valid, never-instantiated templates, status shows one footer
+  line equivalent to `Recurring: 6 templates · 6 due — coga recurring list`,
+  including when there are no ordinary tasks. Do not print six healthy template
+  rows or wait for a first run before acknowledging the templates.
+- [ ] Counts derive from the existing template view: total includes every
+  returned template, due uses `TemplateStatus.due`, and errors are counted
+  separately. A stale done instance counts as due; a serviced period whose task
+  was reaped does not. Due is template-period state, not a count of launchable
+  tasks or a promise that all execution prerequisites are satisfied.
+- [ ] Errors are never reduced to a count alone: include each affected template
+  name and its diagnostic below the summary, sorted by name. An unreadable
+  instance reported as `instance_status == "unknown"` also gets a named warning.
+  These exceptions may take multiple lines; healthy templates stay summarized.
+- [ ] No templates means no footer. Preserve existing footer scope and focused
+  view behavior (including unrelated directories, top-level `--no-recurse`,
+  `--dirs`, and `--blocked`). Apply the compact footer wherever the current
+  footer renders, including a recurring directory view. Instantiated recurring
+  tasks remain ordinary rows with unchanged filtering and terminal-state rules.
+- [ ] `coga recurring list` retains full per-template detail. Status remains
+  read-only and offline, with no new saved first-run state or scheduling logic.
+- [ ] Command contracts, source-layout explanations, recurring skill-update
+  instructions, and Dream scan instructions agree with the new behavior.
+  Packaged/live twins remain byte-identical wherever both exist.
+
+### Proposed shape
+
+1. In `src/coga/commands/init.py`, remove `_do_init()`'s call to
+   `_install_managed_skills_or_exit()` and its managed-install summary output.
+   Remove the now-unused install wrappers, reporting helpers, and imports.
+   The explicit install/update implementation in `src/coga/skill_manager.py`
+   stays in place; `src/coga/commands/skill.py`, `install()`, already exposes
+   the desired opt-in route. Document that route in the command contract;
+   do not add a new flag, opt-out switch, or init interview.
+2. Remove the unused init manifest `src/coga/resources/managed-skills.toml`
+   and init-only machinery in `src/coga/managed_skills.py`, after rechecking
+   consumers. `reconcile_managed_skills()` currently has only test callers;
+   do not retain it as speculative infrastructure. Adjust packaging assertions
+   and resource documentation that name the removed manifest/module. Preserve
+   generic install/update code and tests that exercise the explicit commands.
+3. Fix the manifest's instructional consumers in the same change. In the
+   packaged `bootstrap/dream/scan/contract-audit` and `knowledge-scan` skills,
+   identify GitHub-managed upstream trees through the installed SKILL.md
+   `metadata.github-repo` predicate used by `skill_manager.gh_skill_repo()`.
+   Exclude those trees before scanning; keep locally adapted URL imports such
+   as `clarity` in scope. Do not replace the manifest with another hardcoded
+   Google-name list. Update any live twins if present.
+4. In `src/coga/views.py`, replace `_print_recurring_templates()`'s healthy-row
+   table with the count summary and diagnostic exceptions above. Continue
+   receiving `list_templates()` output from `render_status()` through the
+   existing `_covers_recurring()` gate. Reuse `TemplateStatus.due`; do not
+   rescan execution history, infer readiness from repo age, or change the
+   recurring scheduler. Keep `commands/status.py` a thin command head.
+5. Update the command owner at
+   `src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md`
+   (init, status, and skill-install sections). Update
+   `coga/contexts/coga/codebase/SKILL.md` and its packaged twin to remove the
+   automatic-install model. Update `coga/recurring/skill-update/ticket.md` and
+   its packaged twin to describe explicit installation followed by updates of
+   installed skills. Check related architecture prose for stale automatic-init
+   claims; docs should summarize/link to the contract, not duplicate it.
+6. Replace init manifest-install tests with tests that reject attempted
+   external installs during real fresh scaffolding, covering empty/existing
+   projects and absent `gh`. Retain coverage of bundled resolution and skill
+   wiring. Update status assertions and add count/diagnostic cases for no
+   templates, fresh templates, live instances, stale done, reaped serviced
+   periods, template errors, and unknown instances. Preserve full-list tests.
+   Use mocked command/network boundaries; tests must not fetch Google skills.
+
+Implementation verification: run `python -m pytest tests/test_init.py
+ tests/test_commands.py tests/test_recurring.py tests/test_skill_manager.py
+ tests/test_packaging.py` (as one command), then `python -m pytest` and
+`coga validate --json`. Recheck test filenames in the implementation checkout;
+remove obsolete manifest-only tests rather than retaining dead production code
+for them. Record exact commands and any pre-existing validation failures.
+
+### Out of scope
+
+- Removing recurring templates, changing cadence or launch eligibility, or
+  introducing activation toggles and persistent first-run markers.
+- Changing `coga recurring list`, task-row filtering, or the scheduler's state
+  semantics.
+- Removing already-installed Google packs or bundled Gmail/calendar/browser
+  capabilities; changing explicit skill-install/update protocols.
+- Dependency management redesign, new plugin systems, migrations, or config
+  edits to this repository's `coga.toml` / `coga.local.toml`.
 
 ## Context
 
-**Finding** (audit, 2026-09-02, check 2 rows g and k). A fresh
-`coga init` in an existing project installs 7 managed skills and pip-installs
-gmail / google-calendar requirements — network-dependent, slow, and surprising
-in someone else's repo. Immediately after, `coga status` on a repo containing
-one draft ticket renders a six-row Recurring footer of jobs marked
-"due — not created".
+Source: `marketing/phase-0-audit`, September 2, 2026, check 2 rows g and k,
+triaged by the owner September 3. The historical finding motivated this work;
+current source, rather than the old skill count/dependency description, defines
+what needs changing.
 
-**The decision comes first** — this is why the ticket carries a design step.
-Is the seven-skill install the intended first impression, or should the Google
-agent skills be opt-in (`coga skill install ...` when the user wants them)?
-Should the Recurring footer be suppressed until at least one period task has
-run, or is a repo that ships six recurring jobs by default the wrong default?
-Neither answer is obvious and both change what a new user meets on line one.
-`src/coga/resources/managed-skills.toml` is the manifest; the footer is in
-`src/coga/commands/status.py`.
+Verified implementation relationships:
 
-**Constraint.** Whatever changes, the first run must stay honest — hiding
-state to look tidy is the wrong direction (`coga/principles`, fail loud).
-Quiet is not the same as concealed.
+- `src/coga/commands/init.py`, `_do_init()`, invokes
+  `_install_managed_skills_or_exit()`, which calls
+  `src/coga/managed_skills.py`, `install_managed_skills()`. That function loads
+  `load_managed_skill_manifest()` and installs each missing manifest entry.
+  The current manifest contains seven optional `google/agents-cli` refs.
+- `src/coga/commands/skill.py`, `install()`, calls
+  `src/coga/skill_manager.py`, `install_github_skill()`, with the explicit
+  source and selector. In the same module, `update_skills()` enumerates
+  installed skills and uses `gh_skill_repo()` for GitHub provenance; it does
+  not read the init manifest or restore absent packs.
+- `src/coga/commands/status.py`, `status()`, delegates to
+  `src/coga/views.py`, `render_status()`. That renderer calls
+  `src/coga/recurring.py`, `list_templates()`, when `_covers_recurring()`
+  permits it, then passes the result to `_print_recurring_templates()`.
+  The footer no longer lives in the command module named by the old audit.
+- `src/coga/recurring.py`, `TemplateStatus.due`, already distinguishes stale
+  done instances from reaped serviced periods. `list_templates()` returns
+  template-load errors through `error` and unreadable instance state through
+  `instance_status == "unknown"`; the summary must preserve those signals.
+- `tests/test_commands.py`,
+  `test_status_shows_templates_even_without_instantiated_tasks()`,
+  `test_status_renders_recurring_tasks_as_normal_rows()`, and
+  `test_status_hides_templates_footer_outside_recurring_scope()` pin today's
+  footer and task relationships. `tests/test_recurring.py`,
+  `test_recurring_list_reports_reaped_serviced_period_as_ran()`, pins the
+  full-list behavior that must remain intact.
 
-Source: `marketing/phase-0-audit` step 1 (2026-09-02), triaged by the owner
-in step 2 (2026-09-03). This directory holds the work the owner wants done
-before the marketing materials ship.
+`coga/principles` requires observable failures and offline read-only commands.
+`coga/architecture`'s "Where a fact lives: docs vs contexts" makes `coga/cli`
+the command contract owner. `coga/codebase` governs minimal core and packaged
+parity. The change is one coherent PR: default installation, status rendering,
+and their directly affected tests/contracts.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Design handoff
+
+- Owner selected "opt-in skills, compact recurring summary" in this session.
+  Retain all shipped recurring jobs; expose template/due counts and named
+  errors, with `coga recurring list` for detail. Accepted tradeoff: an extra
+  command for schedules and an explicit install for Google packs.
+- Investigation found the Gmail/calendar pip-install complaint is historical;
+  current init still installs seven Google packs. Footer implementation moved
+  to `views.py`; the spec cites current symbols.
+- Manifest removal also affects Dream's scan exclusions. Preserve the
+  upstream-tree exclusion through GitHub install metadata while retaining
+  locally adapted URL skills in the scan corpus.
+- Design only: no source code, branch, or PR created. Existing dirty
+  `coga/log.md` was present before this work and was not manually edited.
+- Design checks: `git diff --check` passed; `Ticket.parse()` and section
+  assertions passed with `PYTHONPATH=src python` (plain Python did not resolve
+  the source package). No runtime tests needed for this spec-only step.
+- Spec lives under Description/Context so the implementation launch receives
+  it. Next gate is owner `review-design`; implementation has not begun.
+
+## Open Questions
+
+None. The owner resolved the product choice; the proposed shape is ready for
+review-design.
