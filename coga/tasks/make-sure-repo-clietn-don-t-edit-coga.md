@@ -31,7 +31,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 ---
 
 ## Description
@@ -638,3 +638,108 @@ owner gate, not design approval.
 - No implementation, branch, PR, live Dream run, or real config change was
   made. The ticket body and frontmatter were preserved during review; only
   this blackboard section was added before the CLI handoff.
+
+## Dev
+
+branch: client-repo-dream
+worktree: /home/n/Code/coga-client-repo-dream
+
+Three commits on top of `origin/main` (`9a251eca`), separate-checkout layout;
+test env is `../coga-reminders-harness/.venv` with `PYTHONPATH=<worktree>/src`
+per `coga/codebase`. Full suite: 2662 passed (+13 packaging) before the
+rebase; the rebase brought only task/log commits, and the affected files
+(681 tests) were re-run green after it.
+
+## Implementation notes (implement step, 2026-09-20)
+
+Order of work was 4 → 5 → 1 → 2 → 3 as the ticket asked.
+
+- **`owner: coga` kept as specified — owner's call.** The finding block
+  already used `owner: <slug>` for "already ticketed" (knowledge-scan `gap` /
+  `premise`, Phase 6 routes on it). Raised the overload; the owner chose to
+  keep the AC's spelling. Resolution written into scan-protocol: `coga` is a
+  reserved value, and a Coga-owned finding is never searched for a local
+  ticket owner, so the two uses never meet on one block.
+- **Field is `upstream_checkouts` on `Config`, `[upstream] checkouts` in
+  `coga.local.toml` only.** `_parse_upstream` validates shape (list of
+  non-empty strings, `~` expanded, resolved); existence is the processor's.
+  Six config tests as listed in the AC.
+- **Processor lives at `coga/recurring/upstream-coga/ticket.py`**, imports
+  `coga.blackboard`, `coga.config`, `coga.create`, `coga.git`, `coga.paths`,
+  `coga.taskfile`, `coga.tasks` only; nothing added to `src/coga/`. Unlike the
+  other script-backed jobs it does not go through `run_recipe` — there is no
+  recipe to register, and the ticket forbids one. Functions are importable
+  (`main(cfg, out=...)`) with the bump under `if __name__ == "__main__"` so
+  the tests load it from its sibling path. Cadence: Tuesday 08:00, the morning
+  after client-repo Dream runs (Monday 09:00), so weekly and offset.
+- **Cursor key is the checkout's directory name** (`- multiply: <id>`), with
+  the same-name-twice case refused for both (nothing filed, printed note).
+  The same path listed twice collapses to one checkout.
+- **Filed ticket description** carries `- upstream-id: <key>/<id>` plus
+  `repo`/`date`/`class`/`target`/`evidence` and the prose; status draft, no
+  workflow, `created_by="recurring/upstream-coga"`.
+- **The Rule A block in scan-protocol was run verbatim** (extracted from the
+  skill text) in `/home/n/Code/multiply` under the `coga` tool-env
+  interpreter: 142 owned paths, exit 0. The count drifts as templates ship;
+  it is not an expected constant.
+- Documentation touchpoints updated: `coga/contexts/coga/architecture/SKILL.md`
+  (config fail-loud list + `[upstream]` carve-out; summary vocabulary gains
+  `upstream-captured`) with its packaged twin; the recurring template carries
+  its own "Operating it" setup instructions.
+
+## Evaluator dispositions
+
+1. **Phase 4 / Retro (P1).** Dream passes `## Findings` to Retro unchanged,
+   `owner: coga` lines included, and the delegation prompt says the mark
+   means "not local knowledge". `retro/done-ticket` gains
+   `### Coga-owned findings are not local knowledge`: that fact is not
+   written locally and is not what makes a ticket knowledge-bearing; the
+   ticket's other knowledge is extracted as usual and the ticket is deleted
+   as usual (mixed case stated in both places; asserted by
+   `test_dream_keeps_coga_owned_files_out_of_a_client_repo_scan`).
+2. **Recovery (P1).** Durable identity is the `upstream-id` line on the
+   filed ticket, grepped across `list_tasks` before every create; the cursor
+   is appended after *each* entry; publication is one explicit
+   `git.sync_paths` over the template plus every filed ticket (log rides
+   along in `sync_paths`). A failed sync stays non-fatal — the next run
+   re-scans and dedupes by id. Tested: interruption after one creation
+   (`test_interrupted_run_does_not_refile_a_ticket_that_already_exists`),
+   and the sync path set (`test_first_run_files_every_entry_and_second_run_files_none`).
+3. **Cursor identity (P2).** Directory name, with ambiguity refused before
+   filing anything (`test_same_directory_name_twice_files_nothing_for_either`).
+4. **Interpreter (P2).** The block is preceded by the `coga/codebase`
+   context's `which("coga")` lookup and runs under `"$COGA_PY"`; it exits
+   non-zero on import failure or an empty set, and both the protocol and the
+   Dream template say a non-zero exit is a failed scan, never an empty owned
+   set.
+
+Recommendation on acceptance wording taken: the source-repo index gains only
+the `repo-identity:` line; its corpus paths are what they were.
+
+## Verification beyond the suite
+
+- **Client repo index dry run** (`/home/n/Code/multiply`, the index step of
+  the scan mechanics executed by hand, not a full Dream run): identity
+  `client`; knowledge-scan + contract-audit corpus 44 files → 28 after Rule A,
+  `excluded-coga-owned: 16`, zero owned paths left, and the client's own
+  `coga/workflows/{cleanup,code,design,...}` siblings retained. The 16 are the
+  six shipped recurring templates, seven shipped workflows,
+  `coga/skills/direct/body/SKILL.md`, and the two `coga/contexts/browser/*`.
+- **Source repo**: `src/coga/resources/templates/coga/` is a directory here,
+  so identity is `coga-source` and Rule A is not applied by construction.
+- **Two-entry upstream file**: `test_first_run_files_every_entry_and_second_run_files_none`
+  is exactly the AC's scenario (two tickets, then zero) in a pytest tmp repo.
+- Not done here, and why: a **live** Dream run in multiply and a **live**
+  processor run both need this branch installed as the active `coga`
+  (`uv tool install --force -e`) and the owner to add
+  `[upstream] checkouts = ["/home/n/Code/multiply"]` to `coga.local.toml`.
+  Adding that key before this branch is the installed package would brick
+  every `coga` command on this machine (`_reject_unknown_sections` fails
+  loud), so it is a post-merge step, not an implement-time one.
+
+## Adjacent observations (not fixed here)
+
+- Local `main` carries `b5077352` (this ticket's step-4 bump) unpushed:
+  `git push origin main` failed at 20:24 with GitHub unreachable. The feature
+  branch was rebased onto `origin/main` (`9a251eca`) without it; the primary
+  checkout's next sync publishes it.
