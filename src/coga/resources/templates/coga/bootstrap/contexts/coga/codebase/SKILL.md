@@ -248,13 +248,17 @@ coexist under `coga/skills/`:
   hand-vendored namespaced copy with attribution (fourth shape below).
   **The packs are kept on purpose.** No ticket, context, recurring job or
   workflow in this repo does ADK work; the seven `google-agents-cli-*` trees
-  are the checked-in, end-to-end exercise of the GitHub-backed install and
-  update path — they were installed through `gh skill install` precisely so
+  are the checked-in, end-to-end exercise of the GitHub-backed update path —
+  they were installed through `gh skill install` precisely so
   `skill update --all` would have something real to refresh (commit
   `321e6231`), and the weekly job has been refreshing them since. Deleting
-  them as dead weight would leave `install_github_skill`,
-  `_update_gh_backed_skill` and `classify_gh_update_output` with no live
-  target in this repo.
+  them as dead weight would leave `_update_gh_backed_skill` and
+  `classify_gh_update_output` with no live target in this repo. It would not
+  starve `install_github_skill`: the seven entries stay in
+  `src/coga/resources/managed-skills.toml`, and a fresh `coga init` runs
+  `install_managed_skills`, which calls `install_github_skill` for every
+  entry whose target directory is absent. Only the update and classification
+  path depends on the checked-in instances.
 - **Installer-managed, flat and URL-backed** — `coga skill install-url` lands
   the same flat `coga/skills/<ref>/` placement but marks it with a
   `.coga-source.json` (`schema: coga.skill-source.v1`) recording
