@@ -23,8 +23,12 @@ forgets to run `coga mark done`. Once a day this recurring task fires. Its
 4. leaves non-final-step tickets alone as suspicious, and
 5. marks final-step or workflow-less tickets `done` when the PR is merged, and
 6. names the `coga retire` follow-up for each ticket it closed that still
-   records a `branch:` or `worktree:`, and records it in the durable worklist
-   `retires.md` beside this template, keyed by task slug.
+   records a `branch:` or `worktree:` — resolved to the repository that owns
+   the worktree, so a checkout of a different repo is named with that repo's
+   main checkout and the by-hand cleanup there instead of a `coga retire` that
+   cannot run from either side, and a worktree gone from disk is reported as
+   such — and records it in the durable worklist `retires.md` beside this
+   template, keyed by task slug.
 
 Autoclose never disposes of a checkout itself — `coga retire` owns those safety
 proofs. Without step 6 an auto-closed ticket's worktree and branch outlive it

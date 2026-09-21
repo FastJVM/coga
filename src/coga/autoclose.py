@@ -28,6 +28,17 @@ see `_report_retire_followups`. Duplicating retire's proofs here would either
 copy that machinery or ship a weaker version of it, and implicit destruction
 cuts against the principle that destructive behavior is never implicit.
 
+Naming the follow-up does mean naming one that can run. A ticket's recorded
+`worktree:` is not necessarily a worktree of the repository holding the ticket
+— a Coga workspace can track work whose code lives in another repo — and
+`coga retire` resolves the task in the current repo while its worktree proof
+requires a linked worktree of that same repo, so for such a checkout no
+`coga retire` invocation from either side disposes of it. `locate_checkout`
+therefore resolves the recorded path to the repository that owns it before the
+line is rendered: a same-repo worktree gets the plain command, a cross-repo one
+names the owning checkout and the by-hand git cleanup there, and a path that is
+gone or not a git worktree says so instead of implying the command resolves it.
+
 Under a recurring period task the name has to outlive the run: the period task
 is deleted at the next period boundary, so the sweep also records each
 follow-up in the template's durable `retires.md` (`coga.retire_worklist`) and
@@ -42,7 +53,7 @@ import os
 import re
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -104,6 +115,104 @@ class ClosedTicket:
         if self.branch:
             parts.append(f"branch `{self.branch}`")
         return ", ".join(parts)
+
+
+@dataclass(frozen=True)
+class CheckoutHome:
+    """Which repository a closed ticket's recorded `worktree:` belongs to.
+
+    `kind` is one of:
+
+    - `"same"` — a worktree sharing the ticket repo's common git dir, the one
+      case `coga retire <slug>` can dispose of;
+    - `"other"` — a worktree of a different repository, whose main working tree
+      is `owner`;
+    - `"gone"` — the recorded path is no longer a directory;
+    - `"untracked"` — the directory exists but is not a git worktree at all;
+    - `"unknown"` — nothing was judged: no `worktree:` recorded, or the ticket
+      repo is not a git repository, so the rendered line is today's plain one.
+    """
+
+    kind: str
+    owner: Path | None = None
+
+
+def locate_checkout(root: Path | None, worktree: str | None) -> CheckoutHome:
+    """Resolve a recorded `worktree:` to the repository that owns it.
+
+    `root` is the ticket repository's git working-tree root (`None` when there
+    is none). The same-repo test is the one `coga retire` applies through
+    `branchcleanup._is_linked_worktree_of`: two checkouts belong to the same
+    repository iff they report the same `--git-common-dir`. A relative path
+    resolves against `root`, as the discharge rule does. Read-only: three
+    `git rev-parse` / `worktree list` calls at most, no network.
+    """
+    if not worktree or root is None:
+        return CheckoutHome("unknown")
+    path = Path(worktree).expanduser()
+    if not path.is_absolute():
+        path = root / path
+    if not path.is_dir():
+        return CheckoutHome("gone")
+    common_dir = _git_common_dir(path)
+    if common_dir is None:
+        return CheckoutHome("untracked")
+    root_common_dir = _git_common_dir(root)
+    if root_common_dir is None:
+        return CheckoutHome("unknown")
+    if common_dir == root_common_dir:
+        return CheckoutHome("same")
+    return CheckoutHome("other", owner=_main_worktree(path) or common_dir.parent)
+
+
+def _git_common_dir(cwd: Path) -> Path | None:
+    """`cwd`'s resolved `--git-common-dir`, or None when it is not in a repo."""
+    try:
+        proc = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(cwd),
+                "rev-parse",
+                "--path-format=absolute",
+                "--git-common-dir",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    out = proc.stdout.strip()
+    if proc.returncode != 0 or not out:
+        return None
+    try:
+        return Path(out).resolve()
+    except OSError:
+        return None
+
+
+def _main_worktree(cwd: Path) -> Path | None:
+    """The main working tree of the repository containing `cwd`, or None.
+
+    `git worktree list --porcelain` lists the main working tree first; this is
+    the checkout a human has to run the by-hand cleanup from.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(cwd), "worktree", "list", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    if proc.returncode != 0:
+        return None
+    for line in proc.stdout.splitlines():
+        if line.startswith("worktree "):
+            return Path(line.removeprefix("worktree ").strip())
+    return None
 
 
 OPEN_STATUSES = frozenset({"active", "in_progress"})
@@ -560,6 +669,7 @@ def render_retire_report(
     task_slug: str | None,
     pending: list[ClosedTicket],
     worklist: Path | None = None,
+    homes: Mapping[str, CheckoutHome] | None = None,
 ) -> str:
     """Render the report naming each closed ticket's `coga retire` command.
 
@@ -569,6 +679,9 @@ def render_retire_report(
     recurring period task it names the durable `worklist` the same entries
     were recorded in, because the period task itself is deleted at the next
     period boundary.
+
+    `homes` maps a slug to its `locate_checkout` result; a slug without one
+    renders the plain command. See `_followup_line` for what each kind says.
     """
     lines = [RETIRE_REPORT_HEADING, "", f"Generated: {generated_at}"]
     if task_slug:
@@ -583,9 +696,10 @@ def render_retire_report(
         ]
     )
     for item in pending:
+        home = (homes or {}).get(item.slug, CheckoutHome("unknown"))
         lines.append(
             f'- `{item.slug}` "{item.title}": {item.checkout_state} — '
-            f"`{item.retire_command}`"
+            f"{_followup_line(item, home)}"
         )
     if worklist is not None:
         lines.extend(
@@ -596,6 +710,51 @@ def render_retire_report(
             ]
         )
     return "\n".join(lines) + "\n"
+
+
+def _followup_line(item: ClosedTicket, home: CheckoutHome) -> str:
+    """The follow-up text after the em dash of one report line.
+
+    Only the same-repo case (and the unjudged one) gets the bare command:
+    that is the one case where `coga retire <slug>` actually disposes of the
+    checkout. Every other kind says what will happen instead and names the
+    cleanup that does resolve it, so a run nobody reads closely never leaves a
+    command that silently fails.
+    """
+    if home.kind == "other":
+        owner = home.owner
+        steps = [f"`git -C {owner} worktree remove {item.worktree}`"]
+        if item.branch:
+            steps.append(f"`git -C {owner} branch -d {item.branch}`")
+        return (
+            f"the worktree belongs to `{owner}`, not this repository: "
+            f"`{item.retire_command}` from here fails its same-repo worktree "
+            "proof and leaves it in place, and the task does not exist there. "
+            f"Dispose of it by hand from `{owner}`: {', then '.join(steps)}."
+        )
+    if home.kind == "gone":
+        if not item.branch:
+            return (
+                "the worktree is no longer on disk and no branch is recorded; "
+                f"`{item.retire_command}` has only the stale `## Dev` record "
+                "to clear."
+            )
+        return (
+            f"the worktree is no longer on disk; `{item.retire_command}` "
+            f"reports it already gone and disposes of branch `{item.branch}` "
+            "only (if `git worktree list` still names the path as prunable, "
+            "`git worktree prune` first)."
+        )
+    if home.kind == "untracked":
+        branch = (
+            f" and disposes of branch `{item.branch}` only" if item.branch else ""
+        )
+        return (
+            f"`{item.worktree}` exists but is not a git worktree; "
+            f"`{item.retire_command}` leaves it in place{branch}. Inspect and "
+            "remove the directory by hand."
+        )
+    return f"`{item.retire_command}`"
 
 
 def _worklist_line(change: WorklistChange) -> str:
@@ -611,15 +770,32 @@ def _worklist_line(change: WorklistChange) -> str:
     return f"[autoclose] retire worklist {change.path}: {', '.join(parts)}\n"
 
 
-def render_retire_summary(pending: list[ClosedTicket]) -> str:
-    """Render the single trailing Slack line for a whole sweep."""
+def render_retire_summary(
+    pending: list[ClosedTicket], homes: Mapping[str, CheckoutHome] | None = None
+) -> str:
+    """Render the single trailing Slack line for a whole sweep.
+
+    A cross-repo checkout is the one kind whose command cannot run from any
+    checkout, so the summary names its owner instead; the gone and untracked
+    kinds keep the command, which still resolves the branch half — the report
+    carries the detail.
+    """
     subject = (
         "1 auto-closed ticket still has"
         if len(pending) == 1
         else f"{len(pending)} auto-closed tickets still have"
     )
-    commands = ", ".join(f"`{item.retire_command}`" for item in pending)
-    return f"🧹 {subject} a feature checkout: {commands}"
+    parts = []
+    for item in pending:
+        home = (homes or {}).get(item.slug, CheckoutHome("unknown"))
+        if home.kind == "other":
+            parts.append(
+                f"`{item.slug}` (worktree owned by `{home.owner}` — clean up "
+                "by hand there)"
+            )
+        else:
+            parts.append(f"`{item.retire_command}`")
+    return f"🧹 {subject} a feature checkout: {', '.join(parts)}"
 
 
 def _worklist_root(cfg: Config) -> Path | None:
@@ -668,6 +844,7 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
         return True
     now = datetime.now(timezone.utc)
     worklist = worklist_for_period_task(cfg, blackboard)
+    root = _worklist_root(cfg)
     failure: RetireWorklistError | OSError | UnicodeError | None = None
     if worklist is not None:
         # The durable half: record this run's follow-ups keyed by slug and drop
@@ -677,7 +854,7 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
             change = reconcile_worklist(
                 cfg,
                 worklist,
-                root=_worklist_root(cfg),
+                root=root,
                 pending=[
                     RetireFollowUp(
                         slug=item.slug,
@@ -700,12 +877,16 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
     if not pending:
         return failure is None
 
+    # Judged once against the root this sweep walked, so the report and the
+    # Slack line name the same owner for the same checkout.
+    homes = {item.slug: locate_checkout(root, item.worktree) for item in pending}
     report = render_retire_report(
         generated_at=now.isoformat(timespec="seconds"),
         task_slug=os.environ.get("COGA_TASK_SLUG"),
         pending=pending,
         # A report must not claim a durable record the reconcile refused.
         worklist=None if failure is not None else worklist,
+        homes=homes,
     )
     if blackboard:
         try:
@@ -723,7 +904,7 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
 
     post(
         cfg,
-        render_retire_summary(pending),
+        render_retire_summary(pending, homes),
         task_path=(
             blackboard.parent
             if blackboard is not None and blackboard.name == "ticket.md"
@@ -799,9 +980,11 @@ def _read_dev_blackboard(ticket: Path) -> str | None:
 
 __all__ = [
     "AutocloseResult",
+    "CheckoutHome",
     "ClosedTicket",
     "GhError",
     "RETIRE_REPORT_HEADING",
+    "locate_checkout",
     "render_retire_report",
     "render_retire_summary",
     "run_autoclose_recipe",

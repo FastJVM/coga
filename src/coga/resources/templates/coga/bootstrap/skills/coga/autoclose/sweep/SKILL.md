@@ -42,15 +42,30 @@ nothing; the third is the durable worklist:
 
 - a `## Autoclose Sweep: retire follow-ups` section listing the exact
   `coga retire <slug>` per ticket — appended to the task blackboard when run
-  under a task, written to stdout otherwise. **That surface is per-run, not a
-  worklist.** Autoclose's only recurring caller is `recurring/autoclose-merged`,
+  under a task, written to stdout otherwise. Before naming the command the
+  sweep resolves the recorded `worktree:` to the repository that owns it
+  (`coga.autoclose.locate_checkout`, the same `--git-common-dir` comparison
+  `coga retire`'s worktree proof makes): a linked worktree of the ticket's own
+  repo gets the plain command; a worktree of a **different** repository —
+  a Coga workspace can track work whose code lives elsewhere — gets a line
+  naming that repo's main checkout and the by-hand `git -C <owner> worktree
+  remove` / `branch -d` there, because `coga retire <slug>` from the ticket's
+  repo fails its same-repo proof and preserves the checkout while the task
+  does not exist in the owning repo; a path that is gone from disk, or a
+  directory that is not a git worktree, says so and points at the branch-only
+  cleanup instead of implying the command disposes of it. The worklist line
+  below is unchanged by this: it records what the ticket said, and its
+  discharge rule judges the branch against the ticket repo only. **That
+  surface is per-run, not a worklist.** Autoclose's only recurring caller is `recurring/autoclose-merged`,
   and the `coga/recurring` context is explicit that a period task's blackboard
   is scratch space for one firing, deleted with the task the next period. The
   sweep only rediscovers tickets it closes in the *current* run, so a stranded
   checkout is never re-listed there; the section exists so the run record and
   the autofix analyst see what the run did, and under a period task it names
   the worklist below;
-- one trailing Slack line for the whole sweep. The per-ticket `🎉 ... merged`
+- one trailing Slack line for the whole sweep, naming each `coga retire
+  <slug>` — or, for a cross-repo checkout, the slug and the owning repo to
+  clean up by hand from. The per-ticket `🎉 ... merged`
   line is left alone: it announces a lifecycle event, while a retire hint is
   an operational to-do;
 - **the durable worklist `retires.md` beside the recurring template's
