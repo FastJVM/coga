@@ -629,6 +629,10 @@ Repo conventions:
 
 <!-- coga:blackboard -->
 
+## Dev
+branch: stranded-ticket-writes
+worktree: /home/n/Code/coga-stranded-ticket-writes
+
 ## Evaluator review
 
 Cold review, 2026-09-09. **Needs revision before implementation.** The
