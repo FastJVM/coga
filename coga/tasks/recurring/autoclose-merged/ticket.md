@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
-step: 1 (sweep)
 ---
 
 ## Description
@@ -59,3 +58,18 @@ nothing.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-09-21T17:02:13+00:00
+Task: `recurring/autoclose-merged`
+
+5 auto-closed ticket(s) still have a recorded feature checkout. Autoclose never removes one — `coga retire` owns the worktree and branch safety proofs:
+
+- `cleanup/add-contributing-docs-issue-templates-and-a-repo-d` "Add contributing docs, issue templates and a repo description": worktree `/tmp/coga-contributing-docs`, branch `docs/contributing` — `coga retire cleanup/add-contributing-docs-issue-templates-and-a-repo-d`
+- `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r` "Fix coga init crash on Python 3.11 by adding the resources package init": worktree `/home/n/Code/claude/coga-resources-pkg-init`, branch `resources-pkg-init` — `coga retire cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r`
+- `cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f` "Yank the PyPI 0.0.1 placeholder and document the failure": worktree `/tmp/coga-pypi-placeholder-note`, branch `docs/pypi-placeholder-note` — `coga retire cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f`
+- `ticket-specs-should-cite-symbols-not-line-numbers` "Ticket specs should cite symbols, not line numbers": worktree `/home/n/Code/claude/coga-design-cite-symbols`, branch `design-cite-symbols` — `coga retire ticket-specs-should-cite-symbols-not-line-numbers`
+- `vendored-skills-carry-no-coga-source-json-so-coga` "Correct recurring/skill-update's provenance claim to match how skills are actually managed": worktree `/tmp/coga-skill-attribution`, branch `docs/skill-attribution` — `coga retire vendored-skills-carry-no-coga-source-json-so-coga`
+
+Recorded in the durable worklist `/home/n/Code/claude/coga/coga/recurring/autoclose-merged/retires.md`; this period task is deleted at the next period boundary.
