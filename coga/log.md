@@ -5988,3 +5988,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-21 11:21 [recurring/skill-update] [system] created (status=active)
 2026-09-21 11:21 [recurring/skill-update] [system] created recurring/skill-update for 2026-W39
 2026-09-21 11:21 [bootstrap/resolve-conflicts] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-21 11:22 [recurring/resolve-conflicts] [system] launched delegated target bootstrap/resolve-conflicts
