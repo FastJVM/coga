@@ -19,10 +19,8 @@ The command exits successfully when there is nothing to close. It then names
 the `coga retire` follow-up for each closed ticket that still records a
 `branch:` or `worktree:` — it never removes one itself, and Dream preserves the
 source ticket until that human-typed retirement happens. The follow-up is
-named for the repository that owns the recorded worktree: a checkout of a
-different repo gets that repo's main checkout and the by-hand git cleanup
-there rather than a `coga retire` that would fail its same-repo worktree
-proof, and a worktree gone from disk is reported as such. Under this period task
+named for the repository that owns the recorded worktree (see the
+`coga/autoclose/sweep` skill). Under this period task
 the follow-ups are also recorded in the template's durable
 `coga/recurring/<name>/retires.md`, keyed by slug and pruned of discharged
 entries on every run, because this period task is deleted at the next period

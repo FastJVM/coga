@@ -125,6 +125,7 @@ from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any, NamedTuple
 from uuid import uuid4
@@ -6380,6 +6381,109 @@ def is_linked_worktree(start: Path) -> bool:
     return Path(git_dir).resolve() != Path(common_dir).resolve()
 
 
+class WorktreeRelation(Enum):
+    """How a directory relates to the repository rooted at `root`.
+
+    Judged by `worktree_relation` from two facts git reports about the path:
+    whether its administrative dir differs from its common dir (a *linked*
+    worktree does; the primary checkout and an independent clone report the
+    same path for both) and whether that common dir is `root`'s.
+    """
+
+    MISSING = "missing"
+    """The path is not a directory."""
+    NOT_A_REPO = "not a repo"
+    """A directory git does not recognise as part of any repository."""
+    LINKED_SAME_REPO = "linked worktree of this repository"
+    PRIMARY_SAME_REPO = "primary checkout of this repository"
+    """The path is `root`'s own primary checkout (or a directory inside it)."""
+    LINKED_OTHER_REPO = "linked worktree of another repository"
+    STANDALONE = "independent checkout"
+    """Its own repository: an independent clone or an unrelated repo."""
+
+
+@dataclass(frozen=True)
+class WorktreeHome:
+    """`worktree_relation`'s verdict for one path.
+
+    `path` is the resolved directory judged. `owner` is the main working tree
+    of the repository the path belongs to, set only for the two kinds outside
+    `root`'s repository — the checkout a human has to run git cleanup from.
+    """
+
+    relation: WorktreeRelation
+    path: Path
+    owner: Path | None = None
+
+
+def worktree_relation(root: Path, path: Path) -> WorktreeHome | None:
+    """Judge how `path` relates to the repository containing `root`.
+
+    This is the one proof shared by every caller that must decide whether a
+    recorded checkout is a linked worktree of its own repository before acting
+    on it — `branchcleanup.remove_ticket_worktree` before removing one, the
+    autoclose sweep before naming the command that would. Returns `None` when
+    `root` itself is not inside a git repository, so there is nothing to
+    compare against. Read-only: at most four `git` calls, no network.
+    """
+    root_common_dir = _git_path(root, "--git-common-dir")
+    if root_common_dir is None:
+        return None
+    try:
+        resolved = path.resolve()
+    except OSError:
+        resolved = path
+    if not path.is_dir():
+        return WorktreeHome(WorktreeRelation.MISSING, resolved)
+    git_dir = _git_path(path, "--git-dir")
+    common_dir = _git_path(path, "--git-common-dir")
+    if git_dir is None or common_dir is None:
+        return WorktreeHome(WorktreeRelation.NOT_A_REPO, resolved)
+    linked = git_dir != common_dir
+    if common_dir == root_common_dir:
+        relation = (
+            WorktreeRelation.LINKED_SAME_REPO
+            if linked
+            else WorktreeRelation.PRIMARY_SAME_REPO
+        )
+        return WorktreeHome(relation, resolved)
+    relation = (
+        WorktreeRelation.LINKED_OTHER_REPO
+        if linked
+        else WorktreeRelation.STANDALONE
+    )
+    return WorktreeHome(relation, resolved, owner=_main_worktree(path) or common_dir.parent)
+
+
+def _git_path(cwd: Path, flag: str) -> Path | None:
+    """`cwd`'s resolved `git rev-parse --path-format=absolute <flag>`, or None."""
+    try:
+        out = _run_git(cwd, "rev-parse", "--path-format=absolute", flag).strip()
+    except GitError:
+        return None
+    if not out:
+        return None
+    try:
+        return Path(out).resolve()
+    except OSError:
+        return None
+
+
+def _main_worktree(cwd: Path) -> Path | None:
+    """The main working tree of the repository containing `cwd`, or None.
+
+    `git worktree list --porcelain` lists the main working tree first.
+    """
+    try:
+        listing = _run_git(cwd, "worktree", "list", "--porcelain")
+    except GitError:
+        return None
+    for line in listing.splitlines():
+        if line.startswith("worktree "):
+            return Path(line[len("worktree "):])
+    return None
+
+
 def _current_branch(root: Path) -> str:
     """Return the current branch name (`HEAD` for a detached checkout)."""
     return _run_git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
@@ -7271,6 +7375,9 @@ __all__ = [
     "feature_publication_lease",
     "guard_ticket_state",
     "is_linked_worktree",
+    "WorktreeHome",
+    "WorktreeRelation",
+    "worktree_relation",
     "refresh_coga_state_from_control",
     "restore_files_under_barrier",
     "state_publication_barrier",

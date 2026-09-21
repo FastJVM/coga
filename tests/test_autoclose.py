@@ -587,9 +587,19 @@ def test_sweep_merged_loud_raises_gh_error(
 
 
 def _closed(
-    slug: str, *, branch: str | None = None, worktree: str | None = None
+    slug: str,
+    *,
+    branch: str | None = None,
+    worktree: str | None = None,
+    home: am.CheckoutHome | None = None,
 ) -> am.ClosedTicket:
-    return am.ClosedTicket(slug=slug, title="Work", branch=branch, worktree=worktree)
+    return am.ClosedTicket(
+        slug=slug,
+        title="Work",
+        branch=branch,
+        worktree=worktree,
+        home=home or am.CheckoutHome("unknown"),
+    )
 
 
 def _capture_posts(monkeypatch: pytest.MonkeyPatch) -> list[str]:
@@ -691,12 +701,14 @@ def test_locate_checkout_recognises_a_linked_worktree_of_the_ticket_repo(
     feature = tmp_path / "ticket-repo-feature"
     _git(root, "worktree", "add", str(feature), "-b", "feature-x")
 
-    assert am.locate_checkout(root, str(feature)) == am.CheckoutHome("same")
-    # A relative `worktree:` resolves against the ticket repo's root, as the
-    # worklist discharge rule does — never against the process cwd.
-    assert am.locate_checkout(root, "../ticket-repo-feature") == am.CheckoutHome(
-        "same"
+    home = am.locate_checkout(root, _closed("t", branch="feature-x", worktree=str(feature)))
+    assert (home.kind, home.path) == ("same", feature.resolve())
+    # A relative `worktree:` resolves against the ticket repo's root, as retire
+    # and the worklist discharge rule do — never against the process cwd.
+    relative = am.locate_checkout(
+        root, _closed("t", branch="feature-x", worktree="../ticket-repo-feature")
     )
+    assert (relative.kind, relative.path) == ("same", feature.resolve())
 
 
 def test_locate_checkout_names_the_repo_that_owns_a_cross_repo_worktree(
@@ -709,42 +721,90 @@ def test_locate_checkout_names_the_repo_that_owns_a_cross_repo_worktree(
     feature = tmp_path / "other-repo-feature"
     _git(owner, "worktree", "add", str(feature), "-b", "feature-x")
 
-    home = am.locate_checkout(root, str(feature))
+    home = am.locate_checkout(root, _closed("t", branch="feature-x", worktree=str(feature)))
 
     assert home.kind == "other"
+    assert home.path == feature.resolve()
     assert home.owner is not None
     assert home.owner.resolve() == owner.resolve()
 
 
-def test_locate_checkout_distinguishes_gone_untracked_and_unjudged(
-    tmp_path: Path,
-) -> None:
+def test_locate_checkout_reports_what_retire_preserves(tmp_path: Path) -> None:
+    # Every static refusal `remove_ticket_worktree` makes is predicted here, so
+    # the report never names a plain `coga retire` that leaves the checkout in
+    # place: not a worktree, the ticket repo's own checkout, an independent
+    # clone, a symlink, and a worktree with no `branch:` to prove it by.
+    root = _init_repo(tmp_path / "ticket-repo")
+    plain = tmp_path / "plain-dir"
+    plain.mkdir()
+    clone = tmp_path / "clone"
+    _git(root, "clone", "-q", str(root), str(clone))
+    feature = tmp_path / "ticket-repo-feature"
+    _git(root, "worktree", "add", str(feature), "-b", "feature-x")
+    link = tmp_path / "link"
+    link.symlink_to(feature)
+
+    def kind(worktree: str, branch: str | None = "feature-x") -> tuple[str, str]:
+        home = am.locate_checkout(root, _closed("t", branch=branch, worktree=worktree))
+        return home.kind, home.reason or ""
+
+    assert kind(str(plain)) == ("preserved", "it is not a git worktree")
+    assert kind(str(root)) == ("preserved", "it is the checkout retire runs from")
+    (root / "sub").mkdir()
+    assert kind(str(root / "sub")) == (
+        "preserved",
+        "it is this repository's own checkout, not a linked worktree",
+    )
+    assert kind(str(clone)) == (
+        "preserved",
+        f"it is an independent checkout owned by `{clone.resolve()}`, not a "
+        "linked worktree of this repository",
+    )
+    assert kind(str(link)) == ("preserved", "the recorded path is a symlink")
+    assert kind(str(feature), branch=None) == (
+        "preserved",
+        "no `branch:` is recorded, so retire cannot prove which checkout it "
+        "belongs to",
+    )
+
+
+def test_locate_checkout_distinguishes_gone_and_unjudged(tmp_path: Path) -> None:
     root = _init_repo(tmp_path / "ticket-repo")
     plain = tmp_path / "plain-dir"
     plain.mkdir()
 
-    assert am.locate_checkout(root, str(tmp_path / "nowhere")) == am.CheckoutHome(
-        "gone"
+    gone = am.locate_checkout(
+        root, _closed("t", branch="b", worktree=str(tmp_path / "nowhere"))
     )
-    assert am.locate_checkout(root, str(plain)) == am.CheckoutHome("untracked")
+    assert (gone.kind, gone.path) == ("gone", (tmp_path / "nowhere").resolve())
     # Nothing to judge: no worktree recorded, or no git root to judge against.
-    assert am.locate_checkout(root, None) == am.CheckoutHome("unknown")
-    assert am.locate_checkout(None, str(plain)) == am.CheckoutHome("unknown")
+    assert am.locate_checkout(root, _closed("t", branch="b")) == am.CheckoutHome(
+        "unknown"
+    )
+    assert am.locate_checkout(
+        None, _closed("t", branch="b", worktree=str(plain))
+    ) == am.CheckoutHome("unknown")
 
 
 def test_render_retire_report_names_the_owner_of_a_cross_repo_checkout() -> None:
     # `coga retire <slug>` resolves the task in the current repo and requires a
     # same-repo linked worktree, so for a cross-repo checkout no invocation can
     # dispose of it: the line must say so and name the by-hand cleanup.
-    item = _closed("fix-thing", branch="fix-thing", worktree="/w/other-fix")
+    item = _closed(
+        "fix-thing",
+        branch="fix-thing",
+        worktree="/w/other-fix",
+        home=am.CheckoutHome(
+            "other", path=Path("/w/other-fix"), owner=Path("/src/other")
+        ),
+    )
     report = am.render_retire_report(
         generated_at="2026-09-21T08:00:00+00:00",
         task_slug=None,
         pending=[item],
-        homes={"fix-thing": am.CheckoutHome("other", owner=Path("/src/other"))},
     )
 
-    line = [l for l in report.splitlines() if l.startswith("- `fix-thing`")][0]
+    line = next(ln for ln in report.splitlines() if ln.startswith("- `fix-thing`"))
     assert line.startswith(
         '- `fix-thing` "Work": worktree `/w/other-fix`, branch `fix-thing` — '
         "the worktree belongs to `/src/other`, not this repository: "
@@ -757,27 +817,37 @@ def test_render_retire_report_names_the_owner_of_a_cross_repo_checkout() -> None
     )
 
 
-def test_render_retire_report_says_when_the_worktree_is_gone_or_untracked() -> None:
-    gone = _closed("gone-thing", branch="gone-thing", worktree="/w/gone")
-    untracked = _closed("plain-thing", branch="plain-thing", worktree="/w/plain")
+def test_render_retire_report_says_when_the_worktree_is_gone_or_preserved() -> None:
+    gone = _closed(
+        "gone-thing",
+        branch="gone-thing",
+        worktree="/w/gone",
+        home=am.CheckoutHome("gone", path=Path("/w/gone")),
+    )
+    preserved = _closed(
+        "plain-thing",
+        branch="plain-thing",
+        worktree="/w/plain",
+        home=am.CheckoutHome(
+            "preserved", path=Path("/w/plain"), reason="it is not a git worktree"
+        ),
+    )
     report = am.render_retire_report(
         generated_at="2026-09-21T08:00:00+00:00",
         task_slug=None,
-        pending=[gone, untracked],
-        homes={
-            "gone-thing": am.CheckoutHome("gone"),
-            "plain-thing": am.CheckoutHome("untracked"),
-        },
+        pending=[gone, preserved],
     )
 
     assert (
         "— the worktree is no longer on disk; `coga retire gone-thing` reports "
-        "it already gone and disposes of branch `gone-thing` only" in report
+        "it already gone and disposes of branch `gone-thing` only, if this "
+        "repository holds it" in report
     )
     assert "`git worktree prune` first" in report
     assert (
-        "— `/w/plain` exists but is not a git worktree; `coga retire plain-thing` "
-        "leaves it in place and disposes of branch `plain-thing` only." in report
+        "— `coga retire plain-thing` leaves `/w/plain` in place (it is not a git "
+        "worktree) and disposes of branch `plain-thing` only. Inspect and "
+        "remove the directory by hand." in report
     )
 
 
@@ -785,8 +855,14 @@ def test_render_retire_report_keeps_the_plain_command_for_same_repo_checkouts() 
     report = am.render_retire_report(
         generated_at="2026-09-21T08:00:00+00:00",
         task_slug=None,
-        pending=[_closed("fix-thing", branch="fix-thing", worktree="/w/coga-fix")],
-        homes={"fix-thing": am.CheckoutHome("same")},
+        pending=[
+            _closed(
+                "fix-thing",
+                branch="fix-thing",
+                worktree="/w/coga-fix",
+                home=am.CheckoutHome("same", path=Path("/w/coga-fix")),
+            )
+        ],
     )
 
     assert (
@@ -797,8 +873,16 @@ def test_render_retire_report_keeps_the_plain_command_for_same_repo_checkouts() 
 
 def test_render_retire_summary_names_the_owner_instead_of_an_unrunnable_command() -> None:
     summary = am.render_retire_summary(
-        [_closed("alpha", branch="alpha"), _closed("beta", worktree="/w/beta")],
-        homes={"beta": am.CheckoutHome("other", owner=Path("/src/other"))},
+        [
+            _closed("alpha", branch="alpha"),
+            _closed(
+                "beta",
+                worktree="/w/beta",
+                home=am.CheckoutHome(
+                    "other", path=Path("/w/beta"), owner=Path("/src/other")
+                ),
+            ),
+        ]
     )
 
     assert summary == (
