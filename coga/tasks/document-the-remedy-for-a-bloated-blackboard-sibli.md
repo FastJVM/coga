@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
 ---
 
@@ -155,6 +155,23 @@ pairs byte-identical.
 - Scoped validation from the primary checkout: `PYTHONPATH=/home/n/Code/claude/coga-bloated-blackboard-remedy/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --task document-the-remedy-for-a-bloated-blackboard-sibli --json` →
   **1 task checked, no issues**.
 
+
+---
+
+## Open PR — 2026-09-20
+
+- Feature branch had fallen 650 commits behind `origin/main` since the
+  peer-review rebase (`main` at `04844313`). `git rebase FETCH_HEAD` in the
+  recorded worktree applied both commits cleanly (now `84006720`,
+  `40c393d5`); `git diff --check origin/main...HEAD` clean.
+- Re-ran the full suite against the rebased feature-branch source
+  (`PYTHONPATH=<worktree>/src`, `/home/n/Code/claude/coga/.venv`): **2658
+  passed** (suite grew with `main`).
+- `coga open-pr` from the primary control checkout `/home/n/Code/codex/coga`
+  (the worktree is a linked worktree of the `/home/n/Code/claude/coga` clone,
+  so this is the separate-worktree layout): freshness check reported
+  state-only drift, safe to publish; opened
+  <https://github.com/FastJVM/coga/pull/856> and recorded `pr:` under `## Dev`.
 
 ---
 
