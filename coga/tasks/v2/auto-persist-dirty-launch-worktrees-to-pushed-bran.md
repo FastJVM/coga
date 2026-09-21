@@ -1,6 +1,6 @@
 ---
 title: Auto-persist dirty launch worktrees to pushed branches
-status: paused
+status: active
 owner: nicktoper
 agent: claude
 contexts:
@@ -27,7 +27,6 @@ workflow:
     skills: []
     assignee: owner
 step: 2 (self-qa)
-# --- extensions ---
 ---
 
 ## Description
