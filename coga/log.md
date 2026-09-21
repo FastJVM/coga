@@ -6025,3 +6025,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-21 12:22 [the-retro-done-ticket-skill-should-verify-a-done-t] [human:nicktoper] created (status=draft)
 2026-09-21 12:22 [add-an-applying-a-batch-of-verdicts-section-to-the] [human:nicktoper] created (status=draft)
 2026-09-21 12:22 [apply-12-context-and-skill-corrections-blocked-by] [human:nicktoper] created (status=draft)
+2026-09-21 12:22 [correct-two-stale-marketing-map-catalogue-rows-aft] [human:nicktoper] created (status=draft)
