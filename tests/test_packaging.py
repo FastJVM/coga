@@ -34,6 +34,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/prompt-megalaunch.md",
     "coga/resources/prompt-queue.md",
     "coga/resources/retire.md",
+    "coga/resources/templates/coga/bootstrap/address-pr-comments/ticket.md",
     "coga/resources/templates/coga/bootstrap/orient/ticket.md",
     "coga/resources/templates/coga/bootstrap/browser-automation/ticket.md",
     "coga/resources/templates/coga/bootstrap/resolve-conflicts/ticket.md",
@@ -58,6 +59,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/contexts/coga/codebase/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md",
     "coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md",
+    "coga/resources/templates/coga/recurring/address-pr-comments/ticket.md",
     "coga/resources/templates/coga/recurring/autoclose-merged/ticket.md",
     "coga/resources/templates/coga/recurring/blocker-reminders/ticket.md",
     "coga/resources/templates/coga/recurring/resolve-conflicts/ticket.md",
@@ -430,6 +432,58 @@ def test_resolve_conflicts_recurring_wrapper_replaces_stale_worktree_sweep() -> 
     assert "script -qec" not in wrapper.body
     assert "open PRs only" in wrapper.body
     assert not (recurring_root / "rebase-stale-worktrees").exists()
+
+
+def test_address_pr_comments_recurring_wrapper_delegates_to_command_ticket() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    bootstrap_root = (
+        repo_root
+        / "src"
+        / "coga"
+        / "resources"
+        / "templates"
+        / "coga"
+        / "bootstrap"
+    )
+    recurring_root = (
+        repo_root
+        / "src"
+        / "coga"
+        / "resources"
+        / "templates"
+        / "coga"
+        / "recurring"
+    )
+    command = Ticket.read(bootstrap_root / "address-pr-comments" / "ticket.md")
+    wrapper = Ticket.read(recurring_root / "address-pr-comments" / "ticket.md")
+
+    assert "gh pr list --state open --limit 10000" in command.body
+    assert "usage: coga address-pr-comments [PR]" in command.body
+    # The sweep reuses the per-PR mechanics from the skill by citation and
+    # must say which parts of the skill do not apply to an unattended run.
+    assert "coga/skills/code/address-pr-comments/SKILL.md" in command.body
+    assert "do not apply" in command.body
+    # Re-run guard is the fixed marker, never the reply's author.
+    assert "<!-- coga:address-pr-comments reply-to:" in command.body
+    assert "resolveReviewThread" in command.body
+    assert "coga slack --task bootstrap/address-pr-comments" in command.body
+    assert "coga bump" in command.body
+    assert wrapper.frontmatter["schedule"] == "0 7 * * *"
+    assert "\nscript:" not in (
+        recurring_root / "address-pr-comments" / "ticket.md"
+    ).read_text()
+    # Same shape as the `resolve-conflicts` wrapper: the delegation is the
+    # frozen field, the sweep owns the period lifecycle, and a delegated
+    # period must stay workflow-less so it resolves to the one-step default.
+    assert wrapper.frontmatter["delegate"] == "bootstrap/address-pr-comments"
+    assert "workflow" not in wrapper.frontmatter
+    assert "recipe" not in wrapper.frontmatter
+    assert not (recurring_root / "address-pr-comments" / "ticket.py").exists()
+    assert not (bootstrap_root / "address-pr-comments" / "ticket.py").exists()
+    assert "coga address-pr-comments --agent" not in wrapper.body
+    assert "coga mark done" not in wrapper.body
+    assert "script -qec" not in wrapper.body
+    assert "open PRs only" in wrapper.body
 
 
 def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
