@@ -21,7 +21,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -56,6 +56,7 @@ prior ticket was `ship-a-shared-recurring-reminder-engine-battery`.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/853
 branch: reminders-harness
 worktree: /home/n/Code/coga-reminders-harness
 
@@ -124,6 +125,50 @@ sibling helper there is that repo's call, not a reason to widen the harness.
 - The Xero changeover fires once (old script acks the current month, this
   acks the prior month) — documented in the sweep's docstring.
 
+
+## Peer review
+
+2026-09-20: `codex review --base main` **returned** (exit 0), reporting no
+actionable regressions in the harness, sweep examples, or tests. No code fixes
+were needed. Review log for this session: `/tmp/reminders-peer-review.log`.
+The accepted fixture-only consumer boundary above remains unchanged; downstream
+migrations are still follow-up work.
+
+Ran `git fetch origin main && git rebase FETCH_HEAD` in the feature worktree;
+the rebase completed without conflicts. Feature commit is now `3294d129`, one
+commit ahead of fetched `origin/main`; the worktree is clean.
+
+The review's test attempt and the ambient `python -m pytest` lacked test
+dependencies. Full verification used the existing worktree virtualenv:
+`PYTHONPATH=/home/n/Code/coga-reminders-harness/src .venv/bin/python -m pytest`.
+Confirmed that imports resolve to this feature worktree: **2723 passed** in
+173.16s (exit 0). Two warnings were sandbox-denied pytest cache writes, not test
+failures. No additional implementation commit was necessary.
+
+Terminal checks: ran the candidate fixture at 80x24 and maintenance fixture at
+120x40 in a real PTY, both with `--today 2026-07-13`, their respective
+`tests/fixtures/reminders/recorded/{candidate,maintenance}` tasks directory, and
+`--dry-run`. Reports showed three missing filing dates and two maintenance
+windows respectively, followed by the correct dry-run suppression notices.
+Output is plain scrolling text, with no cursor positioning or interactive UI.
+No live Slack posts were sent; Slack rendering itself is unchanged and the
+existing CLI owns delivery. `git diff --check` passed.
+
+## PR
+
+Recurring sweeps repeat date/task-directory argument handling, reporting, and
+Slack delivery. Add a Python-only `coga.reminders.run()` harness and
+`SweepResult` for that shared tail. Posting is the default so operand-free
+`ticket.py` launches send alerts; `--dry-run` suppresses delivery. Each sweep
+retains its date math, record loading, acknowledgement rules, and wording.
+
+Keep five worked sweep fixtures spanning date windows, period acknowledgements,
+date high-water acknowledgements, and live queries. Patent retrofit tests pin
+golden stdout and default posting; Brex fixtures expose unreadable amounts and
+document reconstructed data. Update the live and packaged codebase contexts
+together. Production consumers migrate downstream in follow-up work.
+
+Test plan: `PYTHONPATH=/home/n/Code/coga-reminders-harness/src .venv/bin/python -m pytest` — 2723 passed; fixture dry runs in 80x24/120x40 PTYs; `git diff --check`.
 
 ## Production notes
 
