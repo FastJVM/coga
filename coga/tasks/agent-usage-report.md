@@ -31,7 +31,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 ---
 
 ## Description
@@ -111,7 +111,7 @@ predate the rule.
    - `__main__` with `--since`/`--until`/`--json`: `load_config()`,
      `load_records(cfg)`, build, print. Never posts or writes.
 2. **`coga/recurring/usage-report/ticket.py`** — thin. Resolves
-   `Path(os.environ["COGA_COGA_OS_ROOT"]) / "coga/recurring/usage-report"`,
+   `Path(os.environ["COGA_COGA_OS_ROOT"]) / "recurring/usage-report"`,
    inserts it on `sys.path`, imports `report`, builds for the default window,
    `notification.post(cfg, text, important=True, fatal=False)`, then completes
    the step by subprocessing `python -m coga.cli bump $COGA_TASK_SLUG`
@@ -205,9 +205,12 @@ only `ticket.py`** into the period task
 SCRIPT_ENTRY_POINT)`; asserted by
 `tests/test_recurring_shims.py::test_period_task_runs_its_shim_headlessly_and_closes_its_own_step`),
 so every other file stays at the template and the shim reaches them through
-`COGA_COGA_OS_ROOT`, which `task_env.build_task_env` exports as the Coga
-root of the active checkout. `tests/test_recurring_shims.py` is the model
-for the materialized-shim test.
+`COGA_COGA_OS_ROOT`, which `task_env.build_task_env` exports as
+`cfg.repo_root` — the active checkout's `coga/` directory itself, not the
+host repository (`task_env.host_repo_root` is what strips the trailing
+`coga`; `dream_cleanup_orphan_markers.coga_os_root` reads the variable the
+same way). So the template path is `$COGA_COGA_OS_ROOT/recurring/usage-report`.
+`tests/test_recurring_shims.py` is the model for the materialized-shim test.
 
 **Notifications.** `coga.notification.post(cfg, message, *, important=False,
 fatal=True, ...)`. `important=True` routes to the channel's alert
@@ -231,6 +234,75 @@ adds nothing to `src/coga/`.
   per run with a documented `coga slack` repost, `important=True` route).
 - Nothing on this ticket is blocked on
   `define-the-api-equivalent-cost-proxy-and-price-tab`.
+
+## Dev
+
+branch: usage-report
+worktree: /home/n/Code/codex/coga-usage-report
+Layout: separate feature checkout (the primary checkout sits on
+`quiet-first-run`, so `## Dev` and `coga bump` live here). The worktree
+carries a gitignored `.venv/` (`uv venv --python 3.12` + `pip install -e
+".[test]"`; the default `python3` here is 3.9.12, below the 3.11 floor) and a
+0600 copy of `coga/coga.local.toml` seeded for `coga validate`; remove both
+when the checkout is retired.
+
+## Implement — 2026-09-21
+
+Commit `7d1a7241b` on `usage-report`, rebased on `origin/main` (`ec23c317b`,
+nothing new came in). Files, all at the edge, nothing in `src/coga/`:
+
+- `coga/recurring/usage-report/report.py` — `default_window`, `build_report`
+  (one `rollup(by="model")` over tz-aware `[since 00:00, until 00:00 − 1µs]`),
+  `render`, `format_tokens`, and `main(argv)` with `--since/--until/--json`.
+  `main` is a function so the CLI path is tested in-process.
+- `coga/recurring/usage-report/ticket.py` — `sys.path` insert of
+  `$COGA_COGA_OS_ROOT/recurring/usage-report`, `import report`, one
+  `post(cfg, text, important=True, fatal=False)`, `coga bump` by subprocess.
+- `coga/recurring/usage-report/ticket.md` (`schedule: "0 8 * * 1"`, no
+  `state_keys:`), `coga/workflows/usage-report/post.md`,
+  `coga/skills/coga/usage-report/post/SKILL.md` — mirror `branch-sweep`.
+- `tests/test_usage_report.py` — 14 tests: default window (Mon/Wed/Sun), both
+  half-open boundaries, inverted window, golden render with `(unknown)` and
+  `<synthetic>` rows and the floor caveat, no-caveat case, non-week label,
+  empty window, `main` (stdout only, `log.md` bytes unchanged, `--json`, exit
+  2 on inverted window), an AST contract for `ticket.py` (imports, the single
+  `post` call's kwargs, bump argv), and the end-to-end materialized period
+  task launched from a seeded `example/` copy with `capfd` reading the
+  subprocess's stderr.
+
+Decisions:
+
+- **Stubbed posting = no channel selected.** The shim runs in a subprocess, so
+  an in-process `requests.post` monkeypatch cannot reach it. The seeded example
+  has `channels = []`, so `notification.post` echoes
+  `no channels configured: <text>` to stderr; the test asserts the exact
+  rendered text appears once there and the ticket closes `done`. The
+  `important=True`/`fatal=False` route is pinned structurally by the AST test
+  instead. Rejected: a loopback HTTP server in the test (no precedent in the
+  suite).
+- **Render details** not fixed by the ticket: the floor parenthetical is
+  omitted when zero sessions are unknown; a non-Mon→Mon window is labelled
+  `<since> to <until> (UTC, end exclusive)`; model rows sort by total desc then
+  key; token counts format as `B`/`M`/`k`/plain with the ticket's `496.0M`
+  style; an empty window renders the header plus
+  `No Coga-launched sessions recorded in this window.`
+- `--since`/`--until` each default independently to their end of the last
+  completed week; `until <= since` exits 2 via `parser.error`.
+- The live-template test reads `coga/recurring/usage-report/` directly, unlike
+  `test_recurring_shims.py` which reads the packaged tree — the template is
+  live-only by the ticket's out-of-scope list, so the live copy is the only one.
+- Period creation resolves the step's skill (`create_named` failed with
+  "no skill file exists" before the skill was copied into the seeded repo), so
+  the end-to-end test copies the skill alongside the workflow.
+
+Verification: `.venv/bin/python -m pytest` → 2671 passed (one run hit
+`test_wheel_includes_bootstrap_batteries` only because the fresh uv venv had no
+`pip`; installing pip fixed it — environmental, not a code failure).
+`.venv/bin/coga validate --json` → the same four pre-existing
+`unsynthesized-draft-blackboard` errors, nothing on `usage-report`. Manual
+cross-check against the live log for 2026-08-31 → 2026-09-07: 389.5M tokens,
+65 sessions, 7 unknown, matching `coga usage --json --by model` for the same
+window.
 
 ## Superseded designs
 
