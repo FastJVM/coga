@@ -106,9 +106,10 @@ implementation, not a fixed rewrite to another command.
 | `browser-automation` | unaliased `launch bootstrap/browser-automation` | Not currently | Intentional agent-backed orchestration entry point; it remains available through its full launch spelling. |
 | `open-pr` | `open-pr` default alias → `run open-pr` | Yes — already aliased | Registered recipe (`coga.open_pr`); the target task ref is ordinary argv. The command ticket it used to be is retired. |
 | `resolve-conflicts` | `resolve-conflicts` default alias → `launch bootstrap/resolve-conflicts` | Yes — already aliased | Stateless agent command ticket; its optional PR selector reaches the `## Launch arguments` block. |
+| `address-pr-comments` | `address-pr-comments` default alias → `launch bootstrap/address-pr-comments` | Yes — already aliased | Stateless agent command ticket, same shape as `resolve-conflicts`; sweeps review comments on open PRs, optional PR selector. |
 
 The packaged bootstrap-ticket inventory is `orient`, `ticket`,
-`browser-automation`, and `resolve-conflicts`.
+`browser-automation`, `resolve-conflicts`, and `address-pr-comments`.
 Browser automation is the one intentionally unaliased launch target.
 
 ### Recurring launches (`recurring launch <name>`)
@@ -121,6 +122,7 @@ task. There is no mode field.
 |----------|-----------|-----------------|-------------|-----|
 | `dream` | agent (interactive) | `dream` default alias → `recurring launch dream` | Yes — already aliased | Pure passthrough. |
 | `resolve-conflicts` | agent | explicit `recurring launch resolve-conflicts` | **No — the name is taken** | The template carries only the weekly schedule; the work is the `bootstrap/resolve-conflicts` command ticket, and the `resolve-conflicts` default alias already points at `launch bootstrap/resolve-conflicts`. |
+| `address-pr-comments` | agent | explicit `recurring launch address-pr-comments` | **No — the name is taken** | Same shape: the template carries only the daily schedule and delegates to the `bootstrap/address-pr-comments` command ticket, which the `address-pr-comments` default alias already fronts. |
 | `skill-update` | script | `skill-update` default alias → `recurring launch skill-update` | Yes — already aliased | Pure passthrough. |
 | `autoclose-merged` | script | `autoclose` default alias → `recurring launch autoclose-merged` | Yes — already aliased | Pure passthrough under the shorter public name. |
 | `blocker-reminders` | script | explicit `recurring launch blocker-reminders` | Not currently | No default alias; scheduled execution runs the template's `ticket.py`. |
@@ -133,7 +135,8 @@ task. There is no mode field.
 
 **One unaliased bootstrap launch target remains intentionally.**
 `DEFAULT_ALIASES` covers `chat`, `dream`, `build`, `skill-update`,
-`autoclose`, `pick`, `open-pr`, and `resolve-conflicts`.
+`autoclose`, `pick`, `open-pr`, `resolve-conflicts`, and
+`address-pr-comments`.
 `bootstrap/browser-automation` remains available only through its explicit
 launch spelling; it is orchestration rather than a stable top-level verb.
 
@@ -156,10 +159,11 @@ launch spelling; it is orchestration rather than a stable top-level verb.
   not a launchable thing. Do not mistake a `bootstrap/skills/...` path for an
   aliasable bootstrap ticket.
 
-- **`DEFAULT_ALIASES` ships eight.** `chat`, `dream`, `build`,
-  `skill-update`, `autoclose`, `pick`, `open-pr`, and `resolve-conflicts`.
-  `open-pr` fronts a registered recipe; `resolve-conflicts` demonstrates the
-  agent-backed command ticket.
+- **`DEFAULT_ALIASES` ships nine.** `chat`, `dream`, `build`,
+  `skill-update`, `autoclose`, `pick`, `open-pr`, `resolve-conflicts`, and
+  `address-pr-comments`. `open-pr` fronts a registered recipe;
+  `resolve-conflicts` and `address-pr-comments` demonstrate the agent-backed
+  command ticket.
 
 ## Architecture: how far the ticket model reaches
 
@@ -244,6 +248,6 @@ the audit's path to it.
 - autoclose sweep + module: `coga/workflows/autoclose-merged/sweep.md`,
   `coga.autoclose.sweep_merged`.
 - Bootstrap tickets: package
-  `bootstrap/{browser-automation,orient,resolve-conflicts,ticket}/ticket.md`.
-- Recurring templates: `coga/recurring/{autoclose-merged,blocker-reminders,branch-sweep,dream,resolve-conflicts,skill-update}/`.
+  `bootstrap/{address-pr-comments,browser-automation,orient,resolve-conflicts,ticket}/ticket.md`.
+- Recurring templates: `coga/recurring/{address-pr-comments,autoclose-merged,blocker-reminders,branch-sweep,dream,resolve-conflicts,skill-update}/`.
 - Alias test coverage (not `coga validate`): `tests/test_aliases.py`.

@@ -109,14 +109,15 @@ core skills, contexts, workflows, and interview targets) are **package-backed**:
 `coga init` deliberately skips `bootstrap/`, so a change to a bootstrap
 battery normally lives in the single packaged location. Runtime resolvers read
 those package resources directly, **after checking for a local `coga/…`
-override** — which is the catch: this repo now carries one such override,
-`coga/bootstrap/resolve-conflicts/ticket.md` (re-added by PR #633). It shadows
+override** — which is the catch: this repo carries two such overrides,
+`coga/bootstrap/resolve-conflicts/ticket.md` (re-added by PR #633) and
+`coga/bootstrap/address-pr-comments/ticket.md`. Each shadows
 its packaged counterpart through the local-first `resolve_bootstrap` path
-(`src/coga/tasks.py:302-312`), so that one pair **must** be kept in sync like
-any other. Note that `coga/contexts/coga/codebase/SKILL.md` warns against
+(`src/coga/tasks.py`, `resolve_bootstrap`), so those pairs **must** be kept in
+sync like any other. Note that `coga/contexts/coga/codebase/SKILL.md` warns against
 exactly this shape of un-annotated mirror ("a repo-local mirror hides the
-packaging bug and will drift"); the override is currently byte-identical to the
-packaged file and carries no note recording it as intentional.
+packaging bug and will drift"); each override is currently byte-identical to
+its packaged file and carries no note recording it as intentional.
 
 ## Coding style
 

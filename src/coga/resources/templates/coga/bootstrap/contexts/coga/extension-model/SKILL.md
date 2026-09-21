@@ -138,7 +138,9 @@ durable task instance:
   when the command deserves a top-level spelling. Trailing argv continues
   through the alias.
 
-`resolve-conflicts` is the shipped agent-backed form. `open-pr` is a registered
+`resolve-conflicts` and `address-pr-comments` are the shipped agent-backed
+forms; each pairs a stateless command ticket with a recurring template that
+only delegates to it. `open-pr` is a registered
 `coga run` recipe: a fixed name in `runner.RECIPES` is a genuine package
 command with a repository-independent argv/stdout/exit-code contract. A
 ticket-owned deterministic operation instead stays beside its command ticket.
@@ -257,7 +259,7 @@ actively fights the capability boundary.
 | --- | --- |
 | **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · `block` / `unblock` · fresh `init` · fixed `coga run` recipes · commands proven to require co-versioning with a named package-private invariant · *(hooks)* secret-inject, skill-verify-at-compose |
 | **Stateful tickets** | reviewable work with its own lifecycle; may run `ticket.py`, an agent, or both |
-| **Stateless command tickets** | package/repo bootstrap targets such as `resolve-conflicts`; agent-backed or no-operand `ticket.py`, launched in place |
+| **Stateless command tickets** | package/repo bootstrap targets such as `resolve-conflicts` and `address-pr-comments`; agent-backed or no-operand `ticket.py`, launched in place |
 | **External tools** | existing CLIs such as `git`, `gh`, and `op` |
 | **Alias (sugar)** | fixed rewrites to launch/bootstrap or other real command targets |
 
