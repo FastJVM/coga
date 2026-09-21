@@ -5927,3 +5927,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-20 22:19 [recurring-task-to-manage-all-open-pr-and-address-c] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-20 22:19 [recurring-task-to-manage-all-open-pr-and-address-c] [git] sync refused: coga/tasks/recurring-task-to-manage-all-open-pr-and-address-c.md: status would move backward from 'in_progress' to 'active'
 2026-09-20 22:19 [recurring-task-to-manage-all-open-pr-and-address-c] [human:nicktoper] started (active → in_progress) via coga launch
+2026-09-20 22:20 [recurring-task-to-manage-all-open-pr-and-address-c] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-20 22:54 [recurring-task-to-manage-all-open-pr-and-address-c] [agent:claude] advanced to step 2 (peer-review) → codex

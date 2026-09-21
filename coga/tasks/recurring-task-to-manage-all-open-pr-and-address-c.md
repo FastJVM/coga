@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -208,4 +208,83 @@ and its selector-carrying twin, and extend or parametrize
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: address-pr-comments-sweep
+worktree: /home/n/Code/coga-address-pr-comments
+
+## Plan (implement, attended)
+
+Layout: separate linked worktree from `origin/main`; `## Dev` recorded on the
+primary checkout, which is where `coga bump` runs.
+
+Deliverables, all mirrored on `resolve-conflicts`:
+- `bootstrap/address-pr-comments/ticket.md` live + packaged (byte-identical).
+- `recurring/address-pr-comments/ticket.md` live + packaged, `delegate:` +
+  daily schedule, no `workflow:`.
+- `aliases.DEFAULT_ALIASES["address-pr-comments"]` + comment block.
+- Tests: `EXPECTED_BOOTSTRAP_RESOURCES`, wrapper-shape sibling, two alias
+  siblings, parametrized validate delegate test.
+- Docs/contexts: `docs/cli-extension-audit.md`, `docs/development.md`,
+  `coga/extension-model` (live + packaged), plus `coga/sync` template
+  accounting (owner agreed to this one extra touchpoint).
+
+## Implement — done (2026-09-20)
+
+Commits on `address-pr-comments-sweep` (rebased on `origin/main` a5420200):
+- `7fbbf98c` Add address-pr-comments command ticket and daily recurring sweep
+- `e00a76c9` Account for address-pr-comments in docs and contexts
+
+What landed:
+- `coga/bootstrap/address-pr-comments/ticket.md` + packaged twin. Mirrors
+  `resolve-conflicts` section for section. Cites skill §2/§3/§4 by path;
+  states explicitly that §1 and the attended conduct do not apply (no
+  `## Dev`, no `branch --show-current` check, no human to ask, no
+  `coga block`, and `coga slack --task bootstrap/address-pr-comments` IS the
+  completion signal). Spells out: PR-first `gh pr view` fields, three
+  comment sources (threads / issue comments / reviews with the
+  APPROVED+DISMISSED exclusion and the "summary covered by its threads"
+  rule), the marker `<!-- coga:address-pr-comments reply-to:<id> -->`
+  guard with re-open rule, worktree selection, `needs-human`, base/
+  conflicting/fork skips, verify gate, lease push, nine status tokens and
+  the mixed-outcome precedence.
+- `coga/recurring/address-pr-comments/ticket.md` + packaged twin:
+  `schedule: "0 7 * * *"`, `delegate:`, `owner: nicktoper`, `agent: claude`,
+  no `workflow:` (comment in frontmatter says why).
+- `aliases.DEFAULT_ALIASES["address-pr-comments"]` + comment block.
+- Tests: `EXPECTED_BOOTSTRAP_RESOURCES` (+2), new
+  `test_address_pr_comments_recurring_wrapper_delegates_to_command_ticket`,
+  `test_address_pr_comments_is_default_alias_for_agent_command_ticket`,
+  `test_default_address_pr_comments_alias_carries_optional_pr`, and
+  `test_validate_accepts_recurring_delegate_to_shipped_bootstrap` is now
+  parametrized over both delegates.
+- Docs/contexts: `docs/cli-extension-audit.md` (alias table, recurring
+  table, both enumerations, "ships nine", inventories),
+  `docs/development.md` (second local override), `coga/extension-model`
+  and `coga/sync` contexts (live + packaged twins).
+
+Verification (in the feature worktree, own `.venv` via
+`uv venv --python 3.12` + `uv pip install -e ".[test]"`):
+- `python -m pytest` → 2661 passed.
+- `coga validate --json` → same issue set as `main` (4 pre-existing
+  `unsynthesized-draft-blackboard` errors on unrelated draft tickets); zero
+  issues mention address-pr-comments.
+- `coga launch bootstrap/address-pr-comments --prompt-report` composes
+  (~5.1k tokens; task_description 12.8 KiB).
+
+Decisions / flags for review:
+- `owner: nicktoper` is in the recurring template because the ticket asked
+  for `owner:`; no other packaged recurring template carries one and
+  `coga.toml` already defaults `owner`. It ships in the wheel — drop the
+  line at review if that is unwanted (twins must stay byte-identical).
+- Fork PRs are `skipped-fork` outright; the sweep never resolves a fork
+  push remote. Same posture as `resolve-conflicts`' "origin only".
+- `docs/development.md` line-range cite `tasks.py:302-312` became a symbol
+  cite (`resolve_bootstrap`) while the sentence was being edited.
+- The feature worktree carries a seeded 0600 `coga/coga.local.toml`
+  (gitignored) for the prompt-report check; remove it when the worktree is
+  retired.
+
+Not done here (owner runs at `review`, side-effecting): `coga
+address-pr-comments <n>` against a real open PR; `coga recurring launch
+address-pr-comments` end to end.
