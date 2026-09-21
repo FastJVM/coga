@@ -9780,9 +9780,9 @@ def test_recurring_fallback_publication_preserves_other_sweep_targets(
     if feature_branch:
         git_repo.checkout_branch("feature/fallback-ledger")
     scan = scan_due(cfg, now=datetime(2026, 6, 8, 10, 0))
-    original_fetch = recurring_cmd._fetch_control_branch
-    original_push = coga_git._push_ref
-    original_sync = coga_git.sync_paths
+    original_fetch = coga_git.fetch_control
+    original_push = coga_git._push
+    original_publish = coga_git.publish
     fetches = 0
     pushes = 0
 
@@ -9809,16 +9809,16 @@ def test_recurring_fallback_publication_preserves_other_sweep_targets(
             compete()
         return original_push(*args, **kwargs)
 
-    def sync(*args, **kwargs):  # type: ignore[no-untyped-def]
-        published = original_sync(*args, **kwargs)
-        assert published is not None
+    def publish(*args, **kwargs):  # type: ignore[no-untyped-def]
+        published = original_publish(*args, **kwargs)
+        assert published
         if competitor == "after":
             compete()
         return published
 
-    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", fetch)
-    monkeypatch.setattr(coga_git, "_push_ref", push)
-    monkeypatch.setattr(coga_git, "sync_paths", sync)
+    monkeypatch.setattr(coga_git, "fetch_control", fetch)
+    monkeypatch.setattr(coga_git, "_push", push)
+    monkeypatch.setattr(coga_git, "publish", publish)
     monkeypatch.setattr(recurring_cmd, "notify", lambda *args, **kwargs: None)
     recurring_cmd._broadcast_scan(
         cfg, scan, control_is_fresh=preloaded, control_revision=revision
@@ -9902,7 +9902,7 @@ def test_recurring_create_retry_refreshes_a_changed_control_revision(
     if feature_branch:
         git_repo.checkout_branch("feature/retry-ledger")
     scan = scan_due(cfg, now=datetime(2026, 6, 8, 10, 0))
-    original_push = coga_git._push_ref
+    original_push = coga_git._push
     pushes = 0
 
     def push_after_competitor(root, remote, refspec):  # type: ignore[no-untyped-def]
@@ -9912,14 +9912,14 @@ def test_recurring_create_retry_refreshes_a_changed_control_revision(
             _push_competing_serviced_period(git_repo, "weekly-check", "2026-W24")
         return original_push(root, remote, refspec)
 
-    monkeypatch.setattr(coga_git, "_push_ref", push_after_competitor)
+    monkeypatch.setattr(coga_git, "_push", push_after_competitor)
     recurring_cmd._broadcast_scan(
         cfg, scan, control_is_fresh=True, control_revision=revision
     )
 
-    # Control may still push the union-merged audit log after suppressing the
-    # task. The overlay itself must not be retried with the duplicate task.
-    assert pushes == (1 if feature_branch else 2)
+    # The rejected first push re-reads control, finds the period serviced, and
+    # publishes only the union-merged audit log; the task is never retried.
+    assert pushes == 2
     assert scan.due == []
     assert not git_repo.origin_tracks("coga/tasks/recurring/weekly-check/ticket.md")
     assert not (git_repo.coga_os / "tasks/recurring/weekly-check").exists()
@@ -9936,13 +9936,13 @@ def test_recurring_rejected_create_log_publication_keeps_other_targets(
     if feature_branch:
         git_repo.checkout_branch("feature/rejected-create-ledger")
     scan = scan_due(cfg, now=datetime(2026, 6, 8, 10, 0))
-    original_push = coga_git._push_ref
+    original_push = coga_git._push
     pushes = 0
 
     def push(root, remote, refspec):  # type: ignore[no-untyped-def]
         nonlocal pushes
         pushes += 1
-        if pushes == 1 or (pushes == 2 and audit_retry and not feature_branch):
+        if pushes == 1 or (pushes == 2 and audit_retry):
             name = "aaa-check" if pushes == 1 else "bbb-check"
             log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
             git_repo.push_competing_commit(
@@ -9951,13 +9951,13 @@ def test_recurring_rejected_create_log_publication_keeps_other_targets(
             )
         return original_push(root, remote, refspec)
 
-    monkeypatch.setattr(coga_git, "_push_ref", push)
+    monkeypatch.setattr(coga_git, "_push", push)
     monkeypatch.setattr(recurring_cmd, "notify", lambda *args, **kwargs: None)
     recurring_cmd._broadcast_scan(
         cfg, scan, control_is_fresh=True, control_revision=revision
     )
 
-    expected = ["ccc-check"] if audit_retry and not feature_branch else ["bbb-check", "ccc-check"]
+    expected = ["ccc-check"] if audit_retry else ["bbb-check", "ccc-check"]
     assert [task.template for task in scan.due] == expected
     assert scan.errors == []
     for name in ("aaa-check", "bbb-check", "ccc-check"):
@@ -10007,7 +10007,7 @@ def test_recurring_sweep_refuses_changed_ledger_after_own_publication(
     now = datetime(2026, 6, 8, 10, 0)
     scan = scan_due(cfg, now=now)
     original_sync = recurring_cmd._sync_recurring_create
-    original_push = coga_git._push_ref
+    original_push = coga_git._push
     overlay_pushes = 0
 
     def compete() -> None:
@@ -10031,7 +10031,7 @@ def test_recurring_sweep_refuses_changed_ledger_after_own_publication(
                 compete()
         return original_push(root, remote, refspec)
 
-    monkeypatch.setattr(coga_git, "_push_ref", push_after_competitor)
+    monkeypatch.setattr(coga_git, "_push", push_after_competitor)
     monkeypatch.setattr(recurring_cmd, "_sync_recurring_create", sync_then_compete)
     monkeypatch.setattr(recurring_cmd, "notify", lambda *args, **kwargs: None)
     recurring_cmd._broadcast_scan(
@@ -10131,8 +10131,7 @@ def test_broadcast_reuses_the_fresh_prescan_control_ledger(
         lambda *args, **kwargs: pytest.fail("fresh sweep reread control log"),
     )
 
-    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", lambda *args: None)
-    monkeypatch.setattr(recurring_cmd, "_rev_parse", lambda *args: "caught-up")
+    monkeypatch.setattr(recurring_cmd.git, "fetch_control", lambda *args: "caught-up")
     recurring_cmd._broadcast_scan(
         cfg, scan, control_is_fresh=True, control_revision="caught-up"
     )
@@ -10196,7 +10195,7 @@ def test_control_ledger_uses_the_same_per_ref_target_stop(
     """The pinned control fallback must agree with the local reverse read."""
     monkeypatch.setattr(
         coga_git,
-        "_run_git",
+        "run_git",
         lambda *args: "".join(
             [
                 "2026-05-01 09:00 [recurring/other-check] [system] "
@@ -10381,7 +10380,7 @@ def test_control_ledger_rejects_malformed_period(
 ) -> None:
     monkeypatch.setattr(
         coga_git,
-        "_run_git",
+        "run_git",
         lambda *args: (
             "2026-08-13 17:22 [recurring/check] [system] "
             "created recurring/check for none\n"

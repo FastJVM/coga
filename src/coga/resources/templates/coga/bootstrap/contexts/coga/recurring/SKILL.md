@@ -927,8 +927,13 @@ where the next period's scan deleted it.
   a later template must not refresh through this sweep's pending records.
   Audit-only pushes after a create loses a race also count as own publications,
   with the same ledger guard on a rejected audit-push retry.
-  The revision comes from the publisher, not a subsequent fetch that could
-  accidentally attribute a rival's intervening commit to this sweep.
+  The revision is read from the remote-tracking ref the successful push just
+  advanced, not from a subsequent fetch that could accidentally attribute a
+  rival's intervening commit to this sweep. Both the create and the
+  audit-only publish re-run the ledger check through `publish`'s `guard` at
+  every base they push on (`coga/sync`), because the union-merged log is a
+  candidate only while it is dirty and a blob pin on it would otherwise go
+  unevaluated on a control checkout.
 - **Freshness refusals are not best-effort sync failures.** An unreadable
   fetched ledger, or ambiguous ledger changes after own publication, raises a
   recurring admission error and excludes the task from dispatch. A rejected

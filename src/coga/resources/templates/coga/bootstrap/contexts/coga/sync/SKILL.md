@@ -524,7 +524,7 @@ and shareable. The whole contract is `src/coga/git.py`, and it fits one page.
 
 ### `publish` — the one write primitive
 
-`git.publish(cfg, paths, message, *, expect=None, fast_forward=True)`;
+`git.publish(cfg, paths, message, *, expect=None, guard=None, fast_forward=True)`;
 `sync_task_state(cfg, task_path, *, message, expect=None, strict=False)`
 (task + log), `sync_log(cfg, *, message)` (log only, stderr-only failures),
 and `sync_coga_state(cfg)` (the sweep: every dirty path under `coga/tasks/`,
@@ -563,7 +563,15 @@ worktree — `dev/code` (*Checkout boundary*) states the assumption and
    that set with the exact bytes the writer read (`None`: must not exist) —
    megalaunch's claim, admission, and released-witness reconciliation, and the
    recurring create's ledger read use it; on a `merge=union` path it adds a
-   check that path otherwise never has. A ticket whose control copy carries
+   check that path otherwise never has — but only while that path is a
+   candidate. `guard=callable(base)` is the other hook: it runs before each
+   attempt with the commit the attempt builds on (re-fetched after a rejected
+   push, so a retry never decides on a stale tip), regardless of candidates,
+   and refuses by raising. It exists for one decision `expect` cannot express:
+   the recurring create must not land once control's *content* records the
+   period as serviced, and on a control checkout `coga/log.md` is clean after
+   the sweep's first publish, so a blob pin on it is never evaluated for the
+   creates that follow. A ticket whose control copy carries
    `pending:<uuid>` accepts only the identical ticket with the prefix
    stripped; a working copy carrying `released:` is never published. Any
    refusal raises `StateRegressionError` before anything is pushed, logs

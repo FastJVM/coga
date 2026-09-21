@@ -13,7 +13,7 @@ import subprocess
 import sys
 import tempfile
 import tomllib
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path, PurePosixPath
@@ -1618,6 +1618,7 @@ def run_recurring_scan(
         respect_handled_period=not force,
         sync_existing=force,
         control_is_fresh=fresh,
+        control_revision=catchup.revision,
     )
     _print_table(scan, force=force)
 
@@ -3054,7 +3055,8 @@ def run_recurring_named(
     if _refuse_non_control_branch(cfg):
         return 2
     control_remote_expected = _control_remote_present_at_admission(cfg)
-    fresh = _sync_control_checkout_ahead(cfg).fresh
+    catchup = _sync_control_checkout_ahead(cfg)
+    fresh = catchup.fresh
     if _refuse_non_owner(cfg):
         return 2
     if not _valid_agent_override(cfg, agent_override):
@@ -3070,13 +3072,14 @@ def run_recurring_named(
         _local_period_lease(cfg, ref) if outcome.created else None
     )
     control_ledger: dict[str, str] | None = None
-    if fresh:
+    if fresh and catchup.revision is not None:
         # `create_named` captured this target-aware answer before it could
         # append its own record. The successful catch-up makes that local view
         # the pinned control snapshot, so no whole-blob `git show` is needed.
         template_ref = _recurring_ref(name)
         control_ledger = {
             _LEDGER_LOADED: "yes",
+            _LEDGER_REVISION: catchup.revision,
             _control_ledger_target_key(template_ref): outcome.period_key,
         }
         if outcome.prior_serviced_period is not None:
@@ -3171,6 +3174,7 @@ class _ControlCatchup:
     fresh: bool
     reason: str
     off_control_branch: bool = False
+    revision: str | None = None
 
 
 def _sync_control_checkout_ahead(
@@ -3215,7 +3219,13 @@ def _sync_control_checkout_ahead(
             off_control_branch=True,
         )
     if git.refresh(cfg):
-        return _ControlCatchup(fresh=True, reason="")
+        # The scan's local ledger read is a snapshot *of this commit*; the
+        # create guard re-reads control whenever it finds a newer one.
+        return _ControlCatchup(
+            fresh=True,
+            reason="",
+            revision=git.run_git(root, "rev-parse", "HEAD").strip(),
+        )
     reason = (
         f"local {cfg.git_control_branch!r} could not be fast-forwarded to "
         f"{cfg.git_remote}/{cfg.git_control_branch} (see the note above)."
@@ -3455,7 +3465,9 @@ def _sync_recurring_create(
     original_ticket = template_ticket.read_text() if template_ticket.is_file() else ""
     local_ticket = original_ticket
     template_ref = _recurring_ref(template_name)
-    if control_ledger is not None and expected_period_key is not None:
+    if control_ledger is None:
+        control_ledger = {}
+    if expected_period_key is not None:
         # `_broadcast_scan` seeds every template before the first sync so the
         # shared snapshot resolves them in one reverse pass. Direct callers
         # still contribute their own target here.
@@ -3572,18 +3584,83 @@ def _sync_recurring_create_paths(
         ticket_rel = git.relative_to_root(root, template_ticket)
         task_rel = git.relative_to_root(root, anchor_path)
         log_file = log_path(cfg)
+        log_rel = git.relative_to_root(root, log_file)
+        template_ref = _template_ref_from_ticket_rel(ticket_rel)
+
+        def already_handled(at: str) -> bool:
+            return _control_already_has_period(
+                root,
+                at,
+                task_rel,
+                log_rel=log_rel,
+                template_ref=template_ref,
+                period_key=period_key,
+                control_ledger=control_ledger,
+                include_ledger=respect_handled_period,
+                include_task=respect_existing_task,
+                replaced_done_ticket_bytes=replaced_done_ticket_bytes,
+            )
+
+        def refuse_if_serviced(at: str) -> None:
+            # The ledger half of `already_handled`, re-run at every base the
+            # publish pushes on. `expect` cannot carry it: the union-merged log
+            # is only a candidate while it is dirty, and on a control checkout
+            # the first create of a sweep already landed every line this sweep
+            # appended — so a peer's record arriving before a later create is
+            # invisible to a blob pin but not to this read. Two outcomes: a
+            # period a peer serviced before this sweep published anything is
+            # adopted (the refusal below makes the loop re-read and take
+            # control's copy); a ledger line that changed *after* this sweep's
+            # own publication is the ambiguous case the cache itself refuses.
+            serviced = _control_serviced_period_cached(
+                root, at, log_rel, template_ref, control_ledger,
+                resolve_at={template_ref: period_key} if period_key is not None else None,
+                deduplicate=respect_handled_period,
+            )
+            if (
+                respect_handled_period
+                and period_key is not None
+                and serviced is not None
+                and period_key_at_least(serviced, period_key)
+            ):
+                raise git.StateRegressionError(
+                    f"{log_rel}: control already records {template_ref} "
+                    f"serviced for {serviced}"
+                )
+
+        def bind_published() -> None:
+            # This publication unioned every pending sweep record. Keep the
+            # competitor snapshot, but advance its known revision past our own
+            # write so later templates cannot collide with themselves.
+            if control_ledger is None:
+                return
+            revision = git.known_control_revision(cfg, root)
+            if revision is not None:
+                control_ledger[_LEDGER_REVISION] = revision
+                control_ledger[_LEDGER_PUBLISHED] = "yes"
+
         try:
             base = git.fetch_control(cfg, root)
         except git.GitError as exc:
             # Offline: publish what we have (it fails loud on its own) and let
-            # the next sweep reconcile against control.
+            # the next sweep reconcile against control. The publish still
+            # guards at whatever base it ends up pushing on — a rejected push
+            # re-fetches, and a peer may have serviced the period meanwhile.
             sys.stderr.write(
                 f"[git] control fetch failed; publishing without a control "
                 f"check: {exc}. Message was: {message}\n"
             )
             if local_ticket:
                 template_ticket.write_text(local_ticket)
-            git.publish(cfg, [*paths, log_file], message)
+
+            def guard_fallback(at: str) -> None:
+                if already_handled(at):
+                    raise _ControlLedgerChanged(
+                        at, "period already handled on control during fallback sync"
+                    )
+
+            if git.publish(cfg, [*paths, log_file], message, guard=guard_fallback):
+                bind_published()
             return original_ticket, True
 
         if restore_existing_control_task:
@@ -3615,22 +3692,15 @@ def _sync_recurring_create_paths(
                 original_ticket = local_ticket
                 if not force_record_period:
                     return local_ticket, False
-        log_rel = git.relative_to_root(root, log_file)
         for _attempt in range(git.MAX_PUBLISH_ATTEMPTS):
-            if _control_already_has_period(
-                root,
-                base,
-                task_rel,
-                log_rel=log_rel,
-                template_ref=_template_ref_from_ticket_rel(ticket_rel),
-                period_key=period_key,
-                control_ledger=control_ledger,
-                include_ledger=respect_handled_period,
-                include_task=respect_existing_task,
-                replaced_done_ticket_bytes=replaced_done_ticket_bytes,
-            ):
+            if already_handled(base):
                 return _adopt_control_period(
-                    cfg, root, base, rels, ticket_rel, original_ticket, message
+                    cfg, root, base, rels, ticket_rel, original_ticket, message,
+                    template_ref=template_ref,
+                    period_key=period_key,
+                    control_ledger=control_ledger,
+                    deduplicate=respect_handled_period,
+                    bind_published=bind_published,
                 )
             _adopt_control_template(
                 root, template_ticket, ticket_rel, base, local_ticket
@@ -3645,22 +3715,21 @@ def _sync_recurring_create_paths(
                 for rel in (log_rel, *(r for r in control_rels if r == ticket_rel))
             }
             try:
-                git.publish(
+                published = git.publish(
                     cfg,
                     [*(root / rel for rel in control_rels), log_file],
                     message,
                     expect=expect,
+                    guard=refuse_if_serviced,
                 )
             except git.StateRegressionError as exc:
                 sys.stderr.write(f"[git] note: {exc}; re-reading control\n")
+                # The cache is revision-bound: the next `already_handled(base)`
+                # sees the newer commit and re-reads (or diffs) the ledger.
                 base = git.fetch_control(cfg, root)
-                if control_ledger is not None:
-                    # Drop the cached snapshot (keep the sweep's targets) so
-                    # the next pass reads the ledger the peer just advanced.
-                    for key in list(control_ledger):
-                        if not key.startswith(_LEDGER_TARGET_PREFIX):
-                            del control_ledger[key]
                 continue
+            if published:
+                bind_published()
             break
         else:
             raise git.GitError(
@@ -3669,6 +3738,22 @@ def _sync_recurring_create_paths(
             )
         committed_ticket = template_ticket.read_text() if template_ticket.is_file() else ""
         return committed_ticket or original_ticket, True
+    except _ControlLedgerChanged as exc:
+        # A refused local create must not become an orphan that the next scan
+        # resumes without create-sync. Restore control's task (or its absence),
+        # leaving any peer generation intact. Unlike a transport miss, this is
+        # an admission refusal and must never reach the launchable fallback.
+        if restore_existing_control_task and not overwrite_dirty_control_task:
+            # A forced reuse can carry operator edits. It is not a new local
+            # candidate, and the existing restore policy must still protect it.
+            raise
+        try:
+            _restore_selected_paths_from_ref(root, exc.revision, [task_rel])
+        except (git.GitError, OSError) as cleanup_error:
+            raise RecurringError(
+                f"{exc}; could not discard local create: {cleanup_error}"
+            ) from exc
+        raise
     except git.GitError as exc:
         sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
         _append_sync_failure(cfg, anchor_path, exc)
@@ -3683,6 +3768,12 @@ def _adopt_control_period(
     ticket_rel: str,
     original_ticket: str,
     message: str,
+    *,
+    template_ref: str,
+    period_key: str | None,
+    control_ledger: dict[str, str] | None,
+    deduplicate: bool,
+    bind_published: Callable[[], None],
 ) -> tuple[str, bool]:
     """Unwind a local create to control's copy; publish only the log line.
 
@@ -3690,14 +3781,26 @@ def _adopt_control_period(
     the period already handled on control, so that line is published (union
     merged) and the task paths are restored from control. In a control
     checkout the restored paths are staged so the fast-forward that follows
-    the log publish leaves the tree clean.
+    the log publish leaves the tree clean. Even this rejected create publishes
+    the other pending sweep targets' records, so the publish is guarded like
+    a create and the cache is bound to the revision it lands.
     """
     _restore_selected_paths_from_ref(root, base, rels)
     if _current_branch(root) == cfg.git_control_branch:
         present = [rel for rel in rels if (root / rel).exists()]
         if present:
             git.run_git(root, "add", "--all", "--", *present)
-    git.publish(cfg, [log_path(cfg)], message)
+
+    def guard_log_publication(at: str) -> None:
+        _control_serviced_period_cached(
+            root, at, git.relative_to_root(root, log_path(cfg)), template_ref,
+            control_ledger,
+            resolve_at={template_ref: period_key} if period_key is not None else None,
+            deduplicate=deduplicate,
+        )
+
+    if git.publish(cfg, [log_path(cfg)], message, guard=guard_log_publication):
+        bind_published()
     return _control_template_or_local(root, base, ticket_rel, original_ticket), False
 
 
@@ -3758,6 +3861,7 @@ def _control_already_has_period(
         resolve_at=(
             {template_ref: period_key} if period_key is not None else None
         ),
+        deduplicate=include_ledger,
     )
     if include_ledger and period_key is not None and serviced is not None:
         try:
@@ -3788,35 +3892,71 @@ def _control_serviced_period_cached(
     control_ledger: dict[str, str] | None,
     *,
     resolve_at: Mapping[str, str] | None = None,
+    deduplicate: bool = True,
 ) -> str | None:
-    """Control's serviced period for `template_ref`, read at most once per run.
+    """A revision-bound competitor snapshot, shared by every sweep target.
 
     `control_ledger` is a per-run cache owned by the caller, resolved for every
-    target in one pass on first use (or preloaded from a successful pre-scan
-    control catch-up). The repo-global log holds all templates' records in one
-    file, so the first sync of a sweep pushes the whole file — including the
-    lines this same sweep just wrote for templates it has not synced yet.
-    Reading control per template, even cached per template, would let a later
+    target in one pass (or preloaded from a successful pre-scan catch-up) and
+    bound to the control revision it describes. The repo-global log holds all
+    templates' records in one file, so the first publish of a sweep pushes the
+    whole file — including the lines this same sweep just wrote for templates
+    it has not synced yet. Reading control per template would let a later
     template mistake its own pending record for another checkout's and delete
-    the task it just created. Capturing every entry at once, before the sweep
-    publishes anything, keeps the check answering the question it is for.
+    the task it just created.
 
-    The trade-off is deliberate: a competing push landing *mid-sweep* is not
-    seen by this half of the guard. The task-presence half still catches it,
-    and reading fresh reintroduces the self-collision above.
+    So the cache answers by revision: *before* this sweep has published,
+    a newer control commit means the snapshot is stale and is re-read whole.
+    *After* it has published, our own records are on control too, so the diff
+    between the known published revision and the new one is parsed instead,
+    and only templates whose ledger lines changed *externally* are refused
+    (`_ControlLedgerChanged`); every other template keeps its decision.
     """
     if control_ledger is None:
-        ledger = _read_control_ledger(root, ref, log_rel, resolve_at)
-        error = ledger.get(_control_ledger_error_key(template_ref))
-        if error is not None:
-            raise RecurringError(error)
-        return ledger.get(template_ref)
-    if not control_ledger.get(_LEDGER_LOADED):
+        control_ledger = {}
+    previous = control_ledger.get(_LEDGER_REVISION)
+    if previous != ref and control_ledger.get(_LEDGER_PUBLISHED) and deduplicate:
+        try:
+            diff = git.run_git(
+                root, "diff", "--no-ext-diff", "--no-textconv", "--no-color",
+                "--text", "--unified=0",
+                previous, ref, "--", log_rel,
+            )
+        except (git.GitError, OSError, UnicodeError) as exc:
+            raise _ControlLedgerChanged(
+                ref, f"cannot verify control ledger: {exc}"
+            ) from exc
+        entries: list[tuple[str, str]] = []
+        for line in diff.splitlines():
+            if not line.startswith(("+", "-")):
+                continue
+            match = _CONTROL_LOG_ENTRY_RE.match(line[1:])
+            if match is not None:
+                entries.append((match.group("ref"), match.group("message")))
+        changed = parse_serviced_period_entries(entries)
+        for changed_ref in changed.periods.keys() | changed.errors.keys():
+            control_ledger[f"{_LEDGER_REFUSAL_PREFIX}{changed_ref}"] = ref
+        control_ledger[_LEDGER_REVISION] = ref
+    elif not control_ledger.get(_LEDGER_LOADED) or previous != ref:
         targets = _control_ledger_targets(control_ledger)
+        try:
+            ledger = _read_control_ledger(root, ref, log_rel, targets or resolve_at)
+        except (git.GitError, OSError, UnicodeError) as exc:
+            raise _ControlLedgerChanged(
+                ref, f"cannot refresh control ledger: {exc}"
+            ) from exc
+        control_ledger.clear()
         control_ledger.update(
-            _read_control_ledger(root, ref, log_rel, targets or resolve_at)
+            {_control_ledger_target_key(key): value for key, value in targets.items()}
         )
+        control_ledger.update(ledger)
         control_ledger[_LEDGER_LOADED] = "yes"
+        control_ledger[_LEDGER_REVISION] = ref
+    if f"{_LEDGER_REFUSAL_PREFIX}{template_ref}" in control_ledger:
+        raise _ControlLedgerChanged(
+            ref, f"control ledger changed for {template_ref} after this sweep's "
+            "publication; refusing ambiguous period admission"
+        )
     error = control_ledger.get(_control_ledger_error_key(template_ref))
     if error is not None:
         raise RecurringError(error)
@@ -3829,14 +3969,15 @@ def _validate_control_serviced_period(
     control_ledger: dict[str, str] | None = None,
     *,
     expected_period_key: str | None = None,
+    deduplicate: bool = True,
 ) -> None:
     """Fail on malformed control-ledger state without changing task state.
 
     A prior sweep can leave a locally created task behind after its control
     sync discovers a malformed record. Reused tasks skip create-sync, so they
     pass through this read-only gate on every later sweep instead of launching
-    after the first warning. A shared cache pins the same pre-publication
-    control snapshot for every template in one sweep.
+    after the first warning. The shared cache follows the same revision and
+    own-publication checks as the create guard.
 
     Control freshness remains best-effort for bare/named single-repo launches,
     matching their existing sync contract. A reachable malformed record is a
@@ -3849,16 +3990,13 @@ def _validate_control_serviced_period(
     if root is None:
         return
 
-    if control_ledger is not None and control_ledger.get(_LEDGER_LOADED):
-        ref = "HEAD"  # ignored once the shared ledger snapshot is populated
-    else:
-        try:
-            ref = git.fetch_control(cfg, root)
-        except git.GitError as exc:
-            sys.stderr.write(
-                f"[git] control serviced-ledger validation skipped: {exc}\n"
-            )
-            return
+    try:
+        ref = git.fetch_control(cfg, root)
+    except git.GitError as exc:
+        sys.stderr.write(
+            f"[git] control serviced-ledger validation skipped: {exc}\n"
+        )
+        return
 
     _control_serviced_period_cached(
         root,
@@ -3871,6 +4009,7 @@ def _validate_control_serviced_period(
             if expected_period_key is not None
             else None
         ),
+        deduplicate=deduplicate,
     )
 
 
@@ -4022,8 +4161,19 @@ def _adopt_control_template(
 
 # Sentinel key marking a per-run control-ledger cache as populated.
 _LEDGER_LOADED = "\0loaded"
+_LEDGER_REVISION = "\0revision"
+_LEDGER_PUBLISHED = "\0published"
+_LEDGER_REFUSAL_PREFIX = "\0refused:"
 _LEDGER_ERROR_PREFIX = "\0error:"
 _LEDGER_TARGET_PREFIX = "\0target:"
+
+
+class _ControlLedgerChanged(RecurringError):
+    """Reachable control invalidated admission, rather than a sync transport miss."""
+
+    def __init__(self, revision: str, message: str) -> None:
+        super().__init__(message)
+        self.revision = revision
 
 _CONTROL_LOG_ENTRY_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \[(?P<ref>[^\]]*)\] \[[^\]]*\] "
@@ -4071,7 +4221,11 @@ def _read_control_ledger(
     template. Without targets the exact whole-ledger parse remains available
     to callers that cannot state an at-least question.
     """
-    text = _show_path(root, ref, log_rel)
+    # A missing file is an empty ledger; a failed read is not. In particular,
+    # never turn a failed freshness repair into permission to publish.
+    if not git.run_git(root, "ls-tree", ref, "--", log_rel).strip():
+        return {}
+    text = git.run_git(root, "show", f"{ref}:{log_rel}")
     if not text:
         return {}
 
@@ -4415,6 +4569,7 @@ def _broadcast_scan(
     respect_handled_period: bool = True,
     sync_existing: bool = False,
     control_is_fresh: bool = False,
+    control_revision: str | None = None,
 ) -> None:
     """Post Slack lines for newly created tasks and skipped templates.
 
@@ -4436,12 +4591,14 @@ def _broadcast_scan(
         _control_ledger_target_key(ref): period
         for ref, period in targets.items()
     }
-    if control_is_fresh:
+    if control_is_fresh and control_revision is not None:
         # `scan_due` took this target-bounded snapshot immediately after the
         # successful pre-scan catch-up and before any create appended to the
         # shared log. Reusing it is both the self-collision guard and the only
         # way a normal git-backed sweep can retain the local reverse reader's
         # bounded I/O; reading the Git blob would materialize the whole log.
+        # It is bound to the caught-up revision: the create guard fetches
+        # control again, and a newer commit there means the snapshot is stale.
         control_ledger.update(scan.ledger_periods)
         control_ledger.update(
             {
@@ -4450,6 +4607,7 @@ def _broadcast_scan(
             }
         )
         control_ledger[_LEDGER_LOADED] = "yes"
+        control_ledger[_LEDGER_REVISION] = control_revision
     for task in list(scan.tasks):
         try:
             if not task.created and not task.replaced_done:
@@ -4458,6 +4616,7 @@ def _broadcast_scan(
                     task.template,
                     control_ledger,
                     expected_period_key=task.period_key,
+                    deduplicate=respect_handled_period,
                 )
                 if sync_existing:
                     _refresh_forced_status_from_control(cfg, task)
@@ -4499,12 +4658,33 @@ def _broadcast_scan(
                 fg=typer.colors.BRIGHT_BLACK,
             )
             continue
-        if (
-            created_period_lease is not None
-            and not _same_period_lease(
-                _local_period_lease(cfg, task.ref), created_period_lease
+        current_period_lease = (
+            _local_period_lease(cfg, task.ref)
+            if created_period_lease is not None
+            else None
+        )
+        lease_changed = created_period_lease is not None and not _same_period_lease(
+            current_period_lease, created_period_lease
+        )
+        # An adopted control copy (`created_on_control` is False) is a
+        # different lease by construction — a peer's `done` or `active` copy of
+        # the same generation — and is only a skip. A copy under *another*
+        # generation replaced this sweep's create outright, which is lost work
+        # and reported as such below.
+        replaced = (
+            lease_changed
+            and current_period_lease.generation != created_period_lease.generation
+        )
+        if respect_handled_period and not created_on_control and not replaced:
+            scan.tasks.remove(task)
+            scan.admission_skips.append((task, _ALREADY_HANDLED_ON_CONTROL))
+            typer.secho(
+                f"{task.ref.id_slug} was already handled on the control branch; "
+                "not launching.",
+                fg=typer.colors.BRIGHT_BLACK,
             )
-        ):
+            continue
+        if lease_changed:
             scan.tasks.remove(task)
             scan.admission_skips.append(
                 (task, "changed on control during admission")

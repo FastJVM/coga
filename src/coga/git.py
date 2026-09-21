@@ -51,7 +51,7 @@ import subprocess
 import sys
 import tempfile
 import threading
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -231,6 +231,7 @@ def publish(
     message: str,
     *,
     expect: Mapping[Path, bytes | None] | None = None,
+    guard: Callable[[str], None] | None = None,
     fast_forward: bool = True,
 ) -> bool | None:
     """Land the dirty files under `paths` on the control branch.
@@ -238,8 +239,14 @@ def publish(
     `expect` maps a path to the bytes the writer read before writing (`None`
     for "must not exist"); it replaces the default provenance check for that
     path with that exact blob, and for a `merge=union` path it adds one.
-    `fast_forward=False` leaves the local control checkout untouched after a
-    successful push (Retro's isolated delete).
+    `guard` is called with the control commit each attempt builds on — the
+    remote-tracking ref, re-fetched after every rejected push — before any
+    tree is built; it may raise to refuse. It exists for a decision `expect`
+    cannot express: a `merge=union` file whose *content* matters (the
+    recurring serviced-period ledger), where pinning the whole blob would
+    refuse every unrelated concurrent append. `fast_forward=False` leaves the
+    local control checkout untouched after a successful push (Retro's
+    isolated delete).
     """
     root = _publishable_root(cfg, message)
     if root is None:
@@ -253,7 +260,7 @@ def publish(
         for path, data in (expect or {}).items()
     }
     with state_lock(cfg):
-        return _publish_locked(cfg, root, pathspecs, message, expected, fast_forward)
+        return _publish_locked(cfg, root, pathspecs, message, expected, guard, fast_forward)
 
 
 def _publishable_root(cfg: Config, message: str) -> Path | None:
@@ -278,6 +285,7 @@ def _publish_locked(
     pathspecs: list[str],
     message: str,
     expected: Mapping[str, str | None],
+    guard: Callable[[str], None] | None,
     fast_forward: bool,
 ) -> bool:
     remote, control = cfg.git_remote, cfg.git_control_branch
@@ -291,6 +299,8 @@ def _publish_locked(
             base = _control_base(root, remote, control, have_remote, fetched=True)
             if base is None:
                 raise GitError(f"control branch {control!r} not found locally or on {remote!r}")
+        if guard is not None:
+            guard(base)
         ancestor = _run(["git", "-C", str(root), "merge-base", "HEAD", base]).stdout.decode().strip() or None
         rels = _candidates(root, pathspecs, base, ancestor)
         if not rels:
@@ -380,6 +390,16 @@ def _fetch_control(root: Path, remote: str, control: str) -> None:
     except GitError as exc:
         if "couldn't find remote ref" not in str(exc).lower():
             raise
+
+
+def known_control_revision(cfg: Config, root: Path) -> str | None:
+    """The control commit this checkout currently knows, without fetching.
+
+    The remote-tracking ref (which a successful `publish` push advances), or
+    local `<control>` with no remote. `None` when neither exists yet.
+    """
+    remote, control = cfg.git_remote, cfg.git_control_branch
+    return _control_base(root, remote, control, remote_configured(root, remote), fetched=True)
 
 
 def fetch_control(cfg: Config, root: Path) -> str:

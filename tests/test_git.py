@@ -529,6 +529,41 @@ def test_expect_none_means_the_path_must_not_exist_on_control(git_repo):
         git.publish(cfg, [new], "Ticket: taken — created", expect={new: None})
 
 
+def test_guard_sees_every_base_the_publish_pushes_on(git_repo, monkeypatch):
+    """`guard` runs before each attempt with the control commit it builds on —
+    re-fetched after a rejected push — so a decision that depends on control's
+    *content* (not one blob) is re-made against the tip that actually wins."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    stale = git_repo.git("rev-parse", "refs/remotes/origin/main").strip()
+    git_repo.push_competing_commit("coga/log.md", "peer line\n")
+    tip = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+    ticket.write_text(_ticket_text(status="blocked"))
+    bases: list[str] = []
+
+    assert git.publish(cfg, [ticket], "Ticket: demo — blocked", guard=bases.append) is True
+
+    assert bases == [stale, tip]
+    assert "status: blocked" in _control(git_repo, "coga/tasks/demo.md")
+
+
+def test_guard_refusal_lands_nothing_and_leaves_the_write_dirty(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    before = git_repo.origin_subjects()
+    ticket.write_text(_ticket_text(status="blocked"))
+
+    def refuse(base: str) -> None:
+        raise git.StateRegressionError(f"not on {base[:7]}")
+
+    with pytest.raises(git.StateRegressionError, match="not on"):
+        git.publish(cfg, [ticket], "Ticket: demo — blocked", guard=refuse)
+
+    assert git_repo.origin_subjects() == before
+    assert "status: blocked" not in (_control(git_repo, "coga/tasks/demo.md") or "")
+    assert ticket.read_text() == _ticket_text(status="blocked")
+
+
 def test_a_feature_checkout_keeps_publishing_its_own_ticket(git_repo):
     """Its HEAD never advances with control; its own publishes are provenance."""
     cfg = load_config(git_repo.coga_os)
