@@ -6017,3 +6017,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-21 12:14 [recurring/dream] [agent:claude] slack: New context: a done ticket's fix claim can be half-applied on main — verify the exact token. PR: https://github.com/FastJVM/coga/pull/861
 2026-09-21 12:15 [recurring/dream] [agent:claude] slack: New context: fan-out follow-ups that rewrite one shared context bullet conflict pairwise. PR: https://github.com/FastJVM/coga/pull/862
 2026-09-21 12:22 [validate-drift-stuck-in-progress-11-in-progress-ti] [human:nicktoper] created (status=draft)
+2026-09-21 12:22 [validate-drift-unfrozen-workflow-11-hand-authored] [human:nicktoper] created (status=draft)
