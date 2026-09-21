@@ -1,11 +1,11 @@
 ---
 title: Autoclose merged tickets
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: ec1d9db2-c1ea-4ad8-a059-d62f099adabb
+period_generation: 9c59c0c0-48a8-42e2-8960-9e7dfd898445
 workflow:
   name: autoclose-merged/sweep
   steps:
@@ -13,6 +13,7 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
+step: 1 (sweep)
 ---
 
 ## Description
@@ -58,23 +59,3 @@ nothing.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Autoclose Sweep: retire follow-ups
-
-Generated: 2026-09-18T15:33:47+00:00
-Task: `recurring/autoclose-merged`
-
-10 auto-closed ticket(s) still have a recorded feature checkout. Autoclose never removes one — `coga retire` owns the worktree and branch safety proofs:
-
-- `adjudicate-parked-and-active-tickets-whose-premise` "Adjudicate parked and active tickets whose premises have moved": worktree `/home/n/Code/claude/coga-adjudicate-moved-premises`, branch `adjudicate-moved-premises` — `coga retire adjudicate-parked-and-active-tickets-whose-premise`
-- `cleanup/handle-a-bare-slack-webhook-url-during-empty-repo` "Handle a bare SLACK_WEBHOOK_URL during empty-repo init": worktree `/home/n/Code/claude/coga-init-bare-slack-env`, branch `init-bare-slack-env` — `coga retire cleanup/handle-a-bare-slack-webhook-url-during-empty-repo`
-- `define-the-recipe-reporting-contract-report-durabi` "Define the recipe reporting contract: report durability and failure surface": worktree `/home/n/Code/claude/coga-recipe-reporting-contract`, branch `recipe-reporting-contract` — `coga retire define-the-recipe-reporting-contract-report-durabi`
-- `document-when-to-attach-a-large-context-versus-cit` "Document when to attach a large context versus cite it for direct reading": worktree `/home/n/Code/claude/coga-attach-vs-cite`, branch `attach-vs-cite` — `coga retire document-when-to-attach-a-large-context-versus-cit`
-- `persist-autoclose-retire-follow-ups` "Persist autoclose retire follow-ups": worktree `/home/n/Code/claude/coga-autoclose-retire-worklist`, branch `autoclose-retire-worklist` — `coga retire persist-autoclose-retire-follow-ups`
-- `record-dochub-s-why-not-the-api-answer-that-browse` "Record DocHub's why-not-the-API answer that browser api-first requires": worktree `/home/n/Code/claude/coga-dochub-api-answer`, branch `dochub-api-answer` — `coga retire record-dochub-s-why-not-the-api-answer-that-browse`
-- `record-or-clear-the-standing-repo-wide-coga-valida` "Record or clear the standing repo-wide coga validate baseline": worktree `/home/n/Code/claude/coga-validate-baseline`, branch `validate-baseline` — `coga retire record-or-clear-the-standing-repo-wide-coga-valida`
-- `state-which-branch-is-canonical-for-machine-genera` "State which branch is canonical for machine-generated Coga state": worktree `/home/n/Code/claude/coga-sync-canonical-policy`, branch `sync-canonical-policy` — `coga retire state-which-branch-is-canonical-for-machine-genera`
-- `the-period-task-context-never-covers-the-determini` "The period-task context never covers the deterministic ticket.py firing": worktree `/home/n/Code/claude/coga-period-task-recipe-firing`, branch `period-task-recipe-firing` — `coga retire the-period-task-context-never-covers-the-determini`
-- `the-v2-parking-area-premise-check-has-four-holes` "The v2 parking-area premise check has four holes": worktree `/tmp/coga-v2-premise-review.5AX4MD/repo`, branch `v2-premise-holes` — `coga retire the-v2-parking-area-premise-check-has-four-holes`
-
-Recorded in the durable worklist `/home/n/Code/claude/coga/coga/recurring/autoclose-merged/retires.md`; this period task is deleted at the next period boundary.
