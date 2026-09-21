@@ -5845,3 +5845,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-20 15:44 [detect-stranded-ticket-writes-across-checkouts] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-09-20 17:02 [detect-stranded-blackboard-prose-across-checkouts] [human:nicktoper] created (status=draft)
 2026-09-20 17:02 [close-the-presence-not-freshness-hole-in-the-branc] [human:nicktoper] created (status=draft)
+2026-09-20 17:05 [detect-stranded-ticket-writes-across-checkouts] [agent:claude] advanced to step 5 (open-pr)
