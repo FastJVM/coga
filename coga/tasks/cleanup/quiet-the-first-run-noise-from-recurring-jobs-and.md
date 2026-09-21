@@ -27,7 +27,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (review-design)
+step: 4 (open-pr)
 ---
 
 ## Description
@@ -210,3 +210,76 @@ and their directly affected tests/contracts.
 
 None. The owner resolved the product choice; the proposed shape is ready for
 review-design.
+
+## Review-design
+
+- Reviewed the proposed scope and spot-checked the current footer,
+  `TemplateStatus`, GitHub provenance predicate, and fact-ownership rule.
+  No must-fix design findings; no spec changes needed.
+- Owner explicitly approved advancing to implementation in the attended session.
+  No source changes or runtime tests in this review; the existing dirty
+  `coga/log.md` was left untouched.
+
+## Dev
+
+branch: quiet-first-run
+worktree: /home/n/Code/codex/coga
+Single-checkout layout: the primary checkout on the feature branch; no linked
+worktree was created.
+
+## Implement
+
+- Commit `Quiet first-run noise: opt-in skill installs, compact recurring
+  footer` on `quiet-first-run`, rebased onto `origin/main` (only task/log
+  state had landed since branching).
+- Init: `_do_init()` no longer calls the managed-skill installer; the
+  summary/note printers and their imports are gone. Deleted
+  `src/coga/managed_skills.py`, `src/coga/resources/managed-skills.toml`, and
+  `tests/test_managed_skills.py` outright — init was the sole production
+  caller and `reconcile_managed_skills()` had only test callers. Consequence
+  accepted per design: the rate-limit / no-access / SAML classification of
+  `gh` failures went with the module; `coga skill install` surfaces `gh`'s
+  own error.
+- Status: `views._print_recurring_templates()` prints
+  `Recurring: N templates · M due[ · K errors] — coga recurring list`, then
+  `error: <name> — <diag>` and `warning: <name> — instance <slug> is
+  unreadable (status unknown)` lines sorted by name. Counts use
+  `TemplateStatus.due`; errors are excluded from due. `firing_stamp` import
+  dropped from views.
+- Dream scan skills (`contract-audit`, `knowledge-scan`): exclusion predicate
+  is now `metadata.github-repo` in `SKILL.md` frontmatter (the
+  `gh_skill_repo()` test); the manifest and the "seven trees / 286,169 bytes"
+  figures are gone, `clarity` explicitly stays in scope. Verified the
+  predicate matches exactly the seven `google-agents-cli-*` dirs in this repo.
+- Contracts: `coga/cli` (init installs no skills + explicit install route;
+  status footer spec; `coga skill` opening), `coga/codebase` and
+  `coga/architecture` (+ packaged twins, byte-identical), `skill-update`
+  template (+ twin), `docs/getting-started.md`, `dependencies.py` `gh`
+  rationale, docstrings in `resources/__init__.py` / `coga/__init__.py`.
+- Tests: `test_fresh_init_installs_nothing[empty|existing]` runs a real init
+  from packaged templates on a `PATH` holding only `git`, spies
+  `subprocess.run`, and fails on any installer argv or on
+  `install_github_skill`/`install_url_skill` being reached. Rollback test now
+  injects its failure at `_stamp_user_into_delivered_tickets`. Footer cases:
+  CLI-level (fresh ×6, errors, no templates, live instance) in
+  `tests/test_commands.py`; renderer-level (stale done, reaped serviced,
+  unknown instance, singular nouns) in `tests/test_views.py` — the unknown
+  case is not reachable end-to-end because an unreadable ticket fails the
+  main task listing first. `test_recurring_views_render_malformed_period_as_error`
+  now asserts the named status line.
+- Environment note: the ambient `python3` is 3.9 and `python3.12` lacks
+  `tomlkit`; tests ran in a scratch venv (`uv venv --python 3.12` +
+  `uv pip install -e ".[test]" pip`) with `PYTHONPATH=$PWD/src`.
+- Verification (exact commands, from the checkout root, `$PY` = that venv):
+  - `PYTHONPATH=$PWD/src $PY -m pytest tests/test_init.py tests/test_commands.py tests/test_recurring.py tests/test_skill_manager.py tests/test_packaging.py tests/test_views.py -q`
+    → 718 passed.
+  - `PYTHONPATH=$PWD/src $PY -m pytest -q` → 2640 passed in 184s.
+  - `PYTHONPATH=$PWD/src $PY -m coga.cli validate --json` → exit 0, same
+    issue list as `main` (4 pre-existing `error`s in unrelated tickets:
+    `clean-up-all-the-working-trees`, `v2/autotrigger-ticket-type`,
+    `v2/measure-relay-prompt-scope-and-agent-precision`,
+    `v2/use-worktree-when-starting-a-dev-task`, plus empty-description warns).
+  - `git diff --check` clean; live `coga status` shows
+    `Recurring: 6 templates · 2 due — coga recurring list`.
+- Not done here: no push, no PR (open-pr step). Existing dirty `coga/log.md`
+  was left for `coga bump` to sync.
