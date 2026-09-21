@@ -55,12 +55,16 @@ def test_browser_router_methodology_moved_from_workflow_to_bundled_skill() -> No
 def test_browser_capability_remains_without_seeded_task_or_audit_line() -> None:
     assert not (TEMPLATES / "tasks" / "browser-automation.md").exists()
     assert "[browser-automation]" not in (TEMPLATES / "log.md").read_text()
+    # The bundled launcher attaches `browser/api-first`, so both browser
+    # contexts must live where `resolve_context_path` falls back to —
+    # `bootstrap/contexts/` — not in the init-seeded `contexts/` tree.
     assert (
-        TEMPLATES / "contexts" / "browser" / "api-first" / "SKILL.md"
+        TEMPLATES / "bootstrap" / "contexts" / "browser" / "api-first" / "SKILL.md"
     ).is_file()
     assert (
-        TEMPLATES / "contexts" / "browser" / "dom-backed" / "SKILL.md"
+        TEMPLATES / "bootstrap" / "contexts" / "browser" / "dom-backed" / "SKILL.md"
     ).is_file()
+    assert not (TEMPLATES / "contexts" / "browser").exists()
     assert (
         TEMPLATES / "bootstrap" / "skills" / "browser" / "playwright" / "SKILL.md"
     ).is_file()

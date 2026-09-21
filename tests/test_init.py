@@ -23,6 +23,7 @@ from coga.commands import update as update_cmd
 from coga.config import ConfigError, load_config
 from coga.managed_skills import ManagedSkillError, ManagedSkillSummary
 from coga.notification import post
+from coga.paths import bootstrap_context_path, resolve_context_path
 from coga.skill_manager import SkillResult
 from coga.ticket import Ticket
 
@@ -1215,12 +1216,15 @@ def test_init_empty_repo_seeds_onboarding_and_points_at_build(
     tasks = target / "coga" / "tasks"
     assert (tasks / "coga-build.md").is_file()
     assert not (tasks / "browser-automation.md").exists()
-    assert (
-        target / "coga" / "contexts" / "browser" / "api-first" / "SKILL.md"
-    ).is_file()
-    assert (
-        target / "coga" / "contexts" / "browser" / "dom-backed" / "SKILL.md"
-    ).is_file()
+    # The browser contexts are bootstrap batteries, not seeded copies: the
+    # bundled `browser-automation` launcher attaches `browser/api-first`, so
+    # it must resolve from the package even in a repo that never had a copy.
+    assert not (target / "coga" / "contexts" / "browser").exists()
+    cfg = load_config(target / "coga")
+    for ref in ("browser/api-first", "browser/dom-backed"):
+        resolved = resolve_context_path(cfg, ref)
+        assert resolved is not None
+        assert resolved == bootstrap_context_path(cfg, ref)
     assert (target / "coga" / "workflows" / "draft-for-human.md").is_file()
     assert (target / "coga" / "workflows" / "brief-for-human.md").is_file()
     assert not (target / "coga" / "workflows" / "autonomy").exists()
@@ -1252,9 +1256,11 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
     tasks = target / "coga" / "tasks"
     assert not (tasks / "coga-build.md").exists()  # onboarding pruned
     assert not (tasks / "browser-automation.md").exists()
+    assert not (target / "coga" / "contexts" / "browser").exists()
     assert (
-        target / "coga" / "contexts" / "browser" / "api-first" / "SKILL.md"
-    ).is_file()
+        resolve_context_path(load_config(target / "coga"), "browser/api-first")
+        is not None
+    )
     assert (
         target / "coga" / ".agent-skills" / "browser" / "build-automation"
     ).is_symlink()
