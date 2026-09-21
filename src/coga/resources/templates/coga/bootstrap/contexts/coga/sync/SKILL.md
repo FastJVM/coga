@@ -549,7 +549,13 @@ worktree — `dev/code` (*Checkout boundary*) states the assumption and
 2. **Base.** `refs/remotes/<remote>/<control>` (optimistic, no fetch on the
    hot path); local `<control>` when there is no remote or the tracking ref
    does not exist yet.
-3. **Provenance check.** For each non-union candidate, control's blob must be
+3. **Provenance check.** A candidate that is a symlink is refused outright
+   (`read_bytes` would follow it and land the target's bytes — possibly from
+   outside the repo — as a regular file); a `merge=union` path missing from
+   the working tree is refused rather than published as a deletion, naming
+   `git checkout <remote>/<control> -- <path>` (and that refusal is not
+   appended to a missing `coga/log.md`, which would recreate it truncated).
+   For each non-union candidate, control's blob must be
    one the working copy derives from: HEAD's blob, the merge-base blob, a blob
    this worktree itself published (`refs/worktree/coga/published`, a
    per-worktree tree git keeps private to the checkout), or the working bytes
@@ -587,7 +593,9 @@ worktree — `dev/code` (*Checkout boundary*) states the assumption and
    `merge --ff-only`; with no holder the ref moves under an old-value guard.
    `fast_forward=False` (Retro's isolated delete) skips this step. Nothing
    ever fast-forwards on a `False` publish except the publishing control
-   checkout itself.
+   checkout itself. With no remote this step is the publication: a refused
+   fast-forward raises `GitError` ("could not be fast-forwarded"), nothing is
+   recorded as published, and the write stays dirty for the next sweep.
 
 Return values: `True` pushed, `False` control already held the tree, `None`
 soft-skipped. `sync_task_state(strict=True)` re-raises after reporting; the

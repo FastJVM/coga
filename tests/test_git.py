@@ -292,6 +292,81 @@ def test_publish_with_no_remote_commits_on_local_control_only(git_repo, capsys):
     assert _dirty(git_repo) == set()
 
 
+def test_publish_with_no_remote_fails_when_local_control_cannot_advance(
+    git_repo, tmp_path, capsys
+):
+    """With no remote, local control is the only durable destination: a
+    refused fast-forward is a failed publish, not a dangling commit."""
+    ticket = _seed_ticket(git_repo)
+    git_repo.git("remote", "remove", "origin")
+    tip = git_repo.git("rev-parse", "main").strip()
+    # The primary checkout holds `main` with conflicting dirty state, so the
+    # feature worktree's publish cannot `merge --ff-only` it forward.
+    ticket.write_text(_ticket_text(status="paused"))
+    worktree = tmp_path / "feature-worktree"
+    git_repo.git("worktree", "add", "-b", "feature/wt", str(worktree), "main")
+    shutil.copy(git_repo.coga_os / "coga.local.toml", worktree / "coga")
+    try:
+        wt_ticket = worktree / "coga" / "tasks" / "demo.md"
+        wt_ticket.write_text(_ticket_text(status="blocked"))
+        written = wt_ticket.read_bytes()
+        assert git.sync_task_state(
+            load_config(worktree / "coga"), wt_ticket, message="Ticket: demo — blocked"
+        ) is None
+        assert wt_ticket.read_bytes() == written
+        assert _dirty(git_repo, cwd=worktree) >= {"coga/tasks/demo.md"}
+    finally:
+        git_repo.git("worktree", "remove", "--force", str(worktree))
+        git_repo.git("branch", "-D", "feature/wt")
+
+    err = capsys.readouterr().err
+    assert "sync failed" in err
+    assert "could not be fast-forwarded" in err
+    assert git_repo.git("rev-parse", "main").strip() == tip
+    assert "status: paused" in ticket.read_text()
+
+
+def test_publish_refuses_a_symlinked_task_file(git_repo, tmp_path, capsys):
+    """`read_bytes` follows links: publishing one would land its target's
+    bytes — possibly from outside the repo — on control as a regular file."""
+    cfg = load_config(git_repo.coga_os)
+    secret = tmp_path / "outside.md"
+    secret.write_text("token = do-not-publish\n")
+    link = git_repo.coga_os / "tasks" / "linked.md"
+    link.symlink_to(secret)
+
+    assert git.sync_task_state(cfg, link, message="Ticket: linked") is None
+
+    assert "is a symlink" in capsys.readouterr().err
+    assert _control(git_repo, "coga/tasks/linked.md") is None
+    assert not git_repo.origin_tracks("coga/tasks/linked.md")
+    assert link.is_symlink()
+
+
+def test_publish_refuses_to_delete_a_missing_union_merged_log(git_repo, capsys):
+    """A missing `coga/log.md` skips the union merge; its deletion must be
+    refused rather than published as the loss of the audit history."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    append_log(cfg, "demo", "human:marc", "history line")
+    git_repo.git("add", "--", "coga/log.md")
+    git_repo.git("commit", "-m", "seed log")
+    git_repo.git("push", "origin", "main")
+    (git_repo.coga_os / "log.md").unlink()
+    ticket.write_text(_ticket_text(status="blocked"))
+
+    assert git.sync_task_state(cfg, ticket, message="Ticket: demo — blocked") is None
+
+    err = capsys.readouterr().err
+    assert "sync refused" in err
+    assert "coga/log.md: append-only file is missing locally" in err
+    assert "git checkout origin/main -- coga/log.md" in err
+    assert "history line" in _control(git_repo, "coga/log.md")
+    # Nothing landed, and the refusal did not recreate a one-line log.
+    assert "status: in_progress" in _control(git_repo, "coga/tasks/demo.md")
+    assert not (git_repo.coga_os / "log.md").exists()
+
+
 # --- nothing is lost: offline writes stay dirty and the sweep retries them -----
 
 

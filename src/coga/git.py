@@ -339,8 +339,19 @@ def _publish_locked(
             f"could not publish to {remote}/{control} after "
             f"{MAX_PUBLISH_ATTEMPTS} attempts — contention"
         )
+    if not have_remote:
+        # Local control is the only durable destination here: a commit it does
+        # not point at is dangling, so a refused fast-forward is a failed
+        # publish, not a note. Nothing is recorded as published for it.
+        if not fast_forward_control(cfg, root, new, staged=staged):
+            raise GitError(
+                f"no {remote!r} remote configured and local {control!r} could not "
+                f"be fast-forwarded to the new commit; the write stays dirty"
+            )
+        _record_published(root, {rel: _blob_oid(root, new, rel) for rel in rels})
+        return True
     _record_published(root, {rel: _blob_oid(root, new, rel) for rel in rels})
-    if fast_forward or not have_remote:
+    if fast_forward:
         fast_forward_control(cfg, root, new, staged=staged)
     return True
 
@@ -433,10 +444,29 @@ def _guard(
     tickets = set(_ticket_rels(cfg, root, rels))
     for rel in rels:
         data = working[rel]
+        if (root / rel).is_symlink():
+            # `_working_tree_bytes` follows links, so publishing one would land
+            # its target's bytes — possibly from outside the repo — as a
+            # regular file on control. Coga state is plain files only.
+            refusals.append(
+                f"{rel}: is a symlink; replace it with a regular file before it "
+                "can be published"
+            )
+            continue
         if rel in union:
             # Union paths merge rather than overlay, so they need no
             # provenance — unless the writer decided something from control's
             # exact copy (a recurring create reading the serviced ledger).
+            if data is None and _blob_oid(root, base, rel) is not None:
+                # The union merge is skipped for a missing file, which would
+                # publish its deletion; an append-only audit file is never
+                # deleted through sync.
+                refusals.append(
+                    f"{rel}: append-only file is missing locally; restore it with "
+                    f"`git checkout {cfg.git_remote}/{cfg.git_control_branch} -- {rel}` "
+                    "rather than publishing its deletion"
+                )
+                continue
             if rel in expected and _blob_oid(root, base, rel) != expected[rel]:
                 refusals.append(f"{rel}: control copy changed since it was read")
             continue
@@ -465,8 +495,14 @@ def _guard(
                 f"; take control's copy with `git checkout "
                 f"{cfg.git_remote}/{cfg.git_control_branch} -- {rel}` and redo the edit"
             )
+    log_rel = relative_to_root(root, log_path(cfg))
     for reason in refusals:
         rel = reason.split(":", 1)[0]
+        if log_rel in rels and working.get(log_rel) is None:
+            # Logging would recreate the missing audit file as a one-line
+            # truncation, which the next sweep could then publish; stderr
+            # carries the refusal instead.
+            break
         append_log(cfg, ref_tag_for_path(cfg, root / rel), "git", f"sync refused: {reason}")
     if refusals:
         raise StateRegressionError("; ".join(refusals))
