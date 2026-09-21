@@ -21,7 +21,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -53,6 +53,77 @@ commits are `2c72048d` (defect fixes) and `18e56c0d` (the review write-up). The
 prior ticket was `ship-a-shared-recurring-reminder-engine-battery`.
 
 <!-- coga:blackboard -->
+
+## Dev
+
+branch: reminders-harness
+worktree: /home/n/Code/coga-reminders-harness
+
+## Implementation (v2, 2026-09-20)
+
+Zach chose the `.py`-only cut in session. One commit on the branch, rebased on
+`origin/main`, full suite green (2723 passed).
+
+### The boundary
+
+- `src/coga/reminders.py` is `run()` + `SweepResult` and nothing else (~150
+  lines, most of it docstring): parse `--today` / `--tasks-dir` / `--dry-run`,
+  resolve the tasks dir from `$COGA_COGA_OS_ROOT`, print the report, post each
+  alert via `python -m coga.cli slack` (normal channel; `important=True`
+  opt-in). No skill, no CLI command. The docstring names the four shapes and
+  points at the fixtures as the worked examples.
+- **Posting is the default; `--dry-run` suppresses.** Inverts the first
+  attempt's opt-in `--notify`. Reason: a `ticket.py` under `coga recurring`
+  gets no operands, so an opt-in flag can never be reached there — that was
+  the "retrofit silently turned off Slack" defect, now fixed once at the
+  harness instead of per launch command. Golden parity still holds: the
+  goldens posted whenever something fired, and
+  `test_maintenance_retrofit_posts_on_a_bare_run_like_the_golden` pins it.
+- Dropped and where each went: `add_years` / `add_months` / `parse_date` →
+  each sweep owns its date math; `in_window` → inline comparison (the Xero
+  call was the tautology and is deleted outright); `read_frontmatter` → the
+  patents sweeps keep their own string-typed reader (core's `Ticket.parse` is
+  YAML-typed — dates become `date`, ints become `int` — and raises on a
+  fence-less file, both of which break byte parity with the goldens);
+  `read_ack` / `record_ack` → the ack is a blackboard `key: value` line read
+  with `period_state.parse_keys` over `taskfile.read_blackboard`, and there is
+  no writer because a human edits the ticket; `notify`, `default_tasks_dir` →
+  private to `run()`.
+- Completion (`coga bump` after `run()` returns 0) stays the script's job,
+  matching every shipped `ticket.py`; the module docstring says so.
+
+### Fixtures
+
+- All five sweeps and the recorded data kept from PR #652, rewritten to own
+  their helpers. Parity tests unchanged in shape; ack tests write the ack the
+  way a human does (`_write_ack` edits the blackboard line).
+- The three unresolved fixture items are resolved: both Brex sweeps read
+  amounts the same way (`float | None`) and surface an unreadable amount as
+  `USD ?` instead of receipts skipping it and GL showing `0.00`;
+  `is_missing_receipt`'s docstring now describes only the attachment check;
+  `recorded/brex/README.md` labels `receipts-missing.json` as a
+  reconstruction (every `posted_at` is a synthetic `T12:00:00.000Z`; the GL
+  and record-shape files are real captures).
+- `coga/codebase` context (live + packaged twin, still byte-identical) gained a
+  `reminders.py` entry under Source layout.
+
+### Microkernel note for the reviewer
+
+The only in-repo consumers of `coga.reminders` are the test fixtures; the real
+consumers are the patents and admin sweeps that migrate downstream. That is
+the tradeoff Zach accepted in session. The ~82 lines shared between the two
+Brex sweeps stay duplicated on purpose — both live in the admin repo, so a
+sibling helper there is that repo's call, not a reason to widen the harness.
+
+### Follow-ups (not in this PR)
+
+- Downstream migrations: patents `maintenance-fee-sweep` and `candidate-sweep`,
+  admin Xero / Brex sweeps. Each must end its `ticket.py` with `coga bump` and
+  must drop any `--notify` from launch commands (argparse now rejects it;
+  use `--dry-run` for a quiet run).
+- The Xero changeover fires once (old script acks the current month, this
+  acks the prior month) — documented in the sweep's docstring.
+
 
 ## Production notes
 
