@@ -1,6 +1,6 @@
 ---
 title: Triage five review comments that merged unanswered in Aug-Sep 2026
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: draft-for-human
@@ -14,7 +14,6 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 3 (report-to-coga)
 agent: claude
 ---
 
@@ -255,3 +254,43 @@ or cancellation was requested, so none is authorized. The report step must
 re-verify the five links, record any PR merges that have landed by then, and
 confirm every accepted fix still has exactly one actionable ticket before
 closing. Owner has not yet asked to advance this gate.
+
+## Report — 2026-09-20 (report-to-coga)
+
+**Produced:** five recommendations with reproduced evidence (table above),
+five `code/with-review` follow-up tickets created 2026-09-18, and dated owner
+verdicts. **Owner decided (2026-09-20):** fix on all five; PR 755's
+synthesis-gate subconcern already moot via `4e544d35`; PR 704's symlink policy
+is the strict reject-all variant (2026-09-19); PR 755's above-fence move is
+rejected. No draft revision or cancellation was requested, so none was
+applied. **Where it landed:** verdicts and reasons are in the table on this
+blackboard; implementation lives in the five follow-up tickets.
+
+Re-verified on 2026-09-20 with `origin/main` at `93f9ac03`:
+
+| Follow-up | Ticket state | PR | Merged |
+| --- | --- | --- | --- |
+| refresh-recurring-ledger-before-first-create-sync | in_progress, step 4 (review) | [838](https://github.com/FastJVM/coga/pull/838) `fix/recurring-ledger-freshness` @ `df6ed6cb` | no |
+| reject-context-artifacts-that-escape-the-checkout | in_progress, step 4 (review) | [844](https://github.com/FastJVM/coga/pull/844) `fix/context-artifacts` @ `c6de5b7b` | no |
+| attribute-headless-recurring-completions-to-system | in_progress, step 4 (review) | [835](https://github.com/FastJVM/coga/pull/835) `fix/headless-completion-system` @ `0477f3dc` | no |
+| preserve-edits-during-released-claim-recovery | in_progress, step 4 (review) | [842](https://github.com/FastJVM/coga/pull/842) `fix/released-claim-edits` @ `50c9cfe9` | no |
+| exclude-superseded-designs-from-launch-prompts | in_progress, step 4 (review) | [840](https://github.com/FastJVM/coga/pull/840) `codex/exclude-superseded-designs` @ `78d6e8e6` | no |
+
+Every accepted fix has exactly one actionable ticket; no provisional draft
+remains. All five PRs are non-draft and open; none has merged, so no merge
+was recorded.
+
+**Merge-order note for the owner.** The `coga/codebase` gotcha bullet "Five
+bot review threads merged unanswered" still says the triage brief is a draft
+and "none has a fix ticket yet"; that claim is superseded by the table above.
+This ticket did not edit the bullet because all five PRs rewrite it (both the
+live context and the packaged `bootstrap` twin). `git merge-tree` on
+2026-09-20 shows each branch merges cleanly onto `origin/main` alone, but
+every pair conflicts on both copies of that bullet, and PR 840 + PR 844 also
+conflict in `src/coga/compose.py`. Whichever PR merges first, the remaining
+four need a rebase that reconciles their bullet rewrite; that work belongs to
+each ticket's own review step, not to this triage.
+
+Out of scope and untouched, as specified: GitHub replies, thread resolution,
+merge decisions, merge-policy changes, live recurring runs, behavioral
+contexts and their packaged twins.
