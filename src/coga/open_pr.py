@@ -626,20 +626,27 @@ def open_pr(
             if other_dirt:
                 lead = (
                     f"Commit the implementation dirt ({', '.join(other_dirt)}) "
-                    f"— but not this ticket's own file ({listed}): "
+                    f"— but not this ticket's own file ({listed}) unchecked: "
                 )
             else:
                 lead = (
                     f"The dirt is this ticket's own file ({listed}). Do not "
-                    "commit it here: "
+                    "commit it here unchecked: "
                 )
+            # Only generated drift gets the destructive restore. `dev/code`
+            # allows an intentional authored-body change as implementation
+            # work, and the restore below would discard its only copy.
             remediation = (
-                f"{lead}the live copy is the primary checkout's, and a commit "
-                "on this branch strands a duplicate that conflicts with control "
-                "at merge. Reconcile it — preserve any needed blackboard text in "
-                "the primary ticket — then discard the edit here "
+                f"{lead}the live copy is the primary checkout's, and committing "
+                "lifecycle or blackboard drift on this branch strands a "
+                "duplicate that conflicts with control at merge. Inspect the "
+                "diff first. If it is generated state — frontmatter, `## Dev`, "
+                "blackboard handoff — preserve any needed blackboard text in the "
+                "primary ticket, then discard the edit here "
                 f"(`git restore --staged --worktree -- {' '.join(ticket_dirt)}`); "
-                "do not stash it just to pass this gate. "
+                "do not stash it just to pass this gate. Only an intentional "
+                "change to the authored ticket body that is part of the "
+                "implementation is committed, as `dev/code` allows. "
             )
         else:
             remediation = (

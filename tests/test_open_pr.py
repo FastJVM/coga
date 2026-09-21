@@ -854,11 +854,13 @@ def test_open_pr_fails_when_worktree_dirty(tmp_path, monkeypatch, dirty_relpath)
 
 
 def test_open_pr_dirty_own_ticket_steers_to_stash_not_commit(tmp_path, monkeypatch):
-    """Uncommitted edits to this ticket's own file must not be committed.
+    """Uncommitted edits to this ticket's own file are inspected, not committed.
 
     "Commit or stash" is the instruction that manufactures the committed
     duplicate one step later; for the ticket file itself the message must say
-    to preserve the text in the primary ticket and stash or discard here.
+    to preserve generated drift's text in the primary ticket and discard it
+    here, while leaving room for the intentional authored-body change that
+    `dev/code` allows as implementation work.
     """
     repo = init_git_repo(tmp_path)
     bin_dir = tmp_path / "bin"
@@ -875,9 +877,11 @@ def test_open_pr_dirty_own_ticket_steers_to_stash_not_commit(tmp_path, monkeypat
 
     message = str(exc.value)
     assert "this ticket's own file (coga/tasks/dirty-own/ticket.md)" in message
-    assert "Do not commit it here" in message
+    assert "Do not commit it here unchecked" in message
+    assert "Inspect the diff first" in message
     assert "git restore --staged --worktree -- coga/tasks/dirty-own/ticket.md" in message
     assert "do not stash it just to pass this gate" in message
+    assert "intentional change to the authored ticket body" in message
     assert "confirmed duplicate hunks" not in message
     assert stranded_copy.read_text().endswith("feature-checkout note\n")
 
@@ -901,7 +905,10 @@ def test_open_pr_dirty_mixed_commits_source_but_not_own_ticket(tmp_path, monkeyp
 
     message = str(exc.value)
     assert "Commit the implementation dirt (coga/uncommitted.txt)" in message
-    assert "but not this ticket's own file (coga/tasks/dirty-mixed/ticket.md)" in message
+    assert (
+        "but not this ticket's own file (coga/tasks/dirty-mixed/ticket.md) unchecked"
+        in message
+    )
     assert "git restore --staged --worktree -- coga/tasks/dirty-mixed/ticket.md" in message
 
 

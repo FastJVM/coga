@@ -415,14 +415,19 @@ def _warn_stranded_task_state(cfg: Config, ref: TaskRef) -> None:
             return
         ticket_rel = ref.ticket_path.resolve().relative_to(toplevel).as_posix()
         control = cfg.git_control_branch
+        # Fully qualified on both sides: a bare name resolves `refs/tags/<name>`
+        # before `refs/heads/<name>`, so a tag named like the branch would make
+        # the probe compare the wrong commit and suppress the warning.
+        control_ref = f"refs/heads/{control}"
+        branch_ref = f"refs/heads/{branch}"
         stranded = stranded_task_state_paths(
-            control, branch, [ticket_rel], cwd=toplevel
+            control_ref, branch_ref, [ticket_rel], cwd=toplevel
         )
         if not stranded:
             return
         remediation = stranded_task_state_remediation(
-            control_ref=control,
-            branch_ref=branch,
+            control_ref=control_ref,
+            branch_ref=branch_ref,
             paths=stranded,
             checkout=worktree,
         )

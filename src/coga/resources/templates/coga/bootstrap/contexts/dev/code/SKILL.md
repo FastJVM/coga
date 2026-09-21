@@ -310,7 +310,9 @@ When to write each:
   moving the stranded write. That duplicate then resurfaces one step later —
   uncommitted, as `coga open-pr`'s "Recorded worktree has uncommitted changes"
   refusal, which names this ticket's own file separately from other dirt and
-  says to reconcile and discard it, never commit it; committed, as a
+  says to inspect it first — generated lifecycle or blackboard drift is
+  reconciled into the primary ticket and discarded, never committed, while an
+  intentional authored-body change stays implementation work; committed, as a
   **stranded ticket write** that `coga open-pr`'s freshness gate refuses
   before pushing, and that `coga bump` already names on stderr, advisory only,
   when it leaves a step whose `## Dev` records the branch. Both messages

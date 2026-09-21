@@ -983,13 +983,33 @@ def test_bump_warns_about_stranded_ticket_write_on_recorded_branch(
     assert "[bump] Branch 'feat/x' has committed changes to this ticket's own file" in warning
     assert f"coga/tasks/{slug}.md" in warning
     assert "main does not contain" in warning
-    assert f"git diff main feat/x -- coga/tasks/{slug}.md" in warning
-    assert "git restore --staged --worktree --source=$(git merge-base main feat/x)" in warning
+    assert f"git diff refs/heads/main refs/heads/feat/x -- coga/tasks/{slug}.md" in warning
+    assert (
+        "git restore --staged --worktree "
+        "--source=$(git merge-base refs/heads/main refs/heads/feat/x)"
+    ) in warning
     assert "Do not rebase" in warning
     assert f"in {wt}" in warning
     assert "[bump]" not in result.stdout
     # Advisory only: nothing about the branch or its copy was touched.
     assert git_repo.git("log", "--format=%s", "-1", "feat/x").strip().startswith("stranded:")
+
+
+def test_bump_warns_despite_a_tag_named_like_the_recorded_branch(
+    git_repo, tmp_path: Path
+) -> None:
+    """A bare `feat/x` resolves to `refs/tags/feat/x` first; the probe must
+    compare the branch, not a same-named tag still pointing at control."""
+    wt = tmp_path / "wt-feat"
+    slug, ticket = _make_git_task(git_repo, branch="feat/x", worktree=wt)
+    git_repo.git("tag", "feat/x", "main")
+    git_repo.git("worktree", "add", str(wt), "-b", "feat/x", "main")
+    _commit_ticket_on_branch(git_repo, wt, slug, "written in the feature checkout")
+
+    result = CliRunner().invoke(app, ["bump", slug])
+
+    assert result.exit_code == 0, result.output
+    assert "[bump] Branch 'feat/x' has committed changes to this ticket's own file" in result.stderr
 
 
 def test_bump_stays_silent_when_recorded_branch_merely_behind(
