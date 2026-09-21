@@ -288,3 +288,24 @@ Decisions / flags for review:
 Not done here (owner runs at `review`, side-effecting): `coga
 address-pr-comments <n>` against a real open PR; `coga recurring launch
 address-pr-comments` end to end.
+
+## Implement-session reconciliation (2026-09-21)
+
+Owner explicitly deferred both side-effecting live smoke checks and asked to
+finish implementation. Fresh control state already records the completed
+implement transition (ce40e6af8) and the authoritative Dev checkout above.
+Do not bump again from the stale implement session or start peer-review here.
+The recorded feature branch is now rebased through e7dc52f29, with commits
+100d29ce and 5a86e43a; its working tree is clean and its bootstrap, recurring,
+and extension-model live/packaged twins match. Its implementation test and
+prompt-report evidence is recorded above. Live smoke checks remain owner work
+at review, as requested.
+
+The parallel attempt in /tmp/coga-address-pr-comments remains preserved at
+7d16dd92e on daily-pr-comments (2673 tests passed), but is not the authoritative
+Dev checkout and must not replace the current branch or workflow state. Its
+old session notes are saved at /tmp/coga-pr-comments-duplicate-session-ticket.md.
+The stale primary checkout was synchronized with control; the supervisor's
+pre-existing log append was preserved. Git retained an autostash as recovery
+history after reconciling the duplicate blackboard. No second bump, feature
+push, PR, or live smoke launch was performed by this session.
