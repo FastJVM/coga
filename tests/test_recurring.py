@@ -429,6 +429,25 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return company
 
 
+def test_address_pr_comments_period_inherits_repository_routing(repo: Path) -> None:
+    """A shipped period must materialize when Claude is not configured."""
+    config_path = repo / "coga.toml"
+    config_path.write_text(
+        config_path.read_text().replace("claude", "codex").replace("CLAUDE.md", "AGENTS.md")
+    )
+    shutil.copytree(
+        _TEMPLATES_COGA_OS / "recurring" / "address-pr-comments",
+        repo / "recurring" / "address-pr-comments",
+    )
+    outcome = create_named(
+        load_config(repo), "address-pr-comments", now=datetime(2026, 9, 21, 8, 0)
+    )
+    ticket = Ticket.read(outcome.ref.ticket_path)
+    assert ticket.frontmatter["owner"] == "marc"
+    assert ticket.frontmatter["agent"] == "codex"
+    assert ticket.frontmatter["delegate"] == "bootstrap/address-pr-comments"
+
+
 # --- coga recurring list: the read-only schedule view ------------------------
 
 

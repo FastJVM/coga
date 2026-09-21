@@ -2,8 +2,9 @@
 schedule: "0 7 * * *"
 schedule_comment: "Daily at 7am — address review comments on every open PR"
 title: "Address PR review comments"
-owner: nicktoper
-agent: claude
+# Leave routing empty so each repository supplies its owner and agent defaults.
+owner:
+agent:
 delegate: bootstrap/address-pr-comments
 # `delegate:` keeps this template agent-backed for admission — a headless
 # sweep refuses it before the period task exists — while `coga recurring`
