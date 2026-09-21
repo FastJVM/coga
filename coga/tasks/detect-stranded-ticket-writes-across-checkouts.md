@@ -638,6 +638,7 @@ Repo conventions:
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/850
 branch: stranded-ticket-writes
 worktree: /home/n/Code/coga-stranded-ticket-writes
 
