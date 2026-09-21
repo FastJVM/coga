@@ -309,13 +309,27 @@ When to write each:
   hand-copy the two lines into the primary copy, which passes the gate without
   moving the stranded write. That duplicate then resurfaces one step later —
   uncommitted, as `coga open-pr`'s "Recorded worktree has uncommitted changes"
-  refusal; committed, as a `ticket.md` (or `coga/log.md`) merge conflict on the
-  PR against a control branch whose copy has since moved. In the
-  **separate-checkout layout**, inspect a dirty task/log diff before deciding
-  it is stranded. An accidental `## Dev` or blackboard edit to this task is a
-  duplicate only after the needed text is preserved in the primary ticket;
-  an audit-log edit is a duplicate only after its entries are verified in the
-  authoritative log. Discard only those confirmed duplicate hunks in the
+  refusal, which names this ticket's own file separately from other dirt and
+  says to reconcile and discard it, never commit it; committed, as a
+  **stranded ticket write** that `coga open-pr`'s freshness gate refuses
+  before pushing, and that `coga bump` already names on stderr, advisory only,
+  when it leaves a step whose `## Dev` records the branch. Both messages
+  prescribe the same repair: inspect the branch's copy, preserve anything
+  still needed in the primary ticket, then restore the *merge base's* copy on
+  the branch and commit (`git restore --staged --worktree
+  --source=$(git merge-base <control> <branch>) -- <path>`). Do not rebase to
+  fix it — replaying the stranded commit onto control is exactly the
+  `ticket.md` merge conflict this exists to prevent, and restoring *control's*
+  copy instead goes stale again at the next transition, whereas a branch that
+  contributes no change to the path merges cleanly whatever control does next.
+  The comparison is one-directional: a branch copy control already absorbed
+  (a bump run from the feature checkout lands identical bytes on control
+  before control moves on) is ordinary staleness and stays silent at bump.
+  In the **separate-checkout layout**, inspect a dirty task/log diff before
+  deciding it is stranded. An accidental `## Dev` or blackboard edit to this
+  task is a duplicate only after the needed text is preserved in the primary
+  ticket; an audit-log edit is a duplicate only after its entries are verified
+  in the authoritative log. Discard only those confirmed duplicate hunks in the
   feature checkout. Never commit or stash them to satisfy the clean-tree gate.
   Preserve unique audit evidence and escalate its reconciliation; do not
   hand-edit `coga/log.md`. Intentional ticket-body changes, `ticket.py`, and

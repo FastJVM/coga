@@ -24,7 +24,7 @@ import pytest
 from conftest import init_git_repo
 from coga.autoclose import parse_pr_url, parse_worktree_path
 from coga.config import load_config
-from coga.github_preflight import CheckResult
+from coga.github_preflight import CheckResult, stranded_task_state_paths
 from coga.git import sync_task_state
 from coga.logfile import append_log
 from coga.taskfile import read_blackboard
@@ -519,7 +519,7 @@ def test_open_pr_rejects_divergent_ticket_overlap_in_single_checkout(
         ticket.read_text() + "\ncontrol-only change\n",
     )
 
-    with pytest.raises(OpenPrError, match="divergent-post-bump/ticket.md"):
+    with pytest.raises(OpenPrError, match="divergent-post-bump/ticket.md") as exc:
         open_pr(
             cfg,
             slug="divergent-post-bump",
@@ -527,6 +527,10 @@ def test_open_pr_rejects_divergent_ticket_overlap_in_single_checkout(
             single_checkout=True,
         )
 
+    # The branch copy *is* the live ticket here, so the stranded-write wording
+    # (which says to drop the branch copy) must not be offered.
+    assert "stranded ticket write" not in str(exc.value)
+    assert "Rebase or merge" in str(exc.value)
     assert not log.exists() or "pr create" not in log.read_text()
     assert parse_pr_url(read_blackboard(ticket)) is None
 
@@ -849,6 +853,58 @@ def test_open_pr_fails_when_worktree_dirty(tmp_path, monkeypatch, dirty_relpath)
     assert dirty_path.read_text() == "uncommitted implementation\n"
 
 
+def test_open_pr_dirty_own_ticket_steers_to_stash_not_commit(tmp_path, monkeypatch):
+    """Uncommitted edits to this ticket's own file must not be committed.
+
+    "Commit or stash" is the instruction that manufactures the committed
+    duplicate one step later; for the ticket file itself the message must say
+    to preserve the text in the primary ticket and stash or discard here.
+    """
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(monkeypatch, bin_dir)
+    wt = _feature_worktree(repo, tmp_path, "dirty-own", commit=True)
+    ticket = _write_ticket(repo.coga_os, "dirty-own", branch="dirty-own", worktree=wt)
+    stranded_copy = wt / "coga" / "tasks" / "dirty-own" / "ticket.md"
+    stranded_copy.parent.mkdir(parents=True)
+    stranded_copy.write_text(ticket.read_text() + "\nfeature-checkout note\n")
+
+    with pytest.raises(OpenPrError, match="uncommitted changes") as exc:
+        open_pr(load_config(repo.coga_os), slug="dirty-own", blackboard_path=ticket)
+
+    message = str(exc.value)
+    assert "this ticket's own file (coga/tasks/dirty-own/ticket.md)" in message
+    assert "Do not commit it here" in message
+    assert "git restore --staged --worktree -- coga/tasks/dirty-own/ticket.md" in message
+    assert "do not stash it just to pass this gate" in message
+    assert "confirmed duplicate hunks" not in message
+    assert stranded_copy.read_text().endswith("feature-checkout note\n")
+
+
+def test_open_pr_dirty_mixed_commits_source_but_not_own_ticket(tmp_path, monkeypatch):
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(monkeypatch, bin_dir)
+    wt = _feature_worktree(repo, tmp_path, "dirty-mixed", commit=True)
+    ticket = _write_ticket(
+        repo.coga_os, "dirty-mixed", branch="dirty-mixed", worktree=wt
+    )
+    stranded_copy = wt / "coga" / "tasks" / "dirty-mixed" / "ticket.md"
+    stranded_copy.parent.mkdir(parents=True)
+    stranded_copy.write_text(ticket.read_text())
+    (wt / "coga" / "uncommitted.txt").write_text("uncommitted implementation\n")
+
+    with pytest.raises(OpenPrError, match="uncommitted changes") as exc:
+        open_pr(load_config(repo.coga_os), slug="dirty-mixed", blackboard_path=ticket)
+
+    message = str(exc.value)
+    assert "Commit the implementation dirt (coga/uncommitted.txt)" in message
+    assert "but not this ticket's own file (coga/tasks/dirty-mixed/ticket.md)" in message
+    assert "git restore --staged --worktree -- coga/tasks/dirty-mixed/ticket.md" in message
+
+
 def test_open_pr_dirty_single_checkout_preserves_live_ticket(tmp_path, monkeypatch):
     repo = init_git_repo(tmp_path)
     bin_dir = tmp_path / "bin"
@@ -1016,11 +1072,237 @@ def test_open_pr_rejects_overlapping_coga_state_drift(tmp_path, monkeypatch):
     )
 
     cfg = load_config(repo.coga_os)
-    with pytest.raises(OpenPrError, match="Overlapping paths: coga/tasks/shared.md"):
+    with pytest.raises(
+        OpenPrError, match="Overlapping paths: coga/tasks/shared.md"
+    ) as exc:
         open_pr(cfg, slug="overlap", blackboard_path=ticket)
 
+    # Another ticket's state, not this ticket's file: ordinary staleness
+    # wording, so the operator is still told to rebase or merge.
+    assert "Rebase or merge" in str(exc.value)
+    assert "stranded ticket write" not in str(exc.value)
     assert not log.exists() or "pr create" not in log.read_text()
     assert parse_pr_url(read_blackboard(ticket)) is None
+
+
+def _seed_ticket_on_control(repo, ticket: Path, slug: str) -> None:
+    """Commit and push a ticket on `main` so a branch forked after it shares it."""
+    repo.git("add", "--", f"coga/tasks/{slug}/ticket.md")
+    repo.git("commit", "-m", f"ticket: seed {slug}")
+    repo.git("push", "origin", "main")
+
+
+def _commit_ticket_on_branch(repo, wt: Path, slug: str, text: str) -> None:
+    copy = wt / "coga" / "tasks" / slug / "ticket.md"
+    copy.write_text(text)
+    repo.git("add", "--", f"coga/tasks/{slug}/ticket.md", cwd=wt)
+    repo.git("commit", "-m", f"stranded: edit {slug} on the branch", cwd=wt)
+
+
+def test_open_pr_reclassifies_own_ticket_stranded_write_and_prescribed_repair_works(
+    tmp_path, monkeypatch
+):
+    """An own-ticket overlap is a stranded write, not staleness — and the
+    prescribed repair must actually get the operator past the gate.
+
+    The generic refusal says "rebase", which replays the stranded commit onto
+    control and manufactures the `ticket.md` conflict. The reclassified message
+    names the file, the diff command, and the merge-base restore; applying
+    exactly that repair then lets `open_pr` succeed.
+    """
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _install_fake_gh(monkeypatch, bin_dir)
+    slug = "own-stranded"
+    ticket = _write_ticket(repo.coga_os, slug, branch="own-stranded", worktree="pending")
+    _seed_ticket_on_control(repo, ticket, slug)
+
+    wt = _feature_worktree(repo, tmp_path, "own-stranded", commit=True)
+    ticket.write_text(ticket.read_text().replace("worktree: pending", f"worktree: {wt}"))
+    _commit_ticket_on_branch(repo, wt, slug, ticket.read_text() + "\n## Dev notes\nwritten in the feature checkout\n")
+    repo.push_competing_commit(
+        f"coga/tasks/{slug}/ticket.md",
+        ticket.read_text().replace("step: 1 (open-pr)", "step: 2 (review)"),
+    )
+
+    cfg = load_config(repo.coga_os)
+    with pytest.raises(OpenPrError, match="stranded ticket write") as exc:
+        open_pr(cfg, slug=slug, blackboard_path=ticket)
+
+    message = str(exc.value)
+    path = f"coga/tasks/{slug}/ticket.md"
+    assert f"this ticket's own file ({path})" in message
+    assert "Control never received this content" in message
+    assert f"git diff FETCH_HEAD HEAD -- {path}" in message
+    assert (
+        "git restore --staged --worktree --source=$(git merge-base FETCH_HEAD HEAD) "
+        f"-- {path}" in message
+    )
+    assert "Do not rebase" in message
+    assert "Rebase or merge" not in message
+    assert not log.exists() or "pr create" not in log.read_text()
+
+    # Apply the prescribed repair verbatim, in the feature checkout.
+    merge_base = repo.git("merge-base", "FETCH_HEAD", "HEAD", cwd=wt).strip()
+    repo.git(
+        "restore", "--staged", "--worktree", f"--source={merge_base}", "--", path, cwd=wt
+    )
+    repo.git("commit", "-m", "Drop stranded ticket write", cwd=wt)
+
+    url = open_pr(cfg, slug=slug, blackboard_path=ticket)
+
+    assert url == "https://github.com/acme/repo/pull/7"
+    assert "pr create" in log.read_text()
+    assert parse_pr_url(read_blackboard(ticket)) == url
+
+
+def test_open_pr_stranded_message_keeps_other_overlap_reasons(tmp_path, monkeypatch):
+    """Mixed drift: the ticket remediation must not hide a source overlap."""
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(monkeypatch, bin_dir)
+    slug = "own-mixed"
+    ticket = _write_ticket(repo.coga_os, slug, branch="own-mixed", worktree="pending")
+    _seed_ticket_on_control(repo, ticket, slug)
+    (repo.coga_os / "change.txt").write_text("base\n")
+    repo.git("add", "--", "coga/change.txt")
+    repo.git("commit", "-m", "seed source")
+    repo.git("push", "origin", "main")
+
+    wt = _feature_worktree(repo, tmp_path, "own-mixed", commit=True)
+    ticket.write_text(ticket.read_text().replace("worktree: pending", f"worktree: {wt}"))
+    _commit_ticket_on_branch(repo, wt, slug, ticket.read_text() + "\nbranch note\n")
+    repo.push_competing_commit(f"coga/tasks/{slug}/ticket.md", ticket.read_text() + "\ncontrol\n")
+    repo.push_competing_commit("coga/change.txt", "control source change\n")
+
+    with pytest.raises(OpenPrError, match="stranded ticket write") as exc:
+        open_pr(load_config(repo.coga_os), slug=slug, blackboard_path=ticket)
+
+    message = str(exc.value)
+    assert "also diverges from main on: coga/change.txt" in message
+    assert "git merge FETCH_HEAD" in message
+
+
+def test_open_pr_names_absorbed_ticket_copy_as_safe_to_drop(tmp_path, monkeypatch):
+    """A branch copy control already absorbed is stale, not lost content.
+
+    Bumping from the feature checkout commits the ticket on the branch and
+    lands the same bytes on control; when control then moves on, the overlap
+    is still refused, but the message must say the content is already there.
+    """
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(monkeypatch, bin_dir)
+    slug = "own-absorbed"
+    ticket = _write_ticket(repo.coga_os, slug, branch="own-absorbed", worktree="pending")
+    _seed_ticket_on_control(repo, ticket, slug)
+
+    wt = _feature_worktree(repo, tmp_path, "own-absorbed", commit=True)
+    ticket.write_text(ticket.read_text().replace("worktree: pending", f"worktree: {wt}"))
+    absorbed = ticket.read_text() + "\nbumped from the feature checkout\n"
+    _commit_ticket_on_branch(repo, wt, slug, absorbed)
+    repo.push_competing_commit(f"coga/tasks/{slug}/ticket.md", absorbed)
+    repo.push_competing_commit(f"coga/tasks/{slug}/ticket.md", absorbed + "later control state\n")
+
+    with pytest.raises(OpenPrError, match="stranded ticket write") as exc:
+        open_pr(load_config(repo.coga_os), slug=slug, blackboard_path=ticket)
+
+    assert "Control already absorbed this exact content" in str(exc.value)
+    assert "Control never received" not in str(exc.value)
+
+
+# --- stranded_task_state_paths unit -------------------------------------------
+
+
+def _stranded_fixture(tmp_path):
+    """A repo with `coga/tasks/t.md` on main and a `feat` worktree forked after it."""
+    repo = init_git_repo(tmp_path)
+    path = repo.coga_os / "tasks" / "t.md"
+    path.write_text("base\n")
+    repo.git("add", "--", "coga/tasks/t.md")
+    repo.git("commit", "-m", "seed t")
+    wt = tmp_path / "wt-feat"
+    repo.git("worktree", "add", str(wt), "-b", "feat", "main")
+    return repo, wt
+
+
+def _commit_t(repo, cwd: Path, text: str, message: str) -> None:
+    (cwd / "coga" / "tasks" / "t.md").write_text(text)
+    repo.git("add", "--", "coga/tasks/t.md", cwd=cwd)
+    repo.git("commit", "-m", message, cwd=cwd)
+
+
+@pytest.mark.parametrize("control_advances", [False, True])
+def test_stranded_task_state_paths_reports_branch_write_control_lacks(
+    tmp_path, control_advances
+):
+    repo, wt = _stranded_fixture(tmp_path)
+    _commit_t(repo, wt, "branch edit\n", "feat: edit t")
+    if control_advances:
+        _commit_t(repo, repo.root, "control edit\n", "control: advance t")
+
+    result = stranded_task_state_paths(
+        "main", "feat", ["coga/tasks/t.md"], cwd=repo.root
+    )
+
+    assert result == ("coga/tasks/t.md",)
+
+
+def test_stranded_task_state_paths_ignores_branch_merely_behind_control(tmp_path):
+    """Control running ahead of an untouched branch copy is the normal state."""
+    repo, wt = _stranded_fixture(tmp_path)
+    (wt / "coga" / "change.txt").write_text("real change\n")
+    repo.git("add", "-A", cwd=wt)
+    repo.git("commit", "-m", "feat: real change", cwd=wt)
+    _commit_t(repo, repo.root, "control edit\n", "control: advance t")
+    _commit_t(repo, repo.root, "control edit again\n", "control: advance t twice")
+
+    result = stranded_task_state_paths(
+        "main", "feat", ["coga/tasks/t.md"], cwd=repo.root
+    )
+
+    assert result == ()
+
+
+def test_stranded_task_state_paths_ignores_absorbed_then_stale_copy(tmp_path):
+    """A feature-side bump lands identical bytes on control; later control
+    advances past them. The branch is behind, not carrying content control
+    lacks — the `_refresh_committed_divergence_reason` rule."""
+    repo, wt = _stranded_fixture(tmp_path)
+    _commit_t(repo, wt, "bumped\n", "feat: bump t")
+    _commit_t(repo, repo.root, "bumped\n", "control: absorb t")
+    _commit_t(repo, repo.root, "bumped\nmoved on\n", "control: advance t")
+
+    result = stranded_task_state_paths(
+        "main", "feat", ["coga/tasks/t.md"], cwd=repo.root
+    )
+
+    assert result == ()
+
+
+def test_stranded_task_state_paths_reports_branch_deletion_control_keeps(tmp_path):
+    repo, wt = _stranded_fixture(tmp_path)
+    repo.git("rm", "-q", "--", "coga/tasks/t.md", cwd=wt)
+    repo.git("commit", "-m", "feat: delete t", cwd=wt)
+
+    result = stranded_task_state_paths(
+        "main", "feat", ["coga/tasks/t.md"], cwd=repo.root
+    )
+
+    assert result == ("coga/tasks/t.md",)
+
+
+def test_stranded_task_state_paths_is_indeterminate_on_missing_ref(tmp_path):
+    repo, _wt = _stranded_fixture(tmp_path)
+
+    assert (
+        stranded_task_state_paths("main", "no-such-branch", ["coga/tasks/t.md"], cwd=repo.root)
+        is None
+    )
+    assert stranded_task_state_paths("main", "feat", [], cwd=repo.root) == ()
 
 
 def test_open_pr_rejects_task_rename_overlapping_feature_edit(
