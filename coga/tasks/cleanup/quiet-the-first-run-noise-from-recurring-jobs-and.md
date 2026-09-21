@@ -1,6 +1,6 @@
 ---
 title: Quiet the first-run noise from recurring jobs and managed skills
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
