@@ -14,9 +14,11 @@ import pytest
 from rich.console import Console
 
 from coga.config import load_config
-from coga.tasks import TaskNotFoundError, UnknownDirectoryError
+from coga.recurring import TemplateStatus
+from coga.tasks import TaskNotFoundError, TaskRef, UnknownDirectoryError
 from coga.views import (
     ViewError,
+    _print_recurring_templates,
     render_show,
     render_status,
 )
@@ -218,3 +220,86 @@ def test_render_status_dirs_lists_directories(repo: Path, capsys) -> None:
     lines = capsys.readouterr().out.split()
     assert lines == ["marketing", "ops"]
     assert "fix-retry-logic" not in lines
+
+
+# --- recurring footer -----------------------------------------------------------
+
+
+def _template(
+    name: str,
+    *,
+    instance: str | None = None,
+    instance_status: str | None = None,
+    error: str | None = None,
+    stale_done: bool = False,
+    serviced: bool = False,
+) -> TemplateStatus:
+    """A synthetic `list_templates` row; `instance` is the period task's leaf
+    under `tasks/recurring/`, and the period fields the footer never reads
+    are left `None`."""
+    ref = (
+        TaskRef(slug=instance, path=Path("coga/tasks") / "recurring" / instance, directory="recurring")
+        if instance is not None
+        else None
+    )
+    return TemplateStatus(
+        name=name,
+        schedule=None if error else "0 9 * * 1",
+        last_fire=None,
+        next_fire=None,
+        period_key=None,
+        target_slug=f"recurring/{name}",
+        instance=ref,
+        instance_status=instance_status,
+        error=error,
+        stale_done=stale_done,
+        serviced=serviced,
+    )
+
+
+def _footer(templates: list[TemplateStatus]) -> list[str]:
+    console = _recording_console()
+    _print_recurring_templates(console, templates, leading_blank=False)
+    return console.file.getvalue().splitlines()
+
+
+def test_recurring_footer_is_silent_without_templates() -> None:
+    assert _footer([]) == []
+
+
+def test_recurring_footer_counts_period_states_via_template_due() -> None:
+    """Due is `TemplateStatus.due`, not a rescan: a stale prior-period `done`
+    instance counts as due (the next sweep replaces it), a serviced period
+    whose task Dream reaped does not, and a live instance covers its period.
+    None of them earns a named line."""
+    rows = [
+        _template("fresh"),
+        _template("stale", instance="stale", instance_status="done", stale_done=True),
+        _template("reaped", serviced=True),
+        _template("live", instance="live", instance_status="in_progress"),
+    ]
+    assert _footer(rows) == ["Recurring: 4 templates · 2 due — coga recurring list"]
+
+
+def test_recurring_footer_uses_singular_nouns() -> None:
+    assert _footer([_template("only")]) == [
+        "Recurring: 1 template · 1 due — coga recurring list"
+    ]
+
+
+def test_recurring_footer_names_errors_and_unreadable_instances() -> None:
+    """Exceptions are never reduced to a count: every load error and every
+    `unknown` instance gets its own line under the summary, sorted by name,
+    while the healthy templates stay summarized."""
+    rows = [
+        _template("healthy"),
+        _template("zeta", error="missing schedule"),
+        _template("mystery", instance="mystery", instance_status="unknown"),
+        _template("alpha", error="bad cron"),
+    ]
+    assert _footer(rows) == [
+        "Recurring: 4 templates · 1 due · 2 errors — coga recurring list",
+        "  error: alpha — bad cron",
+        "  error: zeta — missing schedule",
+        "  warning: mystery — instance recurring/mystery is unreadable (status unknown)",
+    ]

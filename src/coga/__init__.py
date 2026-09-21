@@ -9,7 +9,7 @@ def _require_supported_python(version_info: tuple[int, ...] = sys.version_info) 
     """Fail loud on an unsupported interpreter before any 3.11-only import runs.
 
     Coga targets Python 3.11+ and imports the stdlib `tomllib` (3.11+) at
-    module load in `config.py` / `managed_skills.py` / `commands/update.py`. On
+    module load in `config.py` / `commands/update.py`. On
     an older interpreter that otherwise surfaces as a cryptic
     `ModuleNotFoundError: No module named 'tomllib'` deep in an import chain.
 

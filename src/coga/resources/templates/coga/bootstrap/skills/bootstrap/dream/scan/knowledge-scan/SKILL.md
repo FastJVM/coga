@@ -54,23 +54,26 @@ refs.
 
 Installer-managed skills are **outside the corpus**. `coga/skills/` mixes
 repo-authored skills with upstream trees that `coga skill install` and
-`coga skill update` place and refresh wholesale. **The manifest's `ref` list in
-`src/coga/resources/managed-skills.toml` is the whole test.** Exclude those
-trees before globbing.
+`coga skill update` place and refresh wholesale. **The `metadata.github-repo`
+key in a skill's `SKILL.md` frontmatter is the whole test** — the same
+predicate `gh skill update` and `skill_manager.gh_skill_repo()` apply. There
+is no name list to consult: `coga init` installs no packs, so the set is
+whatever operators installed explicitly. Exclude every tree that carries the
+key before globbing.
 
 Do *not* widen that to "any skill whose recorded metadata names a non-local
 source". Provenance is not management: a skill installed with
 `coga skill install-url` also carries a `.coga-source.json` naming an upstream
 source, but it is an ordinary project-local skill that the repo adapts and that
 Coga can durably edit. `coga/skills/clarity/` is the live case — `source_type:
-url`, absent from the manifest, and carrying real `local_adaptation_notes`.
+url`, no `github-repo` key, and carrying real `local_adaptation_notes`.
 Excluding it would drop repo-specific knowledge from the corpus for no reason
-beyond it having once been downloaded. Today they are the seven `google-agents-cli-*` trees: 286,169 bytes
-across 34 Markdown files, about 61% of all Markdown under `coga/skills/` and
-roughly two full shard budgets. The content is upstream GCP/ADK documentation
-carrying no Coga repo reality, and Coga cannot durably edit it — a `stale`
-finding against it is reverted by the next refresh, and no `extract` can ever
-target it. Spend the budget on knowledge this repo authored.
+beyond it having once been downloaded. In this repo the excluded trees are the
+`google-agents-cli-*` packs: upstream GCP/ADK documentation large enough to
+consume whole shard budgets, carrying no Coga repo reality, and Coga cannot
+durably edit it — a `stale` finding against it is reverted by the next refresh,
+and no `extract` can ever target it. Spend the budget on knowledge this repo
+authored.
 
 Each corpus file has one owning shard, but a relevant knowledge or ticket file
 may be duplicated as evidence in another area's assignment. Keep a task

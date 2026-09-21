@@ -44,11 +44,11 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         name="gh",
         purpose=(
             "GitHub PR workflows — opening PRs, the merged-ticket autoclose "
-            "sweep, and `gh skill`-backed managed skill installs. Run "
-            "`gh auth login` once installed. Not required at init: every "
-            "consumer enforces it at the point of need — managed skill "
-            "installs degrade to a warn-with-hint skip, the open-pr step and "
-            "autoclose sweep fail loud with setup hints, and "
+            "sweep, and the explicit `gh skill`-backed `coga skill install` / "
+            "`update`. Run `gh auth login` once installed. Not required at "
+            "init: init installs no skills, and every consumer enforces `gh` "
+            "at the point of need — `coga skill install`, the open-pr step, "
+            "and the autoclose sweep fail loud with setup hints, and "
             "`coga validate --check-github` probes install/auth proactively — "
             "so init works on a machine that never opens PRs."
         ),

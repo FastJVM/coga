@@ -45,12 +45,6 @@ from coga.config import (
 from coga.dependencies import DEPENDENCIES, install_hint
 from coga.git import GitError, _control_branch_present, _symbolic_head
 from coga.logfile import append_log
-from coga.managed_skills import (
-    ManagedSkillError,
-    ManagedSkillSummary,
-    install_managed_skills,
-)
-from coga.skill_manager import GH_SKILL_REQUIRED, SkillResult
 
 
 LOCAL_TOML_TEMPLATE = """\
@@ -348,8 +342,8 @@ def _check_external_dependencies() -> None:
     Enforces only the `required_at_init` dependencies in the `coga.dependencies`
     manifest — just `git` — at the start of every `coga init` invocation
     (fresh, update, update-all). `gh` and `op` are deliberately not enforced
-    here: each is enforced at its point of need (`gh` by managed-skill
-    installs, the open-pr step, and the autoclose sweep; `op` by a launch
+    here: each is enforced at its point of need (`gh` by `coga skill
+    install`, the open-pr step, and the autoclose sweep; `op` by a launch
     that resolves an `op://` secret), and each failure there is loud with its
     own install hint — so a missing `gh`/`op` never blocks init on a machine
     that doesn't use those features. The per-tool rationale lives on each
@@ -1032,8 +1026,6 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         # tickets remain, so the placeholder never ships as a live owner.
         _stamp_user_into_delivered_tickets(coga_os, name)
 
-        managed_skills = _install_managed_skills_or_exit(coga_os)
-
         local_toml = coga_os / "coga.local.toml"
         local_toml.write_text(render_local_toml(name))
 
@@ -1106,7 +1098,6 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
 
     typer.echo("")
     typer.echo(f"Initialized coga repo at {coga_os}")
-    _print_managed_skill_summary(managed_skills)
     typer.echo(
         f'Wrote {local_toml} (machine-local config — gitignored) with user = "{name}".'
     )
@@ -1280,120 +1271,6 @@ def _print_notification_state() -> None:
         "  then export SLACK_WEBHOOK_URL. Once Slack is selected it is fail-loud.",
         fg=typer.colors.GREEN,
     )
-
-
-def _install_managed_skills_or_exit(coga_os: Path) -> ManagedSkillSummary:
-    try:
-        return install_managed_skills(coga_os)
-    except ManagedSkillError as exc:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        sys.exit(2)
-
-
-def _print_managed_skill_summary(summary: ManagedSkillSummary) -> None:
-    if not summary.results:
-        return
-    counts = summary.counts()
-    rendered = ", ".join(f"{key}={value}" for key, value in sorted(counts.items()))
-    typer.echo(f"Managed skills: {rendered}")
-    skipped_old_gh = [r for r in summary.results if r.status == "skipped-old-gh"]
-    if skipped_old_gh:
-        count = len(skipped_old_gh)
-        noun = "skill" if count == 1 else "skills"
-        typer.secho(
-            f"Warning: skipped {count} optional managed {noun} — {GH_SKILL_REQUIRED}",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
-        typer.secho(
-            "  Skipped: " + ", ".join(result.name for result in skipped_old_gh),
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
-    _print_no_access_skill_notes(summary)
-    _print_rate_limited_skill_notes(summary)
-    for result in summary.results:
-        if result.status != "failed":
-            continue
-        source = result.details.get("source")
-        remediation = result.details.get("remediation")
-        source_note = f" from {source}" if source else ""
-        typer.secho(
-            f"Warning: optional managed skill `{result.name}` failed{source_note}: "
-            f"{result.message}",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
-        if remediation:
-            typer.secho(f"  Remediation: {remediation}", fg=typer.colors.YELLOW, err=True)
-
-
-def _print_no_access_skill_notes(summary: ManagedSkillSummary) -> None:
-    """One consolidated note per unreachable source, not one warning per skill.
-
-    A user outside the source repo's org (the default for anyone onboarding)
-    would otherwise see every optional skill from that repo reported as its own
-    failure. Coga is fully functional without these skills, so say that once,
-    with how to get them later.
-    """
-    by_source: dict[str, list[SkillResult]] = {}
-    for result in summary.results:
-        if result.status != "skipped-no-access":
-            continue
-        by_source.setdefault(str(result.details.get("source")), []).append(result)
-    for source, results in by_source.items():
-        reason = str(results[0].details.get("reason"))
-        remediation = results[0].details.get("remediation")
-        count = len(results)
-        plural = "s" if count != 1 else ""
-        missing_gh = (
-            "`gh`" in reason and "is not installed" in reason
-        ) or "github cli 2.90.0+" in reason.casefold()
-        if missing_gh:
-            next_step = (
-                "Install GitHub CLI 2.90.0+ from https://cli.github.com, "
-                f"authenticate with `gh auth login`, then run e.g. `{remediation}`."
-            )
-        else:
-            next_step = (
-                f"Get access to {source} (or authenticate with `gh auth login`), "
-                f"then run e.g. `{remediation}`."
-            )
-        typer.secho(
-            f"Note: skipped {count} optional managed skill{plural} from {source} — "
-            f"that repo isn't accessible with your GitHub credentials ({reason}). "
-            f"Coga works without them. To install later, {next_step}",
-            fg=typer.colors.YELLOW,
-        )
-
-
-def _print_rate_limited_skill_notes(summary: ManagedSkillSummary) -> None:
-    """One consolidated note per rate-limited source, not one warning per skill.
-
-    Unauthenticated `gh` shares GitHub's anonymous per-IP quota (60 req/hr),
-    so repeated inits — or one init behind office NAT — rate-limit every
-    optional skill at once. Re-running the install hits the same limit;
-    `gh auth login` is the fix, since authenticated requests get a much
-    higher quota.
-    """
-    by_source: dict[str, list[SkillResult]] = {}
-    for result in summary.results:
-        if result.status != "skipped-rate-limited":
-            continue
-        by_source.setdefault(str(result.details.get("source")), []).append(result)
-    for source, results in by_source.items():
-        reason = str(results[0].details.get("reason"))
-        count = len(results)
-        plural = "s" if count != 1 else ""
-        typer.secho(
-            f"Note: skipped {count} optional managed skill{plural} from {source} — "
-            f"GitHub's anonymous API rate limit was hit ({reason}). "
-            "Coga works without them. Authenticate with `gh auth login` "
-            "(authenticated requests get a much higher quota), then run e.g. "
-            f"`coga skill install {source} {results[0].name}`.",
-            fg=typer.colors.YELLOW,
-        )
-
 
 
 # Agents we wire skill discovery for. Each entry is the project-level dir

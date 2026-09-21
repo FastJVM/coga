@@ -207,21 +207,21 @@ coexist under `coga/skills/`:
 - **Installer-managed, flat and GitHub-backed** — `coga skill install` lays a
   Coga-managed skill down flat at `coga/skills/<ref>/` under its upstream ref
   name, so this repo also carries seven flat `google-agents-cli-*` directories,
-  declared in `src/coga/resources/managed-skills.toml`. That file is the list
-  of *optional GitHub refs `coga init` tries to fetch*, not the membership test
-  for the flat shape — and **init is the only reader**:
-  `install_managed_skills` is called from `commands/init.py` alone, and
-  `reconcile_managed_skills` is exercised only by tests. `update_skills` enumerates the skill directories
-  that already exist on disk and hands each one whose `SKILL.md` frontmatter
-  carries `gh skill`'s `metadata.github-repo` (`gh_skill_repo`, the one
-  gh-backed predicate `update_skills` and `status_skills` share) to `gh skill
-  update --dir coga/skills --all <ref>`, one call per skill; it never loads
-  the manifest. A
-  pack whose optional install failed at init (or that was later removed) is
-  therefore **not** restored by `coga skill update --all` or the weekly job —
-  it stays absent until someone reinstalls it explicitly — the directories
-  themselves carry no Coga provenance file, because `gh skill` keeps its own
-  metadata in the frontmatter. `gh skill update` prints no machine-readable
+  each installed by an explicit `coga skill install google/agents-cli <ref>`.
+  There is no manifest of them: `coga init` installs no skills (it makes no
+  `gh` call at all), and nothing in the package names a Google ref. **The
+  membership test for this shape is provenance, not a list**: a skill is
+  GitHub-backed exactly when its `SKILL.md` frontmatter carries `gh skill`'s
+  `metadata.github-repo` (`gh_skill_repo` in `skill_manager.py`, the one
+  gh-backed predicate `update_skills` and `status_skills` share). `update_skills`
+  enumerates the skill directories that already exist on disk and hands each
+  one that passes that predicate to `gh skill update --dir coga/skills --all
+  <ref>`, one call per skill. A pack that was never installed (or was later
+  removed) is therefore **not** installed or restored by `coga skill update
+  --all` or the weekly job — it stays absent until someone installs it
+  explicitly — and the directories themselves carry no Coga provenance file,
+  because `gh skill` keeps its own metadata in the frontmatter.
+  `gh skill update` prints no machine-readable
   result, so `classify_gh_update_output` reads the one line `gh` prints for
   the named skill into `updated` / `unchanged` / `fetch-failed` /
   `skipped-pinned`; the per-skill call is what makes every outcome a line
@@ -237,8 +237,8 @@ coexist under `coga/skills/`:
   `.coga-source.json` (`schema: coga.skill-source.v1`) recording
   `source_type: "url"`, the `source_url`, source/tree digests, an `include`
   allowlist, and `local_adaptation_notes`. `clarity/` is the checked-in
-  example, and it is deliberately **absent** from `managed-skills.toml`: an
-  operator installed it directly. Its refresh posture differs from the
+  example; an operator installed it directly, like every other installed
+  skill. Its refresh posture differs from the
   GitHub-backed form — `coga skill update` walks `.coga-source.json` in Coga's
   own code rather than delegating to `gh`. **The `include` allowlist is
   honored, not documentation** (since #776): `parse_include_allowlist` and
@@ -261,16 +261,16 @@ coexist under `coga/skills/`:
   third installer path
   and is updated by neither: `gh skill` records it as `local-path` and skips
   it, and Coga's URL updater does not consume that metadata. **The presence of
-  `.coga-source.json` — not an entry in `managed-skills.toml` — is what tells
-  you a flat directory is on Coga's own update path.**
+  `.coga-source.json` is what tells you a flat directory is on Coga's own
+  update path, just as `metadata.github-repo` is what puts one on `gh`'s.**
 - **Hand-vendored upstream skills, verbatim or adapted** — committed under a
   namespace and carrying their upstream source, license, and modification /
   refresh record in `ATTRIBUTION.md` or `NOTICE.txt` plus `LICENSE.txt`.
   `anthropic/skill-creator/` is a verbatim pinned copy;
   `browser/playwright/` is an adapted derivative of
-  `microsoft/playwright-cli` with a wrapper and local references. Neither is in
-  `managed-skills.toml` and neither carries `.coga-source.json`: no installer
-  placed them and none updates them.
+  `microsoft/playwright-cli` with a wrapper and local references. Neither
+  carries `metadata.github-repo` or `.coga-source.json`: no installer placed
+  them and none updates them.
   Refreshing a verbatim copy means re-copying the reviewed upstream revision;
   refreshing an adapted copy also means deliberately reapplying and reviewing
   its recorded local modifications. Preserve a standards-valid leaf `name:`
@@ -334,11 +334,10 @@ inside the installed `coga` package. It
 does the same for bundled reusable workflows and stateless bootstrap launch
 tickets. `coga/bootstrap/` is not materialized into working repos. Claude Code
 and Codex are pointed at the generated `coga/.agent-skills/` view, which
-exposes the same effective local-plus-bundled skill set. Optional Coga-owned
-domain skills are declared in `src/coga/resources/managed-skills.toml` and
-installed into `coga/skills/` by `coga init` only (`install_managed_skills`;
-`coga skill update` never reads the manifest, and `reconcile_managed_skills` has
-no production caller); they are not copied from the template tree.
+exposes the same effective local-plus-bundled skill set. Optional third-party
+domain skills (the Google agent packs among them) are not part of the package
+and are not installed by `coga init`: an operator installs each one explicitly
+with `coga skill install`, after which `coga skill update` keeps it current.
 
 ## Authoring bundled batteries
 
@@ -348,8 +347,8 @@ authored in the *source* tree under
 not in a live `coga/bootstrap/` working-tree mirror. The packaged resources
 are the source of truth and runtime resolvers read them directly after checking
 project-local overrides. Optional domain skills belong in a published skill
-source plus `src/coga/resources/managed-skills.toml`, not under the packaged
-template payload.
+source that operators install explicitly with `coga skill install`, not under
+the packaged template payload and not in any init-time manifest.
 
 **Editing a bundled workflow changes what *this* repo freezes, not only what
 downstream repos get.** `paths.resolve_workflow_path` is local-first: a live

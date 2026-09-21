@@ -9,7 +9,6 @@ import subprocess
 import sys
 import tomllib
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
@@ -21,9 +20,7 @@ from coga.cli import app
 from coga.commands import init as init_cmd
 from coga.commands import update as update_cmd
 from coga.config import ConfigError, load_config
-from coga.managed_skills import ManagedSkillError, ManagedSkillSummary
 from coga.notification import post
-from coga.skill_manager import SkillResult
 from coga.ticket import Ticket
 
 
@@ -249,27 +246,10 @@ def fake_vendor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     return package_templates
 
 
-@pytest.fixture(autouse=True)
-def fake_managed_skill_sync(monkeypatch: pytest.MonkeyPatch):
-    state = SimpleNamespace(
-        install_calls=[],
-        install_summary=ManagedSkillSummary(),
-    )
-
-    def fake_install(coga_os: Path) -> ManagedSkillSummary:
-        state.install_calls.append(coga_os)
-        return state.install_summary
-
-    monkeypatch.setattr(init_cmd, "install_managed_skills", fake_install)
-    return state
-
-
 # --- fresh init ---------------------------------------------------------------
 
 
-def test_init_into_empty_dir(
-    tmp_path: Path, fake_vendor, fake_managed_skill_sync
-) -> None:
+def test_init_into_empty_dir(tmp_path: Path, fake_vendor) -> None:
     target = _make_git_repo(tmp_path / "company")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
@@ -290,13 +270,11 @@ def test_init_into_empty_dir(
     ).is_symlink()
 
     assert "version = 1" in (target / "coga" / "coga.toml").read_text()
-    assert fake_managed_skill_sync.install_calls == [target / "coga"]
 
 
 def test_init_materializes_configured_contexts_at_checkout_root(
     tmp_path: Path,
     fake_vendor: Path,
-    fake_managed_skill_sync,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A scaffolded layout override moves and commits the initial contexts.
@@ -426,13 +404,13 @@ def test_failed_init_rolls_back_partial_coga_os(
     target = _make_git_repo(tmp_path / "company")
     coga_os = target / "coga"
 
-    def boom(_coga_os: Path):
+    def boom(_coga_os: Path, _name: str):
         # copy_fresh_templates has already created coga/ by now — that's the
         # half-built state the old code stranded.
         assert coga_os.exists(), "coga/ should exist before the failing step"
         raise exc
 
-    monkeypatch.setattr(init_cmd, "_install_managed_skills_or_exit", boom)
+    monkeypatch.setattr(init_cmd, "_stamp_user_into_delivered_tickets", boom)
 
     with pytest.raises(type(exc)):
         init_cmd._do_init(target, user="tester")
@@ -475,209 +453,111 @@ def test_packaged_log_has_no_baked_history() -> None:
     assert _PACKAGED_LOG.read_text() == ""
 
 
-def test_init_reports_installed_managed_skills(
-    tmp_path: Path,
-    fake_vendor,
-    fake_managed_skill_sync,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    target = _make_git_repo(tmp_path / "company")
+_INSTALLER_COMMANDS = frozenset({"gh", "pip", "pip3", "pipx", "uv", "npm", "npx"})
 
-    def fake_install(coga_os: Path) -> ManagedSkillSummary:
-        fake_managed_skill_sync.install_calls.append(coga_os)
-        skill = coga_os / "skills" / "coga" / "calendar-reminder"
-        skill.mkdir(parents=True)
-        (skill / "SKILL.md").write_text("---\nname: coga/calendar-reminder\n---\n")
-        return ManagedSkillSummary(
-            [
-                SkillResult(
-                    name="coga/calendar-reminder",
-                    source_type="github",
-                    status="installed",
-                    message="installed coga/calendar-reminder through gh skill",
-                    changed=True,
-                )
-            ]
+
+def _spy_subprocess(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
+    """Record every argv `subprocess.run` sees during a real init.
+
+    Patched on the `subprocess` module itself so the spy catches every caller
+    — `commands/init.py`, `skill_manager.py`, and anything they reach — not
+    just the one module under test. `git` still runs for real.
+    """
+    calls: list[list[str]] = []
+    real_run = subprocess.run
+
+    def spy(args, *a, **kw):
+        argv = [str(part) for part in args] if isinstance(args, (list, tuple)) else [str(args)]
+        calls.append(argv)
+        return real_run(args, *a, **kw)
+
+    monkeypatch.setattr(subprocess, "run", spy)
+    return calls
+
+
+def _installer_calls(calls: list[list[str]]) -> list[list[str]]:
+    """The argvs that would install software: an installer CLI, or `python -m
+    pip` in any interpreter spelling."""
+    hits = []
+    for argv in calls:
+        if not argv:
+            continue
+        head = Path(argv[0]).name
+        if head in _INSTALLER_COMMANDS:
+            hits.append(argv)
+        elif "-m" in argv and argv[argv.index("-m") + 1 :][:1] in (["pip"], ["pipx"]):
+            hits.append(argv)
+    return hits
+
+
+def _path_without_gh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A `PATH` holding only `git`, so `gh` is genuinely absent."""
+    git = shutil.which("git")
+    assert git is not None, "these tests need a real git"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "git").symlink_to(git)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    assert shutil.which("gh") is None
+
+
+@pytest.mark.parametrize("existing_project", [False, True])
+def test_fresh_init_installs_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing_project: bool
+) -> None:
+    """A fresh `coga init` — empty dir and existing project alike — scaffolds
+    from the real packaged templates and makes no install call of any kind:
+    no `gh skill install`, no Google agent skills, no pip/uv. It emits nothing
+    about optional or skipped installs either, so the first minute is quiet.
+    Bundled batteries still resolve and the agent skill view is still wired;
+    Google packs remain one explicit `coga skill install` away."""
+    _path_without_gh(tmp_path, monkeypatch)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    target = tmp_path / "company"
+    subprocess.run(["git", "init", "-q", "-b", "main", str(target)], check=True)
+    subprocess.run(
+        ["git", "-C", str(target), "config", "user.email", "test@example.com"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(target), "config", "user.name", "Coga Test"], check=True
+    )
+    if existing_project:
+        (target / "README.md").write_text("# an existing project\n")
+        (target / "src").mkdir()
+        (target / "src" / "app.py").write_text("print('hi')\n")
+
+    for name in ("install_github_skill", "install_url_skill"):
+        monkeypatch.setattr(
+            f"coga.skill_manager.{name}",
+            lambda *a, **kw: pytest.fail("init must not install skills"),
         )
-
-    fake_managed_skill_sync.install_summary = ManagedSkillSummary()
-    monkeypatch.setattr(init_cmd, "install_managed_skills", fake_install)
+    calls = _spy_subprocess(monkeypatch)
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    assert "Managed skills: installed=1" in result.output
-    assert (
-        target / "coga" / ".agent-skills" / "coga" / "calendar-reminder"
-    ).is_symlink()
-    assert fake_managed_skill_sync.install_calls == [target / "coga"]
-
-
-def test_init_prints_one_compact_warning_for_old_gh_skips(
-    tmp_path: Path,
-    fake_vendor,
-    fake_managed_skill_sync,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    target = _make_git_repo(tmp_path / "company")
-
-    def old_gh_result(name: str) -> SkillResult:
-        return SkillResult(
-            name=name,
-            source_type="github",
-            status="skipped-old-gh",
-            message=init_cmd.GH_SKILL_REQUIRED,
-            details={
-                "source": "google/agents-cli",
-                "required": False,
-                "remediation": f"coga skill install google/agents-cli {name}",
-            },
-        )
-
-    fake_managed_skill_sync.install_summary = ManagedSkillSummary(
-        [old_gh_result("tools/one"), old_gh_result("tools/two")]
-    )
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-
-    assert "Managed skills: skipped-old-gh=2" in result.output
-    assert "Warning: skipped 2 optional managed skills" in result.output
-    assert "  Skipped: tools/one, tools/two" in result.output
-    # One compact upgrade line, not one warning per skill.
-    assert result.output.count("GitHub CLI 2.90.0+") == 1
-    assert "failed" not in result.output
-
-
-def test_init_notes_skipped_no_access_managed_skills(
-    tmp_path: Path,
-    fake_vendor,
-    fake_managed_skill_sync,
-) -> None:
-    target = _make_git_repo(tmp_path / "company")
-    fake_managed_skill_sync.install_summary = ManagedSkillSummary(
-        [
-            SkillResult(
-                name=f"tools/{name}",
-                source_type="github",
-                status="skipped-no-access",
-                message=(
-                    "optional skill skipped — owner/private is not accessible "
-                    "with your GitHub credentials (HTTP 404: Not Found)"
-                ),
-                details={
-                    "source": "owner/private",
-                    "required": False,
-                    "remediation": f"coga skill install owner/private tools/{name}",
-                    "reason": "HTTP 404: Not Found",
-                },
-            )
-            for name in ("one", "two")
-        ]
-    )
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-
-    assert "Managed skills: skipped-no-access=2" in result.output
-    # One consolidated note per source — not a warning per skill.
-    assert (
-        "Note: skipped 2 optional managed skills from owner/private" in result.output
-    )
-    assert "Coga works without them" in result.output
-    assert "gh auth login" in result.output
-    assert "Warning: optional managed skill" not in result.output
-
-
-def test_init_notes_rate_limited_managed_skills(
-    tmp_path: Path,
-    fake_vendor,
-    fake_managed_skill_sync,
-) -> None:
-    target = _make_git_repo(tmp_path / "company")
-    reason = "HTTP 403: API rate limit exceeded for 203.0.113.9."
-    fake_managed_skill_sync.install_summary = ManagedSkillSummary(
-        [
-            SkillResult(
-                name=f"tools/{name}",
-                source_type="github",
-                status="skipped-rate-limited",
-                message=(
-                    "optional skill skipped — GitHub API rate limit reached "
-                    f"while fetching from google/agents-cli ({reason})"
-                ),
-                details={
-                    "source": "google/agents-cli",
-                    "required": False,
-                    "remediation": "gh auth login",
-                    "reason": reason,
-                },
-            )
-            for name in ("one", "two")
-        ]
-    )
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-
-    assert "Managed skills: skipped-rate-limited=2" in result.output
-    # One consolidated note per source — not a warning per skill.
-    assert (
-        "Note: skipped 2 optional managed skills from google/agents-cli"
-        in result.output
-    )
-    assert "Coga works without them" in result.output
-    assert "gh auth login" in result.output
-    assert "Warning: optional managed skill" not in result.output
-
-
-def test_init_tells_user_to_install_missing_gh_for_managed_skills(
-    tmp_path: Path,
-    fake_vendor,
-    fake_managed_skill_sync,
-) -> None:
-    target = _make_git_repo(tmp_path / "company")
-    fake_managed_skill_sync.install_summary = ManagedSkillSummary(
-        [
-            SkillResult(
-                name="tools/example",
-                source_type="github",
-                status="skipped-no-access",
-                message="optional skill skipped",
-                details={
-                    "source": "owner/private",
-                    "required": False,
-                    "remediation": "coga skill install owner/private tools/example",
-                    "reason": "GitHub CLI (`gh`) is not installed",
-                },
-            )
-        ]
-    )
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-
-    assert result.exit_code == 0, result.output
-    assert "Install GitHub CLI 2.90.0+ from https://cli.github.com" in result.output
-    assert "authenticate with `gh auth login`" in result.output
-
-
-def test_init_fails_loud_when_required_managed_skill_fails(
-    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    target = _make_git_repo(tmp_path / "company")
-
-    def fail_required(_: Path) -> ManagedSkillSummary:
-        raise ManagedSkillError(
-            "Required managed skill `coga/core` failed from example/repo: missing gh\n"
-            "Remediation: coga skill install example/repo coga/core"
-        )
-
-    monkeypatch.setattr(init_cmd, "install_managed_skills", fail_required)
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 2
-    assert "Required managed skill `coga/core` failed from example/repo" in result.output
-    assert "Remediation: coga skill install example/repo coga/core" in result.output
+    assert _installer_calls(calls) == []
+    assert any(Path(argv[0]).name == "git" for argv in calls)
+    skills = target / "coga" / "skills"
+    assert sorted(p.name for p in skills.iterdir()) == ["_template", "direct"]
+    assert not list(skills.glob("google-agents-cli-*"))
+    out = result.output.casefold()
+    for noise in ("managed skill", "optional skill", "gh auth login", "rate limit"):
+        assert noise not in out, result.output
+    # "Skipped the onboarding ticket" is a real line; a skipped *install* is not.
+    assert not [
+        line for line in out.splitlines() if "skip" in line and "skill" in line
+    ], result.output
+    assert "Initialized coga repo" in result.output
+    # Bundled resolution and agent wiring are untouched by the quiet start.
+    assert (target / "coga" / ".agent-skills" / "retro" / "done-ticket").is_symlink()
+    assert (target / ".claude" / "skills" / "coga").is_symlink()
+    assert (target / ".codex" / "skills" / "coga").is_symlink()
+    assert (target / "coga" / "recurring" / "dream" / "ticket.md").is_file()
+    if existing_project:
+        assert "Skipped the onboarding ticket" in result.output
+        assert (target / "README.md").read_text() == "# an existing project\n"
 
 
 def test_init_writes_captured_user_name_to_local_toml(
@@ -772,14 +652,12 @@ def test_init_refuses_existing_coga_os(tmp_path: Path, fake_vendor) -> None:
     assert not (target / ".claude").exists()
 
 
-def test_init_sets_up_clone_of_initialized_repo(
-    tmp_path: Path, fake_vendor, fake_managed_skill_sync
-) -> None:
+def test_init_sets_up_clone_of_initialized_repo(tmp_path: Path, fake_vendor) -> None:
     """The clone shape — `coga.toml` present, `coga.local.toml` absent — is
     not a re-init. `coga init --user NAME` writes the gitignored machine-local
     half (`coga.local.toml`, agent skill symlinks, the `.agent-skills/` view),
     exits 0, and commits nothing: nothing under the committed tree changes and
-    the fresh-init steps (template copy, managed skills, git commit) never run."""
+    the fresh-init steps (template copy, git commit) never run."""
     target = _make_initialized_clone(tmp_path / "clone")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
@@ -794,13 +672,12 @@ def test_init_sets_up_clone_of_initialized_repo(
     assert (target / ".claude" / "skills" / "coga").is_symlink()
     assert (target / ".codex" / "skills" / "coga").is_symlink()
     assert (target / "coga" / ".agent-skills").is_dir()
-    # The committed tree is untouched: no template copy, no managed-skill
-    # install, no agent guides, no commit.
+    # The committed tree is untouched: no template copy, no agent guides, no
+    # commit.
     assert (target / "coga" / "coga.toml").read_text() == "version = 1\n"
     assert not (target / "coga" / "tasks").exists()
     assert not (target / "CLAUDE.md").exists()
     assert not (target / ".gitignore").exists()
-    assert fake_managed_skill_sync.install_calls == []
     assert "Initialized coga repo" not in result.output
 
 
@@ -2597,9 +2474,9 @@ def test_dep_check_ignores_missing_agent_clis(
 def test_dep_check_ignores_missing_gh(
     monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`gh` is not required at init (managed skill installs degrade to a
-    warn-with-hint skip, and the open-pr step / autoclose sweep fail loud at
-    their point of need), so a missing `gh` must not crash init."""
+    """`gh` is not required at init (init installs no skills; `coga skill
+    install`, the open-pr step, and the autoclose sweep fail loud at their
+    point of need), so a missing `gh` must not crash init."""
     monkeypatch.setattr("coga.commands.init.shutil.which", _which_missing({"gh"}))
     _real_dep_check()  # must not raise
 
