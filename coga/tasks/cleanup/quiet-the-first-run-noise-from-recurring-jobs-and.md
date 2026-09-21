@@ -222,6 +222,7 @@ review-design.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/852
 branch: quiet-first-run
 worktree: /home/n/Code/codex/coga
 Single-checkout layout: the primary checkout on the feature branch; no linked
