@@ -8,7 +8,7 @@ GKE uses **container-based deployment** to a managed GKE Autopilot cluster. Your
 
 ## Dockerfile
 
-Scaffolded projects include a `Dockerfile` using single-stage build with `uv` for dependency management — same as Cloud Run. Check the project root `Dockerfile` for the exact configuration.
+Scaffolded projects include a `Dockerfile` at the project root — same as Cloud Run. Python uses a single-stage build with `uv` for dependency management; Go uses a multi-stage build that compiles the binary in a `golang` image and copies it into a slim runtime image. Check the project root `Dockerfile` for the exact configuration.
 
 ## Kubernetes Resources (Terraform-Managed)
 
@@ -50,11 +50,11 @@ The concrete session URI for `cloud_sql` / `agent_platform_sessions` is now buil
 
 Cloud SQL in GKE uses a **proxy sidecar container** in the pod (unlike Cloud Run which uses a Unix socket volume mount). The sidecar is configured in the `kubernetes_deployment_v1` Terraform resource.
 
-## FastAPI Endpoints
+## Served Endpoints
 
-Every scaffolded Python project serves `uvicorn app.fast_api_app:app` on port 8080; which routes that app exposes depends on the framework, so check `app/fast_api_app.py`.
+A scaffolded Python project serves `uvicorn app.fast_api_app:app` on port 8080; a Go project serves the binary built from `main.go`. Which routes that app exposes depends on the framework, so check `app/fast_api_app.py` or `main.go`.
 
-> **ADK projects.** The app serves the ADK HTTP surface (`/run_sse`, `/apps/...`) plus A2A routes under `/a2a/{app_name}` (JSON-RPC + agent card — A2A is built into every ADK agent).
+> **ADK projects.** The app serves the ADK HTTP surface (`/run_sse`, `/apps/...`) plus A2A (JSON-RPC + agent card — A2A is built into every ADK agent). A2A differs between languages — Python serves both under `/a2a/{app_name}`; Go serves the agent card at the root (`/.well-known/agent-card.json`) and JSON-RPC under `/a2a/` (`/a2a/v1/invoke`, plus `/a2a/invoke` for the v0 protocol).
 
 ## Testing Your Deployed Agent
 

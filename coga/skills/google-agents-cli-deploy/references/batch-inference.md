@@ -2,11 +2,13 @@
 
 Invoke your agent as a BigQuery Remote Function for batch inference over table rows. This requires a custom `POST /` endpoint since BQ cannot use URL paths.
 
-> **ADK projects.** The BigQuery request/response contract and the Terraform below apply to any framework; the handler code uses the ADK `Runner`, so swap in your framework's invocation.
+> **ADK projects.** The BigQuery request/response contract and the Terraform below apply to any framework; both handlers invoke the agent through the ADK `Runner`, so swap in your framework's invocation. For the `Runner` API, see `/google-agents-cli-adk-code`.
 
-> For event-driven triggers (Pub/Sub, Eventarc) on ADK, use its native `trigger_sources` — see `/google-agents-cli-adk-code`.
+> For event-driven triggers (Pub/Sub, Eventarc): ADK Python has native `trigger_sources`. ADK Go has `pubsub` and `eventarc` sub-launchers, which the scaffolded entrypoint does not start. See: `/google-agents-cli-adk-code`
 
 ## BigQuery Remote Function
+
+### Python handler
 
 BQ sends `{"calls": [["row1"], ...], "caller": "..."}`, expects `{"replies": ["...", ...]}` in same order. BQ **cannot use URL paths** — register at `POST /`.
 
@@ -55,7 +57,61 @@ async def trigger_bq(request: Request):
     return {"replies": list(replies)}
 ```
 
-**BQ remote function Terraform:**
+### Go handler
+
+A Go project has no FastAPI app to hang a route on. Serve the BigQuery endpoint from your own mux
+with `adkrest.Server` mounted beside it — the composition upstream's
+[`examples/rest`](https://github.com/google/adk-go/tree/main/examples/rest) uses, and the one
+`/google-agents-cli-adk-code` (`references/adk-go.md`) covers in full.
+
+```go
+restServer, _ := adkrest.NewServer(adkrest.ServerConfig{
+	AgentLoader:     agent.NewSingleLoader(rootAgent),
+	SessionService:  session.InMemoryService(),
+	SSEWriteTimeout: 120 * time.Second,
+})
+
+mux := http.NewServeMux()
+
+// "POST /{$}" matches the root path exactly, so it does not shadow the ADK
+// routes mounted at "/" below, and registration order does not matter.
+mux.HandleFunc("POST /{$}", func(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Calls [][]any `json:"calls"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	replies := make([]string, 0, len(req.Calls))
+	for _, call := range req.Calls {
+		prompt := ""
+		if len(call) > 0 {
+			prompt = fmt.Sprint(call[0])
+		}
+		// Invoke the agent here via runner.Runner; see /google-agents-cli-adk-code.
+		replies = append(replies, prompt)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"replies": replies})
+})
+
+mux.Handle("/", restServer)
+http.ListenAndServe(addr, mux)
+```
+
+This replaces the launcher, so `webui` and the keyword CLI go away; mount `server/adka2a` and
+`server/agentengine` on the same mux if you need them.
+
+Add the package to the image too — the generated `Dockerfile` copies **named** directories, so a new
+one is absent from the build context and the build fails with `package <mod>/<pkg> is not in std`:
+
+```dockerfile
+COPY bqremote/ ./bqremote/
+```
+
+### BQ remote function Terraform:
+
 ```hcl
 resource "google_bigquery_routine" "my_fn" {
   routine_type    = "SCALAR_FUNCTION"

@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-deploy
-    github-ref: refs/tags/v1.5.0
+    github-ref: refs/tags/v1.6.1
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 6b6b0faf453d1f7d1b82251b8c806c946ad488b4
+    github-tree-sha: 2696cf289b4b490a18a80eda0f349bd5e871412a
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.5.0
+    version: 1.6.1
 name: google-agents-cli-deploy
 ---
 # Deployment Guide
@@ -101,7 +101,8 @@ agents-cli infra single-project
 | `--service-name` | Override the deployed service name (Cloud Run service or Agent Runtime display name); defaults to the project name. If you override it, consider updating your Terraform and CI (if present) — they name resources from the project name. Not supported for GKE, whose names are fully owned by Terraform. | Agent Runtime, Cloud Run |
 | `--secrets` | Comma-separated `ENV=SECRET` or `ENV=SECRET:VERSION` pairs | Agent Runtime, Cloud Run |
 | `--update-env-vars` | Comma-separated `KEY=VALUE` environment variables | Agent Runtime, Cloud Run |
-| `--agent-identity` | Enable [agent identity](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/agent-identity) (Preview) | Agent Runtime |
+| `--agent-identity` | Enable [Agent Identity](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/agent-identity) | Agent Runtime |
+| `--no-agent-identity` | Disable Agent Identity. Passing neither `--agent-identity` nor `--no-agent-identity` defaults to no Agent Identity, when a new agent is created, or keeps the current identity type on subsequent re-deployments. | Agent Runtime |
 | `--network-attachment` | Network attachment resource name for [PSC interface](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/private-service-connect-interface) (enables private VPC connectivity) | Agent Runtime |
 | `--dns-peering-domain` | DNS peering domain suffix, e.g. `my-internal.corp.` (requires `--network-attachment`) | Agent Runtime |
 | `--dns-peering-project` | Project ID hosting the Cloud DNS managed zone for DNS peering (requires `--network-attachment`) | Agent Runtime |
@@ -134,22 +135,22 @@ Run `agents-cli deploy --help` for the full flag reference.
 
 ## Sizing a deployment
 
-Defaults (same on Agent Runtime and Cloud Run): `--cpu 1`, `--memory 4Gi`, `--concurrency 8`, `--min-instances 0`, `--max-instances 10`. The generated `service.tf` matches, except it pins `min_instances = 1` so production deployments don't experience cold starts.
+Defaults (same on Agent Runtime and Cloud Run): `--cpu 1`, `--memory 4Gi`, `--concurrency 8`, `--min-instances 0`, `--max-instances 10`. The generated `service.tf` matches, except it pins `min_instances = 1` so production deployments don't experience cold starts. The recommended values were tuned against Python agents, so treat them as a starting point and tune them with load tests (see below).
 
 `agents-cli deploy` scales to zero by default so idle dev and demo agents don't hold capacity. Pass `--min-instances 1` (or deploy via Terraform) when you need a warm instance.
 
 The params are coupled — scale them together:
 
-- **One async process — scale out, not up.** The container runs a single `uvicorn` process that serves many requests concurrently on the event loop, so throughput comes from `--concurrency` and horizontal scale (`--max-instances`), not extra worker processes. Raise `--cpu` only if profiling shows the event loop or synchronous tool calls are CPU-bound.
+- **One process — scale out, not up.** The container runs a single server process handling many requests concurrently, so throughput comes from `--concurrency` and horizontal scale (`--max-instances`), not from extra worker processes. Raise `--cpu` only when profiling shows real CPU saturation rather than time spent waiting on the model.
 - **Memory bounds concurrency.** Each concurrent request keeps its full working set (context window, history, RAG chunks, response buffer) in memory while it waits on the model, so peak ≈ base + `concurrency × per-request memory`. Memory — not CPU — is the first limit, so raising `--concurrency` without `--memory` is the main OOM cause.
-- **Concurrency default is conservative.** An async worker can serve many concurrent requests while it waits on the model, but per-request memory is agent-specific, so `8` protects a memory-heavy (RAG/multimodal) agent. Light agents can raise it to 16–32+ after load-testing. See [Underutilized asynchronous workers](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/optimize-and-scale#underutilized-workers).
+- **Concurrency default is conservative.** A worker can serve many concurrent requests while it waits on the model, but per-request memory is agent-specific, so `8` protects a memory-heavy (RAG/multimodal) agent. Light agents can raise it to 16–32+ after load-testing. See [Underutilized asynchronous workers](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/optimize-and-scale#underutilized-workers).
 
 ```bash
 # 4x throughput: scale every param, not just one
 agents-cli deploy --cpu 4 --concurrency 16 --memory 16Gi --max-instances 20
 ```
 
-**Tune with the scaffolded load test** (`tests/load_test/`, run locally or in the CI/CD staging pipeline): drive load, watch *max* latency and memory/OOM restarts, then adjust — high max latency → raise concurrency (+ workers/cpu); OOM → raise memory or lower concurrency.
+**Tune with the scaffolded load test** (`tests/load_test/` in a Python project, `e2e/load_test/` in a Go one; run locally or in the CI/CD staging pipeline): drive load, watch *max* latency and memory/OOM restarts, then adjust — high max latency → raise concurrency (+ workers/cpu); OOM → raise memory or lower concurrency.
 
 > On **GKE** these sizing flags are rejected — size via the Terraform manifests + HorizontalPodAutoscaler under `deployment/terraform/`.
 
@@ -171,7 +172,7 @@ For detailed infrastructure configuration (scaling defaults, Dockerfile, FastAPI
 
 ## Agent Runtime Specifics
 
-Agent Runtime is a managed Vertex AI service for deploying agents as containers. Uses container-based deployment: `agents-cli deploy` packages your project and Agent Engine builds the image from your project's `Dockerfile` (required) — the same `fast_api_app:app` image that serves Cloud Run and GKE.
+Agent Runtime is a managed Vertex AI service for deploying agents as containers. Uses container-based deployment: `agents-cli deploy` packages your project and Agent Engine builds the image from your project's `Dockerfile` (required) — the same image that serves Cloud Run and GKE.
 
 > **No `gcloud` CLI exists for Agent Runtime.** Deploy via `agents-cli deploy`. Query via the Python `agentplatform.Client` SDK.
 
@@ -255,7 +256,7 @@ echo -n "NEW_API_KEY" | gcloud secrets versions add MY_SECRET_NAME --data-file=-
 agents-cli deploy --secrets "API_KEY=my-api-key,DB_PASS=db-password:2"
 ```
 
-Format: `ENV_VAR=SECRET_ID` or `ENV_VAR=SECRET_ID:VERSION` (defaults to latest). Access in code via `os.environ.get("API_KEY")`.
+Format: `ENV_VAR=SECRET_ID` or `ENV_VAR=SECRET_ID:VERSION` (defaults to latest).
 
 ---
 
@@ -351,7 +352,7 @@ For custom infrastructure patterns, consult `references/terraform-patterns.md` f
 | 403 right after granting IAM role | IAM propagation is not instant — wait a couple of minutes before retrying. Don't keep re-granting the same role |
 | Resource seems missing but Terraform created it | Run `terraform state list` to check what Terraform actually manages. Resources created via `null_resource` + `local-exec` (e.g., BQ linked datasets) won't appear in `gcloud` CLI output |
 | Deployment failed or agent not responding | Check Cloud Logging: `gcloud logging read "resource.type=cloud_run_revision AND resource.labels.service_name=SERVICE" --project=PROJECT --limit=50 --format="table(timestamp,severity,textPayload)"` for Cloud Run, or `gcloud logging read "resource.type=aiplatform.googleapis.com/ReasoningEngine" --project=PROJECT --limit=50` for Agent Runtime |
-| Agent returns errors after deploy | Open Cloud Logging in Console → filter by service name (Cloud Run) or reasoning engine resource (Agent Runtime) → look for Python tracebacks or permission errors in recent log entries |
+| Agent returns errors after deploy | Open Cloud Logging in Console → filter by service name (Cloud Run) or reasoning engine resource (Agent Runtime) → look for stack traces or permission errors in recent log entries |
 
 ---
 
@@ -378,8 +379,7 @@ and [Route Agent Runtime traffic through Agent Gateway](https://docs.cloud.googl
 Once a gateway exists, `agents-cli deploy` binds an agent to it with `--agent-gateway-egress`
 and/or `--agent-gateway-ingress`, each taking a full resource name
 (`projects/PROJECT/locations/REGION/agentGateways/GATEWAY`). Only Agent Runtime deployment is
-supported, and the agent must have Agent Identity (the `--agent-identity` flag), which can only
-be set when the agent is created.
+supported, and the agent must have Agent Identity.
 
 An egress gateway performs TLS decryption and inspection on outbound agent communications,
 so the image must trust the gateway's root CA. That setup is opt-in at scaffold time. If you're
@@ -416,7 +416,7 @@ constraints.
 ## Related Skills
 
 - `/google-agents-cli-workflow` — Development workflow, coding guidelines, and operational rules
-- `/google-agents-cli-adk-code` — ADK Python API quick reference for writing agent code
+- `/google-agents-cli-adk-code` — ADK API quick reference for writing agent code
 - `/google-agents-cli-eval` — Evaluation methodology, dataset schema, and the eval-fix loop
 - `/google-agents-cli-scaffold` — Project creation and enhancement with `agents-cli scaffold create` / `scaffold enhance`
 - `/google-agents-cli-observability` — Cloud Trace, logging, BigQuery Analytics, and third-party integrations

@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-workflow
-    github-ref: refs/tags/v1.5.0
+    github-ref: refs/tags/v1.6.1
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 0251db1fa853aaabf1affa7586707c945a743737
+    github-tree-sha: d3c52221b23ff02ce2da19c8c7679abb616d8334
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.5.0
+    version: 1.6.1
 name: google-agents-cli-workflow
 ---
 # Agent Development Workflow & Guidelines
@@ -22,8 +22,8 @@ name: google-agents-cli-workflow
 > **Before writing agent code, make sure a scaffolded project exists (see Phase 2).** Skipping scaffolding loses eval boilerplate, CI/CD config, and project conventions.
 
 
-> Requires: google-agents-cli ~= 1.5.0
-> If version is behind, run: uv tool install "google-agents-cli~=1.5.0"
+> Requires: google-agents-cli ~= 1.6.1
+> If version is behind, run: uv tool install "google-agents-cli~=1.6.1"
 
 > Check version: agents-cli info
 > [Install uv](https://docs.astral.sh/uv/getting-started/installation/index.md) first if needed.
@@ -35,7 +35,7 @@ Re-read the relevant skill **before** each phase — not after you've already st
 | Phase | Skill | When to load |
 |-------|-------|--------------|
 | 0 — Understand | — | No skill needed — read `.agents-cli-spec.md` if present, else clarify goals with the user |
-| 1 — Study recipes | `/google-agents-cli-adk-code` | **Load it during design** — its `references/samples.md` topic index maps a need to the recipe that implements it. Yes, this early: the catalog lives there. |
+| 1 — Study recipes | `/google-agents-cli-adk-code` | **Load it during design**, before scaffolding. Python: the `references/samples.md` topic index maps a need to the recipe that implements it. Go: the upstream [examples/](https://github.com/google/adk-go/tree/main/examples) are the equivalent. Yes, load this early. |
 | 2 — Scaffold | `/google-agents-cli-scaffold` | Before creating or enhancing a project |
 | 3 — Build | `/google-agents-cli-adk-code` | Before writing agent code — API patterns, tools, callbacks, state |
 | 4 — Evaluate | `/google-agents-cli-eval` | Before running any eval — dataset schema, metrics, eval-fix loop |
@@ -106,9 +106,17 @@ Once you have a clear understanding, proceed to **Phase 1**.
 >
 > This list covers the same capabilities as the topic index in `/google-agents-cli-adk-code` → `references/samples.md`. If you extend one, extend the other.
 
-**Load `/google-agents-cli-adk-code` now** — the catalog lives there, at `references/samples.md`. Load it even though nothing is scaffolded and you are not writing code yet; "wrong phase for the code skill" is the rationalisation that makes agents skip this step, and that skill's *Prerequisites for writing code* does not apply to you. Look each capability the design calls for up in its **topic index**. It maps needs (retrieval, sandboxed execution, memory, approval gates, guardrails, per-user credentials, scheduling) to the recipe that teaches them, and shows how to clone one. Multiple recipes can match — clone and study all that are relevant, starting with each one's `AGENTS.md`.
+**Load `/google-agents-cli-adk-code` now**.Load it even though nothing is scaffolded and you are not writing code yet; "wrong phase for the code skill" is the rationalisation that makes agents skip this step, and that skill's *Prerequisites for writing code* does not apply to you.
 
-If no recipe matches, proceed to Phase 2. But first — are you sure? Re-read the user's request and re-check the topic index in `/google-agents-cli-adk-code`. Skipping a matching recipe means rebuilding patterns that already exist, usually worse.
+Look up each capability the design calls for. **ADK Python:** the **topic index** in
+`references/samples.md` maps needs (retrieval, sandboxed execution, memory, approval gates,
+guardrails, per-user credentials, scheduling) to the recipe that teaches them and shows how to
+clone one. **ADK Go:** there is no references catalog — read `references/adk-go.md` for the API and
+the upstream [`examples/`](https://github.com/google/adk-go/tree/main/examples).
+
+Multiple recipes can match — clone and study all that are relevant, starting with each one's `AGENTS.md`.
+
+If no recipe matches, proceed to Phase 2. But first — are you sure? Re-read the user's request and re-check the topic index for your language. Skipping a matching recipe means rebuilding patterns that already exist, usually worse.
 
 > **IMPORTANT — Exit criteria:** After studying a recipe, ask yourself: can I apply anything from it to help me deliver the design? Note what you'll reuse before moving on. Do NOT proceed until you've answered this.
 
@@ -136,7 +144,7 @@ If the user asks for interactive testing, suggest `agents-cli playground` — it
 
 For ADK API patterns and code examples, use `/google-agents-cli-adk-code`.
 
-> **Smoke-test only here — do not write behavioral pytest.** LLM output is non-deterministic; behavioral checks belong in eval (Phase 4), not pytest. Use `agents-cli run "prompt"` for quick checks.
+> **Smoke-test only here — do not write behavioral unit tests.** LLM output is non-deterministic; behavioral checks belong in eval (Phase 4), not in `pytest` or `go test`. Use `agents-cli run "prompt"` for quick checks.
 
 ### Provision recipe infrastructure (if you adapted one)
 
@@ -154,12 +162,12 @@ It contains the dataset schema, config format, and critical gotchas. Do NOT skip
 
 **Do NOT skip this phase.** After building the agent, you MUST proceed to evaluation.
 
-**`uv run pytest` vs `agents-cli eval` — know the difference:**
-- **`uv run pytest`** — Tests *code correctness*: imports work, functions return expected types, API contracts hold. Does NOT test whether the agent behaves well.
+**Unit tests vs `agents-cli eval` — know the difference:**
+- **Unit tests** (`uv run pytest` for Python, `go test ./...` for Go) — Tests *code correctness*: imports work, functions return expected types, API contracts hold. Does NOT test whether the agent behaves well.
 - **`agents-cli eval`** — Tests *agent behavior*: response quality, tool usage, persona consistency, safety compliance. This is what validates your agent actually works.
-- **`agents-cli run "prompt"`** — Quick one-off smoke test during development. If testing multiple prompts use the `--start-server` option to persist the local server, which reduces overhead for repeated calls and allows resuming local sessions via `--session-id`. Use this for fast iteration, not pytest.
+- **`agents-cli run "prompt"`** — Quick one-off smoke test during development. If testing multiple prompts use the `--start-server` option to persist the local server, which reduces overhead for repeated calls and allows resuming local sessions via `--session-id`. Use this for fast iteration, not unit tests.
 
-**NEVER write pytest tests that check LLM response content** (e.g., asserting pirate keywords appear, checking if the agent mentions allergies). LLM outputs are non-deterministic. Use eval with LLM-as-judge criteria instead.
+**NEVER write unit tests that check LLM response content** (e.g., asserting pirate keywords appear, checking if the agent mentions allergies). LLM outputs are non-deterministic. Use eval with LLM-as-judge criteria instead.
 
 1. **Start small**: Begin with 1-2 sample eval cases, not a full suite
 2. Run evaluations: `agents-cli eval run` (chains `generate` + `grade`). For debugging or custom trace locations, use the two-step form: `agents-cli eval generate` then `agents-cli eval grade`.
@@ -234,7 +242,7 @@ Before finalizing any code replacement, verify the following:
   ```python
   root_agent = Agent(
       name="recipe_suggester",  # OK, related to new purpose
-      model="gemini-3.7-flash",  # PRESERVED
+      model="gemini-3.8-flash",  # PRESERVED
       instruction="You are a recipe suggester."  # OK, the direct target
   )
   ```
@@ -299,7 +307,7 @@ When you need specific infrastructure files (Terraform, CI/CD, Dockerfile) but d
 
 | File | Contents |
 |------|----------|
-| `references/internals.md` | Underlying tools and commands that `agents-cli` wraps (adk, pytest, ruff, uvicorn) |
+| `references/internals.md` | Underlying tools and commands that `agents-cli` wraps, per language (Python: adk, uv, ruff; Go: adk-go, go, golangci-lint) |
 | `references/spec-template.md` | `.agents-cli-spec.md` template and optional sections |
 | `references/brainstorming.md` | Phase 0 design-dialogue playbook (one-at-a-time Q&A, approaches, gates) |
 | `references/terminology.md` | Product-name → CLI-value mapping |

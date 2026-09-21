@@ -6,6 +6,9 @@
 ## Overview
 Describe the agent's purpose and how it works.
 
+## Language
+`python` or `go`.
+
 ## Example Use Cases
 Concrete examples with expected inputs and outputs.
 

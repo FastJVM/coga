@@ -30,8 +30,8 @@ When unsure, start light and escalate as complexity surfaces.
   your first reply.** Jumping straight to a finished spec is the most common failure — it skips the
   dialogue this phase exists for. (Exceptions: a trivial agent, or a genuinely non-interactive run.)
 - Prefer multiple-choice questions — they are easier to answer than open-ended ones.
-- Cover the Phase 0 topics (problem, tools/APIs + auth, safety, deployment, plus the context-based
-  ones in `SKILL.md`), but follow the user's lead rather than a fixed script.
+- Cover the Phase 0 topics (problem, tools/APIs + auth, safety, deployment, implementation
+  language, plus the context-based ones in `SKILL.md`), but follow the user's lead rather than a fixed script.
 - YAGNI: prune features that don't serve the stated purpose.
 
 ## When you can't ask (non-interactive, sparse, or deferred input)
@@ -60,11 +60,13 @@ or override. Typical axes:
 - **Tool / integration choices** — which APIs or data sources, and how auth is handled.
 - **Capabilities the scaffold doesn't ship** — retrieval ("search / look up over our docs, incidents,
   tickets, or knowledge base"), sandboxed shell or code execution, memory across sessions, approval
-  gates before risky actions, OAuth consent, safety guardrails, event-driven or scheduled runs. Each
-  is a **clone-and-study recipe, never a scaffold flag**: look the need up in the topic index in
-  `/google-agents-cli-adk-code` → `references/samples.md` and list every matching recipe in the spec's
-  Reference Samples, to study in Phase 1. Don't silently downgrade a stated need to a plain tool
-  call, and flag it even when it's deferred to a later phase.
+  gates before risky actions, OAuth consent, safety guardrails, event-driven or scheduled runs. None
+  of these is a scaffold flag; each is something you build by studying a worked example first. List
+  every match in the spec's Reference Samples, to study in Phase 1. Don't silently downgrade a stated
+  need to a plain tool call, and flag it even when it's deferred to a later phase.
+  **In Python**, look the need up in the topic index in `/google-agents-cli-adk-code` →
+  `references/samples.md`, which maps it to a clone-and-study recipe. **In Go**, that catalog has no
+  equivalent — the same skill's `references/adk-go.md` says where to find Go samples.
 - **Deployment shape** — prototype-first (recommended) vs a deployment target.
 
 ## Present the design in sections

@@ -2,6 +2,8 @@
 
 > File paths below reference the scaffolded layout (`tests/eval/eval_config.yaml` or `.json`). Adjust for your project structure if not using `google-agents-cli-scaffold`.
 
+> Python projects scaffold the eval datasets in the `tests/eval/` directory; Go projects scaffold in the `eval/` directory. Examples below use the Python convention.
+
 ## Managed (Built-in) Metrics Reference
 
 Run `agents-cli eval metric list` for the live set. **Single-turn only** below means the metric 400s on a trace with 2+ turns (`Single-turn metric '<name>_v1' received agent_eval_data with N turns`). The single-turn adaptive-rubric metrics grade a case's own `rubric_groups` instead of generating their own when it supplies them (see *Managed Metric Parameters*).
@@ -42,7 +44,7 @@ Run `agents-cli eval metric list` for the live set. **Single-turn only** below m
 
 Custom metrics are declared in `eval_config.yaml` (or `.json`) under `custom_metrics`. See SKILL.md's *Evaluation Configuration Schema* section for how `metrics_to_run` selects from the pool. The schema below defines the per-entry fields.
 
-Code-based metrics default to **local in-process execution** (no GCP project or region required); opt into the Vertex AI sandbox with `execution: "remote"`.
+Code-based metrics default to **local in-process execution** (no GCP project or region required); opt into the Vertex AI sandbox with `execution: "remote"`. The metric functions are written in Python, regardless of the project's language.
 
 > **Scaffolded default metric.** The scaffolded `eval_config.yaml` ships `custom_response_quality` as a local LLM-judge in `tests/eval/response_quality.py` (referenced via `custom_function_file`, run in-process via `google-genai`). It grades on either backend — `genai.Client()` uses `GEMINI_API_KEY` (AI Studio) or ADC (Vertex) — and reads each case's `reference` (ground truth) when present. To grade with the managed Vertex eval service instead, replace it with a built-in metric or an `LLMMetric` (`prompt_template`).
 
@@ -144,7 +146,7 @@ def evaluate(instance):
         'Return JSON: {"score": <fraction of criteria met>, "explanation": "<what failed>"}'
     )
     out = genai.Client().models.generate_content(
-        model="gemini-3.7-flash",
+        model="gemini-3.8-flash",
         contents=prompt,
         config={"response_mime_type": "application/json"},
     )
@@ -160,7 +162,7 @@ Evaluates responses using an LLM judge driven by a prompt template.
 | `name` | yes | Unique identifier for the metric. |
 | `prompt_template` | yes | Prompt template used by the judge model. With agents-cli's file-based `EvaluationDataset` use `{prompt}`, `{response}`, and `{agent_data}` (the full trajectory). `{reference}` and `{context}` resolve only when the eval case has those fields populated. |
 | `rubric_group_name` | n/a | **Rejected by agents-cli.** It makes the service demand rubric verdicts a custom prompt cannot emit (`400 No rubric verdicts found in LLM response`). Grade `rubric_groups` with a managed metric plus `metric_spec_parameters.rubric_group_key`. |
-| `judge_model` | no | Judge model (e.g., `gemini-3.7-flash`). |
+| `judge_model` | no | Judge model (e.g., `gemini-3.8-flash`). |
 | `judge_model_sampling_count` | no | Number of judge samples to compute the score (1–32). |
 | `judge_model_system_instruction` | no | System instruction for the judge model. |
 | `judge_model_generation_config` | no | Generation config for the judge LLM (e.g., `temperature`). |
