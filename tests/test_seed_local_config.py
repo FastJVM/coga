@@ -148,3 +148,58 @@ def test_checkout_guidance_invokes_helper_for_creation_and_resume() -> None:
         assert 'resume' in text
     recovery = (REPO_ROOT / 'src/coga/open_pr.py').read_text()
     assert 'seed_local_config.py attachment beside code/implement' in recovery
+
+
+def _isolated_env(tmp_path: Path, *, with_console: bool) -> dict[str, str]:
+    """An environment whose ambient python cannot import coga.
+
+    Mirrors `uv tool install` / pipx: the package is importable only through
+    the interpreter named by the `coga` console script's shebang.
+    """
+    bin_dir = tmp_path / 'bin'
+    bin_dir.mkdir()
+    env = {k: v for k, v in os.environ.items() if k != 'PYTHONPATH'}
+    env['PATH'] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
+    if with_console:
+        interpreter = bin_dir / 'coga-python'
+        interpreter.write_text(
+            f'#!/bin/sh\nPYTHONPATH={REPO_ROOT / "src"} exec {sys.executable} "$@"\n'
+        )
+        interpreter.chmod(0o755)
+        console = bin_dir / 'coga'
+        console.write_text(f'#!{interpreter}\nraise SystemExit("not the real cli")\n')
+        console.chmod(0o755)
+    return env
+
+
+def test_seed_reexecs_under_the_coga_console_interpreter(
+    checkouts: tuple[Path, Path], tmp_path: Path,
+) -> None:
+    source, destination = checkouts
+    env = _isolated_env(tmp_path, with_console=True)
+    # `-S` skips site-packages, so the editable test install is invisible to
+    # the ambient interpreter exactly as under an isolated tool install.
+    result = subprocess.run(
+        [sys.executable, '-S', str(SCRIPT), str(source / 'coga'), str(destination)],
+        capture_output=True, text=True, env=env,
+    )
+    assert SECRET not in result.stdout + result.stderr
+    assert result.returncode == 0, result.stderr
+    copied = destination / 'coga/coga.local.toml'
+    assert copied.read_bytes() == (source / 'coga/coga.local.toml').read_bytes()
+    assert copied.stat().st_mode & 0o777 == 0o600
+
+
+def test_seed_fails_loud_without_coga_or_its_console_script(
+    checkouts: tuple[Path, Path], tmp_path: Path,
+) -> None:
+    source, destination = checkouts
+    env = _isolated_env(tmp_path, with_console=False)
+    env['PATH'] = str(tmp_path / 'bin')
+    result = subprocess.run(
+        [sys.executable, '-S', str(SCRIPT), str(source / 'coga'), str(destination)],
+        capture_output=True, text=True, env=env,
+    )
+    assert result.returncode == 2
+    assert 'Local config setup failed: coga is not importable' in result.stderr
+    assert not (destination / 'coga/coga.local.toml').exists()

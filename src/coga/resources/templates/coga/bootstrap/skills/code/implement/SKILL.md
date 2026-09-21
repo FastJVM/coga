@@ -102,10 +102,14 @@ later `code/open-pr` step does that, after self-review and fixes.
    ```
 
    The first argument is the primary directory containing `coga.toml`; the
-   second is the feature Git root. Resolve this skill local-first, falling
-   back to the installed bundled skill (see `dev/code`, "Seed the machine-local
-   config"). Stop on failure; never synthesize an actor. The same invocation
-   verifies a single checkout when both paths refer to that checkout.
+   second is the feature Git root. Any `python` works: when it cannot import
+   `coga` (a `uv tool install` or pipx install keeps the package in its own
+   environment) the helper re-runs itself under the interpreter named by the
+   `coga` console script's shebang, and fails loud if no `coga` is on PATH.
+   Resolve this skill local-first, falling back to the installed bundled
+   skill (see `dev/code`, "Seed the machine-local config"). Stop on failure;
+   never synthesize an actor. The same invocation verifies a single checkout
+   when both paths refer to that checkout.
 
    **On a resumed session** where `## Dev` already records a
    `branch:` and `worktree:`, reuse them, rerun the config helper above

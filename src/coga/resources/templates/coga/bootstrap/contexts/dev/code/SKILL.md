@@ -109,9 +109,16 @@ Invoke the ordinary `seed_local_config.py` attachment beside `code/implement`:
 python /resolved/code/implement/seed_local_config.py /primary/repo/coga /feature/repo
 ```
 
+Any `python` may invoke it: when that interpreter cannot import `coga` (a
+`uv tool install` or pipx install keeps the package in its own environment),
+the helper re-runs itself under the interpreter named by the `coga` console
+script's shebang and fails loud if no `coga` command is on PATH.
+
 Resolve the attachment from the primary checkout's local skill directory when
 present; otherwise use the installed bundle. The bundle directory can be found
-without invoking the Coga CLI:
+without invoking the Coga CLI — run this with an interpreter that imports
+`coga` (under an isolated tool install, the one on the first line of
+`command -v coga`):
 
 ```bash
 python -c 'from coga.paths import packaged_template_path; print(packaged_template_path("bootstrap", "skills", "code", "implement"))'

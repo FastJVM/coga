@@ -4,12 +4,49 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
+import shutil
 import stat
 import subprocess
 import sys
 import tomllib
 
-from coga.config import load_config
+_REEXEC_ENV = 'COGA_SEED_LOCAL_CONFIG_REEXEC'
+
+
+def _reexec_under_coga_interpreter() -> int:
+    """Re-run this script with the interpreter that owns the `coga` command.
+
+    Under `uv tool install coga` or pipx the package lives in an isolated
+    environment, so the ambient `python` this attachment is invoked with
+    cannot import it. The installed console script's shebang names that
+    environment's interpreter; run there instead of failing on import.
+    """
+    if os.environ.get(_REEXEC_ENV):
+        print('Local config setup failed: the `coga` command\'s interpreter '
+              'cannot import coga either.', file=sys.stderr)
+        return 2
+    console = shutil.which('coga')
+    if console is None:
+        print('Local config setup failed: coga is not importable and no `coga` '
+              'command is on PATH.', file=sys.stderr)
+        return 2
+    with open(console, 'rb') as script:
+        shebang = script.readline().decode('utf-8', 'replace').strip()
+    if not shebang.startswith('#!'):
+        print('Local config setup failed: coga is not importable and the `coga` '
+              'command has no interpreter shebang.', file=sys.stderr)
+        return 2
+    interpreter = shebang[2:].split()
+    env = dict(os.environ, **{_REEXEC_ENV: '1'})
+    return subprocess.run([*interpreter, __file__, *sys.argv[1:]], env=env).returncode
+
+
+try:
+    from coga.config import load_config
+except ImportError:
+    if __name__ == '__main__':
+        raise SystemExit(_reexec_under_coga_interpreter())
+    raise
 
 
 class SeedError(Exception):
