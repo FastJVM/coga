@@ -168,7 +168,9 @@ def main(argv: list[str] | None = None) -> int:
     until = args.until or until
     if until <= since:
         parser.error(f"--until {until} must be after --since {since}")
-    report = build_report(load_records(load_config()), since, until)
+    # Read-only, like `coga usage`: a fresh clone without the gitignored
+    # `coga.local.toml` user setting can still render the report.
+    report = build_report(load_records(load_config(require_user=False)), since, until)
     print(json.dumps(report.to_dict(), indent=2) if args.json else render(report))
     return 0
 

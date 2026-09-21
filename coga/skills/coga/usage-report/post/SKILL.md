@@ -43,7 +43,9 @@ infra (`coga.config`, `coga.usage`, `coga.notification`).
 
    `--since`/`--until` are `YYYY-MM-DD`, each defaulting to its end of the
    last completed week; `--json` emits the report fields instead of the text.
-   Ad hoc runs print to stdout and never post or write.
+   Ad hoc runs print to stdout and never post or write, and like `coga usage`
+   they load config with `require_user=False`, so a fresh clone without a
+   `coga.local.toml` user can still render a week.
 
 Out of scope, by the owner's decision: dollar figures and plan comparison
 (one API-equivalent-value line is a follow-up once the cost proxy lands),

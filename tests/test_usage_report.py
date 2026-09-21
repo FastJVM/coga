@@ -217,6 +217,19 @@ def test_main_json_carries_the_report_fields(
     assert payload["models"] == [{"model": "claude-opus-5", "total_tokens": 20}]
 
 
+def test_main_renders_without_a_local_user(
+    coga_os: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Ad hoc rendering is read-only, so like `coga usage` it must work in a
+    fresh clone that has no `coga.local.toml` user yet."""
+    (coga_os / "coga.local.toml").unlink()
+
+    code = report.main(["--since", "2026-08-31", "--until", "2026-09-07"])
+
+    assert code == 0
+    assert capsys.readouterr().out.splitlines()[1] == "10 tokens across 1 session"
+
+
 def test_main_rejects_an_inverted_window(coga_os: Path) -> None:
     with pytest.raises(SystemExit) as excinfo:
         report.main(["--since", "2026-09-07", "--until", "2026-09-07"])
