@@ -1,6 +1,6 @@
 ---
 title: Retry the shared recurring-reminder engine at a smaller boundary
-status: draft
+status: active
 owner: zach
 agent: claude
 workflow:
