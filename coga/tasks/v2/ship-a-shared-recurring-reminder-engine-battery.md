@@ -21,7 +21,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -169,6 +169,14 @@ document reconstructed data. Update the live and packaged codebase contexts
 together. Production consumers migrate downstream in follow-up work.
 
 Test plan: `PYTHONPATH=/home/n/Code/coga-reminders-harness/src .venv/bin/python -m pytest` — 2723 passed; fixture dry runs in 80x24/120x40 PTYs; `git diff --check`.
+
+## Open PR
+
+2026-09-20: `coga open-pr` ran from the primary control checkout on `main`
+(separate-worktree layout); `origin/main` had advanced only through
+non-overlapping task/log state, so no rebase was needed. Opened
+https://github.com/FastJVM/coga/pull/853 (ready, not draft) with the `## PR`
+body above. Merge is the owner's call in the next step.
 
 ## Production notes
 
