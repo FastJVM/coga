@@ -1215,7 +1215,11 @@ def _parse_upstream(raw: object) -> tuple[Path, ...]:
     """Parse machine-local `[upstream] checkouts` into absolute paths.
 
     Shape only: the value must be a list of non-empty strings, each `~`-expanded
-    and resolved to an absolute path. Existence is deliberately *not* checked
+    and already absolute. A relative entry is rejected rather than resolved:
+    `Path.resolve()` would anchor it to whatever directory the command was run
+    from, so the same config would sweep different repositories — or report
+    the checkout missing — depending on the launch cwd. Existence is
+    deliberately *not* checked
     here. `load_config` runs before every `coga` command, so a hard failure on a
     missing directory would brick the whole CLI on this machine the moment a
     client repo is moved or deleted; the `recurring/upstream-coga` processor
@@ -1240,7 +1244,14 @@ def _parse_upstream(raw: object) -> tuple[Path, ...]:
                 f"[upstream].checkouts[{i}] must be a non-empty string "
                 f"(got {item!r})"
             )
-        out.append(Path(item.strip()).expanduser().resolve())
+        path = Path(item.strip()).expanduser()
+        if not path.is_absolute():
+            raise ConfigError(
+                f"[upstream].checkouts[{i}] must be an absolute path (got "
+                f"{item!r}); write it as `~/Code/client` or `/abs/path`, not "
+                "relative to a working directory."
+            )
+        out.append(path.resolve())
     return tuple(out)
 
 

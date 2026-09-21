@@ -51,7 +51,11 @@ Only the machine holding the client checkouts can run this job. Name them in
 checkouts = ["~/Code/multiply", "~/Code/magicator"]
 ```
 
-A path that does not exist is accepted at config load and skipped at run time.
+Paths must be absolute (`~` expands); a relative one is rejected at config
+load because it would resolve against whatever directory the command ran
+from. A path that does not exist is accepted at config load and skipped at
+run time. The directory name is the cursor key, so a name containing
+whitespace is skipped with a note — rename it or point the entry at a symlink.
 Two configured checkouts sharing a directory name are ambiguous: the sweep
 files nothing for either and says so. Run it now with
 `coga recurring launch upstream-coga`.

@@ -1681,6 +1681,16 @@ def test_upstream_checkouts_parsed_to_absolute_paths(
     )
 
 
+def test_upstream_checkouts_must_be_absolute(repo: Path) -> None:
+    """A relative entry would resolve against the launch cwd, so the same
+    config could sweep different repositories from different directories."""
+    _set_upstream_checkouts(repo, '["../clients/multiply"]')
+    with pytest.raises(
+        ConfigError, match=r"\[upstream\]\.checkouts\[0\] must be an absolute path"
+    ):
+        load_config(repo)
+
+
 def test_upstream_checkouts_must_be_a_list(repo: Path) -> None:
     _set_upstream_checkouts(repo, '"/one/path"')
     with pytest.raises(ConfigError, match=r"\[upstream\]\.checkouts must be a list"):

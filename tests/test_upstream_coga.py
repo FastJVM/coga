@@ -330,6 +330,25 @@ def test_same_directory_name_twice_files_nothing_for_either(
     assert synced == []
 
 
+def test_directory_name_with_whitespace_is_skipped_with_a_note(
+    tmp_path: Path, synced: list
+) -> None:
+    """The cursor line and `upstream-id:` are single tokens: a key with a
+    space could be written but never read back, re-filing on every run."""
+    checkout = tmp_path / "work" / "my client"
+    _write(
+        checkout / "coga" / "upstream-coga.md",
+        HEADER + _entry("From a spaced directory", "2026-09-09-spaced"),
+    )
+    company = _company(tmp_path, [checkout])
+    code, out = _run(company)
+    assert code == 0
+    assert f"[upstream] {checkout}: directory name 'my client' contains whitespace" in out
+    assert list_tasks(load_config(company)) == []
+    assert _template_cursors(company) == {}
+    assert synced == []
+
+
 def test_same_path_listed_twice_is_one_checkout(
     tmp_path: Path, client: Path, synced: list
 ) -> None:

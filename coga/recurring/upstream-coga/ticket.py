@@ -113,7 +113,12 @@ def parse_entries(text: str) -> tuple[list[Entry], list[str]]:
 
 
 def checkout_key(checkout: Path) -> str:
-    """The cursor key for a configured checkout: its directory name."""
+    """The cursor key for a configured checkout: its directory name.
+
+    `sweep` skips a name containing whitespace: `_CURSOR_RE` and the
+    `upstream-id:` scanner read single tokens, so such a key could never be
+    read back.
+    """
     return checkout.name
 
 
@@ -197,7 +202,19 @@ def sweep(cfg: Config, *, out: TextIO = sys.stdout) -> list[Path]:
     # line; refuse to file for either rather than guess which one it belongs to.
     by_key: dict[str, list[Path]] = {}
     for checkout in dict.fromkeys(cfg.upstream_checkouts):
-        by_key.setdefault(checkout_key(checkout), []).append(checkout)
+        key = checkout_key(checkout)
+        # The key is written as one `\S+` token in the cursor line and in every
+        # filed ticket's `upstream-id:`; a name with whitespace could be
+        # written but never read back, so each run would re-file everything.
+        if not key or any(ch.isspace() for ch in key):
+            out.write(
+                f"[upstream] {checkout}: directory name {key!r} contains "
+                "whitespace and cannot be a cursor key; skipped — rename the "
+                "directory or point `[upstream] checkouts` at a symlink whose "
+                "name has none.\n"
+            )
+            continue
+        by_key.setdefault(key, []).append(checkout)
     ambiguous = {key: paths for key, paths in by_key.items() if len(paths) > 1}
     for key, paths in ambiguous.items():
         out.write(
