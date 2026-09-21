@@ -136,6 +136,20 @@ and known failure modes belong in contexts; repeatable instructions for how an
 agent should do work belong in skills. If the process knowledge is already
 covered by an existing skill, do not duplicate it.
 
+### Coga-owned findings are not local knowledge
+
+When the caller's snapshot `## Findings` marks a finding `owner: coga`, its
+source of truth is the Coga package rather than this repo — Dream only writes
+that mark in a client repo, where a done ticket's claim about a `src/coga/`
+symbol, a `coga` CLI contract, or a packaged template cannot be checked
+against local code. Do not write that fact into a local context or skill, and
+do not treat it as the reason a ticket is knowledge-bearing: Dream's Phase 6
+routes it to the repo's `coga/upstream-coga.md` for the Coga source repo to
+sweep. Everything else the same ticket teaches is extracted as usual, so a
+ticket holding one local fact and one Coga-owned fact contributes the local
+fact and is deleted like any other processed done ticket. Without the mark
+(every run in the Coga source repo, and every `coga retire`), nothing changes.
+
 ### Unresolved adjacent bugs
 
 An unresolved adjacent bug parked on a source ticket's blackboard is durable
