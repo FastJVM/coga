@@ -1,0 +1,90 @@
+[
+  {
+    "id": "accr_000000000000000000000001",
+    "source_id": "expense_000000000000000000000001",
+    "vendor": "Vendor A",
+    "user": "Cardholder One",
+    "amount": "$74.99 USD",
+    "posted_at": "2026-07-14T01:07:38.221Z"
+  },
+  {
+    "id": "accr_000000000000000000000002",
+    "source_id": "expense_000000000000000000000002",
+    "vendor": "Vendor B",
+    "user": "Cardholder Two",
+    "amount": "$16.00 USD",
+    "posted_at": "2026-07-13T09:23:51.971Z"
+  },
+  {
+    "id": "accr_000000000000000000000003",
+    "source_id": "expense_000000000000000000000003",
+    "vendor": "Vendor C",
+    "user": "Cardholder Three",
+    "amount": "$200.00 USD",
+    "posted_at": "2026-07-07T02:58:43.979Z"
+  },
+  {
+    "id": "accr_000000000000000000000004",
+    "source_id": "expense_000000000000000000000004",
+    "vendor": "Vendor D",
+    "user": "Cardholder One",
+    "amount": "$18.70 USD",
+    "posted_at": "2026-07-02T01:17:24.347Z"
+  },
+  {
+    "id": "accr_000000000000000000000005",
+    "source_id": "expense_000000000000000000000005",
+    "vendor": "Vendor E",
+    "user": "Cardholder Three",
+    "amount": "$40.00 USD",
+    "posted_at": "2026-06-27T06:26:25.881Z"
+  },
+  {
+    "id": "accr_000000000000000000000006",
+    "source_id": "expense_000000000000000000000006",
+    "vendor": "Vendor C",
+    "user": "Cardholder One",
+    "amount": "$20.00 USD",
+    "posted_at": "2026-06-19T06:27:21.221Z"
+  },
+  {
+    "id": "accr_000000000000000000000007",
+    "source_id": "expense_000000000000000000000007",
+    "vendor": "Vendor B",
+    "user": "Cardholder Two",
+    "amount": "$16.00 USD",
+    "posted_at": "2026-06-13T09:29:26.508Z"
+  },
+  {
+    "id": "accr_000000000000000000000008",
+    "source_id": "expense_000000000000000000000008",
+    "vendor": "Vendor C",
+    "user": "Cardholder Three",
+    "amount": "$200.00 USD",
+    "posted_at": "2026-06-07T02:50:16.215Z"
+  },
+  {
+    "id": "accr_000000000000000000000009",
+    "source_id": "expense_000000000000000000000009",
+    "vendor": "Vendor F",
+    "user": "Cardholder Two",
+    "amount": "$20.00 USD",
+    "posted_at": "2026-06-05T06:20:42.479Z"
+  },
+  {
+    "id": "accr_000000000000000000000010",
+    "source_id": "expense_000000000000000000000010",
+    "vendor": "Vendor G",
+    "user": "Cardholder Two",
+    "amount": "$29.00 USD",
+    "posted_at": "2026-06-03T03:05:14.024Z"
+  },
+  {
+    "id": "accr_000000000000000000000011",
+    "source_id": "expense_000000000000000000000011",
+    "vendor": "Vendor D",
+    "user": "Cardholder One",
+    "amount": "$25.20 USD",
+    "posted_at": "2026-06-02T02:27:38.794Z"
+  }
+]

@@ -61,6 +61,17 @@ review bars.
   worktree GC. `autoclose.py` imports it lazily inside the recipe because
   `branchcleanup` imports the `## Dev` parsers and `gh` lookups from
   `autoclose` at load time.
+  `reminders.py` is the recurring-reminder sweep harness — `run()` plus
+  `SweepResult`, and nothing else: it parses `--today` / `--tasks-dir` /
+  `--dry-run`, prints the sweep's report, and posts its alerts through
+  `coga slack` (on by default, because a `ticket.py` receives no operands).
+  Its consumers are downstream repos' sweep scripts (`from coga import
+  reminders`); in this repo the five sweeps under `tests/fixtures/reminders/`
+  are the worked examples of the four shapes its docstring names, and each
+  keeps its own date math, frontmatter read, and ack read — an ack is an
+  ordinary blackboard `key: value` line read with `period_state.parse_keys`.
+  The first attempt (PR #652, closed) owned all of that plus a bundled skill,
+  and shrank to this on review.
   `commands/slack.py` keeps the explicit FYI command spelling.
   `commands/block.py` and `commands/unblock.py` own blocked-state
   handoffs. `commands/megalaunch.py` is the manual drain entrypoint;
