@@ -21,7 +21,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -167,6 +167,14 @@ worktree: /tmp/coga-local-config
 - Review fixes committed as `196439122` (implementation rebased to `c8cd1c0f1`).
   Feature checkout is clean, with two commits ahead of fetched `origin/main`
   (`30f3cadd6`). No unresolved must-fix findings; no feature push or PR yet.
+
+## Open PR
+
+- `coga open-pr` ran from the primary control checkout (separate-worktree
+  layout) and opened https://github.com/FastJVM/coga/pull/851 (ready, not
+  draft). Base advanced only through non-overlapping task/log state; no rebase
+  or force push was needed. Feature worktree `/tmp/coga-local-config` remains
+  in place for the merge/review step.
 
 ## PR
 
