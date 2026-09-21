@@ -14,7 +14,7 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-step: 2 (human-owns-and-finishes)
+step: 3 (report-to-coga)
 agent: claude
 ---
 
@@ -110,17 +110,23 @@ contexts still match that assessment commit. Began with PR 699's P1.
 
 **Recommendation: fix all five residual concerns.** PR 755's synthesis-gate
 subconcern is already moot; its prompt-inclusion concern remains. These are
-agent recommendations, not owner decisions. All five new follow-ups were
-created through `coga create`, are **draft**, use **code/with-review**, and are
-owned by **nicktoper**. No draft has been activated or accepted.
+agent recommendations, not owner decisions. All five follow-ups were
+created through `coga create` on 2026-09-18, use **code/with-review**, and are
+owned by **nicktoper**.
+
+**Owner verdicts recorded 2026-09-20** (attended session): nicktoper accepted
+all five recommendations as **fix**. Between the assessment and this gate the
+owner had already launched all five follow-ups; each is `in_progress` at step 4
+(review) with a non-draft PR open and unmerged as of 2026-09-20. Merge decisions
+belong to those tickets' own review steps, not to this triage.
 
 | Exact original comment | Original priority | Current evidence | Recommendation and tradeoff | Separate follow-up | Owner verdict |
 | --- | --- | --- | --- | --- | --- |
-| [PR 699 / r3806973475](https://github.com/FastJVM/coga/pull/699#discussion_r3806973475) | P1 | **Verified in local Git:** another checkout's same-period record, with its task already absent, lands after pre-scan catch-up. The preloaded cache lets the first checkout republish the task and keep it launch-eligible. The non-preloaded comparison skips it. Loaded `_validate_control_serviced_period` does not refresh it. | **Fix.** Revalidate the pre-publication snapshot. Preserve bounded reads and the shared-log protection against mistaking this sweep's own pending records for a rival's. | [Refresh recurring ledger before first create sync](refresh-recurring-ledger-before-first-create-sync.md) — provisional draft | **Unset** |
-| [PR 704 / r3834289315](https://github.com/FastJVM/coga/pull/704#discussion_r3834289315) | P2 | **Verified:** a tracked external-target `SKILL.md` symlink passes config and task validation and its external content enters the prompt. Removing the external file changes resolution while config still loads. Root-component checks do not protect the artifact. | **Fix.** Reject unreproducible context targets. This constrains local symlink setups; accepting only provably publishable internal targets versus rejecting artifact symlinks altogether is explicit scope input for the owner. | [Reject context artifacts that escape the checkout](reject-context-artifacts-that-escape-the-checkout.md) — provisional draft | **Unset** |
-| [PR 705 / r3834701954](https://github.com/FastJVM/coga/pull/705#discussion_r3834701954) | P2 | **Verified through a real child CLI:** deterministic script completion logs `[human:marc] task done` and says `claude finished`, with no agent run. The live log still has `[human:nicktoper]` autoclose completion on 2026-09-18 08:33. Digest was removed, but four shims remain. | **Fix residual behavior.** Carry narrow system attribution through script completion without granting lifecycle/owner authority or signaling an outer agent session. No historical log rewrite or digest restoration. | [Attribute headless recurring completions to system](attribute-headless-recurring-completions-to-system.md) — provisional draft | **Unset** |
-| [PR 747 / r3932656206](https://github.com/FastJVM/coga/pull/747#discussion_r3932656206) | P2 | **Verified in local Git:** a manual correction injected during control fetch is lost by reconciliation, for both matching pending and already-admitted remote claims. The helper captures its rollback baseline after the fetch. | **Fix.** Compare/capture against the validated bytes. A concurrent manual correction should produce a recoverable refusal; preserving it costs a retry. This is a fix for the reported fetch window, not a global editor lock. | [Preserve edits during released claim recovery](preserve-edits-during-released-claim-recovery.md) — provisional draft | **Unset** |
-| [PR 755 / r3937900285](https://github.com/FastJVM/coga/pull/755#discussion_r3937900285) | P2 | **Partial fix verified:** a 1,558-character exact archive passes synthesis and unrelated scratch still fails. All 60 abandoned-design markers nevertheless enter the prompt. `4e544d35`, merged in `c4482fae` / PR 755, covers the gate, not composition. | **Fix prompt inclusion; gate already moot.** Propose retaining the archive on disk and excluding it from automatic composition with a pointer. This removes historical alternatives from automatic context, so keep relevant current rationale live. The above-fence move is an unapproved alternative. | [Exclude superseded designs from launch prompts](exclude-superseded-designs-from-launch-prompts.md) — provisional draft | **Unset** |
+| [PR 699 / r3806973475](https://github.com/FastJVM/coga/pull/699#discussion_r3806973475) | P1 | **Verified in local Git:** another checkout's same-period record, with its task already absent, lands after pre-scan catch-up. The preloaded cache lets the first checkout republish the task and keep it launch-eligible. The non-preloaded comparison skips it. Loaded `_validate_control_serviced_period` does not refresh it. | **Fix.** Revalidate the pre-publication snapshot. Preserve bounded reads and the shared-log protection against mistaking this sweep's own pending records for a rival's. | [Refresh recurring ledger before first create sync](refresh-recurring-ledger-before-first-create-sync.md) — in_progress, step 4 (review), [PR 838](https://github.com/FastJVM/coga/pull/838) open | **Fix** (2026-09-20). Owner accepted the recommendation as stated: revalidate the pre-publication snapshot, keep bounded reads and the shared-log protection. Scope approved 2026-09-18. |
+| [PR 704 / r3834289315](https://github.com/FastJVM/coga/pull/704#discussion_r3834289315) | P2 | **Verified:** a tracked external-target `SKILL.md` symlink passes config and task validation and its external content enters the prompt. Removing the external file changes resolution while config still loads. Root-component checks do not protect the artifact. | **Fix.** Reject unreproducible context targets. This constrains local symlink setups; accepting only provably publishable internal targets versus rejecting artifact symlinks altogether is explicit scope input for the owner. | [Reject context artifacts that escape the checkout](reject-context-artifacts-that-escape-the-checkout.md) — in_progress, step 4 (review), [PR 844](https://github.com/FastJVM/coga/pull/844) open | **Fix** (2026-09-20). Owner accepted the recommendation; symlink policy chosen 2026-09-19 is the strict one — reject all context artifact symlinks and symlinked ancestors (internal, escaping, dangling, cyclic) for default and relocated roots; internal-link publication proof out of scope. Accepted consequence: repos using context links need real files under the contexts root. |
+| [PR 705 / r3834701954](https://github.com/FastJVM/coga/pull/705#discussion_r3834701954) | P2 | **Verified through a real child CLI:** deterministic script completion logs `[human:marc] task done` and says `claude finished`, with no agent run. The live log still has `[human:nicktoper]` autoclose completion on 2026-09-18 08:33. Digest was removed, but four shims remain. | **Fix residual behavior.** Carry narrow system attribution through script completion without granting lifecycle/owner authority or signaling an outer agent session. No historical log rewrite or digest restoration. | [Attribute headless recurring completions to system](attribute-headless-recurring-completions-to-system.md) — in_progress, step 4 (review), [PR 835](https://github.com/FastJVM/coga/pull/835) open | **Fix** (2026-09-20). Owner accepted the residual-behavior fix: narrow system attribution through script completion; no historical log rewrite, no digest restoration. |
+| [PR 747 / r3932656206](https://github.com/FastJVM/coga/pull/747#discussion_r3932656206) | P2 | **Verified in local Git:** a manual correction injected during control fetch is lost by reconciliation, for both matching pending and already-admitted remote claims. The helper captures its rollback baseline after the fetch. | **Fix.** Compare/capture against the validated bytes. A concurrent manual correction should produce a recoverable refusal; preserving it costs a retry. This is a fix for the reported fetch window, not a global editor lock. | [Preserve edits during released claim recovery](preserve-edits-during-released-claim-recovery.md) — in_progress, step 4 (review), [PR 842](https://github.com/FastJVM/coga/pull/842) open | **Fix** (2026-09-20). Owner accepted the recommendation: capture/compare against validated bytes so a concurrent manual correction yields a recoverable refusal, not a silent overwrite; fetch-window fix only, no global editor lock. |
+| [PR 755 / r3937900285](https://github.com/FastJVM/coga/pull/755#discussion_r3937900285) | P2 | **Partial fix verified:** a 1,558-character exact archive passes synthesis and unrelated scratch still fails. All 60 abandoned-design markers nevertheless enter the prompt. `4e544d35`, merged in `c4482fae` / PR 755, covers the gate, not composition. | **Fix prompt inclusion; gate already moot.** Propose retaining the archive on disk and excluding it from automatic composition with a pointer. This removes historical alternatives from automatic context, so keep relevant current rationale live. The above-fence move is an unapproved alternative. | [Exclude superseded designs from launch prompts](exclude-superseded-designs-from-launch-prompts.md) — in_progress, step 4 (review), [PR 840](https://github.com/FastJVM/coga/pull/840) open | **Fix prompt inclusion; gate already moot** (2026-09-20). Owner accepted retaining the archive on disk and excluding it from automatic composition with a pointer; the above-fence move is rejected. Synthesis-gate subconcern already moot via `4e544d35` / PR 755. |
 
 ### Evidence and limits
 
@@ -242,10 +248,10 @@ threshold.
 
 ### Handoff and draft disposition
 
-All five drafts are **provisional, unactivated, awaiting owner disposition**.
-At the owner gate, record a dated fix / won't fix / already moot decision and
-reason in each row, approve or revise each accepted scope, and decide whether
-any rejected draft should be revised or canceled. In particular, choose the
-PR 704 symlink policy and PR 755 archive treatment before activation. No
-cancellation is currently authorized. The report step must reconcile these
-decisions and dispositions before the triage ticket can close.
+Verdicts recorded 2026-09-20; see the table. No draft remains provisional:
+every follow-up was launched by the owner (09-18 / 09-19) and sits at its own
+review gate with an open PR (835, 838, 840, 842, 844). No rejection, revision
+or cancellation was requested, so none is authorized. The report step must
+re-verify the five links, record any PR merges that have landed by then, and
+confirm every accepted fix still has exactly one actionable ticket before
+closing. Owner has not yet asked to advance this gate.
