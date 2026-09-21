@@ -5946,3 +5946,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-21 08:55 [recurring/branch-sweep] [system] created recurring/branch-sweep for 2026-W39
 2026-09-21 08:55 [recurring/resolve-conflicts] [system] created (status=active)
 2026-09-21 08:55 [recurring/resolve-conflicts] [system] created recurring/resolve-conflicts for 2026-W39
+2026-09-21 08:55 [recurring/blocker-reminders] [system] started (active → in_progress) via coga launch
