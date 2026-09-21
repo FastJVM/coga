@@ -6014,3 +6014,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-21 11:59 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-09-21 12:12 [recurring/dream] [agent:claude] slack: New skill note: branch sweep refuses a merged branch whose commits were rebased in another checkout. PR: https://github.com/FastJVM/coga/pull/859
 2026-09-21 12:13 [recurring/dream] [agent:claude] slack: New context: blocker reminders never fire for a paused recurring agent period. PR: https://github.com/FastJVM/coga/pull/860
+2026-09-21 12:14 [recurring/dream] [agent:claude] slack: New context: a done ticket's fix claim can be half-applied on main — verify the exact token. PR: https://github.com/FastJVM/coga/pull/861
