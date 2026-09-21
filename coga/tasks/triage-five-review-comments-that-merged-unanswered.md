@@ -294,3 +294,10 @@ each ticket's own review step, not to this triage.
 Out of scope and untouched, as specified: GitHub replies, thread resolution,
 merge decisions, merge-policy changes, live recurring runs, behavioral
 contexts and their packaged twins.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: fan-out follow-ups that rewrite one shared context bullet conflict pairwise
