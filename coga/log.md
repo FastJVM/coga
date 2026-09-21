@@ -5965,3 +5965,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-21 09:59 [recurring/address-pr-comments] [system] completed (delegated bootstrap/address-pr-comments run finished) via coga recurring
 2026-09-21 09:59 [recurring/branch-sweep] [system] started (active → in_progress) via coga launch
 2026-09-21 09:59 [recurring/branch-sweep] [system] launched as a script (ticket.py)
+2026-09-21 10:01 [recurring/branch-sweep] [human:nicktoper] task done
