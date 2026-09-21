@@ -1,11 +1,11 @@
 ---
 title: Blocker reminders
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: c70406ab-bc90-48d1-93d0-5139864b7f96
+period_generation: b3680daf-3c01-4553-b24f-6812284cfb33
 workflow:
   name: blocker-reminders/run
   steps:
@@ -13,6 +13,7 @@ workflow:
     skills:
     - coga/blockers/remind
     assignee: agent
+step: 1 (remind)
 ---
 
 ## Description

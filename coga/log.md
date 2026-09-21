@@ -5979,3 +5979,11 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-21 10:02 [bootstrap/resolve-conflicts] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-09-21 10:02 [recurring/resolve-conflicts] [system] started (active → in_progress) via recurring delegation to bootstrap/resolve-conflicts
 2026-09-21 10:02 [recurring/resolve-conflicts] [system] launched delegated target bootstrap/resolve-conflicts
+2026-09-21 11:21 [recurring/blocker-reminders] [system] created (status=active)
+2026-09-21 11:21 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-09-21
+2026-09-21 11:21 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-09-21
+2026-09-21 11:21 [recurring/dream] [system] created (status=active)
+2026-09-21 11:21 [recurring/dream] [system] deleted completed prior-period task before 2026-W39
+2026-09-21 11:21 [recurring/dream] [system] created recurring/dream for 2026-W39
+2026-09-21 11:21 [recurring/skill-update] [system] created (status=active)
+2026-09-21 11:21 [recurring/skill-update] [system] created recurring/skill-update for 2026-W39
