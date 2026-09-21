@@ -12,10 +12,16 @@ Anthropic's `skill-creator` (and any other tool that speaks SKILL.md) can
 author and edit these files.
 
 There is exactly one place Coga extends the standard, and it is the `name:`
-field. **Coga never reads it** — a skill's reference is derived from its
-directory path, both for `skills:` refs and for the generated
-`coga/.agent-skills` view (`agent_skills.py`). That leaves you a real choice,
-with a real cost either way:
+field. **Coga never reads it to resolve a reference** — a skill's reference is
+derived from its directory path, both for `skills:` refs and for the generated
+`coga/.agent-skills` view (`agent_skills.py`). The one reader is the URL
+installer: `coga skill install-url` (`skill_manager.py`, `materialize_url_skill`
+→ `_validated_url_skill_ref`) validates the downloaded file's `name:` against
+the Agent Skills grammar (or a slash-separated namespace of such parts) and
+uses it to choose the install directory under `coga/skills/`; `coga/skills/
+clarity/.coga-source.json` (`"installed_ref": "clarity"`) is that path's
+artifact. Once installed, resolution is by path like every other skill. That
+leaves you a real choice, with a real cost either way:
 
 - `name: <namespace>/<your-skill>` — Coga's documented slash extension,
   matching the directory you copied this into. This is what most
