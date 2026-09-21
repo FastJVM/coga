@@ -1,6 +1,8 @@
 ---
 title: Resolve PR conflicts
-agent: claude
+# No `agent:` on purpose: a stateless bootstrap target with no explicit
+# main-agent choice resolves to the configured default, so a repository
+# without Claude still runs the delegated weekly rebase with its own agent.
 ---
 
 ## Description
