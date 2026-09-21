@@ -114,7 +114,7 @@ present; otherwise use the installed bundle. The bundle directory can be found
 without invoking the Coga CLI:
 
 ```bash
-python -c 'from coga.paths import bootstrap_skill_dir; print(bootstrap_skill_dir("code/implement"))'
+python -c 'from coga.paths import packaged_template_path; print(packaged_template_path("bootstrap", "skills", "code", "implement"))'
 ```
 
 The first argument is the primary workspace containing `coga.toml`, the second
