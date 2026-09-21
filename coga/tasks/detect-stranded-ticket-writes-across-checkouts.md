@@ -33,7 +33,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (open-pr)
+step: 6 (review)
 ---
 
 ## Description
