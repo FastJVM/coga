@@ -1,6 +1,6 @@
 ---
 title: recurring task to manage all open pr and address commtns
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
