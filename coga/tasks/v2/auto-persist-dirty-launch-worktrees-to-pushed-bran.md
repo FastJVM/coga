@@ -1,6 +1,6 @@
 ---
 title: Auto-persist dirty launch worktrees to pushed branches
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 contexts:
