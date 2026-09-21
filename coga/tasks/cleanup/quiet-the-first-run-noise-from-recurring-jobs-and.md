@@ -27,7 +27,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (open-pr)
+step: 5 (review)
 ---
 
 ## Description
@@ -284,3 +284,14 @@ worktree was created.
     `Recurring: 6 templates · 2 due — coga recurring list`.
 - Not done here: no push, no PR (open-pr step). Existing dirty `coga/log.md`
   was left for `coga bump` to sync.
+
+## Open-PR
+
+- Workflow has no self-qa/peer-review step and `code/implement` ordered no
+  review, so no review was in flight; the `## Implement` test record was the
+  pre-publish evidence.
+- Branch was 5 ahead / 0 behind `origin/main`, unpushed, no prior PR.
+  `coga open-pr` committed the pending log append, pushed, opened
+  https://github.com/FastJVM/coga/pull/852 (non-draft, `quiet-first-run` →
+  `main`), and recorded `pr:` under `## Dev`; checkout clean afterwards.
+- Next: owner `review` step (`code/address-pr-comments`).
