@@ -1,6 +1,8 @@
 ---
 title: Address PR review comments
-agent: claude
+# No `agent:` on purpose: a stateless bootstrap target with no explicit
+# main-agent choice resolves to the configured default, so a repository
+# without Claude still runs the delegated sweep with its own agent.
 ---
 
 ## Description
@@ -93,7 +95,10 @@ schedule, and a fix pushed onto a conflicting head would only be rebased again.
 
 1. **Preflight and enumerate.** Start from the repository root. Confirm
    `git` and `gh` can read the repository (`gh auth status`), then run
-   `git fetch origin main`. Query PR metadata with
+   `git fetch <configured-remote> main`, where `<configured-remote>` is
+   `[git].remote` from `coga.toml` (default `origin`) — the same remote the
+   publication checks below read; do not assume an `origin` remote exists.
+   Query PR metadata with
    `gh pr view <n> --json number,url,state,baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,mergeable`
    (in sweep mode, from the complete/paginated `gh pr list --state open
    --limit 10000` result described above). Process PRs sequentially and keep
@@ -127,8 +132,13 @@ schedule, and a fix pushed onto a conflicting head would only be rebased again.
      reviews in state `CHANGES_REQUESTED` or `COMMENTED` with a non-empty
      body. `APPROVED` ("LGTM") and `DISMISSED` are not requests. A review
      summary that carries inline threads (for example `/code-review
-     --comment`) is covered by addressing those threads; do not also reply to
-     the summary.
+     --comment`) is deduplicated against them request by request: a summary
+     request that one of the review's threads already states is covered by
+     addressing that thread, and gets no separate reply. A request the
+     summary makes that no thread of that review represents (inline fixes
+     plus "add an integration test", say) is its own item — analyze, fix,
+     and reply to it as a review summary, marker and all, even though the
+     review also has threads.
 
    `<owner>/<repo>` and `<n>` come from the PR URL; the URL identifies the base
    repository. If a thread itself has more than 100 comments, fetch the rest
