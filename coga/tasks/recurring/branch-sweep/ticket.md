@@ -199,3 +199,10 @@ Result: 14 local and 12 remote branch(es) deleted, 27 skipped-worktree-pinned, 1
 - Branch cleanup: local 'v2-premise-holes' has unmerged work and no merged PR vouching for it — left in place.
 - Branch sweep: 'v2-stale-surfaces' is recorded on a live ticket — left in place.
 - Branch sweep: 'validate-baseline' has a landed ref but is checked out in worktree '/home/n/Code/claude/coga-validate-baseline' — left in place.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New skill note: branch sweep refuses a merged branch whose commits were rebased in another checkout
