@@ -156,7 +156,10 @@ def _refuse_non_owner(cfg: Config) -> bool:
 
 
 def _refuse_non_control_branch(
-    cfg: Config, *, no_control_worktree: bool = False
+    cfg: Config,
+    *,
+    no_control_worktree: bool = False,
+    unusable_control_worktree: Path | None = None,
 ) -> bool:
     """Require recurring mutations to start on the configured control branch.
 
@@ -167,12 +170,17 @@ def _refuse_non_control_branch(
     that stays best-effort for interactive runs and becomes mandatory for
     ``coga recurring --all``.
 
-    `no_control_worktree` is set by the single-repo entry points, which look
-    for an existing control worktree before refusing (see
-    `_relay_off_control_single_repo_run`). It only names the absence as the
-    reason and adds the `git worktree add` remedy; the gate itself is unchanged,
-    and callers that have no relay — `coga launch recurring/<name>` — leave it
-    off so the message does not promise behavior they do not implement.
+    `no_control_worktree` and `unusable_control_worktree` are set by the
+    single-repo entry points, which look for an existing control worktree
+    before refusing (see `_relay_off_control_single_repo_run`). The first
+    names the absence as the reason and adds the `git worktree add` remedy;
+    the second names a worktree that *does* hold the branch but cannot be
+    relayed into, so the remedy is to repair or remove that worktree — Git
+    will refuse a second checkout of the branch, so suggesting `git worktree
+    add` there would send the operator to a command that fails. The gate
+    itself is unchanged, and callers that have no relay — `coga launch
+    recurring/<name>` — leave both off so the message does not promise
+    behavior they do not implement.
     """
     if not cfg.git_enabled:
         return False
@@ -202,16 +210,29 @@ def _refuse_non_control_branch(
         return False
 
     where = "detached HEAD" if current == "HEAD" else f"branch {current!r}"
-    absence = (
-        (
+    if unusable_control_worktree is not None:
+        absence = (
+            f"The linked worktree {unusable_control_worktree} already has "
+            f"{cfg.git_control_branch!r} checked out, but it is not a usable "
+            "Coga workspace to run from (no `coga.toml` at the position this "
+            "workspace occupies in its checkout, or its directory is gone). "
+            "Git will not check that branch out a second time, so either "
+            "bring that worktree up to date, or remove it with `git worktree "
+            f"remove {unusable_control_worktree}` (`git worktree prune` if the "
+            "directory no longer exists) and recreate it with `git worktree "
+            f"add ../{location.name}-{cfg.git_control_branch} "
+            f"{cfg.git_control_branch}`; recurring will then run there by "
+            "itself. "
+        )
+    elif no_control_worktree:
+        absence = (
             f"No linked worktree has {cfg.git_control_branch!r} checked out "
             "either, so there is no control checkout to run from — create one "
             f"with `git worktree add ../{location.name}-{cfg.git_control_branch} "
             f"{cfg.git_control_branch}` and recurring will run there by itself. "
         )
-        if no_control_worktree
-        else ""
-    )
+    else:
+        absence = ""
     typer.secho(
         f"Recurring launch refused: the current checkout is on {where}, not "
         f"the configured control branch {cfg.git_control_branch!r}. "
@@ -252,23 +273,17 @@ _CONTROL_RELAY_ENV = "COGA_RECURRING_CONTROL_RELAY"
 control_relay_started: ContextVar[bool] = ContextVar("control_relay_started", default=False)
 
 
-def _existing_control_worktree(cfg: Config) -> Path | None:
-    """The Coga workspace of a worktree that already holds the control branch.
+def _control_branch_holder(cfg: Config) -> Path | None:
+    """The linked worktree that has the control branch checked out, if any.
 
-    What comes back is the *workspace* directory — the control worktree's
-    counterpart of this run's own `repo_root` — not the checkout root, because
-    that is where the relayed child has to start. Mirroring the workspace's
-    position relative to the checkout is also what makes a monorepo keeping
-    Coga in a subdirectory work, and checking `coga.toml` at exactly that
-    mirrored path is what proves the other checkout really is the same Coga
-    workspace rather than a checkout that predates the install.
-
-    None means "run here, or let `_refuse_non_control_branch` speak": this
-    checkout is already on control, the workspace is exempt or unreadable, we
-    are the relayed child, or no worktree holds the branch. Every inspection
-    failure collapses to None on purpose — the branch gate re-probes and owns
-    the error message, so a failure surfaces there rather than silently
-    becoming a relay.
+    This is the raw holder — nothing about whether it can be relayed into —
+    and it excludes this checkout itself (relaying into ourselves would be a
+    loop; the env sentinel already caps it at one hop, but a listing that
+    raced a branch move should not get that far in the first place). None
+    also covers a relayed child, a git-disabled or non-git workspace, a
+    checkout already on control, and every inspection failure: the branch
+    gate re-probes and owns the error message, so a failure surfaces there
+    rather than silently becoming a relay.
     """
     if os.environ.get(_CONTROL_RELAY_ENV):
         return None
@@ -283,14 +298,37 @@ def _existing_control_worktree(cfg: Config) -> Path | None:
         worktree = git.worktree_holding_branch(root, cfg.git_control_branch)
     except git.GitError:
         return None
-    # Relaying into ourselves would be a loop; the env sentinel already caps
-    # it at one hop, but a listing that raced a branch move should not get
-    # that far in the first place.
     if worktree is None or worktree.resolve() == root.resolve():
         return None
+    return worktree
+
+
+def _existing_control_worktree(cfg: Config) -> Path | None:
+    """The Coga workspace of a worktree that already holds the control branch.
+
+    What comes back is the *workspace* directory — the control worktree's
+    counterpart of this run's own `repo_root` — not the checkout root, because
+    that is where the relayed child has to start. Mirroring the workspace's
+    position relative to the checkout is also what makes a monorepo keeping
+    Coga in a subdirectory work, and checking `coga.toml` at exactly that
+    mirrored path is what proves the other checkout really is the same Coga
+    workspace rather than a checkout that predates the install.
+
+    None means "run here, or let `_refuse_non_control_branch` speak": no
+    worktree holds the branch (see `_control_branch_holder` for everything
+    that collapses to that), or one does but is unusable. The caller that
+    refuses asks `_control_branch_holder` again to tell those two apart, so
+    an unusable holder is named rather than reported as absent.
+    """
+    worktree = _control_branch_holder(cfg)
+    if worktree is None:
+        return None
     try:
+        root = git._toplevel(cfg.repo_root)
+        if root is None:
+            return None
         workspace_rel = cfg.repo_root.resolve().relative_to(root.resolve())
-    except ValueError:
+    except (git.GitError, ValueError):
         return None
     workspace = worktree / workspace_rel
     if not (workspace / "coga.toml").is_file():
@@ -372,7 +410,14 @@ def _relay_off_control_single_repo_run(cfg: Config, argv: list[str]) -> int | No
     workspace = _existing_control_worktree(cfg)
     if workspace is not None:
         return _relay_to_control_worktree(cfg, workspace, argv)
-    if _refuse_non_control_branch(cfg, no_control_worktree=True):
+    # A worktree may hold the branch without being a place to run from; the
+    # refusal has to say which, because `git worktree add` fails on the former.
+    unusable = _control_branch_holder(cfg)
+    if _refuse_non_control_branch(
+        cfg,
+        no_control_worktree=unusable is None,
+        unusable_control_worktree=unusable,
+    ):
         return 2
     return None
 

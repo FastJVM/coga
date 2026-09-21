@@ -933,16 +933,44 @@ def test_recurring_scan_refusal_names_the_missing_control_worktree(
 def test_recurring_relay_skips_a_worktree_without_a_coga_root(
     git_repo, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
-    """A control worktree with no `coga.toml` is not a place to run from."""
+    """A control worktree with no `coga.toml` is not a place to run from.
+
+    It still *holds* the branch, though, so the refusal must name it and
+    point at repairing or removing it — not claim no worktree has control and
+    suggest `git worktree add`, which Git would reject for that very reason.
+    """
     git_repo.checkout_branch("feature/empty-control")
     control = _add_control_worktree(git_repo)
     shutil.rmtree(control / "coga")
     _no_relay(monkeypatch, "relayed into a non-coga worktree")
 
     assert recurring_cmd.run_recurring_scan(load_config(git_repo.coga_os)) == 2
-    assert "No linked worktree has 'main' checked out either" in (
-        capsys.readouterr().err
-    )
+    error = capsys.readouterr().err
+    assert f"The linked worktree {control} already has 'main' checked out" in error
+    assert "not a usable Coga workspace" in error
+    assert f"git worktree remove {control}" in error
+    assert "No linked worktree has 'main' checked out" not in error
+    assert "git switch main" in error
+
+
+def test_recurring_relay_names_a_stale_control_worktree(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """A holder whose directory is gone is unusable, not absent.
+
+    Git keeps the registration until `git worktree prune`, so the branch is
+    still checked out as far as `git worktree add` is concerned.
+    """
+    git_repo.checkout_branch("feature/stale-control")
+    control = _add_control_worktree(git_repo)
+    shutil.rmtree(control)
+    _no_relay(monkeypatch, "relayed into a missing worktree")
+
+    assert recurring_cmd.run_recurring_scan(load_config(git_repo.coga_os)) == 2
+    error = capsys.readouterr().err
+    assert f"The linked worktree {control} already has 'main' checked out" in error
+    assert "git worktree prune" in error
+    assert "No linked worktree has 'main' checked out" not in error
 
 
 @pytest.mark.parametrize(

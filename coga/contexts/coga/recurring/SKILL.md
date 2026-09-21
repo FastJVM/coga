@@ -393,9 +393,15 @@ When **no** worktree holds the control branch, the refusal stands: it names the
 current branch, the configured control branch, and now the absence itself,
 offering `git worktree add ../<repo>-<control> <control>` alongside
 `git switch <control>`. Adding that worktree once makes every later off-branch
-sweep relay by itself. `coga launch recurring/<name>` has no relay and its
-refusal says nothing about worktrees, so the message never promises behavior
-that spelling does not implement.
+sweep relay by itself. A worktree that holds the branch but **cannot be relayed
+into** — no `coga.toml` at the mirrored workspace position, or a registration
+whose directory is gone — is a different refusal: it names that worktree and
+tells you to bring it up to date or remove it (`git worktree remove <path>`,
+`git worktree prune` for a missing directory) before recreating it, because
+Git will not check the branch out a second time and `git worktree add` would
+only fail. `coga launch recurring/<name>` has no relay and its refusal says
+nothing about worktrees, so the message never promises behavior that spelling
+does not implement.
 
 The outer sweep gate checks only the local branch. Its initial fetch and
 fast-forward (`git.refresh`) remains a warning for bare and named interactive
