@@ -188,14 +188,14 @@ def _checkout_is_off_control(cfg: Config) -> bool:
     as on-control so the established best-effort sweep is preserved;
     `sync_coga_state` owns its own handling."""
     try:
-        root = git._toplevel(cfg.repo_root)
+        root = git.toplevel(cfg.repo_root)
         if root is None:
             return False
         # Not `rev-parse --abbrev-ref HEAD`: with a tag named like the
         # control branch it answers `heads/main`, which would misclassify the
         # control worktree as off control and skip its only sweep.
         # `branch --show-current` is unambiguous and empty when detached.
-        branch = git._run_git(root, "branch", "--show-current").strip()
+        branch = git.run_git(root, "branch", "--show-current").strip()
         return branch != cfg.git_control_branch
     except git.GitError:
         return False

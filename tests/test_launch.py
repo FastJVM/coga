@@ -5429,9 +5429,6 @@ def test_script_identity_does_not_bypass_assist_publication_validation(
     assert not sentinel.exists()
 
 
-@pytest.mark.parametrize("terminal_command", ["mark-done", "bump"])
-
-
 def test_human_assist_alignment_keeps_original_prefix_target(
     git_repo,
     monkeypatch: pytest.MonkeyPatch,
