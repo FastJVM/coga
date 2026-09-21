@@ -1,6 +1,6 @@
 ---
 title: Yank the PyPI 0.0.1 placeholder and document the failure
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description

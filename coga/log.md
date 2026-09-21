@@ -5971,3 +5971,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-21 10:01 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
 2026-09-21 10:01 [cleanup/add-contributing-docs-issue-templates-and-a-repo-d] [human:nicktoper] auto-bumped on merge of PR #832 → done
 2026-09-21 10:01 [cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r] [human:nicktoper] auto-bumped on merge of PR #831 → done
+2026-09-21 10:01 [cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f] [human:nicktoper] auto-bumped on merge of PR #830 → done
