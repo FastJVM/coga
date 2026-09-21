@@ -40,9 +40,11 @@ worktree selected below for the skill's recorded checkout:
 - **§4 Reply without resolving** — the `addPullRequestReviewThreadReply`
   mutation, the re-read before replying, and the ban on `resolveReviewThread`.
 
-The skill's **§1 and its attended-assist conduct do not apply** here, and an
-agent reading both will otherwise hit these contradictions. Resolve each of
-them in favour of this ticket:
+The skill's **§1 and its attended-assist conduct do not apply** as a whole
+here. Retain only §1 items 3–5 for publication-destination validation and the
+private-ref fetch proof, with the sweep-specific refusal handling below; its
+ticket linkage, checkout alignment, and human escalation do not apply. Resolve
+the remaining contradictions in favour of this ticket:
 
 - There is no ticket `## Dev` block to read. The sweep starts from the PR
   itself (step 1 below), never from a `branch:` / `worktree:` / `pr:` line.
@@ -103,6 +105,18 @@ schedule, and a fix pushed onto a conflicting head would only be rebased again.
      stays unknown;
    - head repository other than this repository (a fork) → `skipped-fork`.
      Resolving a writable fork remote is not attempted.
+
+   Before reading comments or changing files, apply the skill's §1 items 3–5
+   to this PR: read the configured `[git].remote` (default `origin`), require
+   `git remote get-url --push --all <configured-remote>` to return exactly one
+   non-empty URL, and require that URL to identify the PR head repository
+   `<headRepositoryOwner.login>/<headRepository.name>`. Record it as
+   `<verified-push-url>`. Fetch the head branch directly from that URL through
+   a fresh private ref and require its OID to equal the observed `headRefOid`.
+   A missing, multiple, or mismatched destination, or a failed head proof, is
+   `push-failed`: report the reason and skip this PR without changes or replies.
+   Do not fast-forward or otherwise align an existing checkout here; step 4
+   owns worktree selection.
 2. **Inventory what needs addressing.** Three sources, all paginated:
    - Inline threads: the skill's §2 `reviewThreads` query. Keep threads whose
      `isResolved` is false.
@@ -173,15 +187,20 @@ schedule, and a fix pushed onto a conflicting head would only be rebased again.
 7. **Push with the observed lease.** Follow the skill's §3 exactly: refresh
    the PR's `state`, base, head repository, `headRefName`, and `headRefOid`
    immediately before pushing and require it to remain open against `main`
-   on the same branch; fetch the head through a fresh private ref and require
+   on the same branch and repository. Repeat the single-push-URL and repository
+   identity checks from step 1 in the selected worktree, requiring the URL to
+   remain `<verified-push-url>`; fetch the head directly from that URL through
+   a fresh private ref and require
    `<verified-remote-oid>` to equal the fresh `headRefOid` and the recorded
    original OID; prove ancestry with `git merge-base --is-ancestor`; then
-   `git push --force-with-lease=refs/heads/<head-ref>:<verified-remote-oid> origin HEAD:refs/heads/<head-ref>`
+   `git push --force-with-lease=refs/heads/<head-ref>:<verified-remote-oid> <verified-push-url> HEAD:refs/heads/<head-ref>`
    and require the post-push `headRefOid` to equal `git rev-parse HEAD`. If
-   the head moved or the lease rejects, do not weaken or retry it: restore
+   the destination changed, the head moved, or the lease rejects, do not
+   weaken or retry it: restore
    local state and report `push-failed` with the reason. When no item needed
    a file change, there is nothing to push; run the skill's no-change proof
-   instead so the evidence cited in replies describes the PR's current head.
+   instead, including the same destination checks and fetch from
+   `<verified-push-url>`, so reply evidence describes the PR's current head.
 8. **Reply without resolving.** Only after the applicable post-push or
    no-change proof succeeds. Threads: the skill's §4 mutation. Top-level
    comments and review summaries:
