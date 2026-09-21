@@ -620,7 +620,13 @@ wrong checkout silently produces wrong results in both directions:
   through its own scoped guard, and a refused one deliberately stays dirty),
   `recurring --all` (the parent dispatcher owns no repo state; each child
   sweeps its own repo), `secret` in every form, and any `skill` / `mark` /
-  `recurring` subcommand outside its sweeping set. So `launch`, `megalaunch`,
+  `recurring` subcommand outside its sweeping set. `_sweep_coga_state` adds
+  one branch-keyed exception: the child `recurring --all` spawns (`run
+  recurring-scan --require-fresh-control`) skips the sweep when its host
+  checkout is off the control branch, because that child serviced the repo
+  from a temporary control worktree whose inner CLI already swept there — a
+  second sweep from the host would land the feature checkout's dirty `coga/`
+  edits on control, which is the hazard above with no command run by hand. So `launch`, `megalaunch`,
   `run`, `create`, a plain `bump`, and the mutating `mark` /
   `skill` / `recurring` subcommands sweep — but a dirty `coga/` edit left
   around one of the excluded invocations stays local.

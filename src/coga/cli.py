@@ -147,6 +147,13 @@ def _sweep_coga_state(cfg: Config | None) -> None:
     """
     if cfg is None or not _should_sweep_coga_state(sys.argv):
         return
+    if _is_recurring_all_child(sys.argv) and _checkout_is_off_control(cfg):
+        # An off-control `recurring --all` child serviced this repo from a
+        # temporary control-branch worktree, whose inner CLI already ran the
+        # real sweep there. Sweeping again here would publish the untouched
+        # host feature checkout's dirty `coga/` state on control. On control
+        # this is the inner CLI (or an ordinary direct child) and sweeps.
+        return
     try:
         # A launched agent may edit coga.toml and move the context tree while
         # the command is running. The eager config fed aliases at dispatch;
@@ -161,6 +168,37 @@ def _sweep_coga_state(cfg: Config | None) -> None:
         )
         return
     git.sync_coga_state(live_cfg)
+
+
+def _is_recurring_all_child(argv: list[str]) -> bool:
+    """Whether this is the freshness-gated child `recurring --all` spawns
+    (`recurring_runner._run_repo_recurring`)."""
+    args = argv[1:]
+    return (
+        len(args) >= 3
+        and args[0] == "run"
+        and args[1] == "recurring-scan"
+        and "--require-fresh-control" in args[2:]
+    )
+
+
+def _checkout_is_off_control(cfg: Config) -> bool:
+    """Whether the checkout holding `cfg.repo_root` is not on the control
+    branch (a detached HEAD is off control). Unreadable checkout state reads
+    as on-control so the established best-effort sweep is preserved;
+    `sync_coga_state` owns its own handling."""
+    try:
+        root = git._toplevel(cfg.repo_root)
+        if root is None:
+            return False
+        # Not `rev-parse --abbrev-ref HEAD`: with a tag named like the
+        # control branch it answers `heads/main`, which would misclassify the
+        # control worktree as off control and skip its only sweep.
+        # `branch --show-current` is unambiguous and empty when detached.
+        branch = git._run_git(root, "branch", "--show-current").strip()
+        return branch != cfg.git_control_branch
+    except git.GitError:
+        return False
 
 
 def _should_sweep_coga_state(argv: list[str]) -> bool:
