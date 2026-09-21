@@ -1,6 +1,6 @@
 ---
 title: Fix coga init crash on Python 3.11 by adding the resources package init
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description

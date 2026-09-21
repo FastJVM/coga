@@ -17,7 +17,7 @@ import sys
 import typer
 
 from coga import git, pr_assist
-from coga.commands.common import current_operator
+from coga.commands.common import completion_identity
 from coga.config import Config, ConfigError, load_config
 from coga.lifecycle import CANCELABLE_STATUSES
 from coga.logfile import log_path
@@ -219,15 +219,8 @@ def done(
     assist = _acquire_assist_transition(cfg, ref, rollback)
 
     suffix = f" — {message}" if message else ""
-    finisher = (
-        assist.agent
-        if assist is not None
-        else current_operator(cfg, ref, ticket) or cfg.current_user
-    )
-    actor = (
-        f"agent:{assist.agent}"
-        if assist is not None
-        else f"human:{cfg.current_user}"
+    actor, finisher = completion_identity(
+        cfg, ref, ticket, assist_agent=assist.agent if assist else None
     )
     log_message = f"task done{suffix}"
     # A workflow-less ticket has no current step, so collapse the transition.

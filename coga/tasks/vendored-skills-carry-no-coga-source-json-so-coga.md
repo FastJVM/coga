@@ -1,7 +1,7 @@
 ---
 title: Correct recurring/skill-update's provenance claim to match how skills are actually
   managed
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description

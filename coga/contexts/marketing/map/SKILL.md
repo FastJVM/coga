@@ -55,7 +55,7 @@ This is a repo inventory, not a fresh audit of live accounts or websites.
 | Public operational counts and limits | [Velocity report](../../../../docs/velocity-report.md) | Dated descriptive evidence; no productivity multiplier. |
 | Make and decide the story/examples | [Story decision ticket](../../../tasks/marketing/plan/collect-public-examples-for-the-launch.md) | Future creative work; its older collection name does not require an existing source packet. |
 | Operational usage tooling | [Human-minutes script](../../../../scripts/human_minutes.py), `coga usage`, `--prompt-report` | Historical/operational diagnostics. The marketing token experiment remains dropped. |
-| Private-repo narrative attachment | `coga/tasks/marketing/phase-0-audit/narrative-candidates.md` | **Excluded.** Locate it for disposition only; do not copy, quote or use it in a writing source packet. The confidentiality ticket below owns it. |
+| Private-repo narrative attachment | Deleted from the tree (`coga/tasks/marketing/phase-0-audit/narrative-candidates.md`, removed by the confidentiality ticket below) | **Excluded.** Private-repo log text, slugs and block reasons are not publishable; do not recover the file from history or re-collect the material for a writing source packet. |
 
 Public Coga tickets, log entries, contexts, diffs and PRs can support specific
 observed-event claims. Newly authored illustrations are also allowed when

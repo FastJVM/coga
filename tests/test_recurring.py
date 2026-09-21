@@ -9706,6 +9706,366 @@ def test_scan_does_not_refire_past_an_older_union_merged_tail_record(
     assert not (tasks_dir(cfg) / "recurring" / "weekly-check").exists()
 
 
+def _seed_recurring_ledger_sweep(git_repo, names: tuple[str, ...]) -> Config:
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _seed_agent_workflow(coga_os)
+    for name in names:
+        _write_recurring_agent(coga_os, name, schedule="0 9 * * 1", title=name)
+    _seed_global_log(git_repo)
+    git_repo.git("add", "coga")
+    git_repo.git("commit", "-m", "seed recurring templates")
+    git_repo.git("push", "origin", "main")
+    return load_config(coga_os)
+
+
+@pytest.mark.parametrize("feature_branch", [False, True], ids=["control", "feature"])
+@pytest.mark.parametrize("preloaded", [False, True], ids=["cold", "preloaded"])
+@pytest.mark.parametrize("competitor", ["none", "before", "retry", "after"])
+def test_recurring_fallback_publication_preserves_other_sweep_targets(
+    git_repo, monkeypatch: pytest.MonkeyPatch,
+    feature_branch: bool, preloaded: bool, competitor: str,
+) -> None:
+    cfg = _seed_recurring_ledger_sweep(git_repo, ("aaa-check", "bbb-check", "ccc-check"))
+    revision = git_repo.git("rev-parse", "HEAD").strip()
+    if feature_branch:
+        git_repo.checkout_branch("feature/fallback-ledger")
+    scan = scan_due(cfg, now=datetime(2026, 6, 8, 10, 0))
+    original_fetch = recurring_cmd._fetch_control_branch
+    original_push = coga_git._push_ref
+    original_sync = coga_git.sync_paths
+    fetches = 0
+    pushes = 0
+
+    def compete() -> None:
+        log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+        git_repo.push_competing_commit(
+            "coga/log.md", log + "2026-06-08 11:00 [recurring/bbb-check] [system] "
+            "created recurring/bbb-check for 2026-W24\n",
+        )
+
+    def fetch(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal fetches
+        fetches += 1
+        if fetches == 1:
+            if competitor == "before":
+                compete()
+            raise coga_git.GitError("transient first create fetch failure")
+        return original_fetch(*args, **kwargs)
+
+    def push(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal pushes
+        pushes += 1
+        if pushes == 1 and competitor == "retry":
+            compete()
+        return original_push(*args, **kwargs)
+
+    def sync(*args, **kwargs):  # type: ignore[no-untyped-def]
+        published = original_sync(*args, **kwargs)
+        assert published is not None
+        if competitor == "after":
+            compete()
+        return published
+
+    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", fetch)
+    monkeypatch.setattr(coga_git, "_push_ref", push)
+    monkeypatch.setattr(coga_git, "sync_paths", sync)
+    monkeypatch.setattr(recurring_cmd, "notify", lambda *args, **kwargs: None)
+    recurring_cmd._broadcast_scan(
+        cfg, scan, control_is_fresh=preloaded, control_revision=revision
+    )
+
+    expected = ["aaa-check", "bbb-check", "ccc-check"] if competitor == "none" else ["aaa-check", "ccc-check"]
+    assert [task.template for task in scan.due] == expected
+    for name in ("aaa-check", "bbb-check", "ccc-check"):
+        assert git_repo.origin_tracks(f"coga/tasks/recurring/{name}/ticket.md") is (name in expected)
+    if competitor == "after":
+        assert "refusing ambiguous period admission" in scan.errors[0][1]
+    else:
+        assert scan.errors == []
+
+
+@pytest.mark.parametrize("preloaded", [False, True], ids=["fallback", "preloaded"])
+@pytest.mark.parametrize("peer_status", [None, "done", "active"], ids=["reaped", "done", "active"])
+def test_recurring_sweep_refreshes_before_first_create(
+    git_repo, monkeypatch: pytest.MonkeyPatch, preloaded: bool, peer_status: str | None
+) -> None:
+    """A rival completes after our scan, before our first create publication."""
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _seed_agent_workflow(coga_os)
+    _write_recurring_agent(
+        coga_os, "weekly-check", schedule="0 9 * * 1", title="Weekly check"
+    )
+    git_repo.git("add", "coga")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+    now = datetime(2026, 6, 8, 10, 0)
+    _freeze_recurring_now(monkeypatch, now)
+    _allow_interactive_recurring(monkeypatch)
+    original_scan = recurring_cmd.scan_due
+    peer_ticket = ""
+
+    def scan_then_compete(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal peer_ticket
+        scan = original_scan(*args, **kwargs)
+        assert scan.tasks[0].created
+        _push_competing_serviced_period(git_repo, "weekly-check", "2026-W24")
+        if peer_status is not None:
+            ticket = Ticket.read(scan.tasks[0].ref.ticket_path)
+            ticket.frontmatter["status"] = peer_status
+            peer_ticket = ticket.render()
+            git_repo.push_competing_commit(
+                "coga/tasks/recurring/weekly-check/ticket.md", peer_ticket
+            )
+        return scan
+
+    original_broadcast = recurring_cmd._broadcast_scan
+
+    def broadcast(*args, **kwargs):  # type: ignore[no-untyped-def]
+        kwargs["control_is_fresh"] = preloaded
+        original_broadcast(*args, **kwargs)
+        assert args[1].due == []
+
+    monkeypatch.setattr(recurring_cmd, "scan_due", scan_then_compete)
+    monkeypatch.setattr(recurring_cmd, "_broadcast_scan", broadcast)
+    launched: list[str] = []
+    _patch_recurring_command_launch(
+        monkeypatch, coga_os, lambda slug, **kwargs: launched.append(slug)
+    )
+
+    result = CliRunner().invoke(app, ["recurring"])
+
+    assert result.exit_code == 0, result.output
+    assert launched == []
+    path = "coga/tasks/recurring/weekly-check/ticket.md"
+    assert git_repo.origin_tracks(path) is (peer_status is not None)
+    if peer_status is not None:
+        assert git_repo.git("show", f"main:{path}", cwd=git_repo.origin) == peer_ticket
+
+
+@pytest.mark.parametrize("feature_branch", [False, True], ids=["control", "feature"])
+def test_recurring_create_retry_refreshes_a_changed_control_revision(
+    git_repo, monkeypatch: pytest.MonkeyPatch, feature_branch: bool
+) -> None:
+    cfg = _seed_recurring_ledger_sweep(git_repo, ("weekly-check",))
+    revision = git_repo.git("rev-parse", "HEAD").strip()
+    if feature_branch:
+        git_repo.checkout_branch("feature/retry-ledger")
+    scan = scan_due(cfg, now=datetime(2026, 6, 8, 10, 0))
+    original_push = coga_git._push_ref
+    pushes = 0
+
+    def push_after_competitor(root, remote, refspec):  # type: ignore[no-untyped-def]
+        nonlocal pushes
+        pushes += 1
+        if pushes == 1:
+            _push_competing_serviced_period(git_repo, "weekly-check", "2026-W24")
+        return original_push(root, remote, refspec)
+
+    monkeypatch.setattr(coga_git, "_push_ref", push_after_competitor)
+    recurring_cmd._broadcast_scan(
+        cfg, scan, control_is_fresh=True, control_revision=revision
+    )
+
+    # Control may still push the union-merged audit log after suppressing the
+    # task. The overlay itself must not be retried with the duplicate task.
+    assert pushes == (1 if feature_branch else 2)
+    assert scan.due == []
+    assert not git_repo.origin_tracks("coga/tasks/recurring/weekly-check/ticket.md")
+    assert not (git_repo.coga_os / "tasks/recurring/weekly-check").exists()
+
+
+@pytest.mark.parametrize("feature_branch", [False, True], ids=["control", "feature"])
+@pytest.mark.parametrize("audit_retry", [False, True], ids=["audit-push", "audit-retry"])
+def test_recurring_rejected_create_log_publication_keeps_other_targets(
+    git_repo, monkeypatch: pytest.MonkeyPatch,
+    feature_branch: bool, audit_retry: bool,
+) -> None:
+    cfg = _seed_recurring_ledger_sweep(git_repo, ("aaa-check", "bbb-check", "ccc-check"))
+    revision = git_repo.git("rev-parse", "HEAD").strip()
+    if feature_branch:
+        git_repo.checkout_branch("feature/rejected-create-ledger")
+    scan = scan_due(cfg, now=datetime(2026, 6, 8, 10, 0))
+    original_push = coga_git._push_ref
+    pushes = 0
+
+    def push(root, remote, refspec):  # type: ignore[no-untyped-def]
+        nonlocal pushes
+        pushes += 1
+        if pushes == 1 or (pushes == 2 and audit_retry and not feature_branch):
+            name = "aaa-check" if pushes == 1 else "bbb-check"
+            log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+            git_repo.push_competing_commit(
+                "coga/log.md", log + f"2026-06-08 11:00 [recurring/{name}] [system] "
+                f"created recurring/{name} for 2026-W24\n",
+            )
+        return original_push(root, remote, refspec)
+
+    monkeypatch.setattr(coga_git, "_push_ref", push)
+    monkeypatch.setattr(recurring_cmd, "notify", lambda *args, **kwargs: None)
+    recurring_cmd._broadcast_scan(
+        cfg, scan, control_is_fresh=True, control_revision=revision
+    )
+
+    expected = ["ccc-check"] if audit_retry and not feature_branch else ["bbb-check", "ccc-check"]
+    assert [task.template for task in scan.due] == expected
+    assert scan.errors == []
+    for name in ("aaa-check", "bbb-check", "ccc-check"):
+        assert git_repo.origin_tracks(f"coga/tasks/recurring/{name}/ticket.md") is (name in expected)
+
+
+@pytest.mark.parametrize("competing", [False, True], ids=["unchanged", "peer-before-create"])
+def test_recurring_sweep_keeps_all_targets_across_ledger_refresh(
+    git_repo, monkeypatch: pytest.MonkeyPatch, competing: bool
+) -> None:
+    names = ("aaa-check", "bbb-check", "ccc-check")
+    cfg = _seed_recurring_ledger_sweep(git_repo, names)
+    revision = git_repo.git("rev-parse", "HEAD").strip()
+    scan = scan_due(cfg, now=datetime(2026, 6, 8, 10, 0))
+    reads: list[dict[str, str]] = []
+    original_read = recurring_cmd._read_control_ledger
+
+    def read(root, ref, log_rel, resolve_at=None):  # type: ignore[no-untyped-def]
+        reads.append(dict(resolve_at))
+        return original_read(root, ref, log_rel, resolve_at)
+
+    monkeypatch.setattr(recurring_cmd, "_read_control_ledger", read)
+    if competing:
+        _push_competing_serviced_period(git_repo, names[0], "2026-W24")
+    recurring_cmd._broadcast_scan(
+        cfg, scan, control_is_fresh=True, control_revision=revision
+    )
+
+    expected = names[1:] if competing else names
+    assert [task.template for task in scan.due] == list(expected)
+    assert scan.errors == []
+    assert reads == ([{f"recurring/{name}": "2026-W24" for name in names}] if competing else [])
+    for name in names:
+        assert git_repo.origin_tracks(f"coga/tasks/recurring/{name}/ticket.md") is (name in expected)
+
+
+@pytest.mark.parametrize("feature_branch", [False, True], ids=["control", "feature"])
+@pytest.mark.parametrize("during_retry", [False, True], ids=["between-creates", "retry"])
+def test_recurring_sweep_refuses_changed_ledger_after_own_publication(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    feature_branch: bool, during_retry: bool,
+) -> None:
+    cfg = _seed_recurring_ledger_sweep(git_repo, ("aaa-check", "bbb-check", "ccc-check"))
+    revision = git_repo.git("rev-parse", "HEAD").strip()
+    if feature_branch:
+        git_repo.checkout_branch("feature/ledger-refusal")
+    now = datetime(2026, 6, 8, 10, 0)
+    scan = scan_due(cfg, now=now)
+    original_sync = recurring_cmd._sync_recurring_create
+    original_push = coga_git._push_ref
+    overlay_pushes = 0
+
+    def compete() -> None:
+        log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+        git_repo.push_competing_commit(
+            "coga/log.md", log + "2026-06-08 11:00 [recurring/bbb-check] [system] "
+            "created recurring/bbb-check for 2026-W24\n",
+        )
+
+    def sync_then_compete(cfg, template_name, *args, **kwargs):  # type: ignore[no-untyped-def]
+        created = original_sync(cfg, template_name, *args, **kwargs)
+        if template_name == "aaa-check" and not during_retry:
+            compete()
+        return created
+
+    def push_after_competitor(root, remote, refspec):  # type: ignore[no-untyped-def]
+        nonlocal overlay_pushes
+        if ":refs/heads/" in refspec:
+            overlay_pushes += 1
+            if overlay_pushes == 2 and during_retry:
+                compete()
+        return original_push(root, remote, refspec)
+
+    monkeypatch.setattr(coga_git, "_push_ref", push_after_competitor)
+    monkeypatch.setattr(recurring_cmd, "_sync_recurring_create", sync_then_compete)
+    monkeypatch.setattr(recurring_cmd, "notify", lambda *args, **kwargs: None)
+    recurring_cmd._broadcast_scan(
+        cfg, scan, control_is_fresh=True, control_revision=revision
+    )
+
+    assert [task.template for task in scan.due] == ["aaa-check", "ccc-check"]
+    assert [name for name, error in scan.errors] == ["bbb-check"]
+    assert "refusing ambiguous period admission" in capsys.readouterr().err
+    assert not (git_repo.coga_os / "tasks/recurring/bbb-check").exists()
+    assert not git_repo.origin_tracks("coga/tasks/recurring/bbb-check/ticket.md")
+    monkeypatch.setattr(recurring_cmd, "_sync_recurring_create", original_sync)
+    retry = scan_due(cfg, now=now)
+    recurring_cmd._broadcast_scan(cfg, retry)
+    assert "bbb-check" not in [task.template for task in retry.due]
+
+
+def test_recurring_ledger_refresh_read_failure_discards_local_create(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfg = _seed_recurring_ledger_sweep(git_repo, ("weekly-check",))
+    revision = git_repo.git("rev-parse", "HEAD").strip()
+    now = datetime(2026, 6, 8, 10, 0)
+    scan = scan_due(cfg, now=now)
+    _push_competing_serviced_period(git_repo, "weekly-check", "2026-W24")
+    original_read = recurring_cmd._read_control_ledger
+
+    def fail_read(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise coga_git.GitError("simulated control log read failure")
+
+    monkeypatch.setattr(recurring_cmd, "_read_control_ledger", fail_read)
+    monkeypatch.setattr(recurring_cmd, "notify", lambda *args, **kwargs: None)
+    recurring_cmd._broadcast_scan(
+        cfg, scan, control_is_fresh=True, control_revision=revision
+    )
+
+    assert scan.due == []
+    assert "cannot refresh control ledger" in scan.errors[0][1]
+    assert "cannot refresh control ledger" in capsys.readouterr().err
+    assert not (git_repo.coga_os / "tasks/recurring/weekly-check").exists()
+    assert not git_repo.origin_tracks("coga/tasks/recurring/weekly-check/ticket.md")
+    monkeypatch.setattr(recurring_cmd, "_read_control_ledger", original_read)
+    retry = scan_due(cfg, now=now)
+    recurring_cmd._broadcast_scan(cfg, retry)
+    assert retry.due == []
+
+
+@pytest.mark.parametrize("period", ["2026-W24", "none"], ids=["valid", "malformed"])
+def test_forced_sweep_validates_external_ledger_changes_after_own_publication(
+    git_repo, monkeypatch: pytest.MonkeyPatch, period: str
+) -> None:
+    cfg = _seed_recurring_ledger_sweep(git_repo, ("aaa-check", "bbb-check"))
+    revision = git_repo.git("rev-parse", "HEAD").strip()
+    scan = scan_due(cfg, now=datetime(2026, 6, 8, 10, 0), force=True)
+    original_sync = recurring_cmd._sync_recurring_create
+
+    def sync_then_compete(cfg, template_name, *args, **kwargs):  # type: ignore[no-untyped-def]
+        created = original_sync(cfg, template_name, *args, **kwargs)
+        if template_name == "aaa-check":
+            log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+            git_repo.push_competing_commit(
+                "coga/log.md", log + "2026-06-08 11:00 [recurring/bbb-check] [system] "
+                f"created recurring/bbb-check for {period}\n",
+            )
+        return created
+
+    monkeypatch.setattr(recurring_cmd, "_sync_recurring_create", sync_then_compete)
+    monkeypatch.setattr(recurring_cmd, "notify", lambda *args, **kwargs: None)
+    recurring_cmd._broadcast_scan(
+        cfg, scan, respect_handled_period=False, sync_existing=True,
+        control_is_fresh=True, control_revision=revision,
+    )
+
+    if period == "none":
+        assert [task.template for task in scan.forced] == ["aaa-check"]
+        assert "invalid serviced period 'none'" in scan.errors[0][1]
+        assert not git_repo.origin_tracks("coga/tasks/recurring/bbb-check/ticket.md")
+    else:
+        assert [task.template for task in scan.forced] == ["aaa-check", "bbb-check"]
+        assert scan.errors == []
+        assert git_repo.origin_tracks("coga/tasks/recurring/bbb-check/ticket.md")
+
+
 def test_broadcast_reuses_the_fresh_prescan_control_ledger(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -9722,7 +10082,11 @@ def test_broadcast_reuses_the_fresh_prescan_control_ledger(
         lambda *args, **kwargs: pytest.fail("fresh sweep reread control log"),
     )
 
-    recurring_cmd._broadcast_scan(cfg, scan, control_is_fresh=True)
+    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", lambda *args: None)
+    monkeypatch.setattr(recurring_cmd, "_rev_parse", lambda *args: "caught-up")
+    recurring_cmd._broadcast_scan(
+        cfg, scan, control_is_fresh=True, control_revision="caught-up"
+    )
 
     assert scan.errors == []
 
@@ -9782,8 +10146,8 @@ def test_control_ledger_uses_the_same_per_ref_target_stop(
 ) -> None:
     """The pinned control fallback must agree with the local reverse read."""
     monkeypatch.setattr(
-        recurring_cmd,
-        "_show_path",
+        coga_git,
+        "_run_git",
         lambda *args: "".join(
             [
                 "2026-05-01 09:00 [recurring/other-check] [system] "
@@ -9973,8 +10337,8 @@ def test_control_ledger_rejects_malformed_period(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        recurring_cmd,
-        "_show_path",
+        coga_git,
+        "_run_git",
         lambda *args: (
             "2026-08-13 17:22 [recurring/check] [system] "
             "created recurring/check for none\n"

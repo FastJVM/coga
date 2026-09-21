@@ -19,7 +19,10 @@ For the line format and field encoding, see the `coga/autoclose/sweep` skill.
 ## Follow-ups (open)
 
 - `adjudicate-parked-and-active-tickets-whose-premise` — branch `adjudicate-moved-premises`, worktree `/home/n/Code/claude/coga-adjudicate-moved-premises`, recorded `2026-09-18`
+- `cleanup/add-contributing-docs-issue-templates-and-a-repo-d` — branch `docs/contributing`, worktree `/tmp/coga-contributing-docs`, recorded `2026-09-21`
+- `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r` — branch `resources-pkg-init`, worktree `/home/n/Code/claude/coga-resources-pkg-init`, recorded `2026-09-21`
 - `cleanup/handle-a-bare-slack-webhook-url-during-empty-repo` — branch `init-bare-slack-env`, worktree `/home/n/Code/claude/coga-init-bare-slack-env`, recorded `2026-09-18`
+- `cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f` — branch `docs/pypi-placeholder-note`, worktree `/tmp/coga-pypi-placeholder-note`, recorded `2026-09-21`
 - `define-the-recipe-reporting-contract-report-durabi` — branch `recipe-reporting-contract`, worktree `/home/n/Code/claude/coga-recipe-reporting-contract`, recorded `2026-09-18`
 - `document-when-to-attach-a-large-context-versus-cit` — branch `attach-vs-cite`, worktree `/home/n/Code/claude/coga-attach-vs-cite`, recorded `2026-09-18`
 - `persist-autoclose-retire-follow-ups` — branch `autoclose-retire-worklist`, worktree `/home/n/Code/claude/coga-autoclose-retire-worklist`, recorded `2026-09-18`
@@ -28,3 +31,5 @@ For the line format and field encoding, see the `coga/autoclose/sweep` skill.
 - `state-which-branch-is-canonical-for-machine-genera` — branch `sync-canonical-policy`, worktree `/home/n/Code/claude/coga-sync-canonical-policy`, recorded `2026-09-18`
 - `the-period-task-context-never-covers-the-determini` — branch `period-task-recipe-firing`, worktree `/home/n/Code/claude/coga-period-task-recipe-firing`, recorded `2026-09-18`
 - `the-v2-parking-area-premise-check-has-four-holes` — branch `v2-premise-holes`, worktree `/tmp/coga-v2-premise-review.5AX4MD/repo`, recorded `2026-09-18`
+- `ticket-specs-should-cite-symbols-not-line-numbers` — branch `design-cite-symbols`, worktree `/home/n/Code/claude/coga-design-cite-symbols`, recorded `2026-09-21`
+- `vendored-skills-carry-no-coga-source-json-so-coga` — branch `docs/skill-attribution`, worktree `/tmp/coga-skill-attribution`, recorded `2026-09-21`

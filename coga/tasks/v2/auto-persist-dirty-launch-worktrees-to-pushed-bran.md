@@ -1,6 +1,6 @@
 ---
 title: Auto-persist dirty launch worktrees to pushed branches
-status: paused
+status: canceled
 owner: nicktoper
 agent: claude
 contexts:
@@ -26,8 +26,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 2 (self-qa)
-# --- extensions ---
 ---
 
 ## Description
@@ -122,3 +120,21 @@ pr:
 Launch worktree isolation was removed in PR #547 and deferred to v2. This
 ticket is superseded by `v2/reintroduce-per-launch-worktree-isolation`, whose
 design checklist includes the auto-persist requirement.
+
+## Self-QA (2026-09-20)
+
+Step could not run; ticket canceled as premise-dead with the owner's decision.
+
+- Implement work unrecoverable: `codex/auto-persist-launch-dirt` has no local
+  or remote ref, `/tmp/coga-auto-persist-launch-dirt` no longer exists, and
+  commit `8f6e7846` is not a valid object in this repository. The branch was
+  never pushed and its `/tmp` checkout was wiped — the exact failure `dev/code`
+  › "Keep the feature checkout durable" describes.
+- Premise removed: `[launch].worktree` per-launch isolation was deleted in
+  PR #547 (`667120e8`, 2026-07-14). `config._ALLOWED_LAUNCH_KEYS` is
+  `idle_timeout` / `max_session` only, and no launch-worktree cleanup path
+  exists in `src/coga/`, so there is no teardown to make durable.
+- Requirement preserved: `v2/reintroduce-per-launch-worktree-isolation`
+  (draft) lists auto-persisting committed-but-unpushed product code before
+  teardown as a v2 design checklist item. Any future implementation belongs
+  under that ticket once it is pulled forward.

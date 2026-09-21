@@ -8,7 +8,7 @@ import sys
 import typer
 
 from coga import git, pr_assist
-from coga.commands.common import current_operator
+from coga.commands.common import completion_identity, current_operator
 from coga.bump import (
     OperatorResolutionError,
     advance_step,
@@ -23,6 +23,7 @@ from coga.paths import resolve_workflow_path
 from coga.period_state import parent_ticket_path, read_snapshot
 from coga.step_gate import gate_publishes_current_branch, gate_unmet_reason
 from coga.taskfile import read_blackboard
+from coga.task_env import is_script_task
 from coga.repl_supervisor import (
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
@@ -92,6 +93,12 @@ def bump(
         ref = resolve_task(cfg, task)
     except TaskNotFoundError as exc:
         _bail(str(exc))
+
+    if rewind and is_script_task(ref):
+        _bail(
+            "Ticket scripts cannot rewind. A human can rewind outside the "
+            "script with `coga bump <id> --to <step>`."
+        )
 
     assist_requested = pr_assist.assist_publication_requested(ref)
     if rewind and assist_requested:
@@ -273,13 +280,8 @@ def bump(
         publication_succeeded = True
 
     if finish:
-        operator = current_operator(cfg, ref, ticket)
-        effective_agent = assist.agent if assist is not None else operator
-        finisher = effective_agent or cfg.current_user
-        actor = (
-            f"agent:{effective_agent}"
-            if assist is not None
-            else f"human:{cfg.current_user}"
+        actor, finisher = completion_identity(
+            cfg, ref, ticket, assist_agent=assist.agent if assist else None
         )
         prev = ticket.current_step()
         transition = f": {prev['name']} → done" if prev else ""
@@ -413,17 +415,10 @@ def bump(
         actor = f"human:{cfg.current_user}"
         finisher = cfg.current_user
         verb = "rewound"
-    elif assist is not None:
-        actor = f"agent:{assist.agent}"
-        finisher = assist.agent
-        verb = "advanced"
     else:
-        actor = (
-            f"agent:{holder}"
-            if holder
-            else f"human:{cfg.current_user}"
+        actor, finisher = completion_identity(
+            cfg, ref, ticket, assist_agent=assist.agent if assist else None
         )
-        finisher = holder or cfg.current_user
         verb = "advanced"
 
     try:

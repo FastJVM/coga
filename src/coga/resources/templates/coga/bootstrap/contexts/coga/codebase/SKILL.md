@@ -232,6 +232,33 @@ coexist under `coga/skills/`:
   below the tree root (`coga/skills/ns/<name>`) is reported `failed` without
   calling `gh`: `gh skill update` reinstalls at `coga/skills/<name>` and would
   move it while printing a clean `Updated ns/<name>`.
+  **Treat these directories as read-only in-repo.** Coga's local-adaptation
+  guard does not cover this shape: `install_github_skill` records no Coga
+  digest (gh's `github-tree-sha` is the *upstream* tree, not a hash of the
+  files on disk), `install_url_skill` reads `installed_tree_digest` only from
+  a `.coga-source.json` whose `source_type` is `url`, and
+  `_update_gh_backed_skill` runs `gh skill update` with no digest comparison
+  at all. So the `--force` refusal on reinstall and the
+  `skipped-local-adaptation` / `conflict` results of `_update_url_skill_dir`
+  never fire here: a local edit to a `google-agents-cli-*` file survives only
+  until upstream moves, then the weekly `recurring/skill-update` run replaces
+  the tree and opens a PR that reviews the upstream change, not the lost
+  edit — whereas the same edit to a URL-backed skill is refused. To change
+  one of these packs, fix it upstream, or move it out of this shape into a
+  hand-vendored namespaced copy with attribution (fourth shape below).
+  **The packs are kept on purpose.** No ticket, context, recurring job or
+  workflow in this repo does ADK work; the seven `google-agents-cli-*` trees
+  are the checked-in, end-to-end exercise of the GitHub-backed update path —
+  they were installed through `gh skill install` precisely so
+  `skill update --all` would have something real to refresh (commit
+  `321e6231`), and the weekly job has been refreshing them since. Deleting
+  them as dead weight would leave `_update_gh_backed_skill` and
+  `classify_gh_update_output` with no live target in this repo. It would not
+  starve `install_github_skill`: the seven entries stay in
+  `src/coga/resources/managed-skills.toml`, and a fresh `coga init` runs
+  `install_managed_skills`, which calls `install_github_skill` for every
+  entry whose target directory is absent. Only the update and classification
+  path depends on the checked-in instances.
 - **Installer-managed, flat and URL-backed** — `coga skill install-url` lands
   the same flat `coga/skills/<ref>/` placement but marks it with a
   `.coga-source.json` (`schema: coga.skill-source.v1`) recording
@@ -364,6 +391,46 @@ rule, and it holds for skills and contexts too: **a live
 `coga/<kind>/<name>` overrides the bundled copy, and where no live copy exists
 the packaged file *is* what this repo resolves and freezes.** Check which side
 is live before assuming an edit is downstream-only.
+
+### How packaged contexts reach a repo
+
+The packaged tree ships contexts in two directories, and they reach a repo by
+different mechanisms. A context is in exactly one of three states:
+
+- **Init-seeded** — `templates/coga/contexts/**` (today only the `_template`
+  scaffold). `coga init` copies it once, via
+  `commands/update.py::copy_fresh_templates` (`_copy_resource_tree` with
+  `skip_top={"bootstrap"}`), into the new repo's contexts directory. From then
+  on the repo owns the copy: it may edit or delete it, and **nothing reads the
+  packaged original at runtime** — it is never a fallback.
+- **Bootstrap-fallback** — `templates/coga/bootstrap/contexts/**` (`coga/*`,
+  `dev/code`, `browser/*`). `coga init` skips `bootstrap/` entirely, so the
+  copy is never installed; instead `paths.resolve_context_path` reads it from
+  the package when the repo's contexts directory has no `<ref>/SKILL.md`. A
+  repo overrides one by creating the local file.
+- **Local-only** — a file under the repo's contexts directory with no packaged
+  copy at all. Repo-specific, resolved first, and nothing outside the repo
+  knows it exists.
+
+`resolve_context_path` is the whole runtime rule: local first, then
+`bootstrap/contexts/`, then `None` — which `compose` turns into a
+`ComposeError` and `coga launch` refuses to start (`validate` and `create`
+reject the ref statically). The consequence for authors: **a bundled bootstrap
+ticket (`bootstrap/<verb>/ticket.md`), and any bundled skill that tells the
+agent to apply a context, may only name contexts that resolve from
+`bootstrap/contexts/`.** An init-seeded context is repo-owned and deletable, so
+a bundled launcher that depends on it cannot compose from bundled resources
+alone in any repo that predates the seed or pruned it. That shipped once: the
+`browser-automation` launcher attached `browser/api-first` while both browser
+contexts sat in the seeded tree, and two separate agents had to rediscover why
+by probing the package. They now live under `bootstrap/contexts/browser/`, and
+`tests/test_packaging.py::test_bundled_bootstrap_tickets_attach_only_bootstrap_contexts`
+enforces the rule for every bundled launcher. Skills and workflows have the
+same split: `resolve_skill_path` and `resolve_workflow_path` fall back to
+`bootstrap/{skills,workflows}/` only, while the seeded
+`templates/coga/{skills,workflows}/` (the `direct/body` skill, the
+recurring-job workflows, the `_template`s) are one-time init copies the repo
+owns. The same authoring rule applies to them.
 
 Three sharp gotchas live here:
 
@@ -619,7 +686,13 @@ wrong checkout silently produces wrong results in both directions:
   through its own scoped guard, and a refused one deliberately stays dirty),
   `recurring --all` (the parent dispatcher owns no repo state; each child
   sweeps its own repo), `secret` in every form, and any `skill` / `mark` /
-  `recurring` subcommand outside its sweeping set. So `launch`, `megalaunch`,
+  `recurring` subcommand outside its sweeping set. `_sweep_coga_state` adds
+  one branch-keyed exception: the child `recurring --all` spawns (`run
+  recurring-scan --require-fresh-control`) skips the sweep when its host
+  checkout is off the control branch, because that child serviced the repo
+  from a temporary control worktree whose inner CLI already swept there — a
+  second sweep from the host would land the feature checkout's dirty `coga/`
+  edits on control, which is the hazard above with no command run by hand. So `launch`, `megalaunch`,
   `run`, `create`, a plain `bump`, and the mutating `mark` /
   `skill` / `recurring` subcommands sweep — but a dirty `coga/` edit left
   around one of the excluded invocations stays local.
@@ -842,6 +915,20 @@ wrong checkout silently produces wrong results in both directions:
   in `INTENTIONALLY_DIVERGENT_TWINS` with its reason, and the
   suite fails if that entry outlives the divergence. That catches the drift
   after the fact; it does not catch it during the rebase, so still re-diff.
+  The derivation also means a **packaged file with no live counterpart is not
+  a pair and is not enforced** — and that is a deliberate shape, not a gap to
+  close by minting a live copy. `coga/cli` is the one bundled context in that
+  state: it is the command-behaviour contract, co-versioned with the package
+  it describes, and this repo resolves it through the bootstrap fallback like
+  any downstream repo does. Its edits are reviewed in the PR that changes the
+  command, together with the code, and a live copy would exist only to be
+  byte-identical — two edits per CLI change for no behavioural gain. Anyone
+  auditing "the canonical contexts" must therefore read
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/` as well as
+  `coga/contexts/coga/`; the live tree alone is incomplete by exactly that
+  one file. (`docs/reference.md` links the packaged path directly for the
+  same reason.) A second packaged-only context needs the same justification
+  written here, not just an absent twin.
   `CLAUDE.md` and `AGENTS.md` at the repo root are a third twin kept identical
   by hand: edit both and `cmp` them, because `test_packaging.py`'s discovery
   walks only the packaged template tree and never covers that root pair.
@@ -902,21 +989,41 @@ wrong checkout silently produces wrong results in both directions:
   concerns need triage.** `verify-the-pr-review-comment-loop-once-the-review`
   (2026-09-13) queried `reviewThreads` on every PR merged in its window and
   found these threads with no reply and no code change at the flagged line.
-  Each remaining concern needs a human verdict (fix / won't fix / moot) and, for a fix, its
-  own ticket — the brief is draft
-  `triage-five-review-comments-that-merged-unanswered`; none has a fix ticket
-  yet. Re-verify against the current tree before acting.
-  - PR 699 (P1), `recurring_runner.py` near the `_LEDGER_LOADED = "yes"` mark:
-    the control ledger is marked loaded unconditionally after the pre-scan
-    catch-up, so a competing checkout that publishes the same period between
-    that catch-up and the first create sync can trigger a double launch.
+  Each remaining concern needs a human verdict (fix / won't fix / moot) and,
+  for a fix, its own ticket — the brief is
+  `triage-five-review-comments-that-merged-unanswered`. Re-verify against the
+  current tree before acting.
+  - PR 699 (P1), fixed by `refresh-recurring-ledger-before-first-create-sync`:
+    `recurring_runner._control_serviced_period_cached` used to trust the
+    pre-scan cache after a newer create-sync fetch. A local two-checkout test
+    reproduced publication of a competing completed/reaped period (duplicate
+    dispatch was inferred in the original probe, not observed). The cache now
+    binds to a revision, refreshes before first publication and on retries,
+    and distinguishes known own publications from subsequent external ledger
+    changes. `_broadcast_scan` drops rejected creates from dispatch, and the
+    freshness-refusal cleanup prevents local candidate reuse. Preserve the
+    complete target set and multi-template self-collision protection when
+    editing this code, including a recovered generic sync after an initial
+    fetch failure: that publisher must return its accepted revision to the
+    recurring cache, and its guard must refresh before publication/retries.
+    An audit-only push after a create loses a race also publishes pending sweep
+    records and must advance that same provenance.
+    The guarantee and conservative post-publication refusal
+    boundary live in **The creation contract** in
+    [`coga/recurring`](../recurring/SKILL.md); this is not global exactly-once
+    execution and does not change the outer best-effort transport policy.
   - PR 704, `config.py` context-artifact check: `path.is_file() or
     path.is_symlink()` accepts any symlink, including one whose target lies
     outside the checkout, so another clone composes a different prompt.
-  - PR 705, confirmed live: the recurring `ticket.py` shims finish via plain
-    `coga bump`, so headless completions log as `[human:<user>] task done`
-    (`recurring/autoclose-merged` entries on 2026-09-10 and 09-11); the ask was
-    a system-attributed completion path.
+  - PR 705, fixed by `attribute-headless-recurring-completions-to-system`:
+    `launch_script.run_script_phase` supplies task-scoped system attribution
+    and clears the outer done sentinel. `commands.common.completion_identity`
+    separates completion identity from the assigned operator for `bump` and
+    `mark done`; publication still goes through their normal lifecycle
+    writers. See the attribution contract in `coga/architecture`. Tests run
+    all four shipped shims through real child CLI bumps with recipes stubbed,
+    and cover intermediate steps and strict assist publication. Historical
+    human-attributed entries remain unchanged.
   - PR 747, `commands/launch.py` released-witness reconciliation captures
     `FileMutationRollback` after the control fetch instead of from the
     validated current bytes, so a manual ticket edit made during the fetch can

@@ -227,7 +227,7 @@ def test_mark_done_with_workflow_shows_prev_to_done(
     assert result.exit_code == 0, result.output
     assert urls == [FLOW_WEBHOOK]
     assert _body(posts, "🎉") == (
-        f"🎉 claude finished *{slug}* \"Work\": implement → done"
+        f"🎉 marc finished *{slug}* \"Work\": implement → done"
     )
 
 
@@ -272,9 +272,59 @@ def test_bump_message_posts_live_fyi(
     assert result.exit_code == 0, result.output
     assert urls == [FLOW_WEBHOOK]
     assert _body(posts, "👉") == (
-        f"👉 claude advanced *{slug}* \"Work\": implement → pr "
+        f"👉 marc advanced *{slug}* \"Work\": implement → pr "
         "(step 2/3) — PR opened: https://example/pr"
     )
+
+
+@pytest.mark.parametrize("action", ["advance", "finish", "mark-done"])
+@pytest.mark.parametrize(
+    ("caller", "actor", "finisher"),
+    [
+        ("human", "human:marc", "marc"),
+        ("metadata", "human:marc", "marc"),
+        ("supervised", "agent:claude", "claude"),
+        ("other-supervised", "human:marc", "marc"),
+        ("script", "system", "system"),
+        ("other-script", "human:marc", "marc"),
+    ],
+)
+def test_completion_identity_requires_matching_execution_context(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    action: str,
+    caller: str,
+    actor: str,
+    finisher: str,
+) -> None:
+    slug, path = _make_task(repo, status="in_progress", on_final=action == "finish")
+    if caller == "metadata":
+        monkeypatch.setenv("COGA_TASK_SLUG", slug)
+        monkeypatch.setenv("COGA_TASK_TICKET", str(path))
+        monkeypatch.setenv("COGA_ASSIST_AGENT", "claude")
+    elif caller.endswith("supervised"):
+        monkeypatch.setenv("COGA_SUPERVISED", "1")
+        monkeypatch.setenv(
+            "COGA_EXPECTED_TASK",
+            str(path if caller == "supervised" else repo / "tasks" / "other.md"),
+        )
+        monkeypatch.setenv("COGA_EXPECTED_STEP", Ticket.read(path).step)
+    elif caller.endswith("script"):
+        monkeypatch.setenv(
+            "COGA_SCRIPT_TASK",
+            str(path if caller == "script" else repo / "tasks" / "other.md"),
+        )
+    posts = _capture(monkeypatch)
+    command = ["mark", "done", slug] if action == "mark-done" else ["bump", slug]
+
+    result = CliRunner().invoke(app, [*command, "--message", "verified"])
+
+    assert result.exit_code == 0, result.output
+    verb = "advanced" if action == "advance" else "finished"
+    log_message = "advanced to step 2 (pr)" if action == "advance" else "task done"
+    assert f"[{actor}] {log_message}" in (repo / "log.md").read_text()
+    assert len(posts) == 1
+    assert f"{finisher} {verb} *{slug}*" in posts[0]
 
 
 # --- block / slack FYI --------------------------------------------------------

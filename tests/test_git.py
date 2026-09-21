@@ -5879,6 +5879,93 @@ def test_sweep_skips_when_live_config_is_invalid(monkeypatch, capsys):
     )
 
 
+# --- `recurring --all` child: one sweep, from the control worktree ------------
+#
+# An off-control host child services the repo from a temporary control-branch
+# worktree, whose inner CLI performs the real catch-all sweep. The outer child
+# must not sweep the host feature checkout on top of that.
+
+
+_RECURRING_ALL_CHILD_ARGV = ["coga", "run", "recurring-scan", "--require-fresh-control"]
+
+
+def test_recurring_all_child_does_not_sweep_the_off_control_host(
+    git_repo, monkeypatch
+):
+    from coga import cli
+
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed", "--allow-empty")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/wip")
+    wip = git_repo.coga_os / "contexts" / "wip" / "SKILL.md"
+    wip.parent.mkdir(parents=True)
+    wip.write_text("---\nname: wip\n---\n\nunfinished\n")
+    before = git_repo.origin_subjects()
+    monkeypatch.setattr(cli, "_register_alias_placeholder", lambda *_: None)
+    dispatched: list[bool] = []
+    monkeypatch.setattr(cli, "app", lambda: dispatched.append(True))
+    monkeypatch.setattr(cli.sys, "argv", list(_RECURRING_ALL_CHILD_ARGV))
+
+    cli.main()
+
+    assert dispatched == [True]
+    assert git_repo.origin_subjects() == before
+    assert not git_repo.origin_tracks("coga/contexts/wip/SKILL.md")
+    assert "?? coga/contexts/" in git_repo.git("status", "--porcelain")
+
+
+def test_recurring_all_child_retains_the_control_worktree_sweep(
+    git_repo, monkeypatch
+):
+    """On control this is the inner child (or a direct run) and still sweeps."""
+    from coga import cli
+
+    cfg = load_config(git_repo.coga_os)
+    calls: list[Config] = []
+    monkeypatch.setattr(cli.git, "sync_coga_state", calls.append)
+    monkeypatch.setattr(cli.sys, "argv", list(_RECURRING_ALL_CHILD_ARGV))
+
+    cli._sweep_coga_state(cfg)
+
+    assert len(calls) == 1
+    assert calls[0].repo_root == cfg.repo_root
+
+
+def test_recurring_all_child_sweeps_on_control_despite_a_same_named_tag(
+    git_repo, monkeypatch
+):
+    """`rev-parse --abbrev-ref HEAD` answers `heads/main` once a tag `main`
+    exists; the probe must still read the control checkout as on control."""
+    from coga import cli
+
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("tag", cfg.git_control_branch)
+    calls: list[Config] = []
+    monkeypatch.setattr(cli.git, "sync_coga_state", calls.append)
+    monkeypatch.setattr(cli.sys, "argv", list(_RECURRING_ALL_CHILD_ARGV))
+
+    cli._sweep_coga_state(cfg)
+
+    assert len(calls) == 1
+
+
+def test_ordinary_run_still_sweeps_off_control(git_repo, monkeypatch):
+    """Only the `recurring --all` child shape is exempt: the documented
+    publish-from-any-branch contract of every other mutating command holds."""
+    from coga import cli
+
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/wip")
+    calls: list[Config] = []
+    monkeypatch.setattr(cli.git, "sync_coga_state", calls.append)
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "run", "autoclose"])
+
+    cli._sweep_coga_state(cfg)
+
+    assert len(calls) == 1
+
+
 # --- direct/body stranding guard (`stranded_product_paths`, terminal finish) ----
 #
 # A `direct/body` workflow has no push/PR step, so product code the agent commits

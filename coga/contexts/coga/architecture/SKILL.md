@@ -678,6 +678,25 @@ handoff instead of executing a stale path. Without `ticket.py`, launch goes
 directly to the agent path. What a strict human assist must prove around that
 script phase is in `coga/launch-internals`.
 
+Completion attribution is separate from routing and publication authority.
+`coga bump` (both step advance and final completion) and `coga mark done`
+credit a matching `ticket.py` child to `system` in the audit and outcome
+wording. Launch supplies `COGA_SCRIPT_TASK` with the selected target's absolute
+path; a marker naming another target has no effect on its attribution. A
+script running inside a verified recorded assist still credits system while
+using the existing assist publication checks. An actual recorded-assist agent
+keeps its verified agent identity; a supervised agent completion uses the
+derived agent only when the session's expected-task witness matches. Otherwise
+these commands credit the local human. Task metadata and the configured agent
+alone never prove that an agent ran.
+
+The script marker grants no owner-gate, assist, or launch authority, and a
+matching script cannot use human-only rewind selectors. It does not bypass
+completion gates, lifecycle validation, or publication. The script boundary
+clears an inherited `COGA_DONE_SENTINEL` as well as supervised ownership
+witnesses, so a child completion cannot finish an outer agent session. A later
+agent spawn clears script attribution through the shared task-env boundary.
+
 Only an actual agent phase composes the ticket prompt and spawns the
 selected agent's CLI in a live REPL, so only that phase requires stdin and stdout
 to be TTYs. `coga bump`, `coga mark done`, `coga mark
@@ -1119,7 +1138,9 @@ Two boundaries this does not move:
   context with a live counterpart is byte-identical by test; a package-only
   context such as `coga/cli` (resolved through the bootstrap fallback in
   `paths.resolve_context_path`, with no live copy) is still a single owner.
-  The rule requires one owner, not a live one.
+  The rule requires one owner, not a live one. Why `coga/cli` stays
+  packaged-only, and where its edits are reviewed, is recorded in
+  `coga/codebase` beside the twin rule.
 - **`CLAUDE.md` / `AGENTS.md` are not a third surface.** The agent CLI loads
   them in every session, launched or not, so they carry pointers into the
   contexts plus only the rules an agent needs when it is *not* running under
@@ -1398,9 +1419,10 @@ Every launched agent and ticket script subprocess receives
 task metadata as environment variables:
 `COGA_TASK_SLUG`, `COGA_TASK_DIR`, `COGA_TASK_TICKET`,
 `COGA_TASK_BLACKBOARD`, `COGA_TASK_STEP`,
-`COGA_COGA_OS_ROOT`, and `COGA_REPO_ROOT`. Three further names complete the
-namespace — `COGA_ASSIST_AGENT`, `COGA_ASSIST_BRANCH`, `COGA_ASSIST_PR`, ten
-members in all — and are described below. There is no `COGA_TASK_LOG`: the
+`COGA_COGA_OS_ROOT`, and `COGA_REPO_ROOT`. The shared namespace also includes
+`COGA_ASSIST_AGENT`, `COGA_ASSIST_BRANCH`, and `COGA_ASSIST_PR`, alongside
+the deterministic attribution marker `COGA_SCRIPT_TASK` described under
+`Ticket launch phases and registered recipes`. There is no `COGA_TASK_LOG`: the
 audit log is one repo-global `coga/log.md`, so a per-task variable naming it
 was a leftover from the three-file task layout and nothing ever read it. Derive
 the path from `COGA_COGA_OS_ROOT` if a script needs it. `COGA_TASK_STEP` is the frozen
@@ -1412,8 +1434,9 @@ does not export cannot survive by inheritance either. `COGA_COGA_OS_ROOT` is
 the `coga/` root; `COGA_REPO_ROOT` is the host repo (its parent when `coga/` is
 nested in a repo).
 
-Five of the ten members are conditional, and that is the whole point of the
-second one. `COGA_TASK_STEP` is absent without a current workflow step.
+`COGA_TASK_STEP`, `COGA_TASK_BLACKBOARD`, `COGA_SCRIPT_TASK`, and the three
+assist names are conditional. `COGA_TASK_STEP` is absent without a current
+workflow step.
 `COGA_TASK_BLACKBOARD` is absent for a stateless bootstrap target, which has no
 blackboard. Because the blackboard is the final region of the single ticket
 file, `COGA_TASK_BLACKBOARD` and `COGA_TASK_TICKET` carry the same path when

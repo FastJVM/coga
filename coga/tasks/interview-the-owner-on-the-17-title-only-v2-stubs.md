@@ -1,6 +1,6 @@
 ---
 title: Interview the owner on the 17 title-only v2 stubs
-status: in_progress
+status: canceled
 owner: nicktoper
 agent: claude
 workflow:
@@ -31,7 +31,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (review-design)
 ---
 
 ## Description
@@ -355,3 +354,27 @@ attended relaunch). The owner may still edit the #10 Description text at `review
 
 - [x] [2026-09-12 22:10] [agent:claude] id=20260912T221018 Interview needed: a describe/cancel verdict per stub (full questions + grep findings in the ticket blackboard 'Open Questions'). Agent leans in brackets; a 'describe' needs your own words. 1 add-subproject [nothing exists; cancel unless recalled]. 2 autoroute-agent-based-on-remaining-usage [folded into nightly-auto-drain, itself canceled; cancel or still wanted?]. 3+4 create-vault6/create-vault…-trust (zach) [coga/secrets now rules one SA one vault; cancel as decided-against?]. 5 docs-and-contt-block-should-be-merged [duplicate of live redo-documentation-dir; cancel?]. 6 generic-lib-to-use-e-g-patent-models [no trace; what was the lib, or cancel?]. 7 in-general-relay-files-should-be-easier-to-access [move-cogacontext shipped; whole ask, or more?]. 8 manage-security-and-pii [secrets covered; was PII a real ask?]. 9+10 model-selector / pick-model-on-workflow-to-save-on-cost [same feature; keep pick-model, cancel model-selector? what is selected per: step, agent, ticket?]. 11 project-manager-split-spec-in-tickets-block [design step already splits; distinct PM skill or cancel?]. 12 remote-stale-command-line-toosl [read as 'remove stale CLI tools' = cleanup-core-commands; cancel?]. 13 script-mode-to-activate [mode: gone; cancel premise-dead?]. 14 simplify-command-lines [cleanup-core-commands; cancel?]. 15 sync-support-files-and-bare-ticket-authoring [shipped in #491 authoring.support_paths; cancel?]. 16 update-all-doesn-t-copy-workflow-correctly-to-atta [init --update --all removed in #461; cancel premise-dead?]. 17 why-ai-asks-me-to-bump-instead-of-doing-it [base prompt now mandates bump-last; cancel as shipped, or still happening?]
   resolved: [2026-09-13 15:44] [human:nicktoper] Owner verdicts (2026-09-13, via bootstrap/orient): accept the agent lean on every stub except #10. Cancel 1 add-subproject, 2 autoroute-agent-based-on-remaining-usage, 3 create-vault6-…-high-trust-s, 4 create-vault-…-mid-trust-sec, 5 docs-and-contt-block-should-be-merged (duplicate), 6 generic-lib-to-use-e-g-patent-models, 7 in-general-relay-files-should-be-easier-to-access (shipped), 8 manage-security-and-pii, 9 model-selector (duplicate of 10), 11 project-manager-split-spec-in-tickets-block, 12 remote-stale-command-line-toosl, 13 script-mode-to-activate, 14 simplify-command-lines, 15 sync-support-files-and-bare-ticket-authoring (shipped #491), 16 update-all-doesn-t-copy-workflow-correctly-to-atta (premise-dead, #461), 17 why-ai-asks-me-to-bump-instead-of-doing-it (shipped). KEEP 10 pick-model-on-workflow-to-save-on-cost: owner says it is a v2 item — leave it in v2/ as the surviving model-selection stub, do not cancel and do not pull it forward; no per-step/agent/ticket decision yet.
+
+## Canceled at review-design — 2026-09-20
+
+Owner decision in the attended `coga ticket` session: cancel this ticket rather than approve the
+table. Reasoning, in the owner's words: "it's a v2 but we're far from v2 at this point" — and the
+intended follow-up is to park `coga/tasks/v2/` somewhere that is *not* reachable by `coga status`,
+which makes cancelling the 17 stubs one by one first wasted motion.
+
+Two things recorded so they are not lost:
+
+- Had the table been executed, #10 `pick-model-on-workflow-to-save-on-cost` would also have been
+  **cancel**, not describe (owner: deferred past the v2 horizon; recapture with
+  `coga create "v2/<title>"` if it comes back). So 17 cancels, 0 describes.
+- The "park v2 off the status path" follow-up is **not yet a ticket** (owner: "the rest we'll do
+  later"). When it is written, its Context should list what names `v2/` as a contract today:
+  discovery skips `_`-prefixed dirs (`tasks.list_tasks`), so `git mv coga/tasks/v2 coga/tasks/_v2`
+  hides all 81 in one commit — but `coga/roadmap` ("Deferred work"), `coga/tasks/v2/README.md`,
+  `coga create "v2/<title>"` as the only supported bare-capture spelling (`create.py`, `ticket.py`,
+  `validate.py`), Dream's weekly premise pass, `coga/architecture`, `coga/codebase`,
+  `current-direction`, and tests (`test_create`, `test_validate`, `test_megalaunch`, `test_ticket`)
+  all assume the directory is live. The sibling tickets
+  `adjudicate-the-eight-premise-dead-v2-drafts` and
+  `correct-the-v2-known-stale-surfaces-table-and-rout` also assume it stays reachable and will
+  need canceling or re-scoping alongside.

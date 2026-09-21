@@ -42,7 +42,11 @@ build, and it should not have to re-derive intent.
    - `## Description` — the problem and why it matters, in prose,
      followed by the spec itself as `###` subsections beneath it:
      - *Acceptance criteria* — a checklist an implementer and a
-       reviewer can both verify objectively.
+       reviewer can both verify objectively. This step is the only
+       author of that checklist. The ticket interview may already have
+       put a done sentence in the `## Description` prose; treat it as
+       the seed to expand and reconcile, not a competing version to
+       argue with.
      - *Proposed shape* — the intended approach: which files change,
        the key functions or data structures, the order of work.
        Concrete enough to implement, not so rigid it forbids better

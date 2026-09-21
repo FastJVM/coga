@@ -41,7 +41,9 @@ claims before using them in copy.
 - A context included in a prompt proves delivery. A claim about successful
   reuse also needs the later work that demonstrates it.
 - All private-repo narrative quotations from the audit are excluded from
-  writing sources, even though the attachment is tracked here.
+  writing sources. The attachment that held them
+  (`coga/tasks/marketing/phase-0-audit/narrative-candidates.md`) was deleted
+  from the tree; do not recover it from history or re-collect the material.
 - No measured productivity multiplier or unsupported token/time saving.
   Vision's output ratio is a product bet, not evidence of an achieved result.
   The marketing token experiment remains dropped.

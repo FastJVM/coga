@@ -7,10 +7,12 @@ import os
 import subprocess
 import sys
 
-from coga.blocker_reminders import run_blocker_reminders_recipe
 from coga.config import load_config
+from coga.runner import run_recipe
 
-code = run_blocker_reminders_recipe(load_config(), [])
+# Through the registry, not a direct import of the recipe function: `run_recipe`
+# is the layer that records a failing recipe's stderr on the period blackboard.
+code = run_recipe(load_config(), "blocker-reminders", [])
 if code:
     sys.exit(code)
 # Complete the step through the CLI: calling a Typer command function

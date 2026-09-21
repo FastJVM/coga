@@ -127,19 +127,22 @@ Silent lifecycle surface — no notification post at all:
   posts the per-PR roll-up through the explicit `coga slack` escape hatch
   already listed on the live surface, so the recurring entry is silent by
   design rather than by omission.
+- `recurring/address-pr-comments` — the same shape on a daily cadence. The
+  period template emits nothing; its `delegate: bootstrap/address-pr-comments`
+  target replies on GitHub threads and posts one `coga slack` roll-up per run.
 
-Those three complete the enumeration: `coga/recurring/` ships six templates —
-`autoclose-merged`, `blocker-reminders`, `branch-sweep`, `dream`,
-`resolve-conflicts`, `skill-update` — and every one of them is now accounted
-for above. A new template accounted for on none of the three surfaces is an
+Those four complete the enumeration: `coga/recurring/` ships seven templates —
+`address-pr-comments`, `autoclose-merged`, `blocker-reminders`,
+`branch-sweep`, `dream`, `resolve-conflicts`, `skill-update` — and every one
+of them is now accounted for above. A new template accounted for on none of the three surfaces is an
 unreviewed cadence decision, not a neutral default.
 
 **This is an accounting of events, not a partition of templates.** A template
-may legitimately span surfaces, and two already do: `autoclose-merged` posts
-its retire-pending summary through `post` *and* its per-ticket `done`
-outcomes through `notify`, and `resolve-conflicts` is silent as a period
-template while the `bootstrap/resolve-conflicts` delegate it runs posts its
-roll-up through the live `coga slack` escape hatch. A cadence audit should ask
+may legitimately span surfaces, and several already do: `autoclose-merged`
+posts its retire-pending summary through `post` *and* its per-ticket `done`
+outcomes through `notify`, and `resolve-conflicts` and `address-pr-comments`
+are silent as period templates while the bootstrap delegates they run post
+their roll-ups through the live `coga slack` escape hatch. A cadence audit should ask
 whether each *event kind* a template emits has a reviewed surface, not whether
 the template name appears exactly once.
 

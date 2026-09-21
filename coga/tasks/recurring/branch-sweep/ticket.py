@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic half of the autoclose-merged period task."""
+"""Deterministic half of the branch-sweep period task."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from coga.runner import run_recipe
 
 # Through the registry, not a direct import of the recipe function: `run_recipe`
 # is the layer that records a failing recipe's stderr on the period blackboard.
-code = run_recipe(load_config(), "autoclose", [])
+code = run_recipe(load_config(), "branch-sweep", [])
 if code:
     sys.exit(code)
 # Complete the step through the CLI: calling a Typer command function

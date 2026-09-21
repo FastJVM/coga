@@ -53,9 +53,11 @@ spawn, launch rebuilds the environment from the fresh ticket's secret
 declarations; after each child boundary it reloads config, target, and ticket
 again before classifying the handoff. An explicit override assisting an owner-held
 step expires when the script advances the workflow to an agent step, so that
-step's derived operator selects and is credited for the next deterministic or
-agent phase; the aligned checkout's strict publication capability continues through
-that configured-agent chain.
+step's derived operator selects the next agent phase; the aligned checkout's
+strict publication capability continues through that configured-agent chain.
+Deterministic completion uses the system attribution contract in
+`coga/architecture`, including inside an assist. Its marker is independent of
+the assist capability and cannot replace any lease or PR-head proof here.
 
 ### Recorded checkout, PR head, and the publication lease
 

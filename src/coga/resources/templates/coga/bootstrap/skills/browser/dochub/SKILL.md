@@ -13,10 +13,13 @@ site-specific layer on top of two substrates:
   driving DocHub through that CLI.
 - **`browser/dom-backed`** — the DOM-backed control standard context
   (snapshot → ref → act, fail loud, capture artifacts). This is a Coga
-  **context** (ref `browser/dom-backed`, under the repo's contexts
-  directory), not a loadable
-  skill — attach/read it as a context. DocHub follows it, with **one
-  sanctioned coordinate exception** documented under Technique B.
+  **context** (ref `browser/dom-backed`), not a loadable skill —
+  attach/read it as a context by ref. It resolves from a repo-local
+  `coga/contexts/browser/dom-backed/` when one exists and otherwise from the
+  installed package's bundled `bootstrap/contexts/` copy; a freshly
+  initialized repo has no local copy, so do not look for it at a repo path.
+  DocHub follows it, with **one sanctioned coordinate exception** documented
+  under Technique B.
 
 DocHub is the chosen e-sign target (v7). Use this skill when a ticket attaches
 it for placing annotations, placing a signature, and sending for signature.

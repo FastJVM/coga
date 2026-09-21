@@ -1,17 +1,491 @@
 ---
 title: recurring task to manage all open pr and address commtns
-status: draft
+status: in_progress
 owner: nicktoper
 agent: claude
-workflow: null
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+step: 4 (review)
 ---
 
 ## Description
 
+Add a daily recurring task that sweeps every open PR on this repo and
+addresses its review comments: for each unresolved inline review thread and
+each unanswered top-level PR comment, apply the requested fix on the PR branch,
+verify, push under an exact lease, and reply on the thread. Never merge a PR,
+never resolve a thread, never touch a ticket's workflow — the human still owns
+the review gate. Comments from any author count, including bot and
+`/code-review` comments.
 
+Today this only happens when the owner launches `coga launch <slug>` by hand
+against one ticket's `review` step (the `code/address-pr-comments` skill).
+With ten-plus PRs open at a time, comments sit unaddressed until someone
+remembers. The sweep makes "comments get addressed within a day" a property
+of the repo instead of a chore.
+
+Ship it in the exact shape `resolve-conflicts` already has:
+
+1. A stateless command ticket `bootstrap/address-pr-comments` (live
+   `coga/bootstrap/address-pr-comments/ticket.md` and its packaged twin under
+   `src/coga/resources/templates/coga/bootstrap/`) that sweeps all open PRs,
+   or one PR when a selector is passed.
+2. A default alias `address-pr-comments = "launch bootstrap/address-pr-comments"`
+   in `aliases.DEFAULT_ALIASES`, so `coga address-pr-comments [PR]` works on
+   demand. Do not add it to `coga.toml`.
+3. A recurring template `coga/recurring/address-pr-comments/ticket.md` (and
+   packaged twin) with `delegate: bootstrap/address-pr-comments`,
+   `schedule: "0 7 * * *"` (daily at 7am), `owner:`, `agent:`, and **no
+   `workflow:`** — see the delegation bound under Context.
+4. Tests mirroring the existing `resolve-conflicts` coverage (exact test
+   names under Context), plus the docs/context touchpoints listed there.
+
+Done looks like: `coga validate --json` is clean, `python -m pytest` passes,
+and `coga launch bootstrap/address-pr-comments --prompt-report` composes.
+The side-effecting checks — `coga address-pr-comments <n>` against a real
+open PR printing one report line, and `coga recurring launch
+address-pr-comments` driving the period task to `done` through the delegate
+— push commits and post GitHub replies, so the **owner runs them at the
+`review` step**, not implement or peer-review.
 
 ## Context
 
+**Model to copy.** `coga/bootstrap/resolve-conflicts/ticket.md` and
+`coga/recurring/resolve-conflicts/ticket.md` are the exact precedent: a
+stateless command ticket owns the operation, the recurring template owns only
+the schedule and a frozen `delegate:` field. Mirror their structure section
+for section (Description → Scope → Run order → Restore and cleanup → Report),
+including the `## Launch arguments` selector contract (`[]` = all open PRs,
+`[PR]` = one PR, anything else = print usage and stop) and the paginated
+`gh pr list --state open --limit 10000` enumeration. The template's own
+blackboard stays stateless, like `resolve-conflicts`'.
+
+**Mechanics to reuse.** `coga/skills/code/address-pr-comments/SKILL.md`
+already holds the per-PR mechanics and must stay the single owner of them.
+The bootstrap ticket cites that skill by path and section rather than
+restating: its §2 (thread read via `reviewThreads` GraphQL, paginated), §3
+(private-ref head proof, ancestor proof, exact-lease push), and §4
+(reply mutation, never resolve) apply. Its §1 and its attended-assist conduct
+do **not** apply, and the bootstrap ticket must say so explicitly, because
+an agent reading both will hit the contradictions: there is no `## Dev`
+block to read, no `git branch --show-current == branch:` check (a temporary
+detached worktree pushes `HEAD:refs/heads/<head-ref>` under the same lease),
+no attending human to ask, and — opposite to the skill — `coga slack --task
+bootstrap/address-pr-comments` **is** the completion signal: it emits the
+bootstrap done sentinel (`commands/slack.py`, the `BootstrapRef` branch) that
+completes the delegated period. What differs from the skill, and what the
+bootstrap ticket must spell out itself:
+
+- The skill reads `branch:` / `worktree:` / `pr:` from one ticket's `## Dev`
+  block. The sweep instead starts from the PR (`gh pr view --json
+  headRefName,headRefOid,headRepository,headRepositoryOwner,baseRefName,
+  state,mergeable`) and selects a worktree the way `resolve-conflicts` does:
+  reuse the branch's existing worktree only if it is clean, has no
+  merge/rebase in progress, and its HEAD equals the observed head OID;
+  otherwise fetch `refs/pull/<n>/head` into a temporary detached worktree
+  created by this run and removed afterwards. Never touch the `main`
+  checkout. Report `skipped-dirty` rather than stash or reset.
+- **Top-level PR comments are in scope** (the skill covers inline threads
+  only). Read them with `gh api --paginate repos/<owner>/<repo>/issues/<n>/comments`
+  and review summaries from `gh api --paginate repos/<owner>/<repo>/pulls/<n>/reviews`,
+  keeping only reviews in state `CHANGES_REQUESTED` or `COMMENTED` with a
+  non-empty body — `APPROVED` ("LGTM") and `DISMISSED` are not requests. A
+  review summary that carries inline threads (e.g. `/code-review --comment`)
+  is covered by addressing those threads; do not reply to the summary too.
+  Reply with `gh api repos/<owner>/<repo>/issues/<n>/comments -f body=...`.
+- **The re-run guard must be marker-based, not author-based.** The sweep
+  posts through the owner's `gh` token, so its replies carry the owner's
+  login and are indistinguishable by author — and since every author counts,
+  an author-based guard would make the sweep answer its own reply the next
+  day, forever. Rule: every reply the sweep posts (thread reply or top-level
+  comment) embeds a fixed HTML-comment marker naming what it answers, e.g.
+  `<!-- coga:address-pr-comments reply-to:<thread-or-comment-id> -->`.
+  A comment containing the marker is never in the to-address set. A thread
+  or comment is addressed iff a later marker comment references its id; a
+  new non-marker comment posted after the marker re-opens it. Apply the same
+  rule to inline threads (an unresolved thread whose last comment carries
+  the marker is skipped) so a daily sweep does not re-analyze every
+  unresolved thread on ten PRs.
+- Comments needing a human answer (ambiguous, contradictory, scope-expanding)
+  get one reply saying so and are reported as `needs-human`; the sweep is
+  unattended, so there is no one to ask. `coga block` is not available
+  either — the target is stateless.
+- Only PRs targeting `main`. A PR with another base is reported and skipped.
+- A PR that GitHub reports `CONFLICTING` is reported `conflicting` and
+  skipped — rebasing is `resolve-conflicts`' job, and a fix pushed onto a
+  conflicting head would just be rebased again on Monday.
+
+**Report contract.** One stdout line per PR as soon as its outcome is known,
+`PR #<n> <head-ref> — <status> — <detail>`, with a fixed status vocabulary
+(suggested: `addressed`, `no-comments`, `needs-human`, `skipped-dirty`,
+`skipped-fork`, `skipped-base`, `conflicting`, `verify-failed`,
+`push-failed`), then a single `coga slack --task bootstrap/address-pr-comments`
+roll-up at the end, exactly as `resolve-conflicts` does. A PR with mixed
+outcomes gets one line under a precedence rule (`needs-human` >
+`verify-failed` > `push-failed` > `addressed`) with the counts in `<detail>`.
+The Slack line is the only cross-run record; nothing is written to any
+ticket.
+
+**Gate the skill already enforces, restated for the sweep:** never merge,
+never delete a branch, never call `resolveReviewThread`, never `coga bump` /
+`coga mark` on the PR's owning ticket. `autoclose-merged` closes tickets after
+the human merges.
+
+**Verification before push.** Same rule as `resolve-conflicts` step 6: if the
+fix touches `src/` or `tests/`, run `python -m pytest` in the worktree; a
+failure is `verify-failed` and the worktree is restored to its recorded
+original OID. Docs-only fixes need no pytest run.
+
+**Cited, not attached — `coga/recurring`**
+(`coga/contexts/coga/recurring/SKILL.md`). Only a few identifiable facts
+govern the template, all copied here; nothing else in the implement step
+reads the rest. Read these sections before touching the template:
+
+- The `delegate` bullet under `## A recurring task is a ticket-format
+  directory` — **a delegated period is bounded to one agent step**: the
+  template's resolved workflow must be exactly one step explicitly
+  `assignee: agent` with no `requires:`. Omit `workflow:` so it gets the
+  default `direct/body`; naming `code/with-review` (this ticket's workflow)
+  on the template is refused as `unbounded-delegated-workflow`. Same bullet:
+  a period may not carry both `ticket.py` and `delegate:`
+  (`conflicting-delegate-script`), and the target must itself be agent-backed
+  (`script-backed-delegate-target`).
+- `## Gotchas` — declare `delegate:`; never shell out to a nested
+  `coga launch` from the template body.
+- `## Dropping a new recurring task` — a new template fires retroactively on
+  its first sweep; for a daily schedule that just means it runs once on the
+  next sweep, so no `_` parking is needed.
+- **Headless sweeps skip this template.** A delegating template is in the
+  agent-backed admission class, so a cron-driven `coga recurring` refuses it
+  (with a warning) before the period task exists; it runs only under an
+  attended sweep or an explicit `coga recurring launch address-pr-comments`.
+  "Comments addressed within a day" therefore means "within a day of the next
+  attended sweep", and every attended sweep on a new day opens one agent
+  session that inspects every open PR. Owner accepted this cost at authoring.
+
+**Cited, not attached — `coga/extension-model`**
+(`coga/contexts/coga/extension-model/SKILL.md`). Two facts: a stateless
+command ticket is a bootstrap target launched in place, and a default alias
+is how it earns a top-level spelling. Its prose names `resolve-conflicts` as
+"the shipped agent-backed form" — add `address-pr-comments` beside it in the
+same PR, and update the alias lists in `docs/cli-extension-audit.md` (the
+alias table and the two enumerations of default aliases) and any
+`docs/development.md` mention. `aliases.DEFAULT_ALIASES`'s comment block
+explains `resolve-conflicts`; extend it for the new alias.
+
+**Tests to mirror.** `tests/test_packaging.py::EXPECTED_BOOTSTRAP_RESOURCES`
+is a wheel-inclusion allowlist — add both new packaged paths (bootstrap and
+recurring `ticket.md`); twin byte-identity is derived automatically. Add a
+sibling of
+`test_packaging.py::test_resolve_conflicts_recurring_wrapper_replaces_stale_worktree_sweep`
+(asserts `delegate:`, no `ticket.py`, no `coga mark done`, no nested
+`coga <alias> --agent` in the wrapper body), a sibling of
+`test_aliases.py::test_resolve_conflicts_is_default_alias_for_agent_command_ticket`
+and its selector-carrying twin, and extend or parametrize
+`test_validate.py::test_validate_accepts_recurring_delegate_to_shipped_bootstrap`.
+
+**Out of scope.** Merging approved PRs, rebasing conflicting PRs
+(`resolve-conflicts`), pre-PR branches, PRs on other repos, and changing the
+`code/address-pr-comments` skill's owner-gate semantics.
+
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/857
+branch: address-pr-comments-sweep
+worktree: /home/n/Code/coga-address-pr-comments
+
+## Plan (implement, attended)
+
+Layout: separate linked worktree from `origin/main`; `## Dev` recorded on the
+primary checkout, which is where `coga bump` runs.
+
+Deliverables, all mirrored on `resolve-conflicts`:
+- `bootstrap/address-pr-comments/ticket.md` live + packaged (byte-identical).
+- `recurring/address-pr-comments/ticket.md` live + packaged, `delegate:` +
+  daily schedule, no `workflow:`.
+- `aliases.DEFAULT_ALIASES["address-pr-comments"]` + comment block.
+- Tests: `EXPECTED_BOOTSTRAP_RESOURCES`, wrapper-shape sibling, two alias
+  siblings, parametrized validate delegate test.
+- Docs/contexts: `docs/cli-extension-audit.md`, `docs/development.md`,
+  `coga/extension-model` (live + packaged), plus `coga/sync` template
+  accounting (owner agreed to this one extra touchpoint).
+
+## Implement — done (2026-09-20)
+
+Commits on `address-pr-comments-sweep` (rebased on `origin/main` a5420200):
+- `7fbbf98c` Add address-pr-comments command ticket and daily recurring sweep
+- `e00a76c9` Account for address-pr-comments in docs and contexts
+
+What landed:
+- `coga/bootstrap/address-pr-comments/ticket.md` + packaged twin. Mirrors
+  `resolve-conflicts` section for section. Cites skill §2/§3/§4 by path;
+  states explicitly that §1 and the attended conduct do not apply (no
+  `## Dev`, no `branch --show-current` check, no human to ask, no
+  `coga block`, and `coga slack --task bootstrap/address-pr-comments` IS the
+  completion signal). Spells out: PR-first `gh pr view` fields, three
+  comment sources (threads / issue comments / reviews with the
+  APPROVED+DISMISSED exclusion and the "summary covered by its threads"
+  rule), the marker `<!-- coga:address-pr-comments reply-to:<id> -->`
+  guard with re-open rule, worktree selection, `needs-human`, base/
+  conflicting/fork skips, verify gate, lease push, nine status tokens and
+  the mixed-outcome precedence.
+- `coga/recurring/address-pr-comments/ticket.md` + packaged twin:
+  `schedule: "0 7 * * *"`, `delegate:`, `owner: nicktoper`, `agent: claude`,
+  no `workflow:` (comment in frontmatter says why).
+- `aliases.DEFAULT_ALIASES["address-pr-comments"]` + comment block.
+- Tests: `EXPECTED_BOOTSTRAP_RESOURCES` (+2), new
+  `test_address_pr_comments_recurring_wrapper_delegates_to_command_ticket`,
+  `test_address_pr_comments_is_default_alias_for_agent_command_ticket`,
+  `test_default_address_pr_comments_alias_carries_optional_pr`, and
+  `test_validate_accepts_recurring_delegate_to_shipped_bootstrap` is now
+  parametrized over both delegates.
+- Docs/contexts: `docs/cli-extension-audit.md` (alias table, recurring
+  table, both enumerations, "ships nine", inventories),
+  `docs/development.md` (second local override), `coga/extension-model`
+  and `coga/sync` contexts (live + packaged twins).
+
+Verification (in the feature worktree, own `.venv` via
+`uv venv --python 3.12` + `uv pip install -e ".[test]"`):
+- `python -m pytest` → 2661 passed.
+- `coga validate --json` → same issue set as `main` (4 pre-existing
+  `unsynthesized-draft-blackboard` errors on unrelated draft tickets); zero
+  issues mention address-pr-comments.
+- `coga launch bootstrap/address-pr-comments --prompt-report` composes
+  (~5.1k tokens; task_description 12.8 KiB).
+
+Decisions / flags for review:
+- `owner: nicktoper` is in the recurring template because the ticket asked
+  for `owner:`; no other packaged recurring template carries one and
+  `coga.toml` already defaults `owner`. It ships in the wheel — drop the
+  line at review if that is unwanted (twins must stay byte-identical).
+- Fork PRs are `skipped-fork` outright; the sweep never resolves a fork
+  push remote. Same posture as `resolve-conflicts`' "origin only".
+- `docs/development.md` line-range cite `tasks.py:302-312` became a symbol
+  cite (`resolve_bootstrap`) while the sentence was being edited.
+- The feature worktree carries a seeded 0600 `coga/coga.local.toml`
+  (gitignored) for the prompt-report check; remove it when the worktree is
+  retired.
+
+Not done here (owner runs at `review`, side-effecting): `coga
+address-pr-comments <n>` against a real open PR; `coga recurring launch
+address-pr-comments` end to end.
+
+## Implement-session reconciliation (2026-09-21)
+
+Owner explicitly deferred both side-effecting live smoke checks and asked to
+finish implementation. Fresh control state already records the completed
+implement transition (ce40e6af8) and the authoritative Dev checkout above.
+Do not bump again from the stale implement session or start peer-review here.
+The recorded feature branch is now rebased through e7dc52f29, with commits
+100d29ce and 5a86e43a; its working tree is clean and its bootstrap, recurring,
+and extension-model live/packaged twins match. Its implementation test and
+prompt-report evidence is recorded above. Live smoke checks remain owner work
+at review, as requested.
+
+The parallel attempt in /tmp/coga-address-pr-comments remains preserved at
+7d16dd92e on daily-pr-comments (2673 tests passed), but is not the authoritative
+Dev checkout and must not replace the current branch or workflow state. Its
+old session notes are saved at /tmp/coga-pr-comments-duplicate-session-ticket.md.
+The stale primary checkout was synchronized with control; the supervisor's
+pre-existing log append was preserved. Git retained an autostash as recovery
+history after reconciling the duplicate blackboard. No second bump, feature
+push, PR, or live smoke launch was performed by this session.
+
+
+## Peer review
+
+Completed 2026-09-21 by Codex. `codex review --base main` **returned**
+(exit 0); transcript: `/tmp/coga-address-review.log`. Its one P2 finding:
+explicit `agent: claude` in the shipped recurring template prevents period
+creation in Codex-only repositories, even with a launch override. Owner
+approved using repository defaults: both requested `owner:` and `agent:`
+keys remain present but empty, with a comment explaining inheritance. Added
+an actual period-materialization regression with only Codex configured and
+asserted the repository owner, agent, and frozen delegate.
+
+A concurrent session supplied commit `21ba4e63` while review was running.
+Owner explicitly confirmed this session owns peer-review and the final bump.
+Retained and inspected that commit: it restores the skill's single push-URL
+and head-repository verification, fetches from the verified destination,
+and uses that exact URL for lease-protected publication. This closes the
+original gap from excluding all of skill section 1 while section 3 depends
+on its destination proof. No remaining must-fix findings.
+
+Feature checkout: `/home/n/Code/coga-address-pr-comments`, branch
+`address-pr-comments-sweep`, final HEAD `2270e88d`. Ran
+`git fetch origin main && git rebase FETCH_HEAD` successfully onto
+`be43bb90`; no conflicts. Peer-review commits:
+- `21ba4e63` peer-review: verify PR sweep publication destination
+- `2270e88d` peer-review: inherit repository routing for PR sweeps
+
+Verification:
+- `.venv/bin/python -m pytest` after the final change: **2662 passed**
+  (216.44s). One sandbox-only pytest cache-write warning; no test failures.
+- Focused Codex-only materialization and live/packaged identity checks:
+  **2 passed**.
+- `.venv/bin/coga validate --json`: exactly the same issue identities as the
+  primary main checkout, including four pre-existing
+  `unsynthesized-draft-blackboard` errors; no new feature issues. Validation
+  is not globally clean; unrelated draft cleanup is outside this change.
+- `.venv/bin/coga launch bootstrap/address-pr-comments --prompt-report`:
+  exit 0, 21.2 KiB / approximately 5424 tokens. Retried with filesystem
+  permission so the generated skill view refreshed successfully.
+- `git diff --check origin/main...HEAD`: passed; feature checkout clean.
+
+No raw-terminal loop, pager, prompt UI, or Slack renderer implementation was
+changed. Inspected composed prompt output. The two side-effecting live smoke
+checks remain explicitly deferred by the owner to the owner-controlled review
+step: `coga address-pr-comments <n>` and
+`coga recurring launch address-pr-comments`. This session neither pushed
+review fixes to a live PR nor posted GitHub replies.
+
+## PR draft from the parallel session (not used — #857 carries the `## PR` below)
+
+Add `coga address-pr-comments [PR]` to address outstanding review threads,
+top-level PR comments, and applicable review summaries across this repo's
+open PRs targeting main. The stateless command reuses the existing review
+skill, verifies the publication destination and exact head lease, and marks
+its replies to avoid answering itself on later sweeps. It leaves merging,
+thread resolution, and ticket workflow decisions with the human.
+
+A daily 7am recurring template delegates to the command and inherits each
+repository's owner and agent defaults. Agent-backed recurring work runs on
+attended sweeps or explicit launches; headless cron sweeps skip it. Includes
+packaged/live templates, alias and delegate coverage, and extension/sync
+context and documentation updates.
+
+Test plan: `python -m pytest` (2662 passed); `coga validate --json` (unchanged
+baseline: four unrelated draft-blackboard errors); `coga launch
+bootstrap/address-pr-comments --prompt-report` (passes). Owner runs the two
+live, side-effecting smoke checks at review.
+
+## Open-pr (2026-09-21)
+
+`coga open-pr` from the primary control checkout opened
+https://github.com/FastJVM/coga/pull/857 (`address-pr-comments-sweep` →
+`main`, not draft) at feature HEAD `2270e88d`. Pre-checks: peer-review note
+records Codex review returned with no must-fix findings; branch clean, 4
+ahead; the 12 commits behind on `origin/main` were all generated task/log
+lifecycle commits, which the command classified as non-overlapping and safe.
+
+Note for review: `a5420200 Sync coga state` on `main` already carried early
+copies of the live `coga/bootstrap/address-pr-comments/ticket.md` and
+`coga/recurring/address-pr-comments/ticket.md`, so the PR shows those two as
+edits rather than new files; the packaged twins, alias, tests, and docs are
+all new in the PR. A period task `coga/tasks/recurring/address-pr-comments/`
+already exists on `main` (`in_progress`, created 08:55 via
+`coga recurring launch`) — that is the owner's live smoke check, deferred to
+this `review` step, already under way.
+
+## Peer review (first Codex session — P1 destination fix, parallel to the above)
+
+
+2026-09-21: `codex review --base main` **returned** (exit 0). Findings:
+- P1: the bootstrap ticket excludes skill §1's push-destination checks but
+  pushes to `origin`; a separate or multiple push URL can publish to the wrong
+  repository. Restore single-URL repository identity validation and fetch/push
+  through that verified destination.
+- P2: mandatory pytest under `src/` or `tests/` prevents fixes in non-Python
+  host repositories. This matches the authored ticket's explicit requirement;
+  changing it to the host's documented suite needs an owner decision.
+
+Owner confirmed: fix destination checks and retain the specified pytest rule.
+P1 fixed in `21ba4e63` in both live/package command tickets: restore skill §1
+items 3–5 only for destination validation/private-ref proof; require exactly
+one configured push URL identifying the PR head repository, revalidate it in
+the selected worktree before publication, and fetch/push through that URL.
+Refusals report `push-failed` without changing the unattended conduct.
+P2 is intentionally retained per the owner's explicit decision; the command's
+verification scope remains the authored Python-specific policy.
+`git fetch origin main` and `git rebase FETCH_HEAD` succeeded without conflicts;
+feature commits are now `100d29ce` and `5a86e43a`, on `e7dc52f2`.
+Verification on the rebased branch:
+- `.venv/bin/python -m pytest`: 2661 passed in 211.68s; one harmless sandbox
+  warning because pytest could not write its worktree cache.
+- `.venv/bin/coga launch bootstrap/address-pr-comments --prompt-report`:
+  composes (~5104 tokens); sandbox prevented refreshing the agent skill view.
+- `.venv/bin/coga validate --json`: exact same issue kind/task/severity set
+  as the primary checkout, including four unrelated draft-blackboard errors.
+- `git diff --check`: clean; both new live/package ticket pairs identical.
+
+Real GitHub/Slack sweep checks remain reserved for the owner's review step as
+the ticket requires. No new terminal UI is introduced by this diff.
+
+After the approved fix: committed `21ba4e63`; repeated `git fetch origin main`
+and `git rebase FETCH_HEAD` successfully (already current on `be43bb90`).
+`.venv/bin/python -m pytest` returned: 2661 passed in 253.65s, with only the
+sandbox pytest-cache warning. Prompt-report composes (~5424 tokens), validation
+still matches main's issue set exactly, and `git diff --check` is clean.
+
+Concurrent session added `2270e88d` (inherit repository owner/agent defaults in
+the recurring template) during that suite run. Preserved and inspected it;
+`.venv/bin/python -m pytest tests/test_recurring.py::test_address_pr_comments_period_inherits_repository_routing tests/test_packaging.py -q`
+returned 15 passed in 6.80s (same cache warning), covering its new regression
+and the live/package twins. Final feature HEAD is `2270e88d`, clean and
+committed with four commits ahead of origin/main. Review findings are
+dispositioned and PR body is ready below.
+
+## Open-pr sync reconciliation (this checkout, 2026-09-21)
+
+
+`coga open-pr` from the primary checkout pushed `address-pr-comments-sweep`
+(HEAD `2270e88d`, four commits ahead of `origin/main`) and opened
+https://github.com/FastJVM/coga/pull/857; `pr:` recorded under `## Dev`.
+Its post-open control-branch sync failed: upstream `be43bb90` had appended
+`## Implement-session reconciliation` to this blackboard at the same anchor
+where peer-review appended `## Peer review` / `## PR`, so rebasing the step-3
+ticket commit onto `origin/main` conflicted. The helper restored the pre-sync
+state cleanly (no rebase or stash left behind). Reconciled by hand with the
+owner's go-ahead: stashed the launcher's pending `coga/log.md` append,
+rebased `main` onto `origin/main`, kept **both** blackboard sections
+(reconciliation note first, then peer review and PR), `log.md` union-merged,
+popped the stash. `main` is now ahead of `origin/main` by the three
+step-3 commits with no divergence; the bump's sync publishes them.
+
+Second sync failure on the step-4 bump: a parallel session had meanwhile
+published its own peer-review → open-pr → bump chain for this ticket (same
+PR #857, reused idempotently; same `step: 4 (review)`). Reconciled again by
+rebasing onto `origin/main` and keeping both sessions' notes; the published
+upstream sections stay under their original headings and this chain's are
+relabeled. The `## PR` below is the body actually on #857.
+
+## PR
+
+
+Add `coga address-pr-comments [PR]` and a daily 7am recurring delegate so an
+attended sweep can address review comments across open PRs targeting main.
+The stateless command handles inline threads, issue comments, and actionable
+review summaries, uses reply markers to avoid repeat work, verifies fixes,
+and publishes through a verified destination under an exact lease. Ambiguous
+requests are reported for human judgment; merge, thread resolution, and ticket
+workflow decisions remain with the owner.
+
+Includes live/package command and recurring tickets, the default alias,
+packaging/alias/delegate tests, and extension-model, sync, and developer docs.
+Headless recurring sweeps skip this agent-backed delegate. Verification keeps
+the ticket's explicit pytest policy for changes under `src/` or `tests/`.
+
+Test plan: `python -m pytest` (2661 passed); added routing regression plus
+`tests/test_packaging.py` (15 passed); `coga validate --json` (same existing
+issues as main); `coga launch bootstrap/address-pr-comments --prompt-report`
+(composes). Owner runs both side-effecting live sweep checks at review.

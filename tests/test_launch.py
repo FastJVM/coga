@@ -38,6 +38,7 @@ from coga.repl_supervisor import (
     ASSIST_PR_ENV,
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
+    SENTINEL_ENV,
     _TIMEOUT_EXIT_CODE,
     AgentCliNotFound,
     ReplOutcome,
@@ -5857,6 +5858,8 @@ def test_recorded_assist_script_republishes_nested_bump(
             f"{branch}:{(task_dir / 'result.txt').relative_to(git_repo.root)}",
             cwd=git_repo.origin,
         ) == "deterministic bump result\n"
+    audit = _read_log(git_repo.coga_os)
+    assert audit.count("[system] advanced to step 3 (merge)") == 1
     assert git_repo.git("status", "--porcelain").strip() == ""
 
 
@@ -5947,7 +5950,82 @@ def test_recorded_assist_script_republishes_nested_mark_done(
         )
         assert published.status == "done"
         assert published.step is None
+    audit = _read_log(git_repo.coga_os)
+    assert audit.count("[system] task done") == 1
     assert git_repo.git("status", "--porcelain").strip() == ""
+
+
+@pytest.mark.parametrize("action", ["advance", "finish", "mark-done"])
+def test_recorded_assist_completion_keeps_agent_identity(
+    git_repo,
+    monkeypatch: pytest.MonkeyPatch,
+    action: str,
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Complete assisted review",
+        status="in_progress",
+        keep_steps=2 if action == "finish" else None,
+    )
+    _allow_recorded_assist_pr(monkeypatch)
+    posts: list[str] = []
+    monkeypatch.setattr(
+        "coga.notification.slack.requests.post",
+        lambda url, json=None, timeout=None: _capture_slack(posts, json),
+    )
+    command = (
+        ["mark", "done", created["slug"]]
+        if action == "mark-done" else ["bump", created["slug"]]
+    )
+
+    result = CliRunner().invoke(
+        app, [*command, "--message", "review complete"],
+        env={
+            ASSIST_AGENT_ENV: "claude",
+            ASSIST_BRANCH_ENV: "feature/review",
+            ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
+            EXPECTED_TASK_ENV: str(ticket_path),
+        },
+    )
+
+    assert result.exit_code == 0, result.output
+    log_message = "advanced to step 3 (merge)" if action == "advance" else "task done"
+    verb = "advanced" if action == "advance" else "finished"
+    audit = _read_log(git_repo.coga_os)
+    assert audit.count(f"[agent:claude] {log_message}") == 1
+    assert len(posts) == 1
+    assert f"claude {verb}" in posts[0]
+
+
+def test_script_identity_does_not_bypass_assist_publication_validation(
+    git_repo,
+) -> None:
+    created, ticket_path = _seed_single_checkout_human_review(
+        git_repo,
+        title="Refuse invalid scripted assist",
+        status="in_progress",
+    )
+    before = ticket_path.read_bytes()
+    audit = (git_repo.coga_os / "log.md").read_bytes()
+    sentinel = git_repo.root / "outer-sentinel"
+
+    result = CliRunner().invoke(
+        app, ["bump", created["slug"]],
+        env={
+            "COGA_SCRIPT_TASK": str(ticket_path),
+            ASSIST_AGENT_ENV: "missing-agent",
+            ASSIST_BRANCH_ENV: "feature/review",
+            ASSIST_PR_ENV: "https://github.com/example/repo/pull/8",
+            EXPECTED_TASK_ENV: str(ticket_path),
+            SENTINEL_ENV: str(sentinel),
+        },
+    )
+
+    assert result.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.output
+    assert "unknown launch agent" in result.output
+    assert ticket_path.read_bytes() == before
+    assert (git_repo.coga_os / "log.md").read_bytes() == audit
+    assert not sentinel.exists()
 
 
 @pytest.mark.parametrize("terminal_command", ["mark-done", "bump"])
