@@ -6002,3 +6002,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-21 11:24 [recurring/blocker-reminders] [system] script exited with code 0
 2026-09-21 11:24 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-21 11:24 [recurring/dream] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-20 22:54 [recurring-task-to-manage-all-open-pr-and-address-c] [human:nicktoper] launched (operator=codex, agent=codex)
+2026-09-21 08:59 [recurring-task-to-manage-all-open-pr-and-address-c] [agent:codex] advanced to step 3 (open-pr) → claude

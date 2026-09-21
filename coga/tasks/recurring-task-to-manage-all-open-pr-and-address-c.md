@@ -359,7 +359,7 @@ step: `coga address-pr-comments <n>` and
 `coga recurring launch address-pr-comments`. This session neither pushed
 review fixes to a live PR nor posted GitHub replies.
 
-## PR
+## PR draft from the parallel session (not used — #857 carries the `## PR` below)
 
 Add `coga address-pr-comments [PR]` to address outstanding review threads,
 top-level PR comments, and applicable review summaries across this repo's
@@ -396,3 +396,96 @@ all new in the PR. A period task `coga/tasks/recurring/address-pr-comments/`
 already exists on `main` (`in_progress`, created 08:55 via
 `coga recurring launch`) — that is the owner's live smoke check, deferred to
 this `review` step, already under way.
+
+## Peer review (first Codex session — P1 destination fix, parallel to the above)
+
+
+2026-09-21: `codex review --base main` **returned** (exit 0). Findings:
+- P1: the bootstrap ticket excludes skill §1's push-destination checks but
+  pushes to `origin`; a separate or multiple push URL can publish to the wrong
+  repository. Restore single-URL repository identity validation and fetch/push
+  through that verified destination.
+- P2: mandatory pytest under `src/` or `tests/` prevents fixes in non-Python
+  host repositories. This matches the authored ticket's explicit requirement;
+  changing it to the host's documented suite needs an owner decision.
+
+Owner confirmed: fix destination checks and retain the specified pytest rule.
+P1 fixed in `21ba4e63` in both live/package command tickets: restore skill §1
+items 3–5 only for destination validation/private-ref proof; require exactly
+one configured push URL identifying the PR head repository, revalidate it in
+the selected worktree before publication, and fetch/push through that URL.
+Refusals report `push-failed` without changing the unattended conduct.
+P2 is intentionally retained per the owner's explicit decision; the command's
+verification scope remains the authored Python-specific policy.
+`git fetch origin main` and `git rebase FETCH_HEAD` succeeded without conflicts;
+feature commits are now `100d29ce` and `5a86e43a`, on `e7dc52f2`.
+Verification on the rebased branch:
+- `.venv/bin/python -m pytest`: 2661 passed in 211.68s; one harmless sandbox
+  warning because pytest could not write its worktree cache.
+- `.venv/bin/coga launch bootstrap/address-pr-comments --prompt-report`:
+  composes (~5104 tokens); sandbox prevented refreshing the agent skill view.
+- `.venv/bin/coga validate --json`: exact same issue kind/task/severity set
+  as the primary checkout, including four unrelated draft-blackboard errors.
+- `git diff --check`: clean; both new live/package ticket pairs identical.
+
+Real GitHub/Slack sweep checks remain reserved for the owner's review step as
+the ticket requires. No new terminal UI is introduced by this diff.
+
+After the approved fix: committed `21ba4e63`; repeated `git fetch origin main`
+and `git rebase FETCH_HEAD` successfully (already current on `be43bb90`).
+`.venv/bin/python -m pytest` returned: 2661 passed in 253.65s, with only the
+sandbox pytest-cache warning. Prompt-report composes (~5424 tokens), validation
+still matches main's issue set exactly, and `git diff --check` is clean.
+
+Concurrent session added `2270e88d` (inherit repository owner/agent defaults in
+the recurring template) during that suite run. Preserved and inspected it;
+`.venv/bin/python -m pytest tests/test_recurring.py::test_address_pr_comments_period_inherits_repository_routing tests/test_packaging.py -q`
+returned 15 passed in 6.80s (same cache warning), covering its new regression
+and the live/package twins. Final feature HEAD is `2270e88d`, clean and
+committed with four commits ahead of origin/main. Review findings are
+dispositioned and PR body is ready below.
+
+## Open-pr sync reconciliation (this checkout, 2026-09-21)
+
+
+`coga open-pr` from the primary checkout pushed `address-pr-comments-sweep`
+(HEAD `2270e88d`, four commits ahead of `origin/main`) and opened
+https://github.com/FastJVM/coga/pull/857; `pr:` recorded under `## Dev`.
+Its post-open control-branch sync failed: upstream `be43bb90` had appended
+`## Implement-session reconciliation` to this blackboard at the same anchor
+where peer-review appended `## Peer review` / `## PR`, so rebasing the step-3
+ticket commit onto `origin/main` conflicted. The helper restored the pre-sync
+state cleanly (no rebase or stash left behind). Reconciled by hand with the
+owner's go-ahead: stashed the launcher's pending `coga/log.md` append,
+rebased `main` onto `origin/main`, kept **both** blackboard sections
+(reconciliation note first, then peer review and PR), `log.md` union-merged,
+popped the stash. `main` is now ahead of `origin/main` by the three
+step-3 commits with no divergence; the bump's sync publishes them.
+
+Second sync failure on the step-4 bump: a parallel session had meanwhile
+published its own peer-review → open-pr → bump chain for this ticket (same
+PR #857, reused idempotently; same `step: 4 (review)`). Reconciled again by
+rebasing onto `origin/main` and keeping both sessions' notes; the published
+upstream sections stay under their original headings and this chain's are
+relabeled. The `## PR` below is the body actually on #857.
+
+## PR
+
+
+Add `coga address-pr-comments [PR]` and a daily 7am recurring delegate so an
+attended sweep can address review comments across open PRs targeting main.
+The stateless command handles inline threads, issue comments, and actionable
+review summaries, uses reply markers to avoid repeat work, verifies fixes,
+and publishes through a verified destination under an exact lease. Ambiguous
+requests are reported for human judgment; merge, thread resolution, and ticket
+workflow decisions remain with the owner.
+
+Includes live/package command and recurring tickets, the default alias,
+packaging/alias/delegate tests, and extension-model, sync, and developer docs.
+Headless recurring sweeps skip this agent-backed delegate. Verification keeps
+the ticket's explicit pytest policy for changes under `src/` or `tests/`.
+
+Test plan: `python -m pytest` (2661 passed); added routing regression plus
+`tests/test_packaging.py` (15 passed); `coga validate --json` (same existing
+issues as main); `coga launch bootstrap/address-pr-comments --prompt-report`
+(composes). Owner runs both side-effecting live sweep checks at review.
