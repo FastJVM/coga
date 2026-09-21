@@ -54,11 +54,16 @@ Email clients may suppress referrers, and referrer data does not identify
 the source of an individual subscription. Keep channel observations separate
 from inferred causes. Record metric dates and limits when reusing them.
 
-The existing measurement boundary remains: no user instrumentation is
-authorized. The [telemetry concept](../../../tasks/marketing/add-telemetry.md)
-has no developed brief or policy decision. The marketing token/time
-experiment was dropped on 2026-09-09; no paired runs, receipt quota or
-efficiency-result gate belongs to the new preparation.
+The measurement boundary is owned by `coga/principles` (§5), not here. On
+2026-09-20 the owner reversed the absolute telemetry ban for the
+[PostHog phone-home telemetry ticket](../../../tasks/marketing/add-telemetry.md)
+(`marketing/add-telemetry`, a `code/design-then-implement` ticket with a
+reviewed design as of that date); until that ticket lands and amends
+`coga/principles`, no instrumentation exists and marketing measurement
+planning should read the ticket and the principle rather than re-assert a
+ban the owner has lifted. The marketing token/time experiment was dropped on
+2026-09-09; no paired runs, receipt quota or efficiency-result gate belongs
+to the new preparation.
 
 When distributing, share the article or thread without asking for votes.
 Verify current community rules and make only the account actions explicitly
