@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -378,3 +378,21 @@ Test plan: `python -m pytest` (2662 passed); `coga validate --json` (unchanged
 baseline: four unrelated draft-blackboard errors); `coga launch
 bootstrap/address-pr-comments --prompt-report` (passes). Owner runs the two
 live, side-effecting smoke checks at review.
+
+## Open-pr (2026-09-21)
+
+`coga open-pr` from the primary control checkout opened
+https://github.com/FastJVM/coga/pull/857 (`address-pr-comments-sweep` →
+`main`, not draft) at feature HEAD `2270e88d`. Pre-checks: peer-review note
+records Codex review returned with no must-fix findings; branch clean, 4
+ahead; the 12 commits behind on `origin/main` were all generated task/log
+lifecycle commits, which the command classified as non-overlapping and safe.
+
+Note for review: `a5420200 Sync coga state` on `main` already carried early
+copies of the live `coga/bootstrap/address-pr-comments/ticket.md` and
+`coga/recurring/address-pr-comments/ticket.md`, so the PR shows those two as
+edits rather than new files; the packaged twins, alias, tests, and docs are
+all new in the PR. A period task `coga/tasks/recurring/address-pr-comments/`
+already exists on `main` (`in_progress`, created 08:55 via
+`coga recurring launch`) — that is the owner's live smoke check, deferred to
+this `review` step, already under way.
