@@ -288,6 +288,24 @@ def test_recipe_drains_a_worklist_entry_whose_ticket_is_gone(
     assert f"retire worklist {worklist}: 0 open, 1 discharged (`retired-long-ago`)" in out
 
 
+def test_entry_ticket_requires_an_exact_slug_match(
+    git_repo: GitRepo, tmp_path: Path
+) -> None:
+    # The worklist names a deleted task whose slug is a unique prefix of a
+    # newer one: CLI prefix resolution would report the old ticket as alive
+    # and borrow the newer ticket's `pr:` for the disposal decision.
+    worktree = _landed_checkout(git_repo, tmp_path, branch="foo-followup")
+    cfg = load_config(git_repo.coga_os)
+    slug, _ = _final_step_ticket(
+        git_repo, branch="foo-followup", worktree=worktree, pr_url=PR_URL
+    )
+    stale = slug[: len(slug) // 2]
+    assert stale != slug
+
+    assert am._entry_ticket(cfg, stale) == (False, None)
+    assert am._entry_ticket(cfg, slug) == (True, PR_URL)
+
+
 def test_recipe_keeps_a_claimed_worklist_entry_with_its_reason(
     git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:

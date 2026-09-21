@@ -72,7 +72,7 @@ from coga.taskfile import (
     TaskFileError,
     read_blackboard,
 )
-from coga.tasks import TaskNotFoundError, TaskRef, list_tasks, read_ticket, resolve_task
+from coga.tasks import TaskRef, list_tasks, read_ticket
 from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
 
@@ -734,10 +734,13 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
 
 
 def _entry_ticket(cfg: Config, slug: str) -> tuple[bool, str | None]:
-    """Whether a worklist entry's ticket still exists, and its `pr:` link if so."""
-    try:
-        ref = resolve_task(cfg, slug)
-    except TaskNotFoundError:
+    """Whether a worklist entry's ticket still exists, and its `pr:` link if so.
+
+    Exact `id_slug` match only: the CLI's unique-prefix resolution would let a
+    deleted `foo` resolve to a newer `foo-followup` and borrow its `pr:`.
+    """
+    ref = next((t for t in list_tasks(cfg) if t.id_slug == slug), None)
+    if ref is None:
         return False, None
     blackboard = _read_dev_blackboard(ref.ticket_path)
     return True, parse_pr_url(blackboard) if blackboard is not None else None
