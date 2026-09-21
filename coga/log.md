@@ -6019,3 +6019,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-21 12:22 [validate-drift-stuck-in-progress-11-in-progress-ti] [human:nicktoper] created (status=draft)
 2026-09-21 12:22 [validate-drift-unfrozen-workflow-11-hand-authored] [human:nicktoper] created (status=draft)
 2026-09-21 12:22 [validate-drift-empty-description-23-title-only-tic] [human:nicktoper] created (status=draft)
+2026-09-21 12:22 [premise-check-2026-w39-25-parked-drafts-need-a-ver] [human:nicktoper] created (status=draft)
