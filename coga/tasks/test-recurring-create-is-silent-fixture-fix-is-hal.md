@@ -104,3 +104,10 @@ Per-item evidence, checked on current `main` (`git status` clean):
   the pattern deserves a context entry when it retires this ticket.
 
 No branch, worktree, or PR created; closing with `coga mark done`.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: a done ticket's fix claim can be half-applied on main — verify the exact token
