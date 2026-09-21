@@ -1526,3 +1526,123 @@ Generated: 2026-09-21T19:18:35+00:00
 Task: `recurring/dream`
 
 Result: no-op. No cleanup-eligible processed done tickets still have task directories.
+
+## Dream Run Summary
+
+Generated: 2026-09-21T19:35Z (UTC) — period 2026-W39, repo `FastJVM/coga`, control branch `main`.
+
+| Phase | Result | Notes |
+| --- | --- | --- |
+| 1 validate-drift | reported | 50 issues: 0 direct-fix, 5 pr-proposal, 45 human-needed (3 kinds) |
+| 2 knowledge scan | reported | 34/34 shards complete, 80 blocks → 73 findings (18 extract, 14 stale, 13 gap, 28 premise) |
+| 3 contract audit | reported | 10/10 shards complete, 22 blocks → 9 drift findings + 3 folded into Phase 2 |
+| 4 retro/done-ticket | pr-opened | 11 eligible: 4 knowledge PRs (#859 #860 #861 #862), 7 direct deletes on `main`; 74 checkout-bearing done tickets deferred as retirement debt |
+| 5 cleanup-orphan-markers | no-op | no processed marker on a surviving directory |
+| 6 disposition | proposed | 6 proposal PRs (#863–#868), 12 draft tickets, 12 "already ticketed"/in-flight findings, 0 machine-local validator issues |
+
+### PRs opened this run (all `pr-required`; nothing auto-merged)
+- Retro knowledge PRs: #859 branch-sweep rebased-merged-branch note (F3); #860 blocker reminders blind to paused period task (F5); #861 half-applied fix claim — verify the exact token (F2); #862 fan-out follow-ups conflict pairwise on one bullet (F4). Each deletes its source ticket.
+- Proposal PRs: #863 `coga/roadmap` records the owner's v2-parking decision (F1, canceled-source extract); #864 `code/self-qa` single-checkout layout (F29); #865 `skills/_template` `name:` claim (F80); #866 docs cite the frozen Dream period commit (F76); #867 skill-creator ATTRIBUTION posture (F32); #868 `marketing/distribution` telemetry decision (F31, distribution half).
+
+### Draft tickets created this run
+- brief-for-human: `validate-drift-stuck-in-progress-11-in-progress-ti` (11 members); `validate-drift-unfrozen-workflow-11-hand-authored` (11); `validate-drift-empty-description-23-title-only-tic` (23; carries the tag line and the owner's 2026-09-20 parking decision); `premise-check-2026-w39-25-parked-drafts-need-a-ver` (25 members: F46–F51, F53–F66, F68, F69, F71–F73; F69 is a live root draft already delivered by #814).
+- code/with-review (gap): `record-four-repeated-dev-loop-verification-gotchas` (F34 F37 F38 F39); `document-how-to-recover-a-retired-ticket-s-body-fr` (F36 F43); `the-retro-done-ticket-skill-should-verify-a-done-t` (F42); `add-an-applying-a-batch-of-verdicts-section-to-the` (F44).
+- code/with-review (stale/drift preserved because an open PR touches the target without carrying the fix): `apply-12-context-and-skill-corrections-blocked-by` (F20 F21 F23 F24 F25 F26 F27 F77 F78 F79 F81 F82 + the validate-baseline tag line); `correct-two-stale-marketing-map-catalogue-rows-aft` (F30, F31 map half; overlap #841); `settle-whether-megalaunch-is-the-only-unclassified` (F19; overlap #857 #848); `four-docs-cite-positioning-context-sections-that-w` (F75; human choice).
+
+### Already ticketed / in flight (nothing created)
+- F52 `v2/identify-blocking-issues` → already ticketed as `ticket-relationships-and-ownership-have-no-mechani`.
+- F67 `v2/autotrigger-ticket-type`, F70 `v2/skill-update-aborts-on-uncommitted-log-file` → already ticketed as `adjudicate-the-eight-premise-dead-v2-drafts`.
+- F33 worktree reaping → `packaged-code-workflows-never-name-coga-retire-as` (PR #847); F35 packaged-context reachability → `document-how-packaged-contexts-reach-a-repo-and-se` (PR #843); F40 split-a-ticket mechanic → `define-the-split-a-ticket-mechanic-shared-by-code`; F41 barrier reentrancy → `simplify-git-sync` (PR #848); F45 namespace-package footgun → `nothing-exercises-python-3-11-the-declared-floor` (blocked).
+- F28 dev/code stranded-duplicate claim → `detect-stranded-ticket-writes-across-checkouts` (PR #850).
+- F22 codebase "five bot review threads" bullet → carried piecewise by open PRs #835 #840 #842 #844 (each rewrites its own sub-bullet).
+- F74 `address-pr-comments` cluster (twin drift on `extension-model`/`sync`, missing packaged copies, missing alias, audit-doc omission) → PR #857 carries all of it; `tests/test_packaging.py` fails on `main` until it merges.
+
+### Phase 1 pr-proposal bucket
+- 4 × `unsynthesized-draft-blackboard` (`clean-up-all-the-working-trees`, `v2/autotrigger-ticket-type`, `v2/measure-relay-prompt-scope-and-agent-precision`, `v2/use-worktree-when-starting-a-dev-task`): already decided — the `coga/codebase` "repo-wide run is red by baseline; do not clear it under an unrelated ticket" bullet (PR #823) is the recorded baseline, and the v2 members fall under the owner's 2026-09-20 parking decision (PR #863). The bullet lists a stale member set (F20); its refresh plus the tag line `validate-drift: unsynthesized-draft-blackboard` is preserved in `apply-12-context-and-skill-corrections-blocked-by`. No synthesis PR opened: synthesizing an author's draft notes is the author's choice.
+- 1 × `large-blackboard` (`reconcile-recurring-wrapper-tty-admission-guidance`, 54 KiB): the ticket is done with a recorded checkout — retirement debt; `coga retire` consumes and deletes it, so no condensation PR.
+
+### Already-decided classes / machine-local issues
+- No context carries a `validate-drift: <kind>` tag line yet, so no class was reported as decided by context; all three human-needed kinds got one owner draft each (above).
+- Machine-local validator kinds this run: none.
+
+### Retirement debt (74 done tickets with a recorded checkout; `coga retire <slug>` is the consumer)
+Findings named after a slug are the `done+checkout` extracts that retirement unlocks — order retirements by them: `record-dochub-s-why-not-the-api-answer-that-browse` (F7), `autofix/report-per-skill-outcomes-from-gh-skill-update-in` (F13), `dream-findings-have-three-routing-holes-that-lose` (F18), `launch-activates-before-preflight` (F17), `megalaunch-only-shows-one-page` (F14), `the-v2-parking-area-premise-check-has-four-holes` (F6), `review-slack-channels` (F9), `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r` (F45), `allow-description-and-owner-on-create` (F8), `title-only-tickets-have-no-convention-and-no-valid` (F11), `document-the-ticket-blackboard-writer-s-contract` (F10), `select-session-conduct-instead-of-appending-a-cont` (F15), `persist-autoclose-retire-follow-ups` (F16), `give-a-ticket-s-superseded-design-one-documented-h` (F12).
+  - `a-slack-repo-without-important-webhook-can-abort-t` (branch `scan-alert-nonfatal`)
+  - `activation-does-not-resolve-step-1-s-assignee-role` (branch `resolve-step-one-assignee`)
+  - `adjudicate-parked-and-active-tickets-whose-premise` (branch `adjudicate-moved-premises`)
+  - `allow-description-and-owner-on-create` (branch `create-description-owner`) — unlocks F8
+  - `autoclose-should-name-the-retire-follow-up` (branch `autoclose-retire-hint`)
+  - `autofix/report-per-skill-outcomes-from-gh-skill-update-in` (branch `skill-update-per-skill`) — unlocks F13
+  - `autofix/stop-one-failing-ticket-py-from-starving-the-rest` (branch `sweep-abandoned-record`)
+  - `branch-sweep-strands-squash-merged-branches-whose` (branch `branch-sweep-landed`)
+  - `bumppy-requires-exactly-two-agents` (branch `agent-peers`)
+  - `carry-adjacent-bugs-out-of-a-blackboard-before-ret` (branch `retro-adjacent-bugs`)
+  - `cleanup/add-a-debug-mode-to-init-for-vendoring-from-source` (branch `vendor-pypi-only`)
+  - `cleanup/add-contributing-docs-issue-templates-and-a-repo-d` (branch `docs/contributing`)
+  - `cleanup/detect-the-current-git-branch-instead-of-hard-codi` (branch `init-control-branch`)
+  - `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r` (branch `resources-pkg-init`) — unlocks F45
+  - `cleanup/handle-a-bare-slack-webhook-url-during-empty-repo` (branch `init-bare-slack-env`)
+  - `cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f` (branch `docs/pypi-placeholder-note`)
+  - `cloning-a-coga-repo-has-no-setup-path` (branch `init-clone-setup`)
+  - `define-the-recipe-reporting-contract-report-durabi` (branch `recipe-reporting-contract`)
+  - `document-the-ticket-blackboard-writer-s-contract` (branch `blackboard-writer-contract`) — unlocks F10
+  - `document-when-to-attach-a-large-context-versus-cit` (branch `attach-vs-cite`)
+  - `dream-2026-w36-extract-backlog-18-findings-phase-4` (branch `dream-w36-extract-backlog`)
+  - `dream-2026-w38-extract-backlog-4-findings-phase-4` (branch `dream-w38-extract-backlog`)
+  - `dream-findings-have-three-routing-holes-that-lose` (branch `dream-routing-holes`) — unlocks F18
+  - `dream-phases-2-3-cannot-complete-scan-subagents-re` (branch `dream-scan-shards`)
+  - `dream-reconciliation-must-count-distinct-shard-ids` (branch `dream-reconcile-distinct-shards`)
+  - `fix-the-autofix-analyst` (branch `autofix-claude-auth-fallback`)
+  - `four-parked-tickets-carry-premises-that-have-since` (branch `triage-inverted-premises`)
+  - `give-a-ticket-s-superseded-design-one-documented-h` (branch `docs/superseded-design-home`) — unlocks F12
+  - `isolated-checkouts-nothing-says-what-a-fresh-workt` (branch `fresh-checkout-lacks`)
+  - `launch-activates-before-preflight` (branch `defer-launch-activation`) — unlocks F17
+  - `launch-ignores-the-recorded-worktree-stranding-bla` (branch `implement-branch-gate`)
+  - `live-and-packaged-twin-pairs-are-edited-together-b` (branch `derive-twin-sync`)
+  - `megalaunch-activates-picks-before-preflight` (branch `megalaunch-defer-activation`)
+  - `megalaunch-only-shows-one-page` (branch `megalaunch-picker-viewport`) — unlocks F14
+  - `migrate-recurring-templates-to-ticket-py-shims-and` (branch `recurring-ticket-py`)
+  - `move-cogacontext-to-roodoc-so-its-easier-for-human` (branch `layout-contexts-dir`)
+  - `no-comms-writing-skill-the-process-is-smeared-thro` (branch `write-post-skill`)
+  - `no-context-records-the-ci-posture-publish-only-rel` (branch `ci-posture`)
+  - `no-rule-says-ticket-context-must-cite-symbols-not` (branch `cite-symbols-rule`)
+  - `no-skill-exists-for-the-cold-evaluator-review-of-a` (branch `cold-design-review`)
+  - `packaged-repos-ship-recurring-templates-without-th` (branch `package-recurring-context`)
+  - `persist-autoclose-retire-follow-ups` (branch `autoclose-retire-worklist`) — unlocks F16
+  - `put-build-back` (branch `restore-coga-build`)
+  - `read-the-recurring-serviced-period-from-the-log-dr` (branch `fix/recurring-log-reverse-pass`)
+  - `reconcile-recurring-wrapper-tty-admission-guidance` (branch `delegate-recurring`)
+  - `record-dochub-s-why-not-the-api-answer-that-browse` (branch `dochub-api-answer`) — unlocks F7
+  - `record-or-clear-the-standing-repo-wide-coga-valida` (branch `validate-baseline`)
+  - `recurring-context-never-mentions-the-packaged-twin` (branch `recurring-twin-note`)
+  - `recurring-last-serviced-period-compares-as-a-strin` (branch `codex/validate-recurring-periods`)
+  - `recurring-recipe-question` (branch `deduce-ticket-script`)
+  - `recurring-sweep-aborts-and-orphans-a-deleted-done` (branch `recurring-missing-workflow`)
+  - `refuse-recurring-runs-from-a-non-control-branch` (branch `fix/recurring-control-branch-gate`)
+  - `remov-digest-in-recurring` (branch `remove-digest`)
+  - `remove-coga-build-and-project` (branch `remove-build-project`)
+  - `remove-legacy-config-compatibility-shims` (branch `remove-legacy-config-shims`)
+  - `retire-never-removes-a-worktree-that-ran-the-tests` (branch `retire-cache-worktrees`)
+  - `review-slack-channels` (branch `route-important-failures`) — unlocks F9
+  - `rewrite-coga-base-prompt-and-agent-mode-block` (branch `codex/rewrite-launch-prompts`)
+  - `select-session-conduct-instead-of-appending-a-cont` (branch `select-session-conduct`) — unlocks F15
+  - `service-recurring-from-a-temp-control-worktree-ins` (branch `recurring-control-worktree`)
+  - `simplify-ticket-format` (branch `simplify-ticket-format`)
+  - `state-which-branch-is-canonical-for-machine-genera` (branch `sync-canonical-policy`)
+  - `stop-syncing-task-state-onto-the-feature-branch` (branch `feature-branch-state-boundary`)
+  - `sync-context-omits-preflight-post-from-the-notific` (branch `sync-context-preflight`)
+  - `the-autofix-analyst-ticket-closed-without-shipping` (branch `autofix-analyst-fixes`)
+  - `the-human-doc-vs-agent-context-boundary-is-decided` (branch `doc-context-boundary`)
+  - `the-period-task-context-never-covers-the-determini` (branch `period-task-recipe-firing`)
+  - `the-v2-parking-area-premise-check-has-four-holes` (branch `v2-premise-holes`) — unlocks F6
+  - `ticket-specs-should-cite-symbols-not-line-numbers` (branch `design-cite-symbols`)
+  - `title-only-tickets-have-no-convention-and-no-valid` (branch `title-only-validator`) — unlocks F11
+  - `unblock-rewind` (branch `rewind-status-gate`)
+  - `validate-drift-classifier-misses-17-emitted-kinds` (branch `codex/validate-drift-kinds`)
+  - `validate-that-committed-skill-scripts-with-a-sheba` (branch `shebang-exec-check`)
+  - `vendored-skills-carry-no-coga-source-json-so-coga` (branch `docs/skill-attribution`)
+
+### Human-needed decisions / review gates
+- Review and merge or reject the 10 PRs above; none auto-merges.
+- The 25-draft premise adjudication and the three validate-drift class drafts need the owner's verdicts; the `empty-description` draft and PR #863 together propose recording the v2 waiver in a context.
+- `four-docs-cite-positioning-context-sections-that-w` needs a decision on where the missing positioning sections live.
