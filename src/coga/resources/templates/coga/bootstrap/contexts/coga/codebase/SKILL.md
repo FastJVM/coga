@@ -856,6 +856,21 @@ wrong checkout silently produces wrong results in both directions:
   `_strip_runtime_state`) or freeze the period before comparing; assert
   structure, not a hardcoded date.
 
+- **A done ticket's fix claim is not proof of what reached `main`; verify the
+  exact token.** `tests/test_notification_messages.py::test_recurring_create_is_silent`
+  failed on `main` for weeks while a done ticket's `## Verification`
+  (`give-a-ticket-s-superseded-design-one-documented-h`, citing `4012c5e9`)
+  said it had repaired the fixture. What merged in `c4482fae` was half of it —
+  `force_directory=True` and a comment, with `file_form=True` left on the
+  `TaskRef` line — so four later done tickets each re-diagnosed the failure as
+  "pre-existing, worth its own ticket" and none filed one: the recorded fix
+  made every rediscovery look new. `589e141a` (PR #780) finished it. When a
+  failing test is recorded as pre-existing and some ticket claims to have
+  fixed it, confirm what landed with `git log -S'<exact token>' -- <test
+  file>` and the absolute-`PYTHONPATH` invocation above before trusting either
+  the claim or the diagnosis, and write any note as **half-applied, not
+  absent** — that distinction is what stopped four readers short.
+
 - **Fixture shell scripts must be portable.** A test that writes a shell script
   for a subprocess runs on whatever `sh` the developer has. GNU-only
   `sed -i 's/…/…/'` fails on BSD/macOS, where `sed` reads the next token as the
