@@ -21,7 +21,12 @@ from coga.commands import init as init_cmd
 from coga.commands import update as update_cmd
 from coga.config import ConfigError, load_config
 from coga.notification import post
-from coga.paths import bootstrap_context_path, resolve_context_path
+from coga.paths import (
+    bootstrap_context_path,
+    bootstrap_workflow_path,
+    resolve_context_path,
+    resolve_workflow_path,
+)
 from coga.ticket import Ticket
 
 
@@ -1102,8 +1107,14 @@ def test_init_empty_repo_seeds_onboarding_and_points_at_build(
         resolved = resolve_context_path(cfg, ref)
         assert resolved is not None
         assert resolved == bootstrap_context_path(cfg, ref)
-    assert (target / "coga" / "workflows" / "draft-for-human.md").is_file()
-    assert (target / "coga" / "workflows" / "brief-for-human.md").is_file()
+    # The human-owned workflows are bootstrap batteries too: Dream files
+    # drafts with `--workflow brief-for-human`, so they must resolve from the
+    # package in a repo that never had a seeded copy.
+    for name in ("draft-for-human", "brief-for-human"):
+        assert not (target / "coga" / "workflows" / f"{name}.md").exists()
+        assert resolve_workflow_path(cfg, name) == bootstrap_workflow_path(
+            cfg, name
+        )
     assert not (target / "coga" / "workflows" / "autonomy").exists()
     assert not (target / "coga" / "contexts" / "autonomy").exists()
     assert not (

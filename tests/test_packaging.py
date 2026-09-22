@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import zipfile
 from importlib.resources import files
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import tomllib
@@ -14,7 +16,11 @@ if TYPE_CHECKING:
     import pytest
 
 import coga.resources
-from coga.paths import packaged_template_path
+from coga.paths import (
+    bootstrap_workflow_path,
+    packaged_template_path,
+    resolve_workflow_path,
+)
 from coga.ticket import Ticket
 
 
@@ -65,13 +71,13 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/recurring/skill-update/ticket.md",
     "coga/resources/templates/coga/workflows/autoclose-merged/sweep.md",
     "coga/resources/templates/coga/workflows/blocker-reminders/run.md",
-    "coga/resources/templates/coga/workflows/brief-for-human.md",
     "coga/resources/templates/coga/workflows/direct/body.md",
-    "coga/resources/templates/coga/workflows/draft-for-human.md",
     "coga/resources/templates/coga/workflows/skill-update/run.md",
     # Bundled reusable workflows ship under bootstrap/workflows/ (local-first
     # fallback) so a fresh repo can run the core code loop, the docs flow, the
     # Dream workflow without hand-copying.
+    "coga/resources/templates/coga/bootstrap/workflows/brief-for-human.md",
+    "coga/resources/templates/coga/bootstrap/workflows/draft-for-human.md",
     "coga/resources/templates/coga/bootstrap/workflows/code/"
     "with-review.md",
     "coga/resources/templates/coga/bootstrap/workflows/code/"
@@ -398,6 +404,43 @@ def test_bundled_bootstrap_tickets_attach_only_bootstrap_contexts() -> None:
                 f"which does not resolve from {bundled.relative_to(REPO_ROOT)}; "
                 "a bundled bootstrap ticket may only attach bootstrap contexts."
             )
+
+
+# `--workflow <name>` as shipped text spells it; `<name>` placeholders in the
+# CLI prose do not match because the name must start with a word character.
+WORKFLOW_FLAG_REF = re.compile(r"--workflow[ =]+[`'\"]?(\w[\w./-]*\w)")
+
+
+def test_shipped_workflow_refs_resolve_without_a_seeded_copy(
+    tmp_path: Path,
+) -> None:
+    """Every `--workflow <name>` in shipped text must resolve from the package.
+
+    `paths.resolve_workflow_path` falls back to `bootstrap/workflows/` only.
+    `templates/coga/workflows/**` is seeded into a repo once by `coga init`
+    and is never a runtime fallback, so a workflow that lives only there is
+    missing from every repo initialized before it was added. Dream once told
+    agents to file drafts with `--workflow brief-for-human` while that
+    workflow was scaffold-only, and `coga create` failed with "Workflow not
+    found" in such a repo.
+    """
+    packaged_root = REPO_ROOT / PACKAGED_ROOT
+    cfg = SimpleNamespace(repo_root=tmp_path)
+    refs: dict[str, list[str]] = {}
+    for path in sorted(packaged_root.rglob("*.md")):
+        for name in WORKFLOW_FLAG_REF.findall(path.read_text(encoding="utf-8")):
+            refs.setdefault(name, []).append(
+                path.relative_to(REPO_ROOT).as_posix()
+            )
+    assert "brief-for-human" in refs
+
+    for name, sources in sorted(refs.items()):
+        resolved = resolve_workflow_path(cfg, name)
+        assert resolved == bootstrap_workflow_path(cfg, name), (
+            f"--workflow {name} (named in {', '.join(sorted(set(sources)))}) "
+            "does not resolve from the packaged bootstrap/workflows/; a "
+            "workflow that shipped text depends on must be a bootstrap battery."
+        )
 
 
 def test_no_launch_entrypoint_run_py_files_remain() -> None:

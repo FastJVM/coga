@@ -73,14 +73,16 @@ def test_browser_capability_remains_without_seeded_task_or_audit_line() -> None:
 def test_autonomy_triage_apparatus_is_gone_from_both_trees() -> None:
     """The router used to send tickets at `autonomy/*` tier workflows. Those
     and the `autonomy/triage` context are removed from the live and packaged
-    trees alike; `draft-for-human` is the one survivor of the namespace.
+    trees alike; `draft-for-human` is the one survivor of the namespace, and
+    it ships as a bootstrap battery rather than a seeded scaffold copy.
     Packaging (wheel inclusion, live/packaged parity) is owned by
     `tests/test_packaging.py`.
     """
     for tree in (TEMPLATES, REPO_ROOT / "coga"):
         assert not (tree / "workflows" / "autonomy").exists()
         assert not (tree / "contexts" / "autonomy").exists()
-        assert (tree / "workflows" / "draft-for-human.md").is_file()
+    assert (TEMPLATES / "bootstrap" / "workflows" / "draft-for-human.md").is_file()
+    assert (REPO_ROOT / "coga" / "workflows" / "draft-for-human.md").is_file()
 
 
 def test_command_guide_links_to_browser_router_and_runner_reference() -> None:
