@@ -31,6 +31,7 @@ PACKAGED = REPO_ROOT / "src" / "coga" / "resources" / "templates" / "coga"
 # Every template that used to declare `recipe: <name>`, and the registry entry
 # its shim must now reach directly.
 SHIMMED_TEMPLATES = (
+    ("phone-home", "phone-home"),
     ("autoclose-merged", "autoclose"),
     ("blocker-reminders", "blocker-reminders"),
     ("branch-sweep", "branch-sweep"),
@@ -177,9 +178,10 @@ def test_period_task_runs_its_shim_headlessly_and_closes_its_own_step(
     assert outcome.created is True
     assert (ref.task_dir / SCRIPT_ENTRY_POINT).is_file()
     # Only the reserved name travels; other template siblings stay put.
-    assert sorted(path.name for path in ref.task_dir.iterdir()) == sorted(
-        ("ticket.md", SCRIPT_ENTRY_POINT)
-    )
+    expected = ["ticket.md", SCRIPT_ENTRY_POINT]
+    if template == "phone-home":
+        expected.append(".state-snapshot.json")
+    assert sorted(path.name for path in ref.task_dir.iterdir()) == sorted(expected)
     script = ref.task_dir / SCRIPT_ENTRY_POINT
     script.write_text(script.read_text().replace(
         "from coga.runner import run_recipe",
@@ -265,3 +267,20 @@ def test_failing_recipe_leaves_its_reason_on_the_period_blackboard(
 def _mkdir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def test_phone_home_real_suppressed_shim_updates_parent_and_finishes(seeded, capfd):
+    """The first due run uses the real recipe, never an agent or production HTTP."""
+    from coga.telemetry import _state
+    for area in ("recurring", "workflows"):
+        shutil.copytree(PACKAGED / area / "phone-home", seeded / area / "phone-home")
+    cfg = load_config(seeded)
+    outcome = create_named(cfg, "phone-home")
+    assert outcome.created
+    result = CliRunner().invoke(app, ["launch", outcome.ref.id_slug])
+    assert result.exit_code == 0, result.output
+    assert read_ticket(outcome.ref).status == "done"
+    state, _ = _state(read_blackboard(seeded / "recurring/phone-home/ticket.md"))
+    assert state["run"] == 1 and state["repo_id"] is None
+    assert "capture suppressed" in read_blackboard(outcome.ref.ticket_path)
+    assert "stale" not in capfd.readouterr().err.lower()

@@ -114,6 +114,7 @@ class Config:
     # Git sync — the git analogue of Slack. `git_enabled` follows the same
     # local-overrides-shared resolution as `slack_enabled`; `git_remote` /
     # `git_control_branch` come from shared `[git]`. See `coga.git`.
+    telemetry_enabled: bool = True
     git_enabled: bool = True
     git_remote: str = "origin"
     git_control_branch: str = "main"
@@ -369,6 +370,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
     aliases = _parse_aliases(shared.get("aliases", {}))
     extensions = _parse_extensions(shared.get("extensions", {}))
     ticket_fields = _parse_ticket_fields(shared.get("ticket"))
+    telemetry_enabled = _resolve_telemetry_enabled(shared.get("telemetry"), local.get("telemetry"))
     git_enabled = _resolve_git_enabled(shared.get("git"), local.get("git"))
     git_remote, git_control_branch, git_worktrees_ticket_owned = _parse_git(
         shared.get("git")
@@ -422,6 +424,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         aliases=aliases,
         extensions=extensions,
         ticket_fields=ticket_fields,
+        telemetry_enabled=telemetry_enabled,
         git_enabled=git_enabled,
         git_remote=git_remote,
         git_control_branch=git_control_branch,
@@ -481,6 +484,7 @@ _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
     "agents",
     "notification",
     "git",
+    "telemetry",
     "launch",
     "ticket",
     "aliases",
@@ -493,6 +497,7 @@ _ALLOWED_LOCAL_SECTIONS: frozenset[str] = frozenset({
     "agents",
     "notification",
     "git",
+    "telemetry",
     "upstream",
 })
 _ALLOWED_AGENT_KEYS: frozenset[str] = frozenset({
@@ -559,6 +564,7 @@ def _reject_unknown_sections(shared: dict, local: dict) -> None:
     _reject_unknown_keys(shared, _ALLOWED_SHARED_SECTIONS, "coga.toml")
     _reject_unknown_keys(local, _ALLOWED_LOCAL_SECTIONS, "coga.local.toml")
     for source, table in (("coga.toml", shared), ("coga.local.toml", local)):
+        _reject_unknown_keys(table.get("telemetry"), frozenset({"enabled"}), f"[telemetry] in {source}")
         notification = table.get("notification")
         _reject_unknown_keys(
             notification, _ALLOWED_NOTIFICATION_KEYS, f"[notification] in {source}"
@@ -1116,6 +1122,20 @@ def _parse_slack_users(
             )
         out[name] = user_id.strip()
     return out
+
+
+def _resolve_telemetry_enabled(shared: dict | None, local: dict | None) -> bool:
+    """Validate both layers even when overridden; local wins, default True."""
+    enabled = True
+    for table in (shared, local):
+        if table is not None:
+            if not isinstance(table, dict):
+                raise ConfigError("[telemetry] must be a table")
+            if "enabled" in table:
+                if type(table["enabled"]) is not bool:
+                    raise ConfigError("[telemetry].enabled must be a boolean")
+                enabled = table["enabled"]
+    return enabled
 
 
 def _resolve_git_enabled(shared: dict | None, local: dict | None) -> bool:

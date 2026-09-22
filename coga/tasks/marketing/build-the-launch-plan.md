@@ -42,7 +42,7 @@ launch checklist. They are also the editing targets for accepted learnings.
 ### Execution checklist
 
 - Track `marketing/readme-top`, `marketing/fix-installer` (including one-task
-  onboarding), and `marketing/add-telemetry`. Record the verified first-run
+  onboarding), and the [weekly snapshot contract](../../contexts/coga/telemetry/SKILL.md). Record the verified first-run
   path and PostHog acceptance evidence; this ticket does not implement them.
 - `marketing/idea-piece` produces the single argument and concrete proof.
   The owner chooses its publication venue and approves/publishes the copy.

@@ -175,7 +175,7 @@ in it.
 an edge implementation moves out, any helper it shares with another core
 consumer stays — moving it would force core to import from a ticket or skill
 directory, which is exactly the anti-pattern this rule forbids. The registered
-`autoclose`, `blocker-reminders`, and `branch-sweep` implementations stay in
+`autoclose`, `blocker-reminders`, `phone-home`, and `branch-sweep` implementations stay in
 core for the different reason above: they are fixed `coga run` commands. Their
 skills are invocation contracts and contain no executable Python.
 

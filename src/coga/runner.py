@@ -36,6 +36,7 @@ from coga.skill_update import (
     run_skill_update_recipe,
 )
 from coga.task_env import blackboard_from_env, discover_coga_os_root
+from coga.telemetry import run_phone_home_recipe
 from coga.text import strip_ansi
 
 
@@ -44,6 +45,7 @@ class RecipeFn(Protocol):
 
 
 RECIPES: dict[str, RecipeFn] = {
+    "phone-home": run_phone_home_recipe,
     "autoclose": run_autoclose_recipe,
     "blocker-reminders": run_blocker_reminders_recipe,
     "branch-sweep": run_branch_sweep_recipe,

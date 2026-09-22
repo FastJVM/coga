@@ -1259,7 +1259,10 @@ account state committed to git.
   transport uses the user's configured remote; GitHub PR/API operations use
   `gh` auth.
 - **Repo / install identity.** The repo is identified by the git checkout and
-  `coga/` config. Coga creates no hosted account or telemetry identity.
+  `coga/` config. For the optional weekly snapshot, a UUID v4 lives as committed
+  state in the phone-home recurring parent blackboard and is shared by synced
+  clones; it is not a human account. `coga/telemetry` owns its lifecycle and
+  concurrency limits.
 - **Skill / task capability.** A task's *declared* capabilities are its
   ticket-level `secrets:` list, declared **inline** — each entry is a single-key map
   `NAME: <ref>` whose `<ref>` is an `env:VAR` or `op://vault/item/field`
@@ -1558,3 +1561,11 @@ is not plugged into bootstrap Dream.
   context carries the model; that one carries the guarantees, and is attached
   only to tickets that change those paths. The git primitive they all use is
   in `coga/sync`.
+
+## Telemetry configuration
+
+`Config.telemetry_enabled` defaults true. Shared and local `[telemetry]` admit
+only boolean `enabled`; local overrides shared, including local true over shared
+false. Both layers are validated even when overridden. No endpoint, key, cadence,
+or test bypass is configurable. Delivery, state and payload belong to
+`coga/telemetry`; git and notification switches remain independent.

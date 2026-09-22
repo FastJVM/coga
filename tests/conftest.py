@@ -455,3 +455,12 @@ def hold_by_agent(ticket: "Ticket", role: str = "agent") -> None:
     step = ticket.current_step()
     assert step is not None, "ticket has no current step to route to an agent"
     step["assignee"] = role
+
+
+@pytest.fixture(autouse=True)
+def _reject_production_telemetry(monkeypatch):
+    """Tests must intercept transport explicitly; subprocesses inherit pytest/CI."""
+    def reject(body):
+        raise AssertionError("production telemetry transport called by a test")
+    monkeypatch.setattr("coga.telemetry._post_http", reject)
+    monkeypatch.setattr("coga.telemetry.POSTHOG_CAPTURE_KEY", "test-capture-key")

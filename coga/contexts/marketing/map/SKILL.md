@@ -18,7 +18,7 @@ helps find support; reviewing it is no longer a separate execution step.
 | One argument with concrete proof | [Idea piece](../../../tasks/marketing/idea-piece.md) |
 | README opening and reader path | [README ticket](../../../tasks/marketing/readme-top.md) |
 | Installation through one useful task | [Installer/onboarding](../../../tasks/marketing/fix-installer.md) |
-| Adoption/activity measurement | [PostHog ticket](../../../tasks/marketing/add-telemetry.md) |
+| Adoption/activity measurement | [Weekly snapshot contract](../../coga/telemetry/SKILL.md) |
 
 ## Product grounding and writing
 

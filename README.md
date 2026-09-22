@@ -173,7 +173,7 @@ Full documentation lives under [`docs/`](docs/README.md):
 ## Values
 
 **Own the system.** Coga is markdown, Python, Git, and the shell. There is no
-hosted state, hidden database, telemetry, or plugin fence around the rules.
+hosted operational state, hidden database, or plugin fence around the rules.
 
 **Make judgment scarce.** Agents and scripts do the mechanizable work. Humans
 choose what matters, evaluate results, and correct the substrate.
@@ -189,3 +189,18 @@ memory belongs to neither.
 
 Coga is free software licensed under
 [AGPL-3.0-or-later](LICENSE).
+
+## Weekly telemetry
+
+By default, operator recurring sweeps attempt a weekly aggregate usage snapshot
+(counts, movement, bounded version/platform fields) to FastJVM’s US PostHog
+project, shared with Multiply. This measures repos with active sweeps, not
+installs: Coga installs no scheduler, and download/init send nothing. An opaque
+repo ID is committed and shared by synced clones. No task content is sent.
+The network peer sees source IP; project settings discard it and disable GeoIP.
+Editable/source installations do not report.
+
+Set `[telemetry] enabled = false` in shared or local config to stop sending and
+its Slack receipt. Disabling stops sending; movement from the gap may appear in
+the first count after re-enabling. See the [contract](coga/contexts/coga/telemetry/SKILL.md)
+and [operator runbook](docs/telemetry.md) for the boundary, verification and deletion.

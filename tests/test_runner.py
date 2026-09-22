@@ -19,6 +19,7 @@ from coga.taskfile import BLACKBOARD_FENCE, fence_count, read_blackboard
 
 
 EXPECTED_RECIPES = (
+    "phone-home",
     "autoclose",
     "blocker-reminders",
     "branch-sweep",

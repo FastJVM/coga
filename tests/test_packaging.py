@@ -19,6 +19,10 @@ from coga.ticket import Ticket
 
 
 EXPECTED_BOOTSTRAP_RESOURCES = (
+    "coga/resources/templates/coga/recurring/phone-home/ticket.md",
+    "coga/resources/templates/coga/recurring/phone-home/ticket.py",
+    "coga/resources/templates/coga/workflows/phone-home/run.md",
+    "coga/resources/templates/coga/bootstrap/contexts/coga/telemetry/SKILL.md",
     # Keeps `coga.resources` a regular package in the built wheel, not a
     # namespace package — see `test_coga_resources_is_a_regular_package`.
     "coga/resources/__init__.py",
@@ -542,3 +546,66 @@ def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
 
     for name in EXPECTED_BOOTSTRAP_RESOURCES:
         assert name in names
+
+
+def test_phone_home_parent_header_matches_and_packaged_seed_is_unused():
+    from coga.taskfile import read_blackboard
+    from coga.telemetry import _state
+    live = REPO_ROOT / "coga/recurring/phone-home/ticket.md"
+    seed = REPO_ROOT / PACKAGED_ROOT / "recurring/phone-home/ticket.md"
+    fence = b"<!-- coga:blackboard -->"
+    assert live.read_bytes().split(fence)[0] == seed.read_bytes().split(fence)[0]
+    state, _ = _state(read_blackboard(seed))
+    assert state["run"] == state["offset"] == 0
+    assert state["repo_id"] is None
+    import hashlib
+    assert state["digest"] == hashlib.sha256(b"").hexdigest()
+
+
+def test_installed_wheel_init_and_phone_home_are_isolated(tmp_path):
+    """Exercise the installed artifact outside source; preserve CI and fake HTTP."""
+    wheel_dir = tmp_path / "dist"
+    subprocess.run([sys.executable, "-m", "pip", "wheel", "--no-build-isolation", "--no-deps", ".", "-w", str(wheel_dir)], cwd=REPO_ROOT, capture_output=True, check=True)
+    [wheel] = wheel_dir.glob("coga-*.whl")
+    installed = tmp_path/"installed"
+    subprocess.run([sys.executable,"-m","pip","install","--no-deps","--target",str(installed),str(wheel)],capture_output=True,check=True)
+    target = tmp_path/"company"
+    target.mkdir()
+    env = {**os.environ, "PYTHONPATH":str(installed), "CI":"true"}
+    script = r'''
+import json
+from pathlib import Path
+from unittest.mock import patch
+from typer.testing import CliRunner
+from coga.cli import app
+from coga.config import load_config
+from coga.recurring import create_named
+from coga.runner import run_recipe
+from coga.taskfile import read_blackboard
+from coga import telemetry as t
+import subprocess
+assert "installed" in t.__file__
+subprocess.run(["git","init","-b","main"],check=True,capture_output=True)
+subprocess.run(["git","config","user.name","Test"],check=True)
+subprocess.run(["git","config","user.email","test@example.test"],check=True)
+def forbidden(*args, **kwargs):
+    raise AssertionError("production transport/worker invoked")
+with patch("coga.commands.init._check_external_dependencies"), patch.object(t,"_post_http",forbidden), patch.object(t,"_bounded_worker",forbidden):
+    result=CliRunner().invoke(app,["init",".","--user","tester"])
+    assert result.exit_code == 0, result.output
+    cfg=load_config(Path("coga"))
+    parent=Path("coga/recurring/phone-home/ticket.md")
+    assert t._state(read_blackboard(parent))[0]["run"] == 0
+    outcome=create_named(cfg,"phone-home")
+    assert outcome.created
+    shim=outcome.ref.task_dir/"ticket.py"
+    assert shim.is_file()
+    assert run_recipe(cfg,"phone-home",[]) == 0
+    state=t._state(read_blackboard(parent))[0]
+    assert state["run"] == 1 and state["repo_id"] is None
+    assert not t._admitted(cfg)
+print("installed init and suppressed first snapshot passed")
+'''
+    result = subprocess.run([sys.executable,"-c",script],cwd=target,env=env,capture_output=True,text=True,timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "suppressed first snapshot passed" in result.stdout
