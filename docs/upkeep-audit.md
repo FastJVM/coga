@@ -29,7 +29,7 @@ queue was launched, and no source code was changed for this audit.
 | Apply an accepted lesson later | #773 merged a warning about `coga launch --prompt-report` on September 9. On September 10 this marketing authoring session still used it and accidentally published the initial reset as `7a3d5643`. | A useful lesson existed but did not prevent the next relevant mistake. No claim is made that the cause was specifically a model ignoring a supplied warning: the record does not establish that it was supplied. |
 | Close recurring findings | The routing-hole ticket records repeated validator issues and duplicate gap tickets; the September run summary retains 27 validator issues classified as human-needed and 34 done tickets held out of Retro because they carried recorded checkouts. | Detection and summarization did not close every issue. Those are run-date observations, not a claim that every item still needs action today, or that every parked item is unwanted work. |
 
-Sources: [Dream run summary](../coga/tasks/recurring/dream/ticket.md#dream-run-summary),
+Sources: [Dream run summary](https://github.com/FastJVM/coga/blob/9cb722546/coga/tasks/recurring/dream/ticket.md#dream-run-summary) (the 2026-W37 period ticket as frozen at commit `9cb722546` — the live path is rewritten every period; locally: `git show 9cb722546:coga/tasks/recurring/dream/ticket.md`),
 [routing-hole record](../coga/tasks/dream-findings-have-three-routing-holes-that-lose.md),
 [marketing incident](../coga/tasks/marketing/phase-0-audit/ticket.md),
 [#773](https://github.com/FastJVM/coga/pull/773),
