@@ -30,14 +30,14 @@ queue was launched, and no source code was changed for this audit.
 | Close recurring findings | The routing-hole ticket records repeated validator issues and duplicate gap tickets; the September run summary retains 27 validator issues classified as human-needed and 34 done tickets held out of Retro because they carried recorded checkouts. | Detection and summarization did not close every issue. Those are run-date observations, not a claim that every item still needs action today, or that every parked item is unwanted work. |
 
 Sources: [Dream run summary](https://github.com/FastJVM/coga/blob/9cb722546/coga/tasks/recurring/dream/ticket.md#dream-run-summary) (the 2026-W37 period ticket as frozen at commit `9cb722546` — the live path is rewritten every period; locally: `git show 9cb722546:coga/tasks/recurring/dream/ticket.md`),
-[routing-hole record](../coga/tasks/dream-findings-have-three-routing-holes-that-lose.md),
-[marketing incident](../coga/contexts/marketing/launch-history/phase-0-audit/audit-ticket.md),
+[routing-hole record](../../coga/tasks/dream-findings-have-three-routing-holes-that-lose.md),
+[marketing incident](../archive/launch-programs/phase-0-audit/audit-ticket.md),
 [#773](https://github.com/FastJVM/coga/pull/773),
 [#774](https://github.com/FastJVM/coga/pull/774).
 
 The warning now remains in
-[the codebase context](../coga/contexts/coga/codebase/SKILL.md), while guided
-[ticket authoring](../src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md)
+[the codebase context](../contexts/coga/codebase/SKILL.md), while guided
+[ticket authoring](../../src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md)
 still instructs use of the CLI prompt report. This is a concrete delivery
 problem: adding a correct fact to a context need not correct every procedure
 or ensure every relevant task loads it. Later work in this session used the
@@ -80,7 +80,7 @@ the notification blocks left zero additional text in all 22. The prior
 Dream session `4d174194-960b-444a-b593-04078fb9a21e` contained only its launch
 prompt in the same user-text classification.
 
-[The Claude activity parser](../src/coga/usage.py) excludes tool results,
+[The Claude activity parser](../../src/coga/usage.py) excludes tool results,
 metadata and sidechains but counts remaining user text; it does not exclude
 these notification blocks. These 22 events must therefore not be presented
 as 22 human interventions. Conversely, zero further human instructions does

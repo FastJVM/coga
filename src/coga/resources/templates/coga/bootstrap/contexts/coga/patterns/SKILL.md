@@ -1,48 +1,48 @@
 ---
 name: coga/patterns
-description: Reusable Coga design patterns built from the core primitives, and the rules of thumb for composing new ones without hidden state. Attach when designing a feature that collects events or state across runs.
+description: Rules of thumb for composing a new feature from Coga's core primitives when it collects events or carries state across runs, without hidden state, hidden queues, or unsafe concurrent writes.
 ---
 
 # Coga patterns
 
-Compositions of the core primitives (`coga/architecture`) that recur often
-enough to be worth naming, so a new feature reaches for the established shape
-instead of re-deriving it — or worse, inventing a hidden `.queue` dotfile that
-breaks Coga's no-hidden-state rule.
-
-Use these rules when a feature needs to collect events or carry state across
-runs.
+Compositions of the core primitives (`coga/architecture`) recur often enough
+to be worth naming, so a new feature reaches for the established shape instead
+of re-deriving it — or inventing a hidden `.queue` dotfile that breaks Coga's
+no-hidden-state rule (`coga/principles`).
 
 ## Rules of thumb for a new composition
 
 - **No hidden state.** Anything that accumulates between runs is a real,
-  git-tracked, human-readable file under `coga/` — openable mid-flight, never
-  a dotfile or opaque store.
-- **Capture at event time, not from history.** Record what happened the moment
-  it fires so nothing depends on scanning `git log` to reconstruct it, and so
-  work that is done-and-deleted before a later reader runs is still accounted
-  for.
-- **Reuse the recurring machinery for the periodic half.** A scheduled reader
-  is a `recurring/<job>/` ticket (see `coga/recurring`) whose deterministic
-  half is the reserved sibling `ticket.py`; its cadence lives in `schedule:`
-  frontmatter, reproducible from the repo with no external cron.
+  git-tracked, human-readable file under the Coga root — openable
+  mid-flight, never a dotfile or opaque store.
+- **No hidden queue.** Prefer posting or recording an event the moment it
+  happens. Coga once batched outcomes into a daily digest spool and removed
+  it (#786): at Coga's volume a queue only added a consumer, a drain step,
+  and a class of drain/merge bugs. Add batching only when the live feed is
+  demonstrably too noisy, and then as a visible file, not a service.
+- **Capture at event time, not from history.** Record what happened when it
+  fires, so nothing depends on reconstructing it from `git log`, and work
+  that is done and deleted before a later reader runs is still accounted for.
+  Session usage records in `coga/log.md` are the example (`coga/usage`).
+- **Reuse the recurring machinery for the periodic half.** A scheduled
+  reader is a `recurring/<job>/` template (`coga/recurring`) whose
+  deterministic half is the reserved sibling `ticket.py`, with its cadence in
+  `schedule:` frontmatter. The cadence is declared in the repo, but it is
+  serviced only when an operator or an external scheduler runs
+  `coga recurring`; Coga ships no daemon of its own.
 - **Cross-run state lives beside the template, not in the period task.**
-  `coga/recurring/<job>/` carries across runs; the per-period task is gone
-  next period.
-- **Atomic file replacement is crash-safety, not a lock.**
-  `atomicio.atomic_write_text` guarantees a reader sees the old or the new
-  complete file; it does not serialize two writers. Coga allows multiple
-  processes and clones to race on state-plane writes, so a composition must
-  stay correct *by shape* — append-only regions, disjoint hunks — or add an
-  explicit primitive. `merge=union` (`.gitattributes`) resolves the pure
-  append-vs-append case for `log.md`; it does not resolve anything else.
-- **Prefer the live path when volume is low.** Batching buys nothing until the
-  live feed is noisy enough to be a problem; until then it only adds a queue,
-  a consumer, and a class of drain/merge bugs.
+  `coga/recurring/<job>/` persists across runs; each period task is gone next
+  period.
+- **Stay correct by shape under concurrent writers.** Coga allows several
+  processes and clones to write state at once. Atomic file replacement is
+  crash-safety, not a lock; `merge=union` resolves only pure appends. A
+  composition needs append-only regions, disjoint hunks, or an explicit
+  publish guard — see `coga/internals/spool-merge`.
 
-## What this context does NOT cover
+## Not covered here
 
-- The primitives themselves (recurring tasks, status, git sync) — see
-  `coga/architecture` and `coga/recurring`.
-- How `log.md` lands across branches and checkouts — see `coga/sync`.
-- The checkout-local state admission/publication barrier — `coga/architecture`.
+- The primitives themselves — `coga/architecture` and `coga/recurring`.
+- How state lands on control across checkouts — `coga/sync` and
+  `coga/internals/state-publication`.
+- The checkout-local admission and publication barrier used by launches —
+  `coga/internals/launch-claims`.

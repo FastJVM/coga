@@ -5,13 +5,13 @@ preserve ideas and dated research for reference; they are not current briefs
 or publication instructions. Some text already contradicted later decisions:
 in particular the post-2 token-receipt sentence was stale when archived, and
 HN points never established observed front-page placement. Use the current
-[plan](../plan/SKILL.md), [source limits](../positioning/SKILL.md) and
-[dated distribution evidence](../distribution/SKILL.md) when reusing material.
+[plan](../../contexts/marketing/plan/SKILL.md), [source limits](../../contexts/marketing/positioning/SKILL.md) and
+[dated distribution evidence](../../contexts/marketing/distribution/SKILL.md) when reusing material.
 Existing task metadata and unrelated blackboard history remain in their tasks.
 
 ## build-the-launch-plan
 
-Source: [coga/tasks/marketing/build-the-launch-plan.md](../../../tasks/marketing/build-the-launch-plan.md).
+Source: [coga/tasks/marketing/build-the-launch-plan.md](../../../coga/tasks/marketing/build-the-launch-plan.md).
 
 ### Description
 
@@ -363,7 +363,7 @@ process from the contexts.
 
 ## readme-top
 
-Source: [coga/tasks/marketing/readme-top.md](../../../tasks/marketing/readme-top.md).
+Source: [coga/tasks/marketing/readme-top.md](../../../coga/tasks/marketing/readme-top.md).
 
 ### Description
 

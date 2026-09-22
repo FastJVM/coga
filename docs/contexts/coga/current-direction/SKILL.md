@@ -1,407 +1,97 @@
 ---
 name: coga/current-direction
-description: What we're building right now in coga. Recent decisions, open tickets, deferred features. Living document — updates every few weeks. Read this to avoid re-litigating closed decisions.
+description: Short, dated product decisions currently in force for Coga, with links to the topics that own each contract; read it to avoid re-litigating closed decisions.
 ---
 
 # Coga — current direction
 
-Last updated: 2026-09-02.
+Last updated: 2026-09-22.
 
-## Current redesign (recurring lifecycle and identity)
+Each entry is a decision with its date and the topic that owns the resulting
+contract. Enduring rules live in those topics, not here. Live execution state
+is `coga status` and the ticket bodies; sequencing is
+[`coga/roadmap`](../roadmap/SKILL.md); stage posture is
+[`coga/project-stage`](../project-stage/SKILL.md). Replaced decisions are in
+[`docs/archive/superseded-decisions.md`](../../../archive/superseded-decisions.md).
 
-- **Recurring runs use a stable path-qualified task ref.** The current direction is
-  `coga/tasks/recurring/<name>/` (`recurring/<name>` in CLI/status/Slack),
-  not `tasks/recurring-<name>-<period>/`. The `recurring/` directory is the
-  namespace/identity marker; the schedule period is recorded in the
-  repo-global `coga/log.md` as a `created|reused <task-ref> for <period>`
-  line. That append-only record *is* the dedup source — a mark in the template
-  blackboard was reachable by any run rewriting that region, which made
-  serviced periods re-fire.
-  The creation guard now revalidates that log against fetched control before
-  publication and distinguishes its own sweep's published records from later
-  competing changes. The freshness/refusal boundary, including push retries
-  and explicit overrides, is owned by **The creation contract** in
-  [`coga/recurring`](../recurring/SKILL.md); it is not an exactly-once guarantee.
+## In force
 
-- **The lifecycle stays ordinary and Dream owns cleanup.** `coga recurring`
-  creates a normal `active` task, `coga launch` moves it through the usual
-  ticket lifecycle, and a completed run sits as `status: done` until Dream's
-  retro pass disposes of it — direct-deleted by default, or extracted into a
-  knowledge PR first when its blackboard holds something durable, exactly like
-  any other done ticket. Since the instantiated task is deleted after a
-  completed run, a leftover `tasks/recurring/<name>/` directory is the orphan
-  signal: `in_progress` is resumed before fresh period work, and `paused` stays
-  human-parked. A missing task dir plus a valid logged serviced period whose
-  normalized calendar position is at or after the current period means this
-  period already ran. Malformed period records are errors, not schedule state.
+- **Documentation is one library under `docs/` (2026-09-22).** Reusable
+  knowledge is `docs/contexts/<ref>/SKILL.md`, read by humans and composed
+  into prompts; dated evidence, proposals and history sit outside the
+  contexts root. Ticket:
+  [`redo-documentation-dir-and-merge-it-with-context-b`](../../../../coga/tasks/redo-documentation-dir-and-merge-it-with-context-b.md).
+  Authoring rule: [`coga/knowledge`](../knowledge/SKILL.md).
+- **V1 marketing is one idea piece, then Show HN (2026-09-21).** See
+  [`marketing/plan`](../../marketing/plan/SKILL.md) and
+  [`marketing/positioning`](../../marketing/positioning/SKILL.md).
+- **PostHog adoption/activity measurement is approved work (2026-09-20,
+  confirmed 2026-09-21), not shipped.** It reverses the earlier
+  instrumentation ban; the ticket
+  [`marketing/add-telemetry`](../../../../coga/tasks/marketing/add-telemetry.md)
+  owns scope and must update [`coga/principles`](../principles/SKILL.md) §5
+  when it lands. Until then the principle stands.
+- **`coga/tasks/v2/` is to be parked out of `coga status` (2026-09-20).**
+  The parking follow-up is not yet a ticket; see
+  [`coga/roadmap`](../roadmap/SKILL.md) for the inventory and accepted
+  validation baseline.
+- **Recurring runs are ordinary tickets with a stable identity (by
+  2026-09-02).** One `recurring/<name>` task per template, the serviced
+  period recorded in `coga/log.md`, completed runs cleaned up by Dream,
+  `--force` as a real forced run, and `--all <path>` as the one scheduler
+  entry point. Contracts: [`coga/recurring`](../recurring/SKILL.md),
+  [`coga/recurring/scheduling`](../recurring/scheduling/SKILL.md),
+  [`coga/internals/recurring-admission`](../internals/recurring-admission/SKILL.md).
+- **Dream is a recurring template plus an alias; REM is repo-owned recurring
+  maintenance; dev hygiene is outside Dream.** Done-ticket cleanup is
+  Retro-first, and every processed done ticket is deleted — in a knowledge PR
+  when it holds durable knowledge, otherwise directly. Contract:
+  [`coga/dream`](../dream/SKILL.md).
+- **Ticket metadata is cut to what is read; routing is derived.** Operators
+  come from the frozen step's role (`owner` | `agent` | `other-agent`) through
+  one pure resolver; `agent:` is frozen at activation; overrides are
+  ephemeral; removed fields are rejected, not tolerated. Contracts:
+  [`coga/tickets`](../tickets/SKILL.md), [`coga/lifecycle`](../lifecycle/SKILL.md),
+  [`coga/agents`](../agents/SKILL.md).
+- **Delegated recurring periods are bounded to one explicit agent step.**
+  Contract: [`coga/recurring/delegation`](../recurring/delegation/SKILL.md).
+- **Thin tickets are designed before they are built.** Use
+  `code/design-then-implement` (design → cold evaluation → owner
+  `review-design` gate) for one- or two-sentence tickets and
+  `code/with-review` when the spec is clear. Contract:
+  [`coga/workflows`](../workflows/SKILL.md).
+- **Capability-gap detection stays judgment-based.** Unresolved skill refs are
+  already errors (`coga validate` `broken-skill`, composition hard-fails); a
+  skill that *should* exist is found at authoring (`bootstrap/ticket`,
+  `bootstrap/import`) or by Dream/Retro, not by a lint.
+- **`coga create` makes a raw, Slack-silent draft; `coga ticket` runs the
+  guided interview** on a new or existing ticket. Contract:
+  [`coga/tickets`](../tickets/SKILL.md).
+- **Aliases are positional pass-through only** and print their expansion.
+  Contract: [`coga/configuration`](../configuration/SKILL.md).
+- **Manual edits stay silent.** Editing a ticket, blackboard or context does
+  not post or log; notifications are for agent-driven transitions. Contract:
+  [`coga/notifications`](../notifications/SKILL.md).
+- **Control and data planes stay split.** `coga launch` owns
+  `active` → `in_progress`; `coga bump` owns `step:`; a human rewind is an
+  exceptional recovery operation. Contract:
+  [`coga/lifecycle`](../lifecycle/SKILL.md).
 
-- **`coga recurring --force` is a forced real run, not a debug sandbox.** The
-  old `<name>-dbg-<timestamp>` scratch machinery (slug-based Slack/git
-  suppression, orphan reaping, fold-back-to-template-log) is gone. `--force` now
-  get-or-creates and launches each template's real `recurring/<name>` task,
-  bypassing only the schedule and the status filter — every other effect (Slack,
-  git sync, serviced-period record) is identical to a bare sweep.
+## Open intent, not live direction
 
-- **`coga recurring --all <path>` is the one-entry scheduler surface.** It
-  discovers Coga repos below the explicit parent path, pruning dependency/tool
-  and `_`-prefixed trees plus Coga-owned temporary control worktrees, and runs
-  each serviceable git remote/workspace identity once, sequentially, through
-  the first locally configured control checkout. Checkouts rejected by
-  intentional Coga config guards are summarized
-  as unconfigured and skipped non-fatally. Duplicate checkouts are warned and
-  skipped; distinct Coga workspaces inside one monorepo remain distinct
-  scheduler targets. A checkout whose pre-scan fetch/rebase cannot confirm
-  control-branch freshness fails without servicing its periods. The old
-  force-every-template behavior moved to `--force`; combining both flags
-  deliberately force-runs every template in every selected repo.
-
-## Open rename (workflow → playbook)
-
-- **The `workflow` primitive is being renamed to `playbook`.** Ticket:
-  `v2/rename-workflow-primitive-to-playbook` (draft,
-  `code/design-then-implement`) — now parked in `coga/tasks/v2/`, which
-  `coga/roadmap` defines as work that is *not* on the current execution path,
-  so treat the rename as intent rather than live direction.
-  Same motive as the earlier `coga step → coga bump` rename below: the name
-  mislabels the concept. "Workflow" imports the romantic, absorption-camp
-  connotation (*the automation runs itself* — n8n/Zapier/CI), which is the
-  opposite of what the primitive is: a sequence of **operator handoffs**
-  (`assignee: agent | other-agent | owner`) with a human gate in the step list. The
-  product is literally a *coga* (baton between runners); "playbook" names the
-  ordered-plays-with-handoffs shape without the runs-itself baggage and pairs
-  with `skills`/`contexts`. It touches a reserved frontmatter key, so it needs
-  a design pass (alias-vs-migration for live tickets) before the mechanical
-  rename — don't hand-edit the `workflow:` key in contexts ahead of the code
-  change. Until merged, `workflow` is still the canonical term everywhere.
-
-## Recent decisions (design-then-implement workflow)
-
-- **A thin ticket gets designed before it gets built.** The
-  `code/design-then-implement` workflow adds three steps in front of the
-  normal `implement → open-pr → review` flow: an agent `design` step
-  (skill `code/design`) that writes Description, Acceptance Criteria,
-  Proposed Shape, and Out of Scope into the ticket; an `other-agent`
-  `evaluate-design` step (skill `code/review-design`) that reads the result
-  cold and records evidenced findings; and an owner `review-design` gate that
-  resolves those findings and approves the spec before any code is written.
-  Use it when a ticket arrives as one or two sentences; use
-  `code/with-review` when the spec is already clear. The design step
-  writes no code — its only output is the fleshed-out ticket plus open
-  questions on the blackboard. Workflow snapshots keep their original step
-  list, so the evaluator is added to newly frozen tickets, not retrofitted into
-  tickets already in flight.
-- **A workflow evaluator note is live working state, not draft authoring
-  residue.** `evaluate-design` runs only after launch and writes `## Evaluator
-  review` for the immediately following owner gate. The identically named
-  section on a `draft` remains subject to the first-launch synthesis check:
-  `bootstrap/ticket` requires its durable findings folded into the ticket body
-  and the authoring section removed. Formalizing the live ritual does not make
-  unfinished draft authoring launch-ready.
-
-## Recent decisions (missing-skill detection)
-
-- **Capability-gap detection stays judgment-based — no validate lint.**
-  "Referenced-but-absent" skills are already fully covered: `coga validate`
-  emits `broken-skill` for any ticket- or step-level `skill:` ref with no
-  file, and `compose.py` hard-fails at launch instead of silently dropping
-  the layer. The other sense — a skill that *should* exist but isn't
-  referenced anywhere — is not statically detectable; a "step with no skill"
-  lint would be a false-positive machine (most steps legitimately have no
-  skill). The two honest detectors are the `bootstrap/ticket` step-4
-  interview gap point at authoring time (which now routes through
-  `bootstrap/import` before hand-writing) and Dream/retro's cross-ticket
-  view (recurring hand-rolled process in done tickets → propose a skill or
-  import). No programmatic handoff to the import pass — a human reading
-  `coga validate` is enough. Decision closed the `detect-missing-skills`
-  ticket (deleted without a build).
-
-## Recent decisions (eval/ticket-diagnostic removed)
-
-- **The bundled `eval/ticket-diagnostic` skill is removed (2026-07-18).**
-  This supersedes the earlier "keep" decision: removal was first implemented
-  on disuse grounds (PR #332, 2026-06-10) and reversed at human review, but
-  the owner reopened it with new evidence and confirmed deletion. The skill
-  was unreachable from every path — no workflow step, no `skills:`
-  frontmatter, no Python, and `.claude/` carries no skills symlink, so an
-  agent never saw it. `bootstrap/ticket` Step 6 ran its own inline critique
-  and never opened the file.
-- **It was removed on the merits, not just disuse.** The draft ticket
-  `wire-eval-ticket-diagnostic-into-ticket-step6` (deleted with it) proposed
-  finishing the stub and evaluating `coga launch --prompt-report`. That
-  premise was wrong: `--prompt-report` emits only a layer/bytes/token table
-  (`launch.py:_format_prompt_report`), not prompt text, so five of the six
-  axes still needed the full ~7k-token prompt read by a fresh subagent —
-  roughly 10k tokens to re-do a review Step 6 already performs.
-- **The one non-redundant signal survives without the skill, and Step 6 now
-  carries it.** The report's own table exposes bloat directly for ~200
-  tokens: on `improve-prompt-for-relay-ticket` it showed the blackboard at
-  4,314 of 7,185 total tokens (60%). `bootstrap/ticket` Step 6 now tells the
-  evaluator to run `coga launch <slug> --prompt-report` and flag any layer
-  over ~40% of the total. This closes a question Step 6 was already
-  asking but structurally could not answer — it read the ticket file, which
-  lists context *refs* without their composed sizes. No subagent, no skill,
-  no second copy of the rubric.
-
-## Recent decisions (Dream — recurring template plus an alias)
-
-- **Dream is a recurring task template plus an alias.** The standalone
-  `coga dream` Typer command is gone. Dream now ships as
-  `coga/recurring/dream/` — an ordinary recurring template. `coga
-  recurring` creates and launches it when its weekly schedule is due;
-  `coga dream` is a default alias for `recurring launch dream`, which
-  creates and launches it on demand through the same path. The task ref is
-  now `recurring/dream`, so the scheduled and on-demand paths converge on one
-  task. This reverses the earlier "ad-hoc command" decision: there was
-  nothing left in a dedicated command worth keeping once the workers became
-  skills.
-- **`coga recurring launch <name>` is the on-demand recurring entry point.**
-  It creates one named template now, ignoring its schedule, with the same
-  stable path-qualified task ref a bare `coga recurring` produces, then
-  launches the task.
-
-## Recent decisions (Dream and REM)
-
-- **Dream is Coga's generic ticket cleanup pass.** It scans all tickets, runs
-  fixed Coga housekeeping skills, proposes done-ticket cleanup, keeps one
-  run-level summary, and surfaces context/skill/workflow drift.
-- **First enabled Dream skill pass:** `validate-drift` for deterministic repo
-  validation and safe file-presence repairs; `retro/done-ticket` for batched
-  durable-knowledge extraction from completed tasks. Dream's decide-half scans
-  no longer read the corpus once per run: the corpus outgrew a single subagent,
-  and a shard that stopped early was indistinguishable from a clean repo. They
-  now run as **bounded shards** — Dream indexes the corpus, assigns each shard
-  at most 150 KB across at most 40 files, and every shard appends findings to a
-  shared on-disk `findings.md` as it decides them plus an explicit completion
-  line stating its count, including zero (see
-  `bootstrap/dream/scan/scan-protocol`). The done-ticket half is unchanged:
-  Dream still processes every eligible done ticket with a running knowledge
-  delta, batches them into coherent PRs of at most five source tickets each, and
-  keeps each knowledge PR small enough to describe with one clear title.
-- **REM is repo/user-specific recurring maintenance.** It is opt-in user space:
-  each repo authors its own template under `coga/recurring/` (see the
-  `coga/recurring` context), defining its own cadence, scan, domain skills,
-  output conventions, and review gates.
-- **Dev hygiene is outside Dream.** Stale branches, tests, and other code-repo
-  cleanup belong in a dev maintenance task or workflow, not the generic Dream
-  cleanup pass.
-- **Done-ticket cleanup is retro-first, and every processed done ticket is
-  deleted — knowledge-bearing tickets in a PR, knowledge-less tickets
-  directly.** A done task whose directory still exists, has no real `branch:`
-  or `worktree:` under blackboard `## Dev`, and has no open PR adding its
-  `## Retro` marker or deleting it, is eligible for Retro. A checkout-bearing
-  done ticket remains visible retirement debt until a human runs
-  `coga retire <slug>`; Dream must not delete the evidence that command needs
-  or make checkout cleanup implicit. If Retro extracts
-  durable knowledge, its PR records the marker, updates the knowledge base, and
-  deletes the source task directory in the same PR — so a human can reject or
-  edit the knowledge change and the deletion together, atomically. If Retro
-  finds no new durable knowledge, there is no PR to bundle the deletion into, so
-  the ticket is **direct-deleted** via `coga delete <slug>` (working-tree
-  `git rm` plus a direct `Ticket: <slug> — deleted` commit); no marker, no
-  `## Pruned` section, no delete-only prune PR. After deletion git history is the
-  audit trail and recovery is via `git restore`. This replaces the earlier model
-  that bundled every deletion — including knowledge-less ones — into a knowledge
-  PR or a single delete-only prune PR. Retro never leaves a processed done
-  ticket on disk and never opens a marker-only PR. Retro performs the direct
-  delete from a linked worktree with `--keep-control-checkout`, so the remote
-  control ref advances without moving the operator's checkout underneath
-  concurrent work. When a managed sandbox cannot create the linked worktree,
-  Retro uses an independent clone and ordinary `coga delete`; its separate Git
-  metadata provides the same operator-checkout boundary.
-- **An orphaned `retire-<slug>` shell closes as already satisfied.** Dream's
-  batched Retro pass and a human's `coga retire <slug>` can both target the
-  same done ticket, and Dream usually wins: by the time the retire shell
-  launches, its source artifact is already gone from the control branch via
-  Retro's direct-delete path. The shell is then orphaned, not broken — both
-  halves of its contract (extract knowledge, delete the ticket) are done, by
-  the skill the shell exists to drive. Judge that from the **control branch**,
-  not the working tree — `--keep-control-checkout` deliberately leaves the
-  operator's copy in place, so a locally-present source proves nothing — and
-  require evidence that Retro actually ran: the `Ticket: <slug> — deleted`
-  subject is what *every* `coga delete` writes, including a user's, so on its
-  own it proves the directory is gone, not that knowledge was extracted. Pair
-  it with a `## Retro` marker on the deleting commit/PR, a Dream run naming the
-  slug, or a logged no-durable-knowledge direct-delete; then record that on the
-  shell's blackboard and mark it done as already satisfied. Absence with no
-  such evidence is a plain unretired deletion — block instead. Never
-  `git restore` the source to rerun Retro — that re-litigates a disposition the owner already
-  accepted — and never `coga block`: the shell's "source task is missing" stop
-  condition guards against a *wrong slug*, not an already-completed
-  retirement. This shape has now recurred three times
-  (`retire-coga-important-support-second-webhook`, settled by the owner in
-  `coga/log.md` on 2026-08-14, then twice more), so it is precedent, not a
-  judgement call.
-
-## Recent decisions (simplified ticket format)
-
-- **Ticket metadata cut to what is actually read; routing is derived.** Top-level
-  `slug`, `human`, `assignee`, and `watchers` are removed, along with their
-  accessors, authoring inputs, and supported behavior, and the residual
-  `script: null` accommodation is gone. Empty `contexts` / `skills` / `secrets`
-  no longer render — absence *is* empty — so the minimal draft is `title`,
-  `status: draft`, `owner`, `workflow: null` plus its body.
-- **One shared, pure operator resolver.** `coga.bump.resolve_operator` derives
-  who holds a ticket from its frozen workflow step's role and feeds launch,
-  transitions, script handoffs, status/show, notifications, and sweep
-  eligibility. Nothing caches the answer: no command persists a resolved
-  operator, and none offers independent assignment. A step that omits
-  `assignee:` inherits the nearest preceding declared role; before any
-  declaration the role is `owner`. Human gates are keyed on the *role*, not on
-  whether a name is absent from `[agents.*]`.
-- **The role vocabulary is `owner` | `agent` | `other-agent`.** `human` is
-  rejected rather than kept as a second spelling of `owner`; shipped workflows
-  and every stored snapshot were rewritten.
-- **`agent:` is the optional main-agent choice, frozen at activation.** It stays
-  absent on drafts; the first activation persists `Config.default_agent()` and
-  every later transition retains it, so reordering `[agents.*]` changes only
-  future activations and a `main -> peer -> main` rotation stays stable. An
-  explicit value must name a configured agent. Peers remain live configuration,
-  not frozen metadata.
-- **Overrides stay ephemeral.** `launch --agent X` runs the initial agent phase
-  and directly consecutive steps that *explicitly* declare `assignee: agent`;
-  an omitted role, an owner step, or `other-agent` ends propagation for that
-  launch. Neither an override nor an assist writes `agent:`. Consequence
-  accepted deliberately: an override does not change who `other-agent` is
-  relative to, so `--agent codex` on a Claude-main ticket can produce
-  Codex → Codex → Claude, and an override cannot rescue a ticket whose chosen
-  main agent is no longer configured.
-- **Delegated recurring periods are bounded to one explicit agent step** with no
-  completion gate — see `coga/recurring`. Multi-step, peer-review, or gated
-  recurring jobs run without `delegate:`.
-- **Removed metadata is rejected, not tolerated.** Validation names the
-  offending fields as an error, so every writer refuses them; `config.py` keeps
-  the names reserved against `[ticket.fields.*]`. Recurring templates reject
-  the same names at load time, before materializing a period. No compatibility
-  reader, no migration tool, no dual-writer period — the whole stored population was
-  converted in the same change.
-
-## Recent decisions (assignees flattened out)
-
-- **`[assignees.<user>]` removed entirely.** For ≤3 people, the
-  human → per-user-agent-nickname → agent-type indirection earned
-  nothing — every team member's map was identical. The later ticket-format
-  simplification also removed top-level `assignee:`. A ticket now names its
-  human in `owner:` and may choose an `[agents.<type>]` name in `agent:`;
-  frozen step roles derive the current operator. `Config.agent_type(name)`
-  replaces the old `agent_type_for(user, nickname)`. `coga.local.toml`'s
-  `user = "name"` is a free-form string — no registry to validate
-  against. Re-introduce per-person agent configs when one teammate
-  genuinely needs a different binary or auth from another.
-
-## Recent decisions (small-team Slack simplification)
-
-- **`slack` field on `[assignees.<name>]` removed.** (Historical: the
-  `[assignees]` table itself is now gone — see above.) With ≤3 people
-  on a shared channel, plain-text posts reach everyone — per-user
-  @mentions add zero signal. At the time, `slack.py` collapsed to a
-  single `post(cfg, message)` and `post_mention` / `_mention_tag` were
-  dropped.
-- **Per-user @mentions since re-introduced, for the owner only.** The
-  prediction above held in part: `notification.post(cfg, message, *,
-  owner=...)` dispatches through the Slack backend, whose mention helper renders
-  a name mapped in `[notification.slack.users]` as a real `<@U…>` ping. Posts
-  ping the ticket owner again. The watcher half did *not* survive — see the
-  ticket-format simplification above — so there is no cc trailer; see
-  `coga/sync` for the current behavior.
-
-## Recent decisions (alias mechanism)
-
-- **`[aliases]` table in `coga.toml`.** Maps a one-word name to an
-  expanded coga command (free-form string). Positional args after
-  the alias name forward to the expansion. Default alias:
-  `chat = "launch bootstrap/orient"`. Validated at config load:
-  alias names can't collide with built-ins; first token of expansion
-  must be a known built-in.
-- **`coga create` and `coga ticket` split raw creating from guided
-  authoring.** `coga create` creates a raw draft and is intentionally
-  Slack-silent.
-  `coga ticket` runs the `bootstrap/ticket` interview against a new or
-  existing ticket at any status. It preserves every valid lifecycle status;
-  an out-of-vocabulary value is malformed metadata the interview repairs,
-  including a frozen workflow and valid step when the repaired status is live.
-  Its prompt keeps the ticket's authoring context but omits the current
-  workflow-step execution layer and launch-only blocker-resolution preamble.
-  Aliases stay positional-pass-through only.
-- **Aliases print their expansion to stderr.** `coga chat` prints
-  `→ coga launch bootstrap/orient` before dispatching, so the
-  indirection is visible. Users learn the long form by using the short
-  form.
-
-## Recent decisions (PR #43, spec audit)
-
-12 audit threads were resolved during the spec-audit review. The
-ones that affect implementation:
-
-- **Watchers were removed in PR #43, briefly reintroduced, and are now gone
-  again (historical).** At the PR #43 point there was no multi-watcher fanout and
-  only `assignee` reached Slack. A later change did cc watcher names mapped under
-  `[notification.slack.users]`. The ticket-format simplification below removed
-  the field, the arguments, the spool writes, and the cc rendering outright: no
-  ticket ever populated `watchers`, so the whole path was carrying no traffic.
-  The owner is the only person a post addresses.
-- **Manual edits stay silent by design.** Editing ticket.md,
-  the blackboard region, or contexts directly does NOT post to Slack and
-  does NOT log. Slack is for agent-driven state transitions only.
-  No post-commit hooks watching task files.
-- **`coga step` renamed to `coga bump`.** The "advance" semantic
-  stays; the name changed because "step" overloaded with "step in
-  workflow" was confusing. `bump` derives the next step from the
-  current `step:` frontmatter and normally advances by one. Humans may rewind
-  `active`, `in_progress`, or `paused` workflow tasks to an earlier step with
-  `--to` or `--backward`; an `active`/`paused` rewind must target a configured
-  agent so the unchanged status remains launchable. Rewind is explicitly an
-  exceptional human debug/recovery operation, not routine progression. Any
-  rewind whose guarded publication is unconfirmed remains local debug state and
-  is inspected and reconciled before another mutation, branch push, or merge.
-  Agents still block instead of going backward. `bump` does finish tickets from
-  their final workflow step by delegating to the same
-  `mark_done` finalizer as `coga mark done`. A no-workflow ticket still errors
-  and points at `coga mark done` because it has no step for `bump` to finish.
-- **`coga recurring` is the canonical entry point** for the recurring
-  creator. It scans templates, creates the current period's task for
-  each, and launches the due ones sequentially — current period only, no
-  backlog of missed periods. Coga v1 ships no scheduler wrapper; operators
-  invoke `coga recurring` directly when they want a sweep.
-- **Control plane and data plane are fully split.** `draft` is unapproved,
-  `active` is approved/queued, and `in_progress` is launched work. `coga
-  launch` owns the `active` → `in_progress` start transition; `coga bump`
-  owns `step:` movement. Forward bumps require `in_progress`; a human rewind
-  also accepts `active` or `paused`, leaves status unchanged, and refuses a
-  human/unassigned target from those statuses. Its exceptional debug semantics
-  are the deliberate sharp edge outside the ordinary catch-all sweep and
-  branch-publication contracts until the operator reconciles it.
-  The normal boot is `coga ticket "<title>"` → review the draft →
-  `coga launch <slug>`, which activates the draft inline as it starts work.
-
-## Notification layer (Slack) — shipped
-
-The earlier audit-driven bug queue and the Slack-notification queue have both
-been worked off. The notification-layer rename shipped: Slack is now the
-notification layer (a pluggable notification system), and the tickets that
-drove it are done and pruned — `rename-slack-to-a-notification-system-with-pluggab`,
-`post-slack-notification-on-mode-script-failures`, and
-`slack-post-ignores-http-response-so-bad-webhook-fa` are all completed and no
-longer on disk.
-
-Two Slack ideas are still parked, both under `coga/tasks/v2/`:
-`use-slack-as-a-sync-channel-for-tickets` (`status: draft`) — inbound Slack →
-ticket sync — and `issue-inbox-slack` (`status: paused`) — enriching the
-existing outbound posts into a readable inbox, where a panic carries its
-blocker reason and required action and every post links the next step,
-webhook-only. Neither is active work; see "Deliberately deferred" below.
+- **`workflow` → `playbook` rename.** Parked as
+  `v2/rename-workflow-primitive-to-playbook`. It touches a reserved
+  frontmatter key, so it needs a design pass (alias versus migration) before
+  any mechanical rename. Until it merges, `workflow` is the canonical term;
+  do not hand-edit the `workflow:` key ahead of the code change.
 
 ## Deliberately deferred
 
-- Inbound Slack → ticket creation. Separate Slack-as-sync ticket.
-- Multi-workspace Slack. One workspace assumed for now.
-- Real-time sync (server backend). Git push/pull is the sync layer
-  through ~5-person team size; revisit at 10+.
-- `coga update-workflow` to re-snapshot a workflow into in-flight
-  tickets. v1 is manual frontmatter edit.
-
-## What this context does NOT cover
-
-- Timeless principles — see `coga/principles`.
-- The current iteration's *posture* (volatility, no real users) —
-  see `coga/project-stage`.
-- The mental model — see `coga/architecture`.
+- Inbound Slack → ticket creation (`v2/use-slack-as-a-sync-channel-for-tickets`)
+  and an enriched outbound inbox (`v2/issue-inbox-slack`).
+- Multi-workspace Slack; one workspace is assumed.
+- Real-time sync through a server. Git push/pull is the sync layer through
+  about five people; revisit at ten or more.
+- `coga update-workflow` to re-snapshot a workflow into in-flight tickets;
+  edit frontmatter by hand.
+- A scheduler wrapper; operators run `coga recurring` themselves.

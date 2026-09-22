@@ -17,7 +17,7 @@ let people try the product. Publish the argument as ordinary reading material,
 not as a Show HN. The owner approves and performs publication/personal-account
 actions. Share links without soliciting votes or comments to boost ranking.
 
-The [previous distribution runbook](../launch-history/three-essay-distribution.md)
+The [previous distribution runbook](../../../archive/launch-programs/three-essay-distribution.md)
 is historical; its channel order, YC timing and thresholds are not requirements.
 
 ## Recorded surfaces and outstanding facts
@@ -26,9 +26,9 @@ Extracted from the audit on 2026-09-09. Public observations were recorded on
 **2026-09-02/03**; no live account or website was rechecked for the September
 10 inventory. Recheck applicable facts, rules and links when selecting a
 channel and again before submission. Sources:
-[audit evidence](../launch-history/phase-0-audit/step-1-findings.md),
-[audit history](../launch-history/phase-0-audit/audit-history.md), and
-[the earlier campaign research](../launch-history/campaign-ticket-briefs.md).
+[audit evidence](../../../archive/launch-programs/phase-0-audit/step-1-findings.md),
+[audit history](../../../archive/launch-programs/phase-0-audit/audit-history.md), and
+[the earlier campaign research](../../../archive/launch-programs/campaign-ticket-briefs.md).
 
 | Surface | Recorded observation | Input if the new plan uses it |
 |---|---|---|
@@ -43,11 +43,12 @@ channel and again before submission. Sources:
 
 ## Measurement and interpretation
 
-The measurement policy belongs to `coga/principles` (§5); the telemetry
-implementation must update it as specified in its ticket.
+The measurement policy belongs to [`coga/principles`](../../coga/principles/SKILL.md)
+(§5, "Yours"); the telemetry implementation must update it as specified in
+its ticket.
 
 Finish PostHog for basic adoption/activity signals under the existing
-[telemetry ticket](../../../tasks/marketing/add-telemetry.md). The owner's
+[telemetry ticket](../../../../coga/tasks/marketing/add-telemetry.md). The owner's
 September 20 policy reversal and September 21 confirmation supersede this
 context's earlier instrumentation ban. This is approved work, not a claim
 that telemetry has shipped. Its payload, identity, opt-out, cadence,

@@ -13,7 +13,7 @@ The owner requested an actual attempt after the source comparisons. This
 trial tests the useful operating model, not whether another tool copies
 Coga's commands. It uses invented Cedar Workshop data in `/tmp`, with no
 actual Coga migration, remote publishing or changes to the current ticket's
-lifecycle. The [structured receipt](../coga/contexts/marketing/launch-history/phase-0-audit/adoption-trial-results.json)
+lifecycle. The [structured receipt](../archive/launch-programs/phase-0-audit/adoption-trial-results.json)
 preserves the fixture, prompts, added instructions, checks and run reports.
 
 ## Candidate and integration
@@ -110,5 +110,5 @@ The value of Coga's method, defaults and maintained runtime still depends
 on the experience they give users. No loss of usefulness or reason to switch
 was demonstrated. The full review-and-reuse result will determine how far
 this particular replacement attempt gets; even completion would not by
-itself establish a preferable product. The [positioning context](../coga/contexts/marketing/positioning/SKILL.md#pitch-candidate-your-way-of-working-made-executable)
+itself establish a preferable product. The [positioning context](../contexts/marketing/positioning/SKILL.md)
 owns the resulting pitch candidate.

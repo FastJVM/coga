@@ -1,5 +1,12 @@
 # Migrating from Relay to Coga
 
+> **Historical, archived 2026-09-22.** This is the dated runbook for the
+> one-time Relay → Coga rename. It is kept for repositories still on the Relay
+> layout and is not part of the normal install or start path. Paths below
+> describe the layout at the time of the rename (for example `coga/contexts/`
+> as the default contexts directory); check the current layout contracts
+> before applying any step. It is not a procedure for any later migration.
+
 Relay was renamed to **Coga**. The change is mechanical but breaking — package,
 command, on-disk dirs, and config file all change:
 
@@ -44,6 +51,7 @@ rm -f ~/.local/bin/relay              # retire the old shim
 
 # 4. Verify, then delete the stale workspace leftover
 coga --version && coga validate && coga status
+git ls-files relay-os | wc -l           # must print 0 before deleting anything
 rm -rf relay-os/                       # old vendored CLI + symlinks; regenerated as coga/
 ```
 
@@ -88,7 +96,8 @@ After the file moves and targeted edits:
 ```sh
 pip install -e .        # (or pipx install --force .) — reinstall the CLI
 coga validate && coga status
-git add -A && git commit -m "Migrate relay -> coga"   # review the diff first
+git status --short     # stage only the migration's paths, then review the diff
+git commit -m "Migrate relay -> coga"
 ```
 
 ---
@@ -103,6 +112,11 @@ git add -A && git commit -m "Migrate relay -> coga"   # review the diff first
 
 ## Rollback
 
-Everything is git. The old refs live in `git reflog` (~90 days) and the
-pre-rename history is on `main`. To undo a host-repo migration before committing:
-`git checkout -- . && git clean -fd` (or `git stash`).
+Everything is git: the old refs live in `git reflog` (~90 days) and the
+pre-rename history is on `main`. To undo an uncommitted host-repo migration,
+first run `git status --short` and confirm that the only changes are the ones
+this runbook made. Then undo them specifically — for example
+`git mv coga relay-os` and `git mv coga.toml relay.toml`, and
+`git restore -- <path>` for each file you edited. Do not use a blanket
+`git checkout -- .`, `git clean -fd`, or `git add -A`: they also discard or
+stage unrelated work and untracked local files such as `coga.local.toml`.

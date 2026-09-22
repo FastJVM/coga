@@ -9,16 +9,16 @@ description: Approved V1 campaign — one argument, a working first task, PostHo
 then launch the working product on Show HN. The approved message and proof
 limits live in [positioning](../positioning/SKILL.md). The earlier catalogue
 review, separate story/pitch/narrative pipeline and three-essay campaign are
-superseded. Historical material stays in [the catalogue](../map/SKILL.md).
+superseded. Historical material is indexed in [the catalogue](../map/SKILL.md).
 
 ## Before launch
 
-- [README](../../../tasks/marketing/readme-top.md): explain the instrument
+- [README](../../../../coga/tasks/marketing/readme-top.md): explain the instrument
   through concrete behavior and provide a clear next action.
-- [Installer and one-task onboarding](../../../tasks/marketing/fix-installer.md):
+- [Installer and one-task onboarding](../../../../coga/tasks/marketing/fix-installer.md):
   a clean installation reaches one useful completed task with human direction
   and review. Prove the actual installed-package path.
-- [PostHog](../../../tasks/marketing/add-telemetry.md): finish the existing
+- [PostHog](../../../../coga/tasks/marketing/add-telemetry.md): finish the existing
   adoption/activity measurement implementation and owner verification.
   The owner explicitly rejected replacing it with zero-telemetry measurement.
   Its ticket owns the approved scope and unresolved design-review finding;
@@ -26,7 +26,7 @@ superseded. Historical material stays in [the catalogue](../map/SKILL.md).
 
 ## Publication sequence
 
-1. [One idea piece](../../../tasks/marketing/idea-piece.md) publishes the
+1. [One idea piece](../../../../coga/tasks/marketing/idea-piece.md) publishes the
    argument, supported by megalaunch and one correction changing later work.
    It is not a separate full product launch. The owner selects the venue,
    edits/approves the piece and publishes it.
@@ -36,7 +36,7 @@ superseded. Historical material stays in [the catalogue](../map/SKILL.md).
    the piece, conditional on readiness and owner availability. The submission
    stands alone for readers who never saw the argument.
 
-[Launch execution](../../../tasks/marketing/build-the-launch-plan.md) owns
+[Launch execution](../../../../coga/tasks/marketing/build-the-launch-plan.md) owns
 readiness evidence, publication coordination, the Show HN package, response
 triage and recorded outcomes. [Distribution](../distribution/SKILL.md) owns
 channel and measurement policy. Publication remains an owner action.

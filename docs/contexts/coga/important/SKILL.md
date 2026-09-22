@@ -1,78 +1,73 @@
 ---
 name: coga/important
-description: The coga-important Slack channel — what earns a notification there, how it differs from coga-flow, how scripts raise one with `coga slack --important`, and who is expected to act on it.
+description: The coga-important destination — the action-needed bar that earns a post there, how it differs from the flow feed, how scripts raise one with `coga slack --important`, and how the task owner triages it.
 ---
 
 # coga-important — notifications that need human action
 
-`coga-important` is the Slack channel for notifications that need a human to
-act. Nothing else goes there. Normal Coga sync traffic stays on the regular
-path described by `coga/sync`: routine lifecycle churn is silent audit-log/git
-state, while explicit FYIs, urgent exceptions, and ticket outcomes post live.
-None of that becomes an important alert just because Coga sent it.
+`coga-important` is the channel behind `[notification.slack].important_webhook`
+for notifications that need a human to act. Nothing else goes there.
+Everything else Coga posts — explicit FYIs, urgent exceptions, ticket
+outcomes — stays on the flow webhook, and routine lifecycle churn is not
+posted at all ([`coga/notifications`](../notifications/SKILL.md)). Being
+sent by Coga does not make a post important.
 
-The two channels split by what the message asks of the reader, not by urgency
-or by who sent it. coga-flow is the ordinary operating feed: read it for
-awareness and status. coga-important is a queue: an unread message there is
-work nobody has done yet.
+The two destinations split by what the message asks of the reader, not by
+urgency or sender. Flow is the operating feed: read it for awareness. Important
+is a queue: an unread message there is work nobody has done yet.
 
 ## Raising an alert
 
-Any script that detects an action-needed event posts it with `coga slack
---important`. A patent sweep that finds a maintenance fee due raises it that
-way, and so does anything else with a real-world consequence behind it.
+A script that detects an action-needed event posts it with
+`coga slack --task <target> --message "…" --important`. A patent sweep that
+finds a maintenance fee due raises it that way, as does anything else with a
+real-world consequence behind it. Alerts land automatically: a safety net that
+only catches what someone remembered to throw at it is not a safety net.
 
-Alerts land automatically. There is no human step between detecting the event
-and posting it — a safety net that only catches what someone remembered to
-throw at it is not a safety net.
+Unattended machine failures meet the same bar when the only ticket is a
+generated recurring period task that no human treats as their queue. Coga
+therefore routes these to important: a recurring period's `ticket.py`
+exiting non-zero, a completed period that did not advance its declared state,
+recurring template parse errors, and watchdog timeouts (plus their
+re-escalations). Importance chooses where a delivered alert goes, never when:
+every one posts live. The producer inventory is
+[`coga/notifications/producers`](../notifications/producers/SKILL.md).
 
-Unattended machine failures qualify under the same action-needed test when the
-only ticket is a generated recurring period task that no human treats as their
-queue. Coga therefore routes script failures and unadvanced recurring state
-here immediately. Recurring scan errors and watchdog timeouts post live and
-select this destination. Importance chooses where a delivered alert goes, not
-when it is delivered.
+An important post with no resolved `important_webhook` is refused, never
+rerouted to flow; whether that refusal aborts the caller is covered in
+[`coga/notifications/failures`](../notifications/failures/SKILL.md).
 
 ## Triage
 
-Every `--important` post @'s the owner of the task it is raised under — the
-ordinary mention every Coga notification carries, rendered by
-`SlackChannel.render_text`. That owner is the triage point: the alert lands on
-them whether or not they end up being the one who acts.
+Every important post @'s the owner of the task it is raised under — the same
+`[project] [owner]` mention every Coga post carries (`SlackChannel.render_text`).
+There is no separate recipient setting. The owner is the triage point whether
+or not they end up acting, and does one of three things:
 
-From there they do one of three things:
+- handle it;
+- @ someone in the Slack thread;
+- open a ticket, if it is real work.
 
-- Handle it.
-- @ someone in the Slack thread.
-- Open a ticket, if it is real work.
-
-Handing off stays a plain Slack @ and gets no coga machinery. A thread reply
-keeps the alert's context attached to it; a second `coga slack` post would land
-disconnected from the alert it refers to, and add exactly the channel noise
-this convention exists to prevent.
+Handing off stays a plain Slack @ with no Coga machinery. A thread reply keeps
+the alert's context attached; a second `coga slack` post would land
+disconnected from it and add exactly the noise this convention prevents.
 
 ## The bar, and why it holds
 
-Two failures pull in opposite directions: being inundated with notifications,
-and letting something fall through the cracks. The `--important` bar — a human
-must act — is what holds the middle.
+Two failures pull in opposite directions: being inundated, and letting
+something fall through the cracks. The bar — a human must act — holds the
+middle. Widening it fails both ways at once: a channel of things worth knowing
+becomes a feed people tune out, and the alert that did need a human is missed
+inside it.
 
-The bar is worth defending because widening it fails in both directions at
-once. A channel that collects things worth knowing becomes a feed people tune
-out, and then the alert that did need a human is missed inside it. That is the
-second failure arriving through the first.
+That is why a blocker is not an important post even though it needs a human.
+`coga block` notifies the owner on flow, and the ticket itself is already the
+queue — the blocker is attached to it and cannot be lost. An alert has no
+ticket, which is the whole reason it needs a channel.
 
-This is why a blocker is not an `--important` post, even though it plainly
-needs a human. `coga block` notifies the ticket owner through the normal path,
-and the ticket itself is already the queue — the blocker is attached to it and
-cannot be lost. An alert has no ticket, which is the whole reason it needs a
-channel.
+## Not covered here
 
-## What this context does NOT cover
-
-- How notifications reach Slack at all, the live/silent tiers, and git sync —
-  `coga/sync`.
-- Configuring the channel. The `important_webhook` coga.toml key routes these
-  posts to coga-important; see `coga/sync`.
-- What any given script should treat as action-needed. That judgment belongs to
+- What a given script should treat as action-needed — that judgment belongs to
   the script and its own context.
+- Webhook configuration and the `coga validate` warning for an unresolved
+  `important_webhook` — `coga/notifications`.

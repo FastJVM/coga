@@ -1,14 +1,11 @@
----
-name: marketing/launch-history
-description: Archived Coga launch programs and proof-post apparatus. Historical reference only; do not attach to live launch tickets.
----
-
 # Archived Coga launch programs
 
-This context preserves launch apparatus that is no longer part of the live
-plan. The current plan is `marketing/plan`. Nothing here is a ship instruction
-or an active phase, and this context stays unattached so it does not compose
-into launch work.
+> **History, archived 2026-09-22.** This directory was the attachable context
+> `marketing/launch-history` until the documentation-library migration; it is
+> now a plain archive index, not a context, and cannot be attached to a ticket.
+> Everything here describes earlier launch programs. Nothing is a ship
+> instruction, an active phase, or a gate. The current plan is
+> [`marketing/plan`](../../contexts/marketing/plan/SKILL.md).
 
 ## V1 simplification — 2026-09-21
 
@@ -38,8 +35,8 @@ before that reset; their instructions and commitments are historical:
 - [Campaign ticket briefs](campaign-ticket-briefs.md): earlier launch-plan,
   essay, README and community briefs, including detailed HN/blog research.
 
-Use the [current catalogue](../map/SKILL.md) to find material by subject and
-the [current plan](../plan/SKILL.md) for the new preparation order. The older
+Use the [current catalogue](../../contexts/marketing/map/SKILL.md) to find material by subject and
+the [current plan](../../contexts/marketing/plan/SKILL.md) for the new preparation order. The older
 program history below also describes prior choices, not current gates.
 
 ## Superseded "20 minutes a day" program
@@ -71,7 +68,7 @@ The tracked apparatus that remains available is:
   gap, 2-minute floor, 5-minute sensitivity floor);
 - the same script's machine-token ledger, read from schema-2 usage records;
   and
-- `docs/velocity-report.md`, section "Why there is no multiplier here": the
+- [`docs/evidence/velocity.md`](../../evidence/velocity.md), section "Why there is no multiplier here": the
   pre-registration and intention-to-treat rule that every completed, blocked,
   rescued, or abandoned attempt must be counted and linked to its receipt.
 

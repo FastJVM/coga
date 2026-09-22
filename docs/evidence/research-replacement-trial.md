@@ -45,7 +45,7 @@ Both invocations exited successfully. The second had no previous conversation
 and did not need a person to dispatch work during execution. Actual file
 contents, hashes and tool calls were checked; this conclusion does not rely
 only on the model's completion messages. The compact
-[receipt and operator text](evidence/ce-research-replacement-2026-09-16.json)
+[receipt and operator text](ce-research-replacement-2026-09-16.json)
 record the checks and source version.
 
 There are important limits to that result:
@@ -244,9 +244,9 @@ to the owner. The launcher chains agent steps as fresh processes and stops
 at a human handoff; the same ticket carries the definition and working record.
 The PR is an artifact of this particular workflow, not the universal unit of
 all Coga work.
-[Shipped workflow](../src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md),
-[launcher](../src/coga/commands/launch.py),
-[workflow contract](../coga/contexts/coga/architecture/SKILL.md).
+[Shipped workflow](../../src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md),
+[launcher](../../src/coga/commands/launch.py),
+[workflow contract](../contexts/coga/architecture/SKILL.md).
 
 CE's plan defines the requested work while its editable skill procedures
 direct execution. Kortix's project configures agents and its sessions and
@@ -301,7 +301,7 @@ platform. Coga's stated root is improving human judgment while keeping the
 system directly understandable and changeable. That is a difference in
 declared priorities, not proof that Kortix prevents human-led work.
 [Kortix's principles](https://kortix.com/about),
-[Coga's canonical principles](../coga/contexts/coga/principles/SKILL.md).
+[Coga's canonical principles](../contexts/coga/principles/SKILL.md).
 
 Coga's principles also constrain implementation: a small local substrate,
 directly editable operational instructions, agent-operable mechanisms,

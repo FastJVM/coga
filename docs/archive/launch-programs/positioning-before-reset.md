@@ -4,7 +4,7 @@ Source: `coga/contexts/marketing/positioning/SKILL.md`, as it stood before
 the owner requested a fresh start on 2026-09-10. The text below preserves
 previous ideas, decisions and observations for inspiration. Its imperatives,
 phase gates and campaign choices are historical; they do not govern new work.
-Use [the current plan](../plan/SKILL.md) for the current preparation order.
+Use [the current plan](../../contexts/marketing/plan/SKILL.md) for the current preparation order.
 External observations retain their original dates and need verification before
 reuse in public claims. Do not automatically compose this reference.
 
@@ -36,7 +36,7 @@ Explain one real task from rough intent through execution and a correction
 that is available to later work.
 
 Source: the owner correction and managed-prompt clarification in
-[coga/tasks/redo-documentation-dir-and-merge-it-with-context-b.md](../../../tasks/redo-documentation-dir-and-merge-it-with-context-b.md).
+[coga/tasks/redo-documentation-dir-and-merge-it-with-context-b.md](../../../coga/tasks/redo-documentation-dir-and-merge-it-with-context-b.md).
 The correction settles the direction, not final copy or historical uniqueness.
 `marketing/plan/write-the-pitch-and-narrative` owns the reusable pitch and
 narrative from the story/example decision ticket. Its owner review must

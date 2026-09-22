@@ -1,48 +1,49 @@
 ---
 name: docs/gdrive-mcp
-description: Capability contract of the Google Drive MCP server — what file creation can and cannot convert, why revisions are re-uploads rather than edits, and read-side gotchas for Docs and Sheets tasks.
+description: Dated (2026-06) capability observations for the Google Drive MCP server used by Docs and Sheets tasks — what creation converts, why revisions are re-uploads, and read-side gotchas; re-verify before relying on them.
 ---
 
-# Google Drive MCP capability contract
+# Google Drive MCP capability contract (observed 2026-06)
 
-Facts learned across tasks (conductor-report 2026-06, coga-crm
-2026-06-11). Do not rediscover these by trial uploads.
+**Scope and date.** These are observations of the particular Google Drive MCP
+server connected in June 2026 (conductor-report, 2026-06; coga-crm,
+2026-06-11). They describe that server's tools at that time, not Google Docs
+or Drive in general. The tool set may have changed since: before relying on a
+limit below, check the tools the current session actually exposes, and update
+this page when a fact no longer holds. Do not rediscover still-valid facts by
+trial uploads.
 
 ## Creation and conversion
 
-- `create_file` auto-converts **only** `text/plain` → Google Doc and
+- `create_file` auto-converted **only** `text/plain` → Google Doc and
   `text/csv` → Google Sheet. The CSV path yields a **single-tab** sheet.
-- `text/html` is **not** converted — it lands as a raw HTML file. The
-  HTML→Doc conversion is the human's click ("Open with → Google Docs"
-  in Drive), which creates a **new** Doc next to the HTML file rather
-  than converting in place. One click only — each click mints another
-  duplicate Doc.
+- `text/html` was **not** converted; it landed as a raw HTML file. The
+  HTML → Doc conversion is the human's click ("Open with → Google Docs"),
+  which creates a **new** Doc beside the HTML file. Each click mints another
+  duplicate, so click once.
 - Do **not** force `contentMimeType: application/vnd.google-apps.document`
-  on HTML or docx content: you get a native Doc containing the literal
+  on HTML or docx content: the result is a native Doc containing the literal
   markup (or binary garbage) as text.
-- Uploads cannot create multi-tab spreadsheets, dropdowns, or any data
-  validation. Anything beyond flat single-tab values is hand-finished
-  by the human.
+- Uploads could not create multi-tab spreadsheets, dropdowns, or any data
+  validation. Anything beyond flat single-tab values is finished by hand.
 
 ## Updates, deletes, reads
 
-- `update_file` edits **metadata only** — the title, and the parent
-  folder (i.e. a move). There is no content-update tool, so revising a
-  Doc/Sheet still means uploading a **new** file rather than editing the
-  existing one in place.
-- `trash_file` **does** exist. Superseded files do not have to wait on
-  the human: move the old file to the owner's trash yourself once the
-  replacement is confirmed, and say in the report which file you
-  trashed. It is a trash, not a permanent delete — the human can
-  restore it. There is no permanent-delete tool.
-- Read side: spreadsheet content reads/exports return only the first
-  tab, and data validation (dropdowns) never shows in an export.
-  Verification of multi-tab structure rests on the human's report.
-- A cheap read-only call (e.g. list recent files) is the right
-  connection preflight before any content work.
+- `update_file` edited **metadata only** — title and parent folder (a move).
+  With no content-update tool, revising a Doc/Sheet means uploading a **new**
+  file.
+- `trash_file` exists. Once the replacement is confirmed, trash the superseded
+  file yourself and name it in the report. It is recoverable from trash; there
+  was no permanent-delete tool.
+- Spreadsheet reads/exports returned only the first tab, and data validation
+  never appears in an export. Verification of multi-tab structure rests on
+  the human's report.
+- A cheap read-only call (for example, listing recent files) is the connection
+  preflight before any content work.
 
-## What this context does NOT cover
+## Not covered
 
-Workflow process for authoring documents — that's the package-backed
-`docs/create-google-doc` workflow under `bootstrap/workflows/`. Google Sheets
-API or Apps Script (not available via this MCP server).
+Authoring process lives in the package workflow
+`src/coga/resources/templates/coga/bootstrap/workflows/docs/create-google-doc.md`
+(`docs/create-google-doc`). The Google Sheets API and Apps Script were not
+available through this server.

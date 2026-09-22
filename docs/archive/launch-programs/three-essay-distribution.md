@@ -4,7 +4,7 @@ Source: `coga/contexts/marketing/distribution/SKILL.md`, as it stood before
 the owner requested a fresh start on 2026-09-10. The text below preserves
 previous ideas, decisions and observations for inspiration. Its imperatives,
 phase gates and campaign choices are historical; they do not govern new work.
-Use [the current plan](../plan/SKILL.md) for the current preparation order.
+Use [the current plan](../../contexts/marketing/plan/SKILL.md) for the current preparation order.
 External observations retain their original dates and need verification before
 reuse in public claims. Do not automatically compose this reference.
 

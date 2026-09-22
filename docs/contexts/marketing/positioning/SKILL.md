@@ -34,13 +34,13 @@ Show megalaunch carrying work forward while preserving human decisions,
 plus one concrete correction to governing guidance that changes later work.
 Support observed behavior with a public demonstration or public Coga record.
 A prompt receiving a context alone does not demonstrate the correction's
-later effect. The [idea-piece ticket](../../../tasks/marketing/idea-piece.md)
+later effect. The [idea-piece ticket](../../../../coga/tasks/marketing/idea-piece.md)
 owns selecting and presenting the example; no separate story pipeline is needed.
 
-Product purpose remains in [vision](../../../../docs/vision.md), behavior in
+Product purpose remains in [vision](../../product/vision/SKILL.md), behavior in
 Coga's contracts, and the longer strategic argument in
-[market thesis](../../../../docs/market-thesis.md). Earlier positioning is
-[historical reference](../launch-history/positioning-before-reset.md).
+[strategy](../strategy/SKILL.md). Earlier positioning is
+[historical reference](../../../archive/launch-programs/positioning-before-reset.md).
 
 ## Source and claim limits
 
@@ -54,6 +54,9 @@ Coga's contracts, and the longer strategic argument in
   writing sources. The attachment that held them
   (`coga/tasks/marketing/phase-0-audit/narrative-candidates.md`) was deleted
   from the tree; do not recover it from history or re-collect the material.
+- No "first", "only" or priority claim for managing the prompt: close
+  precedents exist (see the dated claim check in
+  [market landscape](../../../archive/market-landscape.md)).
 - No measured productivity multiplier or unsupported token/time saving.
   Vision's output ratio is a product bet, not evidence of an achieved result.
   The marketing token experiment remains dropped.
