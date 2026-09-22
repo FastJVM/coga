@@ -10,9 +10,11 @@ import coga.branchcleanup
 from coga.branchcleanup import (
     BranchCleanupResult,
     _classify_status_records,
+    delete_branch,
     delete_local_branch,
     delete_ticket_branch,
     remove_ticket_worktree,
+    remove_worktree,
 )
 from coga.config import load_config
 
@@ -178,6 +180,88 @@ def test_squash_merge_force_deletes_local_and_logs_tip(repo: Path, monkeypatch) 
     assert not _branch_exists_remote(repo, "feat")
     # The tip SHA is logged so the force-deleted local branch is recoverable.
     assert any(tip[:12] in note for note in notes), notes
+
+
+def _squash_merged_branch(repo: Path, branch: str = "feat") -> str:
+    """Land `branch` the squash way; returns the branch tip main does not contain."""
+    _git(repo, "checkout", "-b", branch)
+    _commit(repo, f"{branch}.txt", branch, f"{branch} work")
+    _git(repo, "push", "-u", "origin", branch)
+    tip = _git(repo, "rev-parse", branch).stdout.strip()
+    _git(repo, "checkout", "main")
+    _commit(repo, f"{branch}.txt", branch, f"squashed {branch}")
+    _git(repo, "push", "origin", "main")
+    return tip
+
+
+def test_direct_form_without_pr_url_authorizes_by_head_name(
+    repo: Path, monkeypatch
+) -> None:
+    # No ticket, no `pr:` — the shape a drained worklist entry has once retire
+    # deleted its ticket. The merged PR is found by head branch name, and the
+    # exact-tip comparison is the same one the URL path makes.
+    tip = _squash_merged_branch(repo)
+    monkeypatch.setattr(
+        "coga.branchcleanup.prs_for_head",
+        lambda branch, state: (
+            [{"number": 7, "headRefOid": tip}]
+            if (branch, state) == ("feat", "merged")
+            else []
+        ),
+    )
+    monkeypatch.setattr(
+        "coga.branchcleanup.pr_state",
+        lambda _url: pytest.fail("no URL to look up"),
+    )
+    notes: list[str] = []
+
+    result = delete_branch(_cfg(repo), repo, "feat", pr_url=None, echo=notes.append)
+
+    assert result.local_deleted is True
+    assert result.remote_deleted is True
+    assert not _branch_exists_local(repo, "feat")
+    assert not _branch_exists_remote(repo, "feat")
+
+
+def test_direct_form_without_pr_url_and_no_merged_pr_preserves_both(
+    repo: Path, monkeypatch
+) -> None:
+    _squash_merged_branch(repo)
+    notes: list[str] = []
+
+    result = delete_branch(_cfg(repo), repo, "feat", pr_url=None, echo=notes.append)
+
+    assert result.local_deleted is False
+    assert result.remote_deleted is False
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+    assert any(
+        "no `pr:` link recorded and no merged PR for head 'feat'" in note
+        for note in notes
+    )
+
+
+def test_direct_form_removes_worktree_by_head_name(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    tip = _squash_merged_branch(repo)
+    linked = tmp_path / "linked"
+    _git(repo, "worktree", "add", str(linked), "feat")
+    monkeypatch.setattr(
+        "coga.branchcleanup.prs_for_head",
+        lambda branch, state: (
+            [{"number": 7, "headRefOid": tip}]
+            if (branch, state) == ("feat", "merged")
+            else []
+        ),
+    )
+
+    result = remove_worktree(
+        _cfg(repo), repo, str(linked), "feat", pr_url=None, echo=lambda _m: None
+    )
+
+    assert result.removed is True
+    assert not linked.exists()
 
 
 def test_merged_pr_does_not_delete_branch_that_advanced_after_merge(
@@ -797,7 +881,7 @@ def test_primary_checkout_left_in_place(repo: Path) -> None:
 
     assert result.removed is False
     assert repo.is_dir()
-    assert any("checkout running retire" in note for note in notes)
+    assert any("checkout running this cleanup" in note for note in notes)
 
 
 def test_retire_checkout_cannot_remove_itself(
@@ -816,7 +900,7 @@ def test_retire_checkout_cannot_remove_itself(
 
     assert result.removed is False
     assert feature.is_dir()
-    assert any("checkout running retire" in note for note in notes)
+    assert any("checkout running this cleanup" in note for note in notes)
 
 
 def test_missing_worktree_path_is_reported_not_pruned(

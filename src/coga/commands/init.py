@@ -539,7 +539,7 @@ def _scaffolded_git_defaults(coga_os: Path) -> tuple[str, str, bool]:
     """
     shared = tomllib.loads((coga_os / "coga.toml").read_text())
     git_table = shared.get("git")
-    remote, control_branch = _parse_git(git_table)
+    remote, control_branch, _worktrees_ticket_owned = _parse_git(git_table)
     return control_branch, remote, git_table is not None
 
 

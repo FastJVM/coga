@@ -842,17 +842,18 @@ task, which carries that rule.
 A durable *worklist* a run maintains can instead be a sibling file of the
 template, when it is machine-written in a fixed shape and a blackboard
 region would be the wrong container for it. The shipped instance is
-`coga/recurring/<name>/retires.md`, the autoclose sweep's list of stranded
-`coga retire <slug>` follow-ups, owned by `src/coga/retire_worklist.py`. The
-sweep resolves that path from the period task it is running under
+`coga/recurring/<name>/retires.md`, the autoclose sweep's list of feature
+checkouts its disposal proofs refused, owned by `src/coga/retire_worklist.py`.
+The sweep resolves that path from the period task it is running under
 (`tasks/recurring/<name>/` names the template; nothing hardcodes
-`autoclose-merged`), reconciles it on every recurring run — records the run's
-follow-ups keyed by slug, drops entries whose recorded worktree directory and
-local branch are both gone — and `coga retire <slug>` drops its own entry the
-same way. The write is barrier-held, compare-and-swap, and atomic; the file is
+`autoclose-merged`), records the run's preserved closures there keyed by
+slug, and on every run — period task or hand run — re-judges the open entries
+of every worklist and drops those whose recorded worktree directory and local
+branch are both gone; `coga retire <slug>` drops its own entry the same way.
+The write is barrier-held, compare-and-swap, and atomic; the file is
 `merge=union` like `log.md`, so union-merge duplicates and resurrected lines
 heal on the next reconcile rather than needing a second mechanism. A run that
-is not a period task never touches a worklist. The 2026-09-03 defect this
+is not a period task never *records* into a worklist. The 2026-09-03 defect this
 replaces wrote the only copy of that list to the period task's blackboard,
 where the next period's scan deleted it.
 

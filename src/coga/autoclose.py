@@ -21,18 +21,23 @@ explicit run, a ticket merged today won't auto-close until the next sweep
 (principle 6, fail loud, forbids `status`/`show`/`validate` from mutating
 state or hitting the network as a side effect of rendering).
 
-Closing a ticket does not dispose of its feature checkout: that is `coga
-retire`, which owns the linked-worktree / open-PR / landed-branch safety
-proofs. Autoclose stays non-destructive and instead *names* the follow-up —
-see `_report_retire_followups`. Duplicating retire's proofs here would either
-copy that machinery or ship a weaker version of it, and implicit destruction
-cuts against the principle that destructive behavior is never implicit.
+Closing a ticket also disposes of its feature checkout, under exactly the
+proofs `coga retire` runs — the shared `coga.checkout_disposal` orchestration
+over `branchcleanup`'s linked-worktree / pristine / open-PR / landed-or-merged
+gates, plus the live-claim scan. The earlier design only *named* a `coga
+retire` follow-up here, on the principle that destructive behavior is never
+implicit; that produced a ten-entry backlog nobody typed, so the sweep now
+runs the deterministic, narrow, named proofs itself (`_dispose_checkouts`)
+and names only what a proof refused, with the reason — see
+`_report_retire_followups`. It only ever touches worktrees a ticket or a
+worklist entry recorded, and only from a checkout on the control branch.
 
-Under a recurring period task the name has to outlive the run: the period task
-is deleted at the next period boundary, so the sweep also records each
-follow-up in the template's durable `retires.md` (`coga.retire_worklist`) and
-drops the entries already discharged. That reconcile runs on every recurring
-sweep, closed tickets or not, so the worklist stays a worklist.
+Under a recurring period task the refusals have to outlive the run: the period
+task is deleted at the next period boundary, so the sweep records each
+preserved checkout in the template's durable `retires.md`
+(`coga.retire_worklist`), and on every run — hand-run or recurring — walks the
+open entries of every worklist, re-runs the proofs on each (its ticket may be
+gone by then), and drops the ones discharged. The worklist stays a worklist.
 """
 
 from __future__ import annotations
@@ -46,6 +51,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from coga import git
 from coga.blackboard import append_blackboard_report
@@ -56,6 +62,8 @@ from coga.retire_worklist import (
     RetireFollowUp,
     RetireWorklistError,
     WorklistChange,
+    all_worklists,
+    parse_worklist,
     reconcile_worklist,
     worklist_for_period_task,
 )
@@ -67,6 +75,9 @@ from coga.taskfile import (
 from coga.tasks import TaskRef, list_tasks, read_ticket
 from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
+
+if TYPE_CHECKING:
+    from coga.checkout_disposal import CheckoutDisposal
 
 
 class GhError(Exception):
@@ -90,6 +101,9 @@ class ClosedTicket:
     title: str
     branch: str | None
     worktree: str | None
+    # The `pr:` link the close was decided on; the disposal proofs read the
+    # merged head from it.
+    pr: str | None = None
 
     @property
     def retire_command(self) -> str:
@@ -98,12 +112,50 @@ class ClosedTicket:
     @property
     def checkout_state(self) -> str:
         """What is still on disk, rendered for the report line."""
-        parts = []
-        if self.worktree:
-            parts.append(f"worktree `{self.worktree}`")
-        if self.branch:
-            parts.append(f"branch `{self.branch}`")
-        return ", ".join(parts)
+        return _checkout_state(self.branch, self.worktree)
+
+
+def _checkout_state(branch: str | None, worktree: str | None) -> str:
+    parts = []
+    if worktree:
+        parts.append(f"worktree `{worktree}`")
+    if branch:
+        parts.append(f"branch `{branch}`")
+    return ", ".join(parts)
+
+
+@dataclass
+class CheckoutOutcome:
+    """One recorded checkout the disposal phase judged, and what became of it.
+
+    Candidates are the tickets this sweep closed (`title` set) and the open
+    `retires.md` entries carried over from earlier runs (`title` None). A
+    backlog entry's ticket may already be gone — retire preserved the checkout
+    and then deleted the ticket — so `ticket_exists` says whether the manual
+    `coga retire <slug>` still resolves.
+    """
+
+    slug: str
+    title: str | None
+    branch: str | None
+    worktree: str | None
+    ticket_exists: bool
+    disposal: CheckoutDisposal
+
+    @property
+    def disposed(self) -> bool:
+        return self.disposal.disposed
+
+    @property
+    def checkout_state(self) -> str:
+        return _checkout_state(self.branch, self.worktree)
+
+    @property
+    def manual_command(self) -> str:
+        """What a human types for a preserved checkout."""
+        if self.ticket_exists:
+            return f"`coga retire {self.slug}`"
+        return "dispose of the recorded worktree and branch by hand"
 
 
 OPEN_STATUSES = frozenset({"active", "in_progress"})
@@ -123,10 +175,32 @@ class AutocloseResult:
     `gh` failure leaves a partial count, matching what it actually looked at.
     """
 
+    checkouts: list[CheckoutOutcome] = field(default_factory=list)
+    """Every checkout the disposal phase judged this run, closures then backlog."""
+    disposal_skipped: str | None = None
+    """Why the disposal phase never ran — every recorded checkout was preserved."""
+
     @property
     def retire_pending(self) -> list[ClosedTicket]:
-        """Closed tickets whose feature checkout or branch outlived them."""
-        return [item for item in self.closed if item.branch or item.worktree]
+        """Closed tickets whose feature checkout or branch outlived them.
+
+        Read after `_dispose_checkouts`: a closure whose checkout the proofs
+        disposed of is not pending and never enters the worklist.
+        """
+        disposed = {item.slug for item in self.checkouts if item.disposed}
+        return [
+            item
+            for item in self.closed
+            if (item.branch or item.worktree) and item.slug not in disposed
+        ]
+
+    @property
+    def disposed(self) -> list[CheckoutOutcome]:
+        return [item for item in self.checkouts if item.disposed]
+
+    @property
+    def preserved(self) -> list[CheckoutOutcome]:
+        return [item for item in self.checkouts if not item.disposed]
 
 
 _DEV_SECTION_RE = re.compile(
@@ -431,6 +505,7 @@ def _try_bump_one(
         title=ticket.title,
         branch=parse_branch_name(blackboard),
         worktree=parse_worktree_path(blackboard),
+        pr=url,
     )
     if before_close is not None:
         before_close(closed)
@@ -554,48 +629,193 @@ def _preflight_recipe_notifications(cfg: Config, closed: ClosedTicket) -> None:
     preflight_post(cfg)
 
 
+def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
+    """Dispose of every checkout this run closed and every open worklist entry.
+
+    Runs after the sweep, from the control branch only: a hand-run `coga run
+    autoclose` on a feature checkout preserves everything and says so, because
+    the claim scan reads that checkout's tickets and the branch proofs its refs.
+    Under `coga recurring` the runner services deterministic phases from a
+    checkout on the control branch (`recurring_runner`), so the guard is met.
+
+    Candidates in order: the tickets closed this run, then the open entries of
+    every `retires.md` — the backlog earlier runs named and nobody retired,
+    including entries whose ticket retire already deleted. Each goes through
+    `checkout_disposal.dispose_checkout`, the same claim → worktree → local →
+    remote proofs `coga retire` runs; whatever a proof refuses stays with its
+    reason. The sweep only ever touches worktrees a ticket or an entry
+    recorded, and `branchcleanup._is_linked_worktree_of` preserves anything
+    that is not a linked worktree of the checkout the sweep runs from.
+    """
+    # Imported lazily: `branchcleanup` imports the `## Dev` parsers and `gh`
+    # lookups from this module at load time, so a top-level import of the
+    # disposal module here would form an
+    # `autoclose -> checkout_disposal -> branchcleanup -> autoclose` cycle.
+    from coga.checkout_disposal import dispose_checkout
+
+    stranded = [item for item in result.closed if item.branch or item.worktree]
+    worklists = all_worklists(cfg)
+    if not stranded and not worklists:
+        # A quiet day with no backlog: nothing to judge, so no git probes.
+        return
+    if not cfg.git_enabled:
+        result.disposal_skipped = "[git].enabled = false"
+        return
+    root = _worklist_root(cfg)
+    if root is None:
+        result.disposal_skipped = f"{cfg.repo_root} is not inside a git checkout"
+        return
+    try:
+        current = git._current_branch(root)
+    except git.GitError as exc:
+        result.disposal_skipped = f"could not read the checked-out branch ({exc})"
+        return
+    if current != cfg.git_control_branch:
+        result.disposal_skipped = (
+            f"checkout is on {current!r}, not the control branch "
+            f"{cfg.git_control_branch!r}"
+        )
+        return
+
+    def _echo(slug: str) -> Callable[[str], None]:
+        return lambda message: sys.stdout.write(f"[autoclose] {slug}: {message}\n")
+
+    seen: set[str] = set()
+    for closed in stranded:
+        seen.add(closed.slug)
+        result.checkouts.append(
+            CheckoutOutcome(
+                slug=closed.slug,
+                title=closed.title,
+                branch=closed.branch,
+                worktree=closed.worktree,
+                ticket_exists=True,
+                disposal=dispose_checkout(
+                    cfg,
+                    root,
+                    branch=closed.branch,
+                    worktree=closed.worktree,
+                    pr_url=closed.pr,
+                    echo=_echo(closed.slug),
+                ),
+            )
+        )
+
+    for path in worklists:
+        try:
+            _, entries = parse_worklist(path.read_text(encoding="utf-8"))
+        except (RetireWorklistError, OSError, UnicodeError) as exc:
+            # The reconcile below fails the run loudly over the same file;
+            # here it only means its backlog is not walked this time.
+            sys.stderr.write(f"[autoclose] backlog in {path} not walked: {exc}\n")
+            continue
+        for entry in entries:
+            if entry.slug in seen:
+                continue
+            seen.add(entry.slug)
+            ticket_exists, pr_url = _entry_ticket(cfg, entry.slug)
+            result.checkouts.append(
+                CheckoutOutcome(
+                    slug=entry.slug,
+                    title=None,
+                    branch=entry.branch or None,
+                    worktree=entry.worktree or None,
+                    ticket_exists=ticket_exists,
+                    disposal=dispose_checkout(
+                        cfg,
+                        root,
+                        branch=entry.branch or None,
+                        worktree=entry.worktree or None,
+                        pr_url=pr_url,
+                        echo=_echo(entry.slug),
+                    ),
+                )
+            )
+
+
+def _entry_ticket(cfg: Config, slug: str) -> tuple[bool, str | None]:
+    """Whether a worklist entry's ticket still exists, and its `pr:` link if so.
+
+    Exact `id_slug` match only: the CLI's unique-prefix resolution would let a
+    deleted `foo` resolve to a newer `foo-followup` and borrow its `pr:`.
+    """
+    ref = next((t for t in list_tasks(cfg) if t.id_slug == slug), None)
+    if ref is None:
+        return False, None
+    blackboard = _read_dev_blackboard(ref.ticket_path)
+    return True, parse_pr_url(blackboard) if blackboard is not None else None
+
+
 def render_retire_report(
     *,
     generated_at: str,
     task_slug: str | None,
-    pending: list[ClosedTicket],
+    checkouts: list[CheckoutOutcome],
+    pending: list[ClosedTicket] = (),
+    skipped: str | None = None,
     worklist: Path | None = None,
 ) -> str:
-    """Render the report naming each closed ticket's `coga retire` command.
+    """Render the report of what the disposal phase did to each recorded checkout.
 
-    Only called with a non-empty `pending`: a sweep that stranded nothing has
-    nothing to report. This is the *per-run* surface — a task blackboard or
-    stdout — so a daily no-op line would only grow it without bound. Under a
-    recurring period task it names the durable `worklist` the same entries
-    were recorded in, because the period task itself is deleted at the next
-    period boundary.
+    Only called when there is something to say: a checkout disposed of or
+    preserved this run, or — when the phase never ran (`skipped`) — a closed
+    ticket in `pending` whose checkout is therefore still on disk. This is the
+    *per-run* surface — a task blackboard or stdout — so a quiet day writes
+    nothing. Under a recurring period task it names the durable `worklist` the
+    preserved entries were recorded in, because the period task itself is
+    deleted at the next period boundary.
     """
     lines = [RETIRE_REPORT_HEADING, "", f"Generated: {generated_at}"]
     if task_slug:
         lines.append(f"Task: `{task_slug}`")
-    lines.extend(
-        [
-            "",
-            f"{len(pending)} auto-closed ticket(s) still have a recorded "
-            "feature checkout. Autoclose never removes one — `coga retire` "
-            "owns the worktree and branch safety proofs:",
-            "",
-        ]
-    )
-    for item in pending:
+    lines.append("")
+    if skipped is not None:
         lines.append(
-            f'- `{item.slug}` "{item.title}": {item.checkout_state} — '
-            f"`{item.retire_command}`"
+            f"Checkout disposal skipped ({skipped}) — every recorded checkout "
+            "was preserved."
         )
+        for item in pending:
+            lines.append(
+                f'- `{item.slug}` "{item.title}": {item.checkout_state} — '
+                f"`{item.retire_command}`"
+            )
+    disposed = [item for item in checkouts if item.disposed]
+    preserved = [item for item in checkouts if not item.disposed]
+    if disposed:
+        lines.append(
+            f"{len(disposed)} checkout(s) disposed of under the shared retire "
+            "proofs (worktree removed, local and remote branch deleted where "
+            "each proof admitted it):"
+        )
+        lines.append("")
+        lines.extend(f"- {_report_label(item)}: {item.checkout_state}" for item in disposed)
+        lines.append("")
+    if preserved:
+        lines.append(
+            f"{len(preserved)} checkout(s) preserved — a proof refused; each "
+            "stays on the worklist until a human acts:"
+        )
+        lines.append("")
+        for item in preserved:
+            lines.append(
+                f"- {_report_label(item)}: {item.checkout_state} — "
+                f"{item.disposal.reason} ({item.manual_command})"
+            )
+            lines.extend(f"  - {note}" for note in item.disposal.notes)
+        lines.append("")
     if worklist is not None:
-        lines.extend(
-            [
-                "",
-                f"Recorded in the durable worklist `{worklist}`; this period "
-                "task is deleted at the next period boundary.",
-            ]
+        lines.append(
+            f"Recorded in the durable worklist `{worklist}`; this period "
+            "task is deleted at the next period boundary."
         )
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines).rstrip("\n") + "\n"
+
+
+def _report_label(item: CheckoutOutcome) -> str:
+    if item.title is not None:
+        return f'`{item.slug}` "{item.title}"'
+    suffix = "" if item.ticket_exists else ", ticket already deleted"
+    return f"`{item.slug}` (worklist backlog{suffix})"
 
 
 def _worklist_line(change: WorklistChange) -> str:
@@ -611,8 +831,34 @@ def _worklist_line(change: WorklistChange) -> str:
     return f"[autoclose] retire worklist {change.path}: {', '.join(parts)}\n"
 
 
+def render_disposed_summary(disposed: list[CheckoutOutcome]) -> str:
+    """The trailing coga-flow line for a sweep that disposed of checkouts."""
+    subject = "1 feature checkout" if len(disposed) == 1 else f"{len(disposed)} feature checkouts"
+    names = ", ".join(f"`{item.slug}`" for item in disposed)
+    return f"🧹 Autoclose disposed of {subject} (worktree and branch): {names}"
+
+
+def render_preserved_summary(preserved: list[CheckoutOutcome]) -> str:
+    """The coga-important line naming each preserved checkout and why.
+
+    Every preserved checkout is work a human must do — the proofs will refuse
+    it again tomorrow — which is the `coga/important` bar; a preserved entry
+    is re-posted on every run until it is gone.
+    """
+    subject = (
+        "1 feature checkout needs"
+        if len(preserved) == 1
+        else f"{len(preserved)} feature checkouts need"
+    )
+    details = "; ".join(
+        f"`{item.slug}` ({item.checkout_state}): {item.disposal.reason}"
+        for item in preserved
+    )
+    return f"⚠️ {subject} a human — autoclose could not dispose of it: {details}"
+
+
 def render_retire_summary(pending: list[ClosedTicket]) -> str:
-    """Render the single trailing Slack line for a whole sweep."""
+    """The trailing Slack line when the disposal phase never ran."""
     subject = (
         "1 auto-closed ticket still has"
         if len(pending) == 1
@@ -636,25 +882,27 @@ def _worklist_root(cfg: Config) -> Path | None:
 
 
 def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
-    """Name the `coga retire` follow-up for the tickets this sweep stranded.
+    """Report what the disposal phase did and record what it could not.
 
-    Two per-run surfaces, both silent when the sweep left nothing behind: the
+    Two per-run surfaces, both silent when the run touched no checkout: the
     run report (the task blackboard when run under a task, stdout otherwise),
-    and one trailing Slack line for the whole sweep. Under a recurring period
-    task there is a third, durable one: the template's `retires.md` worklist,
-    reconciled on every run because the period task's own blackboard is
-    deleted at the next period boundary (see `coga.retire_worklist`).
+    and the Slack lines for the whole sweep — one on coga-flow for what was
+    disposed of, one on coga-important for what a proof refused, since a
+    preserved checkout is work a human must do. Under a recurring period task
+    there is a third, durable surface: the template's `retires.md` worklist,
+    where this run's preserved closures are recorded because the period task's
+    own blackboard is deleted at the next period boundary. Every existing
+    worklist is reconciled on every run, hand-run or recurring, so entries the
+    disposal phase just cleared are dropped (see `coga.retire_worklist`).
 
     The per-ticket `🎉 ... merged` line is deliberately left alone. It
-    announces a lifecycle event, while a retire hint is an operational to-do
-    with a different audience — repeating it on every Done line turns the
-    outcome feed into a command list and buries the action item. This summary
-    is a plain live `post` rather than a `notify` outcome: the `notify` kinds
-    are per-ticket outcomes, which a sweep-level summary is not.
+    announces a lifecycle event, while a disposal summary is operational. Both
+    summaries are plain live `post`s rather than `notify` outcomes: the
+    `notify` kinds are per-ticket outcomes, which a sweep-level summary is not.
 
-    Returns False when the durable worklist or task report cannot be written.
+    Returns False when a durable worklist or the task report cannot be written.
     Expected I/O and encoding failures are reported on stderr; a failed task
-    report falls back to stdout before the live summary is attempted. The
+    report falls back to stdout before the live summaries are attempted. The
     tickets are already `done` on disk, so these reporting failures must not
     erase their follow-ups or mask an earlier sweep error.
     """
@@ -663,21 +911,25 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
     # from another checkout falls back to stdout — and, below, never selects
     # another checkout's recurring template as the durable home.
     blackboard = blackboard_from_env(cfg.repo_root)
-    if not pending and blackboard is None:
-        # Nothing stranded and no task this run could own a worklist for.
+    activity = bool(pending or result.checkouts)
+    if not activity and blackboard is None and not all_worklists(cfg):
+        # Nothing touched, no task this run could own a worklist for, and no
+        # backlog file to reconcile.
         return True
     now = datetime.now(timezone.utc)
     worklist = worklist_for_period_task(cfg, blackboard)
     failure: RetireWorklistError | OSError | UnicodeError | None = None
-    if worklist is not None:
-        # The durable half: record this run's follow-ups keyed by slug and drop
-        # the ones `coga retire` (or the branch sweep) has since discharged.
-        # Runs on every recurring sweep, so a quiet day still prunes.
+    root = _worklist_root(cfg)
+    # The durable half: record this run's preserved closures keyed by slug
+    # under the period task's own template, and drop the entries the disposal
+    # phase (or `coga retire`, or the branch sweep) has since discharged from
+    # every worklist. Runs on every sweep, so a quiet day still prunes.
+    for path in sorted({*all_worklists(cfg), *([worklist] if worklist else [])}):
         try:
             change = reconcile_worklist(
                 cfg,
-                worklist,
-                root=_worklist_root(cfg),
+                path,
+                root=root,
                 pending=[
                     RetireFollowUp(
                         slug=item.slug,
@@ -686,7 +938,9 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
                         recorded=now.date().isoformat(),
                     )
                     for item in pending
-                ],
+                ]
+                if path == worklist
+                else (),
             )
         except (RetireWorklistError, OSError, UnicodeError) as exc:
             # The closures are already on disk; a worklist this run cannot
@@ -697,15 +951,17 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
         else:
             if change.written or change.open:
                 sys.stdout.write(_worklist_line(change))
-    if not pending:
+    if not activity:
         return failure is None
 
     report = render_retire_report(
         generated_at=now.isoformat(timespec="seconds"),
         task_slug=os.environ.get("COGA_TASK_SLUG"),
+        checkouts=result.checkouts,
         pending=pending,
+        skipped=result.disposal_skipped,
         # A report must not claim a durable record the reconcile refused.
-        worklist=None if failure is not None else worklist,
+        worklist=None if failure is not None or not pending else worklist,
     )
     if blackboard:
         try:
@@ -721,20 +977,30 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
     else:
         sys.stdout.write(report)
 
-    post(
-        cfg,
-        render_retire_summary(pending),
-        task_path=(
-            blackboard.parent
-            if blackboard is not None and blackboard.name == "ticket.md"
-            else blackboard
-        ),
-        # The tickets are already `done` on disk and the report is already
-        # emitted; an undeliverable hint must not fail the recurring run. A
-        # task-scoped run supplies its validated task path above, so the miss
-        # is also durable in the repo-global audit log.
-        fatal=False,
+    task_path = (
+        blackboard.parent
+        if blackboard is not None and blackboard.name == "ticket.md"
+        else blackboard
     )
+    summaries: list[tuple[str, bool]] = []
+    if result.disposal_skipped is not None and pending:
+        summaries.append((render_retire_summary(pending), False))
+    if result.disposed:
+        summaries.append((render_disposed_summary(result.disposed), False))
+    if result.preserved:
+        summaries.append((render_preserved_summary(result.preserved), True))
+    for text, important in summaries:
+        post(
+            cfg,
+            text,
+            task_path=task_path,
+            important=important,
+            # The tickets are already `done` on disk and the report is already
+            # emitted; an undeliverable hint must not fail the recurring run. A
+            # task-scoped run supplies its validated task path above, so the
+            # miss is also durable in the repo-global audit log.
+            fatal=False,
+        )
     return failure is None
 
 
@@ -746,10 +1012,10 @@ def run_autoclose_recipe(
     `result` is the optional out-parameter described on `run_recipe`: the
     accumulator this wrapper already keeps outside `sweep_merged` becomes the
     caller's when one is supplied, so a caller that wants to name what the
-    sweep closed reads `.closed` / `.retire_pending` instead of diffing ticket
-    status globally — which cannot tell this sweep's closures from a concurrent
-    `coga mark done`. `.scanned` is the matching denominator, counted in the
-    walk the sweep already makes.
+    sweep closed reads `.closed` / `.retire_pending` / `.checkouts` instead of
+    diffing ticket status globally — which cannot tell this sweep's closures
+    from a concurrent `coga mark done`. `.scanned` is the matching denominator,
+    counted in the walk the sweep already makes.
     """
     if argv:
         sys.stderr.write(
@@ -773,14 +1039,22 @@ def run_autoclose_recipe(
             ),
         )
     except (GhError, TaskValidationError) as exc:
+        result.disposal_skipped = "the sweep failed before checkout disposal ran"
         _report_retire_followups(cfg, result)
         sys.stderr.write(f"[autoclose] {exc}\n")
         return 2
     except BaseException:
+        result.disposal_skipped = "the sweep failed before checkout disposal ran"
         _report_retire_followups(cfg, result)
         raise
     if not result.closed:
         sys.stdout.write("[autoclose] no tickets bumped.\n")
+    _dispose_checkouts(cfg, result)
+    if result.disposal_skipped is not None:
+        sys.stdout.write(
+            f"[autoclose] checkout disposal skipped ({result.disposal_skipped}) "
+            "— every recorded checkout preserved.\n"
+        )
     return 0 if _report_retire_followups(cfg, result) else 2
 
 
@@ -799,11 +1073,14 @@ def _read_dev_blackboard(ticket: Path) -> str | None:
 
 __all__ = [
     "AutocloseResult",
+    "CheckoutOutcome",
     "ClosedTicket",
     "GhError",
     "RETIRE_REPORT_HEADING",
     "render_retire_report",
     "render_retire_summary",
+    "render_disposed_summary",
+    "render_preserved_summary",
     "run_autoclose_recipe",
     "sweep_merged",
     "parse_pr_number",

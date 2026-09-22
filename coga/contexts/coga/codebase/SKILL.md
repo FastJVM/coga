@@ -51,6 +51,16 @@ review bars.
   `retire_worklist.py` owns the autoclose sweep's durable `retires.md`
   worklist — parse, discharge rule, barrier-held atomic rewrite — for its two
   consumers, the `autoclose` recipe and `commands/retire.py`.
+  `branchcleanup.py` holds the individual checkout proofs (linked worktree,
+  exact branch, pristine, open PR, landed or merged head, leased deletes) in
+  two forms — `## Dev` text, or the branch / worktree / `pr:` values directly,
+  for callers with no ticket to parse — and `checkout_disposal.py` the proof
+  above them (no other live ticket claims the checkout) plus the claim →
+  worktree → local → remote order, for its three consumers: `commands/retire.py`,
+  the `autoclose` recipe's disposal phase, and `branchsweep.py`'s gated
+  worktree GC. `autoclose.py` imports it lazily inside the recipe because
+  `branchcleanup` imports the `## Dev` parsers and `gh` lookups from
+  `autoclose` at load time.
   `commands/slack.py` keeps the explicit FYI command spelling.
   `commands/block.py` and `commands/unblock.py` own blocked-state
   handoffs. `commands/megalaunch.py` is the manual drain entrypoint;
@@ -1045,6 +1055,15 @@ Never commit. Shared config goes in `coga.toml`; per-machine paths
 and credentials go in `coga.local.toml` via `env:VAR_NAME`
 references. Secrets get injected as env vars at launch time by
 `coga launch`.
+
+## Cleanup claim discovery
+
+Checkout disposal scans all Coga workspaces in its selected Git checkout,
+including a recurring runner's temporary control checkout. The shared
+`discover_coga_repos` call uses `allow_control_worktree_root=True` only for
+this claim inspection; scheduler discovery retains its default exclusion of
+owned temporary checkouts. A refused or incomplete claim scan keeps even a
+branch-only disposal pending, so autoclose reports it and retains its follow-up.
 
 ## What this context does NOT cover
 

@@ -148,11 +148,15 @@ repo-wide before it enumerates.
 
 ### Who retires the checkout
 
-You do not remove your own feature checkout. `coga retire` does, at the
-lifecycle event where the ticket still exists and its `## Dev` lines are still
-readable. Retire removes the recorded worktree *first* — a branch still checked
-out in a linked worktree cannot be deleted at all — and then prunes the branch.
-Leave `worktree:` recorded and accurate; that line is what retire acts on.
+You do not remove your own feature checkout. Two things do, under one shared
+set of proofs (`coga.checkout_disposal` over `branchcleanup`): `coga retire`,
+the manual lifecycle event where the ticket still exists and its `## Dev`
+lines are still readable, and the daily autoclose sweep, which runs the same
+proofs for every ticket it closes and for every entry still open in its
+`retires.md` worklist (`coga/autoclose/sweep` names the rule and its
+surfaces). Both remove the recorded worktree *first* — a branch still checked
+out in a linked worktree cannot be deleted at all — and then prune the branch.
+Leave `worktree:` recorded and accurate; that line is what they act on.
 
 Retire only removes a checkout Git identifies as a **linked worktree of the same
 repository** that still holds the recorded branch. It also refuses cleanup when
@@ -161,6 +165,31 @@ records the branch/worktree, while any PR for that head remains open, or when
 the branch has neither landed on the control branch nor retained the exact head
 of its recorded merged PR. Remote deletion verifies that exact head again and
 uses a force-with-lease, so a reused branch is never deleted on stale PR state.
+
+### Worktrees are ticket-owned — the `[git] worktrees_ticket_owned` assumption
+
+The proofs above only ever touch a worktree some ticket or worklist entry
+*recorded*. A worktree nobody recorded — an ad-hoc review checkout, a scratch
+`git worktree add` — pins its branch forever, and `coga run branch-sweep`
+reports it `skipped-worktree-pinned` week after week: the recurring clone of
+this repo accumulated 45 linked worktrees that way. Removing an unrecorded
+worktree rests on exactly one repo-level assumption, and this section is
+where it is stated:
+
+> Every linked worktree of this repository belongs to a Coga ticket. A
+> landed, locally pristine linked worktree that no non-terminal ticket
+> records is finished work, not someone's scratch checkout.
+
+A repo asserts it by setting `worktrees_ticket_owned = true` under `[git]` in
+`coga.toml` (default `false`; shared repo policy, never machine-local). With
+it set, the weekly branch sweep removes such a worktree before deleting its
+landed branch, under the same linked-worktree, exact-branch, pristine, and
+unclaimed proofs retire runs — `coga/branch-sweep/sweep` names them. With it
+unset the sweep keeps today's `skipped-worktree-pinned`. Setting it is the
+owner's decision, because it is a statement about how everyone on the repo
+uses worktrees: once it is true, a scratch checkout you want to keep must be
+dirty, on an unlanded branch, or recorded on a live ticket — a clean checkout
+of a merged branch is, by declaration, garbage.
 
 Before removal, retire checks tracked, untracked, **and ignored** files. Tracked
 and untracked state always preserves the checkout. So does ignored state — with

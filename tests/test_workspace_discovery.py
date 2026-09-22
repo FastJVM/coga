@@ -88,3 +88,16 @@ def test_strict_mode_raises_on_an_unreadable_directory(tmp_path: Path) -> None:
             discover_coga_repos(tmp_path, strict=True)
     finally:
         blocked.chmod(0o755)
+
+
+def test_explicit_control_checkout_inspection_keeps_scheduler_exclusions(
+    tmp_path: Path,
+) -> None:
+    parent = tmp_path / f"{CONTROL_WORKTREE_DIR_PREFIX}inspection"
+    root = parent / "checkout"
+    first = _workspace(root / "one" / "coga")
+    second = _workspace(root / "two" / "coga")
+    (parent / CONTROL_WORKTREE_OWNER_FILE).write_text("{}")
+    assert discover_coga_repos(root) == []
+    assert discover_coga_repos(tmp_path) == []
+    assert discover_coga_repos(root, strict=True, allow_control_worktree_root=True) == [first, second]
