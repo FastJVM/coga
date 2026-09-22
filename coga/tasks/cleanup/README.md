@@ -29,7 +29,9 @@ mechanism.
 
 ## Not here
 
-- `marketing/readme-top` and `marketing/discord` are marketing work with their
-  own tickets, not cleanup.
-- The community home decision belongs to `marketing/discord`; the hygiene
-  ticket here deliberately stops short of it.
+- `marketing/readme-top` owns the README and the existing demo's accuracy
+  check. It absorbed `cleanup/check-the-demo-video-against-current-cli-names`;
+  a new video is not a V1 launch prerequisite.
+- Community setup is outside the approved V1 campaign. The superseded
+  `marketing/discord` ticket was removed; repository hygiene does not create
+  a community requirement.
