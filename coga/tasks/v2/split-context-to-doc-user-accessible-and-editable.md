@@ -4,9 +4,10 @@ status: draft
 owner: nicktoper
 agent: claude
 contexts:
-- coga/architecture
+- coga/prompt-composition
+- coga/context-layout
 - coga/principles
-- coga/codebase
+- coga/packaging
 - coga/project-stage
 workflow:
   name: code/design-then-implement
@@ -73,10 +74,10 @@ the subject is still unbuilt and every surface below resolves on `main`.
 - **Two copies stay in sync:** the live `coga/context.md` and the packaged
   template `src/coga/resources/templates/coga/context.md` (CLAUDE.md — keep
   both in sync unless intentionally divergent).
-- **Docs that reference the path:** `coga/architecture` documents the prompt
+- **Docs that reference the path:** `coga/prompt-composition` documents the prompt
   composition order and names `coga/context.md` as the repo-context layer. If
   the path moves, update that context in the same change.
-- **Decision: `docs/` in repo** (alongside `docs/vision.md`) for the
+- **Decision: `docs/` in repo** (the knowledge library indexed by `docs/README.md`) for the
   human-facing doc location, subject to the `redo-documentation` layout.
   Exact filename is for the design step to recommend.
 - **Open design questions for the proposal:** the exact filename; whether
@@ -87,7 +88,7 @@ the subject is still unbuilt and every surface below resolves on `main`.
 - **Template + seeding:** the packaged template must move/rename in lockstep,
   and the design should confirm what reads it (the `coga init` seeding path
   and the `example/` fixture) before relocating — not just move the file.
-- **Tension to resolve, not assume:** `coga/architecture` and `coga/codebase`
+- **Tension to resolve, not assume:** `coga/context-layout` and `coga/codebase`
   frame `coga/` as the single tree Coga operates on, with `context.md` as a
   composed layer inside it. Moving it to `docs/` splits that boundary; the
   design must justify why the human-doc framing outweighs keeping all

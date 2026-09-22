@@ -309,17 +309,21 @@ transport seam, not another product configuration surface.
 
 #### Documentation ownership and verification
 
-Add `coga/contexts/coga/telemetry/SKILL.md` and its bootstrap twin as the
+Add `docs/contexts/coga/telemetry/SKILL.md` and its bootstrap twin as the
 behavioral owner: wire boundary, admission, state/cursor, approximate metrics,
 loss semantics, and recipe contract. `coga/principles` owns the dated policy
-reversal (retain the historical 2026-06 rejection, append the 2026-09-20
-reversal); `coga/architecture` owns config and identity changes. Update both
-of their twins, the three ban mentions in `coga/usage`, README Values and
-disclosure, and `docs/operations.md` opt-out navigation. Update recurring/code
+reversal (the historical 2026-06 rejection now lives in
+`docs/archive/superseded-decisions.md` "Telemetry"; append the 2026-09-20
+reversal); `coga/configuration` owns config changes and `coga/agents` ("Who
+Coga acts as") owns identity changes (both formerly in `coga/architecture`).
+Update their twins, the ban mentions in `coga/usage`, README disclosure, and
+opt-out navigation in `docs/README.md` (`docs/operations.md` was deleted). Update recurring/code
 contract inventories where they list fixed recipes. Grep active docs/contexts
 for stale absolute bans and fix summaries in the same PR.
 
-Add `docs/telemetry.md` for lazy operator procedures: project setup/read-back,
+Add the lazy operator procedures (placed per `coga/knowledge`: a topic under
+`docs/contexts/` or a skill; `docs/` outside `contexts/` now holds only
+evidence, design and archive pages): project setup/read-back,
 key source and release-based rotation, query commands, and the persons API
 deletion procedure, all against shared project `606347`: link to Multiply's
 runbook for project settings rather than restating them, filter every Coga
@@ -429,13 +433,18 @@ owner setup and manual verification gates.
 - `src/coga/notification/__init__.py`, `post()`, dispatches existing Slack
   configuration and supports nonfatal, non-recording calls; its socket timeout
   in `src/coga/notification/slack.py`, `SlackChannel`, is not a DNS deadline.
-- `coga/contexts/coga/recurring/SKILL.md`: Dropping a new recurring task;
-  Extend recurring with a task-specific workflow; Last-run state lives in the
-  recurring task's blackboard. New templates are retroactively due on the first
+- `docs/contexts/coga/recurring/templates/SKILL.md` (authoring/promoting a
+  template, the `ticket.py` completion contract, cross-run state surfaces),
+  `docs/contexts/coga/recurring/scheduling/SKILL.md` (first-firing and
+  external scheduling), and `docs/contexts/coga/period-task/SKILL.md`
+  (last-run state in the template's blackboard); formerly sections of
+  `coga/contexts/coga/recurring/SKILL.md`. New templates are retroactively due on the first
   sweep, no agent runs if the shim closes its step, and scheduling is external.
-- `coga/contexts/coga/architecture/SKILL.md`: Where a fact lives: docs vs contexts
-  determines the new behavior-context / operator-runbook split. Principles,
-  codebase, current-direction, project-stage, and `docs/vision.md` informed
+- `docs/contexts/coga/knowledge/SKILL.md` (formerly the "Where a fact lives:
+  docs vs contexts" section of `coga/architecture`) determines the new
+  behavior-context / operator-runbook split. Principles,
+  codebase, current-direction, project-stage, and `docs/vision.md` (now
+  `product/vision`) informed
   the design. The telemetry reversal is an explicit owner amendment.
 - Reference implementation and operations: `/home/n/Code/multiply/infra/posthog/README.md`
   (Settings, Keys, CLI, Deleting a person), and its

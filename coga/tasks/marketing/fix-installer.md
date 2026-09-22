@@ -18,17 +18,20 @@ commands and result recorded.
 ## Context
 
 This is the V1 prerequisite owned by `marketing/build-the-launch-plan`.
-Read `README.md`, `docs/getting-started.md`, `docs/releasing.md` and the current
-init/build onboarding implementation before selecting changes. Use the
+Read `README.md`, `coga/install`, `coga/init`, `coga/first-task` and
+`coga/releasing` (`docs/contexts/coga/{install,init,first-task,releasing}/SKILL.md`,
+which replace the deleted `docs/getting-started.md` and `docs/releasing.md`)
+and the current init/build onboarding implementation before selecting changes. Use the
 existing supported install path and agent prerequisites; do not create a new
 installer tier or broad onboarding framework. Test the minimum supported
 Python version and the actual installed artifact, not only an editable tree.
 
-`coga/codebase` (`coga/contexts/coga/codebase/SKILL.md`) is cited, not attached:
-read its source-layout, microkernel, packaging and testing sections before
-implementation. `coga/architecture` is likewise cited at
-`coga/contexts/coga/architecture/SKILL.md`: read the workflow/launch and
-fact-ownership contracts before changing first-run behavior. Keep runtime
+These topics are cited, not attached: read `coga/codebase` (source layout),
+`coga/extension-model` (microkernel rule), `coga/packaging` and `coga/testing`
+before implementation, and `coga/workflows`, `coga/launch` and
+`coga/knowledge` (fact ownership) before changing first-run behavior. Each
+lives at `docs/contexts/<ref>/SKILL.md`; they replace the old
+`coga/codebase` and `coga/architecture` sections of those names. Keep runtime
 fixes at the existing shared/package contract boundary, update the owning
 contexts/docs and any packaged twins with behavior changes, and verify the
 relevant tests plus a first-task smoke run.

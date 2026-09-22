@@ -5,13 +5,17 @@ owner: nicktoper
 agent: codex
 contexts:
   - coga/principles
-  - coga/architecture
+  - coga/secrets
+  - coga/uninstall
+  - coga/install
   - coga/codebase
+  - coga/testing
   - coga/current-direction
   - coga/extension-model
   - coga/project-stage
   - coga/cli
-  - dev/code
+  - dev/checkouts
+  - dev/dev-record
 workflow: code/design-then-implement
 ---
 

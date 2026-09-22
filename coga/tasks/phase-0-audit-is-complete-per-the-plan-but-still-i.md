@@ -28,7 +28,7 @@ step: 3 (open-pr)
 
 ## Description
 
-`coga/contexts/marketing/plan/SKILL.md` lists `marketing/phase-0-audit` under
+`coga/contexts/marketing/plan/SKILL.md` (now `docs/contexts/marketing/plan/SKILL.md`) lists `marketing/phase-0-audit` under
 "Execution tickets and disposition" as "complete input to this plan; do not
 rerun it", and the plan has already absorbed the audit's output — its Phase 0
 gate table matches the ticket's `## Proposed phase-1 thresholds` almost line for

@@ -193,24 +193,29 @@ state it: it changes what the feature *means*, not just how it is built.
 
 ### Context to read and update
 
-`coga/contexts/coga/recurring/SKILL.md` is deliberately not attached — at
-~53.8 KiB (~13.5k tokens) it would be roughly four times the rest of the
-composed prompt, for a handful of facts. Read it directly.
+The old monolithic `coga/contexts/coga/recurring/SKILL.md` was split into
+focused topics under `docs/contexts/`. They are cited, not attached; read them
+fresh, since they may move again before launch:
 
-Read both of these fresh; the siblings moved them, and a single-heading pointer
-here will be stale by launch:
+- `coga/internals/recurring-control`
+  (`docs/contexts/coga/internals/recurring-control/SKILL.md`) — where recurring
+  runs may start: the control-branch requirement and off-branch relay (formerly
+  `## Recurring runs start on the control branch`). The contract in question.
+- `coga/internals/recurring-temp-worktrees`
+  (`docs/contexts/coga/internals/recurring-temp-worktrees/SKILL.md`) — how an
+  `--all` child services an off-branch checkout from a temporary worktree
+  (formerly `## An --all child services an off-branch checkout from a temporary
+  worktree`, added by sibling 1, `e44e7c29`). This is where the current
+  created-worktree contract lives, and the topic a design here extends or
+  contradicts.
+- `coga/internals/recurring-admission` for per-child refresh and period
+  leases, and `coga/recurring/delegation` / `coga/recurring/scheduling` for TTY
+  admission of delegated and agent launches (formerly the `delegate:` gotcha).
 
-- `## Recurring runs start on the control branch` — the contract in question.
-  Sibling 2 rewrites it.
-- `## An --all child services an off-branch checkout from a temporary worktree`
-  — added by sibling 1 (`e44e7c29`). This is where the current created-worktree
-  contract actually lives, and the section a design here extends or contradicts.
-
-The `delegate:` gotcha near the end is the only place TTY admission for
-delegated launches is explained. Any behavior change rewrites the affected
-section in the same PR, per the repo's context-in-the-same-PR rule. This file
-has **no packaged twin** under `src/coga/resources/templates/coga/`, so there is
-no sync step — don't go looking for one.
+Any behavior change rewrites the affected topic in the same PR, per the repo's
+context-in-the-same-PR rule. These topics now **do** have packaged twins under
+`src/coga/resources/templates/coga/bootstrap/contexts/coga/`, byte-checked by
+`tests/test_packaging.py`; keep both copies in sync.
 
 ### Not this ticket
 

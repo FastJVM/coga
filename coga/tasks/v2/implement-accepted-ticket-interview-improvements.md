@@ -110,7 +110,7 @@ Description/greeting wording to the successor.
   section of the retired source ticket's blackboard (git-history pointer
   above) — read it first; the quoted texts are ready to adapt.
 - Keep it lean: the skill deliberately targets a 4–6 question interview
-  (`docs/vision.md`, Coga principles). Refine existing prompts within that
+  (`product/vision`, `coga/principles`). Refine existing prompts within that
   budget; the Description/greeting change belongs to the successor above.
 - Out of scope: a formal `Acceptance Criteria` body section (P2 — deliberately
   deferred); changes to `coga ticket` command behavior unless the text change

@@ -4,7 +4,10 @@ status: paused
 owner: nicktoper
 agent: claude
 contexts:
-- dev/code
+- dev/dev-record
+- dev/checkouts
+- coga/workflows
+- coga/packaging
 workflow:
   name: code/with-review
   steps:
@@ -56,7 +59,7 @@ with unsafe drift from the control branch). Only the final step changes.
 **Where the files go — this is the inverted part.** The `code/` workflow namespace
 **is** shipped in the packaged template, and only there: the three `code/*`
 workflows live under `src/coga/resources/templates/coga/bootstrap/workflows/code/`
-and the live tree has no `coga/workflows/code/` directory. Per `coga/architecture`,
+and the live tree has no `coga/workflows/code/` directory. Per `coga/context-layout`,
 a repo-local `coga/workflows/<ref>.md` *overrides* the bundled
 `bootstrap/workflows/<ref>.md`, so a live copy would sit in the override layer, not
 beside its siblings. Therefore:
@@ -75,7 +78,7 @@ original author; that's fine). This needs the **new skill** `code/merge-pr` —
 `code/open-pr` cannot be reused: its remit is the deterministic push/open/record
 command, and its worked case (PR #723, in that skill) records the owner's precedent
 that merging without a returned review is the failure mode to avoid. The merge skill
-should: read `pr:` from the blackboard `## Dev` section (the `dev/code` convention,
+should: read `pr:` from the blackboard `## Dev` section (the `dev/dev-record` convention,
 attached as a context); require the `## Peer review` note to record that the review
 **returned** (the same evidence `code/open-pr` gates on); require the verification
 gate below; run `gh pr merge <pr-url> --match-head-commit <verified-head-sha>`;
@@ -87,7 +90,7 @@ old `panic` command), not a note-and-bump.
 "CI gate = required (hard stop)". This repo has **no PR test job**: the only GitHub
 Actions workflow is the publish-only `release.yml`, so `gh pr checks` has nothing to
 report (see `no-context-records-the-ci-posture-publish-only-rel`, which records this
-in `coga/codebase`). Until `v2/minimal-ci-run-pytest-on-prs-and-tags` ships, "green"
+in `coga/testing`). Until `v2/minimal-ci-run-pytest-on-prs-and-tags` ships, "green"
 can only mean a local gate, which the skill must spell out:
 
 - After any rebase and push, capture the PR's `headRefOid` from

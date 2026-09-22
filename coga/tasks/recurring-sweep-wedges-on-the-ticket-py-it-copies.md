@@ -4,7 +4,9 @@ status: in_progress
 owner: nicktoper
 agent: claude
 contexts:
-- coga/codebase
+- coga/recurring/scheduling
+- coga/recurring/autofix
+- coga/testing
 workflow:
   name: code/design-then-implement
   steps:
@@ -192,9 +194,10 @@ Objectively checkable by an implementer and a reviewer:
    `done` period tasks, does not trip the contradiction detector. An existing
    `--force` test still passes unchanged.
 6. **Context and twin updated.** If any of the above changes what
-   `coga/contexts/coga/recurring/SKILL.md` asserts, it is updated in the same
-   PR and its packaged twin under
-   `src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/SKILL.md`
+   `docs/contexts/coga/recurring/scheduling/SKILL.md` (sweep outcomes and
+   `problems`) or `docs/contexts/coga/recurring/autofix/SKILL.md` (the run
+   record) asserts, it is updated in the same PR and its packaged twin under
+   `src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/`
    is byte-identical (`tests/test_packaging.py` passes).
 7. `PYTHONPATH=$PWD/src python3.12 -m pytest` is green.
 
@@ -355,7 +358,8 @@ are fixed.
 
 #### Stage E — context
 
-Re-read `coga/contexts/coga/recurring/SKILL.md` against the shipped behavior.
+Re-read `docs/contexts/coga/recurring/scheduling/SKILL.md` (and
+`coga/recurring/autofix` for the run record) against the shipped behavior.
 At minimum it should state that a sweep which creates a period task and then
 observes it terminal reports an error rather than skipping, and that a git sync
 failure during create now counts toward the sweep's `problems`. Sync the

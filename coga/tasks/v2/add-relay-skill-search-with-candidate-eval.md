@@ -4,10 +4,13 @@ status: draft
 owner: nicktoper
 agent: claude
 contexts:
-- coga/codebase
+- coga/skill-management
+- coga/extension-model
+- coga/testing
 - coga/current-direction
 - coga/project-stage
-- dev/code
+- dev/checkouts
+- dev/dev-record
 workflow:
   name: code/with-review
   steps:

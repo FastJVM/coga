@@ -21,8 +21,9 @@ corrected, or removed from the README.
 
 ## Context
 
-Attach the current marketing message and plan; read `README.md` and
-`docs/getting-started.md` before editing. Keep this scoped to the README
+Attach the current marketing message and plan; read `README.md`, `docs/README.md`, and `coga/install` / `coga/first-task`
+(`docs/contexts/coga/{install,first-task}/SKILL.md`, which replace the deleted
+`docs/getting-started.md`) before editing. Keep this scoped to the README
 opening and the links needed for its reader path, not a documentation rewrite.
 
 Use megalaunch and one correction that changes later work as the concrete
@@ -51,7 +52,7 @@ removed `coga project` command as a possible accuracy issue. Nobody had yet
 verified whether that command appeared in the video. Those observations are
 dated; inspect the video and current behavior rather than treating the old
 command comparison as a complete present-day check. The original notes remain
-in `coga/contexts/marketing/launch-history/phase-0-audit/audit-history.md`.
+in `docs/archive/launch-programs/phase-0-audit/audit-history.md`.
 
 <!-- coga:blackboard -->
 

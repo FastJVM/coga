@@ -4,7 +4,8 @@ status: draft
 owner: zach
 agent: claude
 contexts:
-- dev/code
+- dev/checkouts
+- dev/dev-record
 workflow: code/design-then-implement
 ---
 

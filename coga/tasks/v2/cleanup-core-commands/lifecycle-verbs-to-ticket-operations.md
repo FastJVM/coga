@@ -5,13 +5,17 @@ owner: nicktoper
 agent: codex
 contexts:
   - coga/principles
-  - coga/architecture
+  - coga/lifecycle
+  - coga/workflows
+  - coga/notifications/producers
   - coga/codebase
+  - coga/testing
   - coga/current-direction
   - coga/extension-model
   - coga/project-stage
   - coga/cli
-  - dev/code
+  - dev/checkouts
+  - dev/dev-record
 workflow: code/design-then-implement
 ---
 
@@ -64,8 +68,8 @@ operations, record that dependency and coordinate with
       transitions, blocking/unblocking semantics, logging, git sync, and
       notifications.
 - [ ] Tests cover the changed lifecycle behavior and compatibility surface.
-- [ ] `coga/extension-model`, `coga/cli`, and packaged context copies are updated
-      when the command boundary changes.
+- [ ] `coga/extension-model`, `coga/lifecycle`, the `coga/cli` index, and
+      packaged context copies are updated when the command boundary changes.
 
 <!-- coga:blackboard -->
 

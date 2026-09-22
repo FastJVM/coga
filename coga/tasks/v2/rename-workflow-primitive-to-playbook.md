@@ -4,8 +4,10 @@ status: draft
 owner: nicktoper
 agent: claude
 contexts:
-- coga/architecture
+- coga/workflows
+- coga/tickets
 - coga/codebase
+- coga/packaging
 workflow:
   name: code/design-then-implement
   steps:
@@ -58,7 +60,7 @@ rename begins.
 This touches a *reserved frontmatter key*, so it is not a simple find/replace:
 
 - **Reserved frontmatter key** `workflow:` (+ `step:` stays, it names a
-  position *within* a playbook) — listed in `relay/architecture` canonical key
+  position *within* a playbook) — listed in the `coga/tickets` canonical key
   set and enforced by `validate.py`.
 - **Source** (~20 modules reference `workflow`): `workflow.py` (likely renamed),
   `compose.py`, `bump.py`, `mark.py`, `launch.py`, `launch_script.py`,
@@ -71,9 +73,9 @@ This touches a *reserved frontmatter key*, so it is not a simple find/replace:
 - **On-disk layout**: the `relay-os/workflows/` directory and the packaged
   copy under `src/relay/resources/templates/relay-os/workflows/` — keep both
   in sync.
-- **Shipped contexts/docs**: `relay/architecture`, `relay/principles`,
-  `relay/current-direction`, `relay/codebase`, `docs/vision.md`,
-  `docs/market-thesis.md`, `README.md`.
+- **Shipped contexts/docs**: `coga/workflows`, `coga/tickets`,
+  `coga/architecture`, `coga/principles`, `coga/current-direction`,
+  `coga/codebase`, `product/vision`, `marketing/strategy`, `README.md`.
 - **Migration of existing tickets**: every live ticket carries a frozen
   `workflow:` block in frontmatter. Decide on backward compatibility — accept
   the old key as a deprecated alias for one release, or write a one-shot

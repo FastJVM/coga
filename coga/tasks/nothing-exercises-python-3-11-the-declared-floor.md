@@ -30,7 +30,8 @@ step: 1 (implement)
 
 `pyproject.toml` declares `requires-python = ">=3.11"`, but nothing runs the
 suite on 3.11. `.github/workflows/` contains only `release.yml`, a PyPI publish
-workflow with no pytest step, and `coga/contexts/coga/codebase/SKILL.md` tells
+workflow with no pytest step, and `coga/testing` (`docs/contexts/coga/testing/SKILL.md`,
+formerly part of `coga/codebase`) tells
 the reader to run `PYTHONPATH=$PWD/src python3.12 -m pytest` because the ambient
 `python3` is often 3.9. That guidance is correct about 3.9 and silently makes
 the declared floor untested.
@@ -55,8 +56,10 @@ Two things are wanted and they are separable:
 1. A real 3.11 verification step, so the declared floor is exercised rather
    than assumed. There is no test CI workflow at all today, which is the larger
    half of this.
-2. The rule written into `coga/contexts/coga/codebase/SKILL.md` (and its
-   enforced packaged twin): never add a new `files("coga.<pkg>")` consumer
+2. The rule written into its owning topic — `coga/codebase/gotchas`
+   (`docs/contexts/coga/codebase/gotchas/SKILL.md`) for the package-marker
+   hazard and `coga/testing` for what a green run proves — and their
+   enforced packaged twins: never add a new `files("coga.<pkg>")` consumer
    without a package marker, and a green 3.12 run is not evidence for the
    declared floor.
 

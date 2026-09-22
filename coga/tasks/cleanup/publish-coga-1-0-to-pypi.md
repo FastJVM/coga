@@ -34,7 +34,8 @@ crashes, and 0.3.1's `init` pip-installs its own version from PyPI into the
 vendored venv, so a source install cannot `init` until that version exists on
 PyPI either. 1.0 on PyPI fixes both by construction.
 
-**Procedure.** `docs/releasing.md` is the contributor-facing runbook: bump
+**Procedure.** The `coga/releasing` topic
+(`docs/contexts/coga/releasing/SKILL.md`) is the contributor-facing runbook: bump
 `version` in `pyproject.toml` from `0.3.1` to `1.0.0`, tag, and publish a
 GitHub Release; `.github/workflows/release.yml` publishes to PyPI over Trusted
 Publishing (no token). The doc recommends a TestPyPI dry run first

@@ -50,7 +50,8 @@ to the report step, which records the result and hands objections to `marketing/
 Prior task ref: `marketing/plan/collect-public-examples-for-the-launch`.
 Its earlier draft had no production findings. This brief also absorbs
 `marketing/plan/write-the-pitch-and-narrative` and the three former essay
-ideas; earlier treatments remain in marketing/launch-history.
+ideas; earlier treatments remain in `docs/archive/launch-programs/` (formerly
+marketing/launch-history).
 
 <!-- coga:blackboard -->
 

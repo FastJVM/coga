@@ -33,9 +33,9 @@ and next actions. It remains at its existing human-owned execution step.
 
 ## Context
 
-Read the approved campaign in `coga/contexts/marketing/plan/SKILL.md`, the
-message and proof limits in `coga/contexts/marketing/positioning/SKILL.md`, and
-channel/measurement policy in `coga/contexts/marketing/distribution/SKILL.md`.
+Read the approved campaign in `docs/contexts/marketing/plan/SKILL.md`, the
+message and proof limits in `docs/contexts/marketing/positioning/SKILL.md`, and
+channel/measurement policy in `docs/contexts/marketing/distribution/SKILL.md`.
 These are cited, not attached: read their V1 decisions before preparing the
 launch checklist. They are also the editing targets for accepted learnings.
 
@@ -66,8 +66,8 @@ setup as a V1 prerequisite. No separate creative pipeline, three-essay
 campaign, token/time experiment or additional channel campaign is required.
 
 The earlier launch-plan ticket is preserved in
-`coga/contexts/marketing/launch-history/launch-plan-before-v1.md`; the audit
-and its public evidence are under `coga/contexts/marketing/launch-history/phase-0-audit/`.
+`docs/archive/launch-programs/launch-plan-before-v1.md`; the audit
+and its public evidence are under `docs/archive/launch-programs/phase-0-audit/`.
 These are dated references, not current work. Existing lifecycle status,
 step and frozen roles are preserved; this revision authorizes no publication
 or workflow advancement.

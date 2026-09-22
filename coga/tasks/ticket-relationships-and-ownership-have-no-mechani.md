@@ -76,8 +76,10 @@ add the mechanism (a frontmatter field, a lifecycle transition, a command), or
 document the convention so readers and tooling can rely on one spelling and
 stop trusting what the model does not carry.
 
-The natural home for a documented convention is
-`coga/contexts/coga/architecture/SKILL.md` (with its enforced packaged twin);
+The natural home for a documented convention is `coga/tickets`
+(`docs/contexts/coga/tickets/SKILL.md`, the ticket-file contract formerly in
+`coga/contexts/coga/architecture/SKILL.md`) — or `coga/lifecycle` for a
+status/blocker convention — with its enforced packaged twin;
 a mechanism touches `src/coga/ticket.py`, `src/coga/lifecycle.py`,
 `src/coga/validate.py` and possibly a new command.
 

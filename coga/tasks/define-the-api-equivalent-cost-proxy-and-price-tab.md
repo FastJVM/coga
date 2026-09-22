@@ -99,11 +99,12 @@ that floor-ness explicit in every output instead of leaving it to the reader.
 - [ ] Every pricing input is documented for the operator: the table file
       header states the 1h cache-write choice, the gpt-5.5 base-tier choice,
       and that fast mode / `inference_geo` premiums are not represented.
-- [ ] `coga/contexts/coga/usage/SKILL.md` is updated in the same PR: the
-      "No dollar cost is computed" paragraph is replaced by a section that
+- [ ] `docs/contexts/coga/usage/SKILL.md` is updated in the same PR: the
+      "no dollar cost" statement is replaced by a section that
       states the proxy's definition, its floor semantics, where the table
-      lives, the staleness policy, and the update procedure. Re-check
-      `tests/test_packaging.py` twins before editing (none exists today).
+      lives, the staleness policy, and the update procedure. Its packaged
+      twin under `src/coga/resources/templates/coga/bootstrap/contexts/coga/usage/`
+      must stay byte-identical (`tests/test_packaging.py`).
 - [ ] Tests in `tests/test_usage.py`: packaged table loads and validates;
       malformed table raises; `price_record` on an ok Claude record, an ok
       Codex record (null cache-create priced as 0), an unknown-status record
@@ -239,17 +240,18 @@ src/coga/resources/prices.toml` to stderr when stale. No new flags.
 so a trailing synthetic line does not claim the session. One helper,
 one test.
 
-**7. Context and docs.** Rewrite the "read surface" paragraph of
-`coga/contexts/coga/usage/SKILL.md` and add a "Cost proxy" section covering:
+**7. Context and docs.** Rewrite "The read API — `coga usage` and
+`src/coga/usage.py`" section of `docs/contexts/coga/usage/SKILL.md` (and its
+packaged twin) and add a "Cost proxy" section covering:
 definition (list-price API equivalent, per-category rates, 1h cache-write
 choice), floor semantics (unknown-status and unpriced sessions are excluded
 and counted, never $0), table location and update procedure (edit
 `prices.toml`, bump `vintage`, cite the source URL in the commit), staleness
 policy (vintage on every output, stale flag after 90 days, unknown ids
 surface as `unpriced_models`), and known understatements (fast mode,
-`inference_geo`, gpt-5.5 long-context tier). Update the `coga usage` entry in
-`docs/reference.md` and the packaged `coga/cli` context's `coga usage`
-section for the new columns.
+`inference_geo`, gpt-5.5 long-context tier). The `coga usage` columns are
+owned by that same `coga/usage` read-API section (the `coga/cli` topic is only
+an index); document the new columns there.
 
 Order of work: 1 → 2 → 3 (with tests) → 4 → 5 → 6 → 7.
 
@@ -292,7 +294,8 @@ Codebase facts an implementer needs.
   `PackagedResourceMissing` on `OSError`. Use it for `prices.toml`.
 - `tests/test_packaging.py` — twins are derived only from
   `src/coga/resources/templates/coga/`; a top-level resource has no twin.
-  `coga/contexts/coga/usage/SKILL.md` has no packaged counterpart today.
+  `docs/contexts/coga/usage/SKILL.md` now has a packaged counterpart under
+  `templates/coga/bootstrap/contexts/coga/usage/` (see `coga/packaging`).
 - `tests/test_usage.py` — 14 tests; `test_rollup_filters_and_groups_records`
   (L458) is the model for rollup tests; `test_usage_command_outputs_json`
   (L517) for the CLI.
