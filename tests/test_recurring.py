@@ -754,7 +754,7 @@ def _intercept_relay(monkeypatch: pytest.MonkeyPatch, handler) -> None:
     """Stand in for the relayed `coga` child, leaving other git calls real.
 
     `recurring_cmd.subprocess` is the shared `subprocess` module, so patching
-    its `Popen` wholesale would also swallow `git._toplevel` and the worktree
+    its `Popen` wholesale would also swallow `git.toplevel` and the worktree
     listing this path depends on. Only the `-m coga.cli` spawn is intercepted.
     """
     real_popen = subprocess.Popen

@@ -290,7 +290,7 @@ def _control_branch_holder(cfg: Config) -> Path | None:
     if not cfg.git_enabled:
         return None
     try:
-        root = git._toplevel(cfg.repo_root)
+        root = git.toplevel(cfg.repo_root)
         if root is None:
             return None
         if _current_branch(root) == cfg.git_control_branch:
@@ -324,7 +324,7 @@ def _existing_control_worktree(cfg: Config) -> Path | None:
     if worktree is None:
         return None
     try:
-        root = git._toplevel(cfg.repo_root)
+        root = git.toplevel(cfg.repo_root)
         if root is None:
             return None
         workspace_rel = cfg.repo_root.resolve().relative_to(root.resolve())
