@@ -6046,3 +6046,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-22 10:18 [recurring/upstream-coga] [system] created recurring/upstream-coga for 2026-W39
 2026-09-22 10:18 [recurring/usage-report] [system] created (status=active)
 2026-09-22 10:18 [recurring/usage-report] [system] created recurring/usage-report for 2026-W39
+2026-09-22 10:18 [recurring/usage-report] [system] started (active → in_progress) via coga launch
