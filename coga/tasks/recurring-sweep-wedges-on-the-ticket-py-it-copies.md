@@ -563,6 +563,60 @@ The local symptom in `FastJVM/admin` was cleared by hand, so there is no live
 outage driving this and no reproduction in this tree — see the precondition
 analysis above before concluding the report is stale.
 
+### Second reproduction — `FastJVM/admin`, 2026-09-21
+
+This is a direct field reproduction of case 3, and a louder symptom than the
+first report.
+
+- **Precondition, exactly as predicted.** `tm-action-reminder` was converted to
+  a `ticket.py` shim in admin's nine-deadline-reminder batch (admin `8282c605`,
+  #251, merged 2026-09-20). Its period directory
+  `coga/tasks/recurring/tm-action-reminder/` was still tracked from the
+  2026-W38 firing with a `ticket.md` and **no** `ticket.py` (`git ls-tree
+  db0a002e^` lists only `ticket.md`). 09-21 was its first post-shim firing.
+- **Sequence, from admin's `coga/log.md`.** At 11:20 the sweep deleted the
+  completed prior-period task, created 2026-W39 and pushed it to `origin/main`
+  as `db0a002e`. That commit adds `ticket.py` (318 lines) and rewrites
+  `ticket.md`. The sync then logged
+  `sync failed: could not rebase checked-out control branch onto db0a002e…:
+  error: The following untracked working tree files would be overwritten by
+  checkout:; error: could not detach HEAD`. Afterwards the working-tree
+  `ticket.md` was back at `HEAD` (W38, `status: done`). `ticket.py` was left
+  untracked and **byte-identical** to the copy in `db0a002e`.
+- **The new consequence: every later launch in the sweep fails.** Each of the
+  sweep's five remaining launches (`inventory-refresh`, `autoclose-merged`,
+  `coga-refresh`, `skill-update`, `dream`) logged
+  `[coga] [git] refresh failed: git merge --ff-only --quiet db0a002e… failed
+  (exit 1): error: The following untracked working tree files would be
+  overwritten by merge:` and exited 2 with an untouched blackboard. All five
+  stayed `active`. `tm-action-reminder` itself was skipped as "changed on
+  control during admission". So one collision stranded six period tasks, not
+  two, and it was surfaced by five identical exit-2s rather than one
+  diagnosis.
+- **Remedy.** The checkout was cleared by hand: the stray file was deleted
+  (safe, since `origin/main` owns identical bytes) and `main` was
+  fast-forwarded. All six tasks were then relaunched and reached `done` by
+  13:47 the same day.
+
+What this adds to the design:
+
+1. **The collision outlives the sync call.** Stage A stops it at the two
+   restore/rebase sites. But while any untracked path that the control target
+   owns is still on disk, every later launch-time `_refresh` ff-merge in the
+   same sweep collides again. The case 3 test should assert that the *next*
+   launch in the same sweep can refresh, not only that the create lands.
+   Check that Stage B's re-restore from `landed` does not leave the checkout
+   in a state that the next `_refresh` ff-merge still refuses.
+2. **A failed control sync should end in one clear error.** Either clean up
+   the files the sweep itself generated, or abort the sweep's launch loop with
+   a single problem in the run record (outcome 2). It should not keep going
+   and fail each remaining launch with the same exit 2.
+3. **The trigger is not rare.** Every template conversion to a shim, where
+   the period directory is still tracked, opens case 3 on that template's
+   first firing. The Preconditions section above says "no template in this
+   tree is currently in case 3". That holds for this repo, but consumer
+   repos pass through the window on every shim migration.
+
 <!-- coga:blackboard -->
 
 ## Design step — 2026-09-10
