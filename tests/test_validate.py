@@ -594,18 +594,22 @@ def test_validate_rejects_unknown_recurring_delegate_target(repo: Path) -> None:
     assert "bootstrap/does-not-exist" in issue.message
 
 
+@pytest.mark.parametrize(
+    "delegate",
+    ["bootstrap/resolve-conflicts", "bootstrap/address-pr-comments"],
+)
 def test_validate_accepts_recurring_delegate_to_shipped_bootstrap(
-    repo: Path,
+    repo: Path, delegate: str
 ) -> None:
-    """A delegate target resolves like any bootstrap launch target — the
-    packaged `bootstrap/resolve-conflicts` ticket satisfies the check."""
+    """A delegate target resolves like any bootstrap launch target — each
+    packaged agent-backed command ticket satisfies the check."""
     _write(
         repo / "recurring" / "delegate-check" / "ticket.md",
-        """
+        f"""
         ---
         schedule: "0 9 * * *"
         title: Delegate check
-        delegate: bootstrap/resolve-conflicts
+        delegate: {delegate}
         ---
         """,
     )

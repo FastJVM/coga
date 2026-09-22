@@ -243,6 +243,38 @@ def test_default_resolve_conflicts_alias_carries_optional_pr(
     ]
 
 
+def test_address_pr_comments_is_default_alias_for_agent_command_ticket() -> None:
+    """`address-pr-comments` fronts the stateless agent command ticket."""
+    assert _DEFAULT_ALIASES["address-pr-comments"] == (
+        "launch bootstrap/address-pr-comments"
+    )
+    assert "address-pr-comments" not in _BUILTIN_COMMANDS
+
+
+def test_default_address_pr_comments_alias_carries_optional_pr(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The optional PR selector survives alias rewriting as a launch arg."""
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr("sys.argv", ["coga", "address-pr-comments", "631"])
+    monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
+
+    captured: dict[str, list[str]] = {}
+
+    def fake_app() -> None:
+        import sys
+        captured["argv"] = list(sys.argv)
+
+    monkeypatch.setattr("coga.cli.app", fake_app)
+    main()
+    assert captured["argv"] == [
+        "coga",
+        "launch",
+        "bootstrap/address-pr-comments",
+        "631",
+    ]
+
+
 @pytest.mark.parametrize(
     ("alias", "expanded"),
     [
