@@ -33,16 +33,20 @@ than any shard budget: grep it for an exact term when a claim needs a date or a
 slug, never read it whole.
 
 Installer-managed skills are not contract surface either. The upstream trees
-that `coga skill install` and `coga skill update` place and refresh wholesale —
-those whose `ref` appears in `src/coga/resources/managed-skills.toml`, and only
-those — are not Coga's explanation of itself, and Coga cannot durably edit them:
-a `drift` finding against one is reverted by the next refresh. A skill that
-merely records an upstream source in `.coga-source.json` is **not** in this
-class: a `coga skill install-url` skill such as `coga/skills/clarity/` is
-absent from the manifest, is locally adapted, and stays in the audit surface. Today they are the seven `google-agents-cli-*`
-trees, 286,169 bytes across 34 Markdown files, about 61% of all Markdown under
-`coga/skills/` and roughly two full shard budgets. Exclude them before globbing
-so the budget goes to prose this repo authored.
+that `coga skill install` and `coga skill update` place and refresh wholesale
+are not Coga's explanation of itself, and Coga cannot durably edit them: a
+`drift` finding against one is reverted by the next refresh. **The test is the
+one `gh skill` and `skill_manager.gh_skill_repo()` apply**: a skill is
+GitHub-managed exactly when its `coga/skills/**/SKILL.md` frontmatter carries
+`metadata.github-repo`. There is no name list — `coga init` installs no packs,
+so which trees exist is whatever operators installed explicitly — and the
+frontmatter key is the only membership fact. A skill that merely records an
+upstream source in `.coga-source.json` is **not** in this class: a `coga skill
+install-url` skill such as `coga/skills/clarity/` carries no `github-repo`
+key, is locally adapted, and stays in the audit surface. In this repo the
+excluded trees are the `google-agents-cli-*` packs, upstream GCP/ADK
+documentation large enough to consume whole shard budgets. Exclude them before
+globbing so the budget goes to prose this repo authored.
 
 ## Shard partition
 

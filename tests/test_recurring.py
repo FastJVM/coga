@@ -10374,11 +10374,17 @@ def test_recurring_views_render_malformed_period_as_error(
     assert statuses[0].error is not None
     assert "invalid serviced period 'none'" in statuses[0].error
 
-    for argv in (["recurring", "list"], ["status"]):
+    # `recurring list` keeps the error row; `status` names the template and
+    # its diagnostic under its one-line summary instead of a healthy count.
+    for argv, expected in (
+        (["recurring", "list"], "error: invalid serviced period 'none'"),
+        (["status"], "error: weekly-check — invalid serviced period 'none'"),
+    ):
         result = CliRunner().invoke(app, argv)
         assert result.exit_code == 0, result.output
-        assert "error: invalid serviced period 'none'" in result.output
+        assert expected in result.output
         assert "ran this period" not in result.output
+    assert "1 template · 0 due · 1 error" in result.output
 
 
 def test_scan_due_compares_serviced_periods_after_schedule_change(repo: Path) -> None:

@@ -27,7 +27,7 @@ from coga.logfile import (
     task_log_lines,
 )
 from coga.lifecycle import STATUS_DISPLAY_ORDER, TERMINAL_STATUSES
-from coga.recurring import TemplateStatus, firing_stamp, list_templates
+from coga.recurring import TemplateStatus, list_templates
 from coga.service_order import service_order
 from coga.taskfile import TaskFileError
 from coga.tasks import (
@@ -311,8 +311,8 @@ def render_status(
 
     now = datetime.now()
     # Templates in `coga/recurring/` aren't tasks yet, so the main table can't
-    # carry them; the footer shows each template's schedule and current-period
-    # state whenever the view's scope covers `tasks/recurring/`. Instantiated
+    # carry them; the footer summarizes how many exist and how many are due
+    # whenever the view's scope covers `tasks/recurring/`. Instantiated
     # period tasks are ordinary tasks and render in the main table like any
     # other row.
     templates = (
@@ -361,37 +361,47 @@ def _covers_recurring(directory: str | None, *, no_recurse: bool) -> bool:
 def _print_recurring_templates(
     console: Console, templates: list[TemplateStatus], *, leading_blank: bool
 ) -> None:
-    """Footer listing every `coga/recurring/` template with its schedule.
+    """Footer summarizing the `coga/recurring/` templates in one line.
 
     Templates exist even when no period task is live, so this renders whenever
-    templates exist at all — the schedule-aware `coga recurring list` remains
-    the full view (last fire, picked-task table).
+    templates exist at all — but as counts, not a per-template table: a fresh
+    repo with six healthy, never-instantiated templates gets one line pointing
+    at `coga recurring list`, the full schedule-aware view. Only the templates
+    the summary would otherwise hide something about are named: one that
+    failed to load (`error`) and one whose instance ticket is unreadable
+    (`instance_status == "unknown"`), each on its own line, sorted by name.
+    `due` is `TemplateStatus.due` — template-period state, not a count of
+    launchable tasks.
     """
     if not templates:
         return
     if leading_blank:
         console.print()
-    console.print("Recurring", style="bold")
-    table = Table(show_lines=False, show_edge=False, pad_edge=False)
-    for col in ("template", "schedule", "next fire", "current period"):
-        table.add_column(col, no_wrap=True, overflow="ellipsis")
-    for s in sorted(templates, key=lambda x: x.name):
-        if s.error:
-            table.add_row(s.name, f"[red]error: {s.error}[/red]", "-", "-")
-            continue
-        if s.instance is not None and s.stale_done:
-            period = (
-                f"[yellow]stale done run — due, replaced next sweep"
-                f" · {s.instance.id_slug}[/yellow]"
-            )
-        elif s.instance is not None:
-            period = f"{s.instance_status} · {s.instance.id_slug}"
-        elif s.due:
-            period = "[green]due — not created[/green]"
-        else:
-            period = "[dim]ran this period — task reaped[/dim]"
-        table.add_row(s.name, s.schedule or "-", firing_stamp(s.next_fire), period)
-    console.print(table)
+    ordered = sorted(templates, key=lambda x: x.name)
+    errors = [s for s in ordered if s.error]
+    unknown = [s for s in ordered if not s.error and s.instance_status == "unknown"]
+    due = sum(1 for s in ordered if s.due)
+    parts = [
+        _count_noun(len(ordered), "template"),
+        f"{due} due",
+    ]
+    if errors:
+        parts.append(f"[red]{_count_noun(len(errors), 'error')}[/red]")
+    console.print(
+        f"[bold]Recurring:[/bold] {' · '.join(parts)} — coga recurring list"
+    )
+    for s in errors:
+        console.print(f"  [red]error: {s.name} — {s.error}[/red]")
+    for s in unknown:
+        instance = s.instance.id_slug if s.instance is not None else s.target_slug
+        console.print(
+            f"  [yellow]warning: {s.name} — instance {instance} is unreadable "
+            "(status unknown)[/yellow]"
+        )
+
+
+def _count_noun(count: int, noun: str) -> str:
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
 
 
 def _warn_if_control_ahead(cfg: Config) -> None:

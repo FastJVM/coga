@@ -22,7 +22,6 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     # Keeps `coga.resources` a regular package in the built wheel, not a
     # namespace package — see `test_coga_resources_is_a_regular_package`.
     "coga/resources/__init__.py",
-    "coga/resources/managed-skills.toml",
     # Every top-level resource, not just the two that had a test. These ride
     # the `packages` walk rather than the `bootstrap/` force-include, so a
     # packaging change that drops them would otherwise only surface as a

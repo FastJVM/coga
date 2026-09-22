@@ -51,6 +51,15 @@ virtualenv, installs no package, and writes no `PATH` shim: the `coga` you run
 is the one you installed (`uv tool install coga`, pipx, or pip), and it is the
 same CLI in every repo. Init is therefore offline and cheap — nothing resolves
 a release, so a repo can be scaffolded from an unpublished build.
+
+**Init installs no skills either.** It fetches nothing from GitHub, makes no
+`gh skill` call, and prints nothing about optional or skipped installs — a
+machine without `gh` scaffolds exactly like one with it. The bundled batteries
+(package-backed skills, contexts, workflows) and the agent skill wiring are all
+that a fresh repo carries. Third-party packs such as the Google agent skills
+are opt-in, one explicit command each, and only after init:
+`coga skill install google/agents-cli google-agents-cli-workflow`. There is no
+flag, opt-out, or interview around this; the explicit install *is* the switch.
 There is no in-place refresh command: bootstrap tickets, bundled skills,
 bundled contexts, and bundled reusable workflows resolve directly from the
 installed package, so picking up a new release uses the installer that owns the
@@ -418,14 +427,28 @@ to move it, `rm` to remove it. The filter only reads `tasks/`; like the rest of
 
 Generated recurring period tasks under `tasks/recurring/` (`recurring/<name>`)
 are ordinary tasks and render as normal rows in the main table. The templates
-in `coga/recurring/` are not tasks yet, so they get a **`Recurring` footer**
-below the table instead — one row per template with its schedule, next fire,
-and current-period state (`due — not created`, `ran this period — task
-reaped` for a serviced period whose task Dream removed, or the live
-instance's status) —
-shown whenever the view's scope covers `tasks/recurring/` (the bare view or a
-`recurring` directory filter), even when no period task is live. `coga
-recurring list` remains the full schedule-aware view.
+in `coga/recurring/` are not tasks yet, so they get a one-line **`Recurring`
+footer** below the table instead:
+
+```
+Recurring: 6 templates · 6 due — coga recurring list
+```
+
+It is shown whenever the view's scope covers `tasks/recurring/` (the bare view
+or a `recurring` directory filter), even when no period task is live and even
+when there are no tasks at all; no templates means no footer. The counts come
+from the same read-only template view `coga recurring list` renders: the total
+is every template, and *due* is each template's period state — a template with
+no current-period task, or a stale prior-period `done` task the next sweep will
+replace. A serviced period whose task Dream already reaped is not due, and a
+live instance covers its period. Due says the schedule has fired, not that a
+launch would succeed. Healthy templates are never listed one by one — the
+per-template schedule, next fire, and current-period state live in `coga
+recurring list`. Only exceptions get named lines under the summary, sorted by
+name: a template that failed to load adds `· N errors` to the summary and one
+`error: <name> — <diagnostic>` line, and a period task whose ticket cannot be
+read adds `warning: <name> — instance <slug> is unreadable (status unknown)`.
+An error is excluded from the due count and never reduced to the count alone.
 
 `coga status --blocked` is the focused human-answer queue. It shows only
 blocked work and expands multi-blocker tasks to one row per open ask in a
@@ -594,7 +617,12 @@ a preserved checkout keeps its line (`Retire: dropped <slug> from <path>.`).
 
 ## coga skill
 
-Manage project-local skills under `coga/skills/`. `coga skill install`
+Manage project-local skills under `coga/skills/`. Every install is explicit:
+`coga init` installs no skills, so a third-party pack — the Google agent skills
+included — enters a repo only through `coga skill install <owner/repo> <skill>`
+(for example `coga skill install google/agents-cli
+google-agents-cli-workflow`), and `coga skill update --all` refreshes what is
+installed without installing anything absent. `coga skill install`
 and `coga skill install-*` never write into `coga/bootstrap/`; bootstrap
 skills are package-backed batteries. `coga skill status` reports bundled
 bootstrap skills as `package-backed`, and reports a project-local skill with

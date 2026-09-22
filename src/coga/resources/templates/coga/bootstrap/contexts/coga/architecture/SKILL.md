@@ -231,10 +231,9 @@ no in-memory state.
   `pip install coga` puts them in the wheel; `coga init` does not
   materialize them into `coga/bootstrap/`.
   Runtime resolvers read package resources directly after checking local
-  overrides. Optional domain skills declared in Coga's managed-skill manifest
-  install into `coga/skills/` through the public skill installer instead of
-  being copied from templates; install failures for optional skills warn
-  without breaking offline init. Copy a skill or context to the matching
+  overrides. Optional third-party domain skills are not batteries: `coga init`
+  installs none, and an operator adds one explicitly with `coga skill install`
+  (contract in `coga/cli`). Copy a skill or context to the matching
   `coga/skills/` or configured-contexts-directory ref to override it.
 - **Dream** is Coga's generic ticket cleanup pass. It is a recurring task
   template (`coga/recurring/dream/`) plus a `dream` alias — not a

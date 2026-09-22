@@ -27,7 +27,7 @@ code.
   itself works without one.
 - **The GitHub CLI** ([`gh`](https://cli.github.com), then `gh auth login`) is
   recommended but not required at init. PR workflows, the merged-ticket autoclose
-  sweep, and managed-skill installs need it and will tell you clearly when it's
+  sweep, and `coga skill install` need it and will tell you clearly when it's
   missing.
 
 Coga does not own your identity. It uses the tools you already authenticate —

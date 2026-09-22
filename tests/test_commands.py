@@ -2105,14 +2105,14 @@ def test_status_renders_recurring_tasks_as_normal_rows(repo: Path) -> None:
     out = result.output
     # Instantiated period tasks are ordinary tasks: both rows share the main
     # table (and its summary), before the "Recurring" templates footer.
-    footer_at = out.index("Recurring")
+    footer_at = out.index("Recurring:")
     assert out.index("recurring/foo") < footer_at
     assert out.index("normal-task") < footer_at
     assert "2 tasks" in out
-    # The footer lists the template with its schedule and current-period state.
-    footer = out[footer_at:]
-    assert "0 9 * * 1" in footer
-    assert "active" in footer
+    # A live instance covers the period, so the template is not due. The
+    # footer stays a one-line count either way — the instance's own row is
+    # where its status lives.
+    assert out[footer_at:].strip() == "Recurring: 1 template · 0 due — coga recurring list"
 
 
 def test_status_shows_templates_even_without_instantiated_tasks(repo: Path) -> None:
@@ -2121,10 +2121,65 @@ def test_status_shows_templates_even_without_instantiated_tasks(repo: Path) -> N
     assert result.exit_code == 0, result.output
     # No tasks on disk at all — the templates footer still renders, so a
     # steady-state repo (all period tasks done or not yet created) keeps its
-    # recurring schedule visible in the triage view.
+    # recurring schedule visible in the triage view — as one line, not a
+    # per-template table.
     assert "(no tasks)" in result.output
-    assert "Recurring" in result.output
-    assert "due — not created" in result.output
+    assert "Recurring: 1 template · 1 due — coga recurring list" in result.output
+    assert "0 9 * * 1" not in result.output
+    assert "due — not created" not in result.output
+
+
+def test_status_summarizes_fresh_templates_in_one_line(repo: Path) -> None:
+    """Six healthy never-instantiated templates are the fresh-repo shape: one
+    summary line naming the full view, no six-row table and no per-template
+    "due — not created" noise."""
+    names = ["dream", "skill-update", "triage", "retro", "audit", "digest"]
+    for name in names:
+        _write_recurring_template(repo, name)
+    result = CliRunner().invoke(app, ["status"])
+    assert result.exit_code == 0, result.output
+    lines = [line for line in result.output.splitlines() if line.strip()]
+    assert lines == [
+        "(no tasks)",
+        "Recurring: 6 templates · 6 due — coga recurring list",
+    ]
+    for name in names:
+        assert name not in result.output
+
+
+def test_status_names_template_errors_below_summary(repo: Path) -> None:
+    """A template that fails to load is never reduced to a count: it is named
+    with its diagnostic under the summary, sorted by name, and excluded from
+    the due count. Healthy templates stay summarized."""
+    _write_recurring_template(repo, "healthy")
+    for name in ("zeta", "alpha"):
+        _write(
+            repo / "recurring" / name / "ticket.md",
+            """
+            ---
+            title: no schedule
+            ---
+
+            ## Description
+            Broken.
+
+            <!-- coga:blackboard -->
+            """,
+        )
+    result = CliRunner().invoke(app, ["status"])
+    assert result.exit_code == 0, result.output
+    lines = [line for line in result.output.splitlines() if line.strip()]
+    assert lines[1] == "Recurring: 3 templates · 1 due · 2 errors — coga recurring list"
+    assert lines[2].startswith("  error: alpha — ")
+    assert lines[3].startswith("  error: zeta — ")
+    assert "schedule" in lines[2]
+    assert "healthy" not in result.output
+
+
+def test_status_has_no_recurring_footer_without_templates(repo: Path) -> None:
+    result = CliRunner().invoke(app, ["status"])
+    assert result.exit_code == 0, result.output
+    assert result.output.strip() == "(no tasks)"
 
 
 def test_status_hides_templates_footer_outside_recurring_scope(repo: Path) -> None:

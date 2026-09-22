@@ -18,10 +18,13 @@ carry Coga's `.coga-source.json` provenance with `source_type = "url"`.
 `coga skill install-local` is a third supported installation path: `gh skill`
 records `local-path`, but its updater skips that directory because it has no
 GitHub source metadata, and Coga's URL updater does not consume it. Hand-vendored
-packs likewise have no managed update source. A freshly initialized repo
-attempts to install the optional GitHub refs declared in `managed-skills.toml`,
-but installation may be skipped or fail and operators may add any source shape
-later. Once a week this ticket fires on its schedule and its `ticket.py` runs
+packs likewise have no managed update source. A freshly initialized repo has
+no installed skills at all — `coga init` installs none — so every directory
+this job sees was installed explicitly by an operator (`coga skill install`
+for a GitHub pack such as the Google agent skills, `install-url`, or
+`install-local`), and this job only updates what is installed: it never
+installs a pack that is absent. Once a week this ticket fires on its schedule
+and its `ticket.py` runs
 `coga skill update --all --pr`, which:
 
 1. walks every installed skill under `coga/skills/`: a skill whose
