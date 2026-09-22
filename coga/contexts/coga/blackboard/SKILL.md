@@ -149,7 +149,8 @@ Two constraints shape the choice:
   Working state the next run must read goes on the blackboard; lifecycle
   history goes in the log. `blackboard_size_warning` warns above
   `BLACKBOARD_WARN_BYTES` (32 KiB), measuring live notes and the archive pointer
-  rather than stored design history. See `coga/architecture` for composition.
+  rather than stored design history. See `coga/architecture` for composition
+  and for the remedy (sibling attachments and unattached contexts).
 - **CLI audit history lives in the log.** The recurring scan's
   serviced-period ledger lives in the union-merged `coga/log.md` precisely so
   that a co-writer rewriting a region of a template's blackboard cannot destroy

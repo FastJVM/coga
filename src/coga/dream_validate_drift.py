@@ -323,8 +323,16 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             issue=issue,
             action=ACTION_PR_PROPOSAL,
             remediation=(
-                "Propose a reviewed blackboard condensation that preserves "
-                "current decisions and blockers before removing detail."
+                "Propose the `coga/architecture` bloated-blackboard remedy: "
+                "promote a file-form task to directory form (a task that "
+                "already has `<slug>/ticket.md` keeps its directory), move "
+                "dated evidence into sibling attachments and superseded "
+                "material into an "
+                "unattached context, and leave the current handoff, worklist "
+                "and verification on the blackboard. Keep `## Dev` and "
+                "`## Blockers` in place under the `coga/blackboard` contract; "
+                "CLI readers do not follow attachment links for that state. "
+                "Move, do not delete."
             ),
         )
 
