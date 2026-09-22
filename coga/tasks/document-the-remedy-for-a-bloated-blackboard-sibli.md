@@ -1,7 +1,7 @@
 ---
 title: 'Document the remedy for a bloated blackboard: sibling attachments and unattached
   contexts'
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 
