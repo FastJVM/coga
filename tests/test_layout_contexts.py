@@ -150,7 +150,8 @@ def test_relocated_contexts_resolve_compose_validate_and_sync(
     report = validate_task(cfg, "fix-retry-logic")
     assert [i for i in report.issues if i.kind == "broken-context"] == []
 
-    # sync — an edit to a relocated context is Coga state and reaches origin.
+    # sync — the created task reaches origin; an edit to a relocated context
+    # is review work, not machine state, and the sweep leaves it dirty.
     resolved.write_text(resolved.read_text() + "\nRetry-After is authoritative.\n")
     git.sync_coga_state(cfg, message="Sync coga state")
 
@@ -163,7 +164,8 @@ def test_relocated_contexts_resolve_compose_validate_and_sync(
     committed = _git(
         tmp_origin, "show", "main:docs/contexts/email/payment-flow/SKILL.md"
     )
-    assert "Retry-After is authoritative." in committed
+    assert "Retry-After is authoritative." not in committed
+    assert "Retry-After is authoritative." in resolved.read_text()
 
 
 def test_default_layout_still_resolves_inside_coga_root(tmp_path: Path) -> None:

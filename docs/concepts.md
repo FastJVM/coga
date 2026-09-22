@@ -129,8 +129,9 @@ must name a child directory inside the checkout, since contexts are git-backed
 state like everything else. The directory needs at least one tracked or
 unignored file (`.gitkeep` is enough when it is intentionally empty), so a fresh
 clone can reproduce it. Set it and the whole system follows: composition,
-validation, ref resolution, and the git sync that commits both the new files
-and tracked removals from the former contexts root. A scaffolded config with
+validation, and ref resolution (contexts are review work, so commit the move
+yourself — the state sweep publishes only tasks, the log, and recurring
+state). A scaffolded config with
 the key set also makes `coga init` create and commit its initial local contexts
 at that checkout-root-relative destination; `coga uninstall` lists and removes
 that directory as part of the Coga footprint. A missing, empty, ignored,

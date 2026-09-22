@@ -7,12 +7,10 @@ import sys
 import typer
 
 from coga import git
-from coga import pr_assist
 from coga.blackboard import open_blockers, resolve_open_blockers
 from coga.config import Config, ConfigError, load_config
 from coga.logfile import append_log
 from coga.mark import RequiredExtensionMissing, WorkflowMissing, mark_active
-from coga.paths import log_path
 from coga.tasks import TaskNotFoundError, TaskRef, list_tasks, read_ticket, resolve_task
 from coga.ticket import TicketError
 from coga.validate import TaskValidationError
@@ -21,10 +19,6 @@ from coga.workflow import WorkflowError
 
 class _UnblockError(Exception):
     """A single ticket could not be unblocked (reported, loop continues)."""
-
-    def __init__(self, message: str, *, exit_code: int = 2):
-        super().__init__(message)
-        self.exit_code = exit_code
 
 
 def unblock(
@@ -97,7 +91,7 @@ def unblock(
     try:
         _apply_unblock(cfg, ref, answer)
     except _UnblockError as exc:
-        _bail(str(exc), exit_code=exc.exit_code)
+        _bail(str(exc))
 
 
 def _unblock_all(cfg: Config) -> None:
@@ -140,8 +134,6 @@ def _unblock_all(cfg: Config) -> None:
             _apply_unblock(cfg, ref, answer)
             unblocked += 1
         except _UnblockError as exc:
-            if exc.exit_code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
-                _bail(str(exc), exit_code=exc.exit_code)
             typer.secho(str(exc), fg=typer.colors.RED, err=True)
             skipped += 1
 
@@ -158,225 +150,53 @@ def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
     report and continue.
     """
     actor = f"human:{cfg.current_user}"
-    # Pin the first blackboard write before the network-backed assist lease.
-    # A ticket edit made while that lease is acquired must fail the byte CAS,
-    # not become the rollback baseline for this unblock.
-    assist_requested = pr_assist.assist_publication_requested(ref)
-    pre_lease_snapshot = (
-        git.capture_task_mutation_snapshot(
-            ref.path,
-            extra_paths=(log_path(cfg),),
-            union_paths=(log_path(cfg),),
-        )
-        if assist_requested
-        else git.FileMutationRollback.capture(
-            (ref.ticket_path, log_path(cfg)),
-            union_paths=(log_path(cfg),),
-        )
-    )
     try:
-        assist = pr_assist.assist_publication_from_env(
-            cfg,
-            ref,
-            mutation_snapshot=(
-                pre_lease_snapshot if assist_requested else None
-            ),
-        )
-    except git.FeaturePublicationError as exc:
-        raise _UnblockError(
-            str(exc),
-            exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-        ) from exc
-    assist_publication = assist.lease if assist is not None else None
-    assist_guard = assist.guard if assist is not None else None
-    rollback = pre_lease_snapshot if assist is not None else None
-    publication_succeeded = False
-
-    def record_publication() -> None:
-        nonlocal publication_succeeded
-        publication_succeeded = True
-
-    try:
-        with git.state_publication_barrier(cfg):
-            resolve_open_blockers(
-                ref.ticket_path,
-                actor,
-                answer,
-                expected_bytes=(
-                    rollback.originals[ref.ticket_path]
-                    if rollback is not None
-                    else None
-                ),
-                after_write=(
-                    (lambda written: rollback.arm({ref.ticket_path: written}))
-                    if rollback is not None
-                    else None
-                ),
-            )
+        with git.state_lock(cfg):
+            resolve_open_blockers(ref.ticket_path, actor, answer)
         ticket = read_ticket(ref)
 
         if ticket.status == "in_progress":
             # Launch already reactivated the ticket (blocked → active →
             # in_progress); the session is recording its resolution mid-step.
             # Resolve-only: no status flip, `step:` untouched.
-            audit_append = append_log(
+            append_log(
                 cfg,
                 ref.id_slug,
                 actor,
                 f"unblocked (asks resolved, still in_progress): {answer}",
             )
-            if rollback is not None:
-                rollback.arm_append(log_path(cfg), audit_append)
             git.sync_task_state(
-                cfg,
-                ref.path,
-                message=f"Ticket: {ref.id_slug} — asks resolved",
-                guard=git.ticket_state_guard(cfg, ref.ticket_path),
-                feature_publication=assist_publication,
-                feature_publication_guard=assist_guard,
-                after_strict_publication=(
-                    record_publication if rollback is not None else None
-                ),
-                generated_paths=(
-                    rollback.generated if rollback is not None else None
-                ),
+                cfg, ref.path, message=f"Ticket: {ref.id_slug} — asks resolved"
             )
             typer.echo(f"{ref.id_slug}: open asks resolved (still in_progress)")
             return
 
-        if assist_publication is None:
-            mark_active(
-                cfg,
-                ref,
-                ticket,
-                actor=actor,
-                log_message=f"unblocked ({ticket.status} → active): {answer}",
-                echo=f"{ref.id_slug}: active (unblocked)",
-            )
-        else:
-            assert rollback is not None
-            mark_active(
-                cfg,
-                ref,
-                ticket,
-                actor=actor,
-                log_message=f"unblocked ({ticket.status} → active): {answer}",
-                sync_state=False,
-                mutation_snapshot=rollback,
-            )
-            git.sync_task_state(
-                cfg,
-                ref.path,
-                message=f"Ticket: {ref.id_slug} — active",
-                guard=git.ticket_state_guard(cfg, ref.ticket_path),
-                feature_publication=assist_publication,
-                feature_publication_guard=assist_guard,
-                after_strict_publication=record_publication,
-                generated_paths=rollback.generated,
-            )
-            typer.echo(f"{ref.id_slug}: active (unblocked)")
-    except git.FeaturePublicationError as exc:
-        if rollback is not None:
-            _raise_strict_unblock_error(
-                cfg,
-                "Could not publish the blocker resolution to the recorded "
-                f"assist branch: {exc}",
-                exc,
-                rollback,
-                publication_succeeded=publication_succeeded,
-            )
-        raise _UnblockError(
-            f"Could not publish {ref.id_slug}'s unblock state: {exc}",
-        ) from exc
-    except WorkflowMissing:
-        _raise_unblock_error(
+        mark_active(
             cfg,
+            ref,
+            ticket,
+            actor=actor,
+            log_message=f"unblocked ({ticket.status} → active): {answer}",
+            echo=f"{ref.id_slug}: active (unblocked)",
+        )
+    except WorkflowMissing:
+        raise _UnblockError(
             f"Cannot unblock {ref.id_slug}: ticket has no workflow. Set "
-            "`workflow: <name>` in `ticket.md`, then retry.",
-            rollback,
+            "`workflow: <name>` in `ticket.md`, then retry."
         )
     except WorkflowError as exc:
-        _raise_unblock_error(
-            cfg,
+        raise _UnblockError(
             f"Cannot unblock {ref.id_slug}: its `workflow:` ref could not "
-            f"be frozen — {exc}",
-            rollback,
-        )
+            f"be frozen — {exc}"
+        ) from exc
     except RequiredExtensionMissing as exc:
         names = ", ".join(repr(f) for f in exc.fields)
-        _raise_unblock_error(
-            cfg,
+        raise _UnblockError(
             f"Cannot unblock {ref.id_slug}: required extension field(s) "
-            f"empty: {names}. Fill them in `ticket.md` then retry.",
-            rollback,
-        )
+            f"empty: {names}. Fill them in `ticket.md` then retry."
+        ) from exc
     except TaskValidationError as exc:
-        _raise_unblock_error(cfg, str(exc), rollback)
-    except BaseException as exc:
-        if rollback is None:
-            raise
-        detail = str(exc).strip() or type(exc).__name__
-        _raise_strict_unblock_error(
-            cfg,
-            f"Could not complete {ref.id_slug}'s strict unblock transition "
-            f"after {type(exc).__name__}: {detail}",
-            exc,
-            rollback,
-            publication_succeeded=publication_succeeded,
-        )
-
-
-def _raise_unblock_error(
-    cfg: Config,
-    message: str,
-    rollback: git.FileMutationRollback | None,
-) -> None:
-    rollback_note = ""
-    if rollback is not None:
-        rollback_note = _rollback_note(cfg, rollback)
-    raise _UnblockError(
-        f"{message}{rollback_note}",
-        exit_code=(
-            git.RETRY_WITHOUT_SWEEP_EXIT_CODE
-            if rollback is not None
-            else 2
-        ),
-    )
-
-
-def _raise_strict_unblock_error(
-    cfg: Config,
-    message: str,
-    cause: BaseException,
-    rollback: git.FileMutationRollback,
-    *,
-    publication_succeeded: bool,
-) -> None:
-    if (
-        publication_succeeded
-        or isinstance(cause, git.UncertainFeaturePublicationError)
-    ):
-        rollback_note = (
-            "; generated state was retained because publication succeeded or "
-            "could not be determined"
-        )
-    else:
-        rollback_note = _rollback_note(cfg, rollback)
-    raise _UnblockError(
-        f"{message}{rollback_note}",
-        exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
-    ) from cause
-
-
-def _rollback_note(cfg: Config, rollback: git.FileMutationRollback) -> str:
-    refused = git.restore_files_under_barrier(cfg, rollback)
-    if not refused:
-        return ""
-    names = ", ".join(str(path) for path in refused)
-    return (
-        "; concurrent edits were retained instead of being overwritten at "
-        f"{names}"
-    )
+        raise _UnblockError(str(exc)) from exc
 
 
 def _bail(msg: str, *, exit_code: int = 2) -> None:

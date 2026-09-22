@@ -245,40 +245,39 @@ the example under "Extend recurring with a task-specific workflow").
   launching that target rather than by an agent session on the period task:
   the runner preflights push access for the materialized period (the stateless
   bootstrap target would otherwise self-skip that gate), fully preflights and
-  composes the bootstrap launch, then publishes `in_progress` as an exact
-  compare-and-set before announcing the start. The materialized task carries a
-  creator-owned `period_generation:` token that changes on every supported
-  rematerialization; the lease covers that bounded witness plus the exact
-  ticket bytes without rereading the unbounded global audit log. Launch then
+  composes the bootstrap launch, then publishes `in_progress` strictly (the
+  publish's provenance check is the compare-and-swap) before announcing the
+  start. The materialized task carries a creator-owned `period_generation:`
+  token that changes on every supported rematerialization; the verification
+  covers that bounded witness plus the exact ticket bytes, read from freshly
+  fetched control, without rereading the unbounded global audit log. Launch then
   reloads config and target state and
   redoes every preflight and composition step because start publication may
-  integrate a newer control tip. Immediately before spawn, the runner requires
-  that same ticket-plus-generation lease, `in_progress` status, and frozen
-  delegate on control. Any concurrent terminal transition, replacement, dispatch
+  fast-forward the control checkout. Immediately before spawn, the runner
+  requires that same ticket-plus-generation state, `in_progress` status, and
+  frozen delegate on control. Any concurrent terminal transition, replacement, dispatch
   change, ticket edit, or new generation refuses the spawn. The launch remains
   in-process — in the operator's own terminal, under the sweep's `--agent`
   override, selected queue session conduct, and idle/max-session liveness
   bounds — and the
   period task reaches `done` only when the bootstrap target emits its done
-  sentinel. After the child exits, completion and watchdog pause consume the
-  same generation lease as another exact compare-and-set; an older child's
+  sentinel. After the child exits, completion and watchdog pause verify the
+  same generation against control and publish strictly; an older child's
   result can never mutate a replacement at the stable path. A natural/crashed
   exit fails with the period left retryable; a multi-task sweep pauses a
   watchdog timeout and continues only after that pause is verified on control.
   A stale or failed pause refuses the run; a named launch fails and leaves it
   `in_progress` for retry. At final spawn admission the runner also freezes the
   exact parent recurring ticket named by the period's state snapshot and
-  verifies that input on control. Completion consumes the same parent lease in
-  its strict publication, so a concurrent parent/cursor edit refuses instead
-  of being overwritten, and the child's cross-run cursor update cannot remain
-  local while the period reaches `done` on control. The live completion
-  notification waits until publication succeeds. Strict lifecycle publication
-  unwinds an unaccepted
-  local feature/control commit before restoring runner-owned files. If a push
-  reply is lost, it probes the exact control candidate across every effective push
-  destination: confirmed acceptance succeeds, while disagreement or any other
-  unprovable outcome refuses and retains generated local state for explicit
-  reconciliation rather than manufacturing a split.
+  verifies that input on control. Completion verifies the same parent state
+  and publishes it with the `done` transition, so a concurrent parent/cursor
+  edit refuses instead of being overwritten, and the child's cross-run cursor
+  update cannot remain local while the period reaches `done` on control. The
+  live completion notification waits until publication succeeds. A refused or
+  definitely failed strict publication restores the leased bytes and retracts
+  its audit lines; if a push reply is lost and control cannot be re-read, the
+  runner refuses and retains the local state for explicit reconciliation
+  rather than manufacturing a split.
   Creation copies the
   target into canonical period-task frontmatter; sweep retries, named retries,
   and direct `coga launch recurring/<name>` route only from that frozen field,
@@ -354,8 +353,9 @@ control branch and tells the operator to switch branches. There is deliberately
 no override: `--force` bypasses schedule and status filters, not the branch
 gate.
 
-The outer sweep gate checks only the local branch. Its initial fetch or rebase
-remains a warning for bare and named interactive single-repo scans, but a remote-backed
+The outer sweep gate checks only the local branch. Its initial fetch and
+fast-forward (`git.refresh`) remains a warning for bare and named interactive
+single-repo scans, but a remote-backed
 period is admitted with its exact ticket bytes and creator-owned period generation
 before the first child starts, then refreshed again immediately before its own
 launch. That narrow per-child check resolves only the exact task ref, fails
@@ -389,9 +389,9 @@ completion, or replacement wins. A bare sweep and
 `coga recurring launch <name>` perform their full public admission once at the
 outer boundary; the typed in-process seam rechecks branch/owner plus only the
 latest period state before each ordinary child rather than re-entering the
-whole public launch path. Delegated children use their stricter exact
-ticket-plus-generation control lease instead, and any transport failure while
-confirming or publishing that lease refuses the child. The
+whole public launch path. Delegated children verify their exact
+ticket-plus-generation state on control instead, and any transport failure
+while confirming or publishing it refuses the child. The
 unattended `coga recurring --all <path>` child keeps its stricter existing
 precondition: it must also fetch and integrate the latest remote control tip
 before scanning. That child is the one place where being off the control branch
@@ -413,10 +413,9 @@ while every sweep failed the repo in the meantime.
 So when an `--all` child's catch-up fails *only* because the control branch is
 not checked out here, the child does not give up. Nothing holds that branch, so
 it checks it out in a temporary linked worktree under the system temp dir,
-creating a missing local control ref from an exact command-scoped fetch. That
-seed does not depend on `<remote>/<control>` existing, so a single-branch or
-narrow-refspec clone is serviceable without trusting checkout-wide
-`FETCH_HEAD`. It then seeds the gitignored `coga.local.toml` into it (without
+creating a missing local control ref from the freshly fetched remote-tracking
+ref (`git.fetch_control`), so a single-branch or narrow-refspec clone is
+serviceable without trusting checkout-wide `FETCH_HEAD`. It then seeds the gitignored `coga.local.toml` into it (without
 that file there is no `user` and `load_config` raises), and re-dispatches from
 the mirrored Coga workspace itself — the checkout directory in a root layout,
 or the nested Coga directory in a monorepo. Before removing
@@ -482,19 +481,20 @@ name with the temporary-worktree reason rather than the (here false) "an agent
 run requires a TTY". The `--all` summary lists these repos separately from
 ordinary sweeps.
 
-The *diverged* control checkout — on the control branch, but unable to rebase
-onto the fetched tip — is deliberately out of scope and still fails loud.
-Servicing it from a worktree at the remote tip would silently step around
+The *ahead or diverged* control checkout — on the control branch, but not
+fast-forwardable to the fetched tip — is deliberately out of scope and still
+fails loud, naming `git pull --rebase`. Coga never rebases a human's commits,
+and servicing it from a worktree at the remote tip would silently step around
 commits a human has to reconcile.
 
 Single-repo runs are unchanged: bare `coga recurring`, `coga recurring launch
 <name>`, and `--interactive` still refuse off the control branch, because they
 scan the working tree they are in.
 
-The control-landing path for recurring state still handles a create made on a
-feature branch. Normal recurring commands no longer reach that case, but the
-logic remains valid for repos mid-upgrade that already have feature-branch
-state to land; a later cleanup may remove it once that migration case expires.
+A create made in a feature checkout publishes to control like any other
+write (`coga/sync`): the period task and log line land, and the checkout
+keeps its own copies dirty. Normal recurring commands refuse that checkout
+before creating anything, so this is reachable only through direct calls.
 
 ## One operator owns recurring: the `owner` gate
 
@@ -508,14 +508,15 @@ exactly as before, so a repo opts in by naming someone.
 
 Authorization does not trust the config object loaded when the command started
 or an uncommitted working-tree edit. It fetches the configured control branch
-through a command-scoped ref and reads `owner` directly from that exact commit's
-`coga.toml`; a stale local control checkout can predate an owner addition or
-transfer, and its working tree can carry an uncommitted takeover. Checkout-wide
-`FETCH_HEAD` is never an authorization source. The lookup fetches from the
-remote's sole effective **push** URL — the repository `git push <remote>`
-actually writes the period state to, which git distinguishes from the fetch URL
-— and refuses a remote with several push URLs, because state spread across
-destinations has no single owning repository to authorize against.
+into the remote-tracking ref and reads `owner` directly from that exact
+commit's `coga.toml`; a stale local control checkout can predate an owner
+addition or transfer, and its working tree can carry an uncommitted takeover.
+Checkout-wide `FETCH_HEAD` is never an authorization source. The lookup
+fetches from the remote's sole effective **push** URL — the repository
+`git push <remote>` actually writes the period state to, which git
+distinguishes from the fetch URL — and refuses a remote with several push
+URLs, because state spread across destinations has no single owning
+repository to authorize against.
 
 Only a checkout with **no configured remote** falls back to reading `owner`
 from local `HEAD`. `[git].enabled = false` does not qualify: it is the sync
@@ -926,8 +927,13 @@ where the next period's scan deleted it.
   a later template must not refresh through this sweep's pending records.
   Audit-only pushes after a create loses a race also count as own publications,
   with the same ledger guard on a rejected audit-push retry.
-  The revision comes from the publisher, not a subsequent fetch that could
-  accidentally attribute a rival's intervening commit to this sweep.
+  The revision is read from the remote-tracking ref the successful push just
+  advanced, not from a subsequent fetch that could accidentally attribute a
+  rival's intervening commit to this sweep. Both the create and the
+  audit-only publish re-run the ledger check through `publish`'s `guard` at
+  every base they push on (`coga/sync`), because the union-merged log is a
+  candidate only while it is dirty and a blob pin on it would otherwise go
+  unevaluated on a control checkout.
 - **Freshness refusals are not best-effort sync failures.** An unreadable
   fetched ledger, or ambiguous ledger changes after own publication, raises a
   recurring admission error and excludes the task from dispatch. A rejected

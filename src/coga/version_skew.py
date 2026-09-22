@@ -222,7 +222,7 @@ def _format_warning(
 def _run_git(root: Path, *args: str) -> str | None:
     """Run a git subcommand, returning stdout or None on any failure.
 
-    Deliberately non-raising (unlike `coga.git._run_git`): this guard swallows
+    Deliberately non-raising (unlike `coga.git.run_git`): this guard swallows
     every error, so a missing git binary or a non-zero exit is just "unknown".
     """
     try:

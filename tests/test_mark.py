@@ -523,22 +523,15 @@ def test_lifecycle_write_waits_until_child_release_even_without_git(
     gate_written = threading.Event()
     write_finished = threading.Event()
     errors: list[BaseException] = []
-    real_write = git_module.write_ticket_under_barrier
+    real_write = git_module.write_ticket
 
-    def observed_write(  # type: ignore[no-untyped-def]
-        cfg_, ticket_, path_, *, mutation_snapshot=None
-    ):
+    def observed_write(cfg_, ticket_, path_):  # type: ignore[no-untyped-def]
         attempted.set()
-        real_write(
-            cfg_,
-            ticket_,
-            path_,
-            mutation_snapshot=mutation_snapshot,
-        )
+        real_write(cfg_, ticket_, path_)
         assert gate_written.is_set()
         write_finished.set()
 
-    monkeypatch.setattr(git_module, "write_ticket_under_barrier", observed_write)
+    monkeypatch.setattr(git_module, "write_ticket", observed_write)
 
     def pause_ticket() -> None:
         try:
@@ -553,7 +546,7 @@ def test_lifecycle_write_waits_until_child_release_even_without_git(
             errors.append(exc)
 
     worker = threading.Thread(target=pause_ticket)
-    with git_module.state_publication_barrier(cfg):
+    with git_module.state_lock(cfg):
         worker.start()
         assert attempted.wait(timeout=5)
         assert not write_finished.wait(timeout=0.1)
@@ -566,122 +559,6 @@ def test_lifecycle_write_waits_until_child_release_even_without_git(
     assert not worker.is_alive()
     assert errors == []
     assert Ticket.read(task_path).status == "paused"
-
-
-def test_strict_lifecycle_compare_and_write_share_publication_barrier(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A peer write cannot land between a strict byte check and replacement."""
-    _, task_path = _make_task(repo, status="active")
-    cfg = replace(load_config(repo), git_enabled=False)
-    snapshot = git_module.FileMutationRollback.capture((task_path,))
-    stale = Ticket.read(task_path)
-    stale.frontmatter["status"] = "paused"
-    peer = Ticket.read(task_path)
-    peer.frontmatter["status"] = "done"
-    checked = threading.Event()
-    peer_attempted = threading.Event()
-    peer_finished = threading.Event()
-    errors: list[BaseException] = []
-    real_require_unchanged = snapshot.require_unchanged
-
-    def pause_after_compare(path: Path) -> None:
-        real_require_unchanged(path)
-        checked.set()
-        assert peer_attempted.wait(timeout=5)
-        assert not peer_finished.wait(timeout=0.1)
-
-    monkeypatch.setattr(snapshot, "require_unchanged", pause_after_compare)
-
-    def write_stale_state() -> None:
-        try:
-            git_module.write_ticket_under_barrier(
-                cfg,
-                stale,
-                task_path,
-                mutation_snapshot=snapshot,
-            )
-        except BaseException as exc:
-            errors.append(exc)
-
-    def write_peer_state() -> None:
-        try:
-            peer_attempted.set()
-            git_module.write_ticket_under_barrier(cfg, peer, task_path)
-        except BaseException as exc:
-            errors.append(exc)
-        finally:
-            peer_finished.set()
-
-    stale_worker = threading.Thread(target=write_stale_state)
-    stale_worker.start()
-    assert checked.wait(timeout=5)
-    peer_worker = threading.Thread(target=write_peer_state)
-    peer_worker.start()
-    stale_worker.join(timeout=5)
-    peer_worker.join(timeout=5)
-
-    assert not stale_worker.is_alive()
-    assert not peer_worker.is_alive()
-    assert errors == []
-    assert snapshot.generated == {task_path: stale.render().encode("utf-8")}
-    assert Ticket.read(task_path).status == "done"
-
-
-def test_strict_lifecycle_compare_and_restore_share_publication_barrier(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A failed stale transition cannot restore over a peer lifecycle write."""
-    _, task_path = _make_task(repo, status="active")
-    cfg = replace(load_config(repo), git_enabled=False)
-    snapshot = git_module.FileMutationRollback.capture((task_path,))
-    generated = Ticket.read(task_path)
-    generated.frontmatter["status"] = "paused"
-    generated.write(task_path)
-    snapshot.arm({task_path: generated.render().encode("utf-8")})
-    peer = Ticket.read(task_path)
-    peer.frontmatter["status"] = "done"
-    restore_reached = threading.Event()
-    peer_attempted = threading.Event()
-    peer_finished = threading.Event()
-    errors: list[BaseException] = []
-    real_restore_file_bytes = git_module._restore_file_bytes
-
-    def pause_before_restore(path: Path, data: bytes | None) -> None:
-        restore_reached.set()
-        assert peer_attempted.wait(timeout=5)
-        assert not peer_finished.wait(timeout=0.1)
-        real_restore_file_bytes(path, data)
-
-    monkeypatch.setattr(git_module, "_restore_file_bytes", pause_before_restore)
-
-    def restore_generated_state() -> None:
-        try:
-            assert git_module.restore_files_under_barrier(cfg, snapshot) == ()
-        except BaseException as exc:
-            errors.append(exc)
-
-    def write_peer_state() -> None:
-        try:
-            peer_attempted.set()
-            git_module.write_ticket_under_barrier(cfg, peer, task_path)
-        except BaseException as exc:
-            errors.append(exc)
-        finally:
-            peer_finished.set()
-
-    restore_worker = threading.Thread(target=restore_generated_state)
-    restore_worker.start()
-    assert restore_reached.wait(timeout=5)
-    peer_worker = threading.Thread(target=write_peer_state)
-    peer_worker.start()
-    restore_worker.join(timeout=5)
-    peer_worker.join(timeout=5)
-
-    assert not restore_worker.is_alive()
-    assert not peer_worker.is_alive()
-    assert errors == []
-    assert Ticket.read(task_path).status == "done"
 
 
 def test_bump_clears_finished_megalaunch_claim(repo: Path) -> None:
@@ -982,10 +859,10 @@ def test_mark_in_progress_uses_matching_sync_subject(
     ref = resolve_task(cfg, slug)
     messages: list[str] = []
 
-    def capture_sync(*args: object, message: str, **kwargs: object) -> None:
+    def capture_publish(cfg_, paths, message, **kwargs):  # type: ignore[no-untyped-def]
         messages.append(message)
 
-    monkeypatch.setattr("coga.mark.git.sync_task_state", capture_sync)
+    monkeypatch.setattr("coga.mark.git.publish", capture_publish)
 
     mark_in_progress(
         cfg,
@@ -998,27 +875,20 @@ def test_mark_in_progress_uses_matching_sync_subject(
     assert messages == [f"Ticket: {slug} — in_progress"]
 
 
-def test_strict_mark_in_progress_publishes_guarded_state_before_announcing(
+def test_strict_mark_in_progress_publishes_before_announcing(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Delegation cannot announce a start whose exact state CAS was refused."""
-    slug, _ = _make_task(repo, status="active")
+    """A strict start publishes first and never announces a refused claim."""
+    slug, task_path = _make_task(repo, status="active")
     cfg = load_config(repo)
     ref = resolve_task(cfg, slug)
     events: list[str] = []
 
-    def exact_guard(base: str) -> None:
-        assert base == "control-tip"
-        events.append("guard")
+    def capture_publish(cfg_, paths, message, **kwargs):  # type: ignore[no-untyped-def]
+        events.append("publish")
+        return True
 
-    def capture_sync(*args: object, **kwargs: object) -> None:
-        assert kwargs["guard"] is exact_guard
-        assert kwargs["raise_state_regression"] is True
-        assert kwargs["raise_git_error"] is True
-        events.append("sync")
-        exact_guard("control-tip")
-
-    monkeypatch.setattr("coga.mark.git.sync_task_state", capture_sync)
+    monkeypatch.setattr("coga.mark.git.publish", capture_publish)
     monkeypatch.setattr(
         "coga.mark.post", lambda *args, **kwargs: events.append("post")
     )
@@ -1030,12 +900,28 @@ def test_strict_mark_in_progress_publishes_guarded_state_before_announcing(
         actor="system",
         log_message="started through exact lease",
         slack_text="started",
-        state_guard=exact_guard,
-        strict_state_guard=True,
-        strict_state_sync=True,
+        strict=True,
     )
+    assert events == ["publish", "post"]
 
-    assert events == ["sync", "guard", "post"]
+    events.clear()
+
+    def refuse_publish(cfg_, paths, message, **kwargs):  # type: ignore[no-untyped-def]
+        events.append("publish")
+        raise git_module.StateRegressionError("control moved")
+
+    monkeypatch.setattr("coga.mark.git.publish", refuse_publish)
+    with pytest.raises(git_module.StateRegressionError):
+        mark_in_progress(
+            cfg,
+            ref,
+            Ticket.read(task_path),
+            actor="system",
+            log_message="started again",
+            slack_text="started",
+            strict=True,
+        )
+    assert events == ["publish"]
 
 
 # --- --message ----------------------------------------------------------------
@@ -1225,7 +1111,15 @@ def test_mark_canceled_on_feature_lands_union_evidence_on_control(
     assert "canceled (active → canceled): Owner declined" in control_log
     assert "rival: unrelated event" in control_log
     assert git_repo.git("branch", "--show-current").strip() == "feature/cancel"
-    assert git_repo.git("status", "--short") == ""
+    # Coga never commits on the feature branch: the live ticket and log stay
+    # dirty there by design, and nothing else is touched.
+    dirty = {
+        line[3:]
+        for line in git_repo.git(
+            "status", "--short", "--untracked-files=all"
+        ).splitlines()
+    }
+    assert dirty == {task_rel, "coga/log.md"}
 
 
 def _seed_pushed_task(git_repo, cfg, *, title: str, status: str = "active") -> dict:
@@ -1260,11 +1154,11 @@ def test_transition_refuses_to_bury_terminal_control_copy(
 ):
     """No `mark` verb can overlay a stale ticket onto a closed control copy.
 
-    Each transition syncs by overlaying its ticket wholesale onto the control
-    tip, so every verb needs the guard — not just cancellation. The refusal is
-    non-fatal by design: the local transition stands, git declines to publish
-    it, and the divergence is recorded rather than resolved behind the human's
-    back.
+    Each transition publishes its ticket wholesale onto the control tip, so
+    every verb needs the provenance check — not just cancellation. The refusal
+    is non-fatal by design: the local transition stands, git declines to
+    publish it, and the divergence is recorded rather than resolved behind the
+    human's back.
     """
     cfg = load_config(git_repo.coga_os)
     ref = _seed_pushed_task(git_repo, cfg, title="Contended work", status=seed_status)
@@ -1294,7 +1188,8 @@ def test_transition_refuses_to_bury_terminal_control_copy(
     # And the refusal is legible, not silent: it names the ticket in the log.
     log = (git_repo.coga_os / "log.md").read_text()
     assert "sync refused" in log
-    assert f"terminal status would change from '{landed_status}'" in log
+    assert f"control copy changed since this checkout last saw it (control: status={landed_status!r}" in log
+    assert f"git checkout origin/main -- {rel}" in log
 
 
 # --- main-agent selection timing (the approved activation-time contract) -------

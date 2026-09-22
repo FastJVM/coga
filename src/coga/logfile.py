@@ -48,6 +48,31 @@ def append_log(cfg: Config, task_ref: str, actor: str, message: str) -> bytes:
     return line
 
 
+def retract_log_lines(cfg: Config, task_ref: str, before: bytes | None) -> None:
+    """Drop this task's audit lines appended since `before`, keeping peers' lines.
+
+    The undo for a lifecycle write whose publication was definitely refused
+    (`git.StateRegressionError`): the ticket goes back to its pre-write bytes,
+    and the audit lines that write appended would otherwise describe a
+    transition that never happened. Only lines tagged `[task_ref]` after the
+    `before` prefix are removed; a log that no longer starts with `before`
+    (rewritten meanwhile) is left alone.
+    """
+    path = log_path(cfg)
+    current = path.read_bytes() if path.is_file() else None
+    if current is None or before is None:
+        return
+    if not current.startswith(before):
+        return
+    tag = f"[{task_ref}]".encode("utf-8")
+    kept = [
+        line
+        for line in current[len(before):].splitlines(keepends=True)
+        if tag not in line
+    ]
+    path.write_bytes(before + b"".join(kept))
+
+
 def ref_tag_for_path(cfg: Config, path: Path) -> str:
     """Derive a task ref tag from a task (or recurring-template) directory path.
 
@@ -228,6 +253,7 @@ def task_log_lines(cfg: Config, task_ref: str) -> list[str]:
 
 
 __all__ = [
+    "retract_log_lines",
     "append_log",
     "ref_tag_for_path",
     "first_activity_map",

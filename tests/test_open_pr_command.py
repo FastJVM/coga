@@ -280,7 +280,7 @@ def test_open_pr_pushes_recorded_branch_by_name(tmp_path, monkeypatch):
 
 
 def test_open_pr_allows_primary_checkout_feature_branch(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, real_git
 ):
     """Single-checkout development has no separate control checkout to use.
 
@@ -322,10 +322,13 @@ def test_open_pr_allows_primary_checkout_feature_branch(
     assert parse_pr_url(read_blackboard(ticket)) == (
         "https://github.com/acme/repo/pull/11"
     )
-    assert repo.git("status", "--porcelain").strip() == ""
+    # The live ticket stays dirty on the feature branch; its record is on control.
+    assert repo.git("status", "--porcelain").split() == [
+        "M", "coga/tasks/single-checkout/ticket.md"
+    ]
     published_ticket = repo.git(
         "show",
-        "refs/heads/single-checkout-feature:coga/tasks/single-checkout/ticket.md",
+        "refs/heads/main:coga/tasks/single-checkout/ticket.md",
         cwd=repo.origin,
     )
     assert "pr: https://github.com/acme/repo/pull/11" in published_ticket
@@ -373,15 +376,15 @@ def test_single_checkout_open_pr_bump_republishes_final_ticket_state(
     control_ticket = repo.git(
         "show", f"refs/heads/main:{ticket_rel}", cwd=repo.origin
     )
-    feature_ticket = repo.git(
-        "show", f"refs/heads/{branch}:{ticket_rel}", cwd=repo.origin
-    )
-    assert feature_ticket == control_ticket
-    assert "step: 2 (review)" in feature_ticket
-    assert "pr: https://github.com/acme/repo/pull/15" in feature_ticket
+    assert "step: 2 (review)" in control_ticket
+    assert "pr: https://github.com/acme/repo/pull/15" in control_ticket
+    # The PR branch carries only the implementation: no ticket state commit.
     assert repo.git("rev-parse", "HEAD").strip() == repo.git(
         "rev-parse", f"refs/heads/{branch}", cwd=repo.origin
     ).strip()
+    assert repo.git(
+        "show", f"refs/heads/{branch}:{ticket_rel}", cwd=repo.origin
+    ) == repo.git("show", f"refs/heads/main~2:{ticket_rel}", cwd=repo.origin)
 
 
 def test_open_pr_refuses_independent_feature_clone(tmp_path, monkeypatch):

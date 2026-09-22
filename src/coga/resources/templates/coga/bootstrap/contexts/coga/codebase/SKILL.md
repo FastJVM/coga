@@ -31,7 +31,14 @@ review bars.
   returns non-zero or raises. The shipped `ticket.py` shims therefore call
   `run_recipe(load_config(), "<name>", [])` instead of importing the recipe
   function, and `tests/test_recurring_shims.py` pins that shape; the contract
-  itself is stated in `coga/recurring`.
+  itself is stated in `coga/recurring`. `git.py` is the whole git sync layer:
+  one `publish` primitive behind `sync_task_state` / `sync_log` /
+  `sync_coga_state`, one `refresh`, the `state_lock`, and a public plumbing
+  surface (`run_git`, `toplevel`, `fetch_control`, `tree_bytes`, …) that every
+  other module uses; nothing outside `git.py` imports a `_`-prefixed name from
+  it, and no module shells out to `git push`, `commit`, `rebase`, or `stash`
+  on Coga state. Its contract is `coga/sync`; `tests/test_git.py` pins each
+  guarantee by name.
   `task_env.py` builds the shared `COGA_TASK_*` contract for agents and
   deterministic subprocesses. `recurring_autofix.py` owns the sweep's run
   record and the post-run analysis call — the one text-only, PTY-less agent
@@ -41,9 +48,9 @@ review bars.
   the ANSI stripper shared by every module that reads captured child output.
   `commands/launch.py` runs that deterministic phase before deciding whether
   to compose and spawn an agent; trailing launch args remain an ordered agent
-  prompt block. Its strict publication invariants — recorded-checkout and
-  PR-head proofs, leases, compare-and-set publication, compensation — are
-  documented in the `coga/launch-internals` context, along with the recurring
+  prompt block. Its publication invariants — the assist's checkout alignment,
+  megalaunch's claim compare-and-swap, admission generations — are documented
+  in the `coga/launch-internals` context, along with the recurring
   admission generations and the `requires: pr` gate's sync rules. Attach that
   context to any ticket changing those paths; `coga/architecture` deliberately
   keeps only the model. `commands/run.py` forwards ordinary trailing argv to
@@ -677,16 +684,16 @@ recurring walls that don't appear on a normal dev machine:
 Coga reads and publishes state through the checkout the command runs in, so the
 wrong checkout silently produces wrong results in both directions:
 
-- **A state-changing coga command run from a feature worktree sweeps your
-  in-flight `coga/` edits onto the control branch.** The CLI's exit-boundary
-  sweep (`sync_coga_state`) commits *everything* dirty under `coga/` and lands
-  it on `main` — including the context and skill edits that are the doc half of
-  the PR you have not opened yet. This really happened: `coga run` from a
-  feature worktree pushed five `coga/` context/skill files to `origin/main` as
-  `3779d340` before the PR existed, leaving `main`'s contexts describing
-  behavior `main`'s code did not have, and leaving those files out of the PR
-  diff entirely. Commit in-flight `coga/` edits onto the feature branch before
-  running any state-changing coga command there, or expect them to reach `main`
+- **A state-changing coga command run from a feature worktree publishes your
+  in-flight task, log, and recurring edits onto the control branch.** The
+  CLI's exit-boundary sweep (`sync_coga_state`) publishes every dirty path
+  under `coga/tasks/`, `coga/log.md`, and `coga/recurring/` to `main` — and
+  nothing else. Context, skill, workflow, and config edits are review work
+  and are never swept (that used to happen: `coga run` from a feature worktree
+  once pushed five `coga/` context/skill files to `origin/main` as `3779d340`
+  before the PR existed, which is why the sweep was narrowed). A hand edit to
+  a ticket's prose in a feature checkout is still swept, so keep deliberate
+  ticket prose on the control branch or expect it to reach `main`
   out-of-band. `cli._NON_SWEEPING_COMMANDS` is `status`, `show`, `validate`,
   `usage`, `init`, `uninstall`, and only the first four of those are read-only
   in the ordinary sense.
@@ -694,7 +701,7 @@ wrong checkout silently produces wrong results in both directions:
   **That list is not the whole exclusion set, so do not read it literally.**
   `_should_sweep_coga_state` also declines on options and subcommands:
   `--help`/`-h` anywhere, `bump --backward` / `--to` (a rewind publishes
-  through its own scoped guard, and a refused one deliberately stays dirty),
+  strictly, and a refused one deliberately stays dirty),
   `recurring --all` (the parent dispatcher owns no repo state; each child
   sweeps its own repo), `secret` in every form, and any `skill` / `mark` /
   `recurring` subcommand outside its sweeping set. `_sweep_coga_state` adds
@@ -795,13 +802,9 @@ wrong checkout silently produces wrong results in both directions:
     admission refuses detached HEAD and feature branches, so the temporary
     control worktree must check out the configured control branch, even if
     a detached checkout points at the same commit. General Coga publication
-    has a different contract: `git.sync_log` refuses its narrow log-only
-    publication from detached HEAD, while `sync_task_state` and
-    `sync_coga_state` can land state and union-merge logs onto control.
-    Strict lifecycle publishers can also create scoped detached commits.
-    `_sync_recurring_create_paths` skips its detached local commit, but its
-    cross-branch landing still publishes the task and serviced-period
-    record. A skipped local commit does not imply a publication failure.
+    has a different contract: `git.publish` lands state and union-merges the
+    log onto control from any checkout shape, detached included, and never
+    commits locally (`coga/sync`).
 
 ## Gotchas when editing coga's own code
 
@@ -880,7 +883,7 @@ wrong checkout silently produces wrong results in both directions:
   object). Use a single argv-dispatching mock on `coga.config.subprocess.run`.
 
 - **`create_task` validates after it writes and logs.** `create.create_task`
-  calls `git.write_ticket_under_barrier(...)`, then `logfile.append_log(...)`,
+  calls `git.write_ticket(...)`, then `logfile.append_log(...)`,
   and only then `validate.assert_task_valid(cfg, ref, action="create")`. A
   description containing the blackboard fence on its own line therefore
   leaves a two-fence ticket and a `created` log line behind when validation

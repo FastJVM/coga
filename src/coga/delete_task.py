@@ -48,7 +48,7 @@ def run_delete_task(cfg: Config, ref: TaskRef) -> str:
     """
     ticket = ref.ticket_path
     try:
-        with git.state_publication_barrier(cfg):
+        with git.state_lock(cfg):
             if not ticket.is_file():
                 raise DeleteTaskError(
                     f"{ticket} is not a file — refusing to delete"

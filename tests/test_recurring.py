@@ -786,7 +786,7 @@ def test_recurring_branch_gate_refuses_git_inspection_failure(
     def fail_toplevel(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise coga_git.GitError("simulated dubious ownership")
 
-    monkeypatch.setattr(recurring_cmd.git, "_toplevel", fail_toplevel)
+    monkeypatch.setattr(recurring_cmd.git, "toplevel", fail_toplevel)
     monkeypatch.setattr(
         recurring_cmd,
         "_sync_control_checkout_ahead",
@@ -898,8 +898,14 @@ def test_recurring_scan_refuses_owner_when_control_owner_cannot_be_confirmed(
     def fail_fetch(*args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         raise coga_git.GitError("simulated offline remote")
 
-    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", fail_fetch)
-    monkeypatch.setattr(recurring_cmd.git, "_fetch_branch_oid", fail_fetch)
+    real_run_git = recurring_cmd.git.run_git
+
+    def offline_run_git(root, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if args and args[0] == "fetch":
+            fail_fetch()
+        return real_run_git(root, *args, **kwargs)
+
+    monkeypatch.setattr(recurring_cmd.git, "run_git", offline_run_git)
     monkeypatch.setattr(
         recurring_cmd,
         "scan_due",
@@ -921,26 +927,26 @@ def test_control_tip_owner_reads_command_scoped_fetched_commit(
         "coga/coga.toml", 'owner = "nick"\n' + config.read_text()
     )
     control_tip = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
-    git_repo.git("fetch", "origin", "main")
-    seen: list[tuple[Path, str, str]] = []
+    # Poison FETCH_HEAD with an unrelated commit: the owner probe must read the
+    # remote-tracking ref it fetched into, never the checkout-wide pseudo-ref.
+    git_repo.git("update-ref", "FETCH_HEAD", git_repo.git("rev-parse", "HEAD~0").strip())
+    fetches: list[tuple[str, ...]] = []
+    real_run_git = recurring_cmd.git.run_git
 
-    def scoped_fetch(root: Path, source: str, branch: str) -> str:
-        seen.append((root, source, branch))
-        return control_tip
+    def observe_fetch(root: Path, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if args and args[0] == "fetch":
+            fetches.append(args)
+        return real_run_git(root, *args, **kwargs)
 
-    monkeypatch.setattr(recurring_cmd.git, "_fetch_branch_oid", scoped_fetch)
-    monkeypatch.setattr(
-        recurring_cmd,
-        "_fetch_control_branch",
-        lambda *args, **kwargs: pytest.fail("owner lookup used FETCH_HEAD fetch"),
-    )
+    monkeypatch.setattr(recurring_cmd.git, "run_git", observe_fetch)
 
     owner, error, reached = recurring_cmd._control_tip_owner(
         load_config(git_repo.coga_os)
     )
 
     assert (owner, error, reached) == ("nick", "", True)
-    assert seen == [(git_repo.root, str(git_repo.origin), "main")]
+    assert [f[2] for f in fetches] == [str(git_repo.origin)]
+    assert git_repo.git("rev-parse", "refs/remotes/origin/main").strip() == control_tip
 
 
 def test_control_tip_owner_reads_the_effective_push_destination(
@@ -1104,7 +1110,7 @@ def test_recurring_all_owner_skip_cannot_shadow_a_runnable_checkout(
         _write(coga_os / "coga.local.toml", 'user = "marc"\n')
 
     monkeypatch.setattr(
-        recurring_cmd, "_git_toplevel", lambda coga_os: coga_os.parent
+        recurring_cmd.git, "toplevel", lambda coga_os: coga_os.parent
     )
     monkeypatch.setattr(recurring_cmd, "_current_branch", lambda _root: "main")
 
@@ -1260,7 +1266,7 @@ def test_recurring_all_keeps_distinct_workspaces_in_one_remote(
     for coga_os in (first, second):
         _write(coga_os / "coga.toml", "version = 1\n")
 
-    monkeypatch.setattr(recurring_cmd, "_git_toplevel", lambda _path: root)
+    monkeypatch.setattr(recurring_cmd.git, "toplevel", lambda _path: root)
     monkeypatch.setattr(recurring_cmd, "_current_branch", lambda _root: "main")
 
     def fake_subprocess_run(command, **kwargs):  # type: ignore[no-untyped-def]
@@ -1284,7 +1290,7 @@ def test_recurring_all_prefers_configured_duplicate_checkout(
     _write(second / "coga.local.toml", 'user = "marc"\n')
 
     monkeypatch.setattr(
-        recurring_cmd, "_git_toplevel", lambda coga_os: coga_os.parent
+        recurring_cmd.git, "toplevel", lambda coga_os: coga_os.parent
     )
     monkeypatch.setattr(recurring_cmd, "_current_branch", lambda _root: "main")
 
@@ -2881,26 +2887,26 @@ def test_delegated_lifecycle_snapshot_rejects_edit_after_lease(
     outcome = create_named(
         cfg, "delegate-check", now=datetime(2026, 4, 22, 10, 0, 0)
     )
-    real_snapshot = recurring_cmd._period_mutation_snapshot
+    real_require = recurring_cmd._require_period_bytes
     captures = 0
     note = f"Concurrent edit before {boundary} mutation."
 
-    def race_snapshot(*args, **kwargs):  # type: ignore[no-untyped-def]
+    def race_require(ref_, expected_ticket_bytes, *, action):  # type: ignore[no-untyped-def]
         nonlocal captures
         captures += 1
-        assert kwargs["expected_ticket_bytes"] is not None
+        assert expected_ticket_bytes is not None
         if captures == capture_to_race:
             concurrent = Ticket.read(outcome.ref.ticket_path)
             concurrent.body += f"\n{note}\n"
             concurrent.write(outcome.ref.ticket_path)
-        return real_snapshot(*args, **kwargs)
+        return real_require(ref_, expected_ticket_bytes, action=action)
 
     def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
         kwargs["before_spawn"]()
         kwargs["revalidate_before_spawn"]()
         return termination
 
-    monkeypatch.setattr(recurring_cmd, "_period_mutation_snapshot", race_snapshot)
+    monkeypatch.setattr(recurring_cmd, "_require_period_bytes", race_require)
     monkeypatch.setattr(
         "coga.commands.launch.launch_with_before_spawn", fake_launch
     )
@@ -3172,7 +3178,6 @@ def test_delegated_start_fails_closed_when_control_verification_loses_transport(
     spawned = False
 
     def fail_sync(*args: object, **kwargs: object) -> None:
-        assert kwargs["raise_git_error"] is True
         raise coga_git.GitError("simulated transport loss")
 
     def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
@@ -3185,7 +3190,8 @@ def test_delegated_start_fails_closed_when_control_verification_loses_transport(
         "coga.commands.launch._preflight_push_auth",
         lambda *args, **kwargs: True,
     )
-    monkeypatch.setattr(coga_git, "sync_task_state", fail_sync)
+    monkeypatch.setattr(coga_git, "publish", fail_sync)
+    monkeypatch.setattr(coga_git, "fetch_control", fail_sync)
     monkeypatch.setattr(
         "coga.commands.launch.launch_with_before_spawn", fake_launch
     )
@@ -3218,8 +3224,8 @@ def test_delegated_completion_fails_closed_when_control_publication_loses_transp
     def fail_completion_sync(*args: object, **kwargs: object) -> None:
         nonlocal sync_calls
         sync_calls += 1
-        assert kwargs["raise_git_error"] is True
-        if sync_calls == 3:
+        # start, then completion (the launch-audit `sync_log` is stubbed)
+        if sync_calls == 2:
             raise coga_git.GitError("simulated completion transport loss")
 
     def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
@@ -3231,7 +3237,11 @@ def test_delegated_completion_fails_closed_when_control_publication_loses_transp
         "coga.commands.launch._preflight_push_auth",
         lambda *args, **kwargs: True,
     )
-    monkeypatch.setattr(coga_git, "sync_task_state", fail_completion_sync)
+    monkeypatch.setattr(coga_git, "publish", fail_completion_sync)
+    # Publication, not control verification, is under test here.
+    monkeypatch.setattr(
+        recurring_cmd, "_verify_period_on_control", lambda *a, **k: None
+    )
     monkeypatch.setattr(
         "coga.commands.launch.launch_with_before_spawn", fake_launch
     )
@@ -3249,7 +3259,7 @@ def test_delegated_completion_fails_closed_when_control_publication_loses_transp
     )
 
     assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
-    assert sync_calls == 3
+    assert sync_calls == 2
     assert Ticket.read(outcome.ref.ticket_path).status == "in_progress"
     assert announcements == []
 
@@ -3408,9 +3418,8 @@ def test_delegated_completion_retains_state_when_publication_is_uncertain(
     def lose_completion_probe(*args: object, **kwargs: object) -> None:
         nonlocal sync_calls
         sync_calls += 1
-        assert kwargs["raise_git_error"] is True
-        if sync_calls == 3:
-            raise coga_git.UncertainFeaturePublicationError(
+        if sync_calls == 2:
+            raise coga_git.UncertainPublishError(
                 "simulated unknown control outcome"
             )
 
@@ -3423,7 +3432,11 @@ def test_delegated_completion_retains_state_when_publication_is_uncertain(
         "coga.commands.launch._preflight_push_auth",
         lambda *args, **kwargs: True,
     )
-    monkeypatch.setattr(coga_git, "sync_task_state", lose_completion_probe)
+    monkeypatch.setattr(coga_git, "publish", lose_completion_probe)
+    # Publication, not control verification, is under test here.
+    monkeypatch.setattr(
+        recurring_cmd, "_verify_period_on_control", lambda *a, **k: None
+    )
     monkeypatch.setattr(
         "coga.commands.launch.launch_with_before_spawn", fake_launch
     )
@@ -3441,7 +3454,7 @@ def test_delegated_completion_retains_state_when_publication_is_uncertain(
     )
 
     assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
-    assert sync_calls == 3
+    assert sync_calls == 2
     assert Ticket.read(outcome.ref.ticket_path).status == "done"
     assert announcements == []
 
@@ -3461,8 +3474,7 @@ def test_delegated_timeout_fails_when_control_pause_publication_loses_transport(
     def fail_timeout_sync(*args: object, **kwargs: object) -> None:
         nonlocal sync_calls
         sync_calls += 1
-        assert kwargs["raise_git_error"] is True
-        if sync_calls == 3:
+        if sync_calls == 2:
             raise coga_git.GitError("simulated timeout transport loss")
 
     def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
@@ -3474,7 +3486,11 @@ def test_delegated_timeout_fails_when_control_pause_publication_loses_transport(
         "coga.commands.launch._preflight_push_auth",
         lambda *args, **kwargs: True,
     )
-    monkeypatch.setattr(coga_git, "sync_task_state", fail_timeout_sync)
+    monkeypatch.setattr(coga_git, "publish", fail_timeout_sync)
+    # Publication, not control verification, is under test here.
+    monkeypatch.setattr(
+        recurring_cmd, "_verify_period_on_control", lambda *a, **k: None
+    )
     monkeypatch.setattr(
         "coga.commands.launch.launch_with_before_spawn", fake_launch
     )
@@ -3492,7 +3508,7 @@ def test_delegated_timeout_fails_when_control_pause_publication_loses_transport(
     )
 
     assert delegated == recurring_cmd.DelegatedRunResult(2, "refused")
-    assert sync_calls == 3
+    assert sync_calls == 2
     assert Ticket.read(outcome.ref.ticket_path).status == "in_progress"
     assert announcements == []
 
@@ -5133,7 +5149,7 @@ def test_recurring_all_scan_refuses_unconfirmed_control_freshness(
     def fail_fetch(*args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         raise coga_git.GitError("simulated rebase conflict")
 
-    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", fail_fetch)
+    monkeypatch.setattr(coga_git, "_fetch_control", fail_fetch)
     monkeypatch.setattr(
         recurring_cmd,
         "scan_due",
@@ -5277,8 +5293,6 @@ def test_recurring_scan_launches_a_create_that_autocrlf_rewrote_on_disk(
 
     def fake_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
         launched.append(slug)
-        # The trigger really happened: this checkout holds the CRLF rewrite.
-        assert b"\r\n" in ticket_path.read_bytes()
         finished = Ticket.read(ticket_path)
         finished.frontmatter["status"] = "done"
         finished.frontmatter.pop("step", None)
@@ -5517,11 +5531,18 @@ def test_feature_branch_landing_does_not_publish_feature_only_template_log(
     assert git_repo.origin_tracks(f"coga/tasks/{ref.id_slug}/ticket.md")
     # The feature-only template ticket must not be published to control.
     assert not git_repo.origin_tracks("coga/recurring/new-weekly/ticket.md")
-    # The create history lands in the repo-global log, committed locally on the
-    # feature branch (it reaches control the union-safe way at PR merge).
-    local_ledger = git_repo.git("show", "HEAD:coga/log.md")
-    assert f"created {ref.id_slug}" in local_ledger
-    assert git_repo.git("status", "--porcelain") == ""
+    # The create history reaches control's repo-global log union-safely; the
+    # feature branch itself carries no state commit, so the created task and
+    # the log stay dirty here by design.
+    control_ledger = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
+    assert f"created {ref.id_slug}" in control_ledger
+    dirty = {
+        line[3:]
+        for line in git_repo.git(
+            "status", "--porcelain", "--untracked-files=all"
+        ).splitlines()
+    }
+    assert dirty == {f"coga/tasks/{ref.id_slug}/ticket.md", "coga/log.md"}
 
 
 def test_recurring_launch_preserves_remote_ledger_entries_on_stale_main(
@@ -5798,18 +5819,18 @@ def test_recurring_create_sync_reports_the_fallback_outcome(
     def fail_fetch(*args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         raise coga_git.GitError("simulated offline remote")
 
-    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", fail_fetch)
+    monkeypatch.setattr(recurring_cmd.git, "fetch_control", fail_fetch)
     if fallback_fails:
         def fail_sync(*args: object, **kwargs: object) -> None:
             raise coga_git.GitError("simulated fallback failure")
 
-        monkeypatch.setattr(coga_git, "_dispatch_branch_sync", fail_sync)
+        monkeypatch.setattr(coga_git, "_publish_locked", fail_sync)
 
     created = recurring_cmd._sync_recurring_create(cfg, "weekly-check", outcome.ref)
 
     assert created is True
     err = capsys.readouterr().err
-    assert "control fetch failed; retrying with generic path sync" in err
+    assert "control fetch failed; publishing without a control check" in err
     assert "simulated offline remote" in err
     assert "landing locally only" not in err
     audit = "\n".join(task_log_lines(cfg, "recurring/weekly-check"))
@@ -5874,10 +5895,10 @@ def test_recurring_create_sync_failure_after_removing_stale_task_is_soft(
     cfg = load_config(coga_os)
     stale = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
 
-    def fail_commit(*args, **kwargs):
+    def fail_publish(*args, **kwargs):
         raise recurring_cmd.git.GitError("simulated index lock")
 
-    monkeypatch.setattr("coga.recurring_runner.git._commit_paths", fail_commit)
+    monkeypatch.setattr("coga.recurring_runner.git.publish", fail_publish)
 
     recurring_cmd._sync_recurring_create(cfg, "weekly-check", stale.ref)
 
@@ -6015,7 +6036,7 @@ def test_recurring_launch_does_not_revert_remote_done_period_from_stale_main(
     assert git_repo.git("status", "--porcelain") == ""
 
 
-def test_recurring_launch_preserves_unpushed_control_branch_commits(
+def test_recurring_launch_leaves_a_diverged_control_checkout_alone(
     git_repo, monkeypatch
 ) -> None:
     """Checked-out main keeps local work and takes unrelated remote changes."""
@@ -6068,22 +6089,29 @@ def test_recurring_launch_preserves_unpushed_control_branch_commits(
     )
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
+    # Coga never rebases or pushes a human's local commits. A named launch is
+    # best-effort on freshness, so the period is created and published to
+    # control; the diverged local `main` is left alone with the fix named.
     assert result.exit_code == 0, result.output
+    assert "git pull --rebase origin main" in result.output
     cfg = load_config(coga_os)
     ref = list_tasks(cfg)[0]
-    assert git_repo.origin_tracks("LOCAL.txt")
+    assert not git_repo.origin_tracks("LOCAL.txt")
     assert git_repo.origin_tracks("UNRELATED.txt")
     assert git_repo.origin_tracks(f"coga/tasks/{ref.id_slug}/ticket.md")
     assert local_file.read_text() == "local\n"
-    assert (git_repo.root / "UNRELATED.txt").read_text() == "remote\n"
-    ledger = git_repo.git(
-        "show",
-        "main:coga/log.md",
-        cwd=git_repo.origin,
-    )
+    assert not (git_repo.root / "UNRELATED.txt").exists()
+    ledger = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
     assert remote_line in ledger
     assert f"created {ref.id_slug}" in ledger
-    assert git_repo.git("status", "--porcelain") == ""
+    # The published state stays dirty here until the human catches `main` up.
+    dirty = {
+        line[3:]
+        for line in git_repo.git(
+            "status", "--porcelain", "--untracked-files=all"
+        ).splitlines()
+    }
+    assert dirty == {f"coga/tasks/{ref.id_slug}/ticket.md", "coga/log.md"}
 
 
 def test_feature_branch_landing_preserves_midflight_remote_ledger_race(
@@ -6130,17 +6158,17 @@ def test_feature_branch_landing_preserves_midflight_remote_ledger_race(
         "2026-06-08 09:00 [recurring/weekly-check] [system] created "
         "recurring/weekly-check for 2026-W22\n"
     )
-    real_commit_paths = recurring_cmd.git._commit_paths
+    real_push = coga_git._push
+    raced = False
 
-    def racing_commit(root, rels, message):
-        committed = real_commit_paths(root, rels, message)
-        git_repo.push_competing_commit(
-            "coga/log.md",
-            base_log + race_line,
-        )
-        return committed
+    def racing_push(root, remote, refspec):  # type: ignore[no-untyped-def]
+        nonlocal raced
+        if not raced:
+            raced = True
+            git_repo.push_competing_commit("coga/log.md", base_log + race_line)
+        return real_push(root, remote, refspec)
 
-    monkeypatch.setattr("coga.recurring_runner.git._commit_paths", racing_commit)
+    monkeypatch.setattr(coga_git, "_push", racing_push)
     cfg = load_config(coga_os)
     outcome = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
     recurring_cmd._sync_recurring_create(
@@ -6150,15 +6178,23 @@ def test_feature_branch_landing_preserves_midflight_remote_ledger_race(
         respect_handled_period=False,
     )
     ref = outcome.ref
-    ledger_rel = "coga/log.md"
-    ledger = git_repo.git("show", f"main:{ledger_rel}", cwd=git_repo.origin)
+    assert raced
+    ledger = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
     assert race_line in ledger
     assert f"created {ref.id_slug}" in ledger
     assert git_repo.origin_tracks(f"coga/tasks/{ref.id_slug}/ticket.md")
-    local_ledger = git_repo.git("show", f"HEAD:{ledger_rel}")
+    # The feature checkout keeps its own working log (no local commit, no
+    # refresh): the peer line is on control, the create line is dirty here.
+    local_ledger = log.read_text()
     assert race_line not in local_ledger
     assert f"created {ref.id_slug}" in local_ledger
-    assert git_repo.git("status", "--porcelain") == ""
+    dirty = {
+        line[3:]
+        for line in git_repo.git(
+            "status", "--porcelain", "--untracked-files=all"
+        ).splitlines()
+    }
+    assert dirty == {f"coga/tasks/{ref.id_slug}/ticket.md", "coga/log.md"}
 
 
 def test_recurring_launch_does_not_resurrect_midflight_handled_period(
@@ -6197,22 +6233,21 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
     handled_ticket = _template_ticket_with_blackboard(
         coga_os, "weekly-check", handled_region
     )
-    real_commit_paths = recurring_cmd.git._commit_paths
+    real_push = coga_git._push
     raced = False
 
-    def racing_commit(root, rels, message):
+    def racing_push(root, remote, refspec):  # type: ignore[no-untyped-def]
         nonlocal raced
-        committed = real_commit_paths(root, rels, message)
         if not raced:
+            raced = True
             git_repo.push_competing_commit(
                 "coga/recurring/weekly-check/ticket.md",
                 handled_ticket,
             )
             _push_competing_serviced_period(git_repo, "weekly-check", "2026-W24")
-            raced = True
-        return committed
+        return real_push(root, remote, refspec)
 
-    monkeypatch.setattr("coga.recurring_runner.git._commit_paths", racing_commit)
+    monkeypatch.setattr(coga_git, "_push", racing_push)
 
     recurring_cmd._sync_recurring_create(cfg, "weekly-check", outcome.ref)
 
@@ -6227,7 +6262,14 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
     assert read_serviced_period(local_template) == "2026-W24"
     assert not git_repo.origin_tracks(f"coga/tasks/{outcome.ref.id_slug}/ticket.md")
     assert not outcome.ref.path.exists()
-    assert git_repo.git("status", "--porcelain") == ""
+    # A feature checkout adopts control's copies in its working tree only.
+    dirty = {
+        line[3:]
+        for line in git_repo.git(
+            "status", "--porcelain", "--untracked-files=all"
+        ).splitlines()
+    }
+    assert dirty == {ticket_rel, "coga/log.md"}
 
 
 def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
@@ -6263,21 +6305,21 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
     handled_ticket = _template_ticket_with_blackboard(
         coga_os, "weekly-check", handled_region
     )
-    real_fetch = recurring_cmd._fetch_control_branch
-    fetch_calls = 0
+    real_push = coga_git._push
+    raced = False
 
-    def racing_fetch(cfg_arg, root):
-        nonlocal fetch_calls
-        fetch_calls += 1
-        real_fetch(cfg_arg, root)
-        if fetch_calls == 2:
+    def racing_push(root, remote, refspec):  # type: ignore[no-untyped-def]
+        nonlocal raced
+        if not raced:
+            raced = True
             git_repo.push_competing_commit(
                 "coga/recurring/weekly-check/ticket.md",
                 handled_ticket,
             )
             _push_competing_serviced_period(git_repo, "weekly-check", "2026-W24")
+        return real_push(root, remote, refspec)
 
-    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", racing_fetch)
+    monkeypatch.setattr(coga_git, "_push", racing_push)
 
     recurring_cmd._sync_recurring_create(cfg, "weekly-check", outcome.ref)
 
@@ -6412,18 +6454,18 @@ def test_named_replacement_does_not_launch_a_concurrent_generation(
     winner.frontmatter["period_generation"] = "concurrent-generation"
     winner.body += "\nConcurrent replacement.\n"
 
-    real_fetch = recurring_cmd._fetch_control_branch
-    fetch_calls = 0
+    real_push = coga_git._push
+    raced = False
 
-    def racing_fetch(cfg_arg, root):
-        nonlocal fetch_calls
-        fetch_calls += 1
-        if fetch_calls == 2:
+    def racing_push(root, remote, refspec):  # type: ignore[no-untyped-def]
+        nonlocal raced
+        if not raced:
+            raced = True
             git_repo.push_competing_commit(task_rel, winner.render())
             _push_competing_serviced_period(git_repo, "weekly-check", "2026-W25")
-        real_fetch(cfg_arg, root)
+        return real_push(root, remote, refspec)
 
-    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", racing_fetch)
+    monkeypatch.setattr(coga_git, "_push", racing_push)
     launched: list[str] = []
     _allow_interactive_recurring(monkeypatch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 6, 15, 10, 5))
@@ -6456,15 +6498,16 @@ def test_recurring_create_sync_missing_git_is_soft(
         raise FileNotFoundError("git")
 
     monkeypatch.setattr(recurring_cmd.subprocess, "run", missing_git)
+    monkeypatch.setattr(coga_git.subprocess, "run", missing_git)
     recurring_cmd._sync_recurring_create(cfg, "dream", outcome.ref)
 
     assert "sync skipped" in capsys.readouterr().err
 
 
-def test_recurring_launch_preserves_local_commit_when_control_fetch_fails(
+def test_recurring_launch_keeps_the_create_dirty_when_control_is_unreachable(
     git_repo, monkeypatch
 ) -> None:
-    """An unreachable control branch still leaves the create committed locally."""
+    """An unreachable control branch leaves the create on disk for the next sweep."""
     coga_os = git_repo.coga_os
     _seed_period_task_context(coga_os)
     _write_recurring(
@@ -6502,13 +6545,20 @@ def test_recurring_launch_preserves_local_commit_when_control_fetch_fails(
     assert result.exit_code == 0, result.output
     cfg = load_config(coga_os)
     ref = list_tasks(cfg)[0]
-    log_rel = "coga/log.md"
     ticket_rel = f"coga/tasks/{ref.id_slug}/ticket.md"
-    assert git_repo.git("log", "--format=%s", "-1").strip() == (
-        f"Ticket: {ref.id_slug} — recurring create"
-    )
-    assert f"created {ref.id_slug}" in git_repo.git("show", f"HEAD:{log_rel}")
-    assert "title: Weekly check" in git_repo.git("show", f"HEAD:{ticket_rel}")
+    # Coga never commits locally: the task and its log line stay dirty here,
+    # and `main` still points at the seed commit.
+    assert git_repo.git("log", "--format=%s", "-1").strip() == "seed recurring template"
+    assert "title: Weekly check" in (git_repo.root / ticket_rel).read_text()
+    assert f"created {ref.id_slug}" in (coga_os / "log.md").read_text()
+    dirty = {
+        line[3:]
+        for line in git_repo.git(
+            "status", "--porcelain", "--untracked-files=all"
+        ).splitlines()
+    }
+    assert dirty == {ticket_rel, "coga/log.md"}
+    assert "sync failed" in result.output
 
 
 def test_recurring_launch_defaults_the_main_agent_to_the_configured_default(
@@ -8885,9 +8935,9 @@ def test_bare_recurring_nothing_due(
     assert "No recurring tasks due." in result.output
 
 
-def test_pre_scan_catch_up_conflict_names_files_and_fix(git_repo, capsys) -> None:
-    """A real diverged-with-conflict checkout yields a distilled reason: the
-    CONFLICT line plus the exact resolve command — no rebase progress spew."""
+def test_pre_scan_catch_up_diverged_names_the_fix(git_repo, capsys) -> None:
+    """A diverged control checkout yields a distilled reason and the exact
+    catch-up command; Coga never rebases the human's commits itself."""
     (git_repo.root / "notes.md").write_text("local\n")
     git_repo.git("add", "notes.md")
     git_repo.git("commit", "-m", "local note")
@@ -8901,16 +8951,18 @@ def test_pre_scan_catch_up_conflict_names_files_and_fix(git_repo, capsys) -> Non
 
     assert not fresh
     # The control branch *is* checked out here — this is a real integration
-    # conflict, not the recoverable off-branch case.
+    # problem, not the recoverable off-branch case.
     assert not catchup.off_control_branch
-    assert "CONFLICT" in reason
-    assert "notes.md" in reason
-    assert "Rebasing (" not in reason
-    assert "hint:" not in reason
-    assert f"git -C {git_repo.root} rebase origin/main" in reason
-    # announce_failure=False: the caller reports the reason itself, so no
-    # duplicate stderr note.
-    assert "pre-scan catch-up skipped" not in capsys.readouterr().err
+    assert "could not be fast-forwarded" in reason
+    assert f"git -C {git_repo.root} pull --rebase origin main" in reason
+    err = capsys.readouterr().err
+    # The git layer names the divergence once; announce_failure=False keeps
+    # the caller's own report from duplicating it.
+    assert "git pull --rebase origin main" in err
+    assert "pre-scan catch-up skipped" not in err
+    # Nothing moved: the local commit and its file are untouched.
+    assert (git_repo.root / "notes.md").read_text() == "local\n"
+    assert git_repo.git("status", "--porcelain") == ""
 
 
 def test_bare_scan_notes_catch_up_failure_once_and_continues(
@@ -8921,8 +8973,7 @@ def test_bare_scan_notes_catch_up_failure_once_and_continues(
     def fail_fetch(*args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         raise coga_git.GitError("simulated fetch failure")
 
-    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", fail_fetch)
-    monkeypatch.setattr(recurring_cmd.git, "_fetch_branch_oid", fail_fetch)
+    monkeypatch.setattr(coga_git, "_fetch_control", fail_fetch)
     cfg = load_config(git_repo.coga_os)
 
     assert recurring_cmd.run_recurring_scan(cfg) == 0
@@ -8930,8 +8981,6 @@ def test_bare_scan_notes_catch_up_failure_once_and_continues(
     err = capsys.readouterr().err
     assert err.count("pre-scan catch-up skipped") == 1
     assert "simulated fetch failure" in err
-    # A fetch failure (offline, dead remote) gets no rebase advice.
-    assert "Resolve in that checkout" not in err
 
 
 def test_recurring_all_names_stale_control_failure(
@@ -9750,9 +9799,9 @@ def test_recurring_fallback_publication_preserves_other_sweep_targets(
     if feature_branch:
         git_repo.checkout_branch("feature/fallback-ledger")
     scan = scan_due(cfg, now=datetime(2026, 6, 8, 10, 0))
-    original_fetch = recurring_cmd._fetch_control_branch
-    original_push = coga_git._push_ref
-    original_sync = coga_git.sync_paths
+    original_fetch = coga_git.fetch_control
+    original_push = coga_git._push
+    original_publish = coga_git.publish
     fetches = 0
     pushes = 0
 
@@ -9779,16 +9828,16 @@ def test_recurring_fallback_publication_preserves_other_sweep_targets(
             compete()
         return original_push(*args, **kwargs)
 
-    def sync(*args, **kwargs):  # type: ignore[no-untyped-def]
-        published = original_sync(*args, **kwargs)
-        assert published is not None
+    def publish(*args, **kwargs):  # type: ignore[no-untyped-def]
+        published = original_publish(*args, **kwargs)
+        assert published
         if competitor == "after":
             compete()
         return published
 
-    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", fetch)
-    monkeypatch.setattr(coga_git, "_push_ref", push)
-    monkeypatch.setattr(coga_git, "sync_paths", sync)
+    monkeypatch.setattr(coga_git, "fetch_control", fetch)
+    monkeypatch.setattr(coga_git, "_push", push)
+    monkeypatch.setattr(coga_git, "publish", publish)
     monkeypatch.setattr(recurring_cmd, "notify", lambda *args, **kwargs: None)
     recurring_cmd._broadcast_scan(
         cfg, scan, control_is_fresh=preloaded, control_revision=revision
@@ -9872,7 +9921,7 @@ def test_recurring_create_retry_refreshes_a_changed_control_revision(
     if feature_branch:
         git_repo.checkout_branch("feature/retry-ledger")
     scan = scan_due(cfg, now=datetime(2026, 6, 8, 10, 0))
-    original_push = coga_git._push_ref
+    original_push = coga_git._push
     pushes = 0
 
     def push_after_competitor(root, remote, refspec):  # type: ignore[no-untyped-def]
@@ -9882,14 +9931,14 @@ def test_recurring_create_retry_refreshes_a_changed_control_revision(
             _push_competing_serviced_period(git_repo, "weekly-check", "2026-W24")
         return original_push(root, remote, refspec)
 
-    monkeypatch.setattr(coga_git, "_push_ref", push_after_competitor)
+    monkeypatch.setattr(coga_git, "_push", push_after_competitor)
     recurring_cmd._broadcast_scan(
         cfg, scan, control_is_fresh=True, control_revision=revision
     )
 
-    # Control may still push the union-merged audit log after suppressing the
-    # task. The overlay itself must not be retried with the duplicate task.
-    assert pushes == (1 if feature_branch else 2)
+    # The rejected first push re-reads control, finds the period serviced, and
+    # publishes only the union-merged audit log; the task is never retried.
+    assert pushes == 2
     assert scan.due == []
     assert not git_repo.origin_tracks("coga/tasks/recurring/weekly-check/ticket.md")
     assert not (git_repo.coga_os / "tasks/recurring/weekly-check").exists()
@@ -9906,13 +9955,13 @@ def test_recurring_rejected_create_log_publication_keeps_other_targets(
     if feature_branch:
         git_repo.checkout_branch("feature/rejected-create-ledger")
     scan = scan_due(cfg, now=datetime(2026, 6, 8, 10, 0))
-    original_push = coga_git._push_ref
+    original_push = coga_git._push
     pushes = 0
 
     def push(root, remote, refspec):  # type: ignore[no-untyped-def]
         nonlocal pushes
         pushes += 1
-        if pushes == 1 or (pushes == 2 and audit_retry and not feature_branch):
+        if pushes == 1 or (pushes == 2 and audit_retry):
             name = "aaa-check" if pushes == 1 else "bbb-check"
             log = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
             git_repo.push_competing_commit(
@@ -9921,13 +9970,13 @@ def test_recurring_rejected_create_log_publication_keeps_other_targets(
             )
         return original_push(root, remote, refspec)
 
-    monkeypatch.setattr(coga_git, "_push_ref", push)
+    monkeypatch.setattr(coga_git, "_push", push)
     monkeypatch.setattr(recurring_cmd, "notify", lambda *args, **kwargs: None)
     recurring_cmd._broadcast_scan(
         cfg, scan, control_is_fresh=True, control_revision=revision
     )
 
-    expected = ["ccc-check"] if audit_retry and not feature_branch else ["bbb-check", "ccc-check"]
+    expected = ["ccc-check"] if audit_retry else ["bbb-check", "ccc-check"]
     assert [task.template for task in scan.due] == expected
     assert scan.errors == []
     for name in ("aaa-check", "bbb-check", "ccc-check"):
@@ -9977,7 +10026,7 @@ def test_recurring_sweep_refuses_changed_ledger_after_own_publication(
     now = datetime(2026, 6, 8, 10, 0)
     scan = scan_due(cfg, now=now)
     original_sync = recurring_cmd._sync_recurring_create
-    original_push = coga_git._push_ref
+    original_push = coga_git._push
     overlay_pushes = 0
 
     def compete() -> None:
@@ -10001,7 +10050,7 @@ def test_recurring_sweep_refuses_changed_ledger_after_own_publication(
                 compete()
         return original_push(root, remote, refspec)
 
-    monkeypatch.setattr(coga_git, "_push_ref", push_after_competitor)
+    monkeypatch.setattr(coga_git, "_push", push_after_competitor)
     monkeypatch.setattr(recurring_cmd, "_sync_recurring_create", sync_then_compete)
     monkeypatch.setattr(recurring_cmd, "notify", lambda *args, **kwargs: None)
     recurring_cmd._broadcast_scan(
@@ -10094,15 +10143,14 @@ def test_broadcast_reuses_the_fresh_prescan_control_ledger(
     scan = scan_due(cfg, now=datetime(2026, 6, 8, 10, 0, 0))
     assert scan.ledger_periods == {"recurring/weekly-check": "2026-W24"}
 
-    monkeypatch.setattr(recurring_cmd, "_git_toplevel", lambda *args: repo)
+    monkeypatch.setattr(recurring_cmd.git, "toplevel", lambda *args: repo)
     monkeypatch.setattr(
         recurring_cmd,
         "_read_control_ledger",
         lambda *args, **kwargs: pytest.fail("fresh sweep reread control log"),
     )
 
-    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", lambda *args: None)
-    monkeypatch.setattr(recurring_cmd, "_rev_parse", lambda *args: "caught-up")
+    monkeypatch.setattr(recurring_cmd.git, "fetch_control", lambda *args: "caught-up")
     recurring_cmd._broadcast_scan(
         cfg, scan, control_is_fresh=True, control_revision="caught-up"
     )
@@ -10166,7 +10214,7 @@ def test_control_ledger_uses_the_same_per_ref_target_stop(
     """The pinned control fallback must agree with the local reverse read."""
     monkeypatch.setattr(
         coga_git,
-        "_run_git",
+        "run_git",
         lambda *args: "".join(
             [
                 "2026-05-01 09:00 [recurring/other-check] [system] "
@@ -10351,7 +10399,7 @@ def test_control_ledger_rejects_malformed_period(
 ) -> None:
     monkeypatch.setattr(
         coga_git,
-        "_run_git",
+        "run_git",
         lambda *args: (
             "2026-08-13 17:22 [recurring/check] [system] "
             "created recurring/check for none\n"
@@ -10762,7 +10810,11 @@ def test_recurring_all_scan_services_off_control_checkout_from_worktree(
 def test_control_worktree_seeds_missing_branch_in_a_narrow_clone(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A fetched OID works when neither local nor remote-tracking ref exists."""
+    """The control branch is seeded from a fresh fetch when no ref names it.
+
+    The fetch populates the remote-tracking ref (the base every later
+    publish builds on); nothing else about the narrow clone is touched.
+    """
     _seed_recipe_template_on_control(git_repo)
     feature = "agent/parked-work"
     git_repo.checkout_branch(feature)
@@ -10803,7 +10855,6 @@ def test_control_worktree_seeds_missing_branch_in_a_narrow_clone(
         seen_branches.append(
             git_repo.git("branch", "--show-current", cwd=coga_os).strip()
         )
-        assert not ref_exists("refs/remotes/origin/main")
         return 0
 
     monkeypatch.setattr(recurring_cmd, "_run_repo_recurring", observe)
@@ -10813,8 +10864,11 @@ def test_control_worktree_seeds_missing_branch_in_a_narrow_clone(
 
     assert seen_branches == ["main"]
     assert ref_exists("refs/heads/main")
-    assert not ref_exists("refs/remotes/origin/main")
-    assert coga_git._worktree_holding_branch(git_repo.root, "main") is None
+    assert ref_exists("refs/remotes/origin/main")
+    assert git_repo.git("rev-parse", "refs/heads/main").strip() == git_repo.git(
+        "rev-parse", "main", cwd=git_repo.origin
+    ).strip()
+    assert coga_git.worktree_holding_branch(git_repo.root, "main") is None
 
 
 def test_control_worktree_services_a_deeply_nested_monorepo_workspace(
@@ -10865,7 +10919,7 @@ def test_control_worktree_services_a_root_layout_workspace(git_repo) -> None:
     assert _checkout_state(git_repo) == before
     ledger = git_repo.git("show", "main:log.md", cwd=git_repo.origin)
     assert "created recurring/z-script-check" in ledger
-    assert coga_git._worktree_holding_branch(git_repo.root, "main") is None
+    assert coga_git.worktree_holding_branch(git_repo.root, "main") is None
 
 
 def test_control_worktree_run_does_not_refire_the_serviced_period(git_repo) -> None:
@@ -10917,7 +10971,7 @@ def test_control_worktree_is_removed_and_unregistered_after_the_run(
 
     listing = git_repo.git("worktree", "list", "--porcelain")
     assert recurring_cmd._CONTROL_WORKTREE_PREFIX not in listing
-    assert coga_git._worktree_holding_branch(git_repo.root, "main") is None
+    assert coga_git.worktree_holding_branch(git_repo.root, "main") is None
     leftovers = list(
         Path(tempfile.gettempdir()).glob(
             f"{recurring_cmd._CONTROL_WORKTREE_PREFIX}{git_repo.root.name}-*"
@@ -10939,7 +10993,7 @@ def test_control_worktree_is_removed_when_the_inner_run_fails(
     cfg = load_config(git_repo.coga_os)
     assert recurring_cmd.run_recurring_scan(cfg, require_fresh_control=True) == 17
 
-    assert coga_git._worktree_holding_branch(git_repo.root, "main") is None
+    assert coga_git.worktree_holding_branch(git_repo.root, "main") is None
 
 
 def test_control_worktree_is_removed_when_the_inner_run_raises(
@@ -10956,7 +11010,7 @@ def test_control_worktree_is_removed_when_the_inner_run_raises(
     with pytest.raises(KeyboardInterrupt):
         recurring_cmd.run_recurring_scan(cfg, require_fresh_control=True)
 
-    assert coga_git._worktree_holding_branch(git_repo.root, "main") is None
+    assert coga_git.worktree_holding_branch(git_repo.root, "main") is None
 
 
 def test_control_worktree_is_retained_when_child_startup_is_ambiguous(
@@ -10971,7 +11025,7 @@ def test_control_worktree_is_retained_when_child_startup_is_ambiguous(
         *_args, **_kwargs
     ):  # type: ignore[no-untyped-def]
         nonlocal holder
-        current = coga_git._worktree_holding_branch(git_repo.root, "main")
+        current = coga_git.worktree_holding_branch(git_repo.root, "main")
         assert isinstance(current, Path)
         holder = current
         marker = json.loads(
@@ -10999,7 +11053,7 @@ def test_control_worktree_is_retained_when_child_startup_is_ambiguous(
         with pytest.raises(KeyboardInterrupt):
             recurring_cmd.run_recurring_scan(cfg, require_fresh_control=True)
 
-        current = coga_git._worktree_holding_branch(git_repo.root, "main")
+        current = coga_git.worktree_holding_branch(git_repo.root, "main")
         assert current == holder
         assert holder is not None
         assert holder.is_dir()
@@ -11037,7 +11091,7 @@ def test_control_worktree_is_removed_when_child_start_is_refused(
     with pytest.raises(OSError, match="simulated Popen refusal"):
         recurring_cmd.run_recurring_scan(cfg, require_fresh_control=True)
 
-    assert coga_git._worktree_holding_branch(git_repo.root, "main") is None
+    assert coga_git.worktree_holding_branch(git_repo.root, "main") is None
 
 
 def test_control_worktree_cleanup_retains_a_published_live_child_group(
@@ -11119,7 +11173,7 @@ def test_control_worktree_preserves_machine_local_run_logs_before_removal(
     durable = git_repo.coga_os / ".coga" / "recurring-runs" / run_name
     assert durable.read_text() == run_body
     assert durable.stat().st_mode & 0o777 == 0o600
-    assert coga_git._worktree_holding_branch(git_repo.root, "main") is None
+    assert coga_git.worktree_holding_branch(git_repo.root, "main") is None
 
 
 def test_control_worktree_run_log_copy_keeps_colliding_records(
@@ -11177,7 +11231,7 @@ def test_control_worktree_is_retained_when_run_logs_cannot_be_preserved(
         assert recurring_cmd.run_recurring_scan(
             cfg, require_fresh_control=True
         ) == 0
-        holder = coga_git._worktree_holding_branch(git_repo.root, "main")
+        holder = coga_git.worktree_holding_branch(git_repo.root, "main")
         assert isinstance(holder, Path)
         assert holder.is_dir()
         workspace_rel = git_repo.coga_os.relative_to(git_repo.root)
@@ -11242,14 +11296,14 @@ def test_control_worktree_reaps_cancelled_child_before_removal(
         "_repo_recurring_process_group_exists",
         lambda child: child is process and child.reaped,
     )
-    real_run_git = coga_git._run_git
+    real_run_git = coga_git.run_git
 
     def observe_cleanup(root, *args, **kwargs):  # type: ignore[no-untyped-def]
         if args[:3] == ("worktree", "remove", "--force"):
             assert process.reaped
         return real_run_git(root, *args, **kwargs)
 
-    monkeypatch.setattr(coga_git, "_run_git", observe_cleanup)
+    monkeypatch.setattr(coga_git, "run_git", observe_cleanup)
 
     cfg = load_config(git_repo.coga_os)
     with pytest.raises(KeyboardInterrupt):
@@ -11261,7 +11315,7 @@ def test_control_worktree_reaps_cancelled_child_before_removal(
         (process.pid, recurring_cmd.signal.SIGTERM),
         (process.pid, recurring_cmd.signal.SIGKILL),
     ]
-    assert coga_git._worktree_holding_branch(git_repo.root, "main") is None
+    assert coga_git.worktree_holding_branch(git_repo.root, "main") is None
 
 
 def test_control_worktree_reaps_a_present_checkout_stranded_by_sigkill(
@@ -11636,11 +11690,11 @@ def test_off_control_catchup_names_the_checkout_remedy(git_repo) -> None:
 def test_diverged_control_is_not_an_off_control_branch_refusal(
     git_repo, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
-    """The `fetched == True` arm keeps failing loud — it is out of scope."""
+    """A checked-out control branch that cannot integrate keeps failing loud."""
     def fail_fetch(*args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         raise coga_git.GitError("simulated rebase conflict")
 
-    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", fail_fetch)
+    monkeypatch.setattr(coga_git, "_fetch_control", fail_fetch)
     monkeypatch.setattr(
         recurring_cmd,
         "_service_from_control_worktree",

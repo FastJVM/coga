@@ -207,26 +207,23 @@ def _stub_git(monkeypatch, request):
     the requested fixture names, so the real helper runs there)."""
     if {"git_repo", "real_git"} & set(request.fixturenames):
         return
-    # All public sync entry points are stubbed: `sync_task_state` (mark / bump /
-    # create / block), `sync_paths` (the multi-path variant `coga ticket`
-    # authoring uses), and `sync_log` (the log-only commit a bootstrap-ticket
-    # launch fires). Stubbing only the first would let authoring or a bootstrap
-    # launch shell out to real git on a non-git tmp path and break the
-    # faked-subprocess tests.
+    # Every publishing entry point is stubbed: `publish` (the one primitive:
+    # `coga ticket` authoring, delete, recurring promote, megalaunch admission
+    # call it directly), `sync_task_state` (mark / bump / create / block),
+    # `sync_log` (a bootstrap-ticket launch), and the catch-all
+    # `sync_coga_state` sweep fired from the CLI dispatch boundary. Stubbing
+    # only one would let the others shell out to real git on a non-git tmp
+    # path and break the faked-subprocess tests.
+    monkeypatch.setattr("coga.git.publish", lambda *a, **k: None)
     monkeypatch.setattr("coga.git.sync_task_state", lambda *a, **k: None)
-    monkeypatch.setattr("coga.git.sync_paths", lambda *a, **k: None)
-    monkeypatch.setattr("coga.git.sync_log", lambda *a, **k: None)
+    monkeypatch.setattr("coga.git.sync_log", lambda *a, **k: False)
+    monkeypatch.setattr("coga.git.sync_coga_state", lambda *a, **k: None)
     # The `direct/body` stranding guard (`mark done`) also shells out to git;
     # default it to "nothing stranded" off the real-git harness.
-    monkeypatch.setattr("coga.git.stranded_product_paths", lambda *a, **k: [])
-    # The catch-all subtree sweep fires from the launch teardown and the CLI
-    # dispatch boundary, so it too must no-op off the real-git harness.
-    monkeypatch.setattr("coga.git.sync_coga_state", lambda *a, **k: None)
+    monkeypatch.setattr("coga.mark.stranded_product_paths", lambda *a, **k: [])
     # Launch's end-of-run pull-back fetches; `status`'s staleness probe reads
     # local refs. Both shell out to git, so no-op them off the harness too.
-    monkeypatch.setattr(
-        "coga.git.refresh_coga_state_from_control", lambda *a, **k: None
-    )
+    monkeypatch.setattr("coga.git.refresh", lambda *a, **k: True)
     monkeypatch.setattr("coga.git.stale_coga_task_rels", lambda *a, **k: [])
     # `views` binds the probe at import time, so patch its name too.
     monkeypatch.setattr("coga.views.stale_coga_task_rels", lambda *a, **k: [])

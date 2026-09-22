@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import shlex
 import signal
 import sys
@@ -38,7 +37,6 @@ from coga.commands import unblock as unblock_cmd
 from coga.commands import usage as usage_cmd
 from coga.commands import validate as validate_cmd
 from coga.config import Config, ConfigError, find_repo_root, load_config
-from coga.repl_supervisor import ASSIST_BRANCH_ENV, EXPECTED_TASK_ENV
 
 
 def _print_version_and_exit(value: bool) -> None:
@@ -135,9 +133,11 @@ _SWEEPING_MARK_SUBCOMMANDS = frozenset(
 
 
 def _sweep_coga_state(cfg: Config | None) -> None:
-    """Catch-all: commit anything still dirty under `coga/` after a mutating
-    command, so machine side-effects and human hand-edits converge on git at the
-    next invocation (the "no daemon" alternative to instant commits).
+    """Catch-all: publish any task, log, or recurring state still dirty after a
+    mutating command, so machine side-effects and earlier offline misses
+    converge on control at the next invocation (the "no daemon" alternative to
+    instant commits). Hand-authored contexts, skills, and workflows are review
+    work and are not swept.
 
     Wired only to mutating commands via `_NON_SWEEPING_COMMANDS` and the
     option/`--help` guards: a bare `coga`, `--version`, or any `--help` is not a
@@ -188,14 +188,14 @@ def _checkout_is_off_control(cfg: Config) -> bool:
     as on-control so the established best-effort sweep is preserved;
     `sync_coga_state` owns its own handling."""
     try:
-        root = git._toplevel(cfg.repo_root)
+        root = git.toplevel(cfg.repo_root)
         if root is None:
             return False
         # Not `rev-parse --abbrev-ref HEAD`: with a tag named like the
         # control branch it answers `heads/main`, which would misclassify the
         # control worktree as off control and skip its only sweep.
         # `branch --show-current` is unambiguous and empty when detached.
-        branch = git._run_git(root, "branch", "--show-current").strip()
+        branch = git.run_git(root, "branch", "--show-current").strip()
         return branch != cfg.git_control_branch
     except git.GitError:
         return False
@@ -239,21 +239,6 @@ def _should_sweep_coga_state(argv: list[str]) -> bool:
     if command == "secret":
         return False
     return False
-
-
-def _inherited_assist_scope() -> bool:
-    """Whether this process must leave all fallback publication disabled.
-
-    A ticket script receives both values only after launch verifies a recorded
-    single-checkout assist. Its supported lifecycle commands publish through an
-    exact feature/control lease. If parsing, validation, or dispatch fails
-    before that publisher runs, the broad CLI sweep must not commit the bytes
-    the strict path deliberately left unowned.
-    """
-    return bool(
-        os.environ.get(ASSIST_BRANCH_ENV, "").strip()
-        and os.environ.get(EXPECTED_TASK_ENV, "").strip()
-    )
 
 
 def _register_alias_placeholder(name: str, expansion: str) -> None:
@@ -402,35 +387,27 @@ def main() -> None:
         typer.secho(f"→ coga {' '.join(full)}", fg=typer.colors.BLUE, err=True)
         sys.argv = [sys.argv[0]] + full
 
-    inherited_assist = _inherited_assist_scope()
     try:
         app()
     except SystemExit as exc:
         # End-of-command boundary (failure half): still sweep on an ordinary
         # non-zero exit, but not when the command deliberately retained
-        # retryable local state. That covers a stale/diverged control checkout
-        # and a refused assist log lease: in either case the sweep would commit
-        # exactly the bytes the narrow publisher intentionally left dirty.
-        if (
-            not inherited_assist
-            and exc.code != git.RETRY_WITHOUT_SWEEP_EXIT_CODE
-        ):
+        # retryable local state (a stale control checkout in the recurring
+        # gate), where the sweep would publish exactly the bytes the command
+        # intentionally left dirty.
+        if exc.code != git.RETRY_WITHOUT_SWEEP_EXIT_CODE:
             _sweep_coga_state(cfg)
         raise
     except BaseException:
-        # A strict assist never falls back to the broad subtree sweep: an early
-        # parser/validator crash has not acquired its scoped publication lease.
-        if not inherited_assist:
-            _sweep_coga_state(cfg)
+        _sweep_coga_state(cfg)
         raise
     else:
-        # End-of-command boundary: commit any dirty `coga/` OS state the command
-        # itself didn't sync (a human hand-edit, a side-effect write). Runs after
-        # `app()` whether it returned or raised `SystemExit`/`typer.Exit`; the
-        # on-disk markdown is the source of truth, and atomic writes mean a
-        # mid-command crash never leaves a half-written file to commit.
-        if not inherited_assist:
-            _sweep_coga_state(cfg)
+        # End-of-command boundary: publish any dirty task/log/recurring state
+        # the command itself didn't sync (a side-effect write, an earlier
+        # offline miss). The on-disk markdown is the source of truth, and
+        # atomic writes mean a mid-command crash never leaves a half-written
+        # file to publish.
+        _sweep_coga_state(cfg)
 
 
 if __name__ == "__main__":

@@ -2589,7 +2589,7 @@ def test_megalaunch_selection_preserves_peer_edit_during_preflight(
 
     assert launched == []
     assert run.results[0].outcome == "failed"
-    assert "changed before writing" in run.results[0].detail
+    assert "changed before deferred activation" in run.results[0].detail
     assert peer_bytes is not None
     assert Path(draft["path"]).read_bytes() == peer_bytes
     assert Ticket.read(draft["path"]).status == "done"
@@ -2706,7 +2706,7 @@ def test_megalaunch_selection_preserves_peer_edit_during_activation_sync(
     def fail_spawn(*_args, **_kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("a peer-changed ticket must not spawn")
 
-    monkeypatch.setattr("coga.mark.git.sync_task_state", racing_sync)
+    monkeypatch.setattr("coga.mark.git.publish", racing_sync)
     monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
 
     run = run_megalaunch(cfg, selection=[draft["slug"]])
@@ -2751,7 +2751,7 @@ def test_megalaunch_refuses_peer_edit_during_start_sync(
     def fail_spawn(*_args, **_kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("a ticket changed during start sync must not spawn")
 
-    monkeypatch.setattr("coga.mark.git.sync_task_state", racing_sync)
+    monkeypatch.setattr("coga.mark.git.publish", racing_sync)
     monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
 
     run = run_megalaunch(cfg, selection=[active["slug"]])
@@ -2810,7 +2810,7 @@ def test_megalaunch_does_not_compensate_over_an_ordinary_resume(
     def fail_spawn(*_args, **_kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("a ticket changed during start sync must not spawn")
 
-    monkeypatch.setattr("coga.mark.git.sync_task_state", racing_sync)
+    monkeypatch.setattr("coga.mark.git.publish", racing_sync)
     monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
 
     run = run_megalaunch(cfg, selection=[active["slug"]])
@@ -2878,7 +2878,7 @@ def test_megalaunch_does_not_reclaim_a_published_session_claim(
         peer_run = run_megalaunch(cfg, selection=[active["slug"]])
         peer_result = peer_run.results[0]
 
-    monkeypatch.setattr("coga.mark.git.sync_task_state", racing_sync)
+    monkeypatch.setattr("coga.mark.git.publish", racing_sync)
     monkeypatch.setattr("coga.megalaunch.spawn_agent_session", outer_spawn)
 
     run = run_megalaunch(cfg, selection=[active["slug"]])
@@ -3025,8 +3025,7 @@ def test_megalaunch_deferred_activation_cas_uses_exact_control_ticket(
         nonlocal raced
         if not raced:
             raced = True
-            assert kwargs["raise_state_regression"] is True
-            assert kwargs["raise_git_error"] is True
+            assert kwargs["strict"] is True
             peer = Ticket.parse(
                 git_repo.git(
                     "show", f"main:{ticket_rel}", cwd=git_repo.origin
@@ -3046,7 +3045,7 @@ def test_megalaunch_deferred_activation_cas_uses_exact_control_ticket(
 
     assert raced
     assert run.results[0].outcome == "failed"
-    assert "exact control ticket changed" in run.results[0].detail
+    assert "control copy changed since this checkout last saw it" in run.results[0].detail
     local = Ticket.read(ticket_path)
     assert local.status == "draft"
     assert local.launch_generation is None
@@ -3095,7 +3094,7 @@ def test_megalaunch_launch_claim_cas_excludes_a_second_checkout(
         "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
-    real_sync = git_module.sync_task_state
+    real_publish = git_module.publish
     peer_started = False
     peer_generation: str | None = None
     spawned_paths: list[Path] = []
@@ -3114,15 +3113,15 @@ def test_megalaunch_launch_claim_cas_excludes_a_second_checkout(
         assert peer_generation is not None
         return _Session()
 
-    def racing_sync(*args, **kwargs):  # type: ignore[no-untyped-def]
+    def racing_publish(*args, **kwargs):  # type: ignore[no-untyped-def]
         nonlocal peer_started
         if not peer_started:
             peer_started = True
             peer_run = run_megalaunch(peer_cfg, selection=[active["slug"]])
             assert peer_run.results[0].launched
-        return real_sync(*args, **kwargs)
+        return real_publish(*args, **kwargs)
 
-    monkeypatch.setattr(git_module, "sync_task_state", racing_sync)
+    monkeypatch.setattr(git_module, "publish", racing_publish)
     monkeypatch.setattr("coga.megalaunch.spawn_agent_session", one_peer_spawn)
 
     run = run_megalaunch(cfg, selection=[active["slug"]])
@@ -3315,17 +3314,15 @@ def test_megalaunch_final_refusal_keeps_audit_out_of_peer_state_commit(
         "coga.commands.launch.run_with_done_marker", hold_child_for_final_guard
     )
     real_append_log = launch_module.append_log
-    real_catch_all = git_module._sync_coga_state_without_barrier
+    real_locked_publish = git_module._publish_locked
 
     def observe_catch_all_entry(*args, **kwargs):  # type: ignore[no-untyped-def]
-        peer_entered_sync.set()
-        return real_catch_all(*args, **kwargs)
+        # Runs only once `publish` holds `state_lock`, i.e. after release.
+        if threading.current_thread() is publisher_thread:
+            peer_entered_sync.set()
+        return real_locked_publish(*args, **kwargs)
 
-    monkeypatch.setattr(
-        git_module,
-        "_sync_coga_state_without_barrier",
-        observe_catch_all_entry,
-    )
+    monkeypatch.setattr(git_module, "_publish_locked", observe_catch_all_entry)
 
     def append_then_start_peer_publisher(
         *args, **kwargs
@@ -3727,9 +3724,7 @@ def test_failed_post_release_admission_retains_released_recovery_witness(
     def fail_admission_publication(*_args, **_kwargs):  # type: ignore[no-untyped-def]
         raise git_module.GitError("simulated post-release transport failure")
 
-    monkeypatch.setattr(
-        git_module, "_sync_paths_without_barrier", fail_admission_publication
-    )
+    monkeypatch.setattr(git_module, "publish", fail_admission_publication)
 
     with pytest.raises(megalaunch_module._LaunchClaimRefused) as excinfo:
         megalaunch_module._admit_launch_claim_after_release(
@@ -5204,22 +5199,19 @@ def test_megalaunch_disappeared_activation_ticket_fails_only_its_task(
         status="active",
     )
     first_path = Path(first["path"])
-    real_capture = git_module.FileMutationRollback.capture
+    from coga import megalaunch as megalaunch_module
+
+    real_capture = megalaunch_module._ticket_bytes
     disappeared = False
 
-    def disappear_during_capture(paths, *, union_paths=()):  # type: ignore[no-untyped-def]
+    def disappear_during_capture(ref):  # type: ignore[no-untyped-def]
         nonlocal disappeared
-        captured_paths = tuple(paths)
-        if first_path in captured_paths and not disappeared:
+        if ref.ticket_path == first_path and not disappeared:
             disappeared = True
             first_path.unlink()
-        return real_capture(captured_paths, union_paths=union_paths)
+        return real_capture(ref)
 
-    monkeypatch.setattr(
-        git_module.FileMutationRollback,
-        "capture",
-        staticmethod(disappear_during_capture),
-    )
+    monkeypatch.setattr(megalaunch_module, "_ticket_bytes", disappear_during_capture)
     launched = _done_on_spawn(monkeypatch)
 
     run = run_megalaunch(cfg, selection=[first["slug"], second["slug"]])

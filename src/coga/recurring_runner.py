@@ -32,7 +32,7 @@ from coga.config import (
     parse_owner,
 )
 from coga.lifecycle import TERMINAL_STATUSES
-from coga.logfile import append_log, ref_tag_for_path, task_log_lines
+from coga.logfile import append_log, ref_tag_for_path, retract_log_lines, task_log_lines
 from coga.paths import log_path
 from coga.taskfile import TaskFileError, read_blackboard, split_body
 from coga.recurring import (
@@ -168,7 +168,7 @@ def _refuse_non_control_branch(cfg: Config) -> bool:
         # Only a confirmed non-git workspace is exempt. The best-effort local
         # helper used by discovery collapses every probe failure to ``None``;
         # this mutation gate must preserve inspection errors and fail closed.
-        root = git._toplevel(cfg.repo_root)
+        root = git.toplevel(cfg.repo_root)
         if root is None:
             return False
         location = root
@@ -210,8 +210,8 @@ def _control_remote_present_at_admission(cfg: Config) -> bool:
     """
     if not cfg.git_enabled:
         return False
-    root = git._toplevel(cfg.repo_root)
-    return root is not None and git._remote_configured(root, cfg.git_remote)
+    root = git.toplevel(cfg.repo_root)
+    return root is not None and git.remote_configured(root, cfg.git_remote)
 
 
 def _launch_owner_refusal(cfg: Config) -> str | None:
@@ -274,7 +274,7 @@ def _control_tip_owner(cfg: Config) -> tuple[str | None, str, bool]:
     authorized after a transfer, while the sweep still created period state and
     launched real work.
     """
-    root = _git_toplevel(cfg.repo_root)
+    root = git.toplevel(cfg.repo_root)
     if root is None:
         # A non-git local repo has no distinct control tip; its shared config is
         # the only committed-policy source available.
@@ -282,16 +282,22 @@ def _control_tip_owner(cfg: Config) -> tuple[str | None, str, bool]:
 
     reached = False
     try:
-        if not git._remote_configured(root, cfg.git_remote):
+        if not git.remote_configured(root, cfg.git_remote):
             return _owner_at_ref(cfg, root, "HEAD"), "", True
         # Authorize from the destination the sweep will actually mutate.
-        # `_push_control_branch` publishes period state with `git push
-        # <remote>`, and git distinguishes a remote's push URLs from its fetch
-        # URL — reading the owner from the fetch repository would let an
-        # operator it authorizes create and launch work in a push repository
-        # owned by someone else. A multi-push remote has no single such
-        # repository, so it fails closed rather than picking one.
-        push_urls = git._remote_push_urls(root, cfg.git_remote)
+        # `publish` lands period state with `git push <remote>`, and git
+        # distinguishes a remote's push URLs from its fetch URL — reading the
+        # owner from the fetch repository would let an operator it authorizes
+        # create and launch work in a push repository owned by someone else. A
+        # multi-push remote has no single such repository, so it fails closed
+        # rather than picking one.
+        push_urls = [
+            line.strip()
+            for line in git.run_git(
+                root, "remote", "get-url", "--push", "--all", cfg.git_remote
+            ).splitlines()
+            if line.strip()
+        ]
         if len(push_urls) != 1:
             return (
                 None,
@@ -300,13 +306,22 @@ def _control_tip_owner(cfg: Config) -> tuple[str | None, str, bool]:
                 "repository to authorize against",
                 True,
             )
-        # FETCH_HEAD is checkout-wide and another Coga/git process may replace
-        # it between fetch and read. The shared git primitive fetches through a
-        # UUID-scoped ref and returns the exact command-owned commit instead.
-        target = git._fetch_branch_oid(
-            root, push_urls[0], cfg.git_control_branch
+        # Fetch the push destination into the remote-tracking ref, so the
+        # owner is read from exactly the commit later publishes build on.
+        git.run_git(
+            root,
+            "fetch",
+            "--quiet",
+            push_urls[0],
+            f"+refs/heads/{cfg.git_control_branch}:"
+            f"refs/remotes/{cfg.git_remote}/{cfg.git_control_branch}",
         )
         reached = True
+        target = git.run_git(
+            root,
+            "rev-parse",
+            f"refs/remotes/{cfg.git_remote}/{cfg.git_control_branch}",
+        ).strip()
         return _owner_at_ref(cfg, root, target), "", True
     except (ConfigError, git.GitError, tomllib.TOMLDecodeError) as exc:
         return None, str(exc), reached
@@ -314,7 +329,7 @@ def _control_tip_owner(cfg: Config) -> tuple[str | None, str, bool]:
 
 def _local_committed_owner(cfg: Config) -> tuple[str | None, str]:
     """Read owner from HEAD, falling back to config only outside git."""
-    root = _git_toplevel(cfg.repo_root)
+    root = git.toplevel(cfg.repo_root)
     if root is None:
         return cfg.owner, ""
     try:
@@ -325,8 +340,8 @@ def _local_committed_owner(cfg: Config) -> tuple[str | None, str]:
 
 def _owner_at_ref(cfg: Config, root: Path, ref: str) -> str:
     """Parse the shared recurring owner from one exact committed config."""
-    target = _rev_parse(root, ref)
-    config_rel = _relative_to_root(root, cfg.repo_root / "coga.toml")
+    target = git.run_git(root, "rev-parse", ref).strip()
+    config_rel = git.relative_to_root(root, cfg.repo_root / "coga.toml")
     shared_text = _show_path(root, target, config_rel)
     if not shared_text:
         raise ConfigError(f"commit {target} has no readable {config_rel}")
@@ -530,7 +545,7 @@ def _off_control_branch(coga_os: Path) -> bool:
     if not cfg.git_enabled:
         return False
     try:
-        root = _git_toplevel(coga_os)
+        root = git.toplevel(coga_os)
         if root is None:
             return False
         return _current_branch(root) != cfg.git_control_branch
@@ -637,7 +652,7 @@ def _configured_remote_identity(
         return None
 
     try:
-        root = _git_toplevel(coga_os)
+        root = git.toplevel(coga_os)
     except OSError:
         return None
     if root is None:
@@ -1184,8 +1199,11 @@ def _persist_control_worktree_run_logs(
 
 def _reap_stale_control_worktree(root: Path, control: str) -> None:
     """Remove a dead, marker-proven Coga holder without touching live/user trees."""
-    holder = git._worktree_holding_branch(root, control)
-    if holder is None or holder == git._WORKTREES_UNKNOWN:
+    try:
+        holder = git.worktree_holding_branch(root, control)
+    except git.GitError:
+        return
+    if holder is None:
         return
     owner = _stale_owned_control_worktree(root, control, holder)
     if owner is None:
@@ -1204,7 +1222,7 @@ def _reap_stale_control_worktree(root: Path, control: str) -> None:
             err=True,
         )
         return
-    git._run_git(root, "worktree", "remove", "--force", str(holder))
+    git.run_git(root, "worktree", "remove", "--force", str(holder))
     shutil.rmtree(holder.parent, ignore_errors=True)
 
 
@@ -1275,13 +1293,13 @@ def _cleanup_control_worktree(
         return
 
     try:
-        git._run_git(root, "worktree", "remove", "--force", str(checkout))
+        git.run_git(root, "worktree", "remove", "--force", str(checkout))
     except git.GitError:
         # The directory removal below plus `prune` still clears it.
         pass
     shutil.rmtree(checkout.parent, ignore_errors=True)
     try:
-        git._run_git(root, "worktree", "prune")
+        git.run_git(root, "worktree", "prune")
     except git.GitError:
         pass
 
@@ -1313,9 +1331,9 @@ def _service_from_control_worktree(
     worktree checks the branch out, so the inner scan is an ordinary
     on-control run from a different directory and every existing sync, ledger,
     and push path applies unmodified. A detached worktree at the remote tip
-    would not — `git.sync_log` refuses to commit from a detached HEAD, so the
-    serviced-period ledger would never reach control and the next sweep would
-    re-fire the period.
+    would also publish, but the inner scan's catch-up (`git.refresh`) only
+    fast-forwards a checked-out control branch, so a detached worktree could
+    never be proven level with control before scanning.
 
     `git worktree add` is also the concurrency lock: git refuses to check one
     branch out twice, so a second sweep (or an unrelated worktree already
@@ -1327,7 +1345,7 @@ def _service_from_control_worktree(
     """
     if not cfg.git_enabled:
         return None, "[git].enabled = false"
-    root = _git_toplevel(cfg.repo_root)
+    root = git.toplevel(cfg.repo_root)
     if root is None:
         return None, "workspace is not inside a git checkout"
     try:
@@ -1346,19 +1364,15 @@ def _service_from_control_worktree(
         # checkout only when its repo/branch marker identifies this feature
         # and its owning process is gone. A live concurrent sweep and every
         # unrelated user worktree remain the branch-lock refusal below.
-        git._run_git(root, "worktree", "prune")
+        git.run_git(root, "worktree", "prune")
         _reap_stale_control_worktree(root, control)
-        git._run_git(root, "worktree", "prune")
+        git.run_git(root, "worktree", "prune")
         control_ref_exists = _local_branch_exists(root, control)
         control_seed: str | None = None
         if not control_ref_exists:
-            # A command-line `git fetch <remote> <branch>` need only populate
-            # checkout-wide FETCH_HEAD in a single-branch/narrow-refspec clone;
-            # `<remote>/<branch>` can remain absent. Fetch into the shared
-            # Git layer's command-owned ref and retain its exact OID instead.
-            control_seed = git._fetch_branch_oid(
-                root, cfg.git_remote, control
-            )
+            # A narrow clone may never have checked the control branch out
+            # locally; seed it from the freshly fetched remote-tracking ref.
+            control_seed = git.fetch_control(cfg, root)
     except git.GitError as exc:
         return None, str(exc)
 
@@ -1381,13 +1395,16 @@ def _service_from_control_worktree(
         assert control_seed is not None
         add_args = ["-b", control, str(checkout), control_seed]
     try:
-        git._run_git(root, "worktree", "add", *add_args)
+        git.run_git(root, "worktree", "add", *add_args)
     except git.GitError as exc:
         shutil.rmtree(parent, ignore_errors=True)
-        holder = git._worktree_holding_branch(root, control)
+        try:
+            holder = git.worktree_holding_branch(root, control)
+        except git.GitError:
+            holder = None
         blocker = (
             f"{control!r} is already checked out at {holder}"
-            if holder is not None and holder != git._WORKTREES_UNKNOWN
+            if holder is not None
             else str(exc)
         )
         return None, (
@@ -1464,7 +1481,7 @@ def _raise_on_sigterm(signum: int, _frame: object) -> None:
 
 def _local_branch_exists(root: Path, branch: str) -> bool:
     try:
-        git._run_git(root, "rev-parse", "--verify", f"refs/heads/{branch}")
+        git.run_git(root, "rev-parse", "--verify", f"refs/heads/{branch}")
     except git.GitError:
         return False
     return True
@@ -2363,11 +2380,11 @@ class _ParentStateLease:
 def _revision_period_lease(
     cfg: Config, ref: TaskRef, revision: str
 ) -> _PeriodLease:
-    root = git._toplevel(cfg.repo_root)
+    root = git.toplevel(cfg.repo_root)
     if root is None:
         return _local_period_lease(cfg, ref)
-    ticket_rel = _relative_to_root(root, ref.ticket_path)
-    ticket_bytes = git._tree_bytes(root, revision, ticket_rel)
+    ticket_rel = git.relative_to_root(root, ref.ticket_path)
+    ticket_bytes = git.tree_bytes(root, revision, ticket_rel)
     return _PeriodLease(
         ticket_bytes=ticket_bytes,
         generation=_period_generation_from_ticket_bytes(ticket_bytes),
@@ -2391,7 +2408,7 @@ def _local_parent_state_lease(
 def _revision_parent_state_lease(
     cfg: Config, expected: _ParentStateLease, revision: str
 ) -> _ParentStateLease:
-    root = git._toplevel(cfg.repo_root)
+    root = git.toplevel(cfg.repo_root)
     if root is None:
         return _ParentStateLease(
             path=expected.path,
@@ -2399,112 +2416,114 @@ def _revision_parent_state_lease(
                 expected.path.read_bytes() if expected.path.is_file() else None
             ),
         )
-    parent_rel = _relative_to_root(root, expected.path)
+    parent_rel = git.relative_to_root(root, expected.path)
     return _ParentStateLease(
         path=expected.path,
-        ticket_bytes=git._tree_bytes(root, revision, parent_rel),
+        ticket_bytes=git.tree_bytes(root, revision, parent_rel),
     )
 
 
-def _period_lease_guard(
+def _verify_period_on_control(
     cfg: Config,
     ref: TaskRef,
     expected: _PeriodLease,
     *,
+    boundary: str,
     expected_parent: _ParentStateLease | None = None,
-) -> Callable[[str], None]:
-    """Bind exact period and optional parent-state CASes to every attempt."""
-    lifecycle_guard = git.ticket_state_guard(cfg, ref.ticket_path)
+    require_control: bool,
+) -> None:
+    """Refuse unless control's period ticket (and parent) still match `expected`.
 
-    def guard(base: str) -> None:
-        actual = _revision_period_lease(cfg, ref, base)
-        # `expected` is usually captured from this checkout's disk, which a
-        # line-ending-converting checkout holds CRLF while the tree stays LF.
-        if not _same_period_lease(actual, expected):
-            changed: list[str] = []
-            if not _same_ticket_bytes(actual.ticket_bytes, expected.ticket_bytes):
-                changed.append("ticket bytes")
-            if actual.generation != expected.generation:
-                changed.append("period generation")
-            raise git.StateRegressionError(
-                f"{ref.id_slug}: delegated period lease changed on control "
-                f"({', '.join(changed) or 'unknown state'}); refusing stale "
-                "lifecycle publication"
+    The delegated run's compare-and-set against control: every lifecycle
+    boundary re-reads the freshly fetched control copy, so a stable-path
+    replacement can neither start obsolete work nor receive the prior child's
+    result. `expected` is usually captured from this checkout's disk, which a
+    line-ending-converting checkout holds CRLF while the tree stays LF, hence
+    the byte-normalizing comparison. An unreachable control is a refusal only
+    when `require_control` (push auth preflighted); otherwise it is noted.
+    """
+    if not cfg.git_enabled:
+        return
+    root = git.toplevel(cfg.repo_root)
+    try:
+        if root is None:
+            raise git.GitError("control verification requires a Git checkout")
+        base = git.fetch_control(cfg, root)
+    except git.GitError as exc:
+        if require_control:
+            raise RecurringError(
+                f"cannot lease delegated period {ref.id_slug} at {boundary}: {exc}"
+            ) from exc
+        if root is not None:
+            sys.stderr.write(
+                f"[git] note: control lease check skipped at {boundary}: {exc}\n"
             )
-        if expected_parent is not None:
-            actual_parent = _revision_parent_state_lease(
-                cfg, expected_parent, base
+        return
+    actual = _revision_period_lease(cfg, ref, base)
+    if not _same_period_lease(actual, expected):
+        changed: list[str] = []
+        if not _same_ticket_bytes(actual.ticket_bytes, expected.ticket_bytes):
+            changed.append("ticket bytes")
+        if actual.generation != expected.generation:
+            changed.append("period generation")
+        raise RecurringError(
+            f"cannot lease delegated period {ref.id_slug} at {boundary}: "
+            f"delegated period lease changed on control "
+            f"({', '.join(changed) or 'unknown state'}); refusing stale "
+            "lifecycle publication"
+        )
+    if expected_parent is not None:
+        actual_parent = _revision_parent_state_lease(cfg, expected_parent, base)
+        if not _same_ticket_bytes(
+            actual_parent.ticket_bytes, expected_parent.ticket_bytes
+        ):
+            raise RecurringError(
+                f"cannot lease delegated period {ref.id_slug} at {boundary}: "
+                "recurring parent state changed on control after delegated "
+                "child admission; refusing stale completion publication"
             )
-            if not _same_ticket_bytes(
-                actual_parent.ticket_bytes, expected_parent.ticket_bytes
-            ):
-                raise git.StateRegressionError(
-                    f"{ref.id_slug}: recurring parent state changed on "
-                    "control after delegated child admission; refusing stale "
-                    "completion publication"
-                )
-        lifecycle_guard(base)
-
-    return guard
 
 
-def _period_mutation_snapshot(
+def _require_period_bytes(
+    ref: TaskRef, expected_ticket_bytes: bytes | None, *, action: str
+) -> None:
+    """Refuse a lifecycle write whose leased ticket bytes are no longer on disk."""
+    current = ref.ticket_path.read_bytes() if ref.ticket_path.is_file() else None
+    if current != expected_ticket_bytes:
+        raise RecurringError(
+            f"{ref.id_slug}: period ticket changed after its lifecycle lease "
+            f"was sampled; refusing stale {action}"
+        )
+
+
+def _restore_period_bytes(
     cfg: Config,
     ref: TaskRef,
+    ticket_bytes: bytes | None,
     *,
-    expected_ticket_bytes: bytes | None,
-    include_completion_state: bool = False,
-) -> git.FileMutationRollback:
-    """Capture delegated lifecycle files at one exact rollback/publication boundary.
-
-    Completion also owns the parent recurring ticket named by the period's
-    state snapshot: a cursor advanced by the child and the period's ``done``
-    transition must reach control in the same transaction.
-
-    ``expected_ticket_bytes`` binds this mutation snapshot to the period lease
-    whose parsed ``Ticket`` object will be rendered.  A newer same-generation
-    local edit must defer the transition rather than become rollback input for
-    an older object and then be overwritten by it.
-    """
-    audit_path = log_path(cfg)
-    paths = [ref.ticket_path, audit_path]
-    union_paths = [audit_path]
-    if include_completion_state:
-        state_snapshot = read_snapshot(ref.path)
-        if state_snapshot is not None:
-            parent_ticket = parent_ticket_path(cfg, state_snapshot)
-            if parent_ticket.parent.is_dir():
-                paths.append(parent_ticket)
-    try:
-        rollback = git.FileMutationRollback.capture(
-            paths, union_paths=union_paths
-        )
-    except FileNotFoundError as exc:
-        raise git.StateRegressionError(
-            f"{ref.id_slug}: period mutation input disappeared while being "
-            "captured; refusing stale lifecycle mutation"
-        ) from exc
-    if rollback.originals.get(ref.ticket_path) != expected_ticket_bytes:
-        raise git.StateRegressionError(
-            f"{ref.id_slug}: period ticket changed after its lifecycle lease "
-            "was sampled; refusing stale lifecycle mutation"
-        )
-    return rollback
-
-
-def _restore_refused_period_mutation(
-    cfg: Config,
-    rollback: git.FileMutationRollback,
-    *,
-    action: str,
+    log_before: bytes | None,
+    parent: _ParentStateLease | None = None,
 ) -> None:
-    refused = git.restore_files_under_barrier(cfg, rollback)
-    if refused:
-        names = ", ".join(str(path) for path in refused)
-        raise RecurringError(
-            f"could not restore delegated period after refused {action}; "
-            f"concurrent writes remain at {names}"
-        )
+    """Undo a period write whose publication definitely did not land.
+
+    The leased pre-write bytes go back (parent ticket included for a
+    completion) and the audit lines the write appended are retracted.
+    """
+    with git.state_lock(cfg):
+        for path, data in (
+            (ref.ticket_path, ticket_bytes),
+            *(((parent.path, parent.ticket_bytes),) if parent is not None else ()),
+        ):
+            if data is None:
+                path.unlink(missing_ok=True)
+            else:
+                path.write_bytes(data)
+        retract_log_lines(cfg, ref.id_slug, log_before)
+
+
+def _log_bytes(cfg: Config) -> bytes | None:
+    path = log_path(cfg)
+    return path.read_bytes() if path.is_file() else None
 
 
 def _run_delegated_task(
@@ -2644,28 +2663,14 @@ def _run_delegated_task(
         boundary: str,
         parent_lease: _ParentStateLease | None = None,
     ) -> None:
-        try:
-            git.sync_task_state(
-                lease_cfg,
-                ref.path,
-                message=f"Lease: {ref.id_slug} — {boundary}",
-                guard=_period_lease_guard(
-                    lease_cfg,
-                    ref,
-                    lease,
-                    expected_parent=parent_lease,
-                ),
-                raise_state_regression=True,
-                **(
-                    {"raise_git_error": True}
-                    if require_period_publication
-                    else {}
-                ),
-            )
-        except git.GitError as exc:
-            raise RecurringError(
-                f"cannot lease delegated period {ref.id_slug} at {boundary}: {exc}"
-            ) from exc
+        _verify_period_on_control(
+            lease_cfg,
+            ref,
+            lease,
+            boundary=boundary,
+            expected_parent=parent_lease,
+            require_control=require_period_publication,
+        )
 
     def start_period() -> None:
         """Publish lifecycle after preflight; launch will then re-compose."""
@@ -2744,19 +2749,11 @@ def _run_delegated_task(
                 if prior_status == "active"
                 else f"{prior_status} → active → in_progress"
             )
-            rollback: git.FileMutationRollback | None = None
-            publication_succeeded = False
-
-            def record_publication() -> None:
-                nonlocal publication_succeeded
-                publication_succeeded = True
-
+            _require_period_bytes(
+                ref, current_lease.ticket_bytes, action="delegated start"
+            )
+            log_before = _log_bytes(start_cfg)
             try:
-                rollback = _period_mutation_snapshot(
-                    start_cfg,
-                    ref,
-                    expected_ticket_bytes=current_lease.ticket_bytes,
-                )
                 mark_in_progress(
                     start_cfg,
                     ref,
@@ -2771,38 +2768,26 @@ def _run_delegated_task(
                         f"\"{current.title}\"{step_note}"
                     ),
                     echo=f"{ref.id_slug}: in_progress",
-                    mutation_snapshot=rollback,
-                    after_sync=record_publication,
-                    state_guard=_period_lease_guard(
-                        start_cfg, ref, initial_period_lease
-                    ),
-                    strict_state_guard=True,
-                    strict_state_sync=require_period_publication,
+                    strict=True,
                 )
-            except git.UncertainFeaturePublicationError as exc:
+            except git.UncertainPublishError as exc:
                 raise RecurringError(
                     f"cannot start delegated period {ref.id_slug}: publication "
                     f"outcome is uncertain; generated local state was retained "
                     f"for reconciliation — {exc}"
                 ) from exc
             except git.GitError as exc:
-                if rollback is not None and not publication_succeeded:
-                    _restore_refused_period_mutation(
-                        start_cfg,
-                        rollback,
-                        action="delegated start",
+                # A refusal always unwinds; a transport miss only when push
+                # auth was preflighted (control is then required to hold it).
+                if require_period_publication or isinstance(
+                    exc, git.StateRegressionError
+                ):
+                    _restore_period_bytes(
+                        start_cfg, ref, current_lease.ticket_bytes, log_before=log_before
                     )
-                raise RecurringError(
-                    f"cannot start delegated period {ref.id_slug}: {exc}"
-                ) from exc
-            except BaseException:
-                if rollback is not None and not publication_succeeded:
-                    _restore_refused_period_mutation(
-                        start_cfg,
-                        rollback,
-                        action="delegated start",
-                    )
-                raise
+                    raise RecurringError(
+                        f"cannot start delegated period {ref.id_slug}: {exc}"
+                    ) from exc
         elif current.status != "in_progress":
             raise RecurringError(
                 f"cannot launch delegated target {delegate}: period task "
@@ -2974,19 +2959,17 @@ def _run_delegated_task(
         boundary="completion",
         expected_status="in_progress",
     )
-    rollback: git.FileMutationRollback | None = None
-    publication_succeeded = False
-
-    def record_completion_publication() -> None:
-        nonlocal publication_succeeded
-        publication_succeeded = True
-
+    parent_before = _local_parent_state_lease(cfg, ref)
+    log_before = _log_bytes(cfg)
     try:
-        rollback = _period_mutation_snapshot(
+        _require_period_bytes(
+            ref, current_lease.ticket_bytes, action="delegated completion"
+        )
+        confirm_control_lease(
             cfg,
-            ref,
-            expected_ticket_bytes=current_lease.ticket_bytes,
-            include_completion_state=True,
+            expected_period_lease,
+            boundary="completion",
+            parent_lease=expected_parent_state_lease,
         )
         mark_done(
             cfg,
@@ -3002,18 +2985,9 @@ def _run_delegated_task(
                 f"\"{after_delegate.title}\""
             ),
             echo=f"{ref.id_slug}: done",
-            mutation_snapshot=rollback,
-            after_sync=record_completion_publication,
-            state_guard=_period_lease_guard(
-                cfg,
-                ref,
-                expected_period_lease,
-                expected_parent=expected_parent_state_lease,
-            ),
-            strict_state_guard=True,
-            strict_state_sync=require_period_publication,
+            strict=True,
         )
-    except git.UncertainFeaturePublicationError as exc:
+    except git.UncertainPublishError as exc:
         typer.secho(
             f"cannot complete delegated period {ref.id_slug}: publication "
             f"outcome is uncertain; generated local state was retained for "
@@ -3022,12 +2996,20 @@ def _run_delegated_task(
             err=True,
         )
         return DelegatedRunResult(2, "refused")
-    except git.GitError as exc:
-        if rollback is not None and not publication_succeeded:
-            _restore_refused_period_mutation(
+    except (git.GitError, RecurringError) as exc:
+        if (
+            isinstance(exc, git.GitError)
+            and not isinstance(exc, git.StateRegressionError)
+            and not require_period_publication
+        ):
+            return DelegatedRunResult(0, "done")
+        if isinstance(exc, git.GitError):
+            _restore_period_bytes(
                 cfg,
-                rollback,
-                action="delegated completion",
+                ref,
+                current_lease.ticket_bytes,
+                log_before=log_before,
+                parent=parent_before,
             )
         typer.secho(
             f"cannot complete delegated period {ref.id_slug}: {exc}",
@@ -3046,12 +3028,6 @@ def _run_delegated_task(
         )
         return DelegatedRunResult(2, "done")
     except TaskValidationError as exc:
-        if rollback is not None and not publication_succeeded:
-            _restore_refused_period_mutation(
-                cfg,
-                rollback,
-                action="delegated completion",
-            )
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         return DelegatedRunResult(2, "done")
     return DelegatedRunResult(0, "done")
@@ -3193,8 +3169,6 @@ class _ControlCatchup:
     branch is checked out but its tip could not be integrated (a human has to
     reconcile it). Only the first is a candidate for the temporary control
     worktree, so the distinction has to survive the return.
-    `revision` binds the scan's local ledger snapshot to the caught-up HEAD;
-    it may be ahead of the fetched tip when local commits are still unpushed.
     """
 
     fresh: bool
@@ -3210,63 +3184,57 @@ def _sync_control_checkout_ahead(
 
     The scan decides what is due from working-tree templates and period tasks;
     starting from origin's tip means those reads see runs another machine
-    already serviced, instead of relying solely on the per-create FETCH_HEAD
-    checks. Runs while the tree is still clean of scan writes, so the rebase
-    is normally a plain fast-forward. Only applies when this checkout holds
-    the control branch. Returns a `_ControlCatchup`: a confirmation flag, an
-    actionable reason, and whether the refusal was merely "the control branch
-    is not checked out here".
-    Bare and named sweeps keep misses best-effort because each create still
-    reconciles against FETCH_HEAD; the `--all` child treats a false result as
-    an entry-gate failure before scanning.
+    already serviced. Runs while the tree is still clean of scan writes, so
+    the integration is a plain fast-forward (`git.refresh`). Only applies when
+    this checkout holds the control branch. Returns a `_ControlCatchup`: a
+    confirmation flag, an actionable reason, and whether the refusal was merely
+    "the control branch is not checked out here". Bare and named sweeps keep
+    misses best-effort because each create still reconciles against control;
+    the `--all` child treats a false result as an entry-gate failure.
 
-    A git failure (offline, conflicting local commits) writes one stderr note —
-    unless the caller passes `announce_failure=False` because it is about to
-    fail loud with the returned reason itself, in which case a note here would
-    print the same conflict twice.
+    `announce_failure=False` suppresses the stderr note for a caller about to
+    fail loud with the returned reason itself.
     """
     if not cfg.git_enabled:
         return _ControlCatchup(fresh=False, reason="[git].enabled = false")
-    root = _git_toplevel(cfg.repo_root)
+    root = git.toplevel(cfg.repo_root)
     if root is None:
         return _ControlCatchup(
             fresh=False, reason="workspace is not inside a git checkout"
         )
-    fetched = False
     try:
         current = _current_branch(root)
-        if current != cfg.git_control_branch:
-            where = "detached HEAD" if current == "HEAD" else f"branch {current!r}"
-            return _ControlCatchup(
-                fresh=False,
-                reason=(
-                    f"configured control branch {cfg.git_control_branch!r} is "
-                    f"not checked out ({where})."
-                    f"\nCheck that branch out — `git -C {root} checkout "
-                    f"{cfg.git_control_branch}` — then re-run."
-                ),
-                off_control_branch=True,
-            )
-        _fetch_control_branch(cfg, root)
-        fetched = True
-        target = _rev_parse(root, "FETCH_HEAD")
-        _rebase_checked_out_branch_onto(root, target)
-        _confirm_control_tip_integrated(root, target)
-        revision = _rev_parse(root, "HEAD")
     except git.GitError as exc:
-        reason = str(exc)
-        if fetched:
-            # The fetch worked, so this is a local-integration failure
-            # (usually diverged local commits). Name the manual fix; a fetch
-            # failure (offline, dead remote) gets no rebase advice.
-            reason += (
-                f"\nResolve in that checkout — e.g. `git -C {root} rebase "
-                f"{cfg.git_remote}/{cfg.git_control_branch}` — then re-run."
-            )
-        if announce_failure:
-            sys.stderr.write(f"[git] note: pre-scan catch-up skipped: {exc}\n")
-        return _ControlCatchup(fresh=False, reason=reason)
-    return _ControlCatchup(fresh=True, reason="", revision=revision)
+        return _ControlCatchup(fresh=False, reason=str(exc))
+    if current != cfg.git_control_branch:
+        where = "detached HEAD" if current == "HEAD" else f"branch {current!r}"
+        return _ControlCatchup(
+            fresh=False,
+            reason=(
+                f"configured control branch {cfg.git_control_branch!r} is "
+                f"not checked out ({where})."
+                f"\nCheck that branch out — `git -C {root} checkout "
+                f"{cfg.git_control_branch}` — then re-run."
+            ),
+            off_control_branch=True,
+        )
+    if git.refresh(cfg):
+        # The scan's local ledger read is a snapshot *of this commit*; the
+        # create guard re-reads control whenever it finds a newer one.
+        return _ControlCatchup(
+            fresh=True,
+            reason="",
+            revision=git.run_git(root, "rev-parse", "HEAD").strip(),
+        )
+    reason = (
+        f"local {cfg.git_control_branch!r} could not be fast-forwarded to "
+        f"{cfg.git_remote}/{cfg.git_control_branch} (see the note above)."
+        f"\nResolve in that checkout — e.g. `git -C {root} pull --rebase "
+        f"{cfg.git_remote} {cfg.git_control_branch}` — then re-run."
+    )
+    if announce_failure:
+        sys.stderr.write(f"[git] note: pre-scan catch-up skipped: {reason}\n")
+    return _ControlCatchup(fresh=False, reason=reason)
 
 
 def _launch_created(
@@ -3486,12 +3454,7 @@ def _sync_recurring_create(
     template_dir = recurring_dir(cfg) / template_name
     message = f"Ticket: {ref.id_slug} — recurring create"
     if not template_dir.is_dir():
-        git.sync_paths(
-            cfg,
-            ref.path,
-            [ref.path],
-            message=message,
-        )
+        git.sync_task_state(cfg, ref.path, message=message)
         return True
     # The serviced-period ledger is the repo-global, union-merged `coga/log.md`
     # (appended by `_record_run`), which never rides the cross-branch overlay —
@@ -3592,72 +3555,114 @@ def _sync_recurring_create_paths(
     state_keys: list[str],
     control_ledger: dict[str, str] | None = None,
 ) -> tuple[str, bool]:
-    """Sync create paths, carrying the period task and template cursors.
+    """Publish a period create, or adopt control's copy when it already ran.
 
-    The cross-branch overlay carries the period task dir and the template
-    `ticket.md` (`rels`). The repo-global `coga/log.md` is union-merged and
-    rides only the *local* commit (`_local_commit_rels`), never the overlay —
-    mirroring `coga.git.sync_paths`.
+    Fetches control first: when control already holds this period (its
+    serviced-period record in the union-merged `coga/log.md`, or the task
+    itself), the local create is unwound to control's copy and only the log
+    line is published. Otherwise the period task, the template's run cursors,
+    and the log land in one `git.publish`, whose provenance check refuses to
+    overlay a task a peer created meanwhile — that refusal is treated as
+    "already handled" too. Every git miss is non-fatal: the created task on
+    disk is the source of truth and the next sweep retries the publish.
     """
     if not cfg.git_enabled:
         sys.stderr.write(f"[git] disabled (sync suppressed): {message}\n")
         return original_ticket, True
 
-    root = _git_toplevel(anchor_path)
+    try:
+        root = git.toplevel(anchor_path)
+    except git.GitError as exc:
+        sys.stderr.write(f"[git] {exc} (sync skipped): {message}\n")
+        return original_ticket, True
     if root is None:
         sys.stderr.write(f"[git] not a git repo (sync skipped): {message}\n")
         return original_ticket, True
 
     try:
-        rels = [_relative_to_root(root, path) for path in paths]
-        ticket_rel = _relative_to_root(root, template_ticket)
-        local_rels = _local_commit_rels(cfg, root, rels)
-        branch = _current_branch(root)
-        task_rel = _relative_to_root(root, anchor_path)
+        rels = [git.relative_to_root(root, path) for path in paths]
+        ticket_rel = git.relative_to_root(root, template_ticket)
+        task_rel = git.relative_to_root(root, anchor_path)
+        log_file = log_path(cfg)
+        log_rel = git.relative_to_root(root, log_file)
+        template_ref = _template_ref_from_ticket_rel(ticket_rel)
+
+        def already_handled(at: str) -> bool:
+            return _control_already_has_period(
+                root,
+                at,
+                task_rel,
+                log_rel=log_rel,
+                template_ref=template_ref,
+                period_key=period_key,
+                control_ledger=control_ledger,
+                include_ledger=respect_handled_period,
+                include_task=respect_existing_task,
+                replaced_done_ticket_bytes=replaced_done_ticket_bytes,
+            )
+
+        def refuse_if_serviced(at: str) -> None:
+            # The ledger half of `already_handled`, re-run at every base the
+            # publish pushes on. `expect` cannot carry it: the union-merged log
+            # is only a candidate while it is dirty, and on a control checkout
+            # the first create of a sweep already landed every line this sweep
+            # appended — so a peer's record arriving before a later create is
+            # invisible to a blob pin but not to this read. Two outcomes: a
+            # period a peer serviced before this sweep published anything is
+            # adopted (the refusal below makes the loop re-read and take
+            # control's copy); a ledger line that changed *after* this sweep's
+            # own publication is the ambiguous case the cache itself refuses.
+            serviced = _control_serviced_period_cached(
+                root, at, log_rel, template_ref, control_ledger,
+                resolve_at={template_ref: period_key} if period_key is not None else None,
+                deduplicate=respect_handled_period,
+            )
+            if (
+                respect_handled_period
+                and period_key is not None
+                and serviced is not None
+                and period_key_at_least(serviced, period_key)
+            ):
+                raise git.StateRegressionError(
+                    f"{log_rel}: control already records {template_ref} "
+                    f"serviced for {serviced}"
+                )
+
+        def bind_published() -> None:
+            # This publication unioned every pending sweep record. Keep the
+            # competitor snapshot, but advance its known revision past our own
+            # write so later templates cannot collide with themselves.
+            if control_ledger is None:
+                return
+            revision = git.known_control_revision(cfg, root)
+            if revision is not None:
+                control_ledger[_LEDGER_REVISION] = revision
+                control_ledger[_LEDGER_PUBLISHED] = "yes"
 
         try:
-            _fetch_control_branch(cfg, root)
+            base = git.fetch_control(cfg, root)
         except git.GitError as exc:
-            # The generic publisher retries its own branch-aware remote sync.
-            # Report this fetch miss without claiming the retry failed; the
-            # publisher owns reporting and auditing any final sync failure.
+            # Offline: publish what we have (it fails loud on its own) and let
+            # the next sweep reconcile against control. The publish still
+            # guards at whatever base it ends up pushing on — a rejected push
+            # re-fetches, and a peer may have serviced the period meanwhile.
             sys.stderr.write(
-                f"[git] control fetch failed; retrying with generic path sync: {exc}. "
-                f"Message was: {message}\n"
+                f"[git] control fetch failed; publishing without a control "
+                f"check: {exc}. Message was: {message}\n"
             )
             if local_ticket:
                 template_ticket.write_text(local_ticket)
-            def guard_fallback(base: str) -> None:
-                if _control_already_has_period(
-                    root, base, task_rel,
-                    log_rel=_relative_to_root(root, log_path(cfg)),
-                    template_ref=_template_ref_from_ticket_rel(ticket_rel),
-                    period_key=period_key,
-                    control_ledger=control_ledger,
-                    include_ledger=respect_handled_period,
-                    include_task=respect_existing_task,
-                    replaced_done_ticket_bytes=replaced_done_ticket_bytes,
-                ):
+
+            def guard_fallback(at: str) -> None:
+                if already_handled(at):
                     raise _ControlLedgerChanged(
-                        base, "period already handled on control during fallback sync"
+                        at, "period already handled on control during fallback sync"
                     )
 
-            published = git.sync_paths(
-                cfg, anchor_path, paths, message=message, guard=guard_fallback
-            )
-            if published is not None and control_ledger is not None:
-                control_ledger[_LEDGER_REVISION] = published
-                control_ledger[_LEDGER_PUBLISHED] = "yes"
-            elif published is None and branch != "HEAD":
-                # The guard's fetch can fail before generic sync commits.
-                # Preserve the existing offline local-save contract; admission
-                # refusals raise above and never reach this transport fallback.
-                git._commit_paths(root, local_rels, message)
+            if git.publish(cfg, [*paths, log_file], message, guard=guard_fallback):
+                bind_published()
             return original_ticket, True
-        base = _rev_parse(root, "FETCH_HEAD")
-        task_rel = _relative_to_root(root, anchor_path)
-        restored_control_task = False
-        restored_snapshot: str | None = None
+
         if restore_existing_control_task:
             restored_control_task, restored_snapshot = _restore_control_task_if_present(
                 root,
@@ -3687,122 +3692,52 @@ def _sync_recurring_create_paths(
                 original_ticket = local_ticket
                 if not force_record_period:
                     return local_ticket, False
-        if _control_already_has_period(
-            root,
-            base,
-            task_rel,
-            log_rel=_relative_to_root(root, log_path(cfg)),
-            template_ref=_template_ref_from_ticket_rel(ticket_rel),
-            period_key=period_key,
-            control_ledger=control_ledger,
-            include_ledger=respect_handled_period,
-            include_task=respect_existing_task,
-            replaced_done_ticket_bytes=replaced_done_ticket_bytes,
-        ):
-            if branch == cfg.git_control_branch:
-                _restore_selected_paths_from_ref(root, "HEAD", rels)
-                _rebase_checked_out_branch_onto(root, base)
-                # The create appended to the global log before the sync detected
-                # the period was already handled on control; commit that line so
-                # the control checkout is left clean (the overlay never carries
-                # the log).
-                _commit_global_log(cfg, root, message)
-                return (
-                    _control_template_or_local(
-                        root, "HEAD", ticket_rel, original_ticket
-                    ),
-                    False,
+        for _attempt in range(git.MAX_PUBLISH_ATTEMPTS):
+            if already_handled(base):
+                return _adopt_control_period(
+                    cfg, root, base, rels, ticket_rel, original_ticket, message,
+                    template_ref=template_ref,
+                    period_key=period_key,
+                    control_ledger=control_ledger,
+                    deduplicate=respect_handled_period,
+                    bind_published=bind_published,
                 )
-            _restore_selected_paths_from_ref(root, base, rels)
-            if branch != "HEAD":
-                git._commit_paths(root, local_rels, message)
-                return (
-                    _control_template_or_local(
-                        root, "HEAD", ticket_rel, original_ticket
-                    ),
-                    False,
+            _adopt_control_template(
+                root, template_ticket, ticket_rel, base, local_ticket
+            )
+            control_rels = _control_create_rels(root, base, rels, ticket_rel)
+            # The decision above was made from control's exact ledger and
+            # template: pin both, so a peer that serviced the period between
+            # this fetch and the push refuses the publish and the loop
+            # re-reads control instead of landing a duplicate period.
+            expect = {
+                root / rel: git.tree_bytes(root, base, rel)
+                for rel in (log_rel, *(r for r in control_rels if r == ticket_rel))
+            }
+            try:
+                published = git.publish(
+                    cfg,
+                    [*(root / rel for rel in control_rels), log_file],
+                    message,
+                    expect=expect,
+                    guard=refuse_if_serviced,
                 )
-            return (
-                _control_template_or_local(
-                    root, base, ticket_rel, original_ticket
-                ),
-                False,
+            except git.StateRegressionError as exc:
+                sys.stderr.write(f"[git] note: {exc}; re-reading control\n")
+                # The cache is revision-bound: the next `already_handled(base)`
+                # sees the newer commit and re-reads (or diffs) the ledger.
+                base = git.fetch_control(cfg, root)
+                continue
+            if published:
+                bind_published()
+            break
+        else:
+            raise git.GitError(
+                f"could not land {task_rel} after "
+                f"{git.MAX_PUBLISH_ATTEMPTS} attempts — contention"
             )
-        _adopt_control_template(
-            root, template_ticket, ticket_rel, base, local_ticket
-        )
-
-        if branch == cfg.git_control_branch:
-            return _sync_recurring_create_on_checked_out_control_branch(
-                cfg,
-                root,
-                rels,
-                template_ticket=template_ticket,
-                ticket_rel=ticket_rel,
-                original_ticket=original_ticket,
-                local_ticket=local_ticket,
-                period_key=period_key,
-                message=message,
-                respect_handled_period=respect_handled_period,
-                respect_existing_task=respect_existing_task,
-                replaced_done_ticket_bytes=replaced_done_ticket_bytes,
-                restore_existing_control_task=restore_existing_control_task,
-                overwrite_dirty_control_task=overwrite_dirty_control_task,
-                force_period_key=force_period_key,
-                force_snapshot_is_fresh=force_snapshot_is_fresh,
-                force_record_period=force_record_period,
-                state_keys=state_keys,
-                control_ledger=control_ledger,
-            )
-
-        committed_ticket = template_ticket.read_text()
-        # Detached HEAD skips the local commit (it would be orphaned); the
-        # landing push below fast-forwards the local control ref best-effort
-        # via `git._try_update_local_ref`, which reports any miss to stderr.
-        if branch != "HEAD":
-            git._commit_paths(root, local_rels, message)
-            committed_ticket = _show_path(root, "HEAD", ticket_rel)
-        landed, already_handled = _land_recurring_create_on_control_branch(
-            cfg,
-            root,
-            rels,
-            template_ticket=template_ticket,
-            ticket_rel=ticket_rel,
-            task_rel=task_rel,
-            local_ticket=local_ticket,
-            period_key=period_key,
-            message=message,
-            respect_handled_period=respect_handled_period,
-            respect_existing_task=respect_existing_task,
-            replaced_done_ticket_bytes=replaced_done_ticket_bytes,
-            restore_existing_control_task=restore_existing_control_task,
-            overwrite_dirty_control_task=overwrite_dirty_control_task,
-            force_period_key=force_period_key,
-            force_snapshot_is_fresh=force_snapshot_is_fresh,
-            force_record_period=force_record_period,
-            state_keys=state_keys,
-            control_ledger=control_ledger,
-        )
-        if already_handled:
-            _restore_selected_paths_from_ref(root, landed, rels)
-            if branch != "HEAD":
-                git._commit_paths(root, local_rels, message)
-                return (
-                    _control_template_or_local(
-                        root, "HEAD", ticket_rel, original_ticket
-                    ),
-                    False,
-                )
-            return (
-                _control_template_or_local(
-                    root, landed, ticket_rel, original_ticket
-                ),
-                False,
-            )
-        return (
-            committed_ticket or original_ticket,
-            True,
-        )
+        committed_ticket = template_ticket.read_text() if template_ticket.is_file() else ""
+        return committed_ticket or original_ticket, True
     except _ControlLedgerChanged as exc:
         # A refused local create must not become an orphan that the next scan
         # resumes without create-sync. Restore control's task (or its absence),
@@ -3814,8 +3749,6 @@ def _sync_recurring_create_paths(
             raise
         try:
             _restore_selected_paths_from_ref(root, exc.revision, [task_rel])
-            if branch != "HEAD":
-                git._commit_paths(root, local_rels, message)
         except (git.GitError, OSError) as cleanup_error:
             raise RecurringError(
                 f"{exc}; could not discard local create: {cleanup_error}"
@@ -3827,33 +3760,58 @@ def _sync_recurring_create_paths(
         return original_ticket, True
 
 
-def _local_commit_rels(cfg: Config, root: Path, rels: list[str]) -> list[str]:
-    """The overlay `rels` plus the repo-global log for the *local* commit only.
+def _adopt_control_period(
+    cfg: Config,
+    root: Path,
+    base: str,
+    rels: list[str],
+    ticket_rel: str,
+    original_ticket: str,
+    message: str,
+    *,
+    template_ref: str,
+    period_key: str | None,
+    control_ledger: dict[str, str] | None,
+    deduplicate: bool,
+    bind_published: Callable[[], None],
+) -> tuple[str, bool]:
+    """Unwind a local create to control's copy; publish only the log line.
 
-    The global `coga/log.md` is `merge=union`, so it must never ride the
-    cross-branch overlay (which replaces files wholesale). It is committed
-    locally and reaches control via the same-branch push / PR merge.
+    The create appended its record to the global log before the sync found
+    the period already handled on control, so that line is published (union
+    merged) and the task paths are restored from control. In a control
+    checkout the restored paths are staged so the fast-forward that follows
+    the log publish leaves the tree clean. Even this rejected create publishes
+    the other pending sweep targets' records, so the publish is guarded like
+    a create and the cache is bound to the revision it lands.
     """
-    log_file = log_path(cfg)
-    if not log_file.exists():
-        return rels
-    log_rel = _relative_to_root(root, log_file)
-    return rels if log_rel in rels else [*rels, log_rel]
+    _restore_selected_paths_from_ref(root, base, rels)
+    if _current_branch(root) == cfg.git_control_branch:
+        present = [rel for rel in rels if (root / rel).exists()]
+        if present:
+            git.run_git(root, "add", "--all", "--", *present)
+
+    def guard_log_publication(at: str) -> None:
+        _control_serviced_period_cached(
+            root, at, git.relative_to_root(root, log_path(cfg)), template_ref,
+            control_ledger,
+            resolve_at={template_ref: period_key} if period_key is not None else None,
+            deduplicate=deduplicate,
+        )
+
+    if git.publish(cfg, [log_path(cfg)], message, guard=guard_log_publication):
+        bind_published()
+    return _control_template_or_local(root, base, ticket_rel, original_ticket), False
 
 
-def _commit_global_log(cfg: Config, root: Path, message: str) -> None:
-    """Commit only the repo-global `coga/log.md`, if it has changes.
-
-    The union-merge global log rides the *local* commit and never the
-    cross-branch overlay, so every control-branch return path that may have left
-    an appended log line in the working tree (a recurring create that the sync
-    then detected was already handled on control, and unwound the task/ticket
-    for) must commit it — otherwise the tree is left dirty. A no-op when the log
-    is unchanged or the period task path was removed (only the log rel is
-    passed, so a removed-task pathspec can't abort the commit)."""
-    log_file = log_path(cfg)
-    if log_file.exists():
-        git._commit_paths(root, [_relative_to_root(root, log_file)], message)
+def _append_sync_failure(cfg: Config, anchor_path: Path, exc: Exception) -> None:
+    """Best-effort global-log note for non-fatal git sync failures."""
+    if not anchor_path.is_dir():
+        return
+    try:
+        append_log(cfg, ref_tag_for_path(cfg, anchor_path), "git", f"sync failed: {exc}")
+    except OSError:
+        return
 
 
 def _control_template_or_local(
@@ -3868,228 +3826,6 @@ def _control_template_or_local(
     adopts it instead of re-running from a stale cursor.
     """
     return _show_path(root, ref, ticket_rel) or local_ticket
-
-
-def _append_sync_failure(cfg: Config, anchor_path: Path, exc: Exception) -> None:
-    """Best-effort global-log note for non-fatal git sync failures."""
-    if not anchor_path.is_dir():
-        return
-    try:
-        append_log(cfg, ref_tag_for_path(cfg, anchor_path), "git", f"sync failed: {exc}")
-    except OSError:
-        return
-
-
-def _land_recurring_create_on_control_branch(
-    cfg: Config,
-    root: Path,
-    rels: list[str],
-    *,
-    template_ticket: Path,
-    ticket_rel: str,
-    task_rel: str,
-    local_ticket: str,
-    period_key: str | None,
-    message: str,
-    respect_handled_period: bool,
-    respect_existing_task: bool,
-    replaced_done_ticket_bytes: bytes | None,
-    restore_existing_control_task: bool,
-    overwrite_dirty_control_task: bool,
-    force_period_key: str | None,
-    force_snapshot_is_fresh: bool,
-    force_record_period: bool,
-    state_keys: list[str],
-    control_ledger: dict[str, str] | None = None,
-    update_local_ref: bool = True,
-) -> tuple[str, bool]:
-    remote = cfg.git_remote
-    branch = cfg.git_control_branch
-
-    for _ in range(git._MAX_SYNC_ATTEMPTS):
-        _fetch_control_branch(cfg, root)
-        base = _rev_parse(root, "FETCH_HEAD")
-        restored_control_task = False
-        restored_snapshot: str | None = None
-        if restore_existing_control_task:
-            restored_control_task, restored_snapshot = _restore_control_task_if_present(
-                root,
-                base,
-                task_rel,
-                preserve_local_changes=not overwrite_dirty_control_task,
-            )
-            if restored_control_task and force_period_key is not None:
-                local_ticket = _reconcile_forced_period_after_control_restore(
-                    cfg,
-                    root,
-                    base,
-                    task_rel=task_rel,
-                    template_ref=_template_ref_from_ticket_rel(ticket_rel),
-                    template_ticket=template_ticket,
-                    ticket_rel=ticket_rel,
-                    task_id_slug=_task_id_slug_from_rel(task_rel),
-                    force_period_key=force_period_key,
-                    snapshot_text_is_fresh=force_snapshot_is_fresh,
-                    snapshot_text=restored_snapshot,
-                    snapshot_ticket_text=local_ticket,
-                    record_period=force_record_period,
-                    state_keys=state_keys,
-                )
-                if force_record_period:
-                    period_key = force_period_key
-        if _control_already_has_period(
-            root,
-            base,
-            task_rel,
-            log_rel=_relative_to_root(root, log_path(cfg)),
-            template_ref=_template_ref_from_ticket_rel(ticket_rel),
-            period_key=period_key,
-            control_ledger=control_ledger,
-            include_ledger=respect_handled_period,
-            include_task=respect_existing_task,
-            replaced_done_ticket_bytes=replaced_done_ticket_bytes,
-        ):
-            return base, True
-        _adopt_control_template(
-            root, template_ticket, ticket_rel, base, local_ticket
-        )
-        control_rels = _control_create_rels(root, base, rels, ticket_rel)
-
-        # The serviced-period record must reach control with the task it
-        # describes. It lives in the repo-global `coga/log.md`, which is
-        # `merge=union` and so must never ride the overlay (that replaces
-        # files wholesale and would drop a peer's concurrent appends) — it
-        # is three-way unioned into the control tree instead.
-        #
-        # Waiting for this branch's PR to merge is not good enough: the task
-        # lands on control now, and if Dream reaps it before the merge — or
-        # the branch never merges — control would hold neither the task nor
-        # its record, and the period would fire again.
-        tree = git._build_overlay_tree(
-            root,
-            base,
-            control_rels,
-            union_rels=_control_ledger_rels(cfg, root),
-        )
-        if tree == _rev_parse(root, f"{base}^{{tree}}"):
-            return base, False
-
-        new = git._run_git(root, "commit-tree", tree, "-p", base, "-m", message).strip()
-        result = git._push_ref(root, remote, f"{new}:refs/heads/{branch}")
-        if result is None:
-            if control_ledger is not None:
-                # This publication unioned all pending sweep records. Keep the
-                # competitor snapshot, but advance its known revision past our
-                # own write so later templates cannot collide with themselves.
-                control_ledger[_LEDGER_REVISION] = new
-                control_ledger[_LEDGER_PUBLISHED] = "yes"
-            if update_local_ref:
-                git._try_update_local_ref(root, branch, new)
-            return new, False
-        if not git._is_non_fast_forward(result):
-            raise git.GitError(
-                f"`git push {remote} {new}:refs/heads/{branch}` failed: {result}"
-            )
-
-    raise git.GitError(
-        f"could not land on {branch!r} after {git._MAX_SYNC_ATTEMPTS} attempts — "
-        f"contention on refs/heads/{branch}"
-    )
-
-
-def _sync_recurring_create_on_checked_out_control_branch(
-    cfg: Config,
-    root: Path,
-    rels: list[str],
-    *,
-    template_ticket: Path,
-    ticket_rel: str,
-    original_ticket: str,
-    local_ticket: str,
-    period_key: str | None,
-    message: str,
-    respect_handled_period: bool,
-    respect_existing_task: bool,
-    replaced_done_ticket_bytes: bytes | None,
-    restore_existing_control_task: bool,
-    overwrite_dirty_control_task: bool,
-    force_period_key: str | None,
-    force_snapshot_is_fresh: bool,
-    force_record_period: bool,
-    state_keys: list[str],
-    control_ledger: dict[str, str] | None = None,
-) -> tuple[str, bool]:
-    landed, already_handled = _land_recurring_create_on_control_branch(
-        cfg,
-        root,
-        rels,
-        template_ticket=template_ticket,
-        ticket_rel=ticket_rel,
-        task_rel=rels[0],
-        local_ticket=local_ticket,
-        period_key=period_key,
-        message=message,
-        respect_handled_period=respect_handled_period,
-        respect_existing_task=respect_existing_task,
-        replaced_done_ticket_bytes=replaced_done_ticket_bytes,
-        restore_existing_control_task=restore_existing_control_task,
-        overwrite_dirty_control_task=overwrite_dirty_control_task,
-        force_period_key=force_period_key,
-        force_snapshot_is_fresh=force_snapshot_is_fresh,
-        force_record_period=force_record_period,
-        state_keys=state_keys,
-        control_ledger=control_ledger,
-        # The checked-out control branch is reconciled right below via
-        # restore + rebase; the landing's best-effort ff-merge would always
-        # fail against this checkout's still-dirty create paths and print a
-        # spurious "not fast-forwarded" note.
-        update_local_ref=False,
-    )
-    _restore_selected_paths_from_ref(root, "HEAD", rels)
-    _rebase_checked_out_branch_onto(root, landed)
-    # The overlay already landed (and the rebase pulled in) the task dir +
-    # template ticket; the only thing still uncommitted is the repo-global
-    # `coga/log.md` (union-merge, excluded from the overlay, appended by
-    # `_record_run`). Commit just that file so origin and the local control
-    # branch reflect the history line and the tree is left clean.
-    _commit_global_log(cfg, root, message)
-
-    def guard_log_publication(base: str) -> None:
-        _control_serviced_period_cached(
-            root, base, _relative_to_root(root, log_path(cfg)),
-            _template_ref_from_ticket_rel(ticket_rel), control_ledger,
-            resolve_at=(
-                {_template_ref_from_ticket_rel(ticket_rel): period_key}
-                if period_key is not None else None
-            ),
-            deduplicate=respect_handled_period,
-        )
-
-    git._push_control_branch(cfg, root, guard=guard_log_publication)
-    if control_ledger is not None:
-        # Even a rejected create publishes the audit log here, including other
-        # pending sweep targets. Bind to our pushed HEAD, not a later fetch.
-        control_ledger[_LEDGER_REVISION] = _rev_parse(root, "HEAD")
-        control_ledger[_LEDGER_PUBLISHED] = "yes"
-    if already_handled:
-        return (
-            _control_template_or_local(
-                root, "HEAD", ticket_rel, original_ticket
-            ),
-            False,
-        )
-    return (
-        _control_template_or_local(root, "HEAD", ticket_rel, original_ticket),
-        True,
-    )
-
-
-def _control_ledger_rels(cfg: Config, root: Path) -> list[str]:
-    """The repo-global log, as a union-merged path for a control-tree build."""
-    log_file = log_path(cfg)
-    if not log_file.exists():
-        return []
-    return [_relative_to_root(root, log_file)]
 
 
 def _control_create_rels(
@@ -4138,7 +3874,7 @@ def _control_already_has_period(
     if not include_task or not _ref_has_path(root, ref, task_rel):
         return False
     if replaced_done_ticket_bytes is not None:
-        control_ticket = git._tree_bytes(
+        control_ticket = git.tree_bytes(
             root, ref, f"{task_rel.rstrip('/')}/ticket.md"
         )
         # The replaced ticket was read from disk, which a line-ending-converting
@@ -4160,17 +3896,28 @@ def _control_serviced_period_cached(
 ) -> str | None:
     """A revision-bound competitor snapshot, shared by every sweep target.
 
-    Before publication, refresh the complete snapshot on a changed revision.
-    After publication, our own records are on control too: compare against the
-    known published revision and refuse templates whose ledger lines changed
-    externally. Unaffected templates retain the pre-publication decision.
+    `control_ledger` is a per-run cache owned by the caller, resolved for every
+    target in one pass (or preloaded from a successful pre-scan catch-up) and
+    bound to the control revision it describes. The repo-global log holds all
+    templates' records in one file, so the first publish of a sweep pushes the
+    whole file — including the lines this same sweep just wrote for templates
+    it has not synced yet. Reading control per template would let a later
+    template mistake its own pending record for another checkout's and delete
+    the task it just created.
+
+    So the cache answers by revision: *before* this sweep has published,
+    a newer control commit means the snapshot is stale and is re-read whole.
+    *After* it has published, our own records are on control too, so the diff
+    between the known published revision and the new one is parsed instead,
+    and only templates whose ledger lines changed *externally* are refused
+    (`_ControlLedgerChanged`); every other template keeps its decision.
     """
     if control_ledger is None:
         control_ledger = {}
     previous = control_ledger.get(_LEDGER_REVISION)
     if previous != ref and control_ledger.get(_LEDGER_PUBLISHED) and deduplicate:
         try:
-            diff = git._run_git(
+            diff = git.run_git(
                 root, "diff", "--no-ext-diff", "--no-textconv", "--no-color",
                 "--text", "--unified=0",
                 previous, ref, "--", log_rel,
@@ -4239,13 +3986,12 @@ def _validate_control_serviced_period(
     """
     if not cfg.git_enabled:
         return
-    root = _git_toplevel(cfg.repo_root)
+    root = git.toplevel(cfg.repo_root)
     if root is None:
         return
 
     try:
-        _fetch_control_branch(cfg, root)
-        ref = _rev_parse(root, "FETCH_HEAD")
+        ref = git.fetch_control(cfg, root)
     except git.GitError as exc:
         sys.stderr.write(
             f"[git] control serviced-ledger validation skipped: {exc}\n"
@@ -4255,7 +4001,7 @@ def _validate_control_serviced_period(
     _control_serviced_period_cached(
         root,
         ref,
-        _relative_to_root(root, log_path(cfg)),
+        git.relative_to_root(root, log_path(cfg)),
         _recurring_ref(template_name),
         control_ledger,
         resolve_at=(
@@ -4270,11 +4016,11 @@ def _validate_control_serviced_period(
 def _restore_selected_paths_from_ref(root: Path, ref: str, rels: list[str]) -> None:
     for rel in rels:
         if _ref_has_path(root, ref, rel):
-            git._run_git(
+            git.run_git(
                 root, "restore", "--source", ref, "--staged", "--worktree", "--", rel
             )
             continue
-        git._run_git(root, "rm", "-rf", "--cached", "--ignore-unmatch", "--", rel)
+        git.run_git(root, "rm", "-rf", "--cached", "--ignore-unmatch", "--", rel)
         path = Path(rel) if Path(rel).is_absolute() else root / rel
         if path.is_dir():
             shutil.rmtree(path)
@@ -4400,62 +4146,6 @@ def _ref_has_path(root: Path, ref: str, rel: str) -> bool:
     return result.returncode == 0
 
 
-def _rebase_checked_out_branch_onto(root: Path, target: str) -> None:
-    if _rev_parse(root, "HEAD") == target:
-        return
-
-    proc = subprocess.run(
-        ["git", "-C", str(root), "-c", "rebase.autoStash=true", "rebase", target],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if proc.returncode == 0:
-        return
-
-    subprocess.run(
-        ["git", "-C", str(root), "rebase", "--abort"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    raise git.GitError(
-        f"could not rebase checked-out control branch onto {target}: "
-        f"{git.summarize_git_failure(proc.stderr + proc.stdout)}"
-    )
-
-
-def _confirm_control_tip_integrated(root: Path, target: str) -> None:
-    """Fail unless `target` is in HEAD and the working tree has no conflicts."""
-    ancestor = subprocess.run(
-        ["git", "-C", str(root), "merge-base", "--is-ancestor", target, "HEAD"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if ancestor.returncode != 0:
-        raise git.GitError(
-            f"fetched control tip {target} is not integrated into HEAD"
-        )
-
-    unmerged = subprocess.run(
-        ["git", "-C", str(root), "diff", "--name-only", "--diff-filter=U"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if unmerged.returncode != 0:
-        raise git.GitError(
-            "could not verify the checkout has no unresolved merge conflicts"
-        )
-    conflicts = [line for line in unmerged.stdout.splitlines() if line]
-    if conflicts:
-        raise git.GitError(
-            "checkout still has unresolved merge conflicts: "
-            + ", ".join(conflicts)
-        )
-
-
 def _adopt_control_template(
     root: Path,
     template_ticket: Path,
@@ -4484,7 +4174,6 @@ class _ControlLedgerChanged(RecurringError):
     def __init__(self, revision: str, message: str) -> None:
         super().__init__(message)
         self.revision = revision
-
 
 _CONTROL_LOG_ENTRY_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \[(?P<ref>[^\]]*)\] \[[^\]]*\] "
@@ -4534,9 +4223,9 @@ def _read_control_ledger(
     """
     # A missing file is an empty ledger; a failed read is not. In particular,
     # never turn a failed freshness repair into permission to publish.
-    if not git._run_git(root, "ls-tree", ref, "--", log_rel).strip():
+    if not git.run_git(root, "ls-tree", ref, "--", log_rel).strip():
         return {}
-    text = git._run_git(root, "show", f"{ref}:{log_rel}")
+    text = git.run_git(root, "show", f"{ref}:{log_rel}")
     if not text:
         return {}
 
@@ -4576,56 +4265,11 @@ def _show_path(root: Path, ref: str, rel: str) -> str:
     return result.stdout
 
 
-def _fetch_control_branch(cfg: Config, root: Path) -> None:
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(root), "fetch", cfg.git_remote, cfg.git_control_branch],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except FileNotFoundError as exc:
-        raise git.GitError("`git` not found on PATH") from exc
-    if result.returncode != 0:
-        raise git.GitError(
-            f"`git fetch {cfg.git_remote} {cfg.git_control_branch}` failed "
-            f"(exit {result.returncode}): "
-            f"{result.stderr.strip() or result.stdout.strip()}"
-        )
-
-
-def _rev_parse(root: Path, ref: str) -> str:
-    return git._run_git(root, "rev-parse", ref).strip()
-
-
 def _current_branch(root: Path) -> str:
     # `rev-parse --abbrev-ref HEAD` returns `heads/<name>` when a tag shadows
     # the branch. `branch --show-current` is unambiguous and empty when detached.
-    current = git._run_git(root, "branch", "--show-current").strip()
+    current = git.run_git(root, "branch", "--show-current").strip()
     return current or "HEAD"
-
-
-def _relative_to_root(root: Path, path: Path) -> str:
-    try:
-        return str(path.resolve().relative_to(root.resolve()))
-    except ValueError:
-        return str(path.resolve())
-
-
-def _git_toplevel(start: Path) -> Path | None:
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(start), "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except FileNotFoundError:
-        return None
-    if result.returncode != 0:
-        return None
-    top = result.stdout.strip()
-    return Path(top) if top else None
 
 
 def _stop_if_unfinished_after_launch(
@@ -4690,142 +4334,67 @@ def _stop_if_unfinished_after_launch(
 
     if timed_out:
         suffix = "liveness watchdog: REPL timed out before signalling done"
-        rollback: git.FileMutationRollback | None = None
-        publication_succeeded = False
-
-        def record_publication() -> None:
-            nonlocal publication_succeeded
-            publication_succeeded = True
-
-        try:
-            if expected_period_lease is not None:
-                rollback = _period_mutation_snapshot(
-                    cfg,
-                    ref,
-                    expected_ticket_bytes=expected_period_lease.ticket_bytes,
-                )
-            mark_paused(
-                cfg,
-                ref,
-                ticket,
-                actor="system:watchdog",
-                log_message=f"paused ({ticket.status} → paused) — {suffix}",
-                slack_text=(
-                    f"⏱️ *{ref.id_slug}* \"{ticket.title}\" timed out — {suffix}"
-                ),
-                echo=None,
-                mutation_snapshot=rollback,
-                after_sync=(
-                    record_publication
-                    if expected_period_lease is not None
-                    else None
-                ),
-                state_guard=(
-                    _period_lease_guard(cfg, ref, expected_period_lease)
-                    if expected_period_lease is not None
-                    else None
-                ),
-                strict_state_guard=expected_period_lease is not None,
-                strict_state_sync=require_period_publication,
-            )
-        except git.UncertainFeaturePublicationError as exc:
-            raise RecurringError(
-                f"cannot pause recurring period {ref.id_slug}: publication "
-                f"outcome is uncertain; generated local state was retained "
-                f"for reconciliation — {exc}"
-            ) from exc
-        except git.GitError as exc:
-            if rollback is not None and not publication_succeeded:
-                _restore_refused_period_mutation(
-                    cfg,
-                    rollback,
-                    action="delegated timeout",
-                )
-            raise RecurringError(
-                f"cannot pause recurring period {ref.id_slug}: {exc}"
-            ) from exc
-        except TaskValidationError as exc:
-            if rollback is not None and not publication_succeeded:
-                _restore_refused_period_mutation(
-                    cfg,
-                    rollback,
-                    action="delegated timeout",
-                )
-            typer.secho(str(exc), fg=typer.colors.RED, err=True)
-            sys.exit(2)
-        typer.secho(
+        actor = "system:watchdog"
+        slack_text = f"⏱️ *{ref.id_slug}* \"{ticket.title}\" timed out — {suffix}"
+        outcome = (
             f"{ref.id_slug}: timed out (status={ticket.status!r}); paused as a "
-            "watchdog timeout and continuing to next due task.",
-            fg=typer.colors.YELLOW,
+            "watchdog timeout and continuing to next due task."
         )
-        return
+    else:
+        suffix = "Agent recurring launch exited unfinished"
+        actor = f"human:{cfg.current_user}"
+        slack_text = None
+        outcome = (
+            f"{ref.id_slug}: ended with status={ticket.status!r}; "
+            "paused and continuing to next due task."
+        )
 
-    suffix = "Agent recurring launch exited unfinished"
-    rollback: git.FileMutationRollback | None = None
-    publication_succeeded = False
-
-    def record_publication() -> None:
-        nonlocal publication_succeeded
-        publication_succeeded = True
-
+    log_before = _log_bytes(cfg)
     try:
         if expected_period_lease is not None:
-            rollback = _period_mutation_snapshot(
+            _require_period_bytes(
+                ref, expected_period_lease.ticket_bytes, action="pause"
+            )
+            _verify_period_on_control(
                 cfg,
                 ref,
-                expected_ticket_bytes=expected_period_lease.ticket_bytes,
+                expected_period_lease,
+                boundary="pause",
+                require_control=require_period_publication,
             )
         mark_paused(
             cfg,
             ref,
             ticket,
-            actor=f"human:{cfg.current_user}",
+            actor=actor,
             log_message=f"paused ({ticket.status} → paused) — {suffix}",
+            slack_text=slack_text,
             echo=None,
-            mutation_snapshot=rollback,
-            after_sync=(
-                record_publication
-                if expected_period_lease is not None
-                else None
-            ),
-            state_guard=(
-                _period_lease_guard(cfg, ref, expected_period_lease)
-                if expected_period_lease is not None
-                else None
-            ),
-            strict_state_guard=expected_period_lease is not None,
-            strict_state_sync=require_period_publication,
+            strict=expected_period_lease is not None,
         )
-    except git.UncertainFeaturePublicationError as exc:
+    except git.UncertainPublishError as exc:
         raise RecurringError(
             f"cannot pause recurring period {ref.id_slug}: publication "
             f"outcome is uncertain; generated local state was retained for "
             f"reconciliation — {exc}"
         ) from exc
     except git.GitError as exc:
-        if rollback is not None and not publication_succeeded:
-            _restore_refused_period_mutation(
-                cfg,
-                rollback,
-                action="unfinished recurring launch",
+        if not require_period_publication and not isinstance(
+            exc, git.StateRegressionError
+        ):
+            typer.secho(outcome, fg=typer.colors.YELLOW)
+            return
+        if expected_period_lease is not None:
+            _restore_period_bytes(
+                cfg, ref, expected_period_lease.ticket_bytes, log_before=log_before
             )
         raise RecurringError(
             f"cannot pause recurring period {ref.id_slug}: {exc}"
         ) from exc
     except TaskValidationError as exc:
-        if rollback is not None and not publication_succeeded:
-            _restore_refused_period_mutation(
-                cfg,
-                rollback,
-                action="unfinished recurring launch",
-            )
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
-    typer.secho(
-        f"{ref.id_slug}: ended with status={ticket.status!r}; "
-        "paused and continuing to next due task.",
-        fg=typer.colors.YELLOW,
-    )
+    typer.secho(outcome, fg=typer.colors.YELLOW)
 
 
 # --- scan reporting -----------------------------------------------------------
@@ -5028,6 +4597,8 @@ def _broadcast_scan(
         # shared log. Reusing it is both the self-collision guard and the only
         # way a normal git-backed sweep can retain the local reverse reader's
         # bounded I/O; reading the Git blob would materialize the whole log.
+        # It is bound to the caught-up revision: the create guard fetches
+        # control again, and a newer commit there means the snapshot is stale.
         control_ledger.update(scan.ledger_periods)
         control_ledger.update(
             {
@@ -5087,12 +4658,33 @@ def _broadcast_scan(
                 fg=typer.colors.BRIGHT_BLACK,
             )
             continue
-        if (
-            created_period_lease is not None
-            and not _same_period_lease(
-                _local_period_lease(cfg, task.ref), created_period_lease
+        current_period_lease = (
+            _local_period_lease(cfg, task.ref)
+            if created_period_lease is not None
+            else None
+        )
+        lease_changed = created_period_lease is not None and not _same_period_lease(
+            current_period_lease, created_period_lease
+        )
+        # An adopted control copy (`created_on_control` is False) is a
+        # different lease by construction — a peer's `done` or `active` copy of
+        # the same generation — and is only a skip. A copy under *another*
+        # generation replaced this sweep's create outright, which is lost work
+        # and reported as such below.
+        replaced = (
+            lease_changed
+            and current_period_lease.generation != created_period_lease.generation
+        )
+        if respect_handled_period and not created_on_control and not replaced:
+            scan.tasks.remove(task)
+            scan.admission_skips.append((task, _ALREADY_HANDLED_ON_CONTROL))
+            typer.secho(
+                f"{task.ref.id_slug} was already handled on the control branch; "
+                "not launching.",
+                fg=typer.colors.BRIGHT_BLACK,
             )
-        ):
+            continue
+        if lease_changed:
             scan.tasks.remove(task)
             scan.admission_skips.append(
                 (task, "changed on control during admission")
@@ -5100,15 +4692,6 @@ def _broadcast_scan(
             typer.secho(
                 f"{task.ref.id_slug} changed on the control branch during "
                 "recurring admission; not launching.",
-                fg=typer.colors.BRIGHT_BLACK,
-            )
-            continue
-        if respect_handled_period and not created_on_control:
-            scan.tasks.remove(task)
-            scan.admission_skips.append((task, _ALREADY_HANDLED_ON_CONTROL))
-            typer.secho(
-                f"{task.ref.id_slug} was already handled on the control branch; "
-                "not launching.",
                 fg=typer.colors.BRIGHT_BLACK,
             )
             continue
@@ -5143,15 +4726,14 @@ def _refresh_forced_status_from_control(cfg: Config, task: DueTask) -> None:
     """Best-effort read-only status refresh for `--all` launch ordering."""
     if task.ref is None or not cfg.git_enabled:
         return
-    root = _git_toplevel(task.ref.path)
+    root = git.toplevel(task.ref.path)
     if root is None:
         return
-    task_rel = _relative_to_root(root, task.ref.path)
+    task_rel = git.relative_to_root(root, task.ref.path)
     if _path_has_local_changes(root, task_rel):
         return
     try:
-        _fetch_control_branch(cfg, root)
-        base = _rev_parse(root, "FETCH_HEAD")
+        base = git.fetch_control(cfg, root)
     except git.GitError as exc:
         sys.stderr.write(f"[git] forced status refresh skipped: {exc}\n")
         return

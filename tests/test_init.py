@@ -2252,7 +2252,7 @@ def test_detect_control_branch_reports_cached_ref_probe_failure(
     def fail_probe(*_args, **_kwargs) -> bool:
         raise init_cmd.GitError("ref database is unreadable")
 
-    monkeypatch.setattr(init_cmd, "_control_branch_present", fail_probe)
+    monkeypatch.setattr(init_cmd, "control_branch_present", fail_probe)
 
     branch, reason = init_cmd._detect_control_branch(
         target, control_branch="main", remote="origin"
@@ -2290,7 +2290,7 @@ def test_detect_control_branch_never_probes_the_remote(
     def reject_remote_probe(*_args, **_kwargs) -> bool:
         raise AssertionError("init must not run a live remote branch probe")
 
-    monkeypatch.setattr(git_module, "_remote_branch_present", reject_remote_probe)
+    monkeypatch.setattr(git_module, "remote_branch_oid", reject_remote_probe)
 
     branch, reason = init_cmd._detect_control_branch(
         target, control_branch="main", remote="origin"

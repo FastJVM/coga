@@ -666,7 +666,7 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
         result.disposal_skipped = f"{cfg.repo_root} is not inside a git checkout"
         return
     try:
-        current = git._current_branch(root)
+        current = git.current_branch(root)
     except git.GitError as exc:
         result.disposal_skipped = f"could not read the checked-out branch ({exc})"
         return
@@ -876,7 +876,7 @@ def _worklist_root(cfg: Config) -> Path | None:
     recorded branch — the fail-closed reading of debt the worklist exists for.
     """
     try:
-        return git._toplevel(cfg.repo_root)
+        return git.toplevel(cfg.repo_root)
     except git.GitError:
         return None
 

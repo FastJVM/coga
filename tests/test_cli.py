@@ -98,11 +98,12 @@ def test_pick_alias_expands_to_megalaunch(
 
 
 @pytest.mark.parametrize("termination", ["return", "exit", "crash"])
-def test_inherited_assist_never_falls_back_to_cli_state_sweep(
+def test_inherited_assist_still_sweeps_cli_state(
     clone: Path,
     monkeypatch: pytest.MonkeyPatch,
     termination: str,
 ) -> None:
+    """An assist session has no separate publication path: the sweep runs."""
     _write(clone / "coga.local.toml", 'user = "marc"\n')
     monkeypatch.setenv(ASSIST_BRANCH_ENV, "feature/review")
     monkeypatch.setenv(EXPECTED_TASK_ENV, str(clone / "tasks" / "fix-retry-logic"))
@@ -114,7 +115,7 @@ def test_inherited_assist_never_falls_back_to_cli_state_sweep(
         if termination == "exit":
             raise SystemExit(2)
         if termination == "crash":
-            raise RuntimeError("strict command failed before publication")
+            raise RuntimeError("command failed before publication")
 
     monkeypatch.setattr("coga.cli.app", terminate)
 
@@ -127,7 +128,7 @@ def test_inherited_assist_never_falls_back_to_cli_state_sweep(
     else:
         main()
 
-    assert sweeps == []
+    assert len(sweeps) == 1
 
 
 def test_status_runs_without_user(clone: Path) -> None:

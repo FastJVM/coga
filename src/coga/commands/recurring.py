@@ -12,6 +12,7 @@ from rich.table import Table
 
 from coga import git
 from coga.config import ConfigError, load_config
+from coga.paths import log_path
 from coga.recurring import (
     RecurringError,
     TemplateStatus,
@@ -213,16 +214,15 @@ def promote(
 
     # One sync for the whole move: the task removal and the new template land
     # together, so no checkout ever sees the ticket in both places (or in
-    # neither). The task path is gone now, so anchor on its still-present
-    # parent for git-root resolution, the way `coga delete` does.
-    git.sync_paths(
-        cfg,
-        source_path.parent,
-        [source_path, outcome.path],
-        message=(
-            f"Recurring: promoted {outcome.source_slug} → recurring/{outcome.name}"
-        ),
-    )
+    # neither).
+    try:
+        git.publish(
+            cfg,
+            [source_path, outcome.path, log_path(cfg)],
+            f"Recurring: promoted {outcome.source_slug} → recurring/{outcome.name}",
+        )
+    except git.GitError as exc:
+        typer.secho(f"[git] sync failed: {exc}", fg=typer.colors.YELLOW, err=True)
 
     typer.echo(
         f"Promoted {outcome.source_slug} → recurring/{outcome.name} "

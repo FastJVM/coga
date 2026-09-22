@@ -218,13 +218,23 @@ def test_open_pr_refuses_canceled_ticket_before_git_mutation(tmp_path) -> None:
         open_pr(load_config(repo.coga_os), slug="declined", blackboard_path=ticket_path)
 
 
+def _dirty_paths(repo) -> set[str]:
+    return {
+        line[3:]
+        for line in repo.git(
+            "status", "--porcelain", "--untracked-files=all"
+        ).splitlines()
+    }
+
+
 def test_open_pr_commits_and_pushes_record_in_single_checkout(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, real_git
 ):
     """The live ticket is on the feature branch in single-checkout mode.
 
-    Recording the PR must leave that checkout clean and publish the record so a
-    retry stays idempotent and the PR contains its own ticket linkage.
+    Recording the PR publishes the record to control only: the branch carries
+    no Coga state commit, the live ticket and log stay dirty there by design,
+    and a retry stays idempotent.
     """
     repo = init_git_repo(tmp_path)
     bin_dir = tmp_path / "bin"
@@ -264,36 +274,40 @@ def test_open_pr_commits_and_pushes_record_in_single_checkout(
     )
 
     assert url == "https://github.com/acme/repo/pull/12"
-    assert repo.git("status", "--porcelain").strip() == ""
-    assert "Ticket: single-checkout-record — PR opened" in repo.git(
+    # Only Coga's live state is dirty; the branch itself carries no state commit.
+    assert _dirty_paths(repo) == {
+        "coga/tasks/single-checkout-record/ticket.md",
+        "coga/log.md",
+    }
+    assert "Ticket: single-checkout-record — PR opened" not in repo.git(
         "log", "--format=%s"
     )
-    # The generated `pr:` record and the launch audit line reached the control
-    # branch and were then reconciled out of the branch's review payload, so
-    # the PR shows only the implementation.
     assert repo.git(
         "diff", "--name-only", "origin/main...HEAD"
     ).split() == ["coga/change.txt"]
+    # The generated `pr:` record and the launch audit line reached control.
     published_ticket = repo.git(
         "show",
-        "refs/heads/single-checkout-record:coga/tasks/single-checkout-record/ticket.md",
+        "refs/heads/main:coga/tasks/single-checkout-record/ticket.md",
         cwd=repo.origin,
     )
     assert "pr: https://github.com/acme/repo/pull/12" in published_ticket
     assert "[single-checkout-record] [human:marc] launched" in repo.git(
-        "show",
-        "refs/heads/single-checkout-record:coga/log.md",
-        cwd=repo.origin,
+        "show", "refs/heads/main:coga/log.md", cwd=repo.origin
     )
+    assert "coga/log.md" not in repo.git(
+        "ls-tree", "-r", "--name-only", "refs/heads/single-checkout-record",
+        cwd=repo.origin,
+    ).split()
 
 
 def test_open_pr_accepts_identical_generated_state_overlaps_from_preceding_bumps(
     tmp_path, monkeypatch, real_git
 ):
-    """Lifecycle sync can mirror task artifacts and multiple tickets.
+    """Preceding bumps publish task artifacts and companion tickets to control.
 
-    Those generated overlaps are safe only while both branch tips carry
-    identical bytes for every overlapping path.
+    None of it reaches the branch: it stays dirty in the single checkout, and
+    open-pr's cleanliness gate leaves that live state alone.
     """
     repo = init_git_repo(tmp_path)
     bin_dir = tmp_path / "bin"
@@ -358,17 +372,20 @@ def test_open_pr_accepts_identical_generated_state_overlaps_from_preceding_bumps
     )
 
     assert url == "https://github.com/acme/repo/pull/13"
-    assert repo.git("status", "--porcelain").strip() == ""
+    assert _dirty_paths(repo) == {
+        "coga/tasks/post-bump/ticket.md",
+        "coga/tasks/post-bump/review.md",
+        "coga/tasks/post-bump-companion/ticket.md",
+    }
     assert "pr: https://github.com/acme/repo/pull/13" in repo.git(
-        "show",
-        "refs/heads/post-bump:coga/tasks/post-bump/ticket.md",
-        cwd=repo.origin,
+        "show", "refs/heads/main:coga/tasks/post-bump/ticket.md", cwd=repo.origin
     )
     assert repo.git(
-        "show",
-        "refs/heads/post-bump:coga/tasks/post-bump/review.md",
-        cwd=repo.origin,
+        "show", "refs/heads/main:coga/tasks/post-bump/review.md", cwd=repo.origin
     ) == "generated review artifact\n"
+    assert "coga/tasks/post-bump/review.md" not in repo.git(
+        "ls-tree", "-r", "--name-only", "refs/heads/post-bump", cwd=repo.origin
+    ).split()
 
 
 def test_open_pr_rejects_single_checkout_with_only_generated_state(
@@ -444,7 +461,7 @@ def test_open_pr_rejects_single_checkout_with_unreconciled_generated_state(
     repo.checkout_branch("unreconciled-single-checkout")
     (repo.coga_os / "log.md").write_text("stranded audit line\n")
     repo.git("add", "--", "coga/log.md")
-    repo.git("commit", "-m", "Log: unreconciled-single-checkout")
+    repo.git("commit", "-m", "Log: stranded audit line on the branch")
     cfg = load_config(repo.coga_os)
 
     assert repo.git("rev-list", "--count", "main..HEAD").strip() == "1"
@@ -578,12 +595,12 @@ def test_open_pr_record_reaches_control_so_retry_is_not_stale(
         == url
     )
 
-    # Because the record reached control as well as the feature branch.
+    # Because the record reached control.
     published = repo.git(
         "show", "refs/heads/main:coga/tasks/record-retry/ticket.md", cwd=repo.origin
     )
     assert f"pr: {url}" in published
-    assert repo.git("status", "--porcelain").strip() == ""
+    assert _dirty_paths(repo) == {"coga/tasks/record-retry/ticket.md"}
 
 
 def test_open_pr_record_sync_refuses_to_bury_a_concurrent_close(
@@ -653,7 +670,7 @@ def test_open_pr_record_sync_refuses_to_bury_a_concurrent_close(
 
 
 def test_open_pr_commits_single_checkout_record_from_nested_recorded_path(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, real_git
 ):
     repo = init_git_repo(tmp_path)
     bin_dir = tmp_path / "bin"
@@ -686,9 +703,9 @@ def test_open_pr_commits_single_checkout_record_from_nested_recorded_path(
     )
 
     assert url == "https://github.com/acme/repo/pull/14"
-    assert repo.git("status", "--porcelain").strip() == ""
+    assert _dirty_paths(repo) == {"coga/tasks/nested-recorded-path/ticket.md"}
     assert "Ticket: nested-recorded-path — PR opened" in repo.git(
-        "log", "--format=%s"
+        "log", "--format=%s", "main", cwd=repo.origin
     )
 
 
@@ -848,6 +865,7 @@ def test_open_pr_dirty_single_checkout_preserves_live_ticket(tmp_path, monkeypat
     repo.git("push", "origin", "main")
     repo.checkout_branch("dirty-single")
     ticket.write_text(ticket.read_text() + "\n## Peer review\nFresh results.\n")
+    (repo.coga_os / "notes.txt").write_text("uncommitted product work\n")
     live_bytes = ticket.read_bytes()
 
     with pytest.raises(OpenPrError, match="uncommitted changes") as exc:
@@ -858,8 +876,9 @@ def test_open_pr_dirty_single_checkout_preserves_live_ticket(tmp_path, monkeypat
             single_checkout=True,
         )
 
-    assert "preserve live task/log edits here" in str(exc.value)
-    assert "discard" not in str(exc.value)
+    # The live ticket is excluded from the gate; the product dirt is what refused.
+    assert "live task/log state is already excluded" in str(exc.value)
+    assert "discard" in str(exc.value)
     assert ticket.read_bytes() == live_bytes
     assert repo.git("branch", "--show-current") == "dirty-single\n"
 
@@ -1239,14 +1258,14 @@ def test_publishable_paths_fails_loud_when_git_attributes_cannot_be_read(
     repo.git("add", "--", "coga/log.md")
     repo.git("commit", "-m", "Log: probe-fails")
 
-    real_run_git = coga_git._run_git
+    real_run_git = coga_git.run_git
 
     def refuse_check_attr(root, *args, **kwargs):
         if args and args[0] == "check-attr":
             raise coga_git.GitError("`git check-attr` failed: fatal: nope")
         return real_run_git(root, *args, **kwargs)
 
-    monkeypatch.setattr(coga_git, "_run_git", refuse_check_attr)
+    monkeypatch.setattr(coga_git, "run_git", refuse_check_attr)
 
     with pytest.raises(OpenPrError, match="could not read git attributes"):
         _single_checkout_publishable_paths(

@@ -205,7 +205,18 @@ def check_branch_contains_control(
     be byte-identical at both tips; source, documentation, config, mixed, or
     divergent overlapping state remains a hard failure.
     """
-    rc, _out, err = _run(["git", "fetch", remote, control_branch], cwd=cwd)
+    # Fetch into the remote-tracking ref and read that, never the checkout-wide
+    # `FETCH_HEAD` a concurrent Coga process may replace between the two steps.
+    control_ref = f"refs/remotes/{remote}/{control_branch}"
+    rc, _out, err = _run(
+        [
+            "git",
+            "fetch",
+            remote,
+            f"+refs/heads/{control_branch}:{control_ref}",
+        ],
+        cwd=cwd,
+    )
     if rc is None:
         return CheckResult(
             "git-branch-current",
@@ -223,7 +234,7 @@ def check_branch_contains_control(
         )
 
     rc, _out, err = _run(
-        ["git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"], cwd=cwd
+        ["git", "merge-base", "--is-ancestor", control_ref, "HEAD"], cwd=cwd
     )
     if rc is None:
         return CheckResult(
@@ -243,11 +254,11 @@ def check_branch_contains_control(
             "git-branch-current",
             False,
             f"could not compare HEAD with {remote}/{control_branch} "
-            f"(`git merge-base --is-ancestor FETCH_HEAD HEAD` failed: "
+            f"(`git merge-base --is-ancestor {control_ref} HEAD` failed: "
             f"{_first_line(err) or 'no output'}).",
         )
 
-    rc, out, err = _run(["git", "merge-base", "FETCH_HEAD", "HEAD"], cwd=cwd)
+    rc, out, err = _run(["git", "merge-base", control_ref, "HEAD"], cwd=cwd)
     merge_base = _first_line(out)
     if rc != 0 or not merge_base:
         return CheckResult(
@@ -257,7 +268,7 @@ def check_branch_contains_control(
             f"({_first_line(err) or 'no output'}).",
         )
 
-    control_paths, path_error = _changed_paths(merge_base, "FETCH_HEAD", cwd=cwd)
+    control_paths, path_error = _changed_paths(merge_base, control_ref, cwd=cwd)
     if control_paths is None:
         return CheckResult(
             "git-branch-current",
@@ -293,7 +304,7 @@ def check_branch_contains_control(
     )
     for path in identical_candidates:
         rc, _out, err = _run(
-            ["git", "diff", "--quiet", "FETCH_HEAD", "HEAD", "--", path],
+            ["git", "diff", "--quiet", control_ref, "HEAD", "--", path],
             cwd=cwd,
         )
         if rc == 0:
@@ -331,7 +342,7 @@ def check_branch_contains_control(
         False,
         f"current branch does not contain latest {remote}/{control_branch}. "
         f"Rebase or merge before opening a PR, e.g. "
-        f"`git fetch {remote} {control_branch}` then `git rebase FETCH_HEAD`."
+        f"`git fetch {remote} {control_branch}` then `git rebase {remote}/{control_branch}`."
         f"{reason}",
     )
 

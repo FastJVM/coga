@@ -775,7 +775,7 @@ def _remote_branch_oid(
     nothing for a lease to protect.
 
     Resolved per *push URL* rather than by remote name, matching
-    `git._remote_branch_oid`: git reads a remote's fetch URL for
+    `git.remote_branch_oid`: git reads a remote's fetch URL for
     `ls-remote <name>` but writes its `pushurl` values for `push <name>`, so a
     lease taken by name can name a destination the push never touches. Multiple
     push URLs are supported only while they agree about the branch, since git

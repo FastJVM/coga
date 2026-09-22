@@ -162,10 +162,10 @@ def _cleanup_checkout(cfg: Config, ref: TaskRef) -> WorktreeCleanupResult | None
     if not cfg.git_enabled:
         return None
     try:
-        root = git._toplevel(ref.ticket_path)
+        root = git.toplevel(ref.ticket_path)
         if root is None:
             return None
-        current_branch = git._current_branch(root)
+        current_branch = git.current_branch(root)
         if current_branch != cfg.git_control_branch:
             typer.echo(
                 "Retire: checkout cleanup skipped "
@@ -196,7 +196,7 @@ def _discharge_worklist_entry(cfg: Config, ref: TaskRef) -> None:
     `coga/autoclose/sweep` skill for what happens to a preserved one.
     """
     try:
-        root = git._toplevel(ref.ticket_path)
+        root = git.toplevel(ref.ticket_path)
         if root is None:
             return
         for path in discharge_slug(cfg, ref.id_slug, root=root):

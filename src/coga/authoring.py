@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from hashlib import sha256
@@ -188,10 +189,7 @@ def finalize_authored(
     sync_paths = task_sync_paths
     sync_paths.extend(support_paths(cfg, changed_paths))
     if sync_paths:
-        anchor = authored_refs[0].path if authored_refs else cfg.repo_root
-        git.sync_paths(
-            cfg,
-            anchor,
-            sync_paths,
-            message=authoring_sync_message(authored_refs),
-        )
+        try:
+            git.publish(cfg, sync_paths, authoring_sync_message(authored_refs))
+        except git.GitError as exc:
+            sys.stderr.write(f"[git] sync failed: {exc}\n")

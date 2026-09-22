@@ -375,20 +375,17 @@ new string:
   stderr remedy the post itself would, but *before* any state mutation, so a
   repo whose webhook does not resolve refuses the command with nothing
   half-applied. It is the only place an unresolved webhook can still refuse a
-  `fatal=False` producer; after the write, `post` reports and drops. Seven
-  call sites in six modules, with these admission conditions: `commands/bump.py::bump` (terminal bump, or a step advance with
-  `--message`); `commands/mark.py::_preflight_outcome`, called from `done` and
-  `canceled` (every outcome command, not only a recorded assist);
-  `commands/block.py::block` (a recorded assist, before strict publication);
-  `commands/launch.py::_launch` twice (the script-assist setup path, and again
-  before assist lifecycle state is published on a non-`in_progress` ticket);
-  `launch_script.py::run_script_phase` (strict assist, before `ticket.py`
-  publishes a started lifecycle); and
+  `fatal=False` producer; after the write, `post` reports and drops. Six
+  call sites in five modules, with these admission conditions:
+  `commands/bump.py::bump` (terminal bump, or a step advance with
+  `--message`); `commands/mark.py` in `done` and `canceled` (every outcome
+  command, not only a recorded assist); `commands/launch.py::_launch` (the
+  script-assist setup path); `launch_script.py::run_script_phase` (an assist,
+  before `ticket.py` publishes a started lifecycle); and
   `autoclose.py::_preflight_recipe_notifications`, the `before_close` hook of
   `run_autoclose_recipe` (every close posts a live per-ticket Done line).
   Ordinary `block` and launch paths do not preflight; their gates above are
-  specific to recorded assists. Assist refusals ultimately use `_bail` with
-  the no-sweep exit code; `run_script_phase` first wraps the refusal in
+  specific to recorded assists. `run_script_phase` wraps the refusal in
   `ScriptPublicationError` for its launch caller. Other callers let the
   configuration exit propagate. `important=True` checks the alert route
   (`important_webhook`) instead of the default one: pass it when the post that
@@ -499,747 +496,45 @@ new string:
   body before it reaches a detail string. Route new Slack diagnostics through
   those two functions; a third rendering path is the mistake to avoid.
 
-## Control-branch contention and `merge=union`
-
-State-plane writes — ticket transitions, audit-log lines, recurring markers,
-dream logs — are committed **directly to the configured control ref**
-(`[git].remote` + `[git].control_branch`) by `sync_task_state` /
-`_push_control_branch`, with no branch and no PR. (Only `(#NN)` commits go
-through PRs; those are the code plane.) So any number of coga processes — in
-this repo, in another clone, on another machine — push state straight to that
-same control branch, and two writers routinely collide during a rejected-push
-→ rebase recovery.
-
-git resolves a 3-way merge cleanly only when the two sides' changed line ranges
-don't touch. The one file every writer appends to is the repo-global
-`coga/log.md`, and it is the one file `.gitattributes` marks `merge=union`:
-union keeps **both** sides' lines, which is *safe there precisely because
-every writer only appends* — there is nothing to resurrect. That safety is
-conditional. If union ever sees a hunk where one side **deleted** lines, it
-keeps them, resurrecting the deletion; a file that is compacted, trimmed, or
-rewritten by any writer must never carry the attribute.
-`git.py::_union_merge_paths` asks `git check-attr` rather than hardcoding the
-file name, so adding a new append-only file to `.gitattributes` is enough to
-keep it out of the cross-branch overlay — and adding a non-append-only one is
-the mistake to avoid.
-
-The same-branch push retry that triggers all this (`git.py::_rebase_onto_remote`)
-is itself hardened to never leave the wound behind: it stashes dirty changes
-explicitly (not `rebase --autostash`), and on any rebase or pop failure resets
-to the pre-sync tip and re-applies the stash there — so a failed recovery leaves
-no conflict markers and no orphaned stash, only a reported sync miss.
-
-(Within one checkout, Coga's own publishers and lifecycle ticket writes
-serialize on the checkout-local advisory admission/publication barrier
-(`git.state_publication_barrier`, an `fcntl.flock` on a per-checkout lock
-file — see the barrier section below and `coga/architecture`), so two Coga
-commands racing on the index/stash stack is not the hazard. What stays
-unserialized is the shared *working tree* itself: an agent session and a
-recurring sweep both editing one checkout's files. Run concurrent sessions
-from separate clones or worktrees, or sequentially — `coga megalaunch` is
-strictly sequential and unaffected. Coga has no task-ownership lock; the
-barrier never decides who owns a task.)
-
 ## Git — durable task-state sync
 
 Notifications tell the team what changed; git makes the markdown state durable
-and shareable. Coga-owned commands that mutate a task directory should commit
-the resolved task directory path under `coga/tasks/` (top-level or nested
-in a sub-directory) and push it after the live notification post, so
-the configured control ref does not drift from the state humans saw in the
-channel.
+and shareable. The whole contract is `src/coga/git.py`, and it fits one page.
 
-Current surface:
+### Invariants
 
-- `coga create` raw creates.
-- `coga mark active`, launch-time `active → in_progress`, `coga mark paused`,
-  `coga mark done`, and `coga mark canceled`.
-- `coga bump`.
-- the `autoclose-merged` sweep, through the shared `mark_done` finalizer.
-- `coga recurring` and `coga retire` creates.
-- `coga block` — the blocker written to the blackboard + log, synced before
-  the teardown signal so the commit lands while the process still owns itself.
-- `recurring/blocker-reminders` — the reminder watermark written to the
-  blocked task's blackboard after a live reminder attempt.
-- `coga ticket` authoring — the edits the launched agent makes to `ticket.md`
-  (and the blackboard) inside the subprocess, committed once control returns
-  and the result passes validation. coga never calls `ticket.write()` for
-  those external edits, so this is the only thing that lands them.
+1. **Control is canonical.** `[git].remote` + `[git].control_branch`
+   (`origin/main` by default) is the only durable home of `coga/tasks/**`,
+   `coga/log.md`, and `coga/recurring/**`. A write is durable when, and only
+   when, it is on that ref. Coga never creates a commit on any local branch,
+   never stashes, never rebases; the checkout's control branch only ever
+   fast-forwards. The one stated exception: with no remote configured, the
+   local control branch plays the canonical role and the push is skipped.
+2. **Nothing is lost.** The markdown on disk is the write. A publish that
+   cannot reach control leaves the file exactly as written (dirty), reports
+   once on stderr and in `coga/log.md`, never crashes the command, and is
+   retried by the next command's end-of-command sweep. `coga/log.md` is only
+   ever appended and only ever three-way union-merged, never overlaid.
+3. **Nothing moves backward.** Every published path is a compare-and-swap
+   against control (the provenance check below). A stale checkout cannot
+   overlay a ticket another checkout advanced; the refusal names the one-line
+   fix. A control ticket carrying `pending:<uuid>` accepts only its own
+   admission (`coga/architecture`, *One shared agent-spawn path*).
+4. **One integrate path.** `git.refresh` (fetch + fast-forward) is the only
+   way a checkout is brought level with control; `fast_forward_control` is
+   the only code that moves the local control ref, after a publish and inside
+   `refresh` alike.
 
-Both `block` and `ticket` sync through the same `git.sync_task_state` helper,
-strictly scoped to the task dir — `coga block` in particular often fires from
-a feature worktree with uncommitted *code*, which is never swept in.
+### `publish` — the one write primitive
 
-Task state reaches the control branch from **any** branch. When HEAD is the
-control branch, Coga commits the task dir and pushes. When HEAD is a feature
-branch, Coga commits the task dir on the current branch (so the checkout
-reflects ticket state) **and** lands the same files on the control branch
-without ever checking out `main`: it builds the control branch's tree in a
-*temporary index* (`GIT_INDEX_FILE`), overlays the working-tree task dir,
-`commit-tree`s onto the fetched control tip, and pushes that commit straight to
-`refs/heads/<control>`. This temporary-index landing leaves staged and unstaged product code
-alone; the later feature-payload reconciliation can merge control into the
-invoking checkout, as described below. A detached HEAD normally takes the
-same cross-branch path without a local commit; any dirty `merge=union` files
-that would otherwise have ridden that local commit are union-merged directly
-into the control-branch commit. Narrow strict-state publishers are the
-exception described below: they seal their exact generated paths in a scoped
-detached commit so later broad sync cannot replay already-published bytes.
-
-### Policy — the control branch is canonical
-
-The owner settled this policy on 2026-08-25:
-
-- **Machine-generated Coga state and audit history are canonical on the
-  configured control branch.** This includes lifecycle frontmatter,
-  command-appended blackboard records, reminder watermarks, generated `pr:`
-  records, and `coga/log.md`.
-- **A feature checkout may mirror that state while a session runs.** The mirror
-  lets the session read current ticket state; it is operational state, not
-  review payload. A successful control landing must precede removal of the
-  duplicate from the feature payload. Failed or skipped sync can leave the
-  only copy of a new write locally — canonical ownership is not permission to
-  discard unpublished state.
-- **Hand-authored Coga changes need review regardless of who committed them.**
-  Contexts, skills, workflows, config, and deliberate ticket prose are feature
-  work. The current catch-all sweep can nevertheless publish dirty hand-edits
-  to control and reconcile their duplicates out of the branch. Commit review
-  work yourself before running a mutating Coga command; property 3 of the
-  publication boundary below describes this existing exception.
-
-**Where reconciliation writes.** These are scopes of writers, not three
-necessarily distinct checkouts. Recording a feature branch or `worktree:` on a
-ticket does not by itself make that checkout a sync destination.
-
-1. **The publisher's checkout.** Publishers write and commit their selected
-   state in the checkout they operate on. Ordinary feature-branch sync through
-   `sync_task_state`/`sync_paths`, `sync_log`, or `sync_coga_state` can then
-   call `_reconcile_feature_payload` to adopt or merge the accepted control
-   commit into that same checkout. This can bring in control's product code
-   too (see "What the merge costs"). Strict publication and recurring-create
-   paths have separate handling; a successful sync does not universally imply
-   this merge. Detached publishers normally skip the local commit, with the
-   scoped strict-state and rewind exceptions described below.
-2. **The linked checkout holding the control branch.** After a cross-branch
-   landing, `_try_update_local_ref` best-effort updates the local control ref
-   in that same Git repository: `update-ref` if no worktree holds it, otherwise
-   `merge --ff-only` through the holding worktree so its ref, index, and files
-   move together. It never targets a checkout holding another branch or an
-   independent clone. `sync_paths(update_local_control_ref=False)` deliberately
-   skips this update for Retro's isolated direct delete.
-3. **The launch checkout.** `refresh_coga_state_from_control` runs at launch
-   teardown and in recurring per-child preflight, scoped to the checkout
-   containing `cfg.repo_root`. On control it fast-forwards; on a feature branch
-   it overlays control's changed `coga/tasks/**`, union-merges `coga/log.md`,
-   and commits locally, subject to the dirty-file, divergence, and regression
-   guards described under "The launch-end pull-back". A detached HEAD skips.
-   Launch in a feature checkout therefore can refresh that checkout; launch
-   in the primary checkout does not refresh a separately recorded feature
-   worktree.
-
-A feature worktree whose Coga publishers and launch teardown all run in the
-primary checkout receives no refresh through these paths. Its mirror can go
-stale. The guard's caller inventory and lifecycle/claim rules below define its
-protection; they do not cover every publisher or prose change. Compare authored
-prose and unpublished local writes separately. Do not infer that nothing can
-write into a feature checkout from `_try_update_local_ref` alone.
-
-### The feature-branch publication boundary
-
-That local feature commit is the mirror the policy above describes —
-operational state, not review payload. Left alone, it strands a duplicate:
-the same ticket bytes committed twice, once on control and once on the
-branch, so the PR's file list carries
-`coga/tasks/**`, `coga/log.md`, and mixed-purpose files like a period ticket
-whose `## Blocker reminders` watermark sits beside its authored prose (the
-retired digest's `### Digest State` cursor was the original case) — and the
-branch pays a base-sync merge that resolves no product conflict at all.
-
-Rebase does not clean that up. Commits touching only `coga/tasks/**` are
-patch-equivalent against the fetched tip and drop, but an append to a
-`merge=union` file is not patch-equivalent at a different offset, so the audit
-commits survive — and deleting them by hand would destroy the only durable copy
-of lines that never reached control.
-
-So `git.py::_reconcile_feature_payload` runs at every ordinary feature-branch
-sync, after the control landing and before any branch publication. **The
-mechanism is forced, not preferred.** Keeping the checkout both current and
-clean puts the generated bytes in the branch's tree, so
-`git diff <control-tip>...HEAD` lists them unless the merge base holds the same
-bytes — and only the control commit that just accepted them does. Reconciling
-therefore means making that exact commit reachable. Two rejected alternatives
-show why: a compensating revert would leave the checkout rendering the
-pre-transition ticket, and a synthetic second parent whose tree is not a real
-merge would render the PR as reverting the control branch.
-
-Five properties hold it together:
-
-1. **The manifest is the command's own bytes**, never a `coga/**` pathspec or a
-   commit subject: the caller's armed snapshot when it has one, otherwise the
-   exact delta of the state commit this command just made. A new state writer
-   is covered the moment it writes, and a mixed-purpose file is owned exactly to
-   the extent this command changed it. It is then narrowed to what the landing
-   actually accepted — a generated path that reached neither the overlay nor
-   the union land is unsatisfiable, and asking for it would refuse forever
-   while re-merging on every sync. That only happens to a misconfigured repo
-   (an append-only file whose `merge=union` attribute is gone), so the dropped
-   path is named on stderr rather than quietly ignored.
-2. **Audit and queue appends land first.** The ordinary feature path now
-   union-lands the command's own `merge=union` files onto the fetched control
-   tip under the existing compare-and-swap, instead of waiting for the branch's
-   PR to merge. An append leaves the review payload only because control
-   durably holds it — that ordering is what makes removing it safe.
-3. **Reconciliation preserves everything else.** A branch that carried nothing
-   but this command's generated state adopts the control commit outright
-   (`reset --soft` over identical trees), ending with no lifecycle commit of its
-   own. A branch with real work merges that commit instead, keeping its product
-   commits and every Coga change the operator committed themselves — contexts,
-   skills, workflows, config, and deliberate ticket prose committed by hand
-   stay ordinary feature work, because they are not in the manifest.
-   The one deliberate exception is a hand-edit the **catch-all sweep** picked
-   up: `sync_coga_state` commits every dirty `coga/` path and, on any branch,
-   lands the non-union ones on the control branch — that is its pre-existing
-   contract, not something the boundary added. The sweep therefore derives its
-   manifest from its whole commit, so a swept hand-edit is reconciled exactly
-   like ticket state: control already holds those bytes, and leaving them in
-   the payload would show the PR changing a file `main` already has — the
-   phantom duplicate this boundary exists to remove. An edit that must go
-   through review is committed by hand before the next mutating command runs,
-   which is the same rule the "never run a repo-mutating verification
-   experiment" warning below already states.
-4. **The check is a path-producing diff against that same tip**, restricted to
-   the manifest. Nothing is assumed from the merge having "worked".
-5. **It fails closed and never raises.** The control landing already succeeded,
-   so a conflict or concurrent drift reports on stderr and leaves the branch
-   exactly as it was — including any commit the boundary itself made: a merge
-   git completed but the manifest check then rejected is unwound (`reset
-   --keep`, which refuses rather than discarding a local modification) before
-   the refusal, or the refusal says it could not be. It never deletes audit
-   evidence or overwrites authored Coga files to make the check pass.
-
-**What the merge costs, stated plainly.** The accepted control commit is an
-ordinary commit on the control branch, so merging it integrates everything that
-landed there since the fork — product code included — into a checkout a session
-may still be working in. That is the base sync the branch owed, but Coga picks
-the moment, not the operator, so an integration touching anything outside the
-manifest prints one stderr line naming the files it moved. Expect a lifecycle
-transition (`bump`, `mark`, even `block`) to fast-forward the branch's product
-tree, and read that line as the notice that it happened.
-
-The adopt-the-control-commit path also removes a timing coincidence that would
-otherwise decide the shape of history: two `commit-tree` calls with the same
-tree, parent, message, and second produce the *same* commit, so without it a
-branch sometimes needed a merge and sometimes did not.
-
-`open-pr`'s publishability classifier shares that byte-level ownership. It asks
-git which paths take the `merge=union` driver rather than naming `log.md`,
-and it treats a ticket as generated-only when its authored half —
-frontmatter minus the lifecycle fields Coga writes, plus the body above the
-blackboard fence — is byte-identical on both sides. The blanket
-`coga/tasks/**` exclusion it replaces refused a valid PR whose whole
-implementation was deliberate ticket prose. Two judgment calls inside it are
-deliberate and both lean the same way, because refusing a real PR is worse than
-admitting an empty one: `workflow:` stays on the authored side even though
-`mark_active` freezes it, and a ticket added or deleted on the branch counts as
-work. A failed `check-attr` probe is the opposite case and fails loud — reading
-it as "no union files" would silently turn the gate into a PR opener.
-
-Cancellation keeps `land_union_files_to_control=True` for the shapes the
-ordinary feature path does not reach, notably a detached checkout. A
-canceled ticket's branch may never merge by definition, so `mark_canceled`
-passes `land_union_files_to_control=True` for both ordinary and recorded-assist
-cancellations: the task still lands through the scoped overlay, while
-`coga/log.md` is three-way unioned into the same control-branch tree immediately.
-Strict publication completes before the live outcome post. The
-compare-and-swap retry below rebuilds
-that union on a newly fetched tip, so the required reason and outcome cannot
-strand with the abandoned code or overwrite concurrent audit appends.
-
-The push to `refs/heads/<control>` is a compare-and-swap: if the control branch
-moved under us (another coga process, a teammate), the
-push is rejected non-fast-forward, and a bounded fetch-rebuild-retry loop
-refetches the new tip and rebuilds. That push is the cross-checkout and
-cross-machine serialization point. Within one checkout, all three Coga Git
-publishers (`sync_paths`, `sync_log`, and the catch-all `sync_coga_state`) and
-all Coga lifecycle ticket/blocker writes take the short state
-admission/publication barrier described in `coga/architecture`. The held-child
-launch boundary takes the same barrier across its provisional audit append,
-last proof, pipe release, and post-release admission publication, so a local
-lifecycle change cannot invalidate that proof and a broad sweep cannot make a
-refused launch record durable. The published `pending:<uuid>` claim is the
-cross-checkout half of the boundary: every task publisher refuses to replace
-that exact control ticket until megalaunch strictly removes only the prefix
-after gate delivery. Ticket writes take the local barrier even when Git sync is
-disabled. This is not task ownership: the inert lock file is outside the
-worktree and the kernel releases the advisory lock on process exit. Concurrent
-cross-checkout or cross-machine processes still each fetch→build→push; exactly
-one fast-forwards per round and the losers retry, so nothing on the control
-branch is clobbered.
-
-Fetch results used by strict assist alignment and publication are isolated too.
-Each requested branch tip is written to a UUID-scoped command-owned ref with
-`--no-write-fetch-head`, resolved from that ref, and cleaned up afterward.
-`FETCH_HEAD` is checkout-wide mutable state, so a concurrent local fetch may
-replace it between subprocesses and must never be an authority for a strict
-feature or control operation.
-
-After a cross-branch landing wins that push, Coga fast-forwards the local
-control-branch ref best-effort. When no worktree has the branch checked out, a
-bare `update-ref` moves it. When one does — the primary checkout sitting on
-`main` is the common case — the ref is **never** moved directly: moving `main`
-behind an attached checkout desynchronizes its index and working tree (the old
-on-disk task files then look like fresh local edits, and a later catch-all
-sweep can commit that stale snapshot back over the newer pushed state).
-Instead the fast-forward runs *through* that worktree as `merge --ff-only`,
-which moves ref, index, and working tree together and refuses divergence or
-overwriting local edits. A refused fast-forward is a stderr note, never a
-crash — origin already has the commit; preserving the attached checkout's
-file/index coherence is required, the local ref update stays best-effort.
-
-Retro's direct-delete path is the deliberate exception. From a verified linked
-worktree it runs `coga delete <slug> --keep-control-checkout`: the scoped
-deletion still commits and pushes to the remote control branch, but
-`sync_paths(update_local_control_ref=False)` skips `_try_update_local_ref`, so
-the operator's checkout holding `main` does not have its ref, index, or files
-moved underneath concurrent work. Ordinary `coga delete` keeps the normal
-best-effort local refresh. Retro's independent-clone fallback uses that ordinary
-form: its local control ref belongs to the temporary clone, so refreshing it
-cannot move the operator's checkout.
-
-Scope is narrow. `src/coga/git.py::sync_task_state(cfg, task_path, *,
-message)` stages and commits only the task directory pathspec. It must not use
-`git add -A`, and it must not sweep unrelated unstaged or pre-staged files into
-the task-state commit — the temp-index plumbing makes that structural for the
-cross-branch land, since every staging op runs against the throwaway index.
-
-`sync_log` is narrower still: it commits only the union-marked global audit log.
-On a feature branch it commits that append locally, union-lands it on the
-control branch, and reconciles it out of the review payload — audit history is
-canonical on control, so it no longer waits for the branch's PR to merge.
-Teardown after a successfully advanced artifact gate such as `requires: pr`
-additionally sets `publish_current_branch`: the gated bump already made the
-branch a shared PR ref, so teardown pushes its subsequently appended usage-log
-commit to that same branch. That push takes the publication boundary *first* —
-publishing to an already-open PR is exactly how the append would otherwise land
-back in the payload the gated bump just cleared — and then publishes the
-reconciled tip, so the PR branch and the checkout stay in lockstep. The durable
-ticket proves the step advanced before this flag is set; blocks, crashes,
-natural exits, and rewinds keep the ordinary land-and-reconcile path with no
-branch publication. Strict human-step assist is the exception to the exception:
-its push is leased to an exact PR tip that a reconciliation merge would
-invalidate, so it publishes its log-only commit unreconciled.
-
-`open-pr`'s generated `pr:` record uses the same publishing form —
-`sync_paths(..., publish_current_branch=True)` on the ticket alone — in the
-single-checkout layout. It must reach the control branch too, not only the PR
-branch: the freshness gate accepts an overlapping generated task path only while
-both tips hold identical bytes, so a record published to the feature branch
-alone would make the *next* `coga open-pr` reject the command's own write as a
-divergent overlap. Because that sync runs after `gh` opened the PR, its failure
-is reported rather than raised — the recorded artifact is the gate, and the
-following gated bump syncs the same state again.
-
-### The state-regression guard
-
-Compare-and-swap keeps two writers from *losing* a push; it does not keep a
-stale writer from pushing the wrong thing. The overlay replaces the ticket
-wholesale on the control tip, so a checkout whose copy went stale — an agent
-worktree that held `active` while the `autoclose-merged` sweep closed the same
-ticket from the primary checkout — would land its old status straight over the
-newer one, and the retry loop would faithfully rebuild that overwrite on the
-refetched tip.
-
-So every landing is guarded. Before each overlay is built, the guard compares
-the working-tree ticket against the *committed* control-branch copy at that
-attempt's base and refuses when the transition would move state backward: a
-terminal control status (`done`, `canceled`) is never replaced by a different
-one, and neither step index nor status progress may decrease. Because it runs
-per attempt, it re-checks the tip refetched after a non-fast-forward rejection
-— the one base that reveals a concurrent close, and the only place the race is
-visible at all. The guard is never skipped for lack of a remote: when none is
-configured it resolves that base locally from `refs/heads/<control>` instead of
-a fetched tip, because a sibling worktree in the same clone can bury newer state
-on the shared local control branch without any remote (see the no-remote
-soft-skip under the failure model below).
-
-`launch_generation` has a stronger, system-owned rule. The catch-all sweep may
-never add or replace that claim, including by creating, deleting, or making
-one side of the ticket unreadable. It may *clear* one in exactly one shape: a
-session-ending transition (`step:` or `status:` changed) from a checkout whose
-committed `HEAD` blob of the ticket is byte-identical to control's claimed
-copy. That is the retry of a `bump`/`mark` whose own scoped publication failed
-— an offline remote at transition time leaves the released ticket dirty, and
-without this allowance no later sweep could ever converge it (the ticket sat
-unpublishable for hours in one incident; a relaunch was blocked too, because
-megalaunch's exact lease saw control's old claim). The baseline equality is
-what keeps the seal: a stale worktree, whose control was rewound and
-relaunched since its `HEAD`, never matches and still cannot erase a peer's
-claim. A scoped ticket-state publisher may
-acquire it only under an exact whole-ticket lease. A Git-backed megalaunch
-acquires `pending:<uuid>` while its child is held. While that form exists on
-control, the explicit-path publisher itself refuses every changed ticket —
-even for a caller with no command-specific lifecycle guard — so authoring,
-deletion, blocker, report, and status paths all share the same cross-checkout
-seal. The sole allowance is the internal post-gate transition whose working
-bytes exactly equal the committed ticket with only `pending:` removed and whose
-guard binds the whole pending revision. Ordinary launch refuses pending rather
-than bypassing that admission protocol. If that post-gate publication fails,
-the launcher retains `released:<uuid>` only as a local recovery witness. No
-ordinary or catch-all publisher may land that form. An explicit `coga launch`
-must first fetch control and strictly normalize the exact matching pending or
-already-admitted whole ticket to the plain UUID; a mismatch or Git failure
-retains the released witness and refuses recovery.
-
-Once the plain UUID is admitted, a scoped publisher may clear it only while
-ending or advancing the claimed session. Acquisition's exact lease directly
-proves the whole unclaimed control ticket, even when detached `HEAD` predates
-the same bytes this checkout already published through an ordinary detached
-sync. Every later edit involving the admitted claim must also prove against a
-freshly fetched candidate control tip that the ticket blob at checkout `HEAD`
-exactly matched the control copy before Coga made its local state commit. That
-baseline is sampled before the commit and retained across publication.
-Current-claim blackboard work therefore remains publishable even when the local
-control ref is stale, while a stale checkout cannot erase a peer's claim or
-overwrite newer prose merely because it copied the same generation token. On
-detached HEAD, each accepted claim-bearing edit advances that baseline with an
-exact-leaf commit before landing; a following unblock, bump, or terminal
-transition therefore compares against the state the prior command actually
-published.
-
-The catch-all sweep guards whatever it found dirty
-(`_guard_coga_state_regressions`). Scoped lifecycle publishers and other callers
-that explicitly bind `ticket_state_guard` pass it through
-`sync_task_state`/`sync_paths(guard=...)`. The following paths bind it; search
-`ticket_state_guard(` in `src/coga` for the current call sites. This is an
-inventory of guarded paths, not a guarantee about every ticket-state writer:
-
-- **`mark`** — `done`, `canceled`, `paused`, `active`, `blocked`, and launch's
-  `in_progress` flip.
-- **`bump`** — `advance_step` publishes `step:`, so a stale checkout can rewind
-  the workflow for everyone.
-- **`unblock`** — the `in_progress` resolve-only branch, which writes the
-  blackboard without a status flip. Its `blocked → active` branch delegates to
-  `mark_active` and is guarded there.
-- **`launch` and `megalaunch`** — the activation and `in_progress` claim
-  writes (`commands/launch.py`, four sites in `megalaunch.py`).
-- **`open-pr`** — `open_pr._sync_pr_record`, the generated `pr:` record sync.
-- **recurring period writes** — `recurring_runner._period_lease_guard`
-  composes `ticket_state_guard` into the lease guard every period/delegated
-  write passes to `sync_task_state`.
-
-Some publishers pass no ticket-state guard: authoring, deletes, and
-`blocker_reminders.remind_blocked_tasks` publishing its reminder watermark on
-an existing blocked ticket. An existing ticket alone does not imply protection
-by this guard. These writes still pass through the explicit-path publisher's
-automatic pending-admission seal, which is a separate protection.
-
-**The one deliberate backward move is a human rewind.** It is an exceptional
-debug/recovery operation, not normal lifecycle progression. `coga bump
---to/--backward` moves `step:` backward on purpose, and it shares
-`advance_step` with forward bumps, so guarding it naively would refuse exactly
-the thing the human asked for. `advance_step(rewind=True)` therefore passes
-`allow_step_rewind`, which drops the step-backward rule and tightens the status
-rule to exact equality. `advance_step` writes only `step:` — routing is derived,
-so there is nothing else for it to write — and any status difference during a
-rewind therefore means the checkout is stale rather than the human deliberate. This refuses not only a terminal control copy but
-also `active` / `paused` rewinds whose control copy concurrently became
-`in_progress` or `blocked`.
-
-Outside that rewind-specific equality rule, the status rules are narrower than
-"status may not move backward" sounds. The progress comparison ranks only the
-statuses in `git._STATUS_PROGRESS` — `draft` 0 < `active` 1 < `in_progress` 2 <
-`done`/`canceled` 3 — and fires only when *both* sides are on that ladder.
-`blocked` and `paused` are absent from it, so a landing that involves either on
-one side skips the progress rule entirely; and because `done` and `canceled`
-tie at 3, it is the separate terminal-status rule — never the progress rule —
-that refuses swapping one terminal status for the other.
-
-Most refusals are loud but non-fatal, and deliberately land *after* the local
-ticket write: `StateRegressionError` is caught at the sync entry point, the
-reason is written to stderr as `sync refused` and recorded against the task in
-`coga/log.md`, and a local sync commit already made on a feature branch is
-unwound while its files stay dirty. A rewind status mismatch is the exception
-at the command boundary: `advance_step` asks the sync layer to re-raise it,
-then `coga bump` exits with `RETRY_WITHOUT_SWEEP_EXIT_CODE` (75). The local
-rewind still stays dirty, but `coga.cli.main` skips its broad catch-all sweep;
-that sweep lacks rewind-specific status equality and could otherwise republish
-the exact stale bytes the narrow guard refused.
-
-The same operator contract covers every rewind whose guarded publication is not
-confirmed, including a configured-remote transport failure and the no-remote
-soft-skip. The retained mutation is a human-inspectable debug artifact,
-deliberately outside ordinary catch-all sync and branch publication: it may be
-dirty or already recorded in local branch history. The operator must reconcile
-the checkout with control before another mutating Coga command, branch push, or
-merge, because none of those later paths retains the rewind-specific equality
-guard. Read-only inspection is safe. This is the accepted sharp edge of an
-exceptional debug/recovery operation, not a routine lifecycle guarantee.
-
-With a reachable remote, a detached rewind makes a scoped commit containing
-only its ticket and audit log before the guarded control landing. Every
-rejected or interrupted landing reconciles that commit through the strict
-candidate probe: a proven unaccepted commit is unwound and the debug bytes stay
-dirty; an accepted or indeterminate candidate is retained for explicit
-reconciliation. With no remote, no detached commit is made and the debug bytes
-stay dirty. After an ordinary success the ticket is clean. The CLI still
-classifies every `bump
---to/--backward` invocation as non-sweeping, so the broad publisher never gets
-a second chance at the ticket during the command. If an explicit rewind FYI
-fails after publication and appends an audit line, `advance_step` detects that
-post-sync log change and union-publishes only `coga/log.md` (with the same
-scoped detached-commit behavior), never the ticket again. Moving the ticket
-write behind a fetch instead would put the network on the hot path of every
-status transition, which the always-on sync contract does not accept.
-
-Strict lifecycle publication uses the same scoped-commit invariant on detached
-HEAD even when the caller did not request the rewind option. It builds the
-commit from the caller's armed byte snapshot with a compare-and-swap on
-detached `HEAD`, then overlays only those armed leaves on control; newer sibling
-attachments survive. Success leaves the exact published ticket clean and makes
-it the baseline for later same-generation blackboard edits. Those later
-accepted claim-bearing edits use the same exact-leaf detached commit so each
-success advances the baseline again. A proven refusal or transport failure
-unwinds only the generated leaves, preserving unrelated staged files, and
-leaves the generated bytes dirty; an ambiguous accepted push retains the commit
-for reconciliation. In particular, a final launch-claim refusal followed by
-the CLI's broad sweep cannot replay stale claim bytes over a peer edit: the
-successfully published claim is no longer a dirty sweep candidate.
-
-### The catch-all subtree sweep — `sync_coga_state`
-
-The per-transition syncs above each commit the *one* file a command intended to
-change, with a human-readable message. But two classes of write land *past* the
-last per-command sync and would otherwise sit dirty forever:
-
-- **Machine side-effects.** Stray log lines appended
-  past a command's own sync. (The per-session usage record used to be the
-  dominant case; it now lands in `log.md` and the launch teardown commits it
-  directly with the narrower `sync_log`, so it never waits for a sweep.)
-- **Human hand-edits.** A person editing a ticket body, blackboard, or context
-  directly in the working tree — no command ran, so nothing committed it.
-
-`src/coga/git.py::sync_coga_state(cfg, *, message="Sync coga state")` closes
-both. In the normal nested layout it commits everything dirty under the
-`coga/` subtree (`cfg.repo_root`, where `coga.toml` lives), plus the configured
-contexts directory when `[layout] contexts` places it outside that subtree. In
-older/root layouts where `coga.toml` lives at the git toplevel, it scopes to the
-known Coga OS pathspecs instead of treating the whole git root as Coga state.
-That list is `git.py::_ROOT_LAYOUT_COGA_PATHS`, and it is exactly `coga.toml`,
-`context.md`, `contexts`, `log.md`, `recurring`, `skills`, `tasks`,
-`workflows`. The configured contexts path substitutes for the default
-`contexts` entry; the vacated path is not kept as a permanent state boundary.
-
-**`bootstrap` is not in that tuple**, and it appears nowhere else as a sweep
-pathspec — so a root-layout repo does not get bootstrap authoring swept. That
-is a real gap, not a naming detail: `coga/codebase` explicitly sanctions
-deliberate repo-authored content under `coga/bootstrap/` — a repo that mints
-its own command ticket (`coga/bootstrap/<verb>/ticket.md` plus an `[aliases]`
-line) or intentionally overrides a shipped bootstrap ticket. In the normal
-nested layout the subtree sweep picks those files up like anything else under
-`coga/`. In a root layout they are outside every pathspec, so they sit dirty
-forever — precisely the "human hand-edit that no command committed" class the
-catch-all exists to close, and it fails silently because a sweep that commits
-nothing is indistinguishable from a clean tree. Until the tuple is widened,
-a root-layout repo authoring under `bootstrap/` must commit it by hand.
-
-A full `git status` under those pathspecs captures
-modifications, deletions, renames, **and new untracked files**. This is *not*
-the forbidden `git add -A`: the subtree/pathspec boundary is exactly the
-OS-state line the "Scope is narrow" rule draws, so product code (`src/`,
-`tests/`) is structurally never swept in. During a relocation, tracked
-deletions under the most recent former contexts root are included without
-adopting unrelated files left there. Branch handling and the
-`merge=union` split reuse the same machinery as `sync_paths` (union files —
-`log.md` — committed locally + union-merged onto the control
-branch, never landed via the wholesale-replace overlay from a feature branch).
-On detached HEAD, where there is no durable local branch commit, those union
-files are three-way union-merged directly into the control-branch commit. Union
-membership is asked of git directly via `git check-attr merge`, so any future
-`merge=union` file is handled automatically. Same non-fatal failure model: a
-sweep that can't reach the control branch is surfaced (stderr + `coga/log.md`),
-never a crash.
-
-It is wired at one boundary, *in addition to* — never replacing — the
-per-transition syncs, which keep the readable git history:
-
-- **The CLI dispatch boundary** (`cli.py::main` around `app()`), for mutating
-  commands only. It reloads config after the command so a context relocation
-  made during a long-running agent session publishes the destination rather
-  than reusing the dispatch-time path. An invalid live config skips the sweep
-  loudly instead of committing a broken layout. Read-only commands (`status`,
-  `show`, `validate`,
-  `usage`), read-only group subcommands (`skill status`, `recurring list`,
-  `secret get`), no-args/help group invocations (`mark`, `skill`),
-  `init`/`uninstall`, and `--help`/option invocations are excluded —
-  `coga/principles` #6 forbids a render from mutating as a side effect.
-
-The semantics this buys (and accepts): a human hand-edit commits on the **next
-coga command**, not the instant they save. Lazy, on-access convergence — the
-working tree is the source of truth and git catches up at the next invocation.
-This is the deliberate no-daemon alternative to instant commits (`coga/
-architecture`: "no database, no daemon, no in-memory state"). The sweep's commit
-subject (`Sync coga state`) is fixed so readers of `git log` can tell a
-backstop sweep from an attributed per-transition state commit.
-
-Four common bookkeeping subjects evidenced by the retired digest are
-`Sync task state: …`,
-`Ticket: <slug> — <event>` (lifecycle transitions, `— deleted` included),
-`Sync coga state` (the catch-all sweep), and `Log: <slug>`. Every `sync_log`
-producer writes that last one — the recurring runner, launch teardown,
-`launch_script`, `open_pr`, and `bump` (whose variant is `Log: <slug> — rewind
-notification failure`). These are examples, not a complete subject inventory:
-`recurring_autofix` also writes `Autofix: <slug> — created`, and recurring
-promotion writes `Recurring: promoted …`. A subject alone does not prove a
-commit's author or contents. The removed daily
-digest's `_is_coga_state_sync_commit` knew the first three and not `Log:`, so
-on quiet days its "Also merged (no ticket)" section was entirely Coga writing
-to its own log (25 of the 47 commits it reported one day, 4 of 4 the day
-before) while the sweep recorded `problems: 0`; PR #786 deleted the digest
-rather than fixing the filter, and as of 2026-09-13 no subject-prefix
-classifier survives in `src/coga/`. A new classifier must inspect the current
-commit producers and changed paths; these four historical shapes are not a
-complete classification rule.
-
-**Never run a repo-mutating verification experiment in a checkout whose sweep
-can reach the real remote.** Because the sweep fires at the dispatch boundary
-of every mutating command, the familiar "change something, run the command,
-look at what happened, then revert" recipe cannot be followed as written in a
-live Coga checkout. The very invocation under test — `coga launch`, `bump`,
-`mark`, a recurring sweep — commits the scratch mutation under the `Sync coga
-state` subject and pushes it to the control branch before the experimenter has
-read the output, and the launch-end pull-back can then fold control state back
-into the checkout the launch was invoked from, so the effect is not even
-confined to the terminal running the experiment. The read-only exclusions
-(`coga validate`, `status`, `show`) do not sweep, but they do not protect
-either: they leave the mutation dirty, and it rides along on the *next*
-mutating command, which may be a scheduled sweep or another terminal's session
-rather than anything the experimenter typed. There is no window in which such
-an experiment is only local — the revert comes too late by design, because
-lazy on-access convergence is the whole point of the boundary. Run the
-experiment with `[git] enabled = false` in `coga.local.toml` (the opt-out
-below, machine-local precisely so one checkout can stand down without changing
-repo policy), or in a throwaway clone with no real remote. Those are the only
-two safe forms.
-
-Failure model:
-
-- `[git].enabled = false` suppresses sync with a stderr line. Like the
-  notification opt-out, this is a deliberate exit for dev/test/solo repos, not
-  the normal team path.
-- A non-git checkout is a soft warning and no-op.
-- **Init resolves only unambiguous control-branch mismatches.** Before its first
-  commit, `coga init` treats an unborn HEAD already named for the configured
-  branch as a match. If the configured branch is absent, init records the
-  current branch only for a ref-less fresh repo with no configured remote; in
-  an established repo it records only a confirmed cached remote default. A
-  detached HEAD, failed local/cached-ref probe, or ambiguous established
-  checkout leaves the configured default untouched and prints the exact
-  `[git] control_branch` line to verify or change. Init performs no live remote
-  probe for this decision, so an offline or stalled remote cannot delay
-  scaffolding. This keeps first-run `git init -b master` quiet without ever
-  promoting a transient feature branch to shared policy.
-- A **steady-state control-branch mismatch** is a soft-skip, not a crash. When
-  `[git].control_branch` (default `main`) is not present as a local branch, a
-  remote-tracking ref, or an exact configured remote branch, sync prints an
-  actionable message naming the missing branch and the one-line
-  `[git].control_branch = "<branch>"` fix, and commits nothing — steady-state
-  sync never auto-guesses the branch. The guard is checked *before* resolving
-  the current branch, so an unresolved mismatch still warns rather than raising
-  on an unborn HEAD. This is the third soft-skip, alongside disabled and
-  non-git; without it the missing-branch failure was swallowed yet still exited
-  0, so a user saw a confusing error with no actual failure.
-- **No configured remote is the fourth soft-skip, and it skips only the push.**
-  `coga init` leaves a new user with `git init` and no remote ("push when
-  ready"), so every state-changing command used to greet their first ticket with
-  a raw two-paragraph `git push` fatal — printed twice, once per sync entry
-  point. When `git remote get-url <remote>` exits non-zero, sync prints one calm
-  line instead (`[git] no 'origin' remote configured — coga state saved
-  locally; add a remote to sync`). Three boundaries make that safe:
-  - **Only the up-front-detectable case is calmed.** `get-url` answers before
-    any network call. A remote that *is* configured but is offline, misauthed,
-    protected, or simply lacks the branch is not knowable in advance and stays a
-    loud `GitError` — that is the whole fail-loud bargain. Gate on the `get-url`
-    returncode specifically (`_remote_configured`), never on the composite
-    `_remote_branch_present`, which also returns `False` for the legitimate
-    first push that *creates* the branch.
-  - **Commit always; skip only the remote step.** Copying the sibling
-    `_control_branch_present` early-return is too broad — it also suppresses the
-    *feature-branch local commit*, which never contacts the remote. Regression
-    coverage proves that `sync_log` on a feature branch with no remote must
-    still commit its append; the blanket early-return left it dirty.
-    `sync_log`, `sync_paths`,
-    and `sync_coga_state` commit and soft-skip only the control-branch
-    landing/push; only `refresh_coga_state_from_control` returns early, because
-    it is a pure remote pull with no local commit to preserve.
-  - **The state-regression guard still runs.** "With no remote there is nothing
-    for a stale checkout to bury" is false: a sibling worktree lands state on the
-    *shared local* control branch through the temp-index overlay with no remote
-    involved, and a stale `in_progress` copy did bury a terminal `done` ticket
-    while printing only the calm notice. With no remote the guard resolves its
-    base locally (`refs/heads/<control>`) rather than fetching the remote tip —
-    which would raise the very fatal being suppressed — and still refuses.
-
-  Word the notice "saved locally", and print it only when the sync actually
-  committed. A clean no-op announcing a save is noise on every command a
-  no-remote user runs, and with a remote that same no-op is silent.
-- Git operation failures (missing git, invalid repo state, commit failure,
-  fetch/push failure, a configured-but-unreachable remote, or contention
-  exhausting the retry loop) are
-  **non-fatal sync misses**: stderr plus a repo-global `coga/log.md` line, then
-  the command continues and exits 0. `GitError` is swallowed at each sync
-  entry point (`sync_paths` for `bump`/`mark`, `sync_coga_state` for the
-  sweep, and `sync_log`, which reports to stderr only so it never re-dirties
-  the log it just failed to commit) — the on-disk markdown is the source of
-  truth and git is only the sync layer, so a push that can't reach the
-  control branch must never abort a local state transition. (An earlier version re-raised
-  `typer.Exit(1)` here, which broke the supervised launch chain: `coga bump`'s
-  sync aborted before the done marker fired, so the supervisor never
-  relaunched the next step.) "Fail loud" means surface the miss, not crash.
-  Both push paths absorb a non-fast-forward rejection and retry, bounded by
-  the same attempt cap: the cross-branch land refetches the moved tip and
-  rebuilds its overlay tree; the same-branch push fetches and rebases with an
-  explicit stash that restores the pre-sync state on any failure.
-  Recurring creation's specialized control fetch has a generic `sync_paths`
-  retry. Its first fetch miss is a stderr retry notice, not a durable
-  `sync failed` entry or a claim that state is local-only: the fallback can
-  still publish to control. The generic publisher reports and audits its own
-  failure if that retry fails.
-- **Fatal git gates happen only before mutable work starts.** Launch entry is
-  gated before the ticket flips to `in_progress`: `coga launch` preflights push
-  access to the configured remote with the same non-interactive `git push
-  --dry-run` probe `coga validate --check-github` uses, and refuses to start
-  the session (non-zero exit, no "started" post) whenever the probe cannot push
-  to a configured remote — unauthenticated and unreachable/offline alike —
-  because the session drives through git/gh and would otherwise fail at ship
-  time. The preflight self-skips when there is nothing to gate: bootstrap
-  tickets, `[git].enabled = false`, or a remote that doesn't resolve. A child
-  of `coga recurring --all` has a second entry gate before `scan_due`: git must
-  be enabled, the control branch checked out, and the fetched control tip
-  successfully integrated. That failure skips the repo before any recurring
-  period mutation and remains non-fatal to later repos in the parent sweep.
-  The refusal is reported exactly once, distilled to the `error:`/`CONFLICT`
-  lines plus the resolve command (`summarize_git_failure` strips rebase
-  progress and hint noise), and the child exits with
-  `git.STALE_CONTROL_EXIT_CODE` (75, EX_TEMPFAIL). It aliases the generic
-  `git.RETRY_WITHOUT_SWEEP_EXIT_CODE`: a narrow publisher can use the same
-  code when it deliberately retains retryable dirty state (for example, an
-  assist log whose exact PR-tip lease was lost, any aligned-assist setup
-  refusal that may inherit such a log, or a failed leased `block`/`unblock`
-  mutation, including lease acquisition before either command writes).
-  Strict `block`, `unblock`, and automatic unresolved re-block capture their
-  exact ticket revision before that lease (and before notification preflight),
-  parse from those bytes, and byte-CAS their first write, so a peer edit during
-  network work remains local and cannot become generated rollback state.
-  Once assist alignment starts, that retry-only boundary covers every later
-  setup operation and session-side exception, including agent-skill refresh,
-  override validation, an unreadable ticket on a subsequent read, and signals;
-  no post-alignment failure may fall back to the broad sweep.
-  An `unblock --all` walk aborts rather than swallowing this code.
-  It tells wrapping layers the CLI end-of-command state sweep must stand down
-  instead of re-failing against a stale control checkout or committing bytes
-  the narrow publisher intentionally left dirty.
-  Mid-workflow syncs (`coga bump`, `mark`, the catch-all state sweep, and
-  recurring task-state writes after entry) remain non-fatal.
+`git.publish(cfg, paths, message, *, expect=None, guard=None, fast_forward=True)`;
+`sync_task_state(cfg, task_path, *, message, expect=None, strict=False)`
+(task + log), `sync_log(cfg, *, message)` (log only, stderr-only failures),
+and `sync_coga_state(cfg)` (the sweep: every dirty path under `coga/tasks/`,
+`coga/log.md`, `coga/recurring/`) are thin wrappers over it. Soft-skips, one
+calm stderr line each and nothing written: `[git].enabled = false`, not a git
+repo, git not on `PATH`, control branch absent locally and on the remote
+(`control_branch_mismatch_message` names the `coga.toml` fix).
 
 Config lives in `[git]`: `enabled` defaults true, `remote` defaults `origin`,
 `control_branch` defaults `main`, and `worktrees_ticket_owned` defaults
@@ -1250,43 +545,124 @@ which lets the weekly branch sweep remove a landed, pristine, unclaimed
 worktree — `dev/code` (*Checkout boundary*) states the assumption and
 `coga/branch-sweep/sweep` the proofs.
 
-### The launch-end pull-back — `refresh_coga_state_from_control`
+1. **Candidates.** Under `paths`, every file dirty against HEAD, plus a clean
+   file whose HEAD copy moved past control from a copy this checkout itself
+   derived from (a feature branch that committed Coga state it had published).
+   A clean file merely *behind* control is not a write and is left alone.
+2. **Base.** `refs/remotes/<remote>/<control>` (optimistic, no fetch on the
+   hot path); local `<control>` when there is no remote or the tracking ref
+   does not exist yet.
+3. **Provenance check.** A candidate that is a symlink is refused outright
+   (`read_bytes` would follow it and land the target's bytes — possibly from
+   outside the repo — as a regular file); a `merge=union` path missing from
+   the working tree is refused rather than published as a deletion, naming
+   `git checkout <remote>/<control> -- <path>` (and that refusal is not
+   appended to a missing `coga/log.md`, which would recreate it truncated).
+   For each non-union candidate, control's blob must be
+   one the working copy derives from: HEAD's blob, the merge-base blob, a blob
+   this worktree itself published (`refs/worktree/coga/published`, a
+   per-worktree tree git keeps private to the checkout), or the working bytes
+   themselves (an idempotent retry). `expect={path: bytes | None}` replaces
+   that set with the exact bytes the writer read (`None`: must not exist) —
+   megalaunch's claim, admission, and released-witness reconciliation, and the
+   recurring create's ledger read use it; on a `merge=union` path it adds a
+   check that path otherwise never has — but only while that path is a
+   candidate. `guard=callable(base)` is the other hook: it runs before each
+   attempt with the commit the attempt builds on (re-fetched after a rejected
+   push, so a retry never decides on a stale tip), regardless of candidates,
+   and refuses by raising. It exists for one decision `expect` cannot express:
+   the recurring create must not land once control's *content* records the
+   period as serviced, and on a control checkout `coga/log.md` is clean after
+   the sweep's first publish, so a blob pin on it is never evaluated for the
+   creates that follow. A ticket whose control copy carries
+   `pending:<uuid>` accepts only the identical ticket with the prefix
+   stripped; a working copy carrying `released:` is never published. Any
+   refusal raises `StateRegressionError` before anything is pushed, logs
+   "sync refused: `<path>`: control copy changed since this checkout last saw
+   it …; take control's copy with `git checkout <remote>/<control> -- <path>`
+   and redo the edit", and leaves the file as written.
+4. **Tree and push.** A UUID-named temporary `GIT_INDEX_FILE` is seeded from
+   base; each candidate is overlaid from the working tree (deleted when the
+   file is gone); paths `git check-attr merge` reports as `union` get
+   `git merge-file --union` of (merge-base copy, base copy, working copy)
+   instead. A tree equal to base's returns `False` (already durable).
+   Otherwise `commit-tree` on base and `push <remote> <new>:refs/heads/<control>`.
+   A non-fast-forward rejection means base moved: fetch the tracking ref and
+   go to 2, at most `MAX_PUBLISH_ATTEMPTS` times. Any other push failure
+   re-reads control once: `True` when control now carries the commit,
+   `GitError` when it definitely does not, `UncertainPublishError` when
+   control cannot be re-read. Every failure leaves the file as written.
+5. **Fast-forward.** `fast_forward_control(cfg, root, new, staged=…)` checks
+   `merge-base --is-ancestor` *first*: a local control branch that is ahead or
+   diverged (unpushed human commits) is left alone, index untouched, with one
+   stderr line naming `git pull --rebase <remote> <control>`. When this
+   checkout holds the branch, each published file still equal to what
+   `publish` read is written to its landed bytes (the union result for the
+   log) and staged, so `merge --ff-only` is not refused by the very edit it
+   carries; a file a peer changed meanwhile stays dirty for the next sweep.
+   Another worktree holding the branch is fast-forwarded through
+   `merge --ff-only`; with no holder the ref moves under an old-value guard.
+   `fast_forward=False` (Retro's isolated delete) skips this step. Nothing
+   ever fast-forwards on a `False` publish except the publishing control
+   checkout itself. With no remote this step is the publication: a refused
+   fast-forward raises `GitError` ("could not be fast-forwarded"), nothing is
+   recorded as published, and the write stays dirty for the next sweep.
 
-Publishing lands state on control and can reconcile the publisher's own
-feature checkout, as the policy inventory above describes. The launch checkout
-may be a different checkout from the publisher, and other writers can advance
-control after a local sync. Refreshing the launch checkout closes that remaining
-gap so `coga status` there reflects the completed run.
+Return values: `True` pushed, `False` control already held the tree, `None`
+soft-skipped. `sync_task_state(strict=True)` re-raises after reporting; the
+strict callers (megalaunch's claim and activation, the recurring delegator's
+start, completion, and pause) restore their pre-write bytes and retract their
+audit lines (`logfile.retract_log_lines`) on `StateRegressionError` and
+`GitError`, and keep the write on `UncertainPublishError` as the legible
+evidence for reconciliation.
 
-`coga launch` closes that loop at the end of every run (bump handoff,
-`mark done`, `mark canceled`, `block`, agent exit, a failed setup after state
-was published — each exit path the supervisor sees): it fetches
-`origin/<control>` and folds
-the control tip's `coga/tasks/**` back into the checkout the launch was
-invoked from. On the control branch that is a plain `merge --ff-only`. On a
-feature branch only task files changed on control since the branches' merge
-base are overlaid and committed on the current branch — the same local-commit
-shape the mid-run sync uses — so the branch's product tree is never touched;
-`coga/log.md` is three-way union-merged so locally appended lines survive.
-Working-tree-dirty paths are skipped (they belong to the catch-all sweep and
-its regression guard, not a blind overwrite). The refresh retains the bytes
-sampled for each initially clean candidate, rechecks that candidate's dirt
-immediately before writing, and conditions the write on the sample; a peer edit
-after the first status scan is therefore skipped or refused rather than
-overwritten. Committed changes on both sides
-are preserved locally unless the control path's history proves it already
-absorbed that exact local version, and a ticket whose local copy is ahead of
-the control tip is left alone — a refresh must never move state backward.
-Failures follow the same non-fatal posture as the publish half: stderr +
-`coga/log.md`, never a crash.
+### `refresh` and the read-only probes
 
-`coga status` cannot fetch (a render is read-only and no-network, principle
-6), so it gets the warning half instead: `stale_coga_task_rels` compares the
-working tree against the local remote-tracking `<remote>/<control>` ref and
-`status` prints one stderr warning when that ref provably has newer ticket
-state (a step/status ahead, or a ticket missing locally). No fetch means the
-answer is only as fresh as the last fetch — it cannot see a push nobody has
-fetched — but it turns the silently stale table into a labeled one.
+`git.refresh(cfg) -> bool` fetches the control branch, then fast-forwards
+when HEAD is the control branch (`True` when level, `False` with the
+`pull --rebase` line when ahead, diverged, or blocked by a dirty file control
+changed). A feature-branch or detached checkout gets the fetch and nothing
+else: it is stale-by-design for tickets other checkouts advance, its own
+published ticket stays dirty there, and `stale_coga_task_rels` keeps
+`coga status` warning. Callers: `coga launch` teardown on every exit path, the
+recurring per-child preflight (bails on `False` with
+`STALE_CONTROL_EXIT_CODE`, which suppresses the CLI sweep), and the recurring
+scan's pre-scan catch-up. `fetch_control(cfg, root)` is the shared "fetch and
+give me the base" for readers of control's exact copy of a ticket
+(`tree_bytes(root, base, rel)`).
+
+### `state_lock` — same-checkout serialization
+
+`git.state_lock(cfg)` is a short, kernel-released `fcntl.flock` on a
+per-checkout lock file outside the worktree, reentrant within a thread. Every
+Coga lifecycle writer takes it around its read-modify-write (`git.write_ticket`,
+blackboard updates, delete), `publish` takes it around steps 2–5, and
+megalaunch holds it across its whole admission window (final proof, pipe
+release, admission publish). It never decides who owns a task; cross-checkout
+and cross-machine coordination is the push compare-and-swap.
+
+### What this means for a session
+
+- A control checkout (`main`) is kept clean and level by its own publishes.
+- A feature-branch or detached checkout keeps its published ticket and log
+  **dirty by design** — Coga never commits on the branch. Do not `git add`
+  `coga/tasks/**` or `coga/log.md` into a PR; `coga open-pr`'s single-checkout
+  cleanliness gate excludes that live state and its classifier refuses a
+  branch whose only commits are Coga state.
+- Hand-authored contexts, skills, workflows, and config are review work: the
+  sweep never publishes them. Commit them yourself.
+- Concurrent sessions editing one checkout's working tree are the one
+  unserialized hazard; run them from separate clones or worktrees.
+
+### `merge=union`
+
+`coga/log.md` is the one file `.gitattributes` marks `merge=union`: union
+keeps both sides' lines, safe there precisely because every writer only
+appends. A file that is compacted, trimmed, or rewritten must never carry the
+attribute (union would resurrect the deletion). `git.union_merge_paths` asks
+`git check-attr`, so adding an append-only file to `.gitattributes` is enough
+to route it through the union merge — and adding a non-append-only one is the
+mistake to avoid.
 
 ## Design rule for new features
 
@@ -1349,10 +725,10 @@ one candidate).
    context edits.** A split merge leaves the running CLI and the stored
    tickets disagreeing — old code reading new tickets, or new code reading old
    ones — with no reader in between to bridge them.
-2. **The state-regression guard is not a schema barrier.** It compares
-   lifecycle progress only (terminal status, step index, status order; see
-   *The state-regression guard*), so an older supervisor that is still running
-   will happily restore a removed field at the *same* step and pass the guard.
+2. **The provenance check is not a schema barrier.** It compares control's
+   blob with the copies this checkout derived from (see *`publish`*), so an
+   older supervisor that is still running and level with control will happily
+   restore a removed field and pass the check.
    Before merge the owner therefore opens a writer quiet window: stop the
    recurring and megalaunch dispatchers, let every old supervisor finish its
    teardown and state sync, suspend scheduled entry points and any writers on

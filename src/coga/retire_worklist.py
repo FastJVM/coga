@@ -287,7 +287,7 @@ def reconcile_worklist(
     git call.
     """
     change = WorklistChange(path=path)
-    with git.state_publication_barrier(cfg):
+    with git.state_lock(cfg):
         raw = path.read_bytes() if path.exists() else None
         header, entries = (
             parse_worklist(raw.decode("utf-8"))

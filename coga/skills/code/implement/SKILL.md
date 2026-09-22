@@ -57,9 +57,11 @@ later `code/open-pr` step does that, after self-review and fixes.
    layout — `coga open-pr`'s `_checkout_mode` proves the layout from the
    recorded path plus `COGA_EXPECTED_TASK`, and a stray worktree makes the
    recorded path name a checkout this session cannot claim. Note also that
-   generated task/log commits are not implementation work here: `coga open-pr`
-   requires at least one committed non-generated path, so a branch carrying only
-   task-state churn will not open a PR.
+   Coga publishes the live ticket and `coga/log.md` to the control branch and
+   never commits them on your branch — they stay dirty in this checkout by
+   design, and `coga open-pr` excludes them from its clean-tree gate. Do not
+   `git add` them: generated task/log commits are not implementation work, and
+   a branch carrying only task-state churn will not open a PR.
 
    **Write `## Dev` in the checkout you will bump from.** `coga bump` reads and
    syncs the ticket copy of the checkout it runs in, and nothing else. In the
