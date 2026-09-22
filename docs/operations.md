@@ -180,8 +180,10 @@ The daily `autoclose-merged` sweep closes merged final-step tickets but never
 deletes their feature checkouts — that is `coga retire`'s job, with its safety
 proofs. The sweep keeps the list of retires still owed in
 `coga/recurring/autoclose-merged/retires.md`, a plain markdown file beside the
-template, and prunes it on every run once a checkout's worktree and branch are
-both gone; `coga retire <slug>` clears its own line the moment it disposes of
+template, and prunes it on every run once a checkout's branch is gone and its
+worktree is gone or is this repo's own primary checkout (a ticket worked in
+place records it, and nobody disposes of it); `coga retire <slug>` clears its
+own line the moment it disposes of
 the checkout. Read that file, not the period task's blackboard, when you want
 to know what is left to retire: the period task is deleted at the next period.
 The rules — what an entry means, when it clears, the line shape for a

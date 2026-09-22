@@ -28,9 +28,13 @@ gates, plus the live-claim scan. The earlier design only *named* a `coga
 retire` follow-up here, on the principle that destructive behavior is never
 implicit; that produced a ten-entry backlog nobody typed, so the sweep now
 runs the deterministic, narrow, named proofs itself (`_dispose_checkouts`)
-and names only what a proof refused, with the reason — see
-`_report_retire_followups`. It only ever touches worktrees a ticket or a
-worklist entry recorded, and only from a checkout on the control branch.
+and names only what a proof refused, with the reason and a remedy a human can
+act on — see `_report_retire_followups` and `CheckoutOutcome.manual_command`.
+It only ever touches worktrees a ticket or a worklist entry recorded, and only
+from a checkout on the control branch. The one recorded `worktree:` it never
+counts is this repository's own primary checkout (the single-checkout layout),
+which no proof removes and nobody disposes of
+(`retire_worklist.is_primary_checkout`).
 
 Under a recurring period task the refusals have to outlive the run: the period
 task is deleted at the next period boundary, so the sweep records each
@@ -45,6 +49,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 from collections.abc import Callable
@@ -63,6 +68,7 @@ from coga.retire_worklist import (
     RetireWorklistError,
     WorklistChange,
     all_worklists,
+    is_primary_checkout,
     parse_worklist,
     reconcile_worklist,
     worklist_for_period_task,
@@ -95,6 +101,11 @@ class ClosedTicket:
     They are captured *during* the sweep on purpose: they are the only trace of
     which checkout belongs to this ticket, and a later reader may find them
     gone — retire clears them, and a deleted task takes them with it.
+
+    `worktree` is the one field filtered rather than copied: this repository's
+    own primary checkout, recorded by a ticket worked in the single-checkout
+    layout, is dropped (`_recorded_worktree`), because no proof removes it and
+    naming it would hold a follow-up open forever.
     """
 
     slug: str
@@ -141,6 +152,11 @@ class CheckoutOutcome:
     worktree: str | None
     ticket_exists: bool
     disposal: CheckoutDisposal
+    home: git.CheckoutRelation | None = None
+    """`git.classify_checkout`'s verdict, set only when the worktree proof
+    refused the path as not a linked worktree of this repository."""
+    worktree_path: Path | None = None
+    """The recorded `worktree:` resolved against the sweep's git root."""
 
     @property
     def disposed(self) -> bool:
@@ -151,11 +167,71 @@ class CheckoutOutcome:
         return _checkout_state(self.branch, self.worktree)
 
     @property
+    def not_linked(self) -> bool:
+        result = self.disposal.worktree_result
+        return result is not None and result.not_linked
+
+    @property
     def manual_command(self) -> str:
-        """What a human types for a preserved checkout."""
+        """What a human does about a preserved checkout, as one runnable remedy.
+
+        `coga retire <slug>` only helps when its own proofs could pass from
+        this repository and the task still exists here. A worktree refused as
+        not a linked worktree of this repository is judged again
+        (`git.classify_checkout`) so the remedy names where it can be removed:
+        another repository's linked worktree from its owning checkout, and an
+        independent clone or a path git cannot read by hand. A worktree
+        already gone leaves only the branch to name.
+        """
+        retire = f"`coga retire {self.slug}`"
+        branch_left = self.branch is not None and self.disposal.local_branch_remains
+        if self.not_linked and self.worktree_path is not None:
+            path = shlex.quote(str(self.worktree_path))
+            home = self.home
+            if home is not None and home.kind == "foreign-linked":
+                owner = shlex.quote(str(home.owner))
+                steps = [f"`git -C {owner} worktree remove {path}`"]
+                if self.branch:
+                    steps.append(
+                        f"`git -C {owner} branch -d {shlex.quote(self.branch)}`"
+                    )
+                return (
+                    f"the worktree belongs to `{home.owner}`, not this "
+                    f"repository: {retire} fails the same proof from here and "
+                    "the task does not exist there — dispose of it by hand "
+                    f"from `{home.owner}`: {', then '.join(steps)}"
+                )
+            if home is not None and home.kind == "standalone":
+                what = "an independent checkout with its own repository"
+            elif home is not None and home.kind == "primary":
+                what = "this repository's primary checkout"
+            else:
+                what = "not a git worktree git can read"
+            return (
+                f"`{self.worktree_path}` is {what}, which no proof removes — "
+                f"inspect and remove it by hand{self._branch_only(branch_left)}"
+            )
+        worktree_result = self.disposal.worktree_result
+        if (
+            branch_left
+            and self.disposal.claim is None
+            and worktree_result is not None
+            and worktree_result.already_gone
+        ):
+            return "the worktree is already gone" + self._branch_only(True)
         if self.ticket_exists:
-            return f"`coga retire {self.slug}`"
+            return retire
         return "dispose of the recorded worktree and branch by hand"
+
+    def _branch_only(self, branch_left: bool) -> str:
+        if not branch_left:
+            return ""
+        if self.ticket_exists:
+            return f"; then `coga retire {self.slug}` for branch `{self.branch}`"
+        return (
+            f"; then delete branch `{self.branch}` by hand "
+            f"(`git branch -d {shlex.quote(self.branch or '')}`)"
+        )
 
 
 OPEN_STATUSES = frozenset({"active", "in_progress"})
@@ -441,6 +517,21 @@ def _candidate(ticket: Ticket) -> bool:
     return ticket.status in OPEN_STATUSES and _on_final_step(ticket)
 
 
+def _recorded_worktree(cfg: Config, recorded: str | None) -> str | None:
+    """The recorded `worktree:` as retire debt, or `None` when it is not debt.
+
+    Drops only this repository's own primary checkout, provably
+    (`retire_worklist.is_primary_checkout`): a ticket worked in the
+    single-checkout layout records it, the proofs refuse it forever, and
+    nobody disposes of it. Such a closure keeps a branch-only follow-up, or
+    none. Every other path is kept, including a checkout the proofs preserve
+    but a human removes by hand, and every unknown.
+    """
+    if recorded and is_primary_checkout(_worklist_root(cfg), recorded):
+        return None
+    return recorded
+
+
 def _try_bump_one(
     cfg: Config,
     ref: TaskRef,
@@ -504,7 +595,7 @@ def _try_bump_one(
         slug=ref.id_slug,
         title=ticket.title,
         branch=parse_branch_name(blackboard),
-        worktree=parse_worktree_path(blackboard),
+        worktree=_recorded_worktree(cfg, parse_worktree_path(blackboard)),
         pr=url,
     )
     if before_close is not None:
@@ -713,24 +804,54 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
             if entry.slug in seen:
                 continue
             seen.add(entry.slug)
+            branch = entry.branch or None
+            # An entry recorded before the primary-checkout rule may still
+            # name it; only the branch half is debt (and the reconcile drops
+            # the entry once that is gone too).
+            worktree = (
+                None
+                if is_primary_checkout(root, entry.worktree)
+                else entry.worktree or None
+            )
+            if branch is None and worktree is None:
+                continue
             ticket_exists, pr_url = _entry_ticket(cfg, entry.slug)
             result.checkouts.append(
                 CheckoutOutcome(
                     slug=entry.slug,
                     title=None,
-                    branch=entry.branch or None,
-                    worktree=entry.worktree or None,
+                    branch=branch,
+                    worktree=worktree,
                     ticket_exists=ticket_exists,
                     disposal=dispose_checkout(
                         cfg,
                         root,
-                        branch=entry.branch or None,
-                        worktree=entry.worktree or None,
+                        branch=branch,
+                        worktree=worktree,
                         pr_url=pr_url,
                         echo=_echo(entry.slug),
                     ),
                 )
             )
+
+    for item in result.checkouts:
+        _locate_refused_worktree(root, item)
+
+
+def _locate_refused_worktree(root: Path, item: CheckoutOutcome) -> None:
+    """Judge a worktree the proof refused as not linked here, for the remedy.
+
+    Read-only `git rev-parse` / `git worktree list` probes, only for the
+    outcomes that need them.
+    """
+    # Lazy for the same `autoclose -> branchcleanup -> autoclose` cycle.
+    from coga.branchcleanup import resolve_worktree_path
+
+    if item.worktree is None:
+        return
+    item.worktree_path = resolve_worktree_path(root, item.worktree)
+    if item.not_linked:
+        item.home = git.classify_checkout(root, item.worktree_path)
 
 
 def _entry_ticket(cfg: Config, slug: str) -> tuple[bool, str | None]:
@@ -843,7 +964,10 @@ def render_preserved_summary(preserved: list[CheckoutOutcome]) -> str:
 
     Every preserved checkout is work a human must do — the proofs will refuse
     it again tomorrow — which is the `coga/important` bar; a preserved entry
-    is re-posted on every run until it is gone.
+    is re-posted on every run until it is gone. A worktree refused as not
+    linked here also carries its remedy: the generic refusal cannot say
+    whether the path is another repository's worktree or an independent clone,
+    and `coga retire` would not help with either.
     """
     subject = (
         "1 feature checkout needs"
@@ -852,6 +976,7 @@ def render_preserved_summary(preserved: list[CheckoutOutcome]) -> str:
     )
     details = "; ".join(
         f"`{item.slug}` ({item.checkout_state}): {item.disposal.reason}"
+        + (f" — {item.manual_command}" if item.not_linked else "")
         for item in preserved
     )
     return f"⚠️ {subject} a human — autoclose could not dispose of it: {details}"

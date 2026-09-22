@@ -29,6 +29,8 @@ from coga.config import Config, ConfigError, load_config
 from coga.logfile import append_log
 from coga.ticket import Ticket
 
+from conftest import init_git_repo
+
 runner = CliRunner()
 
 
@@ -918,6 +920,54 @@ def test_is_linked_worktree(git_repo, tmp_path):
         assert git.is_linked_worktree(worktree) is True
     finally:
         git_repo.git("worktree", "remove", "--force", str(worktree))
+
+
+def test_classify_checkout_primary_and_linked(git_repo, tmp_path):
+    worktree = tmp_path / "linked"
+    git_repo.git("worktree", "add", "-b", "linked", str(worktree), "main")
+
+    assert git.classify_checkout(git_repo.root, git_repo.root) == git.CheckoutRelation(
+        "primary"
+    )
+    assert git.classify_checkout(git_repo.root, worktree) == git.CheckoutRelation(
+        "linked"
+    )
+    # The verdict is by common dir, so it holds from a linked worktree too —
+    # the recurring runner sweeps from one.
+    assert git.classify_checkout(worktree, git_repo.root).kind == "primary"
+    assert git.classify_checkout(worktree, worktree).kind == "linked"
+
+
+def test_classify_checkout_other_repositories(git_repo, tmp_path):
+    other_root = tmp_path / "other-root"
+    other_root.mkdir()
+    other = init_git_repo(other_root)
+    foreign = tmp_path / "other-wt"
+    other.git("worktree", "add", "-b", "fix", str(foreign), "main")
+    clone = tmp_path / "clone"
+    git_repo.git("clone", "-q", str(git_repo.root), str(clone), cwd=tmp_path)
+
+    assert git.classify_checkout(git_repo.root, foreign) == git.CheckoutRelation(
+        "foreign-linked", owner=other.root.resolve()
+    )
+    assert git.classify_checkout(git_repo.root, other.root) == git.CheckoutRelation(
+        "standalone"
+    )
+    assert git.classify_checkout(git_repo.root, clone) == git.CheckoutRelation(
+        "standalone"
+    )
+
+
+def test_classify_checkout_has_no_answer_for_what_it_cannot_prove(git_repo, tmp_path):
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    # A directory inside the primary checkout is not the checkout itself.
+    inside = git_repo.root / "coga"
+
+    assert git.classify_checkout(git_repo.root, plain) is None
+    assert git.classify_checkout(git_repo.root, inside) is None
+    assert git.classify_checkout(git_repo.root, tmp_path / "missing") is None
+    assert git.classify_checkout(plain, git_repo.root) is None
 
 
 def test_union_merge_paths_reads_gitattributes(git_repo):
