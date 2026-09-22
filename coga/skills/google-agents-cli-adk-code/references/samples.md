@@ -3,9 +3,12 @@
 Recipes live in [google/adk-samples](https://github.com/google/adk-samples). **`core/python/`** is the
 curated tier — canonical ADK patterns maintained by the agents-cli team.
 
-**Reading this page is not studying a recipe.** Every `core/` recipe ships an **`AGENTS.md`** —
-intent, a ranked "study in this order" file tour, what to copy as-is versus what is recipe-specific,
-and the gotchas. Until you have opened it you are answering from memory.
+**Reading this page is not studying a recipe.** Every `core/` recipe ships an **`AGENTS.md`** — intent,
+a ranked "study in this order" file tour, what to copy as-is versus what is recipe-specific,
+and the gotchas. Clone the recipe and read its `AGENTS.md` before you implement anything it covers.
+Until you have opened it you are answering from memory. Hand-writing a Docker or E2B sandbox wrapper,
+a skill loader, a moderation callback or a memory store — for a capability the index lists — means
+you stopped at the name.
 
 **Study and adapt — don't scaffold from a recipe.**
 

@@ -12,13 +12,17 @@ For how to size cpu/memory/workers/concurrency together (and avoid OOM), see **S
 
 ## Dockerfile
 
-Scaffolded projects include a `Dockerfile` using single-stage build with `uv` for dependency management. Check the project root `Dockerfile` for the exact configuration.
+Scaffolded projects include a `Dockerfile`:
+* Python uses a single-stage build with `uv` for dependency management.
+* Go uses a multi-stage build — a `golang` builder image compiles the binary, which is copied into a slim runtime image.
 
-## FastAPI Endpoints
+Check the project root `Dockerfile` for the exact configuration.
 
-Every scaffolded Python project serves `uvicorn app.fast_api_app:app` on port 8080; which routes that app exposes depends on the framework, so check `app/fast_api_app.py`.
+## Served Endpoints
 
-> **ADK projects.** The app serves the ADK HTTP surface (`/run_sse`, `/apps/...`) plus A2A routes under `/a2a/{app_name}` (JSON-RPC + agent card — A2A is built into every ADK agent).
+A scaffolded Python project serves `uvicorn app.fast_api_app:app` on port 8080; a Go project serves the binary built from `main.go`. Which routes that app exposes depends on the framework, so check `app/fast_api_app.py` or `main.go`.
+
+> **ADK projects.** The app serves the ADK HTTP surface (`/run_sse`, `/apps/...`) plus A2A (JSON-RPC + agent card — A2A is built into every ADK agent). A2A differs between languages — Python serves both under `/a2a/{app_name}`; Go serves the agent card at the root (`/.well-known/agent-card.json`) and JSON-RPC under `/a2a/` (`/a2a/v1/invoke`, plus `/a2a/invoke` for the v0 protocol).
 
 ## Session Types
 

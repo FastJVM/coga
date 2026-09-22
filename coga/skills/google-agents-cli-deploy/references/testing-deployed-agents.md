@@ -56,6 +56,22 @@ agents-cli playground
 
 > **Auth required by default.** Cloud Run deploys with `--no-allow-unauthenticated`, so all requests need an `Authorization: Bearer` header with an identity token. Getting a 403? You're likely missing this header. To allow public access, redeploy with `--allow-unauthenticated`.
 
+### Quickest: `run --url` (direct or via local proxy)
+
+`agents-cli run` mints the identity token for you, so you don't have to construct auth headers. Two ways to point it at the service:
+
+```bash
+# Direct: use the Service URL from your deploy output
+agents-cli run --url https://SERVICE_NAME-PROJECT_NUMBER.REGION.run.app --mode a2a "Hello!"
+
+# Or proxy locally (the flow gcloud suggests after deploy), then use the proxy URL:
+gcloud run services proxy SERVICE_NAME --region REGION --project PROJECT
+# in another shell (the proxy holds the terminal, listening on 127.0.0.1:8080):
+agents-cli run --url http://127.0.0.1:8080 --mode a2a "Hello!"
+```
+
+Pass the **base** service (or proxy) URL — not a `/a2a` suffix; the CLI finds the agent card itself. Swap `--mode a2a` for `--mode adk` to use the ADK HTTP API instead.
+
 > **ADK projects.** The session + `/run_sse` calls below are the ADK HTTP surface. On other frameworks the health check and auth header are the same, but call your app's own routes (e.g. the A2A endpoint via `agents-cli run --mode a2a`).
 
 ```bash
@@ -92,4 +108,4 @@ GKE LoadBalancer services are **internal by default**. See `references/gke.md` f
 
 ## Load Tests
 
-See `tests/load_test/README.md` for configuration, default settings, and CI/CD integration details. Load tests run automatically during the staging CD pipeline stage.
+See `tests/load_test/README.md` (Python) or `e2e/load_test/README.md` (Go) for configuration, default settings, and CI/CD integration details. Load tests run automatically during the staging CD pipeline stage.

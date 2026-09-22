@@ -8,15 +8,20 @@ Agent Runtime uses **container-based deployment**: `agents-cli deploy` packages 
 
 File selection honors the project-root `.gcloudignore`, else the project-root `.gitignore` (nested `.gitignore` files are not consulted).
 
-**App object:** the container runs `uvicorn app.fast_api_app:app`, the same
-entrypoint as Cloud Run and GKE — there is no top-level `AgentEngineApp`/`AdkApp`
-deployment entrypoint anymore, the container serves HTTP directly. Which routes
-that app exposes depends on the framework; check `app/fast_api_app.py`.
-`agents-cli deploy` always labels the deployment `agent_framework = "google-adk"`
-(see `service.tf`) — that label picks the Console playground, it does not
-constrain the container.
+Each template builds the served application its own way:
 
-> **ADK projects.** `fast_api_app.py` builds the FastAPI `app` via
+- **Python** — the container runs `uvicorn app.fast_api_app:app`, the same entrypoint as Cloud
+  Run and GKE. Which routes that app exposes depends on the framework; check
+  `app/fast_api_app.py`. There is no top-level `AgentEngineApp`/`AdkApp` deployment
+  entrypoint — the container serves HTTP directly.
+- **Go** — the container runs the binary compiled from `main.go`, which composes ADK Go's
+  launcher sub-commands (`web`, `api`, `a2a`, `appinfo`). Agent Runtime is supported natively,
+  so there is no adapter layer.
+
+`agents-cli deploy` always labels the deployment `agent_framework = "google-adk"` (see
+`service.tf`); that label picks the Console playground, it does not constrain the container.
+
+> **ADK Python projects.** `fast_api_app.py` builds the FastAPI `app` via
 > `get_fast_api_app(web=True, lifespan=...)`. The lifespan builds one `Runner`
 > from the shared session/artifact services (`app_utils/services.py`) and mounts
 > A2A routes (`attach_a2a_routes`); `attach_reasoning_engine_routes(app)` adds
@@ -26,6 +31,14 @@ constrain the container.
 > under `/a2a/{app_name}` (JSON-RPC + agent card), and the reasoning_engine
 > adapter routes `/api/reasoning_engine` + `/api/stream_reasoning_engine` (used
 > by the Console Playground and Gemini Enterprise ADK registration).
+
+> **ADK Go projects.** `main.go` composes launcher sub-commands instead of building a web
+> app. The `agentengine` sub-launcher (`google.golang.org/adk/v2/cmd/launcher/web/agentengine`,
+> constructed as `agentengine.NewLauncher(rootAgent.Name())`) is the counterpart
+> to Python's reasoning_engine adapter — it is what makes the Console Playground
+> work. The container serves the ADK HTTP surface at the root (hence
+> `-path_prefix /`), the agent card at `/.well-known/agent-card.json` and A2A
+> JSON-RPC at `/a2a/v1/invoke`. There is no `webui` sub-launcher on this target.
 
 ### The `/api` HTTP passthrough
 
@@ -92,8 +105,8 @@ If deployment times out but the engine was created, manually populate this file 
 | **Build** | Dockerfile → image (built by Agent Engine) | Dockerfile → image (`gcloud builds`) |
 | **Deploy command** | `agents-cli deploy` | `gcloud run deploy --image ...` |
 | **Artifact** | Container image | Container image in Artifact Registry |
-| **Python version** | Configurable in Dockerfile | Configurable in Dockerfile |
-| **Load testing** | Via `locust` against Agent Runtime endpoint | Direct HTTP to Cloud Run URL |
+| **Language toolchain version** | Configurable in Dockerfile | Configurable in Dockerfile |
+| **Load testing** | Scaffolded load test against the Agent Runtime endpoint | Scaffolded load test, direct HTTP to the Cloud Run URL |
 
 ## Playground & Remote Testing
 

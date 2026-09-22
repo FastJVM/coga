@@ -2,9 +2,18 @@
 
 > **Assumes `/google-agents-cli-scaffold` scaffolding.** Observability infrastructure is provisioned by Terraform in scaffolded projects.
 
+> **Feature gaps in ADK Go.** Traces and logs are exported over OTLP to `telemetry.googleapis.com`.
+> Three things below are **ADK Python only**: the BigQuery Agent Analytics plugin (`--bq-analytics`),
+> the GCS completion upload (`OTEL_INSTRUMENTATION_GENAI_COMPLETION_HOOK`) that backs prompt-response
+> logging, and `ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS`.
+>
+> `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` exists in both but means different things:
+> ADK Python takes the semconv enum, ADK Go treats it as a boolean — `"1"` or `"true"` capture
+> content, and every other value (including `NO_CONTENT`) elides it.
+
 ## Cloud Trace
 
-Always-on distributed tracing, exporting spans/logs to Cloud Trace and Cloud Logging. The exporters are wired at app startup (**ADK:** `get_fast_api_app(otel_to_cloud=True)`; other templates call their own setup, e.g. `app/app_utils/telemetry.py`). For **Agent Runtime** it's gated on `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY` (set by deploy), and traces also appear in the Agent Engine console. Content env vars are declared statically (Terraform `service.tf` for deployed, `.env` for local). Tracks requests through LLM calls and tool executions with latency analysis and error visibility.
+Always-on distributed tracing, exporting spans/logs to Cloud Trace and Cloud Logging. The exporters are wired at app startup (**ADK Python:** `get_fast_api_app(otel_to_cloud=True)`; **ADK Go:** `setupObservability()` in `observability.go`, which exports traces and logs over OTLP to `telemetry.googleapis.com` regardless of the launcher's `-otel_to_cloud` flag; other templates call their own setup, e.g. `app/app_utils/telemetry.py`). For **Agent Runtime** it's gated on `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY` (set by deploy), and traces also appear in the Agent Engine console. Content env vars are declared statically (Terraform `service.tf` for deployed, `.env` for local). Tracks requests through LLM calls and tool executions with latency analysis and error visibility.
 
 View traces: **Cloud Console → Trace → Trace explorer**
 
@@ -29,10 +38,17 @@ Check `deployment/terraform/single-project/telemetry.tf` for exact configuration
 
 Set automatically by Terraform on the deployed service. The `OTEL_INSTRUMENTATION_GENAI_*` content-capture and upload variables (capture modes, `OTEL_SEMCONV_STABILITY_OPT_IN`, completion hook / upload) are documented in [`opentelemetry-util-genai`](https://github.com/open-telemetry/opentelemetry-python-genai/tree/main/util/opentelemetry-util-genai) and the [OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/).
 
+### Common (Python & Go)
+
+| Variable | Purpose | Notes |
+|----------|---------|--------|
+| `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` | Controls content capture for the traces/events tier only | Python accepts `NO_CONTENT`/`EVENT_ONLY`/`SPAN_ONLY`/`SPAN_AND_EVENT`; Go accepts `true`/`false` |
+
+### Python only
+
 | Variable | Purpose |
 |----------|---------|
 | `LOGS_BUCKET_NAME` | GCS bucket for completions and logs. Required to enable prompt-response logging |
-| `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` | Controls content capture for the traces/events tier only (`NO_CONTENT`/`EVENT_ONLY`/`SPAN_ONLY`/`SPAN_AND_EVENT`; `true`/`false` invalid) |
 | `ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS` | **ADK only.** Keeps message content out of trace spans; Terraform sets `false` (ADK defaults to `true`) |
 | `BQ_ANALYTICS_DATASET_ID` | BigQuery dataset for telemetry (ADK BigQuery Agent Analytics plugin; only when scaffolded with `--bq-analytics`) |
 | `BQ_ANALYTICS_CONNECTION_ID` | BigQuery connection for GCS access (only when scaffolded with `--bq-analytics`) |
@@ -47,6 +63,8 @@ Set automatically by Terraform on the deployed service. The `OTEL_INSTRUMENTATIO
 
 Telemetry config is env-var driven, so set the same vars Terraform sets for deployed agents before running `agents-cli playground`:
 
+**ADK Python:**
+
 ```bash
 export LOGS_BUCKET_NAME="your-bucket-name"                       # bare name, no gs://
 export OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT="NO_CONTENT"  # or EVENT_ONLY (content in Cloud Logging events)
@@ -56,9 +74,15 @@ export OTEL_INSTRUMENTATION_GENAI_UPLOAD_FORMAT="jsonl"
 export OTEL_SEMCONV_STABILITY_OPT_IN="gen_ai_latest_experimental"
 ```
 
+**ADK Go:** only the first variable applies, and as a boolean.
+
+```bash
+export OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT="true"  # "1"/"true" capture; anything else elides
+```
+
 ### Disable in Deployed Environments
 
-Content in traces/events is already off by default (`NO_CONTENT`) — note `true`/`false` are **not** valid values under experimental semconv (they fall back to `NO_CONTENT`). To turn off prompt-response logging to GCS/BigQuery entirely, remove the upload block (`OTEL_INSTRUMENTATION_GENAI_COMPLETION_HOOK`, `OTEL_INSTRUMENTATION_GENAI_UPLOAD_BASE_PATH`, `LOGS_BUCKET_NAME`) from `deployment/terraform/single-project/service.tf` (or the `cicd/` variant) and re-apply Terraform.
+Content in traces/events is already off by default. Python: the default is `NO_CONTENT`, and `true`/`false` are no valid values under experimental semconv (they fall back to `NO_CONTENT`). Go: the default is off because anything other than `"1"`/`"true"` elides content. To turn off prompt-response logging to GCS/BigQuery in Python entirely, remove the upload block (`OTEL_INSTRUMENTATION_GENAI_COMPLETION_HOOK`, `OTEL_INSTRUMENTATION_GENAI_UPLOAD_BASE_PATH`, `LOGS_BUCKET_NAME`) from `deployment/terraform/single-project/service.tf` (or the `cicd/` variant) and re-apply Terraform.
 
 ## BigQuery Dataset Naming Convention
 

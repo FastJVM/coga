@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-publish
-    github-ref: refs/tags/v1.5.0
+    github-ref: refs/tags/v1.6.1
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: f7ba039f7a3e886e423cc1af9f8944924bd081a7
+    github-tree-sha: cc618b10e013be5d5f9df9fe6f3023cb217eb9c5
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.5.0
+    version: 1.6.1
 name: google-agents-cli-publish
 ---
 # Gemini Enterprise Registration
@@ -38,7 +38,9 @@ name: google-agents-cli-publish
 Every scaffolded agent serves the Agent-to-Agent protocol. A2A is the default — and only — registration type on **Cloud Run** and **GKE** (no reasoning engine to invoke natively). It also works on **Agent Runtime** via `--registration-type a2a`. For an ADK agent there the CLI warns against it, because Gemini Enterprise can invoke Agent Runtime natively via `:streamQuery` — prefer ADK registration in that case. For an agent built on another framework there is no ADK app to invoke natively, so A2A is the right mode on every target and the warning is expected. Pass the agent card URL and the command fetches the card and registers it; display name and description default to the card's `name`/`description`.
 
 ```bash
-# A2A on Cloud Run / GKE
+# A2A on Cloud Run / GKE. The card path depends on the project's language:
+#   Python -> /a2a/{app_name}/.well-known/agent-card.json
+#   Go     -> /.well-known/agent-card.json
 agents-cli publish gemini-enterprise \
   --agent-card-url https://my-service-abc123.us-east1.run.app/a2a/app/.well-known/agent-card.json \
   --gemini-enterprise-app-id projects/123456/locations/global/collections/default_collection/engines/my-app
@@ -143,7 +145,7 @@ agents-cli publish gemini-enterprise \
 
 ---
 
-## SDK Compatibility
+## SDK Compatibility (Python only)
 
 Agent Runtime deployments may encounter "Session not found" errors with `google-cloud-aiplatform` versions <= 1.128.0. In interactive mode (`--interactive`), the command checks the SDK version from `uv.lock` and offers to upgrade. In programmatic mode, ensure your SDK is up to date before registering.
 

@@ -1,4 +1,4 @@
-# Feedback Mechanism (Scaffolded Projects)
+# Feedback Mechanism (Python Scaffolded Projects)
 
 > **Assumes `/google-agents-cli-scaffold` scaffolding.** Reuses the same telemetry infrastructure documented in `cloud-trace-and-logging.md`.
 

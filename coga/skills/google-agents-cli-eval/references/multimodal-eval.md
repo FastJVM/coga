@@ -9,7 +9,7 @@ Both cases use a custom `LLMMetric` with a vision-capable judge model. The built
 
 > **Multimodal field-model note.** `agents-cli eval generate` populates `{response}` by extracting the **text** parts of the agent's final event. If your agent returns non-text parts (e.g., `inline_data` images, `file_data` URIs), those parts are not copied into `{response}` automatically. To grade with the full multimodal Content, either hand-author the eval case with a `responses[0].response` Content containing the media parts, or post-process the generated trace file to copy the media parts into `responses`.
 
-> File paths below reference the scaffolded layout (`tests/eval/`). Adjust for your project structure if not using `google-agents-cli-scaffold`.
+> File paths below reference the Python scaffolded layout (`tests/eval/`). Adjust for your project structure if you're scaffolding a Go project (`eval/`) or not using `google-agents-cli-scaffold`.
 
 ---
 
@@ -71,7 +71,7 @@ custom_metrics:
       Image: {response}
 
       Return JSON: {"score": <0.0-1.0>, "explanation": "<reason>"}
-    judge_model: gemini-3.7-flash
+    judge_model: gemini-3.8-flash
     judge_model_sampling_count: 3
 ```
 
@@ -125,7 +125,7 @@ custom_metrics:
 
       User input: {prompt}
       Agent response: {response}
-    judge_model: gemini-3.7-flash
+    judge_model: gemini-3.8-flash
     judge_model_sampling_count: 3
 ```
 
@@ -136,7 +136,7 @@ Run with `agents-cli eval run --config tests/eval/eval_config.yaml`.
 ## Notes
 
 - **Built-in adaptive metrics (`final_response_quality`, etc.) skip media parts.** They extract only `.text` parts when constructing the judge prompt. Use a custom `LLMMetric` for true multimodal grading.
-- **Choose a vision-capable `judge_model`.** `gemini-3.7-flash` handles images and video; verify capability before relying on it.
+- **Choose a vision-capable `judge_model`.** `gemini-3.8-flash` handles images and video; verify capability before relying on it.
 - **Sampling count** (`judge_model_sampling_count`) of 3–5 reduces variance for multimodal judges, which can be noisier than text-only.
 
 For the full custom-metric field reference, see `references/metrics-guide.md`. For dataset schema and the `inline_data` / `file_data` part types, see `references/dataset_schema.md`.

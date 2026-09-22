@@ -20,7 +20,7 @@ agents-cli eval analyze \
 
 ## `eval optimize`
 
-> **ADK projects.** It wraps `adk optimize` and loads the agent through ADK.
+> **ADK Python projects.** It wraps `adk optimize` via `uv` and loads the agent through ADK.
 
 Runs GEPA prompt optimization against a target metric. Suitable after an eval run identifies prompt-only failures (wording, not tool/orchestration logic). `--dataset` and `--target-metric` override values in `--config` when both are passed. **Long-running and expensive, see Stage 4 of the Quality Flywheel for usage guidance.**
 

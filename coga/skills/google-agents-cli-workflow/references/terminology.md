@@ -8,4 +8,5 @@ The platform formerly known as "Vertex AI" is now **Gemini Enterprise Agent Plat
 | Agent Engine sessions, Agent Platform Sessions | `--session-type agent_platform_sessions` |
 | Vertex AI Search, Vertex AI Vector Search, RAG | clone-and-study recipe, not a flag (see `/google-agents-cli-adk-code` → `references/samples.md`) |
 
-The `vertexai` Python SDK package name is unchanged.
+`google-cloud-aiplatform`, ships two importable packages: the older `vertexai` and the newer
+`agentplatform`. New code should import `agentplatform`.
