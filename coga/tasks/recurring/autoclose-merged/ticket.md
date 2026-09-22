@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
-step: 1 (sweep)
 ---
 
 ## Description
@@ -156,3 +155,100 @@ Recorded: 2026-09-22T17:21:37+00:00
       File "/home/n/.local/share/uv/tools/coga/lib/python3.12/site-packages/requests/adapters.py", line 668, in send
       File "/home/n/.local/share/uv/tools/coga/lib/python3.12/site-packages/requests/adapters.py", line 332, in cert_verify
     OSError: Could not find a suitable TLS CA certificate bundle, invalid path: /home/n/.local/share/uv/tools/coga/lib/python3.12/site-packages/certifi/cacert.pem
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-09-22T21:35:00+00:00
+Task: `recurring/autoclose-merged`
+
+17 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
+
+- `v2/propagate-local-coga-config-into-worktrees` "Propagate local Coga config into worktrees": worktree `/tmp/coga-local-config`, branch `propagate-local-config`
+- `v2/ship-a-shared-recurring-reminder-engine-battery` "Retry the shared recurring-reminder engine at a smaller boundary": worktree `/home/n/Code/coga-reminders-harness`, branch `reminders-harness`
+- `attribute-headless-recurring-completions-to-system` (worklist backlog): worktree `/tmp/coga-system-completion`, branch `fix/headless-completion-system`
+- `automerge/fix-let-a-lot-of-open-craps` (worklist backlog): worktree `/home/n/Code/coga-dispose-checkouts`, branch `dispose-checkouts`
+- `correct-the-v2-known-stale-surfaces-table-and-rout` (worklist backlog): worktree `/tmp/coga-v2-stale-surfaces`, branch `v2-stale-surfaces`
+- `detect-stranded-ticket-writes-across-checkouts` (worklist backlog): worktree `/home/n/Code/coga-stranded-ticket-writes`, branch `stranded-ticket-writes`
+- `document-how-packaged-contexts-reach-a-repo-and-se` (worklist backlog): worktree `/home/n/Code/coga-packaged-context-states`, branch `packaged-context-states`
+- `exclude-superseded-designs-from-launch-prompts` (worklist backlog): worktree `/tmp/coga-exclude-superseded-designs`, branch `codex/exclude-superseded-designs`
+- `make-sure-repo-clietn-don-t-edit-coga` (worklist backlog): worktree `/home/n/Code/coga-client-repo-dream`, branch `client-repo-dream`
+- `narrative-candidates-md-publishes-log-text-the-own` (worklist backlog): worktree `/home/n/Code/coga-remove-narrative-candidates`, branch `remove-narrative-candidates`
+- `preserve-edits-during-released-claim-recovery` (worklist backlog): worktree `/tmp/coga-released-claim-edits`, branch `fix/released-claim-edits`
+- `recurring-task-to-manage-all-open-pr-and-address-c` (worklist backlog): worktree `/home/n/Code/coga-address-pr-comments`, branch `address-pr-comments-sweep`
+- `refresh-recurring-ledger-before-first-create-sync` (worklist backlog): worktree `/tmp/coga-recurring-ledger-freshness`, branch `fix/recurring-ledger-freshness`
+- `reject-context-artifacts-that-escape-the-checkout` (worklist backlog): worktree `/tmp/coga-context-artifacts`, branch `fix/context-artifacts`
+- `simplify-git-sync` (worklist backlog): worktree `/home/n/Code/coga-publish-sync`, branch `publish-sync`
+- `the-ticket-interview-never-asks-what-done-means` (worklist backlog): worktree `/home/n/Code/coga-ticket-done-criteria`, branch `ticket-done-criteria`
+- `the-v2-parking-area-premise-check-has-four-holes` (worklist backlog): worktree `/tmp/coga-v2-premise-review.5AX4MD/repo`, branch `v2-premise-holes`
+
+17 checkout(s) preserved — a proof refused; each stays on the worklist until a human acts:
+
+- `adjudicate-parked-and-active-tickets-whose-premise` (worklist backlog): worktree `/home/n/Code/claude/coga-adjudicate-moved-premises`, branch `adjudicate-moved-premises` — '/home/n/Code/claude/coga-adjudicate-moved-premises' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`coga retire adjudicate-parked-and-active-tickets-whose-premise`)
+  - Worktree cleanup: '/home/n/Code/claude/coga-adjudicate-moved-premises' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: force-deleted local 'adjudicate-moved-premises' (was ee178b909780d0fcd0075d18395b918ae53da99a) — PR merged; recover with `git checkout -b` from the reflog SHA.
+  - Branch cleanup: remote origin/adjudicate-moved-premises already gone.
+- `agent-usage-report` (worklist backlog): worktree `/home/n/Code/codex/coga-usage-report`, branch `usage-report` — '/home/n/Code/codex/coga-usage-report' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`coga retire agent-usage-report`)
+  - Worktree cleanup: '/home/n/Code/codex/coga-usage-report' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: local 'usage-report' not present.
+  - Branch cleanup: deleted remote origin/usage-report.
+- `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r` (worklist backlog): worktree `/home/n/Code/claude/coga-resources-pkg-init`, branch `resources-pkg-init` — '/home/n/Code/claude/coga-resources-pkg-init' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`coga retire cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r`)
+  - Worktree cleanup: '/home/n/Code/claude/coga-resources-pkg-init' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: local 'resources-pkg-init' not present.
+  - Branch cleanup: deleted remote origin/resources-pkg-init.
+- `cleanup/handle-a-bare-slack-webhook-url-during-empty-repo` (worklist backlog): worktree `/home/n/Code/claude/coga-init-bare-slack-env`, branch `init-bare-slack-env` — '/home/n/Code/claude/coga-init-bare-slack-env' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`coga retire cleanup/handle-a-bare-slack-webhook-url-during-empty-repo`)
+  - Worktree cleanup: '/home/n/Code/claude/coga-init-bare-slack-env' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: local 'init-bare-slack-env' not present.
+  - Branch cleanup: remote origin/init-bare-slack-env already gone.
+- `cleanup/quiet-the-first-run-noise-from-recurring-jobs-and` (worklist backlog): worktree `/home/n/Code/codex/coga`, branch `quiet-first-run` — '/home/n/Code/codex/coga' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`coga retire cleanup/quiet-the-first-run-noise-from-recurring-jobs-and`)
+  - Worktree cleanup: '/home/n/Code/codex/coga' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: local 'quiet-first-run' not present.
+  - Branch cleanup: deleted remote origin/quiet-first-run.
+- `define-the-recipe-reporting-contract-report-durabi` (worklist backlog): worktree `/home/n/Code/claude/coga-recipe-reporting-contract`, branch `recipe-reporting-contract` — '/home/n/Code/claude/coga-recipe-reporting-contract' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`coga retire define-the-recipe-reporting-contract-report-durabi`)
+  - Worktree cleanup: '/home/n/Code/claude/coga-recipe-reporting-contract' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: local 'recipe-reporting-contract' not present.
+  - Branch cleanup: remote origin/recipe-reporting-contract already gone.
+- `document-the-remedy-for-a-bloated-blackboard-sibli` (worklist backlog): worktree `/home/n/Code/claude/coga-bloated-blackboard-remedy`, branch `bloated-blackboard-remedy` — '/home/n/Code/claude/coga-bloated-blackboard-remedy' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`coga retire document-the-remedy-for-a-bloated-blackboard-sibli`)
+  - Worktree cleanup: '/home/n/Code/claude/coga-bloated-blackboard-remedy' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: local 'bloated-blackboard-remedy' not present.
+  - Branch cleanup: deleted remote origin/bloated-blackboard-remedy.
+- `document-when-to-attach-a-large-context-versus-cit` (worklist backlog): worktree `/home/n/Code/claude/coga-attach-vs-cite`, branch `attach-vs-cite` — '/home/n/Code/claude/coga-attach-vs-cite' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`coga retire document-when-to-attach-a-large-context-versus-cit`)
+  - Worktree cleanup: '/home/n/Code/claude/coga-attach-vs-cite' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: local 'attach-vs-cite' not present.
+  - Branch cleanup: remote origin/attach-vs-cite already gone.
+- `installer-managed-skills-the-local-adaptation-guar` (worklist backlog): worktree `/home/n/Code/coga`, branch `gh-backed-readonly-context` — '/home/n/Code/coga' is the checkout running this cleanup — left in place. (`coga retire installer-managed-skills-the-local-adaptation-guar`)
+  - Worktree cleanup: '/home/n/Code/coga' is the checkout running this cleanup — left in place.
+  - Branch cleanup: local 'gh-backed-readonly-context' advanced past the merged PR head af86ebd2b0ed — preserving it.
+  - Branch cleanup: local 'gh-backed-readonly-context' has unmerged work and no merged PR vouching for it — left in place.
+  - Branch cleanup: skipping remote origin/gh-backed-readonly-context because the local branch remains.
+- `packaged-code-workflows-never-name-coga-retire-as` (worklist backlog): worktree `/home/n/Code/claude/coga-review-closing-act`, branch `review-closing-act` — '/home/n/Code/claude/coga-review-closing-act' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`coga retire packaged-code-workflows-never-name-coga-retire-as`)
+  - Worktree cleanup: '/home/n/Code/claude/coga-review-closing-act' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: local 'review-closing-act' not present.
+  - Branch cleanup: deleted remote origin/review-closing-act.
+- `persist-autoclose-retire-follow-ups` (worklist backlog): worktree `/home/n/Code/claude/coga-autoclose-retire-worklist`, branch `autoclose-retire-worklist` — '/home/n/Code/claude/coga-autoclose-retire-worklist' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`coga retire persist-autoclose-retire-follow-ups`)
+  - Worktree cleanup: '/home/n/Code/claude/coga-autoclose-retire-worklist' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: force-deleted local 'autoclose-retire-worklist' (was 5bfd5348ed224351760b2f098f982c3b0decc4e9) — PR merged; recover with `git checkout -b` from the reflog SHA.
+  - Branch cleanup: remote origin/autoclose-retire-worklist already gone.
+- `record-dochub-s-why-not-the-api-answer-that-browse` (worklist backlog): worktree `/home/n/Code/claude/coga-dochub-api-answer`, branch `dochub-api-answer` — '/home/n/Code/claude/coga-dochub-api-answer' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`coga retire record-dochub-s-why-not-the-api-answer-that-browse`)
+  - Worktree cleanup: '/home/n/Code/claude/coga-dochub-api-answer' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: local 'dochub-api-answer' not present.
+  - Branch cleanup: remote origin/dochub-api-answer already gone.
+- `record-or-clear-the-standing-repo-wide-coga-valida` (worklist backlog): worktree `/home/n/Code/claude/coga-validate-baseline`, branch `validate-baseline` — '/home/n/Code/claude/coga-validate-baseline' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`coga retire record-or-clear-the-standing-repo-wide-coga-valida`)
+  - Worktree cleanup: '/home/n/Code/claude/coga-validate-baseline' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: force-deleted local 'validate-baseline' (was 2782fc74dcd821e6a700921a2c8462257fffa46c) — PR merged; recover with `git checkout -b` from the reflog SHA.
+  - Branch cleanup: remote origin/validate-baseline already gone.
+- `reuse-the-existing-control-worktree-for-recurring` (worklist backlog): worktree `/home/n/Code/codex/coga-recurring-control-worktree`, branch `recurring-control-worktree` — '/home/n/Code/codex/coga-recurring-control-worktree' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`coga retire reuse-the-existing-control-worktree-for-recurring`)
+  - Worktree cleanup: '/home/n/Code/codex/coga-recurring-control-worktree' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: local 'recurring-control-worktree' not present.
+  - Branch cleanup: deleted remote origin/recurring-control-worktree.
+- `state-which-branch-is-canonical-for-machine-genera` (worklist backlog): worktree `/home/n/Code/claude/coga-sync-canonical-policy`, branch `sync-canonical-policy` — '/home/n/Code/claude/coga-sync-canonical-policy' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`coga retire state-which-branch-is-canonical-for-machine-genera`)
+  - Worktree cleanup: '/home/n/Code/claude/coga-sync-canonical-policy' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: local 'sync-canonical-policy' not present.
+  - Branch cleanup: remote origin/sync-canonical-policy already gone.
+- `the-period-task-context-never-covers-the-determini` (worklist backlog): worktree `/home/n/Code/claude/coga-period-task-recipe-firing`, branch `period-task-recipe-firing` — '/home/n/Code/claude/coga-period-task-recipe-firing' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`coga retire the-period-task-context-never-covers-the-determini`)
+  - Worktree cleanup: '/home/n/Code/claude/coga-period-task-recipe-firing' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: force-deleted local 'period-task-recipe-firing' (was 92d62d5bbaa9f9fd737a4bce3fa41af82220a948) — PR merged; recover with `git checkout -b` from the reflog SHA.
+  - Branch cleanup: remote origin/period-task-recipe-firing already gone.
+- `ticket-specs-should-cite-symbols-not-line-numbers` (worklist backlog): worktree `/home/n/Code/claude/coga-design-cite-symbols`, branch `design-cite-symbols` — '/home/n/Code/claude/coga-design-cite-symbols' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`coga retire ticket-specs-should-cite-symbols-not-line-numbers`)
+  - Worktree cleanup: '/home/n/Code/claude/coga-design-cite-symbols' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: local 'design-cite-symbols' not present.
+  - Branch cleanup: remote origin/design-cite-symbols already gone.
