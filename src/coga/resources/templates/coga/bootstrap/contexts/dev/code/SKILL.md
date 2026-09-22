@@ -98,32 +98,51 @@ swept. Commit deliberate ticket prose on the control branch before invoking a
 mutating Coga command from a feature checkout, even when the local config is
 missing.
 
-In the two standard layouts you never need the copy: the separate-checkout
-layout runs every control-plane command in the primary checkout, and the
-single-checkout layout *is* the primary checkout. Seed it only when a
-user-acting command will run inside the fresh checkout — a session launched in
-a linked worktree, an isolated Retro or Dream checkout, or a design that
-services recurring work from a worktree. Then follow the rule the existing
-precedents (`recurring/dream`, `retro/done-ticket`, the retire prompt, and
-`recurring_runner`'s temporary control worktree) already share:
+Coga-prescribed feature checkouts carry the primary checkout's complete local
+config, including machine-local capabilities, on the same machine. Establish
+or verify it immediately after creating a linked worktree or independent clone
+and on every resumed session, before the first Coga command there. This also
+applies when recreating a missing recorded checkout for `open-pr`.
 
-- **Treat `coga.local.toml` as secret-bearing.** It can contain literal Slack
-  webhooks or OAuth credentials as well as secret references and machine-local
-  paths. Prefer a minimal local file with the user and settings/references the
-  intended commands need. An ordinary copy of the whole file is appropriate
-  only when the destination checkout and its processes may access every
-  credential it contains; being on the same machine does not establish that
-  boundary. Use the same repo-relative destination (`coga/coga.local.toml` in
-  this repo), verify that it is ignored, and create it with mode 0600 before
-  writing any contents. Keep credential values out of tool output and logs.
-- **Never symlink it**, put it in an evidence snapshot, stage it, or commit
-  it. It is ignored, so `git add <path>` is the only way it reaches a commit;
-  do not give Git that path.
-- **Remove the local file when the need ends.** With a disposable checkout,
-  remove it before the checkout goes. With a durable feature worktree, remove it
-  before the ticket reaches `coga retire`: retire preserves a checkout holding
-  any ignored file outside its regenerable-cache carve-out, so a copy left
-  behind turns the checkout's cleanup into a refusal.
+Invoke the ordinary `seed_local_config.py` attachment beside `code/implement`:
+
+```bash
+python /resolved/code/implement/seed_local_config.py /primary/repo/coga /feature/repo
+```
+
+Any `python` may invoke it: when that interpreter cannot import `coga` (a
+`uv tool install` or pipx install keeps the package in its own environment),
+the helper re-runs itself under the interpreter named by the `coga` console
+script's shebang and fails loud if no `coga` command is on PATH.
+
+Resolve the attachment from the primary checkout's local skill directory when
+present; otherwise use the installed bundle. The bundle directory can be found
+without invoking the Coga CLI — run this with an interpreter that imports
+`coga` (under an isolated tool install, the one on the first line of
+`command -v coga`):
+
+```bash
+python -c 'from coga.paths import packaged_template_path; print(packaged_template_path("bootstrap", "skills", "code", "implement"))'
+```
+
+The first argument is the primary workspace containing `coga.toml`, the second
+is the destination Git checkout root. The helper preserves the repo-relative
+local-config path (`coga/coga.local.toml` here); no actor is synthesized.
+
+- The primary local config must exist, parse, and pass config validation with
+  a nonempty string `user`. Invalid source or destination config fails loud,
+  with no config values in diagnostics.
+- An absent destination receives an ordinary byte-for-byte copy, created with
+  mode `0600` before any contents are written. An existing destination must
+  have the same parsed actor: preserve its contents and tighten its mode to
+  `0600`. A conflicting actor or failure to restrict permissions stops setup.
+- The helper verifies the file is ignored and untracked. Never symlink it,
+  print its contents, include it in snapshots, stage it, or commit it. It may
+  contain literal credentials as well as references and local paths.
+- Remove copied config during teardown only for disposable checkouts whose
+  owning flow already removes the checkout. Do not delete a durable checkout's
+  local config merely because this step ends. Retire may refuse such a checkout
+  under its existing ignored-state protection; handle that in the owning flow.
 
 Before launching an agent from that checkout, also restore its ignored skill
 discovery links. Rebuilding `coga/.agent-skills/` does not recreate them; see

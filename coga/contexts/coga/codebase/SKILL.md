@@ -749,15 +749,13 @@ wrong checkout silently produces wrong results in both directions:
     Read-only surfaces (`status`, `show`, `validate`, `usage`, and the
     `skill status` / `recurring list` / `secret get` views) also pass
     `require_user=False`. No environment variable substitutes for the
-    file. The written rule is
-    `dev/code` › "Seed the machine-local config": a minimal 0600 local file,
-    or an ordinary copy only when the destination may access all its potentially
-    literal credentials; never symlinked, staged, or committed.
+    file. Feature checkout setup and resume use the ordinary attachment beside
+    `code/implement`; `dev/code` › "Seed the machine-local config" owns the
+    source, actor, permission, and cleanup policy for linked worktrees and
+    independent clones. Follow that contract before running Coga there.
     `recurring_runner`'s temporary control worktree copies the whole file in code
     (`shutil.copyfile` + `chmod(0o600)` into its mirrored Coga OS directory)
-    before its inner scan. The command-side complement — Coga seeding its own
-    checkouts — is `v2/propagate-local-coga-config-into-worktrees`, still a
-    draft; other fresh checkouts still need explicit local setup.
+    before its inner scan.
   - `.agent-skills/` — **the view rebuilds; discovery links do not.** `coga init`
     builds the view and `_refresh_agent_skills_for_launch` rebuilds it on every
     launch. The ignored `.claude/skills/coga` and `.codex/skills/coga` symlinks

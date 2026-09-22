@@ -72,6 +72,14 @@ accurate and reachable rather than running tests that cover nothing.
    `git worktree add ../coga-<branch-name> -b <branch-name> main`.
    Return to the primary checkout and write `branch: <branch-name>` and
    `worktree: <path>` under `## Dev` on the blackboard.
+   Immediately after creation, and on resume or checkout recreation, invoke
+   the `seed_local_config.py` attachment beside the resolved `code/implement`
+   skill before the first Coga command in that checkout:
+   `python /resolved/code/implement/seed_local_config.py /primary/repo/coga /feature/repo`.
+   Follow `dev/code`'s "Seed the machine-local config" contract; stop on failure.
+   If Git metadata is read-only, use the independent-clone fallback described
+   in `code/implement` and run the same helper against the clone. Both paths
+   preserve the primary actor and keep local config ignored.
 3. **Edit in the feature worktree.** Keep the diff scoped to the ticket; no
    opportunistic rewrites. If you find adjacent cleanup, note it on the
    blackboard for a follow-up instead of folding it in.

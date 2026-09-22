@@ -437,7 +437,12 @@ def open_pr(
             "(for example: worktree: `/path` (other repo)), or put the note on "
             "a separate line. If the worktree was torn down before the PR was "
             "opened, recreate it "
-            f"(`git worktree add {worktree} {branch}`) or `coga block --task {slug}`."
+            f"(`git worktree add {worktree} {branch}`), then run the "
+            "seed_local_config.py attachment beside code/implement with the "
+            "primary Coga workspace and recreated checkout root before any Coga "
+            "command there (dev/code: Seed the machine-local config). Stop if "
+            "setup fails; apply the same check when resuming an existing checkout. "
+            f"Or `coga block --task {slug}`."
         )
 
     already = parse_pr_url(blackboard)
