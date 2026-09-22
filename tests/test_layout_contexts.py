@@ -173,7 +173,9 @@ def test_relocated_contexts_resolve_compose_validate_and_sync(
     clone_ref = resolve_task(clone_cfg, "fix-retry-logic")
     clone_prompt = compose_prompt(clone_cfg, clone_ref, read_ticket(clone_ref))
     assert "Stripe retries on 429." in clone_prompt
-    assert "Retry-After is authoritative." in clone_prompt
+    # The unpublished edit is review work the sweep left dirty above, so a
+    # fresh clone composes the committed context, not this checkout's copy.
+    assert "Retry-After is authoritative." not in clone_prompt
 
 
 def test_default_layout_still_resolves_inside_coga_root(tmp_path: Path) -> None:
