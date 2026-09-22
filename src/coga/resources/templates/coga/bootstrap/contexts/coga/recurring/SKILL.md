@@ -344,14 +344,64 @@ the example under "Extend recurring with a task-specific workflow").
 
 ## Recurring runs start on the control branch
 
-Every launching entry point requires the configured control branch to be
-checked out before it reads or writes period state: the bare sweep, `--force`,
-`coga run recurring-scan`, `coga recurring launch <name>` (including aliases
-such as `coga dream`), and direct `coga launch recurring/<name>` for a frozen
-delegating period. A refusal names both the current branch and the configured
-control branch and tells the operator to switch branches. There is deliberately
-no override: `--force` bypasses schedule and status filters, not the branch
-gate.
+Every launching entry point reads and writes period state **from the configured
+control branch**: the bare sweep, `--force`, `coga run recurring-scan`,
+`coga recurring launch <name>` (including aliases such as `coga dream`), and
+direct `coga launch recurring/<name>` for a frozen delegating period. There is
+deliberately no override: `--force` bypasses schedule and status filters, not
+the branch requirement.
+
+Off that branch, the two single-repo entry points — the bare/forced sweep and
+`coga recurring launch <name>` — do not dead-end. They look for another
+worktree of the same repo that **already has the control branch checked out**
+and re-run themselves from there, returning that child's exit code. The child
+starts in that worktree's counterpart of your own Coga workspace — the same
+position relative to the checkout — so a monorepo keeping Coga in a
+subdirectory relays like any other layout, and a checkout with no `coga.toml`
+at that mirrored position is not treated as one. Nothing is
+created, copied, or deleted: no worktree is added, the operator's checkout is
+never switched or stashed, and no lock is held beyond what an ordinary
+on-control run holds. The relayed child is simply an ordinary on-control run
+that started in a different directory, so every existing scan, sync, ledger,
+and push path applies unmodified. Consequences worth knowing:
+
+- **It reads the control tip, not your feature tree.** Templates, period tasks,
+  and `coga/log.md` all come from the control worktree. That is the intended
+  semantics — a sweep driven by a half-finished feature branch could re-fire
+  runs the control branch already serviced — but it does mean a template you
+  are editing on a feature branch is *not* what runs.
+- **Agent-backed templates are admitted.** stdio is inherited, so the TTY
+  survives the hop and admission works exactly as on control. A **dirty**
+  control worktree is not gated, for the same reason today's on-control sweep
+  does not gate a dirty primary checkout; it is the same run in a different
+  directory. The checkout is durable and operator-owned, so there is no
+  temp-worktree data-loss or cleanup question — but do expect a session to be
+  working in a checkout you may also be using.
+- **`delegate:` templates work unchanged.** The child *is* the sweep, and its
+  terminal is yours, so the delegated launch keeps its TTY admission and its
+  `coga/log.md` slack-sentinel completion path — writing the control branch's
+  log, which is the correct one.
+- **`coga.local.toml` travels, it is not copied.** The file is gitignored, so a
+  worktree made by plain `git worktree add` has none. The relay exports
+  `COGA_LOCAL_CONFIG` pointing at your own copy; nothing is written into the
+  other checkout. What that file holds — `user`, agent paths, notification
+  webhooks — describes the machine and operator rather than the checkout.
+- **One hop, never two.** The child carries `COGA_RECURRING_CONTROL_RELAY`, so
+  it takes the ordinary path (or the refusal) rather than relaying again.
+
+When **no** worktree holds the control branch, the refusal stands: it names the
+current branch, the configured control branch, and now the absence itself,
+offering `git worktree add ../<repo>-<control> <control>` alongside
+`git switch <control>`. Adding that worktree once makes every later off-branch
+sweep relay by itself. A worktree that holds the branch but **cannot be relayed
+into** — no `coga.toml` at the mirrored workspace position, or a registration
+whose directory is gone — is a different refusal: it names that worktree and
+tells you to bring it up to date or remove it (`git worktree remove <path>`,
+`git worktree prune` for a missing directory) before recreating it, because
+Git will not check the branch out a second time and `git worktree add` would
+only fail. `coga launch recurring/<name>` has no relay and its refusal says
+nothing about worktrees, so the message never promises behavior that spelling
+does not implement.
 
 The outer sweep gate checks only the local branch. Its initial fetch and
 fast-forward (`git.refresh`) remains a warning for bare and named interactive
@@ -394,13 +444,23 @@ ticket-plus-generation state on control instead, and any transport failure
 while confirming or publishing it refuses the child. The
 unattended `coga recurring --all <path>` child keeps its stricter existing
 precondition: it must also fetch and integrate the latest remote control tip
-before scanning. That child is the one place where being off the control branch
-is *not* a refusal — see "An `--all` child services an off-branch checkout from
-a temporary worktree" below. Repos with `[git].enabled = false` and workspaces outside a
+before scanning. Being off the control branch is not a refusal for that child
+either — see "An `--all` child services an off-branch checkout from a
+temporary worktree" below — but it gets there by *creating* a worktree, where
+the single-repo entry points only reuse one that already exists. Repos with `[git].enabled = false` and workspaces outside a
 git checkout have no Coga-managed control checkout, so the branch-only gate
 does not apply to them. Only a confirmed non-git workspace self-skips: a Git
 inspection failure refuses rather than silently treating the checkout as
-unmanaged.
+unmanaged — and it refuses rather than relaying, so a broken probe can never be
+read as "no worktree holds control".
+
+The forwarding CLI skips its end-of-command state sweep, including after a
+child failure or interruption. Only the control-worktree child performs the
+ordinary sweep; returning to the caller must never commit its dirty files.
+SIGTERM sent to the forwarding PID is forwarded to the child, and the parent
+waits for its exit before returning 143. Terminal access remains inherited.
+Ctrl-C already reaches the child through the foreground process group; the
+parent waits for cleanup without sending a second SIGINT.
 
 ## An `--all` child services an off-branch checkout from a temporary worktree
 

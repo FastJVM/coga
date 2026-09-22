@@ -733,6 +733,302 @@ def test_recurring_named_refuses_non_control_branch_before_creating(
     assert "git switch main" in error
 
 
+def _add_control_worktree(
+    git_repo, name: str = "control", workspace_rel: Path = Path("coga")
+) -> Path:
+    """A second worktree of the fixture repo holding the control branch.
+
+    Mirrors `git worktree add` as an operator runs it: `coga.local.toml` is
+    gitignored, so the new checkout does **not** get one. Call it *after*
+    moving the primary checkout off `main` — git refuses to check one branch
+    out twice, which is precisely why a create-a-worktree design cannot serve
+    this layout.
+    """
+    path = git_repo.root.parent / name
+    git_repo.git("worktree", "add", str(path), "main")
+    assert not (path / workspace_rel / "coga.local.toml").exists()
+    return path
+
+
+def _intercept_relay(monkeypatch: pytest.MonkeyPatch, handler) -> None:
+    """Stand in for the relayed `coga` child, leaving other git calls real.
+
+    `recurring_cmd.subprocess` is the shared `subprocess` module, so patching
+    its `Popen` wholesale would also swallow `git.toplevel` and the worktree
+    listing this path depends on. Only the `-m coga.cli` spawn is intercepted.
+    """
+    real_popen = subprocess.Popen
+
+    def dispatch(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        if list(cmd)[1:3] == ["-m", "coga.cli"]:
+            result = handler(list(cmd), kwargs)
+            return SimpleNamespace(wait=lambda: result.returncode)
+        return real_popen(cmd, **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", dispatch)
+
+
+@pytest.fixture()
+def relay_calls(monkeypatch: pytest.MonkeyPatch) -> list[SimpleNamespace]:
+    """Capture the relayed child instead of spawning a real `coga` process."""
+    calls: list[SimpleNamespace] = []
+
+    def record(cmd, kwargs):  # type: ignore[no-untyped-def]
+        calls.append(
+            SimpleNamespace(
+                cmd=cmd, cwd=Path(kwargs["cwd"]), env=dict(kwargs["env"])
+            )
+        )
+        return subprocess.CompletedProcess(cmd, 0)
+
+    _intercept_relay(monkeypatch, record)
+    return calls
+
+
+def _no_relay(monkeypatch: pytest.MonkeyPatch, why: str) -> None:
+    _intercept_relay(monkeypatch, lambda cmd, kwargs: pytest.fail(why))
+
+
+@pytest.mark.parametrize("force", [False, True], ids=["bare", "force"])
+def test_recurring_scan_relays_into_existing_control_worktree(
+    git_repo, monkeypatch: pytest.MonkeyPatch, relay_calls, force: bool
+) -> None:
+    """Off control, the sweep runs from the worktree that already holds it."""
+    git_repo.checkout_branch("feature/recurring-scan")
+    control = _add_control_worktree(git_repo)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "_sync_control_checkout_ahead",
+        lambda *args, **kwargs: pytest.fail("relay reached catch-up"),
+    )
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: pytest.fail("relay reached scan_due"),
+    )
+
+    assert recurring_cmd.run_recurring_scan(
+        load_config(git_repo.coga_os), force=force
+    ) == 0
+
+    (call,) = relay_calls
+    assert call.cmd[1:] == [
+        "-m",
+        "coga.cli",
+        "run",
+        "recurring-scan",
+        *(["--force"] if force else []),
+    ]
+    # The Coga OS dir sits at `<checkout>/coga`, so the child starts in the
+    # matching subdir of the control worktree, not at its root.
+    assert call.cwd == control / "coga"
+    assert call.env[recurring_cmd._CONTROL_RELAY_ENV] == "1"
+    assert (
+        Path(call.env[recurring_cmd.LOCAL_CONFIG_ENV])
+        == (git_repo.coga_os / "coga.local.toml").resolve()
+    )
+
+
+def test_recurring_named_relays_into_existing_control_worktree(
+    git_repo, monkeypatch: pytest.MonkeyPatch, relay_calls
+) -> None:
+    """`coga dream` off control relays instead of dead-ending."""
+    git_repo.checkout_branch("feature/recurring-launch")
+    _add_control_worktree(git_repo)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "create_named",
+        lambda *args, **kwargs: pytest.fail("relay created a task locally"),
+    )
+
+    assert recurring_cmd.run_recurring_named(
+        load_config(git_repo.coga_os), "weekly-check", agent_override="claude"
+    ) == 0
+
+    (call,) = relay_calls
+    assert call.cmd[1:] == [
+        "-m",
+        "coga.cli",
+        "recurring",
+        "launch",
+        "weekly-check",
+        "--agent",
+        "claude",
+    ]
+    assert list_tasks(load_config(git_repo.coga_os)) == []
+
+
+def test_recurring_relay_forwards_the_child_exit_code(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The relayed run's status is the caller's status."""
+    git_repo.checkout_branch("feature/relay-exit")
+    _add_control_worktree(git_repo)
+    _intercept_relay(
+        monkeypatch, lambda cmd, kwargs: subprocess.CompletedProcess(cmd, 3)
+    )
+
+    assert recurring_cmd.run_recurring_scan(load_config(git_repo.coga_os)) == 3
+
+
+def test_recurring_relay_leaves_the_operator_checkout_untouched(
+    git_repo, relay_calls
+) -> None:
+    """No branch switch, no stash, no seeded file in the operator's tree."""
+    git_repo.checkout_branch("feature/untouched")
+    _add_control_worktree(git_repo)
+    (git_repo.coga_os / "scratch.md").write_text("dirty\n")
+    before_head = git_repo.git("rev-parse", "HEAD")
+    before_status = git_repo.git(
+        "status", "--porcelain", "--untracked-files=all", "--ignored"
+    )
+
+    assert recurring_cmd.run_recurring_scan(load_config(git_repo.coga_os)) == 0
+
+    assert git_repo.git("branch", "--show-current").strip() == "feature/untouched"
+    assert git_repo.git("rev-parse", "HEAD") == before_head
+    assert (
+        git_repo.git("status", "--porcelain", "--untracked-files=all", "--ignored")
+        == before_status
+    )
+    assert git_repo.git("stash", "list").strip() == ""
+
+
+def test_recurring_relayed_child_does_not_relay_again(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """The sentinel caps the hop at one even if the branch moves under us."""
+    git_repo.checkout_branch("feature/no-recursion")
+    _add_control_worktree(git_repo)
+    monkeypatch.setenv(recurring_cmd._CONTROL_RELAY_ENV, "1")
+    _no_relay(monkeypatch, "relayed child relayed again")
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: pytest.fail("branch refusal reached scan_due"),
+    )
+
+    assert recurring_cmd.run_recurring_scan(load_config(git_repo.coga_os)) == 2
+    assert "control branch 'main'" in capsys.readouterr().err
+
+
+def test_recurring_scan_refusal_names_the_missing_control_worktree(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """With no worktree on control, the refusal stands and names the absence."""
+    git_repo.checkout_branch("feature/no-control-worktree")
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: pytest.fail("branch refusal reached scan_due"),
+    )
+
+    assert recurring_cmd.run_recurring_scan(load_config(git_repo.coga_os)) == 2
+    error = capsys.readouterr().err
+    assert "No linked worktree has 'main' checked out either" in error
+    assert "git worktree add" in error
+    assert "git switch main" in error
+
+
+def test_recurring_relay_skips_a_worktree_without_a_coga_root(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """A control worktree with no `coga.toml` is not a place to run from.
+
+    It still *holds* the branch, though, so the refusal must name it and
+    point at repairing or removing it — not claim no worktree has control and
+    suggest `git worktree add`, which Git would reject for that very reason.
+    """
+    git_repo.checkout_branch("feature/empty-control")
+    control = _add_control_worktree(git_repo)
+    shutil.rmtree(control / "coga")
+    _no_relay(monkeypatch, "relayed into a non-coga worktree")
+
+    assert recurring_cmd.run_recurring_scan(load_config(git_repo.coga_os)) == 2
+    error = capsys.readouterr().err
+    assert f"The linked worktree {control} already has 'main' checked out" in error
+    assert "not a usable Coga workspace" in error
+    assert f"git worktree remove {control}" in error
+    assert "No linked worktree has 'main' checked out" not in error
+    assert "git switch main" in error
+
+
+def test_recurring_relay_names_a_stale_control_worktree(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """A holder whose directory is gone is unusable, not absent.
+
+    Git keeps the registration until `git worktree prune`, so the branch is
+    still checked out as far as `git worktree add` is concerned.
+    """
+    git_repo.checkout_branch("feature/stale-control")
+    control = _add_control_worktree(git_repo)
+    shutil.rmtree(control)
+    _no_relay(monkeypatch, "relayed into a missing worktree")
+
+    assert recurring_cmd.run_recurring_scan(load_config(git_repo.coga_os)) == 2
+    error = capsys.readouterr().err
+    assert f"The linked worktree {control} already has 'main' checked out" in error
+    assert "git worktree prune" in error
+    assert "No linked worktree has 'main' checked out" not in error
+
+
+@pytest.mark.parametrize(
+    "workspace_rel",
+    [Path("tools") / "ops" / "coga", Path(".")],
+    ids=["nested-monorepo", "root-layout"],
+)
+def test_recurring_relay_mirrors_the_workspace_position(
+    git_repo, monkeypatch: pytest.MonkeyPatch, relay_calls, workspace_rel: Path
+) -> None:
+    """The child starts in the control worktree's *mirrored* Coga workspace.
+
+    A layout that keeps `coga.toml` anywhere but `<checkout>/coga` must still
+    relay: probing a couple of fixed depths would refuse a monorepo outright,
+    and starting the child at the checkout root would let it discover some
+    other workspace.
+    """
+    moved = (git_repo.root / workspace_rel).resolve()
+    if moved != git_repo.coga_os.resolve():
+        moved.mkdir(parents=True, exist_ok=True)
+        for entry in list(git_repo.coga_os.iterdir()):
+            shutil.move(str(entry), str(moved / entry.name))
+        git_repo.coga_os.rmdir()
+    git_repo.coga_os = moved
+    # The seeded ignore names the workspace's original path; moving it would
+    # otherwise commit the machine-local file the relay exists to hand over.
+    (git_repo.root / ".gitignore").write_text("**/coga.local.toml\n")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "move coga workspace")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/mirrored-workspace")
+    control = _add_control_worktree(git_repo, workspace_rel=workspace_rel)
+    monkeypatch.setattr(
+        recurring_cmd,
+        "scan_due",
+        lambda *args, **kwargs: pytest.fail("relay reached scan_due"),
+    )
+
+    assert recurring_cmd.run_recurring_scan(load_config(moved)) == 0
+
+    (call,) = relay_calls
+    assert call.cwd == (control / workspace_rel).resolve()
+
+
+def test_recurring_launch_spelling_keeps_the_plain_branch_refusal(
+    git_repo, capsys
+) -> None:
+    """`coga launch recurring/<name>` has no relay, so it promises none."""
+    git_repo.checkout_branch("feature/launch-spelling")
+    _add_control_worktree(git_repo)
+
+    assert recurring_cmd._refuse_non_control_branch(load_config(git_repo.coga_os))
+    error = capsys.readouterr().err
+    assert "control branch 'main'" in error
+    assert "No linked worktree" not in error
+    assert "git worktree add" not in error
+
+
 def test_recurring_scan_refuses_detached_head_before_scanning(
     git_repo, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
@@ -12055,3 +12351,253 @@ def test_validate_reports_an_unbounded_delegated_period(repo: Path) -> None:
     )
     assert issue.severity == "error"
     assert issue.task == "recurring/delegate-check"
+
+
+@pytest.mark.parametrize(
+    ("argv", "script_exit"),
+    [(["dream"], 0), (["recurring"], 0),
+     (["run", "recurring-scan", "--interactive"], 0), (["dream"], 9)],
+    ids=["dream", "sweep", "recipe-interactive", "child-failure"],
+)
+def test_recurring_cli_relay_preserves_dirty_operator_and_publishes_control(
+    git_repo, monkeypatch: pytest.MonkeyPatch, argv: list[str], script_exit: int
+) -> None:
+    """Exercise cli.main and the actual child: a mocked relay misses its sweep."""
+    import sys
+
+    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    monkeypatch.delenv(recurring_cmd.LOCAL_CONFIG_ENV, raising=False)
+    monkeypatch.delenv(recurring_cmd._CONTROL_RELAY_ENV, raising=False)
+    monkeypatch.setenv("COGA_AUTOFIX", "0")
+    monkeypatch.setenv("PYTHONDONTWRITEBYTECODE", "1")
+    monkeypatch.setenv("PYTHONPATH", str(Path(__file__).resolve().parents[1] / "src"))
+    (git_repo.coga_os / "coga.toml").write_text(
+        'version = 1\ndefault_status = "draft"\n'
+        '[agents.claude]\ncli = "claude"\nfile = "CLAUDE.md"\n'
+    )
+    # Ordinary initialized workspaces already have a tracked audit log. An
+    # untracked first log would exercise a separate control rebase limitation.
+    (git_repo.coga_os / "log.md").write_text("# Log\n")
+    _write_recurring(git_repo.coga_os, "dream", """
+        ---
+        title: Relay integration probe
+        schedule: "0 0 * * *"
+        ---
+
+        ## Description
+        Run the deterministic probe.
+
+        <!-- coga:blackboard -->
+    """)
+    script = _write_recurring_script(
+        git_repo.coga_os, "dream",
+        "import subprocess, sys\nfrom pathlib import Path\n"
+        "assert Path.cwd().name == 'control'\n"
+        + (f"raise SystemExit({script_exit})\n" if script_exit else
+           "subprocess.run([sys.executable, '-m', 'coga.cli', 'bump', "
+           "'recurring/dream'], check=True)\n"),
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed relay integration probe")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/dirty-relay")
+    control = _add_control_worktree(git_repo)
+    script.write_text("raise RuntimeError('operator template must not run')\n")
+    (git_repo.coga_os / "scratch.md").write_text("untracked operator work\n")
+    git_repo.git("add", "coga/recurring/dream/ticket.py")
+    script.write_text(script.read_text() + "# unstaged edit too\n")
+
+    def snapshot():
+        return (
+            git_repo.git("branch", "--show-current"),
+            git_repo.git("rev-parse", "HEAD"),
+            git_repo.git("status", "--porcelain", "--untracked-files=all", "--ignored"),
+            git_repo.git("stash", "list"),
+            {str(p.relative_to(git_repo.coga_os)): p.read_bytes()
+             for p in git_repo.coga_os.rglob("*") if p.is_file()},
+        )
+
+    before = snapshot()
+    result = subprocess.run(
+        [sys.executable, "-m", "coga.cli", *argv],
+        cwd=git_repo.coga_os, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == script_exit, result.stdout + result.stderr
+    assert snapshot() == before
+    assert "created recurring/dream for " in git_repo.git(
+        "show", "main:coga/log.md", cwd=git_repo.origin
+    )
+    ticket = (control / "coga/tasks/recurring/dream/ticket.md").read_text()
+    assert ("status: done" in ticket) == (script_exit == 0)
+    assert "Launch: task recurring/dream" in result.stdout
+
+
+@pytest.mark.parametrize("during_spawn", [False, True])
+def test_control_relay_forwards_sigterm_and_restores_handler(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, during_spawn: bool
+) -> None:
+    import signal
+
+    prior = signal.getsignal(signal.SIGTERM)
+    events: list[str] = []
+
+    def terminate() -> None:
+        handler = signal.getsignal(signal.SIGTERM)
+        assert callable(handler)
+        handler(signal.SIGTERM, None)
+
+    class Child:
+        def send_signal(self, signum: int) -> None:
+            assert signum == signal.SIGTERM
+            events.append("forwarded")
+
+        def wait(self) -> int:
+            if not during_spawn:
+                terminate()
+            events.append("reaped")
+            return 0
+
+    def spawn(*args, **kwargs):
+        if during_spawn:
+            terminate()
+        return Child()
+
+    monkeypatch.setattr(subprocess, "Popen", spawn)
+    assert recurring_cmd._relay_to_control_worktree(load_config(repo), repo, []) == 143
+    assert events == ["forwarded", "reaped"]
+    assert signal.getsignal(signal.SIGTERM) == prior
+
+
+@pytest.mark.parametrize("terminal_interrupt", [False, True], ids=["pid-sigterm", "terminal-sigint"])
+def test_control_relay_waits_for_real_child_shutdown(
+    tmp_path: Path, terminal_interrupt: bool
+) -> None:
+    """PID termination and terminal Ctrl-C both allow child cleanup to finish."""
+    import signal
+    import sys
+    import time
+
+    child = tmp_path / "child.py"
+    ready = tmp_path / "ready"
+    stopped = tmp_path / "stopped"
+    child.write_text(dedent("""\
+        import signal, time
+        from pathlib import Path
+        def stop(signum, frame):
+            with Path('signals').open('a') as log:
+                log.write(str(signum) + '\\n')
+            time.sleep(0.2)
+            Path('stopped').write_text('shutdown complete')
+            raise SystemExit(0)
+        signal.signal(signal.SIGTERM, stop)
+        signal.signal(signal.SIGINT, stop)
+        Path('ready').write_text('ready')
+        while True:
+            time.sleep(0.05)
+    """))
+    parent = tmp_path / "parent.py"
+    parent.write_text(dedent("""\
+        import sys
+        from pathlib import Path
+        from types import SimpleNamespace
+        from coga import recurring_runner as runner
+        spawn = runner.subprocess.Popen
+        runner.subprocess.Popen = lambda argv, **kw: spawn(
+            [sys.executable, 'child.py'], **kw)
+        cfg = SimpleNamespace(repo_root=Path.cwd(), git_control_branch='main')
+        try:
+            code = runner._relay_to_control_worktree(cfg, Path.cwd(), [])
+        except KeyboardInterrupt:
+            code = 130
+        raise SystemExit(code)
+    """))
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
+    process = subprocess.Popen(
+        [sys.executable, str(parent)], cwd=tmp_path, env=env,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        start_new_session=True,
+    )
+    try:
+        deadline = time.monotonic() + 10
+        while not ready.exists() and process.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert ready.exists(), "relay child never became ready"
+        if terminal_interrupt:
+            os.killpg(process.pid, signal.SIGINT)
+        else:
+            process.send_signal(signal.SIGTERM)
+        stdout, stderr = process.communicate(timeout=10)
+        assert process.returncode == (130 if terminal_interrupt else 143), stdout + stderr
+        assert stopped.read_text() == "shutdown complete"
+        expected_signal = signal.SIGINT if terminal_interrupt else signal.SIGTERM
+        assert (tmp_path / "signals").read_text().splitlines() == [str(expected_signal)]
+    finally:
+        # Clean up the fixture group even when an assertion detects an orphan.
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.wait()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX signal forwarding")
+def test_recurring_relay_forwards_sigterm_and_waits_for_child(git_repo, tmp_path):
+    import signal
+    import sys
+    import time
+
+    ready = tmp_path / "child-ready"
+    stopped = tmp_path / "child-stopped"
+    child = tmp_path / "child-python"
+    child.write_text(
+        f"#!{sys.executable}\n"
+        "import os, signal, time\nfrom pathlib import Path\n"
+        "def stop(signum, frame):\n"
+        "    time.sleep(0.1)\n"
+        f"    Path({str(stopped)!r}).write_text('stopped')\n"
+        "    raise SystemExit(0)\n"
+        "signal.signal(signal.SIGTERM, stop)\n"
+        f"Path({str(ready)!r}).write_text(str(os.getpid()))\n"
+        "while True: time.sleep(0.1)\n"
+    )
+    child.chmod(0o755)
+    parent_code = (
+        "import sys\nfrom pathlib import Path\n"
+        "from coga.config import load_config\n"
+        "from coga import recurring_runner as r\n"
+        "cfg = load_config(Path(sys.argv[1]))\n"
+        "r.sys.executable = sys.argv[2]\n"
+        "raise SystemExit(r._relay_to_control_worktree(cfg, cfg.repo_root, []))\n"
+    )
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
+    env.pop("SLACK_WEBHOOK_URL", None)
+    # This test only loads config; its declared webhook need not be contacted.
+    env["SLACK_WEBHOOK_URL"] = "https://example.invalid/unused"
+    process = subprocess.Popen(
+        [sys.executable, "-c", parent_code, str(git_repo.coga_os), str(child)],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    )
+    child_pid = None
+    try:
+        deadline = time.monotonic() + 10
+        while not ready.exists() and process.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert ready.exists(), process.communicate(timeout=1)
+        child_pid = int(ready.read_text())
+        process.send_signal(signal.SIGTERM)
+        stdout, stderr = process.communicate(timeout=10)
+        assert process.returncode == 143, stdout + stderr
+        assert stopped.read_text() == "stopped"
+        with pytest.raises(ProcessLookupError):
+            os.kill(child_pid, 0)
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+        if child_pid is not None:
+            try:
+                os.kill(child_pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass

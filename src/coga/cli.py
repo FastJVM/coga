@@ -37,6 +37,7 @@ from coga.commands import unblock as unblock_cmd
 from coga.commands import usage as usage_cmd
 from coga.commands import validate as validate_cmd
 from coga.config import Config, ConfigError, find_repo_root, load_config
+from coga.recurring_runner import control_relay_started
 
 
 def _print_version_and_exit(value: bool) -> None:
@@ -145,6 +146,8 @@ def _sweep_coga_state(cfg: Config | None) -> None:
     The sweep is itself non-fatal (`git.sync_coga_state` swallows git failures),
     so it never masks the command's own exit.
     """
+    if control_relay_started.get():
+        return
     if cfg is None or not _should_sweep_coga_state(sys.argv):
         return
     if _is_recurring_all_child(sys.argv) and _checkout_is_off_control(cfg):
@@ -387,6 +390,7 @@ def main() -> None:
         typer.secho(f"→ coga {' '.join(full)}", fg=typer.colors.BLUE, err=True)
         sys.argv = [sys.argv[0]] + full
 
+    relay_token = control_relay_started.set(False)
     try:
         app()
     except SystemExit as exc:
@@ -408,6 +412,8 @@ def main() -> None:
         # atomic writes mean a mid-command crash never leaves a half-written
         # file to publish.
         _sweep_coga_state(cfg)
+    finally:
+        control_relay_started.reset(relay_token)
 
 
 if __name__ == "__main__":
