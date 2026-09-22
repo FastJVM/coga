@@ -408,7 +408,7 @@ def test_bundled_bootstrap_tickets_attach_only_bootstrap_contexts() -> None:
 
 # `--workflow <name>` as shipped text spells it; `<name>` placeholders in the
 # CLI prose do not match because the name must start with a word character.
-WORKFLOW_FLAG_REF = re.compile(r"--workflow[ =]+[`'\"]?(\w[\w./-]*\w)")
+WORKFLOW_FLAG_REF = re.compile(r"--workflow[ =]+[`'\"]?(\w(?:[\w./-]*\w)?)")
 
 
 def test_shipped_workflow_refs_resolve_without_a_seeded_copy(
