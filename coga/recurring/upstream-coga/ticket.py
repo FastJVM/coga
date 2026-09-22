@@ -26,7 +26,7 @@ from coga import git
 from coga.blackboard import append_to_section_text, update_blackboard_under_barrier
 from coga.config import Config, load_config
 from coga.create import create_task
-from coga.paths import recurring_dir
+from coga.paths import log_path, recurring_dir
 from coga.taskfile import read_blackboard
 from coga.tasks import list_tasks
 
@@ -284,15 +284,15 @@ def sweep(cfg: Config, *, out: TextIO = sys.stdout) -> list[Path]:
 def main(cfg: Config, *, out: TextIO = sys.stdout) -> int:
     touched = sweep(cfg, out=out)
     if len(touched) > 1:
-        # Explicit path set: the cursor, every ticket it accounts for, and (added
-        # by `sync_paths` itself) the log lines `create_task` appended. Publishing
-        # the cursor without its tickets would strand them; a failed sync is
-        # reported and logged, and the `upstream-id` dedupe makes the retry safe.
-        git.sync_paths(
+        # Explicit path set: the cursor, every ticket it accounts for, and the
+        # log lines `create_task` appended. Publishing the cursor without its
+        # tickets would strand them; a refused or failed publish raises, the
+        # files stay dirty for the end-of-command sweep, and the `upstream-id`
+        # dedupe makes the retry safe.
+        git.publish(
             cfg,
-            touched[0],
-            touched,
-            message=f"Recurring: {JOB} filed {len(touched) - 1} upstream ticket(s)",
+            [*touched, log_path(cfg)],
+            f"Recurring: {JOB} filed {len(touched) - 1} upstream ticket(s)",
         )
     return 0
 

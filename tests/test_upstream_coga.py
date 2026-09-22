@@ -115,9 +115,9 @@ def company(tmp_path: Path, client: Path) -> Path:
 def synced(monkeypatch: pytest.MonkeyPatch) -> list[tuple[Path, list[Path], str]]:
     calls: list[tuple[Path, list[Path], str]] = []
     monkeypatch.setattr(
-        "coga.git.sync_paths",
-        lambda cfg, anchor, paths, *, message, **kw: calls.append(
-            (anchor, list(paths), message)
+        "coga.git.publish",
+        lambda cfg, paths, message, **kw: calls.append(
+            (list(paths)[0], list(paths), message)
         ),
     )
     return calls
@@ -215,7 +215,7 @@ def test_first_run_files_every_entry_and_second_run_files_none(
     assert len(synced) == 1
     anchor, paths, message = synced[0]
     assert anchor == company / "recurring" / "upstream-coga" / "ticket.md"
-    assert set(paths) == {anchor, *(r.path for r in refs)}
+    assert set(paths) == {anchor, *(r.path for r in refs), company / "log.md"}
     assert "2 upstream ticket(s)" in message
 
     code, out = _run(company)
