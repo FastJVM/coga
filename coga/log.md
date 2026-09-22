@@ -6074,3 +6074,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-22 10:21 [installer-managed-skills-the-local-adaptation-guar] [human:nicktoper] auto-bumped on merge of PR #836 → done
 2026-09-22 10:21 [make-sure-repo-clietn-don-t-edit-coga] [human:nicktoper] auto-bumped on merge of PR #855 → done
 2026-09-22 10:21 [narrative-candidates-md-publishes-log-text-the-own] [human:nicktoper] auto-bumped on merge of PR #841 → done
+2026-09-22 10:21 [packaged-code-workflows-never-name-coga-retire-as] [human:nicktoper] auto-bumped on merge of PR #847 → done
