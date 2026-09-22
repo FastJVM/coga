@@ -128,6 +128,16 @@ reports a draft an open ticket already adjudicates as "already ticketed". A
 draft that sits here is therefore re-validated weekly, and a verdict is due
 the first time a run names it.
 
+## Where future Dream `gap` findings go
+
+Follow [Dream's Phase 6 filing and gap rules](../../recurring/dream/ticket.md#phase-6--disposition--run-summary):
+reuse an open ticket that already owns the work, or file a described draft at
+the task root for human triage. Dream does not file new findings under `v2/`.
+Moving a reviewed draft here is an explicit human deferral, governed by the
+[roadmap's Deferred work rule](../../contexts/coga/roadmap/SKILL.md#deferred-work).
+Dream's template owns the routing contract; this directory is the parking
+destination only after that human decision.
+
 ## Known-stale surfaces (the pre-rename cohort)
 
 Most of this directory predates the `relay` → `coga` rename, and 46 of its
@@ -139,7 +149,8 @@ instructions. Check each occurrence against this table:
 | As written in a draft | Status today |
 | --- | --- |
 | `src/relay/` | Renamed — now `src/coga/`. |
-| `relay-os/…`, `relay-os/contexts/…` | Renamed — now `coga/`, `coga/contexts/…`. |
+| `relay-os/contexts/…` | Renamed — now `coga/contexts/…`. |
+| `relay-os/workflows/<name>.md` | Check repo-local `coga/workflows/<name>.md` first; if absent, check `src/coga/resources/templates/coga/bootstrap/workflows/<name>.md`. This repo's `code/*` workflows are packaged-only: `coga/workflows/code/` does not exist. |
 | `relay launch`, `relay recurring`, `relay status`, `relay bump` | Renamed — the `coga` equivalents exist. |
 | `relay draft` | **Gone.** Ticket creation is `coga create` (raw draft) or `coga ticket` (authoring skill). |
 | `relay panic` | **Replaced.** Use `coga block --task <slug> --reason "…"` for unresolved input; it records the ask, marks the task blocked, notifies the owner, and ends the session. |
