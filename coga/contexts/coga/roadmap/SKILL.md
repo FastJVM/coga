@@ -63,6 +63,35 @@ what it is. `coga validate` names every live title-only ticket as
 `empty-description`; `coga/tasks/v2/README.md` says how such a stub is read
 and when the author's describe-or-cancel verdict is due.
 
+**Direction change, recorded 2026-09-20.** The owner ruled — on the canceled
+ticket `interview-the-owner-on-the-17-title-only-v2-stubs`, at
+`review-design` — that "it's a v2 but we're far from v2 at this point":
+`coga/tasks/v2/` is to be parked somewhere `coga status` does not reach, so
+adjudicating its title-only stubs one by one first is wasted motion. Had the
+interview's table been executed it would have been 17 cancels and 0 describes
+(`pick-model-on-workflow-to-save-on-cost` included); a stub that comes back is
+recaptured with `coga create "v2/<title>"`. That parking follow-up is not yet
+a ticket. When it is written, start its `## Context` from this inventory of
+what assumes the directory is live: `tasks.list_tasks` skips `_`-prefixed
+directories, so `git mv coga/tasks/v2 coga/tasks/_v2` hides every draft in one
+commit — but this section, `coga/tasks/v2/README.md`, `coga create
+"v2/<title>"` as the only supported bare-capture spelling (`create.py`,
+`ticket.py`, `validate.py`), Dream's weekly premise pass, `coga/architecture`,
+`coga/codebase`, `coga/current-direction`, and `test_create` /
+`test_validate` / `test_megalaunch` / `test_ticket` all assume it is
+reachable; the open siblings `adjudicate-the-eight-premise-dead-v2-drafts`
+and `correct-the-v2-known-stale-surfaces-table-and-rout` would need canceling
+or re-scoping alongside. Two counting gotchas: `coga status v2 --all` reports
+81 because discovery recurses into `cleanup-core-commands/` and excludes
+`README.md` indexes (`src/coga/tasks.py`), while `ls coga/tasks/v2/*.md`
+returns 76.
+
+Until that parking lands, the `empty-description` warnings on `v2/` stubs are
+the accepted baseline of this decision — tag line
+`validate-drift: empty-description`; scope: title-only drafts under
+`coga/tasks/v2/` only. A title-only ticket anywhere else still needs its
+author's describe-or-cancel verdict.
+
 Marketing and documentation work may proceed independently when it does not
 change the core task model. Reliability bugs that block installation, launch,
 state sync, or review take precedence over new convenience surfaces.
