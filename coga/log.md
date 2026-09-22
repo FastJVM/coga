@@ -6051,3 +6051,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-22 10:18 [recurring/usage-report] [human:nicktoper] task done
 2026-09-22 10:18 [recurring/usage-report] [system] script exited with code 0
 2026-09-22 10:18 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-22 10:18 [recurring/address-pr-comments] [system] started (active → in_progress) via recurring delegation to bootstrap/address-pr-comments
