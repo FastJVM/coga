@@ -78,8 +78,10 @@ blackboard is what's left. So the loop for every agent is: **read the blackboard
 first, do the work while writing findings and decisions back to it, then bump.**
 An agent that writes to it often is recoverable; one that doesn't is not.
 
-Keep it small. The blackboard is composed into every launch prompt, so it's
-working memory, not an archive. Durable history goes somewhere else:
+Keep live notes small: they are composed into every launch prompt. Superseded
+designs can remain on disk without loading their full text on every launch;
+the [code-task convention](../coga/contexts/dev/code/SKILL.md#design-pivots-and-superseded-plans)
+owns that archive shape. Other durable history goes elsewhere:
 
 ## The log
 
@@ -90,7 +92,7 @@ writers — you never hand-edit it. Because it lives outside every task and is
 never composed into a prompt, it can grow without bound.
 
 That's a deliberate division of labor: **working state the next run must read
-goes on the blackboard (small, composed); durable history goes in the log
+goes on the blackboard (small, composed); lifecycle history goes in the log
 (unbounded, never composed).**
 
 ## Contexts and skills

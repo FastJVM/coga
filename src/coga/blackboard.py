@@ -135,6 +135,54 @@ def render_blackboard(task_title: str) -> str:
 
 
 _SECTION_RE = re.compile(r"^(## .+?)$", re.MULTILINE)
+_CODE_FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+_TOP_LEVEL_HEADING_RE = re.compile(r"^ {0,3}#{1,2}(?:[ \t]+|$)")
+
+
+def _without_superseded_designs(text: str) -> str:
+    """Omit exact archive sections, preserving all other text verbatim.
+
+    Only an unindented, case-sensitive ``## Superseded designs`` line
+    (with optional trailing whitespace) starts an archive. It runs through
+    the next ATX level-1/2 heading (``#``/``##``) or EOF; deeper headings
+    belong to the archive. Setext underlines are deliberately not boundaries:
+    blackboards use ``---`` as a section separator, which CommonMark would
+    otherwise read as a level-2 underline for the line above it.
+    Backtick/tilde fenced examples never start or end a section.
+    """
+    live: list[str] = []
+    archived = False
+    fence_marker = ""
+    for line in text.splitlines(keepends=True):
+        content = line.rstrip("\r\n")
+        fence = _CODE_FENCE_RE.match(content)
+        if fence_marker:
+            if (
+                fence
+                and fence.group(1)[0] == fence_marker[0]
+                and len(fence.group(1)) >= len(fence_marker)
+                and not fence.group(2).strip(" \t")
+            ):
+                fence_marker = ""
+        elif fence and (fence.group(1)[0] == "~" or "`" not in fence.group(2)):
+            fence_marker = fence.group(1)
+        elif _TOP_LEVEL_HEADING_RE.match(content):
+            archived = content.rstrip(" \t") == "## Superseded designs"
+        if not archived:
+            live.append(line)
+    return "".join(live)
+
+
+def blackboard_for_prompt(text: str, ticket_path: Path) -> str:
+    """Project live state plus one archive pointer without changing the ticket."""
+    live = _without_superseded_designs(text)
+    if live == text:
+        return text
+    return (
+        f"> Superseded design history omitted from this prompt; read `{ticket_path}` "
+        "under `## Superseded designs` if needed.\n\n"
+        + live
+    )
 
 
 def append_to_section_text(text: str, heading: str, entry: str) -> str:
@@ -210,15 +258,11 @@ def prelaunch_blackboard_synthesis_reason_text(text: str) -> str | None:
     `## Production notes` section is an explicit operator signal that the
     remaining blackboard content is intentional launch/handoff material.
     """
-    if _has_section(text, PRODUCTION_NOTES_HEADING):
-        return None
     # Archived designs are intentional history. Exclude only their section;
     # unrelated authoring notes must still pass the readiness gate.
-    sections = list(_SECTION_RE.finditer(text))
-    for i, section in reversed(list(enumerate(sections))):
-        if section.group(1).strip() == "## Superseded designs":
-            end = sections[i + 1].start() if i + 1 < len(sections) else len(text)
-            text = text[:section.start()] + text[end:]
+    text = _without_superseded_designs(text)
+    if _has_section(text, PRODUCTION_NOTES_HEADING):
+        return None
     if _is_stock_blackboard(text):
         return None
 
@@ -486,14 +530,14 @@ def blackboard_size_warning(
     """Return a warning if the ticket's blackboard region is large enough to
     bloat prompts.
 
-    Measures only the region below the fence — the part compose includes in
-    launch prompts — not the whole `ticket.md`.
+    Measures the live region and archive pointer that compose includes in
+    launch prompts, not stored design history or the whole `ticket.md`.
     """
     try:
         region = read_blackboard(ticket_path)
     except (FileNotFoundError, TaskFileError):
         return None
-    size = len(region.encode())
+    size = len(blackboard_for_prompt(region, ticket_path).encode())
     if size <= max_bytes:
         return None
     return (
@@ -511,6 +555,7 @@ __all__ = [
     "update_blackboard_under_barrier",
     "append_blackboard_report",
     "render_blackboard",
+    "blackboard_for_prompt",
     "Blocker",
     "append_to_section_text",
     "prelaunch_blackboard_synthesis_reason_text",

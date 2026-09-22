@@ -105,6 +105,15 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Session conduct — attended" in prompt
     assert "Blackboard" in prompt
 
+    # Seeded design history stays on disk while the current handoff composes.
+    archived_ref = by_slug["triage-inbound-email"]
+    archived_before = archived_ref.ticket_path.read_bytes()
+    archived_prompt = compose_prompt(cfg, archived_ref, read_ticket(archived_ref))
+    assert "Flat task layout" not in archived_prompt
+    assert "Keep the grouped task layout described in the current body." in archived_prompt
+    assert str(archived_ref.ticket_path) in archived_prompt
+    assert archived_ref.ticket_path.read_bytes() == archived_before
+
     # 3. Advance steps. Each gated step refuses until its required artifact is
     #    recorded — `implement` needs branch/worktree linkage, `pr` needs the
     #    PR URL — then the remaining bumps walk to and finish the last step.

@@ -43,3 +43,19 @@ reports a duplicate leaf name as an error.
 
 The blackboard is a notepad to be written to often as the human and agent
 works through a task.
+
+## Superseded designs
+
+### 2026-09-18 — Flat task layout
+
+Superseded by: Group inbound-email work under `tasks/auto/`.
+
+Reason: Keep related tasks together without changing their lifecycle.
+
+#### Prior shape
+
+Place every inbound-email ticket directly in the top-level tasks directory.
+
+## Handoff
+
+Keep the grouped task layout described in the current body.

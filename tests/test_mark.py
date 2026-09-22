@@ -15,6 +15,7 @@ from coga.blackboard import append_blocker, open_blockers
 from conftest import derived_operator, hold_by_agent, hold_by_owner
 from coga.cli import app
 from coga.config import load_config
+from coga.compose import compose_prompt
 from coga.create import create_task
 from coga.mark import (
     CancellationError,
@@ -26,6 +27,7 @@ from coga.mark import (
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.tasks import read_ticket, resolve_task
 from coga.ticket import Ticket
+from coga.validate import run as validate_run
 
 
 def _write(path: Path, text: str) -> None:
@@ -185,6 +187,45 @@ def test_mark_active_preserves_intentional_blackboard(repo: Path, heading: str) 
     assert result.exit_code == 0, result.output
     assert Ticket.read(task_path).status == "active"
     assert read_blackboard(task_path) == before
+
+
+@pytest.mark.parametrize("scratch", ["", "\n## Evaluator review\nLive authoring scratch.\n"])
+def test_mark_active_preserves_archives_but_checks_live_scratch(repo: Path, scratch: str) -> None:
+    slug, task_path = _make_task(repo, status="draft")
+    archive = (
+        "\n## Superseded designs\n\n### 2026-09-18 — Old plan\n\n"
+        "Superseded by: Current plan\n\nReason: Simpler implementation\n\n"
+        "#### Prior requirements\n\n"
+        + "Archived implementation detail. " * 60
+        + "\n```markdown\n## Evaluator review\nArchived review.\n```\n"
+        + "\n## Superseded designs\nAnother archived alternative.\n"
+    )
+    replace_blackboard(task_path, archive + scratch)
+    before = task_path.read_bytes()
+    cfg = load_config(repo)
+
+    report = validate_run(cfg)
+    synthesis_issues = [
+        issue for issue in report.issues if issue.kind == "unsynthesized-draft-blackboard"
+    ]
+    assert bool(synthesis_issues) == bool(scratch)
+    assert task_path.read_bytes() == before
+    result = CliRunner().invoke(app, ["mark", "active", slug])
+
+    assert read_blackboard(task_path) == archive + scratch
+    if scratch:
+        assert result.exit_code == 2
+        assert task_path.read_bytes() == before
+        assert "activated (draft" not in _read_log(repo)
+    else:
+        assert result.exit_code == 0, result.output
+        assert Ticket.read(task_path).status == "active"
+        ref = resolve_task(cfg, slug)
+        prompt = compose_prompt(cfg, ref, read_ticket(ref))
+        assert "Archived implementation detail." not in prompt
+        assert "Archived review." not in prompt
+        assert "Another archived alternative." not in prompt
+        assert str(task_path) in prompt
 
 
 def test_mark_active_from_paused_does_not_recheck_blackboard(repo: Path) -> None:
