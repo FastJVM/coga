@@ -6072,3 +6072,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-22 10:20 [document-the-remedy-for-a-bloated-blackboard-sibli] [human:nicktoper] auto-bumped on merge of PR #856 → done
 2026-09-22 10:21 [exclude-superseded-designs-from-launch-prompts] [human:nicktoper] auto-bumped on merge of PR #840 → done
 2026-09-22 10:21 [installer-managed-skills-the-local-adaptation-guar] [human:nicktoper] auto-bumped on merge of PR #836 → done
+2026-09-22 10:21 [make-sure-repo-clietn-don-t-edit-coga] [human:nicktoper] auto-bumped on merge of PR #855 → done

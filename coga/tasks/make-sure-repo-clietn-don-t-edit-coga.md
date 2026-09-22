@@ -1,6 +1,6 @@
 ---
 title: make sure repo clietn don't edit coga
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -31,7 +31,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 6 (review)
 ---
 
 ## Description
