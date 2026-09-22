@@ -6065,3 +6065,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-22 10:20 [agent-usage-report] [human:nicktoper] auto-bumped on merge of PR #854 → done
 2026-09-22 10:20 [attribute-headless-recurring-completions-to-system] [human:nicktoper] auto-bumped on merge of PR #835 → done
 2026-09-22 10:20 [automerge/fix-let-a-lot-of-open-craps] [human:nicktoper] auto-bumped on merge of PR #839 → done
+2026-09-22 10:20 [cleanup/quiet-the-first-run-noise-from-recurring-jobs-and] [human:nicktoper] auto-bumped on merge of PR #852 → done
