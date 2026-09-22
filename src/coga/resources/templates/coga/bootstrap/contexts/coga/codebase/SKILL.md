@@ -970,6 +970,22 @@ wrong checkout silently produces wrong results in both directions:
   by hand: edit both and `cmp` them, because `test_packaging.py`'s discovery
   walks only the packaged template tree and never covers that root pair.
 
+- **Fan-out follow-ups that each rewrite one shared context passage conflict
+  pairwise, and the twin rule doubles every conflict.**
+  `triage-five-review-comments-that-merged-unanswered` spun out five
+  `code/with-review` fixes (PRs 835, 838, 840, 842, 844) and left the "Five
+  bot review threads merged unanswered" bullet below untouched because every
+  follow-up rewrites it. `git merge-tree` on 2026-09-20: each branch merges
+  cleanly onto `origin/main` alone, but every pair conflicts on both the live
+  bullet and its packaged twin (840 + 844 also collide in
+  `src/coga/compose.py`), so whichever merges first forces the other four to
+  rebase and reconcile the same rewrite. When a triage or audit fans out N
+  follow-ups that must touch the same context passage, pick one: the spawning
+  ticket rewrites that passage once, in its own PR, before the follow-ups
+  launch; the follow-ups are serialized; or each adds its own sub-bullet
+  instead of rewriting the shared one. `dev/code` "Multi-ticket PRs" covers
+  the inverse (one PR, several tickets), not this.
+
 - **Prompt resources under `src/coga/resources/prompt*.md` are the only
   version of a rule most agents ever see.** `prompt.md` and the session-conduct
   resources compose into *every* launch; `coga/codebase`, `coga/architecture`
