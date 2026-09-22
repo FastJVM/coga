@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import subprocess
 import threading
 from pathlib import Path
 from textwrap import dedent
@@ -182,6 +184,68 @@ def test_megalaunch_spawns_with_materialized_preflight_inputs(
     assert run.results[0].slug == created["slug"]
     assert run.results[0].outcome == "completed"
     assert calls == {"prompt": 1, "env": 1}
+
+
+def test_megalaunch_resolves_op_secret_and_scrubs_1password_auth(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    op_auth = {
+        "OP_SERVICE_ACCOUNT_TOKEN": "ops_token",
+        "OP_CONNECT_TOKEN": "connect_token",
+        "OP_CONNECT_HOST": "https://connect.example",
+        "OP_SESSION_my": "personal_session",
+    }
+    for key, value in op_auth.items():
+        monkeypatch.setenv(key, value)
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Needs a vault secret",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    ticket = Ticket.read(ref["path"])
+    ticket.frontmatter["secrets"] = [{"STRIPE_KEY": "op://vault/stripe/key"}]
+    ticket.write(ref["path"])
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    real_run = subprocess.run
+
+    def fake_op_run(argv, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if list(argv[:2]) != ["op", "read"]:
+            return real_run(argv, *args, **kwargs)
+        # Resolution runs in the parent, which still holds the token.
+        assert os.environ["OP_SERVICE_ACCOUNT_TOKEN"] == "ops_token"
+        return subprocess.CompletedProcess(argv, 0, stdout="sk_op\n", stderr="")
+
+    monkeypatch.setattr("coga.config.subprocess.run", fake_op_run)
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    captured_env: dict[str, str] = {}
+
+    def fake_spawn(cfg_, ref_obj, ticket_, agent, **kwargs):  # type: ignore[no-untyped-def]
+        captured_env.update(kwargs["env"])
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert run.counts["completed"] == 1, run.results
+    assert captured_env["STRIPE_KEY"] == "sk_op"
+    assert not [key for key in captured_env if key in op_auth]
 
 
 def test_megalaunch_step_env_proves_single_checkout_owns_live_ticket(

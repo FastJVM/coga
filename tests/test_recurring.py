@@ -1694,6 +1694,7 @@ def test_repo_recurring_dispatch_uses_current_python_and_ordinary_argv(
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr(recurring_cmd.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setenv("OP_SERVICE_ACCOUNT_TOKEN", "ops_token")
 
     code = recurring_cmd._run_repo_recurring(
         coga_os,
@@ -1703,6 +1704,9 @@ def test_repo_recurring_dispatch_uses_current_python_and_ordinary_argv(
     )
 
     assert code == 0
+    # The inner scan is Coga itself, not a task: it must keep 1Password auth so
+    # the launches it makes can still resolve `op://` secrets.
+    assert captured["env"]["OP_SERVICE_ACCOUNT_TOKEN"] == "ops_token"
     assert captured["command"] == [
         recurring_cmd.sys.executable,
         "-m",

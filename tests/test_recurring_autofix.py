@@ -103,6 +103,25 @@ def test_unknown_cli_without_a_template_refuses_rather_than_guessing() -> None:
     assert "coga.toml or coga.local.toml" in message
 
 
+def test_analysis_agent_does_not_inherit_1password_auth(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    op_auth = ("OP_SERVICE_ACCOUNT_TOKEN", "OP_CONNECT_TOKEN", "OP_CONNECT_HOST", "OP_SESSION_my")
+    for key in op_auth:
+        monkeypatch.setenv(key, "secret")
+    envs: list[dict[str, str]] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        envs.append(kwargs["env"])
+        return subprocess.CompletedProcess(cmd, 0, "VERDICT: ok\n", "")
+
+    monkeypatch.setattr(autofix.subprocess, "run", fake_run)
+    monkeypatch.setattr(autofix.shutil, "which", lambda _cli: "/usr/bin/claude")
+
+    assert autofix.analyze_record(cfg_repo, "healthy run").verdict == "ok"
+    assert envs and all(not [k for k in env if k in op_auth] for env in envs)
+
+
 def test_a_working_claude_api_key_is_used_without_an_auth_probe(
     cfg_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:

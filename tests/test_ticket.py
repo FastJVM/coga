@@ -203,6 +203,42 @@ def test_ticket_authoring_does_not_inject_coga_secrets(
     assert "stripe_key" not in captured_env
 
 
+def test_ticket_authoring_scrubs_1password_auth(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    op_auth = {
+        "OP_SERVICE_ACCOUNT_TOKEN": "ops_token",
+        "OP_CONNECT_TOKEN": "connect_token",
+        "OP_CONNECT_HOST": "https://connect.example",
+        "OP_SESSION_my": "personal_session",
+    }
+    for key, value in op_auth.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setenv("UNRELATED_VAR", "kept")
+    ticket_path = repo / "tasks" / "investigate-retries.md"
+    captured_env: dict[str, str] = {}
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        captured_env.update(env or {})
+        t = Ticket.read(ticket_path)
+        t.frontmatter["workflow"] = "code/with-review"
+        t.write(ticket_path)
+        return _Result()
+
+    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+
+    result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
+    assert result.exit_code == 0, result.output
+    assert captured_env.get("UNRELATED_VAR") == "kept"
+    assert not [key for key in captured_env if key in op_auth]
+
+
 def test_ticket_uses_discussion_template_when_agent_configures_one(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
