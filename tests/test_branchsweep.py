@@ -635,7 +635,7 @@ def test_claimed_pinning_worktree_is_reported_not_removed(
 
 
 def test_recipe_reports_removed_worktrees(repo: Path, monkeypatch, capsys) -> None:
-    monkeypatch.setattr(bs.git, "_toplevel", lambda _root: repo)
+    monkeypatch.setattr(bs.git, "toplevel", lambda _root: repo)
 
     def _sweep(_cfg, _root, *, echo, result=None):
         result.worktree_removed.append("/w/coga-feat")

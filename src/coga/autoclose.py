@@ -666,7 +666,7 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
         result.disposal_skipped = f"{cfg.repo_root} is not inside a git checkout"
         return
     try:
-        current = git._current_branch(root)
+        current = git.current_branch(root)
     except git.GitError as exc:
         result.disposal_skipped = f"could not read the checked-out branch ({exc})"
         return
