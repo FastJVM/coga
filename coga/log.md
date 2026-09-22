@@ -6049,3 +6049,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-22 10:18 [recurring/usage-report] [system] started (active → in_progress) via coga launch
 2026-09-22 10:18 [recurring/usage-report] [system] launched as a script (ticket.py)
 2026-09-22 10:18 [recurring/usage-report] [human:nicktoper] task done
+2026-09-22 10:18 [recurring/usage-report] [system] script exited with code 0
+2026-09-22 10:18 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
