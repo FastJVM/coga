@@ -658,6 +658,11 @@ Promote refuses rather than guessing:
 Then `coga validate --json` and, for an explicit first run,
 `coga recurring launch <name>`.
 
+To see a new or changed template fire before it merges — without posting to
+Slack, reading the vault, or pushing to the real remote — follow the
+`coga/recurring/verify` skill. It fires the job for real inside a disposable
+clone and says which parts of a firing that does and does not prove.
+
 **A new template fires retroactively on its first sweep.** The scan takes the
 schedule's *last* firing before now (`_last_firing`), buckets it into a period
 key, and creates the period task unless `coga/log.md` already holds a
