@@ -6078,3 +6078,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-22 10:21 [preserve-edits-during-released-claim-recovery] [human:nicktoper] auto-bumped on merge of PR #842 → done
 2026-09-22 10:21 [recurring-task-to-manage-all-open-pr-and-address-c] [human:nicktoper] auto-bumped on merge of PR #857 → done
 2026-09-22 10:21 [refresh-recurring-ledger-before-first-create-sync] [human:nicktoper] auto-bumped on merge of PR #838 → done
+2026-09-22 10:21 [reject-context-artifacts-that-escape-the-checkout] [human:nicktoper] auto-bumped on merge of PR #844 → done
