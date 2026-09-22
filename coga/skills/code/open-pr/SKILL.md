@@ -171,6 +171,14 @@ Fix the cause and re-run it — it is idempotent:
   lifecycle-only task/log commits do not count in a single checkout. Build the
   requested change rather than opening a state-only PR, escalating per your
   launch mode if that needs human direction.
+- Stranded ticket write (the refusal names this ticket's own file and says
+  not to rebase) → in the recorded checkout, inspect the diff it prints,
+  preserve anything still needed in the primary ticket, then restore the
+  merge base's copy and commit exactly as the message spells out. The branch
+  then contributes no change to the ticket and the gate passes. If the message
+  also names other overlapping paths, drop the ticket write first and bring
+  control in with `git merge FETCH_HEAD`, not a rebase. `coga bump` already
+  warned about this when it left the implement step, so a fix there is cheaper.
 - Stale branch → rebase the control branch in the recorded checkout, re-run
   `python -m pytest`, and commit. Then re-run `coga open-pr` from the primary
   control checkout for a separate-worktree layout, or from the recorded primary
@@ -182,9 +190,11 @@ Fix the cause and re-run it — it is idempotent:
 - `git` / `gh` auth failure → follow the setup hint the command prints (fix the
   remote, load your SSH key / credential helper, `gh auth login`), then re-run.
 - Dirty task/log files in the separate-checkout layout → inspect the diff.
-  For an accidental edit to this task's `## Dev` or blackboard, preserve any
-  missing text in the primary ticket, then discard only confirmed duplicate
-  hunks in the feature checkout. Verify audit entries in the authoritative log
+  The refusal names this ticket's own file apart from any other dirt and
+  tells you not to commit it. For an accidental edit to this task's `## Dev`
+  or blackboard, preserve any missing text in the primary ticket, then discard
+  only confirmed duplicate hunks in the feature checkout (`git restore
+  --staged --worktree -- <path>`). Verify audit entries in the authoritative log
   before discarding duplicate log hunks; preserve unique audit evidence and
   escalate reconciliation without hand-editing `coga/log.md`. Do not commit or
   stash confirmed duplicates to satisfy the gate. Intentional ticket-body or

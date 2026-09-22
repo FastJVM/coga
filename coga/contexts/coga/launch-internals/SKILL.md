@@ -178,6 +178,16 @@ non-overlapping generated Coga state as drift; lifecycle-only commits never
 satisfy the branch's non-empty implementation guard. The successful
 `requires: pr` bump and the teardown usage record both land on control only.
 
+In the separate-checkout layout a divergent overlap on the live ticket's own
+file is reported as a stranded ticket write rather than ordinary staleness:
+`github_preflight.stranded_task_state_paths` says whether control ever
+absorbed the branch's blob, and the refusal prescribes restoring the merge
+base's copy on the branch, never a rebase. `coga bump` runs that same
+comparison against the recorded `branch:` before a forward transition and
+writes an advisory `[bump]` note to stderr; it never blocks, raises, or
+changes the exit code, and it stays silent when this checkout stands on the
+recorded branch or the recorded worktree resolves to this checkout.
+
 ## What this context does NOT cover
 
 - The model these invariants protect — what launch does, what advances a step,

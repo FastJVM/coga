@@ -190,6 +190,9 @@ def bump(
             reason = gate_unmet_reason(requires, blackboard, slug=ref.id_slug)
             if reason:
                 _bail(reason)
+        # Advisory only, after the gate: a stranded ticket write on the
+        # recorded feature branch is named now, while it is still cheap to fix.
+        _warn_stranded_task_state(cfg, ref)
 
     # Every bump that will post live — the terminal outcome, or a step advance
     # carrying --message — validates the notification configuration *before*
@@ -364,6 +367,79 @@ def bump(
 def _bail(msg: str, *, exit_code: int = 2) -> None:
     typer.secho(msg, fg=typer.colors.RED, err=True)
     sys.exit(exit_code)
+
+
+def _warn_stranded_task_state(cfg: Config, ref: TaskRef) -> None:
+    """Advisory: name a ticket write the recorded feature branch has stranded.
+
+    Runs on every forward bump whose blackboard records a usable `branch:`, in
+    the separate-checkout layout only. `coga open-pr` refuses the same state a
+    step later, but its refusal arrives after the agent has moved on and — if
+    the branch is rebased first — not at all. Here the comparison is still
+    cheap: both refs live in this repository, so no `worktree:` pointer is
+    followed and no other checkout is read.
+
+    The layout exemption is a *diagnostic* rule, deliberately simpler than
+    `open_pr._checkout_mode`'s ownership proof: when this checkout is standing
+    on the recorded branch, or the recorded worktree resolves to this same
+    checkout, the committed ticket on that branch is the live copy working as
+    designed, so nothing is said. Erring toward silence is the right failure
+    for a warning.
+
+    Never blocks, never changes the exit code, never writes to the ticket or
+    the log. Every probe — blackboard read, layout lookup, comparator — sits
+    inside the boundary below, so a missing ref, a foreign `/tmp` clone whose
+    branch this repository has never seen, or an unusable `git` is silent.
+    Writes to stderr only; several commands parse bump's stdout.
+    """
+    try:
+        from coga.autoclose import parse_branch_name, parse_worktree_path
+        from coga.github_preflight import (
+            stranded_task_state_paths,
+            stranded_task_state_remediation,
+        )
+        from coga.open_pr import same_git_checkout
+
+        blackboard = read_blackboard(ref.ticket_path, blackboard_required=False)
+        branch = parse_branch_name(blackboard)
+        if not branch or branch.startswith("("):
+            return
+        root = cfg.repo_root
+        if git.current_branch(root) == branch:
+            return
+        worktree = parse_worktree_path(blackboard)
+        if worktree and same_git_checkout(root, worktree):
+            return
+        toplevel = git.toplevel(root)
+        if toplevel is None:
+            return
+        ticket_rel = ref.ticket_path.resolve().relative_to(toplevel).as_posix()
+        control = cfg.git_control_branch
+        # Fully qualified on both sides: a bare name resolves `refs/tags/<name>`
+        # before `refs/heads/<name>`, so a tag named like the branch would make
+        # the probe compare the wrong commit and suppress the warning.
+        control_ref = f"refs/heads/{control}"
+        branch_ref = f"refs/heads/{branch}"
+        stranded = stranded_task_state_paths(
+            control_ref, branch_ref, [ticket_rel], cwd=toplevel
+        )
+        if not stranded:
+            return
+        remediation = stranded_task_state_remediation(
+            control_ref=control_ref,
+            branch_ref=branch_ref,
+            paths=stranded,
+            checkout=worktree,
+        )
+        sys.stderr.write(
+            f"[bump] Branch {branch!r} has committed changes to this ticket's "
+            f"own file ({', '.join(stranded)}) that {control} does not contain "
+            "— a stranded ticket write. `coga open-pr` will refuse this branch, "
+            "and a rebase would replay the commit into a merge conflict. "
+            f"{remediation}\n"
+        )
+    except Exception:  # advisory only — never fail the bump
+        return
 
 
 def _assert_supervised_step_is_current(

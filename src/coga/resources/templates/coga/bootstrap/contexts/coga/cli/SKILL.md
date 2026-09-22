@@ -526,6 +526,15 @@ that don't fit a transition, reach for `coga slack` instead.
 finish while acknowledging that the code will remain stranded, matching
 `coga mark done --force`.
 
+A forward bump off a step whose blackboard records a usable `branch:` under
+`## Dev` also checks, in the separate-checkout layout, whether that branch has
+committed changes to this ticket's own file that the control branch never
+received — a stranded ticket write. It writes a `[bump]` note to stderr naming
+the file and the repair (restore the merge base's copy on the branch and
+commit; do not rebase). The note is advisory: it never blocks the transition,
+never changes the exit code, and stays silent when the comparison cannot be
+made. `coga open-pr` refuses the same state a step later.
+
 ## coga autoclose
 
 Walk active / in-progress tickets; bump any whose blackboard `## Dev`

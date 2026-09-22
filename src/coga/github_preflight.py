@@ -16,6 +16,12 @@ missing credential can never hang the check on a hidden password prompt. The
 branch-freshness probe deliberately runs in the same explicit preflight. It
 rejects missing material control-branch changes while accepting visible,
 non-overlapping task/log state drift that Coga itself generates between steps.
+
+This module also owns the one other branch-versus-control comparison Coga
+makes: `stranded_task_state_paths`, which tells a ticket write committed on a
+feature branch that control never received apart from ordinary staleness.
+`coga open-pr` uses it to word its freshness refusal correctly and `coga bump`
+to warn one step earlier; both read the same three-state answer.
 """
 
 from __future__ import annotations
@@ -24,6 +30,7 @@ import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable
 from urllib.parse import urlparse
 
 # Wall-clock ceiling for any single probe. The push probe talks to the network;
@@ -39,13 +46,17 @@ class CheckResult:
 
     `name` is a stable kind tag (`git-remote`, `git-auth`, `gh-installed`,
     `gh-auth`); `ok` is the pass/fail; `detail` is a human-readable success
-    note or an actionable setup hint.
+    note or an actionable setup hint. `overlaps` is filled only by the
+    branch-freshness probe: the paths changed on both sides of the fork that it
+    refused as unsafe, so a caller can tell a refusal caused by its own ticket
+    file from ordinary source drift without re-deriving the comparison.
     """
 
     name: str
     ok: bool
     detail: str
     value: str | None = None
+    overlaps: tuple[str, ...] = ()
 
 
 def _run(
@@ -176,13 +187,16 @@ def _changed_paths(
     ref_b: str,
     *,
     cwd: str | Path | None,
+    paths: Iterable[str] = (),
 ) -> tuple[set[str] | None, str]:
     # Disable rename detection so both endpoints remain visible. Otherwise a
     # control-side task rename can look disjoint from a feature-side edit of
     # the old path and incorrectly pass the non-overlap gate.
-    rc, out, err = _run(
-        ["git", "diff", "--no-renames", "--name-only", ref_a, ref_b], cwd=cwd
-    )
+    args = ["git", "diff", "--no-renames", "--name-only", ref_a, ref_b]
+    selected = list(paths)
+    if selected:
+        args.extend(["--", *selected])
+    rc, out, err = _run(args, cwd=cwd)
     if rc != 0:
         return None, _first_line(err) or "no output"
     return {line.strip() for line in out.splitlines() if line.strip()}, ""
@@ -344,6 +358,132 @@ def check_branch_contains_control(
         f"Rebase or merge before opening a PR, e.g. "
         f"`git fetch {remote} {control_branch}` then `git rebase {remote}/{control_branch}`."
         f"{reason}",
+        overlaps=tuple(sorted(unsafe_overlaps)),
+    )
+
+
+def _tree_blob(
+    ref: str, path: str, *, cwd: str | Path | None
+) -> tuple[str | None, bool]:
+    """Return `(blob_oid, ok)` for `path` at `ref`; `(None, True)` when absent."""
+    rc, out, _err = _run(["git", "ls-tree", ref, "--", path], cwd=cwd)
+    if rc != 0:
+        return None, False
+    line = _first_line(out)
+    if not line:
+        return None, True
+    fields = line.split(None, 3)
+    if len(fields) < 3:
+        return None, False
+    return fields[2], True
+
+
+def stranded_task_state_paths(
+    control_ref: str,
+    branch_ref: str,
+    paths: Iterable[str],
+    *,
+    cwd: str | Path | None = None,
+) -> tuple[str, ...] | None:
+    """Return the `paths` whose committed branch content control never received.
+
+    `paths` are task-state files relative to the checkout toplevel, and `cwd`
+    must be that toplevel: git resolves a pathspec against the working
+    directory, so a nested Coga OS root as `cwd` would silently match nothing.
+    Both callers pass the ticket file of the task they are acting on, never
+    all of `tasks/**`, because a branch may legitimately edit *other* tickets
+    as implementation work. A
+    path is stranded when the branch changed it since its merge base with
+    `control_ref` and no commit on control's side of the fork ever carried the
+    branch tip's exact blob at that path — the rule
+    `git._refresh_committed_divergence_reason` applies before overlaying
+    control state onto a feature checkout. That second conjunct is what
+    separates a stranded write from supported staleness: a bump run from the
+    feature checkout commits the ticket there *and* lands identical bytes on
+    control, after which control advances past the branch copy. The branch is
+    then behind, not carrying content control lacks, and this returns nothing
+    for it. A path the branch deleted is stranded while control still has it.
+
+    Returns `None` when the question could not be answered — a missing ref,
+    an unusable `git`, a failed probe. Callers must treat that as unknown and
+    stay silent, never read it as "nothing stranded" (the
+    `git._worktree_holding_branch` / `_WORKTREES_UNKNOWN` precedent).
+
+    Cost: one `merge-base`, one `diff --name-only`, then at most two probes per
+    surviving path (`ls-tree` and a `log --find-object` over control's side of
+    the fork) — 2 + 2·N subprocess calls, where both current callers pass N = 1.
+    """
+    candidates = [path for path in dict.fromkeys(paths) if path]
+    if not candidates:
+        return ()
+    rc, out, _err = _run(["git", "merge-base", control_ref, branch_ref], cwd=cwd)
+    merge_base = _first_line(out)
+    if rc != 0 or not merge_base:
+        return None
+    changed, _error = _changed_paths(
+        merge_base, branch_ref, cwd=cwd, paths=candidates
+    )
+    if changed is None:
+        return None
+    stranded: list[str] = []
+    for path in candidates:
+        if path not in changed:
+            continue
+        branch_blob, ok = _tree_blob(branch_ref, path, cwd=cwd)
+        if not ok:
+            return None
+        if branch_blob is None:
+            control_blob, ok = _tree_blob(control_ref, path, cwd=cwd)
+            if not ok:
+                return None
+            if control_blob is not None:
+                stranded.append(path)
+            continue
+        rc, out, _err = _run(
+            [
+                "git", "log", "--format=%H", "-1",
+                f"--find-object={branch_blob}",
+                f"{merge_base}..{control_ref}", "--", path,
+            ],
+            cwd=cwd,
+        )
+        if rc != 0:
+            return None
+        if not _first_line(out):
+            stranded.append(path)
+    return tuple(stranded)
+
+
+def stranded_task_state_remediation(
+    *,
+    control_ref: str,
+    branch_ref: str,
+    paths: Iterable[str],
+    checkout: str | None = None,
+) -> str:
+    """The one remediation both `open-pr` and `bump` print for a stranded write.
+
+    The branch must stop carrying the ticket, and it must do so by restoring
+    the *merge base's* copy, not control's: control keeps rewriting the ticket
+    at every later transition, so a branch pinned to any control snapshot is
+    stale again before the PR merges, whereas a branch that contributes no
+    change to the path merges cleanly whatever control does next. A rebase is
+    the wrong fix — replaying the stranded commit onto control is exactly the
+    conflict this message exists to prevent.
+    """
+    listed = " ".join(sorted(paths))
+    where = f" in {checkout}" if checkout else ""
+    return (
+        f"Inspect what the branch added{where} with "
+        f"`git diff {control_ref} {branch_ref} -- {listed}` and preserve "
+        "anything still needed in the primary checkout's ticket copy (the live "
+        "one). Then drop the branch's copy by restoring the merge base's version "
+        "and committing: "
+        f"`git restore --staged --worktree --source=$(git merge-base "
+        f"{control_ref} {branch_ref}) -- {listed} && git commit -m 'Drop "
+        "stranded ticket write'`. Do not rebase "
+        f"to fix this — replaying the stranded commit onto {control_ref} "
+        "reproduces the conflict."
     )
 
 

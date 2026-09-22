@@ -39,6 +39,8 @@ from coga.github_preflight import (
     check_git_auth,
     check_git_remote,
     check_gh_auth,
+    stranded_task_state_paths,
+    stranded_task_state_remediation,
 )
 from coga.git import (
     GitError,
@@ -100,6 +102,50 @@ def same_git_checkout(left: str | Path, right: str | Path) -> bool:
     left_root = _git_checkout_root(left)
     right_root = _git_checkout_root(right)
     return left_root is not None and left_root == right_root
+
+
+def _live_ticket_relpath(blackboard_path: Path) -> str | None:
+    """The live ticket file's path relative to the checkout containing it.
+
+    The live ticket lives in the *primary* checkout, whose toplevel is not the
+    recorded feature checkout in the separate-checkout layout. Resolving against
+    the checkout that actually contains the file keeps the same relative path
+    valid on the feature branch, where a stranded copy would be. `git -C`
+    needs a directory, so the lookup starts from the ticket's parent.
+    """
+    checkout_root = _git_checkout_root(blackboard_path.parent)
+    if checkout_root is None:
+        return None
+    try:
+        return blackboard_path.resolve().relative_to(checkout_root).as_posix()
+    except ValueError:
+        return None
+
+
+def _dirty_paths(porcelain_z: str) -> list[str]:
+    """Paths named by NUL-delimited `git status --porcelain -z` output.
+
+    Mirrors `git._changed_paths_under`: a rename or copy entry carries its
+    source path in the following NUL field, and both endpoints are returned so
+    a ticket renamed away from its committed path is still recognized.
+    """
+    fields = porcelain_z.split("\x00")
+    paths: list[str] = []
+    i = 0
+    while i < len(fields):
+        entry = fields[i]
+        i += 1
+        if not entry:
+            continue
+        status, path = entry[:2], entry[3:]
+        if path:
+            paths.append(path)
+        if status[0] in ("R", "C") and i < len(fields):
+            source = fields[i]
+            i += 1
+            if source:
+                paths.append(source)
+    return paths
 
 
 def _single_checkout_publishable_paths(
@@ -337,6 +383,69 @@ def _sync_pr_record(
     sync_task_state(cfg, blackboard_path, message=f"Ticket: {slug} — PR opened")
 
 
+def _stranded_ticket_detail(
+    overlaps: tuple[str, ...],
+    *,
+    base: str,
+    branch: str,
+    worktree: str,
+    blackboard_path: Path,
+) -> str | None:
+    """Re-word a freshness refusal caused by this ticket's own stranded write.
+
+    Only when the probe's *actual* unsafe overlaps include the live ticket's
+    file: a refusal for source drift, a fetch failure, or another ticket's
+    state keeps the probe's generic wording, because "rebase" is the right
+    advice there and wrong here. The comparison runs against `FETCH_HEAD` in
+    the recorded checkout — the tip the probe just fetched and compared — not
+    the local control ref, which a fetch does not advance. Separate-checkout
+    layout only: in a single checkout the branch copy *is* the live ticket.
+    When control also carries other unsafe overlaps they are named after the
+    ticket remediation so that reason is not hidden; drop the ticket write
+    first, then bring control in with a merge rather than a rebase.
+    """
+    ticket_rel = _live_ticket_relpath(blackboard_path)
+    if ticket_rel is None or ticket_rel not in overlaps:
+        return None
+    stranded = stranded_task_state_paths(
+        "FETCH_HEAD", "HEAD", [ticket_rel], cwd=worktree
+    )
+    if stranded is None:
+        provenance = ""
+    elif ticket_rel in stranded:
+        provenance = (
+            " Control never received this content, so inspect it before "
+            "dropping it."
+        )
+    else:
+        provenance = (
+            " Control already absorbed this exact content into its history "
+            "and has since moved on, so nothing is lost by dropping the branch "
+            "copy."
+        )
+    others = [path for path in overlaps if path != ticket_rel]
+    remediation = stranded_task_state_remediation(
+        control_ref="FETCH_HEAD",
+        branch_ref="HEAD",
+        paths=[ticket_rel],
+        checkout=worktree,
+    )
+    tail = ""
+    if others:
+        tail = (
+            f" The branch also diverges from {base} on: {', '.join(others)}; "
+            "after dropping the ticket write, bring control in with "
+            "`git merge FETCH_HEAD` (not a rebase) and resolve those."
+        )
+    return (
+        f"Branch {branch!r} has committed changes to this ticket's own file "
+        f"({ticket_rel}) that {base} does not contain. This is a stranded "
+        "ticket write: the ticket was edited or bumped from inside the feature "
+        f"checkout while `coga` advanced the same file on {base}. Rebasing "
+        f"would replay it and conflict.{provenance} {remediation}{tail}"
+    )
+
+
 def _pr_body(ticket: Ticket, blackboard: str, above: str, slug: str) -> str:
     """Assemble the PR body.
 
@@ -487,17 +596,57 @@ def open_pr(
             for path in (tasks_dir(cfg), log_path(cfg), recurring_dir(cfg))
         ]
 
-    dirty = _git(["status", "--porcelain", *dirty_pathspecs], cwd=worktree)
+    dirty = _git(
+        ["status", "--porcelain", "-z", "--untracked-files=all", *dirty_pathspecs],
+        cwd=worktree,
+    )
     if dirty.returncode != 0:
         raise OpenPrError(
             f"`git status` failed in {worktree!r}: {dirty.stderr.strip() or 'no output'}"
         )
-    if dirty.stdout.strip():
+    if dirty.stdout.strip("\x00"):
+        # The ticket *file* is the one path `coga` rewrites on control at every
+        # transition, so uncommitted edits to it in a separate feature checkout
+        # are a duplicate in the making: committing them is what turns the
+        # stranded write into a merge conflict a step later. Attachments and
+        # `ticket.py` beside a directory ticket are ordinary implementation
+        # dirt and keep the commit instruction.
+        dirty_paths = _dirty_paths(dirty.stdout)
+        ticket_rel = None if single_checkout else _live_ticket_relpath(blackboard_path)
+        ticket_dirt = [path for path in dirty_paths if path == ticket_rel]
+        other_dirt = [path for path in dirty_paths if path != ticket_rel]
         if single_checkout:
             remediation = (
                 "This is the single-checkout layout: live task/log state is "
                 "already excluded, so the remaining dirt is product or other "
                 "Coga work; commit or discard it. "
+            )
+        elif ticket_dirt:
+            listed = ", ".join(ticket_dirt)
+            if other_dirt:
+                lead = (
+                    f"Commit the implementation dirt ({', '.join(other_dirt)}) "
+                    f"— but not this ticket's own file ({listed}) unchecked: "
+                )
+            else:
+                lead = (
+                    f"The dirt is this ticket's own file ({listed}). Do not "
+                    "commit it here unchecked: "
+                )
+            # Only generated drift gets the destructive restore. `dev/code`
+            # allows an intentional authored-body change as implementation
+            # work, and the restore below would discard its only copy.
+            remediation = (
+                f"{lead}the live copy is the primary checkout's, and committing "
+                "lifecycle or blackboard drift on this branch strands a "
+                "duplicate that conflicts with control at merge. Inspect the "
+                "diff first. If it is generated state — frontmatter, `## Dev`, "
+                "blackboard handoff — preserve any needed blackboard text in the "
+                "primary ticket, then discard the edit here "
+                f"(`git restore --staged --worktree -- {' '.join(ticket_dirt)}`); "
+                "do not stash it just to pass this gate. Only an intentional "
+                "change to the authored ticket body that is part of the "
+                "implementation is committed, as `dev/code` allows. "
             )
         else:
             remediation = (
@@ -577,6 +726,22 @@ def open_pr(
         allow_identical_coga_state_overlaps=single_checkout,
     )
     if not freshness.ok:
+        stranded_detail = (
+            None
+            if single_checkout
+            else _stranded_ticket_detail(
+                freshness.overlaps,
+                base=base,
+                branch=branch,
+                worktree=worktree,
+                blackboard_path=blackboard_path,
+            )
+        )
+        if stranded_detail is not None:
+            raise OpenPrError(
+                f"Branch {branch!r} is not safe to publish. {stranded_detail} "
+                f"Reconcile it and relaunch, or `coga block --task {slug}`."
+            )
         raise OpenPrError(
             f"Branch {branch!r} is not safe to publish. {freshness.detail} "
             f"Reconcile it and relaunch, or `coga block --task {slug}`."
