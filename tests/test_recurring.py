@@ -5310,6 +5310,30 @@ def test_scan_due_stale_done_replacement_respects_tty_gate(
     ) == "2026-W17"
 
 
+def test_scan_due_serviced_done_period_skips_without_tty(
+    repo: Path, capsys
+) -> None:
+    """A done period that already serviced this firing launches nothing, so
+    a TTY-less scan reports it as `done` rather than as a template error —
+    even when it carries no frozen `ticket.py`."""
+    cfg = load_config(repo)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
+    ref = first.tasks[0].ref
+    assert not (ref.path / "ticket.py").exists()
+    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "done"
+    ticket.write(ref.path / "ticket.md")
+
+    scan = scan_due(
+        cfg, now=datetime(2026, 4, 23, 10, 0, 0), allow_interactive=False
+    )
+    assert scan.errors == []
+    assert [(t.template, t.status, t.created) for t in scan.tasks] == [
+        ("weekly-check", "done", False)
+    ]
+    assert "requires a TTY" not in capsys.readouterr().err
+
+
 def test_create_named_replaces_stale_done_run(repo: Path) -> None:
     """`coga recurring launch <name>` (and the `dream` alias) replace a
     stale done run too — both entry points share `create_template`."""
