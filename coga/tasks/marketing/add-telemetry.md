@@ -605,6 +605,7 @@ CLI writers. Findings are the handoff, not a reason to block or rewrite the spec
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/880
 branch: phone-home
 worktree: /tmp/coga-phone-home
 
@@ -664,3 +665,169 @@ receipt, wheel version/hash, and explain stored enrichment. HTTP acceptance
 is not ingestion acceptance. This remains the owner review gate.
 Separate-repo follow-up: Multiply's PostHog runbook event catalog should mention
 `coga_weekly_snapshot`; that repo was not edited.
+
+
+## Self-QA — 2026-09-22
+
+Owner requested implementation review in the attended open-pr session. Direct
+manual review of `origin/main...phone-home` returned with one P2 finding;
+no external review remains in flight. Reviewed payload/schema, production
+admission, worker deadlines, config precedence, parent CAS/publication,
+recurring dispatch, tests, disclosure and operator proof instructions.
+
+**P2 — movement parser rejects valid producer output.**
+`src/coga/telemetry.py:46-48` disallows whitespace in the actor/ref envelope,
+parentheses inside a step name, and whitespace in the handoff operator.
+Current config accepts `user = "Jane Doe"`; `append_log` writes
+`[human:Jane Doe] task done`, and the canonical `iter_log_messages` reader
+returns that completion, but `_movement` returns false. Thus affected users'
+completions/advances silently disappear from the PMF movement count. Workflow
+step names also only require a nonempty string, so `review (owner)` produces a
+valid advance the new regex rejects. Align the telemetry grammar with producer
+accepted values while retaining full-line validation and recurring exclusion;
+add producer-based regression coverage. This finding is unresolved; no code
+was changed, no PR opened, and no workflow bump performed.
+
+Verification in `/tmp/coga-phone-home`:
+- `/tmp/coga-phone-home-venv/bin/python -m pytest tests/test_telemetry.py tests/test_config.py tests/test_runner.py tests/test_recurring_shims.py tests/test_init.py tests/test_packaging.py -q`: 397 passed (17.00s).
+- `git diff --check`: passed; feature checkout clean.
+- Disposable local config + actual `append_log` reproduction confirmed the
+  spaced-actor omission. Unset the unrelated ambient legacy SLACK_WEBHOOK_URL
+  for this local-only probe after config rejected it; no telemetry delivery or
+  other network operation was invoked.
+
+Owner live wheel/PostHog queried-row acceptance remains pending as designed.
+Hold open-pr pending correction or explicit owner deferral of the P2 finding.
+
+
+## Self-QA correction — 2026-09-22
+
+Owner authorized correcting the P2 finding in this attended session. Fixed and
+committed as `b35aa9777` (Count valid audit names in weekly telemetry).
+The parser accepts spaced actor/handoff names and parenthesized step names;
+blank fields, malformed envelopes and recurring movement remain excluded.
+The regression creates a task and runs two actual CLI bumps, including the
+handoff to Jane Doe and final completion, then verifies movement_count is 2.
+Updated both telemetry-context twins. Direct follow-up review returned with
+no further actionable findings; the earlier P2 is resolved and no review is
+in flight. No production capture or query was performed.
+
+Verification from `/tmp/coga-phone-home`:
+- `/tmp/coga-phone-home-venv/bin/python -m pytest`: 2820 passed in 197.42s.
+- `/tmp/coga-phone-home-venv/bin/coga validate --json` from `coga/`: 237 OK;
+  existing unsynthesized-draft-blackboard errors for clean-up-all-the-working-trees
+  and v2/autotrigger-ticket-type, plus unrelated warnings.
+- `env -u SLACK_WEBHOOK_URL /tmp/coga-phone-home-venv/bin/coga validate --json`
+  from `example/coga/`: 4 OK, no issues.
+- `git diff --check`: passed; feature checkout clean.
+
+Fetched origin/main; changes since implementation are generated task/log
+state only. The PR body below carries the exact installed-wheel procedure and
+single-quoted HogQL commands. Live PostHog evidence remains the owner review
+requirement; it has not been claimed as complete.
+
+## PR
+
+Operator sweeps now attempt one weekly `coga_weekly_snapshot` with non-recurring ticket inventory, forward/completion movement, and bounded version/platform fields. The deterministic battery defaults on, persists a clone-shared UUID and cursor in its parent blackboard, and measures repos with active sweeps—not installations.
+
+Delivery uses the existing FastJVM/Multiply PostHog project 606347, a closed payload, and separate three-second capture/Slack workers with no retries. Shared/local opt-out and source/test/CI suppression run before worker creation. The public write-only key is intentionally embedded under the owner's recorded decision.
+
+Policy and behavioral contexts, packaged twins, init disclosure, and the operator runbook accompany the implementation. Review found and fixed dropped movement for spaced actor/handoff names and parenthesized step names; a regression now exercises real CLI advances and completion. Manual review and a follow-up pass over the fix have returned; no review remains in flight.
+
+### Automated verification
+
+Feature checkout: `/tmp/coga-phone-home`, isolated editable test environment: `/tmp/coga-phone-home-venv`.
+
+- `/tmp/coga-phone-home-venv/bin/python -m pytest`: **2820 passed** in 197.42s.
+- `/tmp/coga-phone-home-venv/bin/coga validate --json` from `coga/`: existing draft-blackboard errors for `clean-up-all-the-working-trees` and `v2/autotrigger-ticket-type`; no telemetry issue.
+- `env -u SLACK_WEBHOOK_URL /tmp/coga-phone-home-venv/bin/coga validate --json` from `example/coga/`: 4 OK, zero issues. The unset removes an unrelated ambient legacy Slack variable.
+- `git diff --check`: passed.
+
+Coverage includes exact HTTP serialization/private-content sentinels, admission, deadlines, no replay, config precedence, a headless shim, installed-wheel init under test suppression, and parent-only publication to a real bare remote with second-checkout identity read-back.
+
+### Owner acceptance still required
+
+No production capture or PostHog query was run during implementation/review. Before any query, run:
+
+```sh
+posthog-cli api call --json project-get '{}'
+```
+
+Stop unless the returned project ID is 606347. At owner review, attach wheel version/hash, prepared payload receipt, exact query/results for first/later/disabled runs, and an explanation of any stored enrichment. HTTP success is not ingestion acceptance. The owner review gate remains open until this evidence is accepted.
+
+### Clean installed-wheel proof
+
+Automated tests use fake transport and preserve pytest/CI suppression. The live
+proof below is owner-run from an ordinary shell with no test/CI environment,
+outside all Coga source trees. Do not unset test gates inside automation to make
+it deliver. Do not use an editable installation or target `example/`.
+
+Build the reviewed checkout, then install its wheel in a fresh external venv:
+
+```sh
+python -m pip wheel --no-deps --no-build-isolation . -w /tmp/coga-telemetry-wheel
+python -m venv /tmp/coga-telemetry-release
+/tmp/coga-telemetry-release/bin/python -m pip install /tmp/coga-telemetry-wheel/coga-*.whl
+mkdir -p /tmp/coga-telemetry-proof
+cd /tmp/coga-telemetry-proof
+git init -b main
+# Use your real configured Git identity; init requires it.
+/tmp/coga-telemetry-release/bin/coga init . --user nicktoper
+cd coga
+/tmp/coga-telemetry-release/bin/python -c 'from importlib.metadata import version; print(version("coga"))'
+# Before this first run, configure the existing Slack channel for the receipt
+# as described below (keep credentials as env: references).
+/tmp/coga-telemetry-release/bin/coga recurring launch phone-home
+```
+
+For the live proof, enable the existing Slack notification channel in this
+scratch repo before its first sweep, following [notification setup](operations.md).
+The receipt contains the exact prepared keyless envelope for comparison; retain
+it in the PR along with the queried rows. Fresh init defaults to no notification
+channels, so configure this explicitly. A failed receipt is not an ingestion
+proof; obtain a successful receipt and matching row for the review evidence.
+
+Use fresh unused paths (and exactly one candidate wheel). This named sweep
+runs the newly due battery; ordinary operator sweeps also reach it. Coga installs
+no scheduler. Read `repo_id` from the new parent
+`recurring/phone-home/ticket.md` blackboard. Record wheel version/hash, prepared
+payload values, period report, and UTC run window in the PR. The initial row
+must exist, use that UUID, and have movement zero. A capture HTTP success alone
+is not acceptance.
+
+After verifying `project-get`, substitute the UUID in this exact query command.
+JSON `\u0027` becomes a SQL single quote; the shell's single quotes preserve
+`$ip` and any other dollar signs without expansion:
+
+```sh
+posthog-cli api call --json execute-sql '{"query":"SELECT event, distinct_id, timestamp, properties, JSONExtractKeys(properties) AS property_keys FROM events WHERE distinct_id = \u0027<repo UUID>\u0027 AND event = \u0027coga_weekly_snapshot\u0027 ORDER BY timestamp"}'
+```
+
+Compare every measured value with the prepared event and the context allowlist.
+Check all returned keys for IP, GeoIP and other unexpected enrichment; record
+service-owned routing metadata separately from client properties. Unexpected
+fields block acceptance until explained and corrected. Keep persons keyed only
+by opaque repo UUID; do not switch to personless capture to simplify deletion.
+
+Perform a known forward advance/completion on a non-recurring work ticket using
+the normal CLI. Record the exact qualifying audit lines. For a later snapshot,
+run `coga run phone-home` directly from this installed wheel (or wait for the next
+due sweep); it is the same recipe and reads the same parent. Query again with
+the command above: expect another row, the same UUID, and the known movement
+count. Repeated direct runs are extra attempts, not a scheduler.
+
+Set local telemetry false, note the UTC timestamp, and run the recipe again.
+Use this query after the new window; expect zero rows:
+
+```sh
+posthog-cli api call --json execute-sql '{"query":"SELECT count() FROM events WHERE distinct_id = \u0027<repo UUID>\u0027 AND event = \u0027coga_weekly_snapshot\u0027 AND timestamp >= toDateTime(\u0027<disable-run UTC YYYY-MM-DD HH:MM:SS>\u0027)"}'
+```
+
+Absent rows alone do not prove absent requests: pair this with automated
+no-worker/no-HTTP checks. Paste exact query text/results, wheel version and
+all three observations in the PR at review. Use snapshots for each repo's
+current inventory; summing historical inventory double-counts it. No dashboard
+build is needed (at most one saved insight per agreed quantity).
+
+
+Separate-repository follow-up: add `coga_weekly_snapshot` to Multiply's PostHog runbook event catalog.
