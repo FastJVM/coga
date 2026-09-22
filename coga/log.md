@@ -6036,3 +6036,13 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-21 20:25 [autoclose-should-be-script-only] [human:nicktoper] created (status=draft)
 2026-09-21 21:31 [bootstrap/orient] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
 2026-09-21 21:59 [autoclose-preserved-checkout-remedies] [human:nicktoper] created (status=draft)
+2026-09-22 10:18 [recurring/address-pr-comments] [system] created (status=active)
+2026-09-22 10:18 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-09-22
+2026-09-22 10:18 [recurring/autoclose-merged] [system] created (status=active)
+2026-09-22 10:18 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-09-22
+2026-09-22 10:18 [recurring/blocker-reminders] [system] created (status=active)
+2026-09-22 10:18 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-09-22
+2026-09-22 10:18 [recurring/upstream-coga] [system] created (status=active)
+2026-09-22 10:18 [recurring/upstream-coga] [system] created recurring/upstream-coga for 2026-W39
+2026-09-22 10:18 [recurring/usage-report] [system] created (status=active)
+2026-09-22 10:18 [recurring/usage-report] [system] created recurring/usage-report for 2026-W39
