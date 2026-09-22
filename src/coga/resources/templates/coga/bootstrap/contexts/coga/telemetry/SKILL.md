@@ -93,6 +93,9 @@ refs (including deleted tasks), whose message is exactly one of:
 - `auto-bumped on merge of PR #<integer> → done`, or
   `auto-bumped on merge of the linked PR → done`.
 
+Actor and handoff names may contain spaces; step names may contain parentheses,
+as permitted by the audit producers. These names are parsed locally, never sent.
+
 No rewinds, launches, creates, other marks, blocks, unblocks, embedded prose,
 malformed lines or housekeeping. First enabled run baselines at complete-line
 EOF and sends movement zero. Later runs verify the prefix hash and count only

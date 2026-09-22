@@ -132,6 +132,9 @@ def test_invalid_inventory_preserves_cursor_identity_but_advances_run(repo, monk
     ("advanced to step 0 (review)", False),
     ("advanced to step 2 ()", False),
     ("advanced to step 2 (review)garbage", False),
+    ("advanced to step 2 (review) → ", False),
+    ("advanced to step 2 (review) →  ", False),
+    ("advanced to step 2 (review\nowner)", False),
     ("task donegarbage", False), ("task done-ish", False),
     ("auto-bumped on merge of PR #42 → donegarbage", False),
     ("rewound to step 1 (code)", False), ("created", False),
@@ -142,7 +145,48 @@ def test_movement_grammar(message, expected):
     assert t._movement(_line(message).rstrip(b"\n")) is expected
 
 
-@pytest.mark.parametrize("line", [b"prose task done", _line(ref="recurring"), _line(ref="recurring/phone-home"), _line(stamp="2026-99-22 07:00"), b"2026-09-22 07:00 [] [] task done", b"\xff"])
+def test_movement_counts_real_bumps_with_spaced_names_and_parentheses(repo, monkeypatch):
+    from typer.testing import CliRunner
+
+    from coga.cli import app
+    from coga.create import create_task
+    from coga.logfile import append_log, iter_log_messages
+
+    _write(repo / "coga.local.toml", 'user = "Jane Doe"\n')
+    _write(repo / "workflows/review.md", """---
+name: review
+steps:
+  - name: implement
+    assignee: agent
+    skills: []
+  - name: review (owner)
+    assignee: owner
+    skills: []
+---
+## implement
+Implement.
+## review (owner)
+Review.
+""")
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg, title="Work", workflow_name="review", contexts=[],
+        owner="Jane Doe", status="in_progress", agent="claude",
+    )
+    _run(repo, monkeypatch)
+    for _ in range(2):
+        result = CliRunner().invoke(app, ["bump", created["slug"]])
+        assert result.exit_code == 0, result.output
+    messages = [message for _, message in iter_log_messages(cfg)]
+    assert "advanced to step 2 (review (owner)) → Jane Doe" in messages
+    assert "task done" in messages
+    assert "[human:Jane Doe] task done" in (repo / "log.md").read_text()
+    append_log(cfg, "recurring/phone-home", "human:Jane Doe", "task done")
+    event = _run(repo, monkeypatch)[0][1]
+    assert event["properties"]["movement_count"] == 2
+
+
+@pytest.mark.parametrize("line", [b"prose task done", _line(ref="recurring"), _line(ref="recurring/phone-home"), _line(stamp="2026-99-22 07:00"), b"2026-09-22 07:00 [] [] task done", b"2026-09-22 07:00 [work] [ ] task done", b"2026-09-22 07:00 [ ] [human:Jane Doe] task done", b"2026-09-22 07:00 [work] [human:Jane\nDoe] task done", b"\xff"])
 def test_movement_rejects_housekeeping_and_malformed_envelopes(line):
     assert not t._movement(line.rstrip(b"\n"))
 
