@@ -6068,3 +6068,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-22 10:20 [cleanup/quiet-the-first-run-noise-from-recurring-jobs-and] [human:nicktoper] auto-bumped on merge of PR #852 → done
 2026-09-22 10:20 [correct-the-v2-known-stale-surfaces-table-and-rout] [human:nicktoper] auto-bumped on merge of PR #845 → done
 2026-09-22 10:20 [detect-stranded-ticket-writes-across-checkouts] [human:nicktoper] auto-bumped on merge of PR #850 → done
+2026-09-22 10:20 [document-how-packaged-contexts-reach-a-repo-and-se] [human:nicktoper] auto-bumped on merge of PR #843 → done

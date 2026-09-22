@@ -1,7 +1,7 @@
 ---
 title: Document how packaged contexts reach a repo, and settle the packaged-only cli
   context
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -24,7 +24,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description
