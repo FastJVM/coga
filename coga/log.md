@@ -6081,3 +6081,6 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-22 10:21 [reject-context-artifacts-that-escape-the-checkout] [human:nicktoper] auto-bumped on merge of PR #844 → done
 2026-09-22 10:21 [reuse-the-existing-control-worktree-for-recurring] [human:nicktoper] auto-bumped on merge of PR #846 → done
 2026-09-22 10:21 [simplify-git-sync] [human:nicktoper] auto-bumped on merge of PR #848 → done
+2026-09-22 10:21 [the-ticket-interview-never-asks-what-done-means] [human:nicktoper] auto-bumped on merge of PR #837 → done
+2026-09-22 10:21 [recurring/autoclose-merged] [system] script exited with code 1
+2026-09-22 10:22 [autofix/treat-non-requestexception-slack-send-errors-as-de] [system] created (status=active)
