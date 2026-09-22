@@ -52,6 +52,18 @@ refs.
   globbing), every repo-authored Markdown file under `coga/skills/**`, and
   `coga/workflows/**`.
 
+Which repo this is also shapes the corpus. Read the `repo-identity:` line at
+the top of the scan directory's `index.md`; the protocol's "Repo identity"
+section defines the test, Dream evaluates it once per run, and no shard
+re-derives it. In a client repo the index already omits every Coga-owned path
+(the protocol's Rule A) — the shipped recurring templates, shipped workflows,
+and any bundled skills or contexts the installed package placed under
+`coga/` — so index what the index lists and add no filter of your own. Rule B
+still applies to what remains: a client-owned file that makes a claim only
+Coga's implementation can settle yields no `stale` or `gap` against the client
+repo. Write that finding with `owner: coga` instead; it never proposes a local
+edit and Phase 6 routes it upstream.
+
 Installer-managed skills are **outside the corpus**. `coga/skills/` mixes
 repo-authored skills with upstream trees that `coga skill install` and
 `coga skill update` place and refresh wholesale. **The `metadata.github-repo`
@@ -204,6 +216,13 @@ inside the subagent. Classify each finding as exactly one of:
   surface, the dead command, the external dependency (present or missing) and
   required substance it holds, or the path on `main` that already carries the
   deliverable.
+
+Any class may additionally carry `owner: coga` when its source of truth is
+Coga's implementation rather than this repo (the protocol's Rule B). Such a
+finding never proposes a local edit — Phase 4 does not write it into a local
+context and Phase 6 does not open a PR or draft for it — and it is never
+searched for a local ticket owner, so `owner: coga` and `owner: <slug>` never
+appear on the same finding. It only arises in a client repo.
 
 Include draft content when a new file is proposed. Set the `area:` and
 `source:` fields on every `extract` finding. Group the `extract` findings by

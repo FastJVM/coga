@@ -92,12 +92,23 @@ issue left only there was never reported.
 
 ### Decide-half scan mechanics (Phases 2 and 3)
 
-Both decide-half scans are read-only sweeps over Coga's own corpus, and both run
-the same way: **bounded shards writing durable findings to disk**, never one
+Both decide-half scans are read-only sweeps over this repo's own corpus — which
+is Coga's in the Coga source repo and the client's own knowledge, never the
+installed Coga OS files, in a client repo — and both run the same way: **bounded shards writing durable findings to disk**, never one
 subagent sweep whose result arrives only in its final message. The corpus is
 larger than a subagent can hold, and a scan that stops early after delivering
 nothing is indistinguishable from a clean repo. Run each scan like this:
 
+0. **Decide the repo identity once per run**, before the first scan directory
+   exists: this checkout is the Coga source repo when
+   `src/coga/resources/templates/coga/` is a directory under the checkout
+   root, and a client repo otherwise — the test the protocol's "Repo identity"
+   section owns. Keep the verdict for both phases; no shard and no later phase
+   re-derives it. In a client repo also run the protocol's Rule A block once,
+   under the interpreter that backs the active `coga`, and keep its owned-path
+   list; a non-zero exit is a failed run of both scans (`partial`, with the
+   block's stderr and a `human-needed` line in the run summary), never an
+   empty owned set.
 1. **Create the scan directory.** `mktemp -d` one directory per phase and keep
    its absolute path. Both scans and the shard subagents follow
    `bootstrap/dream/scan/scan-protocol`, which defines the directory's
@@ -108,7 +119,13 @@ nothing is indistinguishable from a clean repo. Run each scan like this:
 2. **Index and shard.** Size the phase's corpus portably with
    `find <paths> -type f -name '*.md' -exec wc -c {} \;` — do not use GNU-only
    `find -printf`. Enrich those sizes with the compact routing metadata the
-   phase skill names and write the full index to `index.md`. Then build the
+   phase skill names and write the full index to `index.md`, with
+   `repo-identity: client | coga-source` as its first line. In a client repo,
+   subtract the Rule A owned-path list from the corpus **as you write the
+   index** — this is the only place the exclusion happens, so no shard needs a
+   filter — and write `excluded-coga-owned: <N>` as the second line so the
+   decision is auditable. In the Coga source repo apply no exclusion: the index
+   gains the identity line and its corpus paths are unchanged. Then build the
    phase skill's ownership + evidence assignments at no more than 150 KB across
    at most 40 distinct files, keeping a task directory's Markdown together. A
    file is never split across two owning shards; the one departure from
@@ -160,8 +177,8 @@ Phase 4 so done-ticket evidence is still available.
 Merge the shards' findings into this task's blackboard under `## Findings`;
 Phase 4 reads that section when batching knowledge PRs. Keep each `extract`
 finding's `source:` line, each `gap` finding's `owner:` line, and each
-`premise` finding's `target:`, `question:`, and `owner:` lines through the
-merge — Phase 6 routes on them. The `premise` class is this scan's standing
+`premise` finding's `target:`, `question:`, and `owner:` lines, and every
+`owner: coga` line on any class, through the merge — Phase 6 routes on them. The `premise` class is this scan's standing
 re-validation of the parking area, where `coga/tasks/v2/README.md` exists:
 the skill asks that contract's four premise questions of every parked draft
 it owns, so a draft that sits there is re-checked every run instead of only
@@ -218,6 +235,17 @@ mutable checkout. Create a writable `progress.md` alongside `evidence/`, not
 inside it. Pass the snapshot path and Dream's absolute repo root to the
 subagent so Phases 2–3 and other uncommitted evidence are not lost when the new
 worktree starts from a commit.
+
+Pass `## Findings` to Retro as it stands, `owner: coga` lines included, and
+tell the subagent in the delegation prompt: a finding marked `owner: coga` is
+knowledge whose source of truth is the Coga package, not this repo, and Retro
+must not write that fact into a local context or skill — Phase 6 routes it
+upstream. Everything else the same ticket holds is extracted as usual, so a
+ticket that teaches one local fact and one Coga-owned fact contributes the
+local one and still gets deleted like any processed done ticket. The
+`retro/done-ticket` skill carries the matching rule; the prompt line is what
+makes it fire. In the Coga source repo no finding carries the mark and the
+handoff is unchanged.
 
 Delegate the entire Retro pass to one subagent in a dedicated **isolated git
 checkout**, running `retro/done-ticket <slug> [<slug> ...]` there and passing
@@ -407,7 +435,54 @@ These are `pr-required` proposals: never apply them directly on `main` or
 auto-merge them. List each issue's PR or owner draft in the run summary; an
 entry left only in the recipe's disposable blackboard bucket is unfinished.
 
-Route each Phase 2 and Phase 3 finding by class:
+**Coga-owned findings go upstream, whatever their class.** Before routing by
+class, take every Phase 2 and Phase 3 finding that carries `owner: coga` — a
+client-owned file making a claim only Coga's implementation can settle, per
+the scan protocol's Rule B — and append it to `<checkout-root>/coga/upstream-coga.md`.
+They are **not** routed to a proposal PR, a draft ticket, or a local knowledge
+edit: the repo that owns the code is the Coga source repo, and its
+`recurring/upstream-coga` job sweeps this file from every configured client
+checkout and files real tickets there. Nothing here reaches into that repo.
+Create the file when it is missing, with exactly this header:
+
+```markdown
+  # Upstream Coga findings
+
+  Findings about Coga itself that this repo's Dream runs could not settle
+  locally. Append-only: entries are added in order and never reordered,
+  rewritten, or removed. The Coga source repo's `recurring/upstream-coga` job
+  sweeps this file and files a ticket per entry.
+```
+
+Then append one entry per finding, in finding order, in exactly this shape
+(shown indented so the example heading cannot end this `## Description`
+section — write the real header and entries flush left):
+
+```markdown
+  ## <title>
+
+  - id: 2026-09-09-phase-6-names-a-dead-recipe
+  - repo: multiply
+  - date: 2026-09-09
+  - class: drift
+  - target: coga/recurring/dream/ticket.md
+  - evidence: coga/contexts/multiply/developer-flow/SKILL.md:44
+
+  <one paragraph: the claim, why only Coga can settle it, and what the client
+  file says>
+```
+
+`id` is `<YYYY-MM-DD>-<slug-of-title>`, suffixed `-2`, `-3`, … when that id is
+already in the file. `repo` is this repo's name, `date` is the run date,
+`class` and `target` are the finding's, and `evidence` is the in-corpus client
+path and line the conclusion came from. The file is **append-only**: never
+reorder, rewrite, or remove an entry, because the sweep keeps a per-checkout
+cursor by id and treats a vanished id as a broken file. Record the entries
+appended as `upstream-captured` in the run summary with their count. In the
+Coga source repo no `owner: coga` finding arises — every Coga-owned file is in
+this repo's own corpus — and this route does nothing.
+
+Route each remaining Phase 2 and Phase 3 finding by class:
 
 - `extract` — by the finding's `source:` line, which the knowledge-scan shard
   records from the source ticket's `status:` and `## Dev` section:
@@ -486,7 +561,9 @@ Route each Phase 2 and Phase 3 finding by class:
 Then append one top-level `## Dream Run Summary` section to this task's
 blackboard: the generation time, a phase result table using the vocabulary
 `no-op`, `reported`, `partial`, `proposed`, `direct-fixed`, `pr-opened`,
-`human-needed`, the finding counts with one-line summaries, links to every PR
+`human-needed`, `upstream-captured`, the finding counts with one-line
+summaries, the number of entries appended to `coga/upstream-coga.md` (zero in
+the Coga source repo), links to every PR
 opened and draft ticket created (the run's premise adjudication draft
 included, with its member count), every `already ticketed as` line, the
 already-decided classes with their context citations, reused proposal PRs,

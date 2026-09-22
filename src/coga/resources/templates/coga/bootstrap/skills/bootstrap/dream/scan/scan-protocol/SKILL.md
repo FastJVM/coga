@@ -6,8 +6,10 @@ description: The durable shard protocol both Dream decide-half scans follow — 
 # Scan Protocol
 
 Dream's two decide-half scans — `bootstrap/dream/scan/knowledge-scan` and
-`bootstrap/dream/scan/contract-audit` — are read-only sweeps over Coga's own
-corpus. Both once specified a single full-corpus read whose entire value arrived
+`bootstrap/dream/scan/contract-audit` — are read-only sweeps over the repo's
+own corpus: Coga's, when Dream runs in the Coga source repo, and the client's
+own knowledge — never the installed Coga OS files — when it runs in a client
+repo (see "Repo identity" below). Both once specified a single full-corpus read whose entire value arrived
 in one final message. That design has two failure modes and hit both: the corpus
 outgrew what one subagent can hold, and a subagent that stopped early returned
 nothing at all, which Dream could not tell apart from a clean repo.
@@ -47,6 +49,128 @@ clean-scan result.
 
 Write `index.md` once before launching. Append every later record with `>>` and
 never rewrite the shared files; concurrent shards share them.
+
+## Repo identity
+
+Dream runs in two kinds of checkout, and the corpus differs between them. A
+checkout is the **Coga source repo** when
+`<checkout-root>/src/coga/resources/templates/coga/` is a directory, and a
+**client repo** otherwise. That is the whole test: a filesystem fact, not a
+config key, so it cannot drift from the tree it describes. A fork or vendored
+copy of the Coga source genuinely owns those files, so classifying it as a
+source repo is correct, not a false positive.
+
+Dream evaluates the test **once per run** and writes the verdict as the first
+line of each phase's `index.md`:
+
+```
+repo-identity: client | coga-source
+```
+
+Shards read that line. Nothing re-derives it — not a shard, not a later phase.
+
+### Rule A — path ownership in a client repo
+
+A client repo's `coga/` tree mixes the client's own knowledge with files the
+installed Coga package placed there: the shipped `coga/recurring/*/ticket.md`
+templates, the shipped `coga/workflows/*` files, `coga/skills/direct/body/`,
+the `coga/contexts/browser/*` contexts, and — on installs from before
+`bootstrap/` stopped being copied — `coga/contexts/coga/**`. Those files are
+Coga's explanation of itself, not the client's; every claim they make about
+`src/coga/*.py` is uncheckable in a checkout that has no `src/coga/`, and a
+finding against one would route a proposal PR at a repo that does not own the
+code. Excluding `coga/` wholesale is wrong too, because that is also where the
+client's own contexts, skills, workflows, and tasks live.
+
+The rule is therefore **per file, not per directory**: the owned set is every
+repo-relative path the *installed* package owns, derived from its
+`templates/coga` tree with the same two counterpart mappings
+`tests/test_packaging.py` uses for its live/packaged twins —
+`templates/coga/<rel>` → `coga/<rel>`, and
+`templates/coga/bootstrap/<contexts|skills|workflows>/<rel>` →
+`coga/<contexts|skills|workflows>/<rel>`. The installed package is the
+manifest, so the exclusion updates itself whenever Coga ships a new template.
+Excluding `coga/skills/direct/body/SKILL.md` must not exclude a client's own
+sibling under `coga/skills/direct/`.
+
+The block below derives the set. It must run under the interpreter that backs
+the active `coga` — the ambient `python3` usually cannot import `coga` — so
+locate that interpreter first, exactly as the `coga/codebase` context does:
+
+```sh
+COGA_PY=$(python3 -c 'from pathlib import Path; from shutil import which; print(Path(which("coga")).resolve().parent / "python")')
+"$COGA_PY" - <<'PY'
+import sys
+from importlib.resources import files
+from pathlib import Path
+
+root = Path(str(files("coga.resources").joinpath("templates", "coga")))
+if not root.is_dir():
+    sys.exit(f"no packaged template tree at {root}")
+BUNDLED = {"contexts", "skills", "workflows"}
+SKIP = {".coga", ".venv", ".agent-skills", ".claude", ".codex", "__pycache__"}
+# Packaged seeds the client owns after install: hand-edited or runtime state.
+CARVE_OUTS = {
+    "coga/coga.toml", "coga/log.md", "coga/context.md", "coga/.gitignore",
+    "coga/.gitattributes", "coga/contexts/.gitignore",
+    "coga/recurring/digest/spool.md",
+}
+owned = set()
+for path in sorted(root.rglob("*")):
+    if not path.is_file():
+        continue
+    parts = path.relative_to(root).parts
+    if set(parts) & SKIP or parts[0] == "tasks":
+        continue
+    owned.add(Path("coga").joinpath(*parts).as_posix())
+    if len(parts) > 2 and parts[0] == "bootstrap" and parts[1] in BUNDLED:
+        owned.add(Path("coga").joinpath(*parts[1:]).as_posix())
+owned -= CARVE_OUTS
+if not owned:
+    sys.exit("derived an empty owned set; refusing to treat that as a result")
+print("\n".join(sorted(owned)))
+PY
+```
+
+Everything under `coga/tasks/` is carved out along with the listed seeds: a
+period task copied from a shipped recurring template is the client's own run
+record. The block prints one owned path per line and exits non-zero when the
+package cannot be imported or the set comes out empty. **A non-zero exit is a
+failed scan, never an empty owned set**: do not launch shards, record the
+phase as `partial` with the block's stderr and a `human-needed` line in the run
+summary, and stop the phase there.
+
+When `repo-identity: client`, Dream subtracts the owned set from the corpus
+**as it writes `index.md`** — most of the set will not exist in the client
+tree, and only the paths that do are subtracted — and writes the count on the
+second line, beneath the identity line:
+
+```
+repo-identity: client
+excluded-coga-owned: <N>
+```
+
+That is the only place Rule A is applied. Shards read an index that already
+lacks those paths and need no filter of their own, and Rule A produces no
+findings at all — it is purely a noise-and-budget win. When
+`repo-identity: coga-source`, Rule A is not applied: the index gains the
+identity line and nothing else, and its corpus paths are exactly what they were
+before the rule existed.
+
+### Rule B — source-of-truth ownership
+
+Rule A cannot catch everything, because a client-owned file can still make a
+claim that only Coga's implementation can settle: a `src/coga/` symbol, a CLI
+flag or exit contract, a packaged template's wording. In a client repo that
+claim is not checkable against the client's own code and is **not a local
+finding**. A shard that reaches such a Coga-owned conclusion from an in-corpus
+client file still writes the finding, marked `owner: coga` (see the finding
+block below); Phase 6 routes it to the client checkout's append-only
+`coga/upstream-coga.md`, which the Coga repo's `recurring/upstream-coga` job
+sweeps and turns into real tickets there. An `owner: coga` finding never
+proposes a local edit — no proposal PR, no draft ticket, no context change in
+the client repo. In the Coga source repo every Coga-owned file is in the corpus,
+so no `owner: coga` finding arises there.
 
 Use these manifest record shapes:
 
@@ -145,6 +269,7 @@ Each finding is one block:
 - class: <extract | stale | gap | premise | drift>
 - target: <file path, or ticket slug for `extract`>
 - area: <context/skill area>
+- owner: <local | coga>
 
 <one paragraph describing the change>
 ```
@@ -154,6 +279,14 @@ and optional otherwise. A `premise` finding's `target:` is the parked draft's
 path-qualified slug (`v2/<slug>`), and the knowledge-scan skill names the
 extra lines it carries. When the finding proposes a new file, append the draft
 content under the paragraph in a fenced block.
+
+`owner:` is optional and defaults to `local`. Write `owner: coga` when the
+finding's source of truth is Coga's implementation rather than this repo
+("Rule B" above); `coga` is a reserved value, so a ticket slug never means it.
+The knowledge-scan skill also uses `owner: <slug>` on a `gap` or `premise`
+finding to name an open ticket that already covers it. One finding carries one
+`owner:` line: a Coga-owned finding is routed upstream and never searched for a
+local ticket owner, so the two uses never meet on the same block.
 
 ## Heartbeat
 

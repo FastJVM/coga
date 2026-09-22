@@ -485,7 +485,7 @@ everyone puts `peer` in shared `coga.toml`.
 `load_config` validates `coga.toml` **and** `coga.local.toml` against a fixed
 schema. Any unrecognized key, at **any level of a fixed-schema table** —
 top-level sections, `[notification]`, `[notification.slack]`, `[git]`, `[launch]`,
-`[layout]`, `[autofix]`, `[ticket]`, `[agents.<name>]` — raises `ConfigError` naming
+`[layout]`, `[autofix]`, `[upstream]`, `[ticket]`, `[agents.<name>]` — raises `ConfigError` naming
 the offending key and listing the valid ones, in either file. This generalizes
 the enforcement `[ticket.fields.*]` already had: a misspelled `[notification.slak]`
 no longer silently resolves to "no webhook" and takes Slack dark. Adding a new
@@ -498,6 +498,12 @@ Two carve-outs keep it honest:
   `[notification.slack.gifs]`, and `[notification.slack.users]` map user-chosen
   names to values, so their *keys* are data, not schema — they are never
   rejected.
+- **Machine-local paths stay local.** `[upstream] checkouts` — the client
+  checkouts the Coga source repo's `recurring/upstream-coga` job sweeps — is
+  accepted only in `coga.local.toml` and validated for shape alone (a list of
+  strings, `~` expanded, resolved absolute). A path that is not on disk loads
+  fine and is skipped by the job: failing config load there would brick every
+  `coga` command on the machine the moment a client repo moved.
 - **Deprecated / known-but-rejected keys run their dedicated migration errors
   *first*.** Top-level `[assignees]` and `[slack]` tables, a `[secrets]` table in
   coga.local.toml, and the removed `[agents.<name>]` keys (`auto`,
@@ -1506,7 +1512,11 @@ Each registered recipe writes its own `## Dream Skill: <name>` section to the
 Dream task's blackboard. The orchestrator appends one `## Dream Run Summary`
 that lists each skill's result using a small fixed vocabulary:
 `no-op`, `reported`, `partial`, `proposed`, `direct-fixed`, `pr-opened`,
-`human-needed`.
+`human-needed`, `upstream-captured`. The last is the client-repo route: a
+finding whose source of truth is the Coga package (`owner: coga` in the scan
+protocol) is appended to that repo's `coga/upstream-coga.md` instead of
+becoming a local PR or draft, and the Coga source repo's
+`recurring/upstream-coga` job sweeps those files into tickets here.
 
 Destructive behavior (deleting task directories, deleting git refs,
 changing lifecycle state, touching secrets) is never implicit. A known skill may declare a direct destructive change only when

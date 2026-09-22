@@ -527,3 +527,115 @@ def test_dream_sharding_updates_the_architecture_contract() -> None:
     assert "reconciles only active leaf assignments" in norm
     assert "by distinct completing shard id rather than by counting" in norm
     assert "`no-op`, `reported`, `partial`, `proposed`" in norm
+
+
+def test_dream_keeps_coga_owned_files_out_of_a_client_repo_scan() -> None:
+    """In a client repo Dream must not audit the installed Coga OS files as if
+    they were the client's own knowledge: identity is decided once, Rule A is
+    applied while writing `index.md`, and a Coga-owned conclusion from a
+    client file goes upstream instead of becoming a local edit."""
+    protocol_text = (SCAN_TEMPLATES / "scan-protocol" / "SKILL.md").read_text()
+    protocol = " ".join(protocol_text.split())
+    knowledge = " ".join(
+        (SCAN_TEMPLATES / "knowledge-scan" / "SKILL.md").read_text().split()
+    )
+    audit = " ".join(
+        (SCAN_TEMPLATES / "contract-audit" / "SKILL.md").read_text().split()
+    )
+    dream_text = DREAM_PROMPT.read_text()
+    dream = " ".join(dream_text.replace("**", "").split())
+
+    # Repo identity: one test, evaluated once, recorded in the index.
+    assert "## Repo identity" in protocol_text
+    assert "`<checkout-root>/src/coga/resources/templates/coga/` is a directory" in protocol
+    assert "repo-identity: client | coga-source" in protocol_text
+    assert "Nothing re-derives it" in protocol
+    for skill in (knowledge, audit):
+        assert "Repo identity" in skill
+        assert "re-derive" in skill
+        assert "templates/coga/` is a directory" not in skill
+
+    # Rule A: the derivation is the packaging test's twin mapping, per file,
+    # applied once at index time, under the interpreter that backs `coga`.
+    assert "### Rule A — path ownership in a client repo" in protocol_text
+    assert "per file, not per directory" in protocol
+    assert "`templates/coga/<rel>` → `coga/<rel>`" in protocol
+    assert (
+        "`templates/coga/bootstrap/<contexts|skills|workflows>/<rel>` → "
+        "`coga/<contexts|skills|workflows>/<rel>`"
+    ) in protocol
+    assert "must not exclude a client's own sibling under `coga/skills/direct/`" in protocol
+    for seed in (
+        '"coga/coga.toml"', '"coga/log.md"', '"coga/context.md"', '"coga/.gitignore"',
+        '"coga/.gitattributes"', '"coga/contexts/.gitignore"',
+        '"coga/recurring/digest/spool.md"',
+    ):
+        assert seed in protocol_text
+    assert 'parts[0] == "tasks"' in protocol_text
+    assert 'files("coga.resources").joinpath("templates", "coga")' in protocol_text
+    assert "COGA_PY=$(python3 -c 'from pathlib import Path; from shutil import which;" in protocol_text
+    assert "A non-zero exit is a failed scan, never an empty owned set" in protocol
+    assert "as it writes `index.md`" in protocol
+    assert "excluded-coga-owned: <N>" in protocol_text
+    assert "When `repo-identity: coga-source`, Rule A is not applied" in protocol
+    assert "repo-identity: client | coga-source" in dream_text
+    assert "subtract the Rule A owned-path list from the corpus as you write the index" in dream
+    assert "excluded-coga-owned: <N>" in dream_text
+    assert "In the Coga source repo apply no exclusion" in dream
+    assert "add no filter of your own" in knowledge
+
+    # Rule B: code reality is the client's own code; Coga claims are not local
+    # findings, and `owner: coga` never proposes a local edit anywhere.
+    assert "### Rule B — source-of-truth ownership" in protocol_text
+    assert "- owner: <local | coga>" in protocol_text
+    assert "defaults to `local`" in protocol
+    assert "`coga` is a reserved value" in protocol
+    assert "code reality means the client's own code" in " ".join(audit.replace("**", "").split())
+    assert "not checkable there and not a local finding" in " ".join(audit.replace("**", "").split())
+    assert "Do not invent a `drift` from a Coga claim you cannot verify" in audit
+    for skill in (protocol, knowledge, audit):
+        assert "never proposes a local edit" in skill
+
+    # Phase 4: the mark reaches Retro and stops only the Coga-owned fact.
+    assert "Pass `## Findings` to Retro as it stands, `owner: coga` lines included" in dream
+    assert "must not write that fact into a local context or skill" in dream
+    assert "contributes the local one and still gets deleted" in dream
+    retro = " ".join(
+        (DREAM.parents[1] / "retro" / "done-ticket" / "SKILL.md").read_text().split()
+    )
+    assert "### Coga-owned findings are not local knowledge" in retro
+    assert "Do not write that fact into a local context or skill" in retro
+    assert "contributes the local fact and is deleted like any other" in retro
+
+    # Phase 6: upstream capture with a parseable, append-only entry shape.
+    assert "Coga-owned findings go upstream, whatever their class" in dream
+    assert "<checkout-root>/coga/upstream-coga.md" in dream_text
+    assert "not routed to a proposal PR, a draft ticket, or a local knowledge edit" in dream
+    assert "# Upstream Coga findings" in dream_text
+    for line in (
+        "- id: 2026-09-09-phase-6-names-a-dead-recipe",
+        "- repo: multiply",
+        "- date: 2026-09-09",
+        "- class: drift",
+        "- target: coga/recurring/dream/ticket.md",
+        "- evidence: coga/contexts/multiply/developer-flow/SKILL.md:44",
+    ):
+        assert line in dream_text
+    assert "`id` is `<YYYY-MM-DD>-<slug-of-title>`, suffixed `-2`, `-3`" in dream
+    assert "The file is append-only: never reorder, rewrite, or remove an entry" in dream
+    assert "`upstream-captured`" in dream_text
+    assert "the number of entries appended to `coga/upstream-coga.md`" in dream
+    assert "In the Coga source repo no `owner: coga` finding arises" in dream
+    # The example entry is indented so its `## <title>` cannot end the
+    # template's `## Description` section under compose's plain `^##` regex.
+    assert "\n## <title>" not in dream_text
+    assert "\n  ## <title>" in dream_text
+    # The live twin is enforced by test_packaging; the vocabulary reaches the
+    # architecture contract too.
+    arch = " ".join(
+        (RESOURCES.parents[2] / "coga" / "contexts" / "coga" / "architecture" / "SKILL.md")
+        .read_text()
+        .split()
+    )
+    assert "`human-needed`, `upstream-captured`" in arch
+    assert "`[upstream]`" in arch

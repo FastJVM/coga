@@ -26,6 +26,15 @@ moves it — resolve that key before globbing) and every repo-authored
 (recurring tasks are ticket-format directories), `README.md`, `docs/*.md`, and
 the agent instruction files `CLAUDE.md` and `AGENTS.md`.
 
+Which repo this is changes what that surface contains. Read the
+`repo-identity:` line at the top of the scan directory's `index.md` — the
+protocol's "Repo identity" section defines the test, and Dream evaluates it
+once; never re-derive it. In a client repo the index already omits every
+Coga-owned path (the protocol's Rule A: the shipped recurring templates,
+shipped workflows, and bundled skills and contexts the installed package
+placed under `coga/`), so the audit surface is exactly what the index lists,
+and the client's own `coga/recurring/*/ticket.md` templates stay in it.
+
 Frozen task artifacts under `coga/tasks/` are historical records, not
 contracts — a stale reference inside a retired ticket is not a finding. Audit
 only the living contract surface. `coga/log.md` is history too, and is larger
@@ -77,8 +86,9 @@ budget:
   excludes via `INTENTIONALLY_DIVERGENT_TWINS`. Because the suite enforces
   every derived pair, a divergence here is a test failure first — a green
   suite means this shard has nothing to report, and a finding means the suite
-  was not run. In a downstream repo with no packaged source tree or explicit
-  pair list, omit this group. `coga/.agent-skills/` is a generated, gitignored
+  was not run. In a client repo (`repo-identity: client`, per the protocol's
+  "Repo identity" section) there is no packaged source tree and no pair list:
+  omit this group. `coga/.agent-skills/` is a generated, gitignored
   symlink view of the packaged skills, not a copy to compare.
 
 ## Findings
@@ -86,7 +96,15 @@ budget:
 Check each concrete claim in your shard against three sources of truth:
 
 - **code reality** — a flag, default, command, status value, or path that
-  `src/coga/` no longer implements as described.
+  the repo's code no longer implements as described. In the Coga source repo
+  that code is `src/coga/`. In a client repo `src/coga/` does not exist, so
+  code reality means the client's **own** code, and a claim whose only source
+  of truth is Coga's implementation — a `src/coga/` symbol, a `coga` CLI flag
+  or exit contract, a packaged template's wording — is **not checkable there
+  and not a local finding**. Do not invent a `drift` from a Coga claim you
+  cannot verify. Where a client-owned file's claim is plainly Coga-owned and
+  worth reporting, write the finding with `owner: coga` (the protocol's
+  Rule B); it is routed upstream, never to a local proposal PR.
 - **referenced artifacts** — a file, skill, context, or workflow a contract
   names that does not exist on disk.
 - **copy divergence** — a shipped template under `coga/` whose packaged
@@ -102,4 +120,6 @@ Classify each finding as:
 Findings go to the scan directory's `findings.md` in the protocol's shape, in
 the same form as the Phase 2 findings; Dream merges both phases into the Dream
 task's blackboard `## Findings`. The audit never repairs anything itself —
-Phase 6 routes each `drift` finding to a proposal PR.
+Phase 6 routes each `drift` finding to a proposal PR, except an `owner: coga`
+finding, which never proposes a local edit and goes to the client checkout's
+`coga/upstream-coga.md` instead.
