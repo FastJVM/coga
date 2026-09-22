@@ -39,9 +39,9 @@ directories are gone. A landed branch that remains checked out in a live
 worktree is, by default, preserved deliberately and reported as
 worktree-pinned instead of falling through to a failed `git branch -d`/`-D`.
 With `[git].worktrees_ticket_owned = true` the repo has declared that every
-linked worktree of this repository belongs to a Coga ticket (the `dev/code`
-context owns that assumption), so a landed, pristine one no live ticket claims
-is finished work: the sweep removes the worktree first
+linked worktree of this repository belongs to a Coga ticket (the
+`dev/checkout-cleanup` context owns that assumption), so a landed, pristine
+one no live ticket claims is finished work: the sweep removes the worktree first
 (`branchcleanup.inspect_worktree_for_removal` — same-repo linked worktree,
 checked out on that branch, no tracked or untracked local state; then
 `checkout_disposal.live_checkout_claim`) and the branch then takes the

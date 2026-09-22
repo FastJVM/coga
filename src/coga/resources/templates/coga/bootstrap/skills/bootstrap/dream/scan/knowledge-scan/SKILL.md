@@ -92,14 +92,12 @@ may be duplicated as evidence in another area's assignment. Keep a task
 directory's Markdown files together. The owned and evidence paths together must
 stay inside the shared protocol's byte and file limits.
 
-A few contexts are large enough that pricing them at full length costs a shard
-on its own — `coga/contexts/coga/architecture/SKILL.md` is ~74 KB,
-`coga/contexts/coga/sync/SKILL.md` ~67 KB, and
-`coga/contexts/coga/recurring/SKILL.md` ~54 KB against a 150 KB budget — and
-that is what forces the knowledge-only shards this partition forbids. The
-protocol already refuses to read a file over 60 KB whole, so sizing one whole
-charges a shard for bytes it will never read. **Own an oversized context as a
-ranged path**, using the shared protocol's "Ranged ownership" rules: pair it
+A context can be large enough that pricing it at full length costs a shard on
+its own — anything near or over the 60 KB whole-read limit is a large share of
+a 150 KB budget — and that is what forces the knowledge-only shards this
+partition forbids. The protocol already refuses to read a file over 60 KB
+whole, so sizing one whole charges a shard for bytes it will never read. **Own
+an oversized context as a ranged path**, using the shared protocol's "Ranged ownership" rules: pair it
 with its area's ticket set and record it in the manifest as
 `<path>@<allowance>`, so it is priced at the bytes the shard will actually
 spend rather than at its full length. The shard covers it by grepping and

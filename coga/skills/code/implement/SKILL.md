@@ -39,8 +39,8 @@ later `code/open-pr` step does that, after self-review and fixes.
    `branch: <branch-name>` and `worktree: <path>` under a `## Dev` section on
    the blackboard. Keep trailing annotations on a separate line, or
    backtick-delimit the value first (for example,
-   ``worktree: `/path with spaces` (other repo)``). See the `dev/code` context
-   for the full convention.
+   ``worktree: `/path with spaces` (other repo)``). See the `dev/dev-record`
+   context for the full convention.
 
    *Separate feature checkout.* From the primary checkout on `main`, create the
    feature branch in a worktree outside the repo directory, for example
@@ -109,7 +109,7 @@ later `code/open-pr` step does that, after self-review and fixes.
    environment) the helper re-runs itself under the interpreter named by the
    `coga` console script's shebang, and fails loud if no `coga` is on PATH.
    Resolve this skill local-first, falling back to the installed bundled
-   skill (see `dev/code`, "Seed the machine-local config"). Stop on failure;
+   skill (see `dev/checkouts`, "What a fresh checkout lacks"). Stop on failure;
    never synthesize an actor. The same invocation verifies a single checkout
    when both paths refer to that checkout.
 

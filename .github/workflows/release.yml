@@ -4,7 +4,7 @@ name: Release
 #   - cutting a GitHub Release        -> publish to PyPI
 #   - manual run (workflow_dispatch)  -> publish to TestPyPI (dry run) or PyPI
 # Build and publish run in ONE job (no artifact handoff) so a release never
-# depends on Actions artifact storage. One-time setup: docs/releasing.md.
+# depends on Actions artifact storage. One-time setup: docs/contexts/coga/releasing/SKILL.md.
 
 on:
   release:

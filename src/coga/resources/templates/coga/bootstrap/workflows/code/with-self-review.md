@@ -83,5 +83,5 @@ Either way it then scaffolds and launches the `retro/done-ticket` task that
 carries what the ticket learned into the knowledge base and deletes the
 ticket, so a preserved checkout and branch can outlive the ticket and remain
 the owner's follow-up work. Until someone runs it, the `done` ticket and its
-stale checkout stay in the repo; see `coga retire` in the `coga/cli` context
-for what it proves and refuses.
+stale checkout stay in the repo; see `coga retire` in the
+`dev/checkout-cleanup` context for what it proves and refuses.

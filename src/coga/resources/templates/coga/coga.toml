@@ -137,8 +137,9 @@ channels = []
 # linked worktree of this git repository belongs to a Coga ticket, so the
 # weekly branch sweep may remove a landed, locally pristine worktree that no
 # live ticket records before deleting its branch. Off, such a worktree keeps
-# pinning its branch (`skipped-worktree-pinned`). The `dev/code` context
-# states the assumption; set it only once everyone on the repo works that way.
+# pinning its branch (`skipped-worktree-pinned`). The `dev/checkout-cleanup`
+# context states the assumption; set it only once everyone on the repo works
+# that way.
 #   [git]
 #   worktrees_ticket_owned = true
 

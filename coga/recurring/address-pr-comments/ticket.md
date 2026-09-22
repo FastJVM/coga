@@ -40,7 +40,7 @@ override and selected queue session conduct), and marks the period task
 `done` only after the delegated command's final `coga slack` roll-up emits
 its bootstrap done sentinel. Everything else about how a delegated period is
 preflighted, leased, published, timed out, and left retryable is the
-`delegate` contract in the `coga/recurring` context, shared with
+`delegate` contract in the `coga/recurring/delegation` context, shared with
 `recurring/resolve-conflicts`.
 
 Because the delegated run is an agent launch, a cron-driven headless

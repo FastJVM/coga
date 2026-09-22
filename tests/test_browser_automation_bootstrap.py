@@ -84,12 +84,18 @@ def test_autonomy_triage_apparatus_is_gone_from_both_trees() -> None:
 
 
 def test_command_guide_links_to_browser_router_and_runner_reference() -> None:
-    # The guide points to coga/cli, which owns command behavior and skill roles.
-    guide = (REPO_ROOT / "docs" / "reference.md").read_text()
-    reference = TEMPLATES / "bootstrap" / "contexts" / "coga" / "cli" / "SKILL.md"
-    assert f"(../{reference.relative_to(REPO_ROOT).as_posix()})" in guide
-    text = reference.read_text()
+    # The docs index points at the coga/cli command index and the browser
+    # topics; the bundled launcher itself names the router skill and the
+    # separate runner, so the command index does not restate them.
+    guide = (REPO_ROOT / "docs" / "README.md").read_text()
+    reference = REPO_ROOT / "docs" / "contexts" / "coga" / "cli" / "SKILL.md"
+    packaged = TEMPLATES / "bootstrap" / "contexts" / "coga" / "cli" / "SKILL.md"
 
-    assert "coga launch bootstrap/browser-automation" in text
-    assert "`browser/build-automation` orchestration skill" in text
-    assert "`browser/playwright` runner" in text
+    assert "(contexts/coga/cli/SKILL.md)" in guide
+    assert "(contexts/browser/api-first/SKILL.md)" in guide
+    assert "(contexts/browser/dom-backed/SKILL.md)" in guide
+    assert reference.read_bytes() == packaged.read_bytes()
+    launcher = " ".join(LAUNCHER.read_text().split())
+    assert "coga launch bootstrap/browser-automation" in launcher
+    assert "`browser/build-automation` skill" in launcher
+    assert "`browser/playwright` is the separate lower-level browser runner" in launcher

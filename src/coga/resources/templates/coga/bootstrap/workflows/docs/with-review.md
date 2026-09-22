@@ -76,7 +76,7 @@ accurate and reachable rather than running tests that cover nothing.
    the `seed_local_config.py` attachment beside the resolved `code/implement`
    skill before the first Coga command in that checkout:
    `python /resolved/code/implement/seed_local_config.py /primary/repo/coga /feature/repo`.
-   Follow `dev/code`'s "Seed the machine-local config" contract; stop on failure.
+   Follow `dev/checkouts`' "What a fresh checkout lacks" contract; stop on failure.
    If Git metadata is read-only, use the independent-clone fallback described
    in `code/implement` and run the same helper against the clone. Both paths
    preserve the primary actor and keep local config ignored.
@@ -193,5 +193,5 @@ Either way it then scaffolds and launches the `retro/done-ticket` task that
 carries what the ticket learned into the knowledge base and deletes the
 ticket, so a preserved checkout and branch can outlive the ticket and remain
 the owner's follow-up work. Until someone runs it, the `done` ticket and its
-stale checkout stay in the repo; see `coga retire` in the `coga/cli` context
-for what it proves and refuses.
+stale checkout stay in the repo; see `coga retire` in the
+`dev/checkout-cleanup` context for what it proves and refuses.

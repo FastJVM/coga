@@ -17,9 +17,10 @@ Read the selected ticket and the relevant current homes:
 - `marketing/distribution` — the selected channel/measurement policy and
   dated account evidence, when channel work is needed.
 
-Use earlier campaign references for inspiration only. Never promote their
-post numbers, strategic fork, channel ordering, scorecard or gates into the
-current brief.
+Use earlier campaign references (archived under
+`docs/archive/launch-programs/`, not attachable) for inspiration only. Never
+promote their post numbers, strategic fork, channel ordering, scorecard or
+gates into the current brief.
 
 ## Entry condition
 

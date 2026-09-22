@@ -84,8 +84,8 @@ client's own contexts, skills, workflows, and tasks live.
 
 The rule is therefore **per file, not per directory**: the owned set is every
 repo-relative path the *installed* package owns, derived from its
-`templates/coga` tree with the same two counterpart mappings
-`tests/test_packaging.py` uses for its live/packaged twins —
+`templates/coga` tree with two counterpart mappings (the default-layout form
+of the live/packaged twin mapping) —
 `templates/coga/<rel>` → `coga/<rel>`, and
 `templates/coga/bootstrap/<contexts|skills|workflows>/<rel>` →
 `coga/<contexts|skills|workflows>/<rel>`. The installed package is the
@@ -95,7 +95,7 @@ sibling under `coga/skills/direct/`.
 
 The block below derives the set. It must run under the interpreter that backs
 the active `coga` — the ambient `python3` usually cannot import `coga` — so
-locate that interpreter first, exactly as the `coga/codebase` context does:
+locate that interpreter first, exactly as the `coga/testing` context does:
 
 ```sh
 COGA_PY=$(python3 -c 'from pathlib import Path; from shutil import which; print(Path(which("coga")).resolve().parent / "python")')
@@ -183,7 +183,7 @@ An owned path is either a bare path (owned whole) or `<path>@<allowance>`, a
 ranged path whose allowance is the bytes the shard is budgeted to read from it:
 
 ```
-shard k3 attempt=1 bytes=112400 owns: coga/tasks/recurring/**, coga/contexts/coga/architecture/SKILL.md@20000; evidence: none
+shard k3 attempt=1 bytes=112400 owns: coga/tasks/recurring/**, coga/contexts/<ns>/<large-topic>/SKILL.md@20000; evidence: none
 ```
 
 The active manifest is its **leaf assignments**: shard rows whose ids have not
@@ -230,9 +230,8 @@ paths you did not reach so Dream can re-shard them.
 
 The 60 KB rule and whole-file ownership pull against each other: a file the
 protocol forbids reading whole would, priced at full length, charge a shard for
-bytes it is never allowed to spend. Sizing `coga/contexts/coga/architecture/SKILL.md`
-(~74 KB) at full length costs half a shard's budget and forces single-file
-shards. Ranged ownership resolves that, and is the **only** departure from
+bytes it is never allowed to spend. Sizing a context over that limit at full
+length costs roughly half a shard's budget and forces single-file shards. Ranged ownership resolves that, and is the **only** departure from
 whole-file ownership.
 
 - **When.** A phase skill may declare ranged ownership for a file over the

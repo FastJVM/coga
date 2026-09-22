@@ -93,7 +93,7 @@ no checkout; the fourth is the durable worklist:
   notes, and the manual path (`coga retire <slug>` while the ticket exists;
   otherwise dispose of the recorded worktree and branch by hand). **That
   surface is per-run, not a worklist.** Autoclose's only recurring caller is
-  `recurring/autoclose-merged`, and the `coga/recurring` context is explicit
+  `recurring/autoclose-merged`, and the `coga/period-task` context is explicit
   that a period task's blackboard is scratch space for one firing, deleted
   with the task the next period; the section exists so the run record and the
   autofix analyst see what the run did, and under a period task it names the

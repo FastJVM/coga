@@ -1963,7 +1963,7 @@ def _prospective_activation_identity(
     agent — all three change how routing resolves, so classifying a recorded
     human assist from the *unactivated* draft gets both transitions wrong:
     human→agent needlessly enters strict assist handling, and agent→human misses
-    it entirely. `coga/architecture` requires launch to choose the agent and
+    it entirely. `coga/workflows` requires launch to choose the agent and
     check human handoffs from the prepared activation, so resolve it here,
     before that classification.
 

@@ -220,7 +220,7 @@ def local_branches(root: Path) -> frozenset[str] | None:
     The full `%(refname)` is stripped by hand rather than asking for
     `%(refname:short)`: git shortens a branch that shares its name with a tag
     to `heads/<name>`, which would read as "branch gone" and discharge an
-    entry whose branch still exists — the same shadowing `coga/codebase` warns
+    entry whose branch still exists — the same shadowing `coga/codebase/gotchas` warns
     about for `rev-parse --abbrev-ref`.
     """
     try:

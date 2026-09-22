@@ -1,4 +1,4 @@
-"""Coga — the repo-level company OS (see docs/vision.md)."""
+"""Coga — the repo-level company OS (see docs/contexts/product/vision/SKILL.md)."""
 
 from __future__ import annotations
 

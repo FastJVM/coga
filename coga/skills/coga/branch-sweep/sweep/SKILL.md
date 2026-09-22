@@ -82,7 +82,8 @@ a ticket is deleted without going through retire or a session dies mid-flight.
    preserve both refs and report the distinct, non-fatal
    `skipped-worktree-pinned` outcome. With it `true`, the repo has declared
    that every linked worktree of its git repository belongs to a Coga ticket
-   (the assumption is stated in the `dev/code` context, *Checkout boundary*),
+   (the assumption is stated in the `dev/checkout-cleanup` context, *Unrecorded
+   worktrees*),
    so a landed one nobody claims is finished work: GC the worktree first, then
    fall through to step 6 for its refs. The worktree proofs are retire's,
    shared through `branchcleanup.inspect_worktree_for_removal` and

@@ -5,7 +5,7 @@ is merged on GitHub, and where the ticket is on its final workflow step
 (or has no workflow). One bump = `done`. Mid-workflow merges stay alone
 — a merge there is suspicious and the human should bump explicitly.
 
-The PR link convention lives in the `dev/code` context: a `pr:` line
+The PR link convention lives in the `dev/dev-record` context: a `pr:` line
 under `## Dev` on the blackboard. We parse it directly; coga-the-CLI
 treats the blackboard as plain text on purpose.
 

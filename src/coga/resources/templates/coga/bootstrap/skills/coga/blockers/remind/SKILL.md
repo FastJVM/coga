@@ -18,7 +18,7 @@ blackboard.
 
 That status filter is the sweep's only one, and it has a known blind spot: a
 recurring **agent** period task that calls `coga block` does not stay
-`blocked`. The scheduled-run contract in `coga/recurring` requires an agent
+`blocked`. The scheduled-run contract in `coga/recurring/scheduling` requires an agent
 run to reach `done` in one launch, so when the sweep gets control back it
 rewrites the period `blocked → paused`
 (`_stop_if_unfinished_after_launch` in `src/coga/recurring_runner.py`

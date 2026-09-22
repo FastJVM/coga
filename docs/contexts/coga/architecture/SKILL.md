@@ -64,7 +64,7 @@ operating rules without a merge.
   [period-task](../period-task/SKILL.md), [dream](../dream/SKILL.md).
 - **State and notifications**: [sync](../sync/SKILL.md),
   [notifications](../notifications/SKILL.md),
-  [important](../important/SKILL.md), [digest](../digest/SKILL.md),
+  [important](../important/SKILL.md),
   [patterns](../patterns/SKILL.md), [usage](../usage/SKILL.md).
 - **Develop Coga**: [extension-model](../extension-model/SKILL.md),
   [skill-management](../skill-management/SKILL.md),

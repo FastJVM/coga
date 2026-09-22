@@ -16,7 +16,7 @@ Worktree safety model:
 
   - Only a checkout Git itself identifies as a **linked worktree of this same
     repository** is removed. An independent fallback clone (the sandbox
-    `/tmp` path in the `dev/code` context), an unrelated repo, and the primary
+    `/tmp` path in the `dev/checkouts` context), an unrelated repo, and the primary
     checkout are preserved and reported.
   - The target must still hold the ticket's recorded branch, and that branch
     must either have landed on the control branch or still match the exact head

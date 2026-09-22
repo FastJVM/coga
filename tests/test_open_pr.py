@@ -860,7 +860,7 @@ def test_open_pr_dirty_own_ticket_steers_to_stash_not_commit(tmp_path, monkeypat
     duplicate one step later; for the ticket file itself the message must say
     to preserve generated drift's text in the primary ticket and discard it
     here, while leaving room for the intentional authored-body change that
-    `dev/code` allows as implementation work.
+    `dev/dev-record` allows as implementation work.
     """
     repo = init_git_repo(tmp_path)
     bin_dir = tmp_path / "bin"

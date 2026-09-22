@@ -170,7 +170,7 @@ Rules:
   name the sections to read, copy the facts the step depends on, and leave the
   ref off `contexts:`. The threshold, the citation form, and the rule that a
   cite leaves the same-PR context-update obligation untouched are owned by
-  `coga/architecture` (`Prompt composition` → `Attach or cite`). Follow its
+  `coga/knowledge` (`Attach or cite`). Follow its
   measurement procedure with the candidate refs present, accounting for every
   planned step. Never write the context's size or token count into the ticket
   as the justification — it rots.
@@ -376,7 +376,7 @@ Hand the evaluator the path to the ticket and ask it to assess:
 Also hand the evaluator the composed prompt's size breakdown, which the
 ticket file alone cannot show — the ticket lists context *refs*, and how
 many tokens each one actually costs only exists after composition. Follow
-the measurement procedure in `coga/architecture` → `Attach or cite`, including
+the measurement procedure in `coga/knowledge` → `Attach or cite`, including
 its checkout precautions or read-only alternative. The CLI form is:
 
 ```
@@ -449,7 +449,7 @@ After confirmation, do one final cleanup pass before printing the closing line:
    whole review verbatim.
 3. If the ticket is still `status: draft`, preserve its `## Superseded designs`
    section, including every dated entry, and reset the rest of the blackboard
-   to the stock placeholder for this ticket title. Follow `dev/code` when
+   to the stock placeholder for this ticket title. Follow `dev/design-history` when
    archiving a pivot: keep retained headings nested inside the dated entry.
    Launch supplies only an archive pointer, so keep any rationale needed for
    current work in `## Description` or `## Context` during this cleanup.

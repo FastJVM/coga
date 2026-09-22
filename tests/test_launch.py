@@ -3543,7 +3543,7 @@ def test_launch_does_not_enter_assist_handling_for_a_human_to_agent_draft(
     The recorded-assist classification read the *stale* draft assignee, so this
     human->agent transition entered strict human-assist handling and performed
     the recorded-PR lookup for a step that is agent-owned once frozen.
-    `coga/architecture` requires the check to use the prepared activation's
+    `coga/workflows` requires the check to use the prepared activation's
     resolved assignee.
     """
     ref = _create_chain_task(active_task)
