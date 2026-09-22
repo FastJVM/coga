@@ -1,6 +1,6 @@
 ---
 title: Run single-repo recurring from the control worktree that already exists
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description
