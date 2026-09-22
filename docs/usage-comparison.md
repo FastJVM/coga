@@ -136,7 +136,7 @@ change its next composition; later-step instructions stay out; the frozen
 step sequence stays intact; agent rotation selects another external CLI;
 and the human handoff returns to the caller. The reserved script was detected
 but never executed. No agent was launched and no Git publication occurred.
-[Recorded checks and source revision](../coga/tasks/marketing/phase-0-audit/source-inspection-results.json).
+[Recorded checks and source revision](../coga/contexts/marketing/launch-history/phase-0-audit/source-inspection-results.json).
 
 The supported marketing correction is substantial: **lead with operating
 work through existing agents from a shared, editable body of instructions**.
@@ -702,7 +702,7 @@ the CE trial separately records its pinned revision and verification receipts.
 [^1]: Coga, [principles](../coga/contexts/coga/principles/SKILL.md), especially agents/humans, legibility and human-reviewed memory.
 [^2]: Coga, [architecture](../coga/contexts/coga/architecture/SKILL.md), ticket state machines, launch, dependency drain, step gates and prompt composition.
 [^3]: Coga, [packaged design workflow](../src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md).
-[^4]: Coga, [draft-for-human workflow](../coga/workflows/draft-for-human.md) and [marketing audit ticket](../coga/tasks/marketing/phase-0-audit/ticket.md), current saved human step.
+[^4]: Coga, [draft-for-human workflow](../coga/workflows/draft-for-human.md) and [marketing audit ticket](../coga/contexts/marketing/launch-history/phase-0-audit/audit-ticket.md), historical human-step snapshot archived on 2026-09-21.
 [^5]: Coga, [upkeep audit](upkeep-audit.md), September 11, 2026; [Dream run record](https://github.com/FastJVM/coga/blob/9cb722546/coga/tasks/recurring/dream/ticket.md#dream-run-summary), September 9, 2026 (the 2026-W37 period ticket as frozen at commit `9cb722546`; the live path is rewritten every period).
 [^6]: Coga, [prompt composer](../src/coga/compose.py) and [composition probe](build-vs-adopt.md#coga-must-meet-the-same-standard).
 [^7]: Zed, [Agent Panel](https://zed.dev/docs/ai/agent-panel).

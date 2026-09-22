@@ -22,8 +22,8 @@ account actions belong to `nicktoper`.
 Extracted from the phase-0 audit on 2026-09-09. Public observations below were
 recorded on **2026-09-02/03**; they are dated evidence, not a fresh check of a
 site, account, or community rule. Recheck applicable live rules and links
-before submission. Sources: [audit evidence](../../../tasks/marketing/phase-0-audit/step-1-findings.md)
-and [owner decisions](../../../tasks/marketing/phase-0-audit/audit-history.md).
+before submission. Sources: [audit evidence](phase-0-audit/step-1-findings.md)
+and [owner decisions](phase-0-audit/audit-history.md).
 
 | Surface | Recorded evidence | Still needed for launch |
 |---|---|---|

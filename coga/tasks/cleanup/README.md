@@ -9,7 +9,7 @@ The owner opened this directory on 2026-09-03 while finishing step 2 of
 `marketing/phase-0-audit`. That audit ran the README quickstart end to end on
 a fresh repo and found the first-run path broken in several independent ways;
 these tickets are those findings, plus the release that makes a first run
-possible at all. The dated [step-1 findings](../marketing/phase-0-audit/step-1-findings.md)
+possible at all. The dated [step-1 findings](../../contexts/marketing/launch-history/phase-0-audit/step-1-findings.md)
 hold the original evidence; check each ticket for its current state.
 
 Drain the queue with `coga megalaunch cleanup`.

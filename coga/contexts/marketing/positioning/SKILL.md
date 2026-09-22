@@ -1,36 +1,46 @@
 ---
 name: marketing/positioning
-description: Current message status, earlier positioning sources, product grounding and source limits for fresh Coga marketing work.
+description: Approved V1 instrument positioning, concrete behavior, proof and public-claim limits.
 ---
 
 # Coga positioning
 
-**Fresh start, owner direction of 2026-09-10.** The next pitch, audience,
-central story and tone are still to be decided. Earlier positioning is
-[archived as source material](../launch-history/positioning-before-reset.md).
-The previously pinned fork and three-essay campaign do not constrain the new
-choice. [The plan](../plan/SKILL.md) gives the preparation order.
+**Owner decision, 2026-09-21:** Coga is an instrument for the human using
+agents. Its purpose is to strengthen human direction and judgment, not to
+make agent autonomy the objective.
 
-## Earlier directions to consider
+## Opening and immediate behavior
 
-The September 8 owner clarification described Coga through managing what an
-AI session works from: intent, instructions, relevant knowledge and working
-state, visible and editable in a repo. It proposed showing that interaction
-before introducing “company OS” or a parallel queue. The
-[documentation ticket](../../../tasks/redo-documentation-dir-and-merge-it-with-context-b.md#owners-pitch-direction-and-proposed-authority)
-preserves that proposal and its claim check.
+> Everyone is building infrastructure for agents. Coga is building an
+> instrument for the human using them.
 
-Earlier work also explored ownership, human amplification, decluttering,
-documentation as a cache, “operations as code,” the “compile your company”
-metaphor and an internal-tool/open-source field report. Use these as material
-to evaluate, alongside newly developed treatments. They are not a required
-headline, audience or post sequence.
+The opening is the owner's rhetorical contrast, not a verified claim about
+every competitor. Qualify its universal wording where factual precision
+requires it. Coga orchestrates work itself; the distinction is where direction,
+judgment and the ability to change the system live.
 
-Product purpose remains in [vision](../../../../docs/vision.md), and behavior
-in the relevant Coga contracts. [Market thesis](../../../../docs/market-thesis.md)
-holds the longer strategic argument and dated competitor research. A fresh
-message must remain accurate about the product; verify changing competitive
-claims before using them in copy.
+> You set direction. Agents carry the work forward. When something needs
+> your judgment, they leave it for you and move on to other work. Your
+> corrections become part of how the system works next time.
+
+The queue can move on to other eligible tasks; the task awaiting judgment
+stays at its human gate or blocker. Corrections become durable through edits
+to the files future runs use, with the existing human review boundaries.
+This is not a claim of automatic learning or permission to bypass a gate.
+
+## Proof
+
+Show megalaunch carrying work forward while preserving human decisions,
+plus one concrete correction to governing guidance that changes later work.
+Support observed behavior with a public demonstration or public Coga record.
+A prompt receiving a context alone does not demonstrate the correction's
+later effect. The [idea-piece ticket](../../../tasks/marketing/idea-piece.md)
+owns selecting and presenting the example; no separate story pipeline is needed.
+
+Product purpose remains in [vision](../../../../docs/vision.md), behavior in
+Coga's contracts, and the longer strategic argument in
+[market thesis](../../../../docs/market-thesis.md). Earlier positioning is
+[historical reference](../launch-history/positioning-before-reset.md).
 
 ## Source and claim limits
 
@@ -51,13 +61,3 @@ claims before using them in copy.
   inspectable local files, explicit human judgment, and the actual workflow
   and execution behavior. Do not turn illustrative copy into a promise of
   managed autonomy or universal results.
-
-## Where the new message lands
-
-[Story and examples](../../../tasks/marketing/plan/collect-public-examples-for-the-launch.md)
-first makes options and records the owner's choice. Its planned reference is
-`coga/contexts/marketing/positioning/examples.md`; it does not exist yet.
-[Pitch and narrative](../../../tasks/marketing/plan/write-the-pitch-and-narrative.md)
-then writes the selected message and, after review, records it here with links
-to the chosen examples. The campaign ticket selects resulting formats and
-deliverables. No new pitch or campaign is approved by this inventory reset.
