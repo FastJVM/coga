@@ -3883,11 +3883,11 @@ def test_launch_refuses_released_admission_changed_during_control_fetch(
     )
     local_head = git_repo.git("rev-parse", "HEAD")
     remote_head = git_repo.git("rev-parse", "main", cwd=git_repo.origin)
-    real_control_base = coga_git._control_base_for_attempt
+    real_fetch_control = coga_git.fetch_control
     fetched: list[str] = []
 
     def edit_during_fetch(*args, **kwargs):  # type: ignore[no-untyped-def]
-        base = real_control_base(*args, **kwargs)
+        base = real_fetch_control(*args, **kwargs)
         if not fetched:
             assert ref.ticket_path.read_bytes() == released_bytes
             ref.ticket_path.write_bytes(edited_bytes)
@@ -3897,14 +3897,14 @@ def test_launch_refuses_released_admission_changed_during_control_fetch(
     def refuse_spawn(*_args, **_kwargs):  # type: ignore[no-untyped-def]
         pytest.fail("changed released admission must not spawn an agent")
 
-    monkeypatch.setattr(coga_git, "_control_base_for_attempt", edit_during_fetch)
+    monkeypatch.setattr(coga_git, "fetch_control", edit_during_fetch)
     monkeypatch.setattr(launch_module, "spawn_agent_session", refuse_spawn)
     _allow_interactive_tty(monkeypatch)
 
     result = CliRunner().invoke(app, ["launch", ref.id_slug])
 
     assert result.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.output
-    assert "strict mutation input changed before writing" in result.output
+    assert "released launch admission changed during reconciliation" in result.output
     assert "recoverable local witness was retained" in result.output
     assert len(fetched) == 1
     assert ref.ticket_path.read_bytes() == edited_bytes
@@ -3958,7 +3958,7 @@ def test_released_launch_admission_restores_witness_on_publication_failure(
         assert Ticket.read(ref.ticket_path).launch_generation == "held-generation"
         raise coga_git.GitError("simulated admission publication failure")
 
-    monkeypatch.setattr(coga_git, "_sync_paths_without_barrier", fail_publication)
+    monkeypatch.setattr(coga_git, "publish", fail_publication)
 
     with pytest.raises(
         coga_git.GitError, match="simulated admission publication failure"
