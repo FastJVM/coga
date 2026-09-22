@@ -1,6 +1,6 @@
 ---
 title: Propagate local Coga config into worktrees
-status: in_progress
+status: done
 owner: zach
 agent: claude
 workflow:
@@ -21,7 +21,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description
