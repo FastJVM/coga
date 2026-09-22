@@ -51,7 +51,30 @@ a ticket is deleted without going through retire or a session dies mid-flight.
    paths in the run record. When the merged head is not a local object it is
    fetched from `refs/pull/<number>/head` without writing a ref. The remote
    ref takes only a merged PR at its exact tip: its objects are usually not
-   local, and ancestry never authorizes deleting `<remote>/<branch>`,
+   local, and ancestry never authorizes deleting `<remote>/<branch>`.
+
+   **A rebased copy is refused by design, every week, until a human deletes
+   it.** The verdict above admits ancestors only; it has no `git cherry` /
+   patch-id equivalence check (`branchsweep.py`, `branchcleanup.py`). So a
+   local ref whose commits were re-applied under new SHAs from *another*
+   checkout — a review follow-up pushed from a scratch clone that rebased
+   onto fresh control first, or a `resolve-conflicts` rebase — and then
+   merged from that copy is reported as `has merged PR #N at <oid>, but the
+   ref carries commits touching <source paths>` and left in place, local and
+   remote: the merged PR vouches for the head *name*, but the recorded
+   worktree's pre-rebase commits are patch-equivalent rather than ancestors
+   and touch real source paths. The 2026-09-21 sweep carried six such refs
+   (`branch-sweep-landed` #811, `dream-w38-extract-backlog` #812,
+   `sweep-abandoned-record` #813, `recurring-missing-workflow` #814,
+   `title-only-validator` #815, `v2-premise-holes` #819); the W39 Dream scan
+   verified #812's shape — local tip `1d23cb4c` is a rebase of the same two
+   commits the merged head `35b9b609` carries as `8714fda3` + `a2659a86`, and
+   `git merge-base --is-ancestor 1d23cb4c 35b9b609` is false. Clear one by
+   hand after proving equivalence — `git cherry <merged-head> <tip>` printing
+   only `-` lines — with `git branch -D <branch>` and `git push <remote>
+   --delete <branch>`; or extend `merged_pr_verdict` with a patch-id check.
+   Neither is owned by a ticket yet (`clean-up-all-the-working-trees`
+   excludes branch deletion),
 5. for a branch whose **local tip** landed either way but is still held by
    a live worktree, require no open PR before removing the checkout. A merged
    remote tip alone never authorizes removing newer unmerged local work:
