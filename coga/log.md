@@ -6076,3 +6076,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-22 10:21 [narrative-candidates-md-publishes-log-text-the-own] [human:nicktoper] auto-bumped on merge of PR #841 → done
 2026-09-22 10:21 [packaged-code-workflows-never-name-coga-retire-as] [human:nicktoper] auto-bumped on merge of PR #847 → done
 2026-09-22 10:21 [preserve-edits-during-released-claim-recovery] [human:nicktoper] auto-bumped on merge of PR #842 → done
+2026-09-22 10:21 [recurring-task-to-manage-all-open-pr-and-address-c] [human:nicktoper] auto-bumped on merge of PR #857 → done
