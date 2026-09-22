@@ -33,7 +33,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 ---
 
 ## Description
@@ -602,3 +602,65 @@ and a fence-aware check preserving all pre-review ticket/blackboard bytes.
 No runtime suite was needed for this review-only change. No ticket-body edit,
 implementation, branch, or PR was produced. Existing log edits were left to
 CLI writers. Findings are the handoff, not a reason to block or rewrite the spec.
+
+## Dev
+
+branch: phone-home
+worktree: /tmp/coga-phone-home
+
+## Implementation decisions — 2026-09-22
+
+Owner confirmed implementation and invalid-inventory handling: increment the run
+marker, preserve identity/cursor, warn and complete without a snapshot.
+Current `src/coga/git.py::state_lock` is reentrant and `publish` is the explicit
+path publisher; use these successors to the design's removed barrier/sync APIs.
+
+## Implement handoff — 2026-09-22
+
+Implemented and committed as `97ce27f2e` (Add weekly PostHog usage snapshots)
+on `phone-home` in `/tmp/coga-phone-home`. Clean checkout, rebased onto
+`origin/main` (`c2268b059`); the rebase added only unrelated task/log state.
+No branch push or PR.
+
+- Closed snapshot schema, default-on shared/local config, source/CI/test gates,
+  cursor/UUID reservation, bounded capture and independent Slack worker.
+- Parent-only publication uses current `git.state_lock` / `git.publish`;
+  real bare-remote tests prove clone identity and unrelated dirty-file isolation.
+- Deterministic battery/shim and unused identity-free packaged seed; all shipped
+  twins match. No premature runtime-parent divergence exemption.
+- Policy reversal, behavioral context, README/config disclosure and operator
+  runbook landed. Marketing surfaces point to the concrete contract.
+- Checked, owner-authorized 1Password read embedded the public capture constant
+  directly without printing it. No production capture, project query, deletion,
+  dashboard or remote project mutation was performed.
+
+Verification (feature checkout unless noted):
+
+- Isolated environment: `python -m venv /tmp/coga-phone-home-venv`, then
+  `/tmp/coga-phone-home-venv/bin/python -m pip install -e '.[test]'`. Ambient
+  Python lacked tomlkit; dependency install succeeded outside the network sandbox.
+- `/tmp/coga-phone-home-venv/bin/python -m pytest`: **2813 passed**.
+- After the state-only rebase:
+  `/tmp/coga-phone-home-venv/bin/python -m pytest tests/test_telemetry.py tests/test_config.py tests/test_runner.py tests/test_recurring_shims.py tests/test_init.py tests/test_packaging.py -q`: **397 passed**.
+- Includes an installed-wheel init/suppressed-first-snapshot smoke outside
+  source trees, a real headless shim completion, HTTP serialization interception,
+  hung-worker kill/reap, false-before-worker/identity/receipt, publication CAS,
+  clone persistence, exact cursor grammar and private-content sentinels.
+- `/tmp/coga-phone-home-venv/bin/coga validate --json` from feature `coga/`:
+  237 OK, 50 warnings, two pre-existing unsynthesized-draft-blackboard errors
+  (clean-up-all-the-working-trees and v2/autotrigger-ticket-type).
+- `env -u SLACK_WEBHOOK_URL /tmp/coga-phone-home-venv/bin/coga validate --json`
+  from feature `example/coga/`: 4 OK, zero issues. The unset removes an unrelated
+  ambient legacy Slack variable, not a test/telemetry admission gate.
+- `git diff --check`: passed. `git merge-base --is-ancestor origin/main HEAD`:
+  passed. `git status --short`: empty.
+- Earlier full-run failure was a collected template path removed during that
+  run; the fresh full run above passed. No unrelated baseline repairs.
+
+Open-pr/review handoff: copy the exact wheel smoke and single-quoted HogQL
+commands from `docs/telemetry.md` into the PR. Owner must verify `project-get`
+reports 606347, then supply first/later/disabled queried-row evidence, payload
+receipt, wheel version/hash, and explain stored enrichment. HTTP acceptance
+is not ingestion acceptance. This remains the owner review gate.
+Separate-repo follow-up: Multiply's PostHog runbook event catalog should mention
+`coga_weekly_snapshot`; that repo was not edited.
