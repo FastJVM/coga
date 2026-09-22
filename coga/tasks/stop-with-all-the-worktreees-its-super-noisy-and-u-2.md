@@ -1,6 +1,6 @@
 ---
 title: stop with all the worktreees its super noisy and useless
-status: draft
+status: canceled
 owner: nicktoper
 workflow: null
 ---
