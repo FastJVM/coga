@@ -19,9 +19,15 @@ link reads it directly.
 
 ## Checkout boundary
 
-Two checkout layouts are first-class. Choose one deliberately when the branch is
-created and record it in `worktree:`; every later step reads that line to decide
-where it runs.
+Two checkout layouts are supported, and **single checkout is the default**.
+Use a separate feature checkout only when the human asks for one or the primary
+checkout cannot host the branch (it has uncommitted work to protect, or already
+holds another live ticket's branch). A linked worktree persists until
+`coga autoclose` or `coga retire` disposes of it (see below). Autoclose
+preserves every checkout when run off the control branch, and nothing disposes
+of one when a PR is merged by hand and the ticket is never retired, so
+defaulting to one worktree per ticket left operators with piles of stale ones. Record the chosen layout in `worktree:`; every later
+step reads that line to decide where it runs.
 
 **Separate feature checkout.** Treat the primary repo checkout as the Coga
 control-plane checkout and keep it on `main` when possible. Do code changes in a
