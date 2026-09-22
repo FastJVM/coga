@@ -16,10 +16,11 @@ this step just makes sure the diff they see is already clean.
    the blackboard. If there is no branch because the implement step
    recorded concrete `## Already satisfied` evidence, verify that evidence
    from the repo, add a short `## Self-QA` note, run
-   `coga mark done <slug>`, and stop. Otherwise, change into the feature
-   worktree and confirm it is
-   on the recorded branch with a clean working tree (the previous
-   `code/implement` step committed). If the branch/worktree is missing
+   `coga mark done <slug>`, and stop. Otherwise, change into the recorded
+   checkout — the feature worktree, or the primary checkout itself when
+   `worktree:` names it (the single-checkout layout in `dev/code`) — and
+   confirm it is on the recorded branch with a clean working tree (the
+   previous `code/implement` step committed). If the branch/worktree is missing
    without already-satisfied evidence, escalate per your launch mode — ask
    the attending human, or `coga block` in a queue run — because something
    is off.
@@ -89,8 +90,11 @@ this step just makes sure the diff they see is already clean.
    cannot otherwise tell a returned review from one still in flight, and the
    note is the only thing that crosses the session boundary. If you cannot wait,
    escalate per your launch mode — ask the attending human, or `coga block` in a
-   queue run — rather than bumping. Finally, return to the primary checkout and
-   run `coga bump <slug>` to advance to `pr`.
+   queue run — rather than bumping. Finally, return to the primary checkout
+   and run `coga bump <slug>` to advance to `pr` — in the single-checkout
+   layout (`dev/code`: `worktree:` names the primary checkout itself) you are
+   already there, so stay on the feature branch and bump from it; do not
+   switch to the control branch first.
 
 ## Acceptance for this step
 
