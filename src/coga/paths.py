@@ -5,7 +5,7 @@ from __future__ import annotations
 from importlib.resources import files
 from pathlib import Path
 
-from coga.config import Config
+from coga.config import Config, find_checkout_root, require_context_artifact
 
 
 _REMOVED_BUNDLED_SKILL_MESSAGES = {
@@ -131,6 +131,9 @@ def bootstrap_context_dir(cfg: Config, ref: str) -> Path:
 def resolve_context_path(cfg: Config, ref: str) -> Path | None:
     """Resolve a context ref from local contexts first, then bundled bootstrap contexts."""
     local = context_path(cfg, ref)
+    require_context_artifact(
+        cfg.contexts_root, local, checkout=find_checkout_root(cfg.repo_root),
+    )
     if local.is_file():
         return local
     bundled = bootstrap_context_path(cfg, ref)

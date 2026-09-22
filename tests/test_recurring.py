@@ -2219,6 +2219,41 @@ def test_scan_due_skips_bad_template(repo: Path, capsys) -> None:
     assert "skipping bad" in capsys.readouterr().err
 
 
+def test_scan_due_skips_template_with_invalid_context_artifact(
+    repo: Path, tmp_path: Path, capsys
+) -> None:
+    """An invalid local context (here a symlink) raises `ConfigError` from the
+    resolver; that must be reported for its template, not abort the sweep."""
+    outside = tmp_path / "outside.md"
+    outside.write_text("# outside\n")
+    artifact = repo / "contexts" / "linked" / "ctx" / "SKILL.md"
+    artifact.parent.mkdir(parents=True)
+    artifact.symlink_to(outside)
+    _write_recurring(
+        repo,
+        "bad-context",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Uses a symlinked context"
+        owner: marc
+        contexts:
+          - linked/ctx
+        ---
+
+        ## Description
+
+        Never materializes.
+        """,
+    )
+    cfg = load_config(repo)
+    scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    assert [due.template for due in scan.tasks] == ["weekly-check"]
+    assert [name for name, _ in scan.errors] == ["bad-context"]
+    assert "symlink" in scan.errors[0][1]
+    assert "skipping bad-context" in capsys.readouterr().err
+
+
 @pytest.mark.parametrize("legacy_value", ['""', "[]", "not-registered"])
 def test_template_ignores_the_deleted_recipe_key(
     repo: Path, legacy_value: str

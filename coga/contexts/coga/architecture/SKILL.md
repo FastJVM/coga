@@ -398,8 +398,8 @@ people actually write docs in. So the directory is tunable:
 contexts = "docs/contexts"
 ```
 
-Unset — the default — contexts stay at `coga/contexts/`, byte-identical to
-before the key existed. Set, the directory moves and *everything* follows it:
+Unset — the default — contexts stay at `coga/contexts/`. Set, the directory
+moves and *everything* follows it:
 ref resolution, prompt composition, `coga validate`, `coga create` /
 `coga ticket`, the git state sweep, authoring sync, and the `coga init` /
 `coga uninstall` lifecycle. `cfg.contexts_root` is the single accessor; the
@@ -430,8 +430,27 @@ least one tracked or unignored
 file, must not itself be ignored, and must not contain an ignored real context
 `SKILL.md`, so Git can reproduce everything Coga composes in a fresh clone;
 use a trackable `.gitkeep` when the root is intentionally empty. The ignored
-`_template` scaffold is exempt. The per-ref local-first fallback is unchanged
-— that is how bundled batteries work.
+`_template` scaffold is exempt from the configured-root scan.
+
+**Actual context artifacts must be reproducible too, at either root.** Before
+local-first resolution tests existence or falls back to a bundled context, it
+checks the local `SKILL.md` and every path component within the checkout.
+Context artifact symlinks and symlinked ancestors are rejected, including
+internal links, chains, dangling links, and cycles. Replace them with real
+files/directories under the contexts root. In a Git checkout an existing
+artifact must be a regular file, outside Git metadata and nested checkouts,
+and tracked or unignored so the normal state sweep can publish it. Ordinary
+untracked, unignored files remain valid; composition does not require a prior
+commit. Non-Git scaffolds can still resolve ordinary local files.
+
+Configured-root loading also checks directly discoverable artifacts; it does
+not follow directory links. Per-ref checks are authoritative for both default
+and relocated roots, including artifacts changed after config load. Invalid
+local artifacts raise actionable errors, become `broken-context` validation
+issues, and stop composition before their bytes enter a prompt. Only genuinely
+absent local refs fall back to bundled batteries. This policy concerns context
+resolution, not skills or ordinary attachments; directory links not traversed
+by a context ref are not followed or globally prohibited.
 
 The CLI reloads config at the end-of-command publication boundary, because a
 long-running agent session can change the setting after dispatch. When the

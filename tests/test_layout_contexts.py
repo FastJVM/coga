@@ -17,8 +17,8 @@ from textwrap import dedent
 import pytest
 
 from coga import git
-from coga.compose import compose_prompt
-from coga.config import load_config
+from coga.compose import ComposeError, compose_prompt
+from coga.config import ConfigError, load_config
 from coga.create import create_task
 from coga.paths import resolve_context_path
 from coga.tasks import read_ticket, resolve_task
@@ -167,6 +167,16 @@ def test_relocated_contexts_resolve_compose_validate_and_sync(
     assert "Retry-After is authoritative." not in committed
     assert "Retry-After is authoritative." in resolved.read_text()
 
+    clone = checkout.parent / "fresh-clone"
+    _git(checkout.parent, "clone", "--branch", "main", str(tmp_origin), str(clone))
+    clone_cfg = load_config(clone / "coga", require_user=False)
+    clone_ref = resolve_task(clone_cfg, "fix-retry-logic")
+    clone_prompt = compose_prompt(clone_cfg, clone_ref, read_ticket(clone_ref))
+    assert "Stripe retries on 429." in clone_prompt
+    # The unpublished edit is review work the sweep left dirty above, so a
+    # fresh clone composes the committed context, not this checkout's copy.
+    assert "Retry-After is authoritative." not in clone_prompt
+
 
 def test_default_layout_still_resolves_inside_coga_root(tmp_path: Path) -> None:
     """The unset default is unchanged: contexts stay at `coga/contexts/`."""
@@ -197,3 +207,114 @@ def test_default_layout_still_resolves_inside_coga_root(tmp_path: Path) -> None:
     assert resolve_context_path(cfg, "email/payment-flow") == (
         coga_os / "contexts" / "email" / "payment-flow" / "SKILL.md"
     )
+
+
+@pytest.mark.parametrize("relocated", [False, True])
+@pytest.mark.parametrize("kind", [
+    "external", "chain", "dangling", "cycle", "internal", "ignored",
+    "ancestor", "dangling-ancestor", "cyclic-ancestor", "tracked-internal",
+])
+def test_context_artifacts_rejected_before_fallback(
+    relocated_repo: Path, tmp_path: Path, relocated: bool, kind: str,
+) -> None:
+    if not relocated:
+        config = relocated_repo / "coga.toml"
+        config.write_text(config.read_text().replace(
+            '[layout]\ncontexts = "docs/contexts"', "",
+        ))
+    cfg = load_config(relocated_repo)
+    # Use a bundled ref: an invalid local artifact must never become a miss.
+    create_task(
+        cfg=cfg, title="Check artifact", workflow_name="code/with-review",
+        contexts=["coga/sync"], owner="marc", agent="claude", status="active",
+    )
+    artifact = cfg.contexts_root / "coga" / "sync" / "SKILL.md"
+    artifact.parent.mkdir(parents=True)
+    target = tmp_path / "machine-local.md"
+    target.write_text("MACHINE LOCAL MARKER\n")
+    if kind == "chain":
+        middle = cfg.contexts_root / "middle.md"
+        middle.symlink_to(target)
+        artifact.symlink_to(middle)
+    elif kind == "dangling":
+        artifact.symlink_to(tmp_path / "missing.md")
+    elif kind == "cycle":
+        artifact.symlink_to("SKILL.md")
+    elif kind in {"internal", "ignored", "tracked-internal"}:
+        target = relocated_repo.parent / "product-not-swept.md"
+        target.write_text("unpublished target\n")
+        if kind == "ignored":
+            _write(relocated_repo.parent / ".gitignore", "product-not-swept.md\n")
+        if kind == "tracked-internal":
+            _git(relocated_repo.parent, "add", str(target))
+            _git(relocated_repo.parent, "commit", "-m", "tracked internal target")
+        artifact.symlink_to(target)
+    elif kind in {"dangling-ancestor", "cyclic-ancestor"}:
+        artifact.parent.rmdir()
+        artifact.parent.symlink_to("sync" if kind == "cyclic-ancestor" else "missing")
+    elif kind == "ancestor":
+        artifact.parent.rmdir()
+        target = tmp_path / "external-context"
+        _write(target / "SKILL.md", "external ancestor\n")
+        artifact.parent.symlink_to(target, target_is_directory=True)
+    else:
+        artifact.symlink_to(target)
+
+    with pytest.raises(ConfigError, match="symlink"):
+        resolve_context_path(cfg, "coga/sync")
+    ref = resolve_task(cfg, "check-artifact")
+    with pytest.raises(ComposeError, match="symlink"):
+        compose_prompt(cfg, ref, read_ticket(ref))
+    report = validate_task(cfg, "check-artifact")
+    assert any(
+        i.kind == "broken-context" and "symlink" in i.message for i in report.issues
+    )
+
+    # Preserve the invalid entry in Git, remove the external bytes, and prove
+    # a fresh checkout rejects it too (including when the target is absent).
+    _git(relocated_repo.parent, "add", "-A")
+    _git(relocated_repo.parent, "commit", "-m", "invalid context")
+    clone = tmp_path / "clone"
+    _git(tmp_path, "clone", str(relocated_repo.parent), str(clone))
+    if kind in {"external", "chain"}:
+        target.unlink()
+    try:
+        clone_cfg = load_config(clone / "coga")
+    except ConfigError as exc:
+        assert relocated and "symlink" in str(exc)
+    else:
+        with pytest.raises(ConfigError, match="symlink"):
+            resolve_context_path(clone_cfg, "coga/sync")
+
+
+@pytest.mark.parametrize("relocated", [False, True])
+@pytest.mark.parametrize("kind", ["ignored", "nested-checkout", "directory"])
+def test_unpublishable_regular_context_rejected(
+    relocated_repo: Path, relocated: bool, kind: str,
+) -> None:
+    if not relocated:
+        config = relocated_repo / "coga.toml"
+        config.write_text(config.read_text().replace(
+            '[layout]\ncontexts = "docs/contexts"', "",
+        ))
+    cfg = load_config(relocated_repo)
+    artifact = cfg.contexts_root / "coga" / "sync" / "SKILL.md"
+    _write(artifact, "unpublishable context\n")
+    if kind == "ignored":
+        _write(relocated_repo.parent / ".gitignore", "**/sync/SKILL.md\n")
+    elif kind == "nested-checkout":
+        _git(artifact.parent, "init", "-q")
+    else:
+        artifact.unlink()
+        artifact.mkdir()
+    with pytest.raises(ConfigError):
+        resolve_context_path(cfg, "coga/sync")
+
+
+def test_context_attachment_symlink_does_not_change_resolution(relocated_repo: Path) -> None:
+    cfg = load_config(relocated_repo)
+    artifact = resolve_context_path(cfg, "email/payment-flow")
+    assert artifact is not None
+    (artifact.parent / "notes.md").symlink_to("missing-notes.md")
+    (artifact.parent / "attachments").symlink_to(relocated_repo, target_is_directory=True)
+    assert resolve_context_path(load_config(relocated_repo), "email/payment-flow") == artifact

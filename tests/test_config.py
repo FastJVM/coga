@@ -1589,3 +1589,33 @@ def test_layout_in_local_toml_rejected(layout_repo: Path) -> None:
         f.write('[layout]\ncontexts = "docs/contexts"\n')
     with pytest.raises(ConfigError, match=r"coga.local.toml has unknown"):
         load_config(layout_repo)
+
+
+def test_layout_context_artifact_symlink_rejected(layout_repo: Path) -> None:
+    contexts = layout_repo / "docs" / "contexts"
+    context = contexts / "team" / "style"
+    context.mkdir(parents=True)
+    (contexts / ".gitkeep").write_text("")
+    (context / "SKILL.md").symlink_to(layout_repo / "absent.md")
+    _set_layout_contexts(layout_repo, "docs/contexts")
+
+    with pytest.raises(ConfigError, match="symlink"):
+        load_config(layout_repo)
+
+
+def test_layout_ignored_context_scaffold_remains_allowed(layout_repo: Path) -> None:
+    contexts = layout_repo / "docs" / "contexts"
+    scaffold = contexts / "_template" / "SKILL.md"
+    scaffold.parent.mkdir(parents=True)
+    scaffold.write_text("scaffold\n")
+    (contexts / ".gitkeep").write_text("")
+    (layout_repo / ".gitignore").write_text("**/_template/\n")
+    _set_layout_contexts(layout_repo, "docs/contexts")
+    assert load_config(layout_repo).contexts_root == contexts
+
+
+def test_layout_contexts_cyclic_root_rejected(layout_repo: Path) -> None:
+    (layout_repo / "loop").symlink_to("loop")
+    _set_layout_contexts(layout_repo, "loop")
+    with pytest.raises(ConfigError, match="cyclic symlink"):
+        load_config(layout_repo)

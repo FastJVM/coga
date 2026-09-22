@@ -1067,7 +1067,15 @@ def _check_refs(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
 
     if _is_string_list(ticket.frontmatter.get("contexts", [])):
         for ref_name in ticket.contexts:
-            if resolve_context_path(cfg, ref_name) is None:
+            try:
+                context = resolve_context_path(cfg, ref_name)
+            except ConfigError as exc:
+                out.append(Issue(
+                    kind="broken-context", task=task_label,
+                    message=str(exc), severity="error",
+                ))
+                continue
+            if context is None:
                 out.append(Issue(
                     kind="broken-context",
                     task=task_label,

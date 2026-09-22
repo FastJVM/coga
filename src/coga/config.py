@@ -1221,7 +1221,13 @@ def resolve_layout_contexts_path(raw: object, repo_root: Path) -> Path | None:
             "default `contexts/` directory beside coga.toml."
         )
 
-    resolved = (checkout / candidate).resolve()
+    try:
+        resolved = (checkout / candidate).resolve()
+    except (OSError, RuntimeError) as exc:
+        raise ConfigError(
+            f"[layout].contexts ({value!r}) cannot be resolved; replace any "
+            "cyclic symlink with a real directory inside the checkout."
+        ) from exc
     if resolved == checkout:
         raise ConfigError(
             f"[layout].contexts ({value!r}) resolves to the git checkout root "
@@ -1272,6 +1278,83 @@ def resolve_layout_contexts_path(raw: object, repo_root: Path) -> Path | None:
                 f"checkout as {repo_root} so Coga can sync them atomically."
             )
     return resolved
+
+
+def require_context_artifact(
+    contexts_root: Path,
+    artifact: Path,
+    *,
+    checkout: Path | None,
+    trackable: set[Path] | None = None,
+) -> None:
+    """Check local context paths before following links or treating them as absent.
+
+    Shared by configured-root admission and per-ref resolution. Non-Git
+    scaffolds retain ordinary-file resolution; in a checkout the file must be
+    tracked or eligible for the next state sweep. Attachments are not callers.
+    """
+    root = contexts_root.absolute()
+    artifact = artifact.absolute()
+    if not artifact.is_relative_to(root) or ".." in artifact.parts:
+        raise ConfigError(f"Context artifact {artifact} must stay beneath {root}.")
+    anchor = checkout or root
+    if not root.is_relative_to(anchor):
+        raise ConfigError(f"Context root {root} is outside the checkout {anchor}.")
+    current = anchor
+    for part in ("", *artifact.relative_to(anchor).parts):
+        current = current / part
+        if current.is_symlink():
+            raise ConfigError(
+                f"Context artifact {artifact} traverses the symlink at {current}. "
+                "Replace the link with a real directory or context file inside "
+                "the contexts root; internal context symlinks are also unsupported."
+            )
+        if current != anchor and (
+            current.name == ".git" or (current / ".git").exists()
+        ):
+            raise ConfigError(
+                f"Context artifact {artifact} enters Git metadata or a nested "
+                f"checkout at {current}. Move it into this checkout's contexts root."
+            )
+        if current.exists() and current != artifact and not current.is_dir():
+            raise ConfigError(
+                f"Context artifact {artifact} has a non-directory ancestor {current}."
+            )
+    if not artifact.exists():
+        return
+    if not artifact.is_file():
+        raise ConfigError(f"Context artifact {artifact} is not a regular file.")
+    if checkout is None:
+        return
+    if trackable is None:
+        try:
+            result = subprocess.run(
+                [
+                    "git", "-C", str(checkout), "--literal-pathspecs", "ls-files",
+                    "--cached", "--others", "--exclude-standard", "-z", "--",
+                    artifact.relative_to(checkout).as_posix(),
+                ],
+                capture_output=True, check=False,
+            )
+        except OSError as exc:
+            raise ConfigError(
+                f"Cannot verify context artifact {artifact} with Git: {exc}"
+            ) from exc
+        if result.returncode != 0:
+            raise ConfigError(
+                f"Cannot verify context artifact {artifact} with Git: "
+                f"{result.stderr.decode(errors='replace').strip()}"
+            )
+        trackable = {
+            checkout / os.fsdecode(path)
+            for path in result.stdout.split(b"\0") if path
+        }
+    if artifact not in trackable:
+        raise ConfigError(
+            f"Context artifact {artifact}: context file is neither tracked nor "
+            "unignored in the host checkout. Remove the matching ignore rule "
+            "or force-add the context file, then retry."
+        )
 
 
 def _require_trackable_context_entry(checkout: Path, contexts_root: Path) -> None:
@@ -1359,17 +1442,15 @@ def _require_trackable_context_entry(checkout: Path, contexts_root: Path) -> Non
             "`.gitkeep`, then retry."
         )
 
-    for artifact in contexts_root.rglob("SKILL.md"):
-        relative = artifact.relative_to(contexts_root)
-        if "_template" in relative.parts:
-            continue
-        if artifact.absolute() not in trackable:
-            raise ConfigError(
-                f"[layout].contexts contains {relative}, but that context file "
-                "is neither tracked nor unignored in the host checkout. Coga "
-                "would compose it locally while the state sweep silently "
-                "omitted it. Remove the matching ignore rule or force-add the "
-                "context file, then retry."
+    # Never follow directory links or inspect ordinary attachments. Per-ref
+    # resolution checks every ancestor, including dangling directory links
+    # that cannot be distinguished from dangling attachments in this scan.
+    for directory, dirs, files in os.walk(contexts_root):
+        dirs[:] = [name for name in dirs if name != "_template"]
+        if "SKILL.md" in files or "SKILL.md" in dirs:
+            require_context_artifact(
+                contexts_root, Path(directory) / "SKILL.md", checkout=checkout,
+                trackable=trackable,
             )
 
 
