@@ -6035,3 +6035,4 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-21 17:11 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-09-21 20:25 [autoclose-should-be-script-only] [human:nicktoper] created (status=draft)
 2026-09-21 21:31 [bootstrap/orient] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
+2026-09-21 21:59 [autoclose-preserved-checkout-remedies] [human:nicktoper] created (status=draft)
