@@ -6090,3 +6090,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-22 10:26 [autoclose-preserved-checkout-remedies] [git] sync refused: coga/tasks/autoclose-preserved-checkout-remedies.md: control copy changed since this checkout last saw it (control: status='draft' step=1; here: status='in_progress' step=1); take control's copy with `git checkout origin/main -- coga/tasks/autoclose-preserved-checkout-remedies.md` and redo the edit
 2026-09-22 10:26 [autoclose-preserved-checkout-remedies] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-09-22 10:30 [don-t-recurr-for-inactive-repo] [human:nicktoper] created (status=draft)
+2026-09-22 10:30 [autoclose-preserved-checkout-remedies] [git] sync refused: coga/tasks/autoclose-preserved-checkout-remedies.md: control copy changed since this checkout last saw it (control: status='draft' step=1; here: status='in_progress' step=1); take control's copy with `git checkout origin/main -- coga/tasks/autoclose-preserved-checkout-remedies.md` and redo the edit
+2026-09-22 10:30 [don-t-recurr-for-inactive-repo-2] [human:nicktoper] created (status=draft)
