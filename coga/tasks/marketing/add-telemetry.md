@@ -33,16 +33,17 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (review-design)
+step: 4 (implement)
 ---
 
 ## Description
 
 Give Coga a basic product-market-fit signal: how many repos run it, how many
 work tickets each has, and whether those tickets move. Ship a weekly,
-deterministic `phone-home` recurring battery: one `coga_heartbeat` per run,
-plus one lifetime attempt at `coga_installed`. Use a new Coga PostHog project,
-never Multiply's project. Telemetry defaults on; `[telemetry] enabled = false`
+deterministic `phone-home` recurring battery: one `coga_weekly_snapshot`
+attempt per run, and no other event. Send it to the existing FastJVM PostHog
+project `606347` shared with Multiply (see the 2026-09-22 decision below).
+Telemetry defaults on; `[telemetry] enabled = false`
 in shared or local config disables telemetry delivery and its Slack receipt.
 Ordinary commands do not capture events.
 
@@ -50,29 +51,53 @@ Ordinary commands do not capture events.
 principles #5 telemetry ban; accept a small/biased sample; identify the repo
 with committed state shared by clones; run weekly Monday morning; exclude
 recurring housekeeping from counts and movement; accept lost events with no
-retries, including a lost install event; define movement as forward advances
+retries; define movement as forward advances
 plus completions because final `bump` and `mark done` have identical audit
 messages. These choices are settled. No additional metrics.
+
+**Owner decisions, nicktoper, attended session 2026-09-22:** Coga installs no
+scheduler, so a recurring battery only reaches repos whose operator runs
+sweeps; the owner accepts that it measures *repos with an active sweep*, not
+the installed base. Accordingly, drop the `coga_installed` event (it could
+only ever mean "first sweep") and all install-attempt state. The single event
+is a weekly usage snapshot, not a liveness heartbeat, so it is named
+`coga_weekly_snapshot`; it carries the version/platform fields
+(`os_name`, `os_version`, `python_version`) that the install event used to
+carry. A repo's first reporting run is its earliest snapshot row.
+Disclosure and docs must say plainly that this is not an install count.
+
+Same session: **reuse Multiply's PostHog project** instead of creating a Coga
+one — both are temporary, low-volume trackers and the owner wants one
+dashboard for now. Project: organization `FastJVM`
+(`01a09710-ae22-0000-75fe-78a6a6f047f1`), US Cloud, project id `606347`
+(currently named "Default project"), IP discard on and GeoIP transformation
+disabled per `multiply/infra/posthog/README.md`. Capture key source:
+`op://coga/multiply-posthog-project-key-production/password`. Accepted
+tradeoff: Coga is a public AGPL repo, so embedding the constant publishes
+Multiply's write-only capture key; anyone can then inject spam events into
+the shared project, and rotating the key breaks already-shipped Multiply
+builds. Coga rows are separated by the `coga_` event-name prefix. Moving to a
+dedicated project later is a new key constant plus a Coga release; no config
+option is added for it.
 
 ### Acceptance criteria
 
 - [ ] Fresh installed-package `coga init` delivers the battery and disclosure.
-  Its first due operator sweep attempts install and heartbeat without an
-  agent; later runs attempt heartbeat only. Schedule is `0 7 * * 1`, as for
-  branch-sweep. Coga installs no scheduler; install means first eligible
-  telemetry run, not download or execution of `init` itself.
+  Every due operator sweep, including the first, attempts exactly one
+  `coga_weekly_snapshot` without an agent. Schedule is `0 7 * * 1`, as for
+  branch-sweep. Coga installs no scheduler; repos that never sweep never
+  report, and nothing is sent by download or by `init` itself.
 - [ ] The same random repo UUID survives subsequent runs and a synced clone.
   State remains legible in the recurring template blackboard. Quiet, disabled,
   failed-delivery, and development-suppressed runs update the run marker
-  without a stale-state alert. Disabled/suppressed runs mint no identity and
-  consume no install attempt.
+  without a stale-state alert. Disabled/suppressed runs mint no identity.
 - [ ] Counts cover non-recurring tasks in both supported task shapes, grouped
   into all seven lifecycle statuses with explicit zeros. Movement counts only
   the three documented forward/completion message forms. Tests pin scope,
   grammar, cursor baseline, quiet runs, and rewrite/truncation behavior.
 - [ ] The actual HTTP serializer passes exact envelope/property-set assertions
-  for both event kinds, including types and provenance. Sentinel private
-  content seeded in tasks/config/logs appears nowhere in either request.
+  for the single event, including types and provenance. Sentinel private
+  content seeded in tasks/config/logs appears nowhere in the request.
 - [ ] Shared/local config precedence is tested, including local true overriding
   shared false; malformed tables, unknown keys, and non-boolean values fail
   at config load. False exits before identity, capture-worker creation, or
@@ -92,7 +117,7 @@ messages. These choices are settled. No additional metrics.
 - [ ] Policy/context updates, disclosure, runbook, and every packaged twin
   land with implementation. The PR includes exact verification commands and
   the owner-run HogQL proof below. A capture HTTP success is not acceptance:
-  the owner must query both rows in the Coga project at review.
+  the owner must query the snapshot rows in project `606347` at review.
 
 ### Proposed shape
 
@@ -135,8 +160,8 @@ to `recurring` or under `recurring/`. Keep drafts, parked v2 tickets, and
 terminal tickets still on disk: this is the current inventory, not a lifetime
 count. The discovery API already excludes template names, README files, and
 attachments. Invalid tickets are not silently assigned an invented status:
-report a local warning and skip that heartbeat rather than send partial
-counts. Do not consume the install attempt until a valid payload is ready.
+report a local warning and skip that snapshot rather than send partial
+counts.
 
 Count one movement for a complete, valid audit-envelope line whose ref is
 outside the recurring namespace and whose message starts with one of:
@@ -171,9 +196,8 @@ log data. Tests cover equal timestamps and out-of-order new timestamps.
 
 Store a compact, readable single-line JSON value after `period_state:` in
 the parent blackboard: schema version, monotonically increasing run number,
-nullable repo UUID, byte offset/prefix digest, `installed_attempted`, and
-`installed_sent`. The latter means HTTP acceptance only, never proven
-PostHog ingestion. Each invocation increments run number even when offset
+nullable repo UUID, and byte offset/prefix digest. No delivery outcome is
+persisted: nothing is ever retried. Each invocation increments run number even when offset
 cannot move; that is what satisfies the declared-state check on quiet runs.
 Preserve unrelated blackboard prose and every byte above the fence.
 
@@ -187,14 +211,17 @@ no-git/disabled-git behavior still applies, with local state authoritative.
 
 Ordering: gate delivery first; on disabled/development-suppressed runs update
 only the local run marker and baseline cursor, sync, and return. On an enabled
-run with valid input, mint a UUID v4 if absent, prepare payloads, and persist
-cursor/run number plus `installed_attempted=true` before spawning transport.
-Then attempt install if newly claimed, followed by heartbeat regardless of
-install failure. Save `installed_sent=true` only for an accepted install
-response, without resetting the attempted flag. No failure rolls back the
-cursor or makes an event eligible for replay. A crash after reservation can
-lose an event; this is the accepted no-retry tradeoff. Suppression followed by
-re-enabling must not backfill the disabled interval.
+run with valid input, mint a UUID v4 if absent, prepare the payload, and
+persist cursor/run number before spawning transport, then attempt the one
+snapshot. Nothing is written back after transport except the period report.
+No failure rolls back the cursor or makes an event eligible for replay. A crash after reservation can
+lose an event; this is the accepted no-retry tradeoff. Disabled runs baseline
+the cursor, but no suppression marker is persisted (owner, 2026-09-22): the
+first enabled run after re-enabling counts log lines appended since the last
+disabled sweep, including ones from while telemetry was off. Only that
+aggregate count leaks. Document this in the `coga/telemetry` context and the
+disclosure ("disabling stops sending; movement from the gap may appear in the
+first count after re-enabling"); test the behavior rather than prevent it.
 
 Compare-and-swap/local locking and the sweep's existing control refresh
 protect ordinary serialized runs. Committed identity makes synced clones
@@ -207,7 +234,7 @@ local evidence of publication failure through the existing sync behavior.
 
 Use a direct HTTPS POST to the US capture endpoint
 `https://us.i.posthog.com/i/v0/e/`, with TLS verification and no redirects.
-Embed the new project's write-only capture key in one constant in
+Embed project `606347`'s write-only capture key in one constant in
 `src/coga/telemetry.py`. No SDK enrichment. The exact JSON envelope is
 `api_key`, `event`, `distinct_id`, `timestamp`, `properties`: fixed event
 name, persisted repo UUID, and UTC occurrence timestamp. Identity, event
@@ -216,8 +243,7 @@ contain only the following counts and bounded version/platform strings.
 
 | Event | Exact properties |
 | --- | --- |
-| `coga_installed` | `coga_version`, `os_name`, `os_version`, `python_version` |
-| `coga_heartbeat` | `coga_version`, `tickets_draft`, `tickets_active`, `tickets_in_progress`, `tickets_blocked`, `tickets_paused`, `tickets_done`, `tickets_canceled`, `movement_count` |
+| `coga_weekly_snapshot` | `coga_version`, `os_name`, `os_version`, `python_version`, `tickets_draft`, `tickets_active`, `tickets_in_progress`, `tickets_blocked`, `tickets_paused`, `tickets_done`, `tickets_canceled`, `movement_count` |
 
 Counts are nonnegative integers, never booleans. Coga version comes from
 installed package metadata, Python version from numeric interpreter version,
@@ -248,11 +274,11 @@ closed schema, and performs one POST. Keep the worker private to this module,
 not an extra public recipe/config surface. Do not print credentials, request
 bodies, response bodies, or raw exceptions. Return a small fixed outcome
 (accepted, rejected, network-error, timed-out) to the parent. Bound any read
-of response data. Maximum capture wait is six seconds on the first run and
-three on subsequent runs, apart from process teardown overhead.
+of response data. Maximum capture wait is three seconds per run, apart from
+process teardown overhead.
 
-After capture, format the same keyless event envelope(s), excluding only
-`api_key`, as a single Slack receipt with each attempt's outcome. Say
+After capture, format the same keyless event envelope, excluding only
+`api_key`, as a single Slack receipt with the attempt's outcome. Say
 "attempted / HTTP accepted", never "ingested". Use the existing notification
 channel through `notification.post(..., fatal=False, record_failure=False)`
 in a separately bounded worker (3 seconds); skip if Slack is disabled. A
@@ -295,7 +321,10 @@ for stale absolute bans and fix summaries in the same PR.
 
 Add `docs/telemetry.md` for lazy operator procedures: project setup/read-back,
 key source and release-based rotation, query commands, and the persons API
-deletion procedure adapted from Multiply with Coga's project ID. Link to the
+deletion procedure, all against shared project `606347`: link to Multiply's
+runbook for project settings rather than restating them, filter every Coga
+query by `event = 'coga_weekly_snapshot'`, and document the switch-to-a-
+dedicated-project path (new constant + release). Link to the
 context for the schema rather than duplicating it. Point marketing/distribution,
 marketing/map, and build-the-launch-plan at the concrete contract if their
 old placeholder descriptions remain. Existing marketing contexts have no
@@ -318,13 +347,17 @@ exact serialization, and Slack independence. Finish with `python -m pytest`,
 `coga validate --json`, and `git diff --check`; report baseline failures
 separately. The design step itself changes only this ticket.
 
-At owner review-design: create the Coga project in Multiply's organization,
-confirm IP discard and disabled GeoIP, store its capture key in the 1Password
-`coga` vault, and record project ID and exact item reference on this blackboard.
-Implementation must not begin without those inputs. Do not read or expose
-the operator credential; the capture constant is deliberately public/write-only.
-The operator CLI's credential may still target Multiply: require `project-get`
-to report the recorded Coga project before any verification query or deletion.
+Project inputs are settled (2026-09-22 decision above); no new project or
+vault item is created. At implement, source the constant with a checked
+`op read 'op://coga/multiply-posthog-project-key-production/password'`
+(nonempty; never echo it or pass it as a shell argument), or have the owner
+paste it locally if desktop authorization is unavailable. Do not read or
+expose the operator credential (`~/.posthog/credentials.json`); the capture
+constant is deliberately public/write-only. Require `project-get` to report
+project `606347` before any verification query or deletion. Multiply's
+runbook lists the event kinds expected in the project; note as a follow-up
+(separate repo, not this PR) that `coga_weekly_snapshot` rows now appear
+there too.
 
 At implementation/open-pr, prepare a clean wheel-install smoke procedure and
 put exact `posthog-cli api call --json execute-sql '<JSON>'` commands in the
@@ -337,20 +370,21 @@ SELECT event, distinct_id, timestamp, properties,
        JSONExtractKeys(properties) AS property_keys
 FROM events
 WHERE distinct_id = '<repo UUID>'
-  AND event IN ('coga_installed', 'coga_heartbeat')
+  AND event = 'coga_weekly_snapshot'
 ORDER BY timestamp
 ```
 
-Both rows must exist, match the prepared payload values, and contain no IP,
-GeoIP, or unallowlisted measured fields. Record any service-owned routing
-metadata separately from client properties; unexpected enrichment blocks
-acceptance until explained and corrected. Run a later heartbeat with a known
-advance/completion and confirm install is not repeated. Set local telemetry
+The first-run row must exist, match the prepared payload values (movement
+zero), and contain no IP, GeoIP, or unallowlisted measured fields. Record any
+service-owned routing metadata separately from client properties; unexpected
+enrichment blocks acceptance until explained and corrected. Run a later
+snapshot with a known advance/completion and confirm a second row with the
+same repo UUID and the expected `movement_count`. Set local telemetry
 false, run again, and query the same repo UUID over the new time window to
 confirm no new capture row; pair this with the automated no-worker/no-HTTP
 assertions, since absent rows alone do not prove absent requests. Record the
 query text/results and wheel version in the PR. No dashboard build required;
-at most one saved insight per agreed quantity. Heartbeats, not a sum of all
+at most one saved insight per agreed quantity. Snapshots, not a sum of all
 historical status counts, supply each repo's current inventory.
 
 ### Out of scope
@@ -359,8 +393,9 @@ Per-command instrumentation; launches, agent/session/token metrics; recurring
 housekeeping metrics; prompts/first-run consent dialogs; SDKs or queues;
 retries/replay; exact distributed delivery or a new audit format; hosted
 operational state; runtime endpoint/key options; new scheduler; retention or
-deletion tooling; more than three saved insights. A missed install is accepted
-and must not grow a retry system. This is one bounded implementation PR plus
+deletion tooling; more than three saved insights; any install/init-time
+event or installed-base count. A missed snapshot is accepted and must not grow
+a retry system. This is one bounded implementation PR plus
 owner setup and manual verification gates.
 
 ## Context
@@ -405,8 +440,9 @@ owner setup and manual verification gates.
 - Reference implementation and operations: `/home/n/Code/multiply/infra/posthog/README.md`
   (Settings, Keys, CLI, Deleting a person), and its
   `coga/tasks/v1/telemetry/posthog/3-client.md` and
-  `4-embed-the-capture-key-as-a-constant.md`. Copy the operational shape,
-  never the project ID `606347`, key, or product payload.
+  `4-embed-the-capture-key-as-a-constant.md`. Reuse its project `606347` and
+  capture key (owner decision 2026-09-22); copy the operational shape, never
+  its product payload or its operator credential.
 - PostHog's current [API overview](https://posthog.com/docs/api) documents
   the public US capture host and project-token/private-credential split;
   verify concrete capture acceptance with the queried-row procedure above.
@@ -423,14 +459,33 @@ owner setup and manual verification gates.
 Owner confirmed in this attended session:
 - Exclude recurring housekeeping from inventory and movement; no extra metrics.
 - One lifetime install attempt and one heartbeat attempt per weekly run;
-  accept lost events without retries.
+  accept lost events without retries. *(Superseded 2026-09-22, see below.)*
 - Movement means forward advances plus completions, including explicit done
   and auto-close; keep the current audit format.
 
 The existing approved reversal, weekly schedule, repo identity, default-on
-switch, new Coga project, and owner verification gates remain settled.
+switch, new Coga project (superseded 2026-09-22: reuse `606347`), and owner
+verification gates remain settled.
 The attached period-task context does not make this marketing ticket a
 recurring period; its design notes belong on this blackboard.
+
+## Revision — 2026-09-22 (owner, attended ticket edit)
+
+A recurring battery cannot observe installs: Coga ships no scheduler, so only
+repos whose operator sweeps ever report. Owner accepted that scope and:
+- dropped `coga_installed` plus `installed_attempted`/`installed_sent` state;
+- renamed `coga_heartbeat` → `coga_weekly_snapshot` (it is a usage snapshot,
+  not a liveness ping);
+- moved `os_name`, `os_version`, `python_version` onto the snapshot.
+Body updated throughout (acceptance, state, wire table, transport wait now 3 s,
+HogQL proof, out of scope). Evaluator finding 1 (no-backfill after
+suppression) still stands; the "install-result write" and "skips install"
+parts of the optional recommendations are now moot.
+- Finding 1: owner accepts the re-enable backfill as minor; documented, not
+  prevented.
+- Reuse Multiply's PostHog project `606347` (one dashboard; both trackers are
+  temporary/low volume); accepts publishing its write-only key in public Coga.
+  Project ID/key-item prerequisites are therefore resolved.
 
 ## Handoff
 
@@ -446,10 +501,11 @@ Pre-existing `coga/log.md` changes were left for CLI writers.
 
 ## Open Questions
 
-No unanswered product questions from this design session. Owner prerequisites
-at review-design remain: create/configure the Coga PostHog project, record its
-ID here, and provide the exact 1Password item reference in the coga vault.
-Those inputs gate implementation, not design evaluation.
+Project prerequisites resolved 2026-09-22: reuse Multiply's project `606347`,
+key at `op://coga/multiply-posthog-project-key-production/password` (see
+Description). Evaluator finding 1 resolved 2026-09-22 by narrowing the
+promise: the post-re-enable backfill is documented, not prevented (see
+Persistent state and ordering). No open prerequisites remain.
 
 ## Design validation
 

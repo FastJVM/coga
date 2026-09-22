@@ -6120,3 +6120,5 @@ CONFLICT (content): Merge conflict in coga/tasks/write-real-coga-documentation-c
 2026-09-22 12:02 [stop-with-all-the-worktreees-its-super-noisy-and-u-2] [human:nicktoper] canceled (draft → canceled): Duplicate of stop-with-all-the-worktreees-its-super-noisy-and-u (created twice)
 2026-09-22 12:04 [redo-documentation-dir-and-merge-it-with-context-b] [human:nicktoper] advanced to step 4 (implement) → claude
 2026-09-22 12:04 [improve-pr-check] [human:nicktoper] created (status=draft)
+2026-09-22 11:56 [marketing/add-telemetry] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
+2026-09-22 14:26 [marketing/add-telemetry] [human:nicktoper] advanced to step 4 (implement) → claude — Design approved: single coga_weekly_snapshot event, shared PostHog project 606347
