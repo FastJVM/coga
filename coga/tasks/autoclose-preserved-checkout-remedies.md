@@ -41,3 +41,51 @@ The closed PRs carry reviewed prose and tests for both rules (autoclose/sweep sk
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: autoclose-checkout-remedies
+worktree: /home/n/Code/coga-autoclose-remedies
+
+## Decisions
+
+- Debt rule (asked the human, 2026-09-22): only **this repo's primary
+  checkout** drops the worktree half. A foreign-linked worktree or an
+  independent clone stays on the worklist (it's the only durable trace), with
+  an owner-named remedy. So the probe is a classifier
+  (`git.classify_checkout` → primary / linked / foreign-linked / standalone /
+  None), not a bare tri-state bool; retire still requires `linked` and
+  preserves on every other verdict, unknown included.
+
+## Implemented (commit eb29d9415, rebased on origin/main 6854acdfa)
+
+- `git.classify_checkout(root, path)` → `CheckoutRelation(kind, owner)`:
+  `primary` / `linked` / `foreign-linked` (owner = that repo's main worktree)
+  / `standalone`, or None (unreadable, a subdir rather than a checkout root,
+  missing). Compares common dirs, so it holds from a recurring control worktree.
+- `branchcleanup._is_linked_worktree_of` delegates to it (only `linked`
+  passes); `WorktreeCleanupResult.not_linked` flags that refusal.
+- `retire_worklist.is_primary_checkout` is the one debt exception: used by
+  `autoclose._recorded_worktree` (closure time), the backlog walk in
+  `_dispose_checkouts` (entry with nothing left → skipped), and `is_discharged`.
+- `CheckoutOutcome.manual_command` names owner-specific `git -C` commands for
+  foreign-linked, "remove by hand" for standalone/unreadable, and branch-only
+  cleanup for a worktree already gone; the coga-important line carries the
+  remedy for not-linked refusals.
+- Prose: sweep skill (new "primary checkout is not debt" + "Remedies"
+  sections), recurring context, packaged cli context, autoclose-merged
+  template, docs/operations.md — live and packaged twins byte-identical.
+- Tests: test_git (classifier), test_retire_worklist (discharge), 
+  test_autoclose_dispose (cross-repo, clone, primary closure, primary backlog
+  entry), test_autoclose (manual_command variants). Full suite: 2747 passed
+  (one packaging test first failed only because the fresh uv venv had no pip).
+
+## Adjacent staleness (not fixed here)
+
+- `coga/workflows/autoclose-merged/sweep.md` (+ packaged twin) and
+  `docs/operations.md` "Autoclose's retire worklist" still describe the
+  pre-#839 design ("never removes one itself" / "never deletes their feature
+  checkouts"). This PR touched only the discharge-rule sentence in the docs.
+- The live `coga/recurring/autoclose-merged/retires.md` keeps its old header
+  prose (the header is written only when the file is minted); left alone to
+  avoid union-merge churn on a control-branch-written file.
