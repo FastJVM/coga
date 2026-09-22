@@ -152,7 +152,7 @@ stage, the next announcement launch can use an edited brief, corrected
 release facts and the saved choice together. The
 [composer](../src/coga/compose.py) reads selected context, current-step
 instructions and the task's working notes from disk. The earlier
-[isolated checks](../coga/tasks/marketing/phase-0-audit/source-inspection-results.json)
+[isolated checks](../coga/contexts/marketing/launch-history/phase-0-audit/source-inspection-results.json)
 verified those composition and handoff mechanisms. Edits affect the next
 composition; already running sessions do not receive them automatically.
 An existing ticket's step sequence is frozen, so changing a workflow

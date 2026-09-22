@@ -9,7 +9,7 @@ The owner opened this directory on 2026-09-03 while finishing step 2 of
 `marketing/phase-0-audit`. That audit ran the README quickstart end to end on
 a fresh repo and found the first-run path broken in several independent ways;
 these tickets are those findings, plus the release that makes a first run
-possible at all. The dated [step-1 findings](../marketing/phase-0-audit/step-1-findings.md)
+possible at all. The dated [step-1 findings](../../contexts/marketing/launch-history/phase-0-audit/step-1-findings.md)
 hold the original evidence; check each ticket for its current state.
 
 Drain the queue with `coga megalaunch cleanup`.
@@ -29,7 +29,9 @@ mechanism.
 
 ## Not here
 
-- `marketing/readme-top` and `marketing/discord` are marketing work with their
-  own tickets, not cleanup.
-- The community home decision belongs to `marketing/discord`; the hygiene
-  ticket here deliberately stops short of it.
+- `marketing/readme-top` owns the README and the existing demo's accuracy
+  check. It absorbed `cleanup/check-the-demo-video-against-current-cli-names`;
+  a new video is not a V1 launch prerequisite.
+- Community setup is outside the approved V1 campaign. The superseded
+  `marketing/discord` ticket was removed; repository hygiene does not create
+  a community requirement.

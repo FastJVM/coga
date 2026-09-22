@@ -273,7 +273,7 @@ rescoped, or canceled.
 
 ## post-async-megalaunch
 
-Source: [coga/tasks/marketing/post-async-megalaunch.md](../../../tasks/marketing/post-async-megalaunch.md).
+Source: `coga/tasks/marketing/post-async-megalaunch.md` (removed in the V1 consolidation).
 
 ### Description
 
@@ -305,7 +305,7 @@ the ticket's older bookkeeping name does not constrain it.
 
 ## post-you-own-it
 
-Source: [coga/tasks/marketing/post-you-own-it.md](../../../tasks/marketing/post-you-own-it.md).
+Source: `coga/tasks/marketing/post-you-own-it.md` (removed in the V1 consolidation).
 
 ### Description
 
@@ -332,7 +332,7 @@ the ticket's older bookkeeping name does not constrain it.
 
 ## post-doc-as-cache
 
-Source: [coga/tasks/marketing/post-doc-as-cache.md](../../../tasks/marketing/post-doc-as-cache.md).
+Source: `coga/tasks/marketing/post-doc-as-cache.md` (removed in the V1 consolidation).
 
 ### Description
 
@@ -379,7 +379,7 @@ page. Top only — not a full rewrite.
 
 ## discord
 
-Source: [coga/tasks/marketing/discord.md](../../../tasks/marketing/discord.md).
+Source: `coga/tasks/marketing/discord.md` (removed in the V1 consolidation).
 
 ### Description
 

@@ -12,7 +12,7 @@ sequence.
 Read the selected ticket and the relevant current homes:
 
 - `marketing/plan` — the selected deliverables, purpose, prerequisites and
-  owners. During fresh planning it lists open decisions instead.
+  owners.
 - `marketing/positioning` — the reviewed message and source limits.
 - `marketing/distribution` — the selected channel/measurement policy and
   dated account evidence, when channel work is needed.
@@ -27,7 +27,8 @@ The owner has selected this post and its ticket states the intended reader,
 desired response, central idea, scope and relationship to the campaign.
 Resolve missing choices with the owner under the current session conduct.
 A candidate ticket or a historical brief alone does not meet this condition.
-The inventory and story-selection tasks do not run post production.
+The V1 idea-piece ticket owns its editorial decisions directly; no separate
+story-selection ticket is required.
 
 ## The division of labour with clarity
 

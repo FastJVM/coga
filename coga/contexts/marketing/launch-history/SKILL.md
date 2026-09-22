@@ -10,6 +10,19 @@ plan. The current plan is `marketing/plan`. Nothing here is a ship instruction
 or an active phase, and this context stays unattached so it does not compose
 into launch work.
 
+## V1 simplification — 2026-09-21
+
+The owner selected one idea piece followed by a working-product Show HN,
+with README, installation/one-task onboarding and PostHog prerequisites.
+See marketing/plan for current decisions. Removed task refs in the earlier
+records are historical, not instructions to recreate their work.
+
+The [former launch ticket](launch-plan-before-v1.md) and
+[public audit snapshot](phase-0-audit/audit-ticket.md) preserve review history.
+The audit's existing public findings and JSON receipts remain beside that
+snapshot; no private-repo narrative attachment was recovered. Historical
+snapshot status fields are not live task state.
+
 ## Fresh-start archive — 2026-09-10
 
 The owner requested a grouped catalogue followed by fresh marketing planning,

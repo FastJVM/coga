@@ -3,8 +3,8 @@
 Archived during the owner-approved marketing extraction on 2026-09-09.
 This file preserves the September 2–3 brief and findings; its instructions
 and status statements are historical. The current worklist is in
-[ticket.md](ticket.md); authored marketing knowledge is indexed by
-[marketing/map](../../../contexts/marketing/map/SKILL.md).
+[ticket.md](audit-ticket.md); authored marketing knowledge is indexed by
+[marketing/map](../../map/SKILL.md).
 
 The later plan superseded the narrative-premise failure by using public
 Coga-on-Coga examples. The owner dropped the token experiment on 2026-09-09.

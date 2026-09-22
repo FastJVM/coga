@@ -1,19 +1,24 @@
 ---
 name: marketing/distribution
-description: Dated Coga account and surface observations, unresolved inputs, measurement limits, and prior distribution ideas for fresh planning.
+description: V1 publication and measurement policy, plus dated account observations.
 ---
 
 # Coga distribution
 
-**Fresh planning, owner direction of 2026-09-10.** Channels, timing, success
-criteria and follow-up actions will be selected in
-[the new plan](../plan/SKILL.md). The previous channel runbook, title tactics,
-YC timing, numeric scorecard and miss branches are preserved in
-[the distribution archive](../launch-history/three-essay-distribution.md).
-They are reference material, not inherited gates.
+**Owner decision, 2026-09-21:** the [V1 plan](../plan/SKILL.md) selects
+publication of one argument followed by Show HN as the product launch.
+The idea piece's venue remains an owner editorial choice; no additional
+channel sequence is implied. The launch ticket records actual dates and the
+owner's availability to answer product questions.
 
-Publication and personal-account actions remain with `nicktoper`. This
-inventory selects no channel and authorizes no publication.
+Before Show HN, verify the current [submission guidance](https://news.ycombinator.com/showhn.html)
+and the working product/install links. The submission must stand alone and
+let people try the product. Publish the argument as ordinary reading material,
+not as a Show HN. The owner approves and performs publication/personal-account
+actions. Share links without soliciting votes or comments to boost ranking.
+
+The [previous distribution runbook](../launch-history/three-essay-distribution.md)
+is historical; its channel order, YC timing and thresholds are not requirements.
 
 ## Recorded surfaces and outstanding facts
 
@@ -21,8 +26,8 @@ Extracted from the audit on 2026-09-09. Public observations were recorded on
 **2026-09-02/03**; no live account or website was rechecked for the September
 10 inventory. Recheck applicable facts, rules and links when selecting a
 channel and again before submission. Sources:
-[audit evidence](../../../tasks/marketing/phase-0-audit/step-1-findings.md),
-[audit history](../../../tasks/marketing/phase-0-audit/audit-history.md), and
+[audit evidence](../launch-history/phase-0-audit/step-1-findings.md),
+[audit history](../launch-history/phase-0-audit/audit-history.md), and
 [the earlier campaign research](../launch-history/campaign-ticket-briefs.md).
 
 | Surface | Recorded observation | Input if the new plan uses it |
@@ -33,38 +38,31 @@ channel and again before submission. Sources:
 | [Reddit account](https://www.reddit.com/user/Let047/) | Owner reported 7,781 karma, 2,609 contributions, six years and 56 followers; unauthenticated fetches were blocked. | Joined communities and current self-promotion rules. The owner report is not a fresh account check. |
 | Bookface / YC | Login-gated; owner standing and feasibility remain unreported. Earlier proposals included a friendly read, Launch YC and YC amplification. | Owner confirms access and decides whether and how to use those surfaces. Prior Bookface-before-HN and second-run timing are archived choices. |
 | [fastjvm.com](https://fastjvm.com) | Audit found a JVM research index without a natural Coga link slot; the owner previously chose a one-time announcement. | Reconsider the purpose and placement in the new campaign. |
-| Community | Audit found Discussions disabled and no Discord link. | Decide whether the reader path needs a community home and select it through the [existing ticket](../../../tasks/marketing/discord.md). |
+| Community | Audit found Discussions disabled and no Discord link. | No community setup is required for V1; the earlier proposal is archived. |
 | X and personal share asks | Options in the earlier runbook, without an audited account baseline here. | Decide their fit, workload and timing if selected. |
 
 ## Measurement and interpretation
 
-Audience measurement remains in scope. Choose baselines, checkpoints, success
-criteria and what to do after a miss before publishing the chosen campaign.
-The former day-14 thresholds and proposed `marketing/phase-1-retro` ticket
-are historical inputs, not a requirement to recreate that exact design.
+The measurement policy belongs to `coga/principles` (§5); the telemetry
+implementation must update it as specified in its ticket.
 
-The earlier audit identified subscriber counts, trailing-30-day views,
-community participation, GitHub stars, PyPI downloads and reader language as
-possible signals. Use the ones that answer the new campaign's objective and
-record their definitions. Private counters and account access come from the
-owner; agents can collect public evidence.
+Finish PostHog for basic adoption/activity signals under the existing
+[telemetry ticket](../../../tasks/marketing/add-telemetry.md). The owner's
+September 20 policy reversal and September 21 confirmation supersede this
+context's earlier instrumentation ban. This is approved work, not a claim
+that telemetry has shipped. Its payload, identity, opt-out, cadence,
+limitations and owner ingestion verification remain owned by that ticket
+until implementation lands its dedicated contract. Resolve the evaluator's
+suppression/resume finding and owner project setup before implementation.
 
-Jetpack referrers plus publication timestamps support coarse attribution.
-Email clients may suppress referrers, and referrer data does not identify
-the source of an individual subscription. Keep channel observations separate
-from inferred causes. Record metric dates and limits when reusing them.
+Launch execution records dated reactions, objections, first-run friction,
+and available adoption/activity observations, with their limits. PostHog's
+approximate activity is not a productivity result or proof of attribution.
+Public stars/downloads and voluntary feedback can supplement it; do not
+reinstate the old subscriber/community thresholds or a day-14 follow-up gate.
+The marketing token/time experiment remains dropped.
 
-The measurement boundary is owned by `coga/principles` (§5), not here. On
-2026-09-20 the owner reversed the absolute telemetry ban for the
-[PostHog phone-home telemetry ticket](../../../tasks/marketing/add-telemetry.md)
-(`marketing/add-telemetry`, a `code/design-then-implement` ticket with a
-reviewed design as of that date); until that ticket lands and amends
-`coga/principles`, no instrumentation exists and marketing measurement
-planning should read the ticket and the principle rather than re-assert a
-ban the owner has lifted. The marketing token/time experiment was dropped on
-2026-09-09; no paired runs, receipt quota or efficiency-result gate belongs
-to the new preparation.
-
-When distributing, share the article or thread without asking for votes.
-Verify current community rules and make only the account actions explicitly
-authorized by the owner.
+Jetpack referrers plus timestamps, if the owner selects the blog, support
+only coarse attribution. Email clients may suppress referrers and individual
+subscriptions cannot be assigned a source from that evidence. Private account
+counters require owner access. Recheck dated observations before relying on them.

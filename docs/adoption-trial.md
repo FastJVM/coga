@@ -13,7 +13,7 @@ The owner requested an actual attempt after the source comparisons. This
 trial tests the useful operating model, not whether another tool copies
 Coga's commands. It uses invented Cedar Workshop data in `/tmp`, with no
 actual Coga migration, remote publishing or changes to the current ticket's
-lifecycle. The [structured receipt](../coga/tasks/marketing/phase-0-audit/adoption-trial-results.json)
+lifecycle. The [structured receipt](../coga/contexts/marketing/launch-history/phase-0-audit/adoption-trial-results.json)
 preserves the fixture, prompts, added instructions, checks and run reports.
 
 ## Candidate and integration

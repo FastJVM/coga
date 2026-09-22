@@ -31,7 +31,7 @@ queue was launched, and no source code was changed for this audit.
 
 Sources: [Dream run summary](https://github.com/FastJVM/coga/blob/9cb722546/coga/tasks/recurring/dream/ticket.md#dream-run-summary) (the 2026-W37 period ticket as frozen at commit `9cb722546` — the live path is rewritten every period; locally: `git show 9cb722546:coga/tasks/recurring/dream/ticket.md`),
 [routing-hole record](../coga/tasks/dream-findings-have-three-routing-holes-that-lose.md),
-[marketing incident](../coga/tasks/marketing/phase-0-audit/ticket.md),
+[marketing incident](../coga/contexts/marketing/launch-history/phase-0-audit/audit-ticket.md),
 [#773](https://github.com/FastJVM/coga/pull/773),
 [#774](https://github.com/FastJVM/coga/pull/774).
 
