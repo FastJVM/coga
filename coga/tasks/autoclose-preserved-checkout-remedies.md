@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -57,7 +57,7 @@ worktree: /home/n/Code/coga-autoclose-remedies
   None), not a bare tri-state bool; retire still requires `linked` and
   preserves on every other verdict, unknown included.
 
-## Implemented (commit eb29d9415, rebased on origin/main 6854acdfa)
+## Implemented (commit c79c20e01, rebased on origin/main d4d6dd95a; 2747 passed after rebase)
 
 - `git.classify_checkout(root, path)` → `CheckoutRelation(kind, owner)`:
   `primary` / `linked` / `foreign-linked` (owner = that repo's main worktree)
@@ -80,12 +80,57 @@ worktree: /home/n/Code/coga-autoclose-remedies
   entry), test_autoclose (manual_command variants). Full suite: 2747 passed
   (one packaging test first failed only because the fresh uv venv had no pip).
 
-## Adjacent staleness (not fixed here)
+## Adjacent staleness
 
-- `coga/workflows/autoclose-merged/sweep.md` (+ packaged twin) and
-  `docs/operations.md` "Autoclose's retire worklist" still describe the
-  pre-#839 design ("never removes one itself" / "never deletes their feature
-  checkouts"). This PR touched only the discharge-rule sentence in the docs.
+- Peer review corrected the pre-#839 disposal descriptions in
+  `coga/workflows/autoclose-merged/sweep.md` (+ packaged twin) and
+  `docs/operations.md`, with the attending human's approval. Both now summarize
+  the disposal phase and point to the sweep skill that owns the rules.
 - The live `coga/recurring/autoclose-merged/retires.md` keeps its old header
   prose (the header is written only when the file is minted); left alone to
   avoid union-merge churn on a control-branch-written file.
+
+## Peer review
+
+- `codex review --base main` **returned** on 2026-09-22: no actionable
+  regressions; its targeted runs passed 325 tests across autoclose, git,
+  branch cleanup/sweep, retire, worklists, and packaging.
+- Approved documentation correction committed as `916cfdc6c`; implementation
+  is now `630ae1615`. Ran `git fetch origin main` and `git rebase FETCH_HEAD`
+  unconditionally; clean rebase onto `8219bd4a8`. Feature worktree is clean.
+- Full post-rebase `.venv/bin/python -m pytest`: **2747 passed** in 247.85s.
+  `git diff --check` passed; feature worktree remains clean and committed.
+- Inspected generated cross-repo Slack summary: it includes the owner checkout,
+  the explanation that retire here cannot help, and both owner-scoped git
+  commands. A real-git probe also classified an owner path containing a space
+  and non-ASCII character correctly. The attending human chose to verify the
+  actual Slack rendering. On request, sent the representative generated
+  summary via `coga slack --task autoclose-preserved-checkout-remedies
+  --important --message ...`, explicitly labeled TEST. The CLI reported
+  `posted`, and the human pasted the received message and confirmed it was
+  in coga-important. Owner paths and both git commands are present/readable.
+  No cleanup was performed by the sample.
+- The Slack command's separate state sync refused because this control
+  checkout lagged the remote activation (remote step 1, local step 2 from
+  the prior implement bump). `git pull --rebase --autostash origin main`
+  fast-forwarded control to `8219bd4a8` and reapplied the local changes
+  without conflicts, preserving the CLI-written step and review notes.
+
+## PR
+
+Autoclose now gives owner-scoped manual cleanup commands when a recorded
+worktree belongs to another repository, and explains independent-clone,
+unreadable-path, and missing-worktree follow-ups. Only this repository's
+proven primary checkout stops counting as worktree debt; foreign checkouts and
+unknown paths remain preserved. Existing primary-checkout worklist entries
+clear once their local branch is gone.
+
+The shared checkout classifier keeps retire's preserve-on-doubt proof intact.
+Regression coverage exercises real repositories, and the sweep contract,
+recurring template, and live/packaged twins document the behavior. Corrected
+stale workflow and operations prose that still described pre-disposal autoclose.
+
+Test plan: `codex review --base main` returned with no findings; post-rebase
+`.venv/bin/python -m pytest` passed all 2747 tests; `git diff --check` passed;
+owner confirmed the TEST summary received in coga-important with readable
+owner paths and cleanup commands.
