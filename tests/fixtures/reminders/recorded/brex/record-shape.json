@@ -1,0 +1,91 @@
+{
+  "receipts": [],
+  "user": {
+    "id": "cuuser_000000000000000000000900",
+    "first_name": "Cardholder ",
+    "last_name": "Three ",
+    "email": "cardholder@example.invalid",
+    "role": "ACCOUNT_ADMIN",
+    "status": "ACTIVE",
+    "account_id": "cuacc_000000000000000000000900"
+  },
+  "vendor": {
+    "id": "pmch_000000000000000000000900",
+    "name": "Vendor H",
+    "contact_name": null,
+    "email": null,
+    "website": "https://example.invalid/",
+    "phone": null
+  },
+  "memo": null,
+  "due_at": null,
+  "invoice_number": null,
+  "status": "SUBMITTED",
+  "id": "accr_000000000000000000000900",
+  "type": "CARD_EXPENSE_POST",
+  "review_status": "PREPARE",
+  "erp_posting_date": "2026-06-11T09:09:05.840865Z",
+  "updated_at": "2026-06-11T09:09:10.422192Z",
+  "version": 2,
+  "amount": {
+    "amount": 171.75,
+    "currency": "USD"
+  },
+  "source_type": "CARD",
+  "source_id": "expense_000000000000000000000900",
+  "posted_at": "2026-06-11T09:09:05.840Z",
+  "original_amount": {
+    "amount": 171.75,
+    "currency": "USD"
+  },
+  "billing_amount": {
+    "amount": 171.75,
+    "currency": "USD"
+  },
+  "line_items": [
+    {
+      "memo": null,
+      "id": "accrli_000000000000000000000901",
+      "type": "DEBIT",
+      "amount": {
+        "amount": 171.75,
+        "currency": "USD"
+      },
+      "original_amount": {
+        "amount": 171.75,
+        "currency": "USD"
+      },
+      "billing_amount": {
+        "amount": 171.75,
+        "currency": "USD"
+      },
+      "accounting_field_values": [
+        {
+          "brex_field_id": "extended_field_0000000000000000000000001",
+          "remote_field_id": "GL_ACCOUNT",
+          "field_name": "GL Account",
+          "brex_field_value_id": "efo_0000000000000000000000002",
+          "remote_field_value_id": null,
+          "field_value_name": "7500 Other G&A",
+          "type": "IDENTIFIER"
+        }
+      ],
+      "amortization": null
+    },
+    {
+      "memo": null,
+      "id": "accrli_000000000000000000000902",
+      "type": "CREDIT",
+      "amount": {
+        "amount": 171.75,
+        "currency": "USD"
+      },
+      "original_amount": {
+        "amount": 171.75,
+        "currency": "USD"
+      },
+      "accounting_field_values": [],
+      "amortization": null
+    }
+  ]
+}
