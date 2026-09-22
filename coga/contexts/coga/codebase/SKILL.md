@@ -1034,10 +1034,12 @@ wrong checkout silently produces wrong results in both directions:
     all four shipped shims through real child CLI bumps with recipes stubbed,
     and cover intermediate steps and strict assist publication. Historical
     human-attributed entries remain unchanged.
-  - PR 747, `commands/launch.py` released-witness reconciliation captures
-    `FileMutationRollback` after the control fetch instead of from the
-    validated current bytes, so a manual ticket edit made during the fetch can
-    be overwritten by the stale released revision.
+  - PR 747, fixed by `preserve-edits-during-released-claim-recovery`:
+    `commands/launch.py::_reconcile_released_launch_admission` now preserves
+    manual corrections made during its control fetch. The released-witness
+    recovery invariant belongs to `coga/launch-internals`; its regression
+    coverage is in `tests/test_launch.py` next to
+    `test_released_launch_admission_reconciles_control_ticket`.
   - PR 755 is addressed by `exclude-superseded-designs-from-launch-prompts`:
     `blackboard.blackboard_for_prompt` projects live notes and an archive
     pointer for `compose.compose_prompt_report` and the size warning. It shares
