@@ -668,7 +668,7 @@ Verification (feature checkout unless noted):
   run; the fresh full run above passed. No unrelated baseline repairs.
 
 Open-pr/review handoff: copy the exact wheel smoke and single-quoted HogQL
-commands from `docs/telemetry.md` into the PR. Owner must verify `project-get`
+commands from `docs/contexts/coga/telemetry/operations/SKILL.md` into the PR. Owner must verify `project-get`
 reports 606347, then supply first/later/disabled queried-row evidence, payload
 receipt, wheel version/hash, and explain stored enrichment. HTTP acceptance
 is not ingestion acceptance. This remains the owner review gate.

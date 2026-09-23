@@ -1,8 +1,12 @@
+---
+name: coga/telemetry/operations
+description: Operator procedures for Coga's weekly telemetry — disabling delivery, the PostHog project and write-only key, the clean installed-wheel ingestion proof, and deleting one repo's person and events.
+---
+
 # Telemetry operations
 
-The [telemetry context](contexts/coga/telemetry/SKILL.md) owns the event
-schema, admission gates, cursor and loss semantics. This runbook owns operator
-procedures. Weekly snapshots measure repos with active sweeps, not installs.
+The parent `coga/telemetry` topic owns the event schema, admission gates,
+cursor and loss semantics. This topic owns operator procedures. Weekly snapshots measure repos with active sweeps, not installs.
 
 ## Disable delivery
 
@@ -76,7 +80,7 @@ cd coga
 ```
 
 For the live proof, enable the existing Slack notification channel in this
-scratch repo before its first sweep, following [notification setup](contexts/coga/notifications/SKILL.md).
+scratch repo before its first sweep, following `coga/notifications`.
 The receipt contains the exact prepared keyless envelope for comparison; retain
 it in the PR along with the queried rows. Fresh init defaults to no notification
 channels, so configure this explicitly. A failed receipt is not an ingestion

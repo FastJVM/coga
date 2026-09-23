@@ -105,4 +105,4 @@ Editable/source installations do not report.
 Set `[telemetry] enabled = false` in shared or local config to stop sending and
 its Slack receipt. Disabling stops sending; movement from the gap may appear in
 the first count after re-enabling. See the [contract](docs/contexts/coga/telemetry/SKILL.md)
-and [operator runbook](docs/telemetry.md) for the boundary, verification and deletion.
+and [operator runbook](docs/contexts/coga/telemetry/operations/SKILL.md) for the boundary, verification and deletion.

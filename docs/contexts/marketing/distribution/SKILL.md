@@ -46,7 +46,7 @@ channel and again before submission. Sources:
 The measurement policy belongs to [`coga/principles`](../../coga/principles/SKILL.md)
 (§5, "Yours"). The concrete
 [payload and sweep contract](../../coga/telemetry/SKILL.md) owns the weekly
-PostHog signal, opt-out and limits; [operator procedures](../../../../docs/telemetry.md)
+PostHog signal, opt-out and limits; [operator procedures](../../coga/telemetry/operations/SKILL.md)
 cover queried-row acceptance in shared project 606347. This measures repos with
 active sweeps, not installs. Owner ingestion proof remains a release gate.
 

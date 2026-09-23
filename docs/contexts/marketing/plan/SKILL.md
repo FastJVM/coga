@@ -22,7 +22,7 @@ superseded. Historical material is indexed in [the catalogue](../map/SKILL.md).
   adoption/activity measurement implementation and owner verification.
   The owner explicitly rejected replacing it with zero-telemetry measurement.
   The [weekly snapshot contract](../../coga/telemetry/SKILL.md) owns the
-  implemented scope; [operator verification](../../../../docs/telemetry.md)
+  implemented scope; [operator verification](../../coga/telemetry/operations/SKILL.md)
   remains a review gate. Campaign simplification does not waive that gate.
 
 ## Publication sequence
