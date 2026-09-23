@@ -21,7 +21,7 @@ from coga.create import create_task
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.ticket import Ticket
 
-from conftest import GitRepo
+from conftest import GitRepo, init_git_repo
 
 PR_URL = "https://github.com/o/r/pull/30"
 
@@ -438,3 +438,154 @@ def test_disposal_from_recurring_control_checkout(
     assert not worktree.exists()
     assert not _local_branch_exists(control, "feature-x")
     assert not _remote_branch_exists(control, "feature-x")
+
+
+def _other_repo_worktree(tmp_path: Path, branch: str = "upstream-fix") -> tuple[Path, Path]:
+    """A linked worktree of a *different* repository: `(its main checkout, worktree)`."""
+    other_root = tmp_path / "upstream"
+    other_root.mkdir()
+    other = init_git_repo(other_root)
+    worktree = tmp_path / f"upstream-{branch}"
+    other.git("worktree", "add", "-b", branch, str(worktree), "main")
+    return other.root, worktree
+
+
+@pytest.mark.parametrize("local_state", ["clean", "wrong-branch", "ignored", "squashed"])
+def test_cross_repo_worktree_names_its_owning_checkout(
+    git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    local_state: str,
+) -> None:
+    # Cross-repo work: the ticket lives here, the code in another repository.
+    # `coga retire` fails the same proof from here and the task does not
+    # exist there. Ownership alone never authorizes deletion commands.
+    owner, worktree = _other_repo_worktree(tmp_path)
+    if local_state == "wrong-branch":
+        _git(worktree, "switch", "-c", "unrelated-work")
+    elif local_state == "ignored":
+        (worktree / ".gitignore").write_text("local-secret\n")
+        _git(worktree, "add", ".gitignore")
+        _git(worktree, "commit", "-m", "Ignore local data")
+        (worktree / "local-secret").write_text("must survive\n")
+    elif local_state == "squashed":
+        (worktree / "feature.txt").write_text("feature\n")
+        _git(worktree, "add", "feature.txt")
+        _git(worktree, "commit", "-m", "Feature change")
+        _git(owner, "merge", "--squash", "upstream-fix")
+        _git(owner, "commit", "-m", "Squash feature")
+    slug, _ = _final_step_ticket(git_repo, branch="upstream-fix", worktree=worktree)
+    _route_important(git_repo)
+    period, worklist = _period_task(git_repo, monkeypatch)
+    _stub_gh(monkeypatch, git_repo)
+    posts = _capture_posts(monkeypatch)
+    result = am.AutocloseResult()
+
+    assert am.run_autoclose_recipe(load_config(git_repo.coga_os), [], result=result) == 0
+
+    assert worktree.is_dir()
+    [preserved] = result.preserved
+    assert preserved.home is not None and preserved.home.kind == "foreign-linked"
+    remedy = preserved.manual_command
+    assert f"the worktree belongs to `{owner}`" in remedy
+    assert f"`git -C {owner} worktree list --porcelain`" in remedy
+    assert f"`git -C {worktree.resolve()} status --short --untracked-files=all --ignored`" in remedy
+    assert "worktree remove" not in remedy
+    assert "`git -C " + str(owner) + " branch -" not in remedy
+    assert "exact merged-head verification" in remedy
+    assert "Keep the worktree until that plan is verified" in remedy
+    assert f"`coga retire {slug}` fails the same proof" in remedy
+    assert f"({remedy})" in period.read_text()
+    [important] = [text for url, text in posts if url == IMPORTANT_WEBHOOK]
+    assert f"the worktree belongs to `{owner}`" in important
+    # Still debt: the worklist is its only durable trace once the ticket goes.
+    _, entries = rw.parse_worklist(worklist.read_text())
+    assert [(e.slug, e.worktree) for e in entries] == [(slug, str(worktree))]
+
+
+def test_independent_clone_is_named_for_removal_by_hand(
+    git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clone = tmp_path / "fallback-clone"
+    _git(tmp_path, "clone", "-q", str(git_repo.root), str(clone))
+    slug, _ = _final_step_ticket(git_repo, branch="fallback", worktree=clone)
+    _stub_gh(monkeypatch, git_repo)
+    _capture_posts(monkeypatch)
+    result = am.AutocloseResult()
+
+    assert am.run_autoclose_recipe(load_config(git_repo.coga_os), [], result=result) == 0
+
+    assert clone.is_dir()
+    [preserved] = result.preserved
+    assert preserved.manual_command == (
+        f"`{clone.resolve()}` is an independent checkout with its own "
+        "repository, which no proof removes — inspect and remove it by hand"
+    )
+
+
+def test_primary_checkout_recorded_as_worktree_is_not_retire_debt(
+    git_repo: GitRepo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    # The single-checkout layout: the ticket's `worktree:` is the primary
+    # checkout itself. Only the branch is debt; it lands and is disposed of,
+    # and nothing is preserved, posted to coga-important, or recorded.
+    _git(git_repo.root, "switch", "-c", "feature-x")
+    (git_repo.root / "feature-x.txt").write_text("work\n")
+    _git(git_repo.root, "add", "feature-x.txt")
+    _git(git_repo.root, "commit", "-m", "feature-x work")
+    _git(git_repo.root, "push", "-u", "origin", "feature-x")
+    _git(git_repo.root, "switch", "main")
+    _git(git_repo.root, "merge", "--ff-only", "feature-x")
+    _git(git_repo.root, "push", "origin", "main")
+    slug, ticket = _final_step_ticket(
+        git_repo, branch="feature-x", worktree=git_repo.root
+    )
+    _route_important(git_repo)
+    _, worklist = _period_task(git_repo, monkeypatch)
+    _stub_gh(monkeypatch, git_repo)
+    posts = _capture_posts(monkeypatch)
+    result = am.AutocloseResult()
+
+    assert am.run_autoclose_recipe(load_config(git_repo.coga_os), [], result=result) == 0
+
+    assert Ticket.read(ticket).status == "done"
+    [closed] = result.closed
+    assert (closed.branch, closed.worktree) == ("feature-x", None)
+    [outcome] = result.checkouts
+    assert outcome.disposed and outcome.worktree is None
+    assert not _local_branch_exists(git_repo.root, "feature-x")
+    assert git_repo.root.is_dir()
+    assert not worklist.exists()
+    assert not any(url == IMPORTANT_WEBHOOK for url, _text in posts)
+    assert str(git_repo.root) not in capsys.readouterr().out.split("disposed of")[-1]
+
+
+@pytest.mark.parametrize("branch", ["gone", ""])
+def test_worklist_entry_naming_the_primary_checkout_clears_with_its_branch(
+    git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, branch: str
+) -> None:
+    # Recorded before the rule: branch long gone, `worktree:` is the primary
+    # checkout. Only the branch half is judged, so the entry clears rather
+    # than being re-posted to coga-important forever.
+    template = git_repo.coga_os / "recurring" / "autoclose-merged"
+    template.mkdir(parents=True)
+    (template / "ticket.md").write_text("template\n")
+    worklist = template / rw.RETIRE_WORKLIST_FILENAME
+    worklist.write_text(
+        rw.render_worklist(
+            rw.RETIRE_WORKLIST_HEADER,
+            [rw.RetireFollowUp("in-place", branch, str(git_repo.root), "2026-09-01")],
+        )
+    )
+    _stub_gh(monkeypatch, git_repo)
+    posts = _capture_posts(monkeypatch)
+    result = am.AutocloseResult()
+
+    assert am.run_autoclose_recipe(load_config(git_repo.coga_os), [], result=result) == 0
+
+    # With no branch recorded there is nothing left to judge at all.
+    assert [(o.branch, o.worktree, o.disposed) for o in result.checkouts] == (
+        [("gone", None, True)] if branch else []
+    )
+    _, entries = rw.parse_worklist(worklist.read_text())
+    assert entries == []
+    assert git_repo.root.is_dir()
+    assert not any("⚠️" in text for _url, text in posts)

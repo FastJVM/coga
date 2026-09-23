@@ -917,8 +917,10 @@ The sweep resolves that path from the period task it is running under
 (`tasks/recurring/<name>/` names the template; nothing hardcodes
 `autoclose-merged`), records the run's preserved closures there keyed by
 slug, and on every run — period task or hand run — re-judges the open entries
-of every worklist and drops those whose recorded worktree directory and local
-branch are both gone; `coga retire <slug>` drops its own entry the same way.
+of every worklist and drops those whose local branch is gone and whose
+recorded worktree directory is gone or is this repository's own primary
+checkout, which nobody disposes of; `coga retire <slug>` drops its own entry
+the same way.
 The write is barrier-held, compare-and-swap, and atomic; the file is
 `merge=union` like `log.md`, so union-merge duplicates and resurrected lines
 heal on the next reconcile rather than needing a second mechanism. A run that

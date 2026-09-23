@@ -621,7 +621,8 @@ best-effort: a cleanup failure is reported and never aborts the retire run.
 Sweeping branches with no live ticket remains the separate `branch-sweep`
 job's. After cleanup, retire drops the slug from any recurring template's
 `retires.md` — the autoclose sweep's durable worklist of stranded retires —
-but only once the recorded worktree directory and local branch are both gone;
+but only once its local branch is gone and its recorded worktree directory is
+gone or is the repository's own primary checkout (which nobody disposes of);
 a preserved checkout keeps its line (`Retire: dropped <slug> from <path>.`).
 
 ## coga skill
