@@ -26,18 +26,10 @@ For the line format and field encoding, see the `coga/autoclose/sweep` skill.
 
 - `adjudicate-parked-and-active-tickets-whose-premise` — branch `adjudicate-moved-premises`, worktree `/home/n/Code/claude/coga-adjudicate-moved-premises`, recorded `2026-09-18`
 - `agent-usage-report` — branch `usage-report`, worktree `/home/n/Code/codex/coga-usage-report`, recorded `2026-09-22`
-- `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r` — branch `resources-pkg-init`, worktree `/home/n/Code/claude/coga-resources-pkg-init`, recorded `2026-09-21`
-- `cleanup/handle-a-bare-slack-webhook-url-during-empty-repo` — branch `init-bare-slack-env`, worktree `/home/n/Code/claude/coga-init-bare-slack-env`, recorded `2026-09-18`
 - `cleanup/quiet-the-first-run-noise-from-recurring-jobs-and` — branch `quiet-first-run`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-22`
-- `define-the-recipe-reporting-contract-report-durabi` — branch `recipe-reporting-contract`, worktree `/home/n/Code/claude/coga-recipe-reporting-contract`, recorded `2026-09-18`
 - `document-the-remedy-for-a-bloated-blackboard-sibli` — branch `bloated-blackboard-remedy`, worktree `/home/n/Code/claude/coga-bloated-blackboard-remedy`, recorded `2026-09-22`
-- `document-when-to-attach-a-large-context-versus-cit` — branch `attach-vs-cite`, worktree `/home/n/Code/claude/coga-attach-vs-cite`, recorded `2026-09-18`
 - `installer-managed-skills-the-local-adaptation-guar` — branch `gh-backed-readonly-context`, worktree `/home/n/Code/coga`, recorded `2026-09-22`
-- `packaged-code-workflows-never-name-coga-retire-as` — branch `review-closing-act`, worktree `/home/n/Code/claude/coga-review-closing-act`, recorded `2026-09-22`
 - `persist-autoclose-retire-follow-ups` — branch `autoclose-retire-worklist`, worktree `/home/n/Code/claude/coga-autoclose-retire-worklist`, recorded `2026-09-18`
-- `record-dochub-s-why-not-the-api-answer-that-browse` — branch `dochub-api-answer`, worktree `/home/n/Code/claude/coga-dochub-api-answer`, recorded `2026-09-18`
 - `record-or-clear-the-standing-repo-wide-coga-valida` — branch `validate-baseline`, worktree `/home/n/Code/claude/coga-validate-baseline`, recorded `2026-09-18`
 - `reuse-the-existing-control-worktree-for-recurring` — branch `recurring-control-worktree`, worktree `/home/n/Code/codex/coga-recurring-control-worktree`, recorded `2026-09-22`
-- `state-which-branch-is-canonical-for-machine-genera` — branch `sync-canonical-policy`, worktree `/home/n/Code/claude/coga-sync-canonical-policy`, recorded `2026-09-18`
 - `the-period-task-context-never-covers-the-determini` — branch `period-task-recipe-firing`, worktree `/home/n/Code/claude/coga-period-task-recipe-firing`, recorded `2026-09-18`
-- `ticket-specs-should-cite-symbols-not-line-numbers` — branch `design-cite-symbols`, worktree `/home/n/Code/claude/coga-design-cite-symbols`, recorded `2026-09-21`
