@@ -1,6 +1,6 @@
 ---
 title: Ticket relationships and ownership have no mechanism
-status: blocked
+status: active
 owner: nicktoper
 agent: claude
 workflow:
