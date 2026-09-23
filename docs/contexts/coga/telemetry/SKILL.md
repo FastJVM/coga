@@ -161,5 +161,5 @@ or completion. A compact period report contains counts/outcomes and at most
 one aggregated delivery warning via `blackboard.append_blackboard_report`;
 outside a task it goes to stdout. Local validation failures remain distinct.
 
-See [operator procedures](../../../../docs/telemetry.md) for wheel smoke,
+See `coga/telemetry/operations` (`operations/SKILL.md`) for wheel smoke,
 project read-back, HogQL acceptance, rotation and person deletion.

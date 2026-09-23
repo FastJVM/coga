@@ -406,6 +406,7 @@ REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
         "coga/skill-management",
         "coga/sync",
         "coga/telemetry",
+        "coga/telemetry/operations",
         "coga/testing",
         "coga/tickets",
         "coga/uninstall",

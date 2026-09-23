@@ -48,7 +48,7 @@ Edge ticket code that Coga ships must upgrade together with the wheel, without b
 - Should the packaged file be the source of truth, with the repo copy refreshed on upgrade? Or should the repo's `ticket.py` be a thin shim that runs code packaged in the wheel outside `coga.*` core?
 - How are local edits detected and kept, instead of being silently overwritten?
 - Which existing mechanism takes this on: `coga init` re-run, `upstream-coga`, skill-update, or something new?
-- Once this is fixed, move the phone-home telemetry code back into the wheel under the chosen shape, and update `coga/telemetry` and `docs/telemetry.md` to match.
+- Once this is fixed, move the phone-home telemetry code back into the wheel under the chosen shape, and update `coga/telemetry` and `coga/telemetry/operations` to match.
 
 ### Related
 - PR 880 / `marketing/add-telemetry`
