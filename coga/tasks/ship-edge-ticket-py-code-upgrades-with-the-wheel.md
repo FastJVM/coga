@@ -53,7 +53,7 @@ Edge ticket code that Coga ships must upgrade together with the wheel, without b
 ### Related
 - PR 880 / `marketing/add-telemetry`
 - `recurring-sweep-wedges-on-the-ticket-py-it-copies`
-- The gigantic-refactor ticket for recurring recipes (the other recipes will hit the same issue)
+- `gigantic-refactor-move-recurring-recipes-out-of-co` (the other recipes will hit the same issue)
 
 ## Context
 
