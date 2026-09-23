@@ -32,7 +32,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -238,6 +238,91 @@ Owner decisions (2026-09-22, design step):
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Evaluator review
+
+2026-09-22 — Cold review of the body against the current repository.
+**Verdict: resolve the following before implementation.** The proposed usage
+filter and prompt/documentation changes form one coherent PR and respect the
+microkernel boundary; no launch machinery is needed. Owner approval remains
+the next step.
+
+### Must resolve
+
+1. **P1 — Specify a writable location for the isolated Retro checkout.**
+   The recipe grants the primary repo's `.git`, but Phase 4 still says only
+   "temporary linked checkout." A sibling checkout outside the primary repo
+   and temporary writable roots can fail even after all three preflight checks
+   pass. Changing a shell command's cwd does not grant filesystem access.
+   Evidence: `coga/recurring/dream/ticket.md`, `Phase 4`, and packaged
+   `retro/done-ticket/SKILL.md`, `Isolation boundary`, specify `/tmp` only for
+   the independent-clone fallback, not for the preferred linked checkout.
+   Codex's workspace-write contract limits writes to granted roots; its
+   [configuration reference](https://developers.openai.com/codex/config-reference)
+   documents additional writable roots and the options excluding temporary
+   roots. Specify an already-writable temporary root for the linked checkout
+   too, and require an actual write check there before delegation. This keeps
+   the narrow grant and avoids relying on an implementer's choice of path.
+
+2. **P1 — Protect the post-merge W40 verification from autoclose.**
+   The frozen workflow ends at `review`; the acceptance criterion requires
+   merging and then recording a real run before this ticket closes.
+   `src/coga/autoclose.py::_candidate`, `_on_final_step`, and `_try_bump_one`
+   close an active/in-progress final-step ticket when its recorded PR is
+   merged. They do not inspect unchecked acceptance criteria. The scheduled
+   sweep can therefore close this ticket before W40 runs. Specify the owner's
+   lifecycle procedure, for example pausing the ticket before merge and
+   explicitly resuming/finalizing after verification (paused is excluded by
+   `OPEN_STATUSES`), or use a separately tracked verification ticket with a
+   corresponding acceptance change. This does not require new core behavior.
+
+3. **P2 — Make the validator criterion baseline-aware.**
+   The suite permits reproduced baseline failures, but `coga validate --json`
+   is required to be clean without the same allowance. On the untouched
+   implementation it exits 1: two `unsynthesized-draft-blackboard` errors on
+   `clean-up-all-the-working-trees` and `v2/autotrigger-ticket-type`, plus 50
+   warnings. The codebase context's `Sandbox and cross-machine dev loop`
+   explicitly prohibits repairing unrelated drafts to clear this gate; its
+   older four-error baseline has also drifted. Require no new attributable
+   validator errors and record the observed baseline, or name separate work
+   that must clear it. Do not expand this PR into draft adjudication.
+
+### Recommendations
+
+- Distinguish each wave's **join** from the whole attempt's **reconciliation**.
+  Dream's scan mechanics step 2 creates every manifest row before launching;
+  step 4 compares all active leaves to completion IDs. The packaged
+  `bootstrap/dream/scan/scan-protocol/SKILL.md`, `Reconcile at the barrier`,
+  says to read progress once after the attempt's children return. State that
+  waiting for a wave's final answers only frees slots; do not classify the
+  later, unlaunched manifest rows as missing/retry candidates. Reconcile the
+  complete attempt after every scheduled wave joins.
+- Define "Git common dir is writable" as creation and removal of a unique
+  temporary probe file in the resolved absolute common dir, not only a
+  permission-bit/access check. Keep it separate from Git lock names. Add
+  template assertions for failure-before-Phase-1 and the Session-conduct route,
+  not merely the presence of a preflight heading.
+- Parameterize usage coverage so `thread_source` alone and `parent_thread_id`
+  alone each exclude a child, and a child-only set remains unknown. Existing
+  top-level fixtures omit both fields, preserving compatibility coverage.
+
+### Verification and limits
+
+- Inspected `usage.py::_read_codex_session_meta`, `_parse_codex_session`,
+  launch's `build_agent_command` and session-id selection, Dream and Retro
+  templates, scan protocol, relevant contexts, frozen/bundled workflow,
+  `test_usage.py`, `test_dream_worker_templates.py`, and packaging's derived
+  twin discovery. Named implementation points exist and match the design.
+- Official OpenAI configuration reference confirms the named sandbox keys and
+  trusted-project requirement. The design author's successful `.git` grant
+  and six-child probes were not repeated; they remain recorded design evidence.
+  Local `codex --version` reports 0.155.1.
+- `coga validate --json`: exit 1, baseline detailed above.
+- `python -m pytest tests/test_usage.py tests/test_dream_worker_templates.py -q`:
+  collection failed because this shell's Python lacks declared dependency
+  `tomlkit`; this is environment setup, not an established test regression.
+  No full suite or real Dream run was performed in this review step.
+- No ticket-body, configuration, implementation, branch, or PR changes.
 
 ## Findings (design step, 2026-09-22)
 
