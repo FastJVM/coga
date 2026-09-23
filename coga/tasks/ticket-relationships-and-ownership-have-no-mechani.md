@@ -1,6 +1,6 @@
 ---
 title: Ticket relationships and ownership have no mechanism
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
