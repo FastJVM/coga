@@ -450,13 +450,28 @@ def _other_repo_worktree(tmp_path: Path, branch: str = "upstream-fix") -> tuple[
     return other.root, worktree
 
 
+@pytest.mark.parametrize("local_state", ["clean", "wrong-branch", "ignored", "squashed"])
 def test_cross_repo_worktree_names_its_owning_checkout(
-    git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    local_state: str,
 ) -> None:
     # Cross-repo work: the ticket lives here, the code in another repository.
     # `coga retire` fails the same proof from here and the task does not
-    # exist there, so the remedy names the owner and the by-hand git commands.
+    # exist there. Ownership alone never authorizes deletion commands.
     owner, worktree = _other_repo_worktree(tmp_path)
+    if local_state == "wrong-branch":
+        _git(worktree, "switch", "-c", "unrelated-work")
+    elif local_state == "ignored":
+        (worktree / ".gitignore").write_text("local-secret\n")
+        _git(worktree, "add", ".gitignore")
+        _git(worktree, "commit", "-m", "Ignore local data")
+        (worktree / "local-secret").write_text("must survive\n")
+    elif local_state == "squashed":
+        (worktree / "feature.txt").write_text("feature\n")
+        _git(worktree, "add", "feature.txt")
+        _git(worktree, "commit", "-m", "Feature change")
+        _git(owner, "merge", "--squash", "upstream-fix")
+        _git(owner, "commit", "-m", "Squash feature")
     slug, _ = _final_step_ticket(git_repo, branch="upstream-fix", worktree=worktree)
     _route_important(git_repo)
     period, worklist = _period_task(git_repo, monkeypatch)
@@ -471,8 +486,12 @@ def test_cross_repo_worktree_names_its_owning_checkout(
     assert preserved.home is not None and preserved.home.kind == "foreign-linked"
     remedy = preserved.manual_command
     assert f"the worktree belongs to `{owner}`" in remedy
-    assert f"`git -C {owner} worktree remove {worktree.resolve()}`" in remedy
-    assert f"`git -C {owner} branch -d upstream-fix`" in remedy
+    assert f"`git -C {owner} worktree list --porcelain`" in remedy
+    assert f"`git -C {worktree.resolve()} status --short --untracked-files=all --ignored`" in remedy
+    assert "worktree remove" not in remedy
+    assert "`git -C " + str(owner) + " branch -" not in remedy
+    assert "exact merged-head verification" in remedy
+    assert "Keep the worktree until that plan is verified" in remedy
     assert f"`coga retire {slug}` fails the same proof" in remedy
     assert f"({remedy})" in period.read_text()
     [important] = [text for url, text in posts if url == IMPORTANT_WEBHOOK]

@@ -189,9 +189,16 @@ refused as not a linked worktree of this repository is classified again, and
 the remedy names where it can be removed:
 
 - **Another repository's linked worktree** (cross-repo work): the owning
-  repository's main checkout and the by-hand `git -C <owner> worktree remove
-  <path>`, then `git -C <owner> branch -d <branch>`. `coga retire` fails the
-  same proof from here, and the task does not exist in the owning repo.
+  repository's main checkout and read-only worktree/status inspection commands.
+  Classification proves ownership only, not that deletion is safe. Verify the
+  recorded branch, preserve tracked/untracked/ignored local data, and check live
+  claims, open PRs, and landed-or-exact-merged-head evidence in the owning repo
+  before removing anything. Plan worktree and branch cleanup together: ordinary
+  `branch -d` can refuse squash/rebase-merged tips; forced deletion needs the
+  exact merged-head proof. Keep the directory until both halves are verified,
+  because its removal can discharge this worklist entry. No runnable deletion
+  command is advertised without those proofs. `coga retire` fails the same
+  proof from here, and the task does not exist in the owning repo.
 - **An independent clone, or a path git cannot read**: says so, and to
   inspect and remove the directory by hand; a local branch still here is
   named separately (`coga retire <slug>` for it while the ticket exists,

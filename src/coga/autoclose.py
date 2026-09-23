@@ -173,7 +173,7 @@ class CheckoutOutcome:
 
     @property
     def manual_command(self) -> str:
-        """What a human does about a preserved checkout, as one runnable remedy.
+        """What a human does about a preserved checkout, as one actionable remedy.
 
         `coga retire <slug>` only helps when its own proofs could pass from
         this repository and the task still exists here. A worktree refused as
@@ -190,16 +190,22 @@ class CheckoutOutcome:
             home = self.home
             if home is not None and home.kind == "foreign-linked":
                 owner = shlex.quote(str(home.owner))
-                steps = [f"`git -C {owner} worktree remove {path}`"]
-                if self.branch:
-                    steps.append(
-                        f"`git -C {owner} branch -d {shlex.quote(self.branch)}`"
-                    )
                 return (
                     f"the worktree belongs to `{home.owner}`, not this "
                     f"repository: {retire} fails the same proof from here and "
-                    "the task does not exist there — dispose of it by hand "
-                    f"from `{home.owner}`: {', then '.join(steps)}"
+                    "the task does not exist there — inspect it first with "
+                    f"`git -C {owner} worktree list --porcelain` and "
+                    f"`git -C {path} status --short --untracked-files=all --ignored`; "
+                    f"verify it still holds recorded branch `{self.branch}` and "
+                    "preserve tracked, untracked, and ignored local data. "
+                    "Before removing anything, verify no live ticket or open PR "
+                    "claims it, and prove the branch landed or still equals its "
+                    "recorded merged PR head in the owning repository. "
+                    "Plan worktree and branch cleanup together: a squash- or "
+                    "rebase-merged tip may require guarded forced branch deletion "
+                    "after exact merged-head verification; ordinary branch -d "
+                    "can refuse it. Keep the worktree until that plan is verified, "
+                    "because removing its directory can discharge this follow-up."
                 )
             if home is not None and home.kind == "standalone":
                 what = "an independent checkout with its own repository"
