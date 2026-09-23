@@ -1,6 +1,6 @@
 ---
 title: clean up all the working trees
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: maintenance/with-approval
