@@ -5,13 +5,17 @@ owner: nicktoper
 agent: codex
 contexts:
 - coga/principles
-- coga/architecture
+- coga/launch
+- coga/script-tickets
+- coga/internals/agent-spawn
 - coga/codebase
+- coga/codebase/gotchas
+- coga/testing
 - coga/current-direction
 - coga/extension-model
 - coga/project-stage
-- coga/cli
-- dev/code
+- dev/checkouts
+- dev/dev-record
 workflow:
   name: code/design-then-implement
   steps:
@@ -126,8 +130,9 @@ verb migration unless it is required to prove the launch split.
       the full pytest suite, `git diff --check`, and
       `coga validate --task cleanup-core-commands/launch-decomposition --json`
       pass.
-- [ ] `coga/architecture`, `coga/codebase`, `coga/extension-model`, and
-      `docs/cli-extension-audit.md` describe the new source boundary. Any
+- [ ] `coga/launch`, `coga/script-tickets`, `coga/internals/agent-spawn`,
+      `coga/codebase`, `coga/extension-model`, and
+      `docs/design/cli-extension-audit.md` describe the new source boundary. Any
       changed shipped context is updated in both the live and packaged copies.
 
 ## Proposed Shape

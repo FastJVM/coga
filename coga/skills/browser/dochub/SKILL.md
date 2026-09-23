@@ -14,10 +14,12 @@ site-specific layer on top of two substrates:
 - **`browser/dom-backed`** — the DOM-backed control standard context
   (snapshot → ref → act, fail loud, capture artifacts). This is a Coga
   **context** (ref `browser/dom-backed`), not a loadable skill —
-  attach/read it as a context by ref. It resolves from a repo-local
-  `coga/contexts/browser/dom-backed/` when one exists and otherwise from the
-  installed package's bundled `bootstrap/contexts/` copy; a freshly
-  initialized repo has no local copy, so do not look for it at a repo path.
+  attach/read it as a context by ref. It resolves from
+  `<contexts-dir>/browser/dom-backed/` (the contexts root is `coga/contexts/`
+  unless `[layout] contexts` in `coga.toml` relocates it) when one exists and
+  otherwise from the installed package's bundled `bootstrap/contexts/` copy;
+  a freshly initialized repo has no local copy, so do not look for it at a
+  repo path.
   DocHub follows it, with **one sanctioned coordinate exception** documented
   under Technique B.
 

@@ -246,7 +246,8 @@ numbers, including the suggestion to cancel a ticket that is already done.
     records the fix as verified on 2026-06-17.
   - `c008c23b`, `enforce-mode-auto-for-recurring-templates`: unattended work
     must not wait for unavailable input. Its proposed mode enforcement is
-    obsolete; current conduct and ticket.py dispatch are in `coga/architecture`.
+    obsolete; current conduct and ticket.py dispatch are in `coga/session-conduct`
+    and `coga/script-tickets`.
   Inline this bounded background, keeping commits as provenance. These are
   historical hazards, not four new build requirements for a concept draft.
 - **Skill-update:** `git show 74792cd2 -- src/coga/commands/launch_script.py`
@@ -277,7 +278,7 @@ numbers, including the suggestion to cancel a ticket that is already done.
   its manual discovery is not the proposed query/rank command. The draft's
   inlined rubric makes the retired import-ticket citation provenance only.
   `coga/current-direction`'s missing-skill decision rejects a static gap lint,
-  not search. `coga/codebase`'s microkernel rule governs implementation home,
+  not search. `coga/extension-model`'s microkernel rule governs implementation home,
   not whether this capability request still exists.
 - **Lifecycle and composition:** `commands.mark.canceled` delegates to
   `mark.mark_canceled`, preserving body/blackboard while clearing the step and

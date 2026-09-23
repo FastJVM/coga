@@ -1,57 +1,136 @@
 # Coga documentation
 
-Coga is a small CLI and a markdown operating system for teams that run work with
-coding agents. Tickets, context, workflows, skills, blackboards, and corrections
-all live as plain files in your repo, versioned by Git and read by the same
-humans and agents that do the work.
+One library for people and agents. Every reusable topic is a file under
+[`contexts/`](contexts/): you read it here, and a ticket attaches the same
+file by ref (`contexts: [coga/launch]`) to put it in an agent's prompt. A
+link never loads anything — a task gets exactly the refs it lists. How a
+fact picks its single home is [coga/knowledge](contexts/coga/knowledge/SKILL.md).
 
-If you're new, read these in order:
+Pages outside `contexts/` are for reading, never composed into prompts:
+[`evidence/`](#evidence-and-positioning) (dated measurements and
+comparisons), [`design/`](#proposals-and-history) (unbuilt proposals), and
+[`archive/`](#proposals-and-history) (history).
 
-1. **[Getting started](getting-started.md)** — install Coga, adopt it into a
-   repo, and take a first task from draft to a merged PR. Start here.
-2. **[Concepts](concepts.md)** — the mental model: tickets, the blackboard,
-   contexts vs. skills, workflows and steps, the two state machines, agents and
-   recipes. Read this once and the rest of the system stops surprising you.
-3. **[Command guide](reference.md)** — find the relevant command and follow
-   its link to the canonical `coga/cli` reference.
+## Start
 
-Then, as you need them:
+1. [Install](contexts/coga/install/SKILL.md) the CLI.
+2. [Set up a repo](contexts/coga/init/SKILL.md) — fresh, or a clone of one
+   already using Coga.
+3. [Take a first task](contexts/coga/first-task/SKILL.md) from draft to PR.
+4. [Remove Coga](contexts/coga/uninstall/SKILL.md) if you need to.
 
-- **[Operations](operations.md)** — running Coga day to day: notifications,
-  recurring maintenance (Dream and REM), and secrets.
-- **[Development](development.md)** — working on Coga itself: source layout,
-  running from a checkout, tests, and the repo↔package sync rule.
+## Understand
 
-## The wider picture
+- [Principles](contexts/coga/principles/SKILL.md) — the seven constraints.
+- [Architecture](contexts/coga/architecture/SKILL.md) — the model, the
+  correction loop, and a map of every topic.
+- The work unit: [tickets](contexts/coga/tickets/SKILL.md),
+  [lifecycle](contexts/coga/lifecycle/SKILL.md),
+  [workflows](contexts/coga/workflows/SKILL.md),
+  [blackboard](contexts/coga/blackboard/SKILL.md).
+- What the agent sees: [prompt composition](contexts/coga/prompt-composition/SKILL.md),
+  [session conduct](contexts/coga/session-conduct/SKILL.md),
+  [knowledge placement](contexts/coga/knowledge/SKILL.md).
 
-- **[Vision](vision.md)** — the essay: why Coga exists, the classical-vs-romantic
-  framing, and the thesis behind a two-person team running like ten. This is the
-  "why"; the docs above are the "how."
-- **[Migrating from Relay to Coga](migrating-to-coga.md)** — the rename: the
-  mechanical steps to move an existing Relay repo onto the Coga package,
-  command, directories, and config.
-- **[Releasing](releasing.md)** — cutting a Coga release (contributor-facing).
+## Operate
 
-## Docs versus contexts
+- Commands: the [CLI index](contexts/coga/cli/SKILL.md) points each command
+  at its owning topic.
+- Configuration: [coga.toml and local config](contexts/coga/configuration/SKILL.md),
+  [directory layout](contexts/coga/context-layout/SKILL.md),
+  [agents](contexts/coga/agents/SKILL.md),
+  [secrets](contexts/coga/secrets/SKILL.md).
+- Running work: [launch](contexts/coga/launch/SKILL.md),
+  [script tickets](contexts/coga/script-tickets/SKILL.md),
+  [megalaunch queue](contexts/coga/megalaunch/SKILL.md).
+- Recurring jobs: [overview](contexts/coga/recurring/SKILL.md),
+  [templates](contexts/coga/recurring/templates/SKILL.md),
+  [scheduling](contexts/coga/recurring/scheduling/SKILL.md),
+  [delegation](contexts/coga/recurring/delegation/SKILL.md),
+  [autofix](contexts/coga/recurring/autofix/SKILL.md),
+  [period tasks](contexts/coga/period-task/SKILL.md),
+  [Dream](contexts/coga/dream/SKILL.md).
+- Team sync: [Git state overview](contexts/coga/sync/SKILL.md),
+  [notifications](contexts/coga/notifications/SKILL.md)
+  ([producers](contexts/coga/notifications/producers/SKILL.md),
+  [failures](contexts/coga/notifications/failures/SKILL.md)),
+  [coga-important](contexts/coga/important/SKILL.md),
+  [usage records](contexts/coga/usage/SKILL.md),
+  [weekly telemetry](contexts/coga/telemetry/SKILL.md) (opt-out, and the
+  [operator runbook](telemetry.md) for release verification, read-back and
+  deletion),
+  [reusable patterns](contexts/coga/patterns/SKILL.md).
+- Browser work: [API first](contexts/browser/api-first/SKILL.md),
+  [DOM-backed runners](contexts/browser/dom-backed/SKILL.md).
 
-These pages are the human tour. The rules agents operate under live in the
-configured contexts directory (`coga/contexts/` by default; `[layout] contexts`
-can relocate it), with a package fallback for bundled contexts. `coga launch`
-composes a context when a ticket attaches it. A fact has one owner: a page here
-may summarize a rule and link to the context that owns it, but never restates
-the specification, and a context
-never inlines a page — it names the path. The full rule, including how to
-decide for a new fact, is the `Where a fact lives: docs vs contexts` section of
-[`coga/contexts/coga/architecture/SKILL.md`](../coga/contexts/coga/architecture/SKILL.md).
+Internals — exact guarantees, for changing or debugging Coga:
+[launch internals index](contexts/coga/launch-internals/SKILL.md)
+([agent spawn](contexts/coga/internals/agent-spawn/SKILL.md),
+[human assist](contexts/coga/internals/human-assist/SKILL.md),
+[assist publication](contexts/coga/internals/assist-publication/SKILL.md),
+[launch claims](contexts/coga/internals/launch-claims/SKILL.md),
+[claim recovery](contexts/coga/internals/claim-recovery/SKILL.md),
+[PR publication](contexts/coga/internals/pr-publication/SKILL.md));
+recurring ([admission](contexts/coga/internals/recurring-admission/SKILL.md),
+[control](contexts/coga/internals/recurring-control/SKILL.md),
+[temporary worktrees](contexts/coga/internals/recurring-temp-worktrees/SKILL.md));
+Git state ([publication](contexts/coga/internals/state-publication/SKILL.md),
+[regressions](contexts/coga/internals/git-regressions/SKILL.md),
+[refresh](contexts/coga/internals/git-refresh/SKILL.md),
+[union merges](contexts/coga/internals/spool-merge/SKILL.md));
+[activity capture](contexts/coga/internals/activity-capture/SKILL.md).
 
-## The shortest possible summary
+## Develop
 
-You adopt Coga into a Git repo with `coga init`. Work becomes **tickets** —
-markdown files under `coga/tasks/`. A ticket carries a **workflow** (its ordered
-steps) and a **blackboard** (its shared scratch memory). `coga launch` composes
-a ticket's context into a prompt and hands it to an agent CLI (Claude Code or
-Codex); the agent does the step's work, writes what it learned to the
-blackboard, and runs `coga bump` to advance. When the agent gets something
-wrong, you fix the context or workflow it used and commit the diff — the next
-run starts from the corrected version. Nothing is hidden: every rule the agent
-follows is a file you can open and edit.
+- [Codebase](contexts/coga/codebase/SKILL.md) source map and
+  [gotchas](contexts/coga/codebase/gotchas/SKILL.md).
+- [Extension model](contexts/coga/extension-model/SKILL.md) — core versus
+  edge, aliases, recipes. [Skill management](contexts/coga/skill-management/SKILL.md).
+- [Testing](contexts/coga/testing/SKILL.md),
+  [packaging](contexts/coga/packaging/SKILL.md),
+  [releasing](contexts/coga/releasing/SKILL.md).
+- Code-task conventions: [overview](contexts/dev/code/SKILL.md),
+  [checkouts](contexts/dev/checkouts/SKILL.md),
+  [the `## Dev` record](contexts/dev/dev-record/SKILL.md),
+  [design history](contexts/dev/design-history/SKILL.md),
+  [checkout cleanup](contexts/dev/checkout-cleanup/SKILL.md).
+- This repo's posture (dated, local to this repo):
+  [current direction](contexts/coga/current-direction/SKILL.md),
+  [project stage](contexts/coga/project-stage/SKILL.md),
+  [roadmap](contexts/coga/roadmap/SKILL.md).
+
+## Evidence and positioning
+
+- [Product vision](contexts/product/vision/SKILL.md) — purpose, audience,
+  bet, limits.
+- Marketing: [map](contexts/marketing/map/SKILL.md),
+  [positioning](contexts/marketing/positioning/SKILL.md),
+  [strategy](contexts/marketing/strategy/SKILL.md),
+  [plan](contexts/marketing/plan/SKILL.md),
+  [distribution](contexts/marketing/distribution/SKILL.md).
+- Dated evidence (read the date and scope on each page before reusing a
+  claim): [velocity](evidence/velocity.md),
+  [usage comparison](evidence/usage-comparison.md),
+  [build vs adopt](evidence/build-vs-adopt.md),
+  [why switch](evidence/why-switch-to-coga.md),
+  [pitch evaluation](evidence/pitch-evaluation.md),
+  [continuity](evidence/continuity-comparison.md),
+  [human-centred comparison](evidence/human-centered-comparison.md),
+  [research-work comparison](evidence/research-work-comparison.md),
+  [research replacement trial](evidence/research-replacement-trial.md),
+  [adoption trial](evidence/adoption-trial.md),
+  [upkeep audit](evidence/upkeep-audit.md).
+
+## Proposals and history
+
+- Unbuilt designs: [CLI extension audit](design/cli-extension-audit.md),
+  [CLI external surface](design/cli-external-surface.md).
+- Archive: [origins](archive/origins.md),
+  [market landscape](archive/market-landscape.md),
+  [superseded decisions](archive/superseded-decisions.md),
+  [launch programs](archive/launch-programs/README.md),
+  [Relay → Coga migration](archive/relay-migration.md).
+- [Context migration record](context-migration.md) — old paths and refs,
+  where each went, and the cutover.
+- Team-specific: [Google Drive MCP](contexts/docs/gdrive-mcp/SKILL.md)
+  (dated 2026-06).

@@ -97,10 +97,10 @@ agent-backed launch: `--agent` > the period ticket's `agent:` (stamped from
 is not rewritten by changing the default — same rule as reordering today.
 
 **Contexts/docs to update (read and edit, not attached):**
-`coga/contexts/coga/architecture/SKILL.md` — the paragraph stating `agent` is
+`docs/contexts/coga/architecture/SKILL.md` — the paragraph stating `agent` is
 filled from `Config.default_agent()` "the first agent declared in the effective
 merged configuration", and the section listing fixed-schema tables that raise
-on unknown keys. `coga/contexts/coga/recurring/SKILL.md` — the autofix
+on unknown keys. `docs/contexts/coga/recurring/SKILL.md` — the autofix
 "Which agent type analyzes" precedence bullet. Their packaged twins live under
 `src/coga/resources/templates/coga/bootstrap/contexts/coga/` (byte-identity
 enforced by `tests/test_packaging.py`). The packaged-only

@@ -1,191 +1,93 @@
 # Coga
 
-**A company OS for small teams in the agentic era.**
+Coga is a new way to work with AI by managing what it works from. You and the AI maintain the intent, instructions, relevant knowledge, and working state. Coga assembles that material into the prompt for the next session. As you learn, you can change both the work and the guidance that directs it.
 
-## Agents do. Humans think. In your repo, on a machine you own.
+## One piece of work
 
-You already know how to run several agent sessions in parallel: open more
-terminal tabs, paste more prompts, and keep the state of each job in your head.
-Coga turns those tabs into an operation. Every session gets a ticket, a
-blackboard that survives crashes, a queue for questions that need judgment, and
-a git-backed record of what shipped. `coga megalaunch` schedules the queue: when
-one task blocks, it parks the question and starts the next. You move from
-piloting every session to air-traffic control—answering batched interrupts
-instead of acting as the CPU.
+An illustrative walkthrough; the file names are the ones Coga uses with its
+default layout.
 
-## See the loop
+1. **Start from an incomplete idea.**
+   `coga ticket "Weekly summary of failed payments"` opens a guided
+   conversation. The AI asks what counts as failed, who reads the summary, and
+   what done means, then writes the answers into a ticket,
+   `coga/tasks/weekly-summary-of-failed-payments.md`: a Description, the
+   knowledge it should use (say, the `payments/stripe` context), and a
+   workflow of steps with an owner review.
+2. **Direct the execution.** `coga launch weekly-summary-of-failed-payments`
+   builds the prompt from that ticket, its attached contexts, the current
+   step's instructions and the ticket's blackboard, then starts Claude Code or
+   Codex. The agent does the step, notes its plan and findings on the
+   blackboard in the same file, and hands off at your review.
+   `coga launch <ticket> --prompt-report` shows what was assembled before
+   anything runs.
+3. **Inspect and correct.** You notice the summary counts charges that failed
+   once and then succeeded on retry. You fix this week's result on the ticket,
+   and you fix the reason: one line in
+   `coga/contexts/payments/stripe/SKILL.md` — "a charge that succeeds on
+   retry is not a failure" — committed like any other change.
+4. **Carry it forward.** The next ticket that attaches `payments/stripe`
+   is composed from the corrected file. Nothing was learned invisibly: the
+   ticket, its blackboard, the context diff and the entries in `coga/log.md`
+   are ordinary files you can read, review and revert.
 
-https://github.com/user-attachments/assets/b310bb0f-2312-4e19-98d4-cc65548b01c1
+Conversation, planning and execution are all part of this. Tickets, contexts,
+skills, workflows, markdown and Git are how it works; the
+[documentation](docs/README.md) explains each.
 
-**[Watch the current 95-second demo →](https://www.youtube.com/watch?v=iwnewxJvRPc)**
+## Install and start
 
-## The bet
-
-We are building Coga around a bet: a two-person technical team can produce the
-output of a ten-person team when frontier agents do the mechanizable work and
-the humans concentrate on specification, evaluation, and correction.
-
-That is a thesis, not a measured productivity multiplier. The full argument,
-including the conditions and failure modes, is in [the vision](docs/vision.md).
-
-## Measured on itself
-
-Coga runs the work that builds Coga. Its repository records a few categorical
-facts we can defend without pretending they prove the bet:
-
-- agents carry work through implementation steps after a human or scheduler
-  selects the task;
-- shipped development work receives a separate agent peer-review step;
-- the operation reached **31 agent-operated workstreams in one week** at the
-  peak of its initial reporting window;
-- the operating model kept shipping while one of its two founders was working
-  half-time.
-
-These are observations about how the operation ran, not a benchmark against a
-counterfactual team. [Read the counting rules, source paths, and caveats in the
-velocity report](docs/velocity-report.md). The more useful number—human-minutes
-per shipped task—is defined there but deliberately unmeasured: producing it
-would take a pre-registered run, and none is scheduled.
-
-## What it replaces
-
-| Before | Coga |
-|---|---|
-| Notion or Linear as the work ledger | Markdown tickets in your git history |
-| Zapier for recurring glue | Scheduled, inspectable script tickets and skills |
-| An ops coordinator moving work between people | Deterministic script tickets and `megalaunch` |
-| A wiki agents may or may not find | Contexts composed into the task prompt |
-| Slack as fragile company memory | Per-task blackboards plus an append-only log |
-
-Coga does not replace the systems where the underlying work happens. It gives
-the work one legible control plane.
-
-## The correction loop
-
-The important demo is not an agent succeeding. It is an agent being wrong in a
-way you can fix permanently. This example uses the default contexts directory;
-substitute the repo's `[layout] contexts` directory when configured:
-
-```sh
-$ $EDITOR coga/contexts/payments/refunds/SKILL.md  # correct the missing rule
-$ git add coga/contexts/payments/refunds/SKILL.md && git commit -m "Clarify refund approval"
-$ coga launch payments/reconcile-refunds           # the prompt is rebuilt from disk
-# this run—and every later task using that context—gets the correction
-```
-
-No hidden memory was retrained. You changed a file you own, reviewed the diff,
-and the next stateless session used it.
-
-## Six primitives
-
-- **Tickets** make each unit of work durable and directable.
-- **Blackboards** preserve working state and blockers between sessions.
-- **Contexts** hold facts about your company and domain.
-- **Skills** hold procedures for agents or deterministic scripts.
-- **Workflows** define ordered handoffs and human gates.
-- **The log** records launches, transitions, usage, and outcomes in append-only text.
-
-## Who it is for
-
-Coga is for small, technical teams that already use CLI agents, enjoy rigor,
-and want to understand and correct their own operational machinery. It is a
-good fit when the cost of writing down how work should happen is lower than the
-cost of supervising the same work forever.
-
-It is not for teams that want a managed service, an SLA, zero setup, or a
-delegate-and-forget employee substitute. Its workflows are linear state
-machines; use an agent framework for dynamic orchestration. Coga is local,
-self-hosted, and self-supported by design.
-
-## How it differs
-
-**Plain Claude Code or Codex** is the engine, not the competitor. A session is
-ephemeral, forgets the last ticket, and leaves you scheduling tabs. Coga gives
-those engines persistent, vendor-neutral operating state.
-
-**Backlog.md** stores work as markdown. Coga adds the execution loop: composed
-facts and procedures, step handoffs, blockers, review gates, and a scheduler.
-
-**OpenAI Symphony** has the same broad skeleton—tickets as a state machine,
-stateless agents, isolated workspaces, respawning workers—but takes the human
-out of the loop, keeps board state in cloud software, and is Codex- and
-code-specific. Coga keeps the gate and state in your git and can drive either
-vendor across operational domains.
-
-**CompanyOS** shares the owned-markdown instinct. It is a collection of context
-and skills, without Coga's task state machine, resumable blackboard, or gated
-correction loop.
-
-**Autonomy platforms** sell “no human between stages.” There is no such thing
-as full autonomy: autonomy is a function of specification quality and how
-reliably the result can be evaluated. Hide the human and the specification,
-review, and babysitting work still lands somewhere—or the mistakes do. Coga
-makes that irreducible judgment work explicit and batches it.
-
-## Install
-
-Coga requires Python 3.11+ and Git. Install the isolated CLI with
-[`uv`](https://docs.astral.sh/uv/):
-
-```sh
-uv tool install coga
-```
-
-Or install it in an activated virtual environment:
-
-```sh
-python -m pip install coga
-```
-
-Then, from the root of the git repository you want Coga to operate:
-
-```sh
-coga init --user <your-name>
-```
-
-`coga init` installs the markdown OS into that repository. In a brand-new empty
-repo it seeds a first-run ticket and tells you to run `coga build` with Claude
-Code or `coga build --agent codex` with Codex. That turns the idea into a
-signed-off vision and an initial batch of tickets. In an existing project it
-deliberately skips that blank-slate interview and points you at `coga ticket
-"<title>"` instead. `coga pick` runs a chosen batch until it reaches a blocker
-or review gate. You need an authenticated
+Coga needs Python 3.11+, Git, and an authenticated
 [Claude Code](https://claude.com/claude-code) or
-[Codex](https://github.com/openai/codex) CLI before either agent-backed path.
-Joining a repo that already uses Coga is the same command on your clone —
-`coga init --user <your-name>` writes only your gitignored machine-local
-setup. Installation troubleshooting and adopting an existing Coga repository
-are covered in [Getting started](docs/getting-started.md).
+[Codex](https://github.com/openai/codex) CLI.
 
-## Docs
+```sh
+uv tool install coga            # or: python -m pip install coga
+cd <your git repository>
+coga init --user <your-name>
+coga ticket "<what you want done>"
+coga launch <ticket>
+```
 
-Full documentation lives under [`docs/`](docs/README.md):
+[Install](docs/contexts/coga/install/SKILL.md) covers setup, joining a
+repository that already uses Coga, and troubleshooting.
+[First task](docs/contexts/coga/first-task/SKILL.md) walks one ticket from
+draft to reviewed result. A [95-second demo](https://www.youtube.com/watch?v=iwnewxJvRPc)
+was recorded in July 2026; some command names may have changed since.
 
-- **Why:** [Vision](docs/vision.md)
-- **Start:** [Getting started](docs/getting-started.md)
-- **Model:** [Concepts](docs/concepts.md)
-- **Reference:** [CLI commands](docs/reference.md)
-- **Operations:** [Notifications, recurring work, secrets](docs/operations.md)
-- **Contributing:** [Report a problem or make a change](CONTRIBUTING.md)
-- **Development:** [Working on Coga itself](docs/development.md)
-- **Evidence:** [Velocity report](docs/velocity-report.md)
+## Who it is for, and its limits
 
-## Values
+Coga is for small technical teams who already use CLI agents, are comfortable
+with Git and the shell, and want to understand and correct the material their
+agents work from. It fits when writing down how work should be done costs less
+than supervising the same work indefinitely.
 
-**Own the system.** Coga is markdown, Python, Git, and the shell. There is no
-hosted operational state, hidden database, or plugin fence around the rules.
+It is local, self-hosted and self-supported: no managed service, SLA, hosted
+dashboard or zero-setup path. Workflows are linear sequences of steps; dynamic
+orchestration belongs in an agent framework. Coga does not replace judgment: it
+makes the points where you decide and correct explicit.
 
-**Make judgment scarce.** Agents and scripts do the mechanizable work. Humans
-choose what matters, evaluate results, and correct the substrate.
+This is a field report. Coga runs the work that builds Coga at FastJVM, a
+two-person company, and we build it around a thesis — that a two-person
+technical team can produce the output of a ten-person team when agents do the
+mechanizable work and humans specify, evaluate and correct — which is
+[a bet, not a measured result](docs/contexts/product/vision/SKILL.md). One
+dated observation: in the week ending 2026-07-05 the repository recorded
+31 distinct agent-operated workstreams, counted per week rather than as
+simultaneous processes ([method and limits](docs/evidence/velocity.md)).
+Human time per shipped task has not been measured.
 
-**Compound corrections.** Knowledge changes through readable diffs and human
-gates, not opaque automatic memory.
+Managing prompts and instructions as files has close precedents. For dated
+comparisons with other tools, see the [evidence pages](docs/evidence/) and the
+[market landscape](docs/archive/market-landscape.md) record.
 
-**Fail loud.** Missing context, broken references, script failures, and blocked
-decisions surface instead of silently producing a plausible wrong answer.
+## Learn more
 
-**Keep vendors replaceable.** Claude Code and Codex work today; the company
-memory belongs to neither.
+- [Documentation index](docs/README.md): start, understand, operate and
+  develop.
+- [Principles](docs/contexts/coga/principles/SKILL.md): the design
+  constraints.
+- [Contributing](CONTRIBUTING.md).
 
 Coga is free software licensed under
 [AGPL-3.0-or-later](LICENSE).
@@ -202,5 +104,5 @@ Editable/source installations do not report.
 
 Set `[telemetry] enabled = false` in shared or local config to stop sending and
 its Slack receipt. Disabling stops sending; movement from the gap may appear in
-the first count after re-enabling. See the [contract](coga/contexts/coga/telemetry/SKILL.md)
+the first count after re-enabling. See the [contract](docs/contexts/coga/telemetry/SKILL.md)
 and [operator runbook](docs/telemetry.md) for the boundary, verification and deletion.

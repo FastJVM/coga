@@ -5,8 +5,10 @@ owner: nicktoper
 agent: claude
 contexts:
 - coga/codebase
-- coga/sync
-- dev/code
+- coga/internals/state-publication
+- dev/checkouts
+- dev/checkout-cleanup
+- dev/dev-record
 workflow:
   name: code/with-review
   steps:
@@ -51,12 +53,12 @@ which deterministic placement + automatic cleanup fixes.
 ## Context
 
 **This is a change to relay's own behavior**, not a one-off. Read
-`relay/codebase` for source layout and `relay/sync` for how control-plane git
+`coga/codebase` for source layout and `coga/internals/state-publication` for how control-plane git
 sync works — worktree lifecycle intersects with it (`git.py:sync_task_state`
 already has a feature-branch path that lands task-state on the control branch
 via working-tree-free plumbing, so worktrees and the control plane already
-coexist; don't break that). `dev/code` is the context whose "Checkout
-boundary" section currently encodes the vague convention and must be updated
+coexist; don't break that). `dev/checkouts` is the context whose checkout-layout
+guidance currently encodes the vague convention and must be updated
 to name the exact `<repo>/worktree/<slug>` path.
 
 **Path convention:** worktrees go at `<repo>/worktree/<slug>` — keyed by task
@@ -92,7 +94,7 @@ needs a design call.
   the convention.
 - **`git clean -fdx` hazard.** A gitignored `worktree/<slug>` holding
   uncommitted feature work is exactly what `git clean -x` in the primary
-  checkout deletes. Worth a note in `dev/code` so nobody torches in-flight
+  checkout deletes. Worth a note in `dev/checkouts` so nobody torches in-flight
   worktrees.
 - **The template `.gitignore` change is a product decision.** Editing
   `src/relay/resources/templates/relay-os/.gitignore` imposes the
@@ -114,7 +116,8 @@ the actual problem as scattered placement plus missing cleanup. It combined
 creation and cleanup here, with the proposed slug-keyed path, context refs,
 sibling relationship, and peer-review workflow recorded above. This is the
 historical proposal; synthesis does not approve it as today's checkout
-contract. Recheck the premise against current `dev/code` before pulling it
+contract. Recheck the premise against current `dev/checkouts` and
+`dev/checkout-cleanup` before pulling it
 forward.
 
 The evaluator's safety findings were already folded into `## Context` under

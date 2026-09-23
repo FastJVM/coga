@@ -1,6 +1,6 @@
 # Telemetry operations
 
-The [telemetry context](../coga/contexts/coga/telemetry/SKILL.md) owns the event
+The [telemetry context](contexts/coga/telemetry/SKILL.md) owns the event
 schema, admission gates, cursor and loss semantics. This runbook owns operator
 procedures. Weekly snapshots measure repos with active sweeps, not installs.
 
@@ -76,7 +76,7 @@ cd coga
 ```
 
 For the live proof, enable the existing Slack notification channel in this
-scratch repo before its first sweep, following [notification setup](operations.md).
+scratch repo before its first sweep, following [notification setup](contexts/coga/notifications/SKILL.md).
 The receipt contains the exact prepared keyless envelope for comparison; retain
 it in the PR along with the queried rows. Fresh init defaults to no notification
 channels, so configure this explicitly. A failed receipt is not an ingestion

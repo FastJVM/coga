@@ -78,8 +78,8 @@ Done means:
   fresh-clone diagnostics retain their current behavior;
 - text and JSON output, both CLI entrypoints, `--task`, `--fix`, and the network
   check combinations follow the contract above;
-- `docs/operations.md`, `docs/reference.md`, and the packaged
-  `contexts/coga/cli` command reference show strict validation as the preflight
+- `coga/testing` and `coga/recurring/scheduling` (live and packaged copies)
+  show strict validation as the preflight
   before invoking recurring work. No external repository documentation is
   required by this ticket.
 

@@ -317,10 +317,10 @@ def test_dream_re_validates_parked_drafts_every_run() -> None:
     protocol_text = (SCAN_TEMPLATES / "scan-protocol" / "SKILL.md").read_text()
     readme_text = (repo_root / "coga" / "tasks" / "v2" / "README.md").read_text()
     readme_norm = " ".join(readme_text.replace("**", "").split())
-    architecture_text = (
-        repo_root / "coga" / "contexts" / "coga" / "architecture" / "SKILL.md"
+    lifecycle_text = (
+        repo_root / "docs" / "contexts" / "coga" / "lifecycle" / "SKILL.md"
     ).read_text()
-    architecture_norm = " ".join(architecture_text.split())
+    lifecycle_norm = " ".join(lifecycle_text.split())
 
     # The README owns the four questions and names Dream as the standing owner.
     assert "Four questions, in this order:" in readme_text
@@ -366,17 +366,17 @@ def test_dream_re_validates_parked_drafts_every_run() -> None:
     assert '`coga create "Premise check <period>: <N> parked drafts need a verdict"' in norm
     assert "the run's premise adjudication draft included" in norm
 
-    # Architecture owns the lifecycle guard; the parking README links to it
-    # and applies it without maintaining a second specification.
-    guard = (
-        "A green `coga validate` is never a reason to cancel a draft — it is a "
-        "consequence of correct verdicts, never an input to them."
-    )
+    # coga/lifecycle owns the green-validate guard; the parking README links
+    # to it and applies it without maintaining a second specification.
+    guard = '"Clears a validate error" is not a cancellation reason'
     assert guard not in readme_norm
     assert "### The green-validate guard" in readme_text
-    assert "../../contexts/coga/architecture/SKILL.md#two-state-machines-per-ticket" in readme_text
-    assert architecture_norm.count(guard) == 1
-    assert "A terminal transition is a verdict about the ticket" in architecture_norm
+    assert (
+        "../../../docs/contexts/coga/lifecycle/SKILL.md#status-whether-work-happens"
+        in readme_text
+    )
+    assert lifecycle_norm.count(guard) == 1
+    assert "A terminal transition is a verdict about the ticket" in lifecycle_norm
 
 
 def test_validate_drift_worker_declares_contract() -> None:
@@ -505,9 +505,9 @@ def test_dream_shards_and_reconciles_the_scan_phases() -> None:
     assert "sharded corpus read; classifies every finding" in text
 
 
-def test_dream_sharding_updates_the_architecture_contract() -> None:
+def test_dream_sharding_updates_the_dream_contract() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    live = repo_root / "coga" / "contexts" / "coga" / "architecture" / "SKILL.md"
+    live = repo_root / "docs" / "contexts" / "coga" / "dream" / "SKILL.md"
     packaged = (
         RESOURCES
         / "templates"
@@ -515,17 +515,17 @@ def test_dream_sharding_updates_the_architecture_contract() -> None:
         / "bootstrap"
         / "contexts"
         / "coga"
-        / "architecture"
+        / "dream"
         / "SKILL.md"
     )
     text = live.read_text()
-    norm = " ".join(text.split())
+    norm = " ".join(text.replace("**", "").split())
 
     assert live.read_bytes() == packaged.read_bytes()
-    assert "two sharded subagent scans" in norm
-    assert "retry-supersession rules" in norm
-    assert "reconciles only active leaf assignments" in norm
-    assert "by distinct completing shard id rather than by counting" in norm
+    assert "bounded shard subagents" in norm
+    assert "set of distinct shard ids" in norm
+    assert "never by counting lines" in norm
+    assert "One retry, then `partial`" in norm
     assert "`no-op`, `reported`, `partial`, `proposed`" in norm
 
 
@@ -631,11 +631,11 @@ def test_dream_keeps_coga_owned_files_out_of_a_client_repo_scan() -> None:
     assert "\n## <title>" not in dream_text
     assert "\n  ## <title>" in dream_text
     # The live twin is enforced by test_packaging; the vocabulary reaches the
-    # architecture contract too.
-    arch = " ".join(
-        (RESOURCES.parents[2] / "coga" / "contexts" / "coga" / "architecture" / "SKILL.md")
+    # coga/dream contract too.
+    dream_contract = " ".join(
+        (RESOURCES.parents[2] / "docs" / "contexts" / "coga" / "dream" / "SKILL.md")
         .read_text()
         .split()
     )
-    assert "`human-needed`, `upstream-captured`" in arch
-    assert "`[upstream]`" in arch
+    assert "`human-needed`, `upstream-captured`" in dream_contract
+    assert "`coga/upstream-coga.md`" in dream_contract

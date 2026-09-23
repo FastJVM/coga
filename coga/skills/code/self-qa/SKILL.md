@@ -18,7 +18,7 @@ this step just makes sure the diff they see is already clean.
    from the repo, add a short `## Self-QA` note, run
    `coga mark done <slug>`, and stop. Otherwise, change into the recorded
    checkout — the feature worktree, or the primary checkout itself when
-   `worktree:` names it (the single-checkout layout in `dev/code`) — and
+   `worktree:` names it (the single-checkout layout in `dev/checkouts`) — and
    confirm it is on the recorded branch with a clean working tree (the
    previous `code/implement` step committed). If the branch/worktree is missing
    without already-satisfied evidence, escalate per your launch mode — ask
@@ -38,7 +38,7 @@ this step just makes sure the diff they see is already clean.
    actual substance. Record in the `## Self-QA` note which form you used, so
    the human reviewer knows what they are inheriting. `codex review --base
    main` is the equivalent native command where available, but it fails inside
-   a restricted sandbox (see `coga/codebase`), so rerun it unsandboxed rather
+   a restricted sandbox (see `coga/testing`), so rerun it unsandboxed rather
    than reporting it as clean.
 
    A green suite is not this step. Two recent tickets shipped a full-green
@@ -92,7 +92,7 @@ this step just makes sure the diff they see is already clean.
    escalate per your launch mode — ask the attending human, or `coga block` in a
    queue run — rather than bumping. Finally, return to the primary checkout
    and run `coga bump <slug>` to advance to `pr` — in the single-checkout
-   layout (`dev/code`: `worktree:` names the primary checkout itself) you are
+   layout (`dev/checkouts`: `worktree:` names the primary checkout itself) you are
    already there, so stay on the feature branch and bump from it; do not
    switch to the control branch first.
 

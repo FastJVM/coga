@@ -161,9 +161,9 @@ Owner decisions (2026-09-22, design step):
    the two sentences in `## Isolation boundary`. The `## Isolation`
    one-liners near the top stay consistent.
 4. **Contexts:**
-   - `coga/contexts/coga/codebase/SKILL.md`: add the recipe as a bullet in the
+   - `docs/contexts/coga/codebase/SKILL.md`: add the recipe as a bullet in the
      sandbox section.
-   - `coga/contexts/coga/architecture/SKILL.md`: add one sentence to the
+   - `docs/contexts/coga/architecture/SKILL.md`: add one sentence to the
      Dream scan paragraph.
    - Mirror both into `src/coga/resources/templates/coga/bootstrap/contexts/coga/`.
 5. **Template tests:** add them in `tests/test_dream_worker_templates.py`.
@@ -223,7 +223,7 @@ Owner decisions (2026-09-22, design step):
   including the parent, and no cwd parameter or close tool. Children share
   the parent's cwd and sandbox. Codex's system prompt permits spawning only
   when instructions explicitly ask for delegation.
-- **Existing sandbox knowledge:** `coga/contexts/coga/codebase/SKILL.md`
+- **Existing sandbox knowledge:** `docs/contexts/coga/codebase/SKILL.md`
   `## Sandbox and cross-machine dev loop` already lists the codex
   read-only-`.git` wall and the independent-clone fallback. The grant recipe
   extends that section. `.codex` and `.codex/skills/coga` are already in

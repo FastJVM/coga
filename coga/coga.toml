@@ -169,3 +169,8 @@ build = "launch coga-build"
 pick = "megalaunch --pick"
 claude = "launch bootstrap/orient --agent claude"
 codex = "launch bootstrap/orient --agent codex"
+
+[layout]
+# Contexts live in the docs library, anchored at the checkout root. See
+# docs/context-migration.md for the cutover record.
+contexts = "docs/contexts"

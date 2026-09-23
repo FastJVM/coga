@@ -19,11 +19,11 @@ bootstrap resources as appropriate.
 
 If behavior moves or the command boundary changes, update the matching durable
 context/source doc in the same PR, especially
-`coga/contexts/coga/extension-model/SKILL.md`, `docs/cli-extension-audit.md`,
-`src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md`,
-`coga/contexts/coga/principles/SKILL.md`,
-`coga/contexts/coga/architecture/SKILL.md`, and packaged template copies when
-applicable.
+`docs/contexts/coga/extension-model/SKILL.md`,
+`docs/design/cli-extension-audit.md`, `docs/contexts/coga/cli/SKILL.md`
+(the command index) and the topic that owns the changed command,
+`docs/contexts/coga/principles/SKILL.md`, and their packaged
+`bootstrap/contexts/` copies.
 
 ## Child Tickets
 

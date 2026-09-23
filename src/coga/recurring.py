@@ -1184,7 +1184,7 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
 # choice is a real preference, so promotion keeps it and every period task
 # inherits it (see `_TEMPLATE_PASSTHROUGH`). `skills:` is dropped too, but
 # reported separately: it is deliberately never copied into a period task (see
-# the `coga/recurring` context), so leaving it on the template would look
+# the `coga/recurring/templates` context), so leaving it on the template would look
 # load-bearing while doing nothing.
 _TASK_ONLY_FIELDS = (
     "status",

@@ -328,7 +328,7 @@ def set_dev_pr(blackboard_text: str, url: str) -> str:
     Updates the line in place when present (preserving any `- ` / indentation),
     inserts one right after the `## Dev` header when the section exists without a
     `pr:` line, and appends a fresh `## Dev` section as a last resort. Mirrors the
-    `dev/code` convention: the blackboard records *current* state, so overwrite
+    `dev/dev-record` convention: the blackboard records *current* state, so overwrite
     rather than append a second `pr:` line.
     """
     section = _DEV_SECTION_RE.search(blackboard_text)
@@ -537,7 +537,7 @@ def open_pr(
         raise OpenPrError(
             "No usable `worktree:` recorded under `## Dev` on the blackboard. "
             "open-pr pushes from the recorded checkout; record its path there "
-            f"(see the dev/code context), or `coga block --task {slug}`."
+            f"(see the dev/dev-record context), or `coga block --task {slug}`."
         )
     if not Path(worktree).is_dir():
         raise OpenPrError(
@@ -549,7 +549,7 @@ def open_pr(
             f"(`git worktree add {worktree} {branch}`), then run the "
             "seed_local_config.py attachment beside code/implement with the "
             "primary Coga workspace and recreated checkout root before any Coga "
-            "command there (dev/code: Seed the machine-local config). Stop if "
+            "command there (dev/checkouts: What a fresh checkout lacks). Stop if "
             "setup fails; apply the same check when resuming an existing checkout. "
             f"Or `coga block --task {slug}`."
         )
@@ -633,7 +633,7 @@ def open_pr(
                     f"The dirt is this ticket's own file ({listed}). Do not "
                     "commit it here unchecked: "
                 )
-            # Only generated drift gets the destructive restore. `dev/code`
+            # Only generated drift gets the destructive restore. `dev/dev-record`
             # allows an intentional authored-body change as implementation
             # work, and the restore below would discard its only copy.
             remediation = (
@@ -646,7 +646,7 @@ def open_pr(
                 f"(`git restore --staged --worktree -- {' '.join(ticket_dirt)}`); "
                 "do not stash it just to pass this gate. Only an intentional "
                 "change to the authored ticket body that is part of the "
-                "implementation is committed, as `dev/code` allows. "
+                "implementation is committed, as `dev/dev-record` allows. "
             )
         else:
             remediation = (

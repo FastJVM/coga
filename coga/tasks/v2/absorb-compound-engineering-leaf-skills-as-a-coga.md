@@ -43,7 +43,7 @@ surface named below against `main` before pulling forward (see
    code/implement, requires: branch)` → `simplify (agent, ce-simplify-code)`
    → `peer-review (other-agent, ce-code-review)` → `open-pr (requires: pr)`
    → `review (owner)`. Check against the shared-skill authoring rule in
-   `coga/architecture` (refer to "the next frozen step", never a step by
+   `coga/workflows` (refer to "the next frozen step", never a step by
    name).
 6. **What it costs.** Upkeep of adaptations, CE's taste in the leaves
    colliding with Coga contexts (the context composes earlier and wins), and
@@ -55,10 +55,10 @@ surface named below against `main` before pulling forward (see
 
 ### Evidence
 
-- Source-pinned CE comparisons already in the repo: `docs/adoption-trial.md`,
-  `docs/build-vs-adopt.md` (lists "Coga runs CE" under combinations worth
-  considering), `docs/continuity-comparison.md`,
-  `docs/research-work-comparison.md`, `docs/research-replacement-trial.md`.
+- Source-pinned CE comparisons already in the repo: `docs/evidence/adoption-trial.md`,
+  `docs/evidence/build-vs-adopt.md` (lists "Coga runs CE" under combinations worth
+  considering), `docs/evidence/continuity-comparison.md`,
+  `docs/evidence/research-work-comparison.md`, `docs/evidence/research-replacement-trial.md`.
 - CE upstream inspected 2026-09-16: README (host list, 35-skill inventory,
   MIT), `skills/lfg/SKILL.md` (single request; stops on an unproducible work
   source, a non-complete child, or an invalidated decision; asks the human only
@@ -70,7 +70,7 @@ surface named below against `main` before pulling forward (see
   commit offered).
 - Coga seams: `coga skill install <owner/repo> [skill]`, `coga skill update
   --all` with digest-based `local-adaptation` / `conflict` statuses, `include`
-  allowlists, local-first `resolve_skill_path`; all documented in `coga/cli`.
+  allowlists, local-first `resolve_skill_path`; all documented in `coga/skill-management`.
 
 ### Decision owed when pulled forward
 

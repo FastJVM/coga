@@ -27,7 +27,7 @@ step: 1 (implement)
 
 ## Description
 
-Filed by Dream 2026-W39, Phase 6. Route: `gap` findings with no open owner (whole-corpus search done: hits were incidental rediscoveries in verification notes, not owners). Four repeated dev-loop verification gotchas that tickets keep re-deriving and that no context carries. Design judgment needed on whether they belong as bullets under `coga/contexts/coga/codebase/SKILL.md` ("how to run tests and validation" / "two non-obvious traps"), and in what form. Keep the live and packaged twin byte-identical. Note the codebase context is touched by many open PRs at filing time — base on main after they land.
+Filed by Dream 2026-W39, Phase 6. Route: `gap` findings with no open owner (whole-corpus search done: hits were incidental rediscoveries in verification notes, not owners). Four repeated dev-loop verification gotchas that tickets keep re-deriving and that no context carries. Design judgment needed on whether they belong as bullets under `coga/testing` (`docs/contexts/coga/testing/SKILL.md` — its commands, environment pitfalls and restricted-sandbox sections now own what the findings below cite as the `coga/contexts/coga/codebase/SKILL.md` "how to run tests and validation" / "two non-obvious traps" bullets), and in what form. Keep the live and packaged twin byte-identical. Note the old codebase context was touched by many open PRs at filing time — base on main after they land.
 
 **F34 — Recurring cleanup test globs the shared system tempdir and fails on stale leftovers**  
 (Dream 2026-W39 Phase 2, shard ks-16; class `gap`; target `coga/contexts/coga/codebase/SKILL.md`)

@@ -144,7 +144,7 @@ def test_prelaunch_blackboard_ignores_historical_headings_inside_archive() -> No
 
 
 def test_superseded_designs_archive_ends_only_at_atx_headings(tmp_path: Path) -> None:
-    # `dev/code` narrows the boundary to ATX `#`/`##` lines: a Setext
+    # `dev/design-history` narrows the boundary to ATX `#`/`##` lines: a Setext
     # underline is not a boundary because `---` is also the blackboard's
     # section separator and would split the archive at every separator.
     text = dedent(

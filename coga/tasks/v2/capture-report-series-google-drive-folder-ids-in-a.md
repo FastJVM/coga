@@ -43,7 +43,7 @@ folder facts were re-discovered each time:
   of the single folder's literal name — not a nested path.
 
 Open question for the human: this is **project data**, not a Relay mechanism,
-so a context (`relay-os/contexts/docs/drive-folders/SKILL.md`?) is one option,
+so a context (`docs/contexts/docs/drive-folders/SKILL.md`?) is one option,
 but folder IDs may belong in config or a doc-series skill instead — or may not
 be worth durably capturing at all. The repeated wrong-answer cost is the
 reason to consider it; the decision is yours.

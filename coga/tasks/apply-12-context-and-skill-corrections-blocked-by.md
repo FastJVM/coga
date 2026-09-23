@@ -30,6 +30,16 @@ step: 1 (implement)
 
 Filed by Dream 2026-W39, Phase 6. Route: `stale`/`drift` findings whose target file is touched by an open PR that does NOT carry the correction (verified by grepping each PR diff for the stale claim). Per Dream's proposal-ownership rule these are preserved here instead of opened as competing proposal PRs. Apply each correction on main after the overlapping PRs land; keep every packaged twin under `src/coga/resources/templates/coga/bootstrap/...` byte-identical (`tests/test_packaging.py`). Each item names the overlapping PRs at filing time.
 
+Note (docs-library migration, 2026-09-22): the target contexts below moved from `coga/contexts/` to `docs/contexts/`, and `coga/codebase` and `coga/sync` were split into focused topics (packaged twins under `src/coga/resources/templates/coga/bootstrap/contexts/<ref>/SKILL.md`). The findings keep the paths and line numbers they were filed with; apply each at its new home, and re-check it first:
+
+- F20 (validate baseline list) and F23 (PYTHONPATH mechanism): the stale text now lives in `docs/contexts/coga/testing/SKILL.md` ("Which code you are actually testing"; "Scope validation with `coga validate --task <slug>`").
+- F21 (`browser/playwright` filed as hand-vendored): now in `docs/contexts/coga/skill-management/SKILL.md` ("Hand-vendored" bullet).
+- F24 (`.coga/` "launch worktrees"), F25 (codebase `## Secrets`), F79 (propagate-local "still a draft"), F81 (`_LEDGER_LOADED = "yes"`), F82 (`clarity/` without `include`): the sentences were not carried into the split topics (`dev/checkouts`, `coga/secrets`, `coga/skill-management`); confirm and drop.
+- F27 (HEAD-blob claim-clear allowance): no longer stated in `coga/internals/git-regressions` or `coga/internals/state-publication`; confirm and drop.
+- F78 (single `merge=union` file): `docs/contexts/coga/internals/spool-merge/SKILL.md` now lists `log.md` and `retires.md`; confirm and drop.
+- F26 (current-direction "baton" sentence): not present in the rewritten `docs/contexts/coga/current-direction/SKILL.md`; confirm and drop.
+- F77 (`coga/skills/code/open-pr/SKILL.md`): unaffected by the migration.
+
 Also fold in: the `## Dream Skill: validate-drift` pr-proposal bucket's four `unsynthesized-draft-blackboard` errors are the validate baseline that F20's bullet must list (`clean-up-all-the-working-trees`, `v2/autotrigger-ticket-type`, `v2/measure-relay-prompt-scope-and-agent-precision`, `v2/use-worktree-when-starting-a-dev-task`); add the tag line `validate-drift: unsynthesized-draft-blackboard` to that bullet so later Dream runs treat the recorded baseline as the decision.
 
 **F20 — `coga/codebase` pins a dated `coga validate` baseline error set that no longer matches `main`**  

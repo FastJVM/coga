@@ -11,7 +11,7 @@ contexts:
 
 Stateless launch target. `coga launch bootstrap/orient` drops an agent
 into a fully-composed coga-aware session — global rules, repo context,
-and the canonical coga/* contexts (architecture, principles, cli).
+and the orientation contexts (principles, architecture overview, cli index).
 No ticket, no workflow, no lock.
 
 The point: skip the "open `claude` in the repo and re-explain the
@@ -25,11 +25,14 @@ There is no task-ownership lock — see `coga/architecture`.
 
 What the agent should do once oriented:
 
-- The composed prompt already includes the canonical coga/* contexts
-  (architecture, principles, cli) because this ticket's own `contexts:`
-  list names them — a ticket loads only the contexts it lists. Use `coga/cli`
-  for command usage and `coga/architecture` for ticket and workflow contracts;
-  both references are bundled with Coga and already included in this prompt.
+- The composed prompt already includes three short orientation contexts
+  (principles, the architecture overview, and the `coga/cli` command index)
+  because this ticket's own `contexts:` list names them — a ticket loads only
+  the contexts it lists. The overview and index link the focused topics
+  (`coga/lifecycle`, `coga/launch`, `coga/sync`, ...) that own each detailed
+  contract; those are not in this prompt. When the work needs one, read that
+  topic's file from the configured contexts directory or the bundled package,
+  and use `coga <command> --help` for exact syntax.
 - Wait for the human to direct. Don't `coga create` or `coga ticket` of your own
   initiative.
 - If asked for a triage view, run `coga status` and summarize.

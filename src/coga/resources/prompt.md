@@ -42,8 +42,9 @@ After YAML frontmatter, a normal ticket has two regions separated by exactly
   ticket is derived from the current workflow step's `assignee:` role.
 - **Below the fence: blackboard.** This is free-form working memory. Read it
   first, update it throughout the step, and leave a useful handoff.
-  Superseded design history stays on disk under the `dev/code` convention;
-  the composed blackboard includes a pointer for deliberate reading.
+  Superseded design history stays on disk under the `dev/design-history`
+  convention; the composed blackboard includes a pointer for deliberate
+  reading.
 
 The append-only audit trail lives separately in repo-global `coga/log.md`.
 Do not edit it: `coga create`, `ticket`, `mark`, `launch`, `bump`, `block`, and
@@ -66,7 +67,7 @@ contexts:
   read or work the newly selected step in this process. Under a `coga launch`
   supervisor, `coga bump`, `coga mark done`, `coga mark canceled`, and
   `coga block` each end your session and let the supervisor spawn what comes
-  next. How the supervisor chains steps is in `coga/architecture`; you do
+  next. How the supervisor chains steps is in `coga/launch`; you do
   not drive it.
 - **API/manual sessions don't chain.** After a bump outside `coga launch`, the
   human relaunches the next step. Do not call `coga launch` yourself.

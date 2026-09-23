@@ -3,8 +3,9 @@ title: Let the autofix generator attach repo-default contexts
 status: draft
 owner: nicktoper
 contexts:
-- coga/recurring
-- coga/codebase
+- coga/recurring/autofix
+- coga/configuration
+- coga/testing
 workflow: null
 ---
 
@@ -24,8 +25,9 @@ that does not set it), carry it on `Config` beside `autofix_agent`, and use it
 in `create_autofix_ticket`. Validating each ref at config load, the way
 `[autofix].agent` is checked against `[agents]`, is the same argument as that
 key's docstring makes: a typo found only after an unattended sweep is reported
-by nothing. Update the packaged `coga/cli` context's autofix-loop operator
-knobs, and cover parse + generation in `tests/test_recurring_autofix.py` and
+by nothing. Update the operator knobs in the `coga/recurring/autofix` topic
+and the `[autofix]` row of the `coga/configuration` key allowlist (canonical
+under `docs/contexts/`, plus packaged twins), and cover parse + generation in `tests/test_recurring_autofix.py` and
 the config tests.
 
 Alternative considered and not preferred: have the analyst choose contexts.

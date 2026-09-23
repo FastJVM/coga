@@ -5,8 +5,10 @@ owner: nicktoper
 agent: codex
 contexts:
 - coga/principles
-- coga/codebase
-- dev/code
+- coga/usage
+- coga/prompt-composition
+- dev/checkouts
+- dev/dev-record
 workflow:
   name: code/with-review
   steps:

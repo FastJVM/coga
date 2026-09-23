@@ -67,7 +67,7 @@ which:
 
 The sweep is defined in `coga.branchsweep.sweep_branches`. The worktree
 removal is a direct destructive change gated on a repo-level opt-in; the
-`dev/code` context states the assumption the key asserts, and the
+`dev/checkout-cleanup` context states the assumption the key asserts, and the
 `coga/branch-sweep/sweep` skill names the proofs. Its first run
 also prunes the merged part of the branch backlog that accumulated before
 retire-time deletion shipped — abandoned no-PR branches are skipped and

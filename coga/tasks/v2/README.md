@@ -106,7 +106,7 @@ with evidence of the dead premise or already-delivered outcome.
 
 ### The green-validate guard
 
-Apply the [ticket lifecycle rule in `coga/architecture`](../../contexts/coga/architecture/SKILL.md#two-state-machines-per-ticket)
+Apply the [ticket lifecycle rule in `coga/lifecycle`](../../../docs/contexts/coga/lifecycle/SKILL.md#status-whether-work-happens)
 when adjudicating parked drafts. Here, the evidence comes from the author's
 intent and the premise questions above. Standing validation errors on parked
 drafts can make cancellation look like an easy cleanup, but they supply no
@@ -134,7 +134,7 @@ Follow [Dream's Phase 6 filing and gap rules](../../recurring/dream/ticket.md#ph
 reuse an open ticket that already owns the work, or file a described draft at
 the task root for human triage. Dream does not file new findings under `v2/`.
 Moving a reviewed draft here is an explicit human deferral, governed by the
-[roadmap's Deferred work rule](../../contexts/coga/roadmap/SKILL.md#deferred-work).
+[roadmap's Deferred work rule](../../../docs/contexts/coga/roadmap/SKILL.md#deferred-work).
 Dream's template owns the routing contract; this directory is the parking
 destination only after that human decision.
 
@@ -154,7 +154,7 @@ instructions. Check each occurrence against this table:
 | `relay launch`, `relay recurring`, `relay status`, `relay bump` | Renamed — the `coga` equivalents exist. |
 | `relay draft` | **Gone.** Ticket creation is `coga create` (raw draft) or `coga ticket` (authoring skill). |
 | `relay panic` | **Replaced.** Use `coga block --task <slug> --reason "…"` for unresolved input; it records the ask, marks the task blocked, notifies the owner, and ends the session. |
-| `mode:` ticket frontmatter (`script` / `auto` / `interactive`) | **Gone.** There is no `mode` or `recipe:` field. A directory-form ticket's exact sibling `ticket.py` is its headless deterministic half; without that file, launch selects the agent path. See `coga/architecture`. |
+| `mode:` ticket frontmatter (`script` / `auto` / `interactive`) | **Gone.** There is no `mode` or `recipe:` field. A directory-form ticket's exact sibling `ticket.py` is its headless deterministic half; without that file, launch selects the agent path. See `coga/script-tickets`. |
 | Child `mode: script` tasks driven by a parent task | **Gone.** Put a ticket-owned deterministic phase in that selected ticket's exact sibling `ticket.py`, or invoke a stable package command explicitly through `coga run`; do not rebuild child-task mode orchestration. |
 | `[secrets]` bulk-inject config block | **Gone.** Secrets are per-ticket `secrets:` frontmatter holding `op://vault/item/field` refs; see `coga/secrets`. |
 

@@ -36,7 +36,7 @@ inherited by the child, and no call site removes it afterwards. A launched
 agent, `ticket.py` phase, or recipe can therefore run `op read` against the
 whole automation vault even when its ticket declares one secret — or none.
 
-That contradicts what `coga/architecture` and `coga/secrets` say a ticket's
+That contradicts what `coga/secrets` says a ticket's
 `secrets:` list means. Make the declaration real for the service-account path:
 Coga resolves the ticket's declared `op://` refs using the token, then removes
 the inherited token before spawning the child.
@@ -67,7 +67,7 @@ so a fix inside it covers them all; confirm none re-adds the token afterwards):
 **Scope the claim honestly.** `build_launch_env` copies the entire parent
 environment; this ticket removes one variable from it. Do **not** read this as a
 mandate to build an allowlist environment — the child still inherits everything
-else, and `coga/architecture` deliberately says the declaration is not a
+else, and `coga/secrets` deliberately says the declaration is not a
 sandbox. The goal is narrower: the service-account token specifically stops
 being ambient.
 
@@ -84,18 +84,16 @@ desktop-app integration, or other ambient credential can still authenticate the
 child and may carry broader access than the service account. This change bounds
 the service-account path only.
 
-**Docs to update** (not attached as contexts — read them from disk; attaching
-`coga/architecture` in full would dominate the composed prompt for one
-paragraph):
+**Docs to update** (`coga/secrets` is attached; the old `coga/architecture`
+copy of the sandbox paragraph was merged into it, so there is one owner now):
 
-- `coga/contexts/coga/architecture/SKILL.md` — the "This is a declaration, not
-  a sandbox" paragraph under *Identity and capability boundaries*. Its packaged
-  twin is at
-  `src/coga/resources/templates/coga/bootstrap/contexts/coga/architecture/SKILL.md`
-  — note the `bootstrap/` segment, which is easy to drop — and must stay in sync.
-- `coga/contexts/coga/secrets/SKILL.md` — repo-local, **no** packaged twin. Its
-  "Scoping bounds the grant, not the process" section states the current
-  inherit-the-token behavior explicitly and has to change with the code.
+- `docs/contexts/coga/secrets/SKILL.md` — the "A declaration, not a sandbox"
+  section (which absorbed both the old architecture "This is a declaration, not
+  a sandbox" paragraph and the old secrets "Scoping bounds the grant, not the
+  process" section) states the current inherit-the-token behavior explicitly
+  and has to change with the code. It now has a packaged twin at
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/secrets/SKILL.md`
+  — note the `bootstrap/` segment — which must stay byte-identical.
 
 **The open design question — answer it before writing the scrub.** Which nested
 in-session paths actually need the token once the child no longer inherits it?

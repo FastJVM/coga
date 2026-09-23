@@ -127,6 +127,16 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
 #   templates/coga/<path>                     -> coga/<path>
 #   templates/coga/bootstrap/<area>/<path>    -> coga/<area>/<path>
 #
+# Contexts are the exception: this repo authors them under its configured
+# contexts root (`[layout] contexts` in the committed `coga/coga.toml`, else
+# `coga/contexts/`), so both packaged context trees map there instead:
+#
+#   templates/coga/contexts/<path>            -> <contexts-root>/<path>
+#   templates/coga/bootstrap/contexts/<path>  -> <contexts-root>/<path>
+#
+# Unlike the other areas, every packaged context file must have its canonical
+# counterpart, and every canonical topic must be classified as bootstrap,
+# init-seeded, or local-only — see "Context distribution" below.
 # A packaged file with no live counterpart under either mapping is a curated
 # battery the source repo does not install into itself — `bootstrap/orient/`,
 # `bootstrap/skills/bootstrap/**`, the `bootstrap/workflows/` fallbacks,
@@ -173,33 +183,55 @@ INTENTIONALLY_DIVERGENT_TWINS = {
 }
 
 
+def _canonical_contexts_root() -> Path:
+    """This repo's contexts directory, relative to the checkout root.
+
+    Read from the committed shared TOML only: machine-local configuration must
+    not change which pairs the suite enforces.
+    """
+    toml_path = REPO_ROOT / LIVE_ROOT / "coga.toml"
+    configured = None
+    if toml_path.is_file():
+        shared = tomllib.loads(toml_path.read_text())
+        configured = shared.get("layout", {}).get("contexts")
+    return Path(configured) if configured else LIVE_ROOT / "contexts"
+
+
 def _live_counterparts(relative: Path) -> tuple[Path, ...]:
     """Live paths a packaged template file could mirror, best guess first."""
-    candidates = [LIVE_ROOT / relative]
     parts = relative.parts
+    if len(parts) > 1 and parts[0] == "contexts":
+        return (_canonical_contexts_root().joinpath(*parts[1:]),)
+    if len(parts) > 2 and parts[:2] == ("bootstrap", "contexts"):
+        return (_canonical_contexts_root().joinpath(*parts[2:]),)
+    candidates = [LIVE_ROOT / relative]
     if len(parts) > 2 and parts[0] == "bootstrap" and parts[1] in BUNDLED_AREAS:
         candidates.append(LIVE_ROOT.joinpath(*parts[1:]))
     return tuple(candidates)
 
 
-def _discover_live_packaged_twins() -> tuple[tuple[str, str], ...]:
+def _packaged_template_files(subdir: Path = Path()) -> tuple[Path, ...]:
+    """Shipped template files under `subdir`, relative to the packaged root."""
     packaged_root = REPO_ROOT / PACKAGED_ROOT
-    twins = []
-    for directory, dirs, files in os.walk(packaged_root):
+    found = []
+    for directory, dirs, files in os.walk(packaged_root / subdir):
         dirs[:] = sorted(name for name in dirs if name not in GENERATED_TEMPLATE_DIRS)
         for name in sorted(files):
             if name == "coga.local.toml":
                 continue
             packaged = Path(directory) / name
-            if not packaged.is_file():
-                continue
-            relative = packaged.relative_to(packaged_root)
-            for live in _live_counterparts(relative):
-                if (REPO_ROOT / live).is_file():
-                    twins.append(
-                        (live.as_posix(), (PACKAGED_ROOT / relative).as_posix())
-                    )
-                    break
+            if packaged.is_file():
+                found.append(packaged.relative_to(packaged_root))
+    return tuple(found)
+
+
+def _discover_live_packaged_twins() -> tuple[tuple[str, str], ...]:
+    twins = []
+    for relative in _packaged_template_files():
+        for live in _live_counterparts(relative):
+            if (REPO_ROOT / live).is_file():
+                twins.append((live.as_posix(), (PACKAGED_ROOT / relative).as_posix()))
+                break
     return tuple(twins)
 
 
@@ -240,6 +272,9 @@ def test_twin_discovery_still_walks_the_packaged_tree() -> None:
     live_paths = {live for live, _ in LIVE_PACKAGED_TWINS}
     assert "coga/workflows/draft-for-human.md" in live_paths
     assert "coga/skills/code/implement/SKILL.md" in live_paths
+    contexts_root = _canonical_contexts_root().as_posix()
+    assert f"{contexts_root}/coga/sync/SKILL.md" in live_paths
+    assert f"{contexts_root}/_template/SKILL.md" in live_paths
 
 
 def test_twin_discovery_ignores_generated_installation_artifacts(
@@ -299,6 +334,267 @@ def test_intentional_divergences_stay_real_and_explained() -> None:
         )
 
 
+# Context distribution.
+#
+# Correspondence alone cannot notice a topic deleted from *both* its canonical
+# and packaged copies, so the delivered topics are listed here as reviewed
+# expectations — never inferred from whatever files survive. A packaged topic
+# reaches a repo one of two ways:
+#
+#   bootstrap fallback — `templates/coga/bootstrap/contexts/<ref>/SKILL.md`,
+#     which `paths.resolve_context_path` reads when the repo has no local copy;
+#   init-seeded — `templates/coga/contexts/<path>`, which `coga init` copies
+#     into the repo's contexts directory once (`copy_fresh_templates`).
+#
+# Every other canonical topic is local to this repo and must be named, with its
+# reason, in `LOCAL_ONLY_CONTEXT_REFS`, so that set cannot become a catch-all
+# for a topic someone forgot to ship.
+REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
+    {
+        "browser/api-first",
+        "browser/dom-backed",
+        "coga/agents",
+        "coga/architecture",
+        "coga/blackboard",
+        "coga/cli",
+        "coga/codebase",
+        "coga/codebase/gotchas",
+        "coga/configuration",
+        "coga/context-layout",
+        "coga/dream",
+        "coga/extension-model",
+        "coga/first-task",
+        "coga/important",
+        "coga/init",
+        "coga/install",
+        "coga/internals/activity-capture",
+        "coga/internals/agent-spawn",
+        "coga/internals/assist-publication",
+        "coga/internals/claim-recovery",
+        "coga/internals/git-refresh",
+        "coga/internals/git-regressions",
+        "coga/internals/human-assist",
+        "coga/internals/launch-claims",
+        "coga/internals/pr-publication",
+        "coga/internals/recurring-admission",
+        "coga/internals/recurring-control",
+        "coga/internals/recurring-temp-worktrees",
+        "coga/internals/spool-merge",
+        "coga/internals/state-publication",
+        "coga/knowledge",
+        "coga/launch",
+        "coga/launch-internals",
+        "coga/lifecycle",
+        "coga/megalaunch",
+        "coga/notifications",
+        "coga/notifications/failures",
+        "coga/notifications/producers",
+        "coga/packaging",
+        "coga/patterns",
+        "coga/period-task",
+        "coga/principles",
+        "coga/prompt-composition",
+        "coga/recurring",
+        "coga/recurring/autofix",
+        "coga/recurring/delegation",
+        "coga/recurring/scheduling",
+        "coga/recurring/templates",
+        "coga/releasing",
+        "coga/script-tickets",
+        "coga/secrets",
+        "coga/session-conduct",
+        "coga/skill-management",
+        "coga/sync",
+        "coga/telemetry",
+        "coga/testing",
+        "coga/tickets",
+        "coga/uninstall",
+        "coga/usage",
+        "coga/workflows",
+        "dev/checkout-cleanup",
+        "dev/checkouts",
+        "dev/code",
+        "dev/design-history",
+        "dev/dev-record",
+    }
+)
+
+# Init seeds are scaffolding only: the starter template and the ignore rules
+# that keep it out of the context catalogue. No topic is init-seeded.
+REQUIRED_INIT_CONTEXT_FILES = frozenset({".gitignore", "_template/SKILL.md"})
+
+LOCAL_ONLY_CONTEXT_REFS = {
+    "product/vision": "This repo's product thesis, not guidance for other repos.",
+    "coga/current-direction": "Dated posture of this repo's own development.",
+    "coga/project-stage": "Dated stage of this repo's own development.",
+    "coga/roadmap": "Sequencing of this repo's own backlog.",
+    "docs/gdrive-mcp": (
+        "A dated contract for one Google Drive MCP this team uses; not a "
+        "general Google Docs fact."
+    ),
+    "marketing/map": "This project's own marketing material.",
+    "marketing/positioning": "This project's own marketing material.",
+    "marketing/strategy": "This project's own marketing material.",
+    "marketing/plan": "This project's own marketing material.",
+    "marketing/distribution": "This project's own marketing material.",
+}
+
+BOOTSTRAP_CONTEXTS = Path("bootstrap/contexts")
+SEEDED_CONTEXTS = Path("contexts")
+
+
+def _canonical_context_refs() -> frozenset[str]:
+    """Every topic under the canonical root: each directory with a SKILL.md."""
+    root = REPO_ROOT / _canonical_contexts_root()
+    return frozenset(
+        skill.parent.relative_to(root).as_posix()
+        for skill in root.rglob("SKILL.md")
+        if "_template" not in skill.relative_to(root).parts
+    )
+
+
+def _packaged_context_refs(subdir: Path) -> frozenset[str]:
+    return frozenset(
+        relative.parent.relative_to(subdir).as_posix()
+        for relative in _packaged_template_files(subdir)
+        if relative.name == "SKILL.md"
+        and "_template" not in relative.relative_to(subdir).parts
+    )
+
+
+def _context_distribution_problems() -> list[str]:
+    """Why this checkout's context distribution is incomplete, if it is."""
+    problems = []
+    for subdir in (BOOTSTRAP_CONTEXTS, SEEDED_CONTEXTS):
+        for relative in _packaged_template_files(subdir):
+            [canonical] = _live_counterparts(relative)
+            if not (REPO_ROOT / canonical).is_file():
+                problems.append(
+                    f"{(PACKAGED_ROOT / relative).as_posix()} has no canonical "
+                    f"counterpart at {canonical.as_posix()}"
+                )
+
+    canonical_refs = _canonical_context_refs()
+    bootstrap_refs = _packaged_context_refs(BOOTSTRAP_CONTEXTS)
+    seeded_refs = _packaged_context_refs(SEEDED_CONTEXTS)
+    for ref in sorted(REQUIRED_BOOTSTRAP_CONTEXT_REFS - bootstrap_refs):
+        problems.append(f"required bootstrap context {ref!r} is not packaged")
+    for ref in sorted(REQUIRED_BOOTSTRAP_CONTEXT_REFS - canonical_refs):
+        problems.append(f"required bootstrap context {ref!r} has no canonical topic")
+    for name in sorted(REQUIRED_INIT_CONTEXT_FILES):
+        if not (REPO_ROOT / PACKAGED_ROOT / SEEDED_CONTEXTS / name).is_file():
+            problems.append(f"required init-seeded context file {name!r} is missing")
+    for ref in sorted(set(LOCAL_ONLY_CONTEXT_REFS) - canonical_refs):
+        problems.append(f"local-only context {ref!r} no longer exists")
+    for ref in sorted(set(LOCAL_ONLY_CONTEXT_REFS) & (bootstrap_refs | seeded_refs)):
+        problems.append(f"local-only context {ref!r} is also packaged")
+    unclassified = canonical_refs - bootstrap_refs - seeded_refs - set(
+        LOCAL_ONLY_CONTEXT_REFS
+    )
+    for ref in sorted(unclassified):
+        problems.append(
+            f"canonical context {ref!r} is neither packaged nor listed in "
+            "LOCAL_ONLY_CONTEXT_REFS"
+        )
+    for ref in sorted(bootstrap_refs - REQUIRED_BOOTSTRAP_CONTEXT_REFS):
+        problems.append(
+            f"packaged bootstrap context {ref!r} is missing from "
+            "REQUIRED_BOOTSTRAP_CONTEXT_REFS"
+        )
+    return problems
+
+
+def test_context_distribution_is_complete() -> None:
+    assert _context_distribution_problems() == []
+
+
+def _seed_distribution_fixture(root: Path, contexts_dir: str | None) -> Path:
+    """A minimal checkout satisfying the distribution rules, under `root`."""
+    toml = "version = 1\n"
+    if contexts_dir is not None:
+        toml += f'[layout]\ncontexts = "{contexts_dir}"\n'
+    (root / LIVE_ROOT).mkdir(parents=True)
+    (root / LIVE_ROOT / "coga.toml").write_text(toml)
+    canonical = root / (contexts_dir or "coga/contexts")
+    packaged = root / PACKAGED_ROOT
+    for ref in REQUIRED_BOOTSTRAP_CONTEXT_REFS:
+        for base in (canonical, packaged / BOOTSTRAP_CONTEXTS):
+            path = base / ref / "SKILL.md"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"{ref}\n")
+    for name in REQUIRED_INIT_CONTEXT_FILES:
+        for base in (canonical, packaged / SEEDED_CONTEXTS):
+            path = base / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"{name}\n")
+    for ref in LOCAL_ONLY_CONTEXT_REFS:
+        path = canonical / ref / "SKILL.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"{ref}\n")
+    return canonical
+
+
+def test_context_distribution_follows_the_configured_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
+    _seed_distribution_fixture(tmp_path, "docs/contexts")
+
+    assert _canonical_contexts_root() == Path("docs/contexts")
+    assert _context_distribution_problems() == []
+    live_paths = {live for live, _ in _discover_live_packaged_twins()}
+    assert "docs/contexts/coga/sync/SKILL.md" in live_paths
+    assert "docs/contexts/_template/SKILL.md" in live_paths
+    assert not any(path.startswith("coga/contexts/") for path in live_paths)
+
+
+def test_context_distribution_reports_a_missing_canonical_counterpart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
+    canonical = _seed_distribution_fixture(tmp_path, "docs/contexts")
+    (canonical / "coga/sync/SKILL.md").unlink()
+    (canonical / "_template/SKILL.md").unlink()
+
+    problems = "\n".join(_context_distribution_problems())
+    assert "bootstrap/contexts/coga/sync/SKILL.md has no canonical" in problems
+    assert "templates/coga/contexts/_template/SKILL.md has no canonical" in problems
+
+
+def test_context_distribution_reports_a_topic_deleted_from_both_copies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
+    canonical = _seed_distribution_fixture(tmp_path, "docs/contexts")
+    packaged = tmp_path / PACKAGED_ROOT
+    (canonical / "coga/sync/SKILL.md").unlink()
+    (packaged / BOOTSTRAP_CONTEXTS / "coga/sync/SKILL.md").unlink()
+    (canonical / "_template/SKILL.md").unlink()
+    (packaged / SEEDED_CONTEXTS / "_template/SKILL.md").unlink()
+
+    problems = _context_distribution_problems()
+    assert "required bootstrap context 'coga/sync' is not packaged" in problems
+    assert "required bootstrap context 'coga/sync' has no canonical topic" in problems
+    assert "required init-seeded context file '_template/SKILL.md' is missing" in (
+        problems
+    )
+
+
+def test_context_distribution_reports_an_unclassified_local_topic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
+    canonical = _seed_distribution_fixture(tmp_path, None)
+    stray = canonical / "team/new-topic/SKILL.md"
+    stray.parent.mkdir(parents=True)
+    stray.write_text("new\n")
+
+    assert _context_distribution_problems() == [
+        "canonical context 'team/new-topic' is neither packaged nor listed in "
+        "LOCAL_ONLY_CONTEXT_REFS"
+    ]
+
+
 def test_dochub_skill_keeps_portable_leaf_name() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     skill = (repo_root / "coga/skills/browser/dochub/SKILL.md").read_text()
@@ -329,8 +625,9 @@ def test_executable_context_instructions_honor_layout_override() -> None:
 
 
 def test_context_template_ignores_move_with_contexts_tree() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    rules = (repo_root / "coga/contexts/.gitignore").read_text().splitlines()
+    rules = (
+        (REPO_ROOT / _canonical_contexts_root() / ".gitignore").read_text().splitlines()
+    )
 
     assert "**/_template/" in rules
     assert "**/_template.md" in rules
@@ -589,6 +886,10 @@ def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
 
     for name in EXPECTED_BOOTSTRAP_RESOURCES:
         assert name in names
+    for ref in REQUIRED_BOOTSTRAP_CONTEXT_REFS:
+        assert (
+            f"coga/resources/templates/coga/bootstrap/contexts/{ref}/SKILL.md" in names
+        )
 
 
 def test_phone_home_parent_header_matches_and_packaged_seed_is_unused():

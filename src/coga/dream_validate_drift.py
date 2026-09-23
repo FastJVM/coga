@@ -323,7 +323,7 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             issue=issue,
             action=ACTION_PR_PROPOSAL,
             remediation=(
-                "Propose the `coga/architecture` bloated-blackboard remedy: "
+                "Propose the `coga/blackboard` bloated-blackboard remedy: "
                 "promote a file-form task to directory form (a task that "
                 "already has `<slug>/ticket.md` keeps its directory), move "
                 "dated evidence into sibling attachments and superseded "

@@ -11,7 +11,7 @@ Use an issue to describe a bug or propose a change. A small reproduction or a
 concrete use case is enough to start the conversation.
 
 Substantive work belongs in a [Coga ticket](coga/tasks/), following the repo's
-[ticketed-work principle](coga/contexts/coga/principles/SKILL.md#7-ticketed--every-unit-of-work-is-a-durable-directable-task).
+[ticketed-work principle](docs/contexts/coga/principles/SKILL.md#7-ticketed--every-unit-of-work-is-a-durable-directable-task).
 If there is no ticket for your change, open an issue first so maintainers can
 help agree on scope and create or identify the ticket. You do not need to set
 up Coga to file an issue. Small typo fixes can go straight to a pull request.
@@ -27,9 +27,14 @@ python -m pip install -e ".[test]"
 python -m pytest
 ```
 
-The [development guide](docs/development.md) covers the CLI smoke check,
-source layout, coding style, configuration, and keeping behavioral docs and
-packaged templates in sync. Read it before changing Coga's behavior.
+The [testing](docs/contexts/coga/testing/SKILL.md) topic covers the CLI smoke
+check and test commands; [codebase](docs/contexts/coga/codebase/SKILL.md)
+covers source layout, coding style, and commit conventions;
+[configuration](docs/contexts/coga/configuration/SKILL.md) covers `coga.toml`
+and `coga.local.toml`; and [packaging](docs/contexts/coga/packaging/SKILL.md)
+covers keeping the canonical topics and packaged templates in sync. Read the
+owning topic under [`docs/contexts/`](docs/README.md) before changing Coga's
+behavior.
 
 ## Open a pull request
 

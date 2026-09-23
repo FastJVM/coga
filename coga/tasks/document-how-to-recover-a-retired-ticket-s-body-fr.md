@@ -28,7 +28,7 @@ step: 1 (implement)
 
 ## Description
 
-Filed by Dream 2026-W39, Phase 6. Route: `gap` findings with no open owner. Two findings about the same missing recipe: how to read a retired/deleted ticket's body back from git, including tickets deleted before the `relay-os/` → `coga/` rename, which a `coga/tasks/`-scoped history search silently misses. Decide the owning surface (the recovery recipe in `coga/tasks/v2/README.md`, `coga/architecture`, and/or `bootstrap/ticket`'s citation guidance) and add it once.
+Filed by Dream 2026-W39, Phase 6. Route: `gap` findings with no open owner. Two findings about the same missing recipe: how to read a retired/deleted ticket's body back from git, including tickets deleted before the `relay-os/` → `coga/` rename, which a `coga/tasks/`-scoped history search silently misses. Decide the owning surface (the recovery recipe in `coga/tasks/v2/README.md`, `coga/tickets` (the ticket-file contract, formerly part of `coga/architecture`), and/or `bootstrap/ticket`'s citation guidance) and add it once.
 
 **F36 — No context or skill says how to read a retired ticket's body back from Git**  
 (Dream 2026-W39 Phase 2, shard ks-19; class `gap`; target `coga/contexts/coga/architecture/SKILL.md`)

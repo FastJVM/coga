@@ -313,17 +313,19 @@ list names, plus its current workflow step.
 
 ## Mental model
 
-The canonical contexts are package-backed; a repo can
-override them with local files under `<contexts-dir>/coga/` (by default,
-`coga/contexts/coga/`). Read in order:
+Coga's own contexts are package-backed; a repo can override one by adding a
+local file at the same ref under `<contexts-dir>/` (by default,
+`coga/contexts/`). The orientation set:
 
-- `principles/SKILL.md` — non-negotiables (markdown-first, fail-loud, classical mode)
-- `architecture/SKILL.md` — primitives, planes, prompt composition, locking
-- `cli/SKILL.md` — full command reference
+- `coga/principles` — the seven non-negotiables
+- `coga/architecture` — overview of the primitives, the correction loop, and
+  a map of the focused topic refs (tickets, lifecycle, launch, sync, ...)
+- `coga/cli` — command index pointing at each command's owning topic
 
-These are the refs `bootstrap/orient` attaches; a launched ticket composes
-only the refs in its own `contexts:` list. If they disagree with anything else
-in the repo, they win.
+`bootstrap/orient` attaches exactly these three. No context is composed into
+every ticket: a launched ticket composes only the refs in its own `contexts:`
+list, and a link inside a context never loads the linked page. Attach the
+focused topic a task needs rather than a broad overview.
 
 ## Don't
 

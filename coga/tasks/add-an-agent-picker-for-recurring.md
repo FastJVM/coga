@@ -4,7 +4,11 @@ status: in_progress
 owner: nicktoper
 agent: claude
 contexts:
-- dev/code
+- dev/checkouts
+- dev/dev-record
+- coga/tickets
+- coga/agents
+- coga/configuration
 workflow:
   name: code/design-then-implement
   steps:
@@ -108,8 +112,10 @@ reorder is what makes a deliberately-edited `agent:` mean something.
 - [ ] The packaged bootstrap ticket's body no longer tells the operator to swap
       `assignee:` for a one-off agent change, and states what the field means
       now (see Q1 in Context).
-- [ ] `docs/reference.md` and the packaged `coga/cli` context document
-      `--pick-agent`, the config key, the env var, and the precedence order.
+- [ ] The `coga/tickets` topic (`coga ticket` contract) and the
+      `coga/configuration` topic (`[authoring]` key allowlist), canonical under
+      `docs/contexts/` plus their packaged twins, document `--pick-agent`, the
+      config key, the env var, and the precedence order.
 - [ ] `python -m pytest` passes; `coga validate --json` is clean.
 
 ### Proposed shape
@@ -221,10 +227,13 @@ at `--agent`, `--pick-agent`, `COGA_AUTHORING_AGENT`, and `[authoring] agent`
 instead. Confirm before editing that `coga/bootstrap/ticket/` still does not
 exist, so the file has no packaging twin (see Repo rule in Context).
 
-**6. Docs.** `docs/reference.md` `### coga ticket [TARGET]` — add `--pick-agent`
-and a short precedence list. `src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md`
-`## coga ticket` — same, in that file's voice. Neither has a live twin under
-`coga/contexts/coga/cli/`; re-confirm before editing.
+**6. Docs.** `docs/contexts/coga/tickets/SKILL.md`, the `coga ticket [title|ref]`
+bullet — add `--pick-agent` and a short precedence list.
+`docs/contexts/coga/configuration/SKILL.md` — add `[authoring] agent` to the
+`coga.local.toml` allowlist and the shared-file rejection. Each has a packaged
+twin under `src/coga/resources/templates/coga/bootstrap/contexts/`; edit both
+copies byte-identically (`coga/packaging`). The `coga/cli` topic is only a
+command index; touch it only if the index line needs the new flag.
 
 **7. Tests.** New coverage in `tests/test_ticket.py` (ticket `agent:` beats
 bootstrap `assignee:`; `--agent` beats everything; env beats config key beats
@@ -403,10 +412,11 @@ Cite symbols, not line numbers — positions below are orientation only.
 `tests/test_packaging.py` byte-compares `src/coga/resources/templates/coga/<path>`
 against `coga/<path>` for every pair whose live counterpart exists. Verified
 during this design pass: `coga/bootstrap/ticket/` does not exist (only
-`coga/bootstrap/resolve-conflicts/`), and `coga/contexts/coga/cli/SKILL.md`
-does not exist either — so neither the packaged bootstrap ticket nor the
-packaged `coga/cli` context has a twin to sync today. Re-confirm both at
-implement time before editing them.
+`coga/bootstrap/resolve-conflicts/`), so the packaged bootstrap ticket has no
+twin to sync. Packaged contexts do: every
+`templates/coga/bootstrap/contexts/<ref>/SKILL.md` pairs with
+`docs/contexts/<ref>/SKILL.md` (mapping owned by `coga/packaging`). Re-confirm
+both at implement time before editing them.
 
 <!-- coga:blackboard -->
 

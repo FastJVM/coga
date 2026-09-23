@@ -590,10 +590,10 @@ def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:
     assert "coga mark done" in prompt
     assert "Never stop silently" in prompt
     # Supervisor respawn/teardown mechanics are reference the agent can't act
-    # on; they live in coga/architecture now (loaded only when a ticket
+    # on; they live in coga/launch now (loaded only when a ticket
     # attaches it), not in every base prompt. This ticket has no contexts, so
     # those phrases are absent here.
-    assert "How the supervisor chains steps is in `coga/architecture`" in prompt
+    assert "How the supervisor chains steps is in `coga/launch`" in prompt
     assert "respawns the next agent step" not in prompt
     assert "clean prompt scope" not in prompt
     # Old continue-in-same-session rule must be gone.
@@ -602,7 +602,7 @@ def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:
     assert "On the final step, `coga bump` marks" in prompt
     assert "the task `done`" in prompt
     # The every-launch contract carries the minimal-core boundary without
-    # requiring a task to attach the longer coga/codebase context.
+    # requiring a task to attach the longer coga/extension-model context.
     assert "shared infrastructure with at least two real consumers" in prompt
     assert "genuine command implementations" in prompt
     assert "Everything else stays at the edge" in prompt

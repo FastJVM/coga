@@ -4,9 +4,10 @@ status: paused
 owner: nicktoper
 agent: claude
 contexts:
-- coga/codebase
+- coga/knowledge
 - coga/project-stage
-- dev/code
+- dev/checkouts
+- dev/dev-record
 workflow:
   name: code/with-review
   steps:

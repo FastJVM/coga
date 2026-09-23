@@ -5,13 +5,18 @@ owner: nicktoper
 agent: codex
 contexts:
   - coga/principles
-  - coga/architecture
+  - coga/tickets
+  - coga/lifecycle
+  - coga/usage
+  - coga/recurring
   - coga/codebase
+  - coga/testing
   - coga/current-direction
   - coga/extension-model
   - coga/project-stage
   - coga/cli
-  - dev/code
+  - dev/checkouts
+  - dev/dev-record
 workflow: code/design-then-implement
 ---
 
@@ -32,7 +37,9 @@ legible.
 Directory index: `v2/cleanup-core-commands/README`.
 
 `show` and `status` have already had render substance collapsed toward
-`coga.views` / `coga/show` according to `coga/extension-model`; verify the
+`coga.views` / `coga/show` according to the pre-split `coga/extension-model`
+command table (its verb inventory now lives in
+`docs/design/cli-extension-audit.md`); verify the
 current state before changing them. This ticket should classify the remaining
 read/report commands under the new smaller-core rule and migrate only the cases
 with a clear shape.
