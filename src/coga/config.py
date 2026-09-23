@@ -1746,6 +1746,31 @@ def select_launch_secrets(cfg: Config, declared: object) -> dict[str, str]:
     return env
 
 
+# 1Password CLI authentication that a spawned task or agent must not inherit.
+# `op://` refs are resolved in the parent before the child exists, so the child
+# never needs these; leaving them in would let it `op read` anything the
+# operator's service account or session reaches, whatever `secrets:` declares.
+OP_AUTH_ENV_VARS = frozenset(
+    {"OP_SERVICE_ACCOUNT_TOKEN", "OP_CONNECT_TOKEN", "OP_CONNECT_HOST"}
+)
+OP_SESSION_ENV_PREFIX = "OP_SESSION_"
+
+
+def is_op_auth_env_var(name: str) -> bool:
+    """Whether `name` carries 1Password CLI authentication."""
+    return name in OP_AUTH_ENV_VARS or name.startswith(OP_SESSION_ENV_PREFIX)
+
+
+def scrub_op_auth_env(env: Mapping[str, str]) -> dict[str, str]:
+    """Return a copy of `env` without any 1Password CLI authentication vars.
+
+    The one shared scrub for every task or agent process Coga spawns. Apply it
+    only after `op://` secrets are resolved: resolution shells out to `op read`
+    with the parent's own `os.environ`, never with the scrubbed dict.
+    """
+    return {k: v for k, v in env.items() if not is_op_auth_env_var(k)}
+
+
 def build_launch_env(
     cfg: Config,
     declared: object,
@@ -1756,12 +1781,16 @@ def build_launch_env(
 
     The spawned agent or recipe receives only the ticket's scoped secret names (for
     example `STRIPE_KEY=<value>`), never the raw source env vars an `env:VAR`
-    reference points at. Scrub each referenced source variable from the inherited
-    environment first, then add back only the resolved, scoped aliases.
+    reference points at, nor the 1Password CLI auth vars (`scrub_op_auth_env`).
+    Order matters: resolve the secrets first (in this process, which still holds
+    the 1Password auth), then scrub, then add back only the resolved, scoped
+    aliases. A ticket that explicitly declares one of the auth names as a
+    destination therefore still receives it — a visible, reviewable opt-in.
     """
-    env = dict(os.environ if base_env is None else base_env)
+    resolved = select_launch_secrets(cfg, declared)
+    env = scrub_op_auth_env(os.environ if base_env is None else base_env)
     for _name, ref in parse_inline_secrets(declared):
         if ref.startswith("env:"):
             env.pop(ref[len("env:") :], None)
-    env.update(select_launch_secrets(cfg, declared))
+    env.update(resolved)
     return env

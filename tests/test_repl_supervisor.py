@@ -350,6 +350,40 @@ def test_natural_exit_passes_through_exit_code(
     assert (outcome.exit_code, outcome.kind) == (7, "natural")
 
 
+def test_pty_child_replaces_inherited_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The PTY child receives the supplied env exactly, not a parent overlay."""
+    observed = tmp_path / "observed"
+    monkeypatch.setenv("OP_SERVICE_ACCOUNT_TOKEN", "must-not-survive")
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    devnull_out = os.open(os.devnull, os.O_WRONLY)
+    devnull_in = os.open(os.devnull, os.O_RDONLY)
+    try:
+        outcome = run_with_done_marker(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import os, pathlib; "
+                    f"pathlib.Path({str(observed)!r}).write_text("
+                    "repr((os.environ.get('OP_SERVICE_ACCOUNT_TOKEN'), "
+                    "os.environ.get('EXPECTED'))))"
+                ),
+            ],
+            env={"PATH": os.environ.get("PATH", ""), "EXPECTED": "kept"},
+            output_fd=devnull_out,
+            input_fd=devnull_in,
+        )
+    finally:
+        os.close(devnull_out)
+        os.close(devnull_in)
+
+    assert (outcome.exit_code, outcome.kind) == (0, "natural")
+    assert observed.read_text() == "(None, 'kept')"
+
+
 def test_after_spawn_callback_releases_held_pty_child(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
