@@ -102,9 +102,11 @@ owner-assigned `review` step: the owner merges and resolves threads, and the
 skill is an on-demand assist that never resolves or bumps. Coga does not own
 GitHub merge policy, so an unresolved bot thread does not block a merge.
 Decision (2026-09-13, owner): keep the human gate; rather than auto-launching
-the assist or blocking merges, `autoclose-merged` should name unresolved,
-reply-less threads report-only. That detection is not shipped yet (ticket
-`autoclose-should-name-unanswered-review-threads-on`).
+the assist or blocking merges, add post-merge detection. When
+`autoclose-merged` closes a ticket it fetches that PR's `reviewThreads` once
+and names every unresolved, non-outdated, reply-less thread in the closure's
+`coga/log.md` line, its sweep report, and one Slack line, report-only
+(`coga/autoclose/sweep` skill, "The unanswered-thread follow-up").
 
 Reading rules: a ticket still on `review` with a merged PR is not backlog
 (autoclose closes it on its next run); count only open PRs as the live queue.

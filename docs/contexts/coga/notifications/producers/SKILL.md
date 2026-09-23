@@ -25,7 +25,8 @@ before adding a row.
 | Completed period failed to advance declared state | `mark.py` stale-period-state warning | important |
 | Dream validate-drift summary | `dream_validate_drift.py` | flow |
 | Megalaunch drain summary (non-empty) | `commands/megalaunch.py` | flow |
-| Autoclose retire-pending summary | `autoclose.py` `_report_retire_followups` (`fatal=False`) | flow |
+| Autoclose checkout summaries (disposed checkouts flow; refused disposals important) | `autoclose.py` `_report_retire_followups` (`fatal=False`) | flow / important |
+| Autoclose unanswered review-thread summary on the PRs it closes (`coga/autoclose/sweep` skill) | `autoclose.py` `_report_followup` (`fatal=False`) | flow |
 | `recurring/phone-home` weekly snapshot receipt (keyless envelope plus attempt outcome), after a capture attempt only; opt-out, development/test/CI suppression, invalid inventory, or disabled Slack skip it; own three-second worker deadline, failure cannot affect capture or completion ([coga/telemetry](../../telemetry/SKILL.md)) | phone-home `ticket.py` (`fatal=False`, `record_failure=False`) | flow |
 | Autofix filed a ticket for a problem run (failed, silently idle, or with recorded errors) | `recurring_autofix.py` `run_autofix` and `run_autofix_analyze_recipe` | flow |
 
@@ -64,7 +65,7 @@ tasks emit nothing while their bootstrap delegates post one roll-up through
 ## Accounting rule
 
 This is an accounting of **event kinds, not templates**: one template may span
-surfaces (`autoclose-merged` posts a live retire summary and per-ticket
+surfaces (`autoclose-merged` posts live checkout and review-thread summaries and per-ticket
 outcomes). A new template or event kind that appears on none of the three
 surfaces is an unreviewed cadence decision, not a neutral default. Keep this
 inventory in step with `coga/recurring` when templates change.

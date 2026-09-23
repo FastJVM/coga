@@ -31,7 +31,10 @@ forgets to run `coga mark done`. Once a day this recurring task fires. Its
    exact head), and
 7. reports what it disposed of and what a proof refused, with the reason: the
    refusals go to the coga-important Slack channel and into `retires.md`,
-   keyed by task slug.
+   keyed by task slug, and
+8. name unresolved, non-outdated review threads with only their opening
+   comment on each closed PR in the closure audit line, sweep report, and
+   Slack summary. Report only: never resolve or reply.
 
 Step 6 is a direct destructive change, declared here on purpose: the proofs
 are deterministic, narrow, and named in the `coga/autoclose/sweep` skill, and
@@ -76,3 +79,8 @@ and drops those whose branch is gone and whose worktree is gone or is the
 primary checkout, and
 `coga retire <slug>` drops its own once it has disposed of the checkout. A
 sweep that touched no checkout and discharged nothing writes nothing.
+
+A run that closes a PR with an unanswered review thread also appends a
+`## Autoclose Sweep: unanswered review threads` section to the period task
+blackboard (stdout for hand runs) and posts a Slack summary. The closure
+audit line names the thread locations durably.
