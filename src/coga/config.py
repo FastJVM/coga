@@ -114,6 +114,7 @@ class Config:
     # Git sync — the git analogue of Slack. `git_enabled` follows the same
     # local-overrides-shared resolution as `slack_enabled`; `git_remote` /
     # `git_control_branch` come from shared `[git]`. See `coga.git`.
+    telemetry_enabled: bool = True
     git_enabled: bool = True
     git_remote: str = "origin"
     git_control_branch: str = "main"
@@ -369,6 +370,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
     aliases = _parse_aliases(shared.get("aliases", {}))
     extensions = _parse_extensions(shared.get("extensions", {}))
     ticket_fields = _parse_ticket_fields(shared.get("ticket"))
+    telemetry_enabled = _resolve_telemetry_enabled(shared.get("telemetry"), local.get("telemetry"))
     git_enabled = _resolve_git_enabled(shared.get("git"), local.get("git"))
     git_remote, git_control_branch, git_worktrees_ticket_owned = _parse_git(
         shared.get("git")
@@ -422,6 +424,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         aliases=aliases,
         extensions=extensions,
         ticket_fields=ticket_fields,
+        telemetry_enabled=telemetry_enabled,
         git_enabled=git_enabled,
         git_remote=git_remote,
         git_control_branch=git_control_branch,
@@ -481,6 +484,7 @@ _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
     "agents",
     "notification",
     "git",
+    "telemetry",
     "launch",
     "ticket",
     "aliases",
@@ -493,6 +497,7 @@ _ALLOWED_LOCAL_SECTIONS: frozenset[str] = frozenset({
     "agents",
     "notification",
     "git",
+    "telemetry",
     "upstream",
 })
 _ALLOWED_AGENT_KEYS: frozenset[str] = frozenset({
@@ -559,6 +564,7 @@ def _reject_unknown_sections(shared: dict, local: dict) -> None:
     _reject_unknown_keys(shared, _ALLOWED_SHARED_SECTIONS, "coga.toml")
     _reject_unknown_keys(local, _ALLOWED_LOCAL_SECTIONS, "coga.local.toml")
     for source, table in (("coga.toml", shared), ("coga.local.toml", local)):
+        _reject_unknown_keys(table.get("telemetry"), frozenset({"enabled"}), f"[telemetry] in {source}")
         notification = table.get("notification")
         _reject_unknown_keys(
             notification, _ALLOWED_NOTIFICATION_KEYS, f"[notification] in {source}"
@@ -1116,6 +1122,20 @@ def _parse_slack_users(
             )
         out[name] = user_id.strip()
     return out
+
+
+def _resolve_telemetry_enabled(shared: dict | None, local: dict | None) -> bool:
+    """Validate both layers even when overridden; local wins, default True."""
+    enabled = True
+    for table in (shared, local):
+        if table is not None:
+            if not isinstance(table, dict):
+                raise ConfigError("[telemetry] must be a table")
+            if "enabled" in table:
+                if type(table["enabled"]) is not bool:
+                    raise ConfigError("[telemetry].enabled must be a boolean")
+                enabled = table["enabled"]
+    return enabled
 
 
 def _resolve_git_enabled(shared: dict | None, local: dict | None) -> bool:
@@ -1746,6 +1766,31 @@ def select_launch_secrets(cfg: Config, declared: object) -> dict[str, str]:
     return env
 
 
+# 1Password CLI authentication that a spawned task or agent must not inherit.
+# `op://` refs are resolved in the parent before the child exists, so the child
+# never needs these; leaving them in would let it `op read` anything the
+# operator's service account or session reaches, whatever `secrets:` declares.
+OP_AUTH_ENV_VARS = frozenset(
+    {"OP_SERVICE_ACCOUNT_TOKEN", "OP_CONNECT_TOKEN", "OP_CONNECT_HOST"}
+)
+OP_SESSION_ENV_PREFIX = "OP_SESSION_"
+
+
+def is_op_auth_env_var(name: str) -> bool:
+    """Whether `name` carries 1Password CLI authentication."""
+    return name in OP_AUTH_ENV_VARS or name.startswith(OP_SESSION_ENV_PREFIX)
+
+
+def scrub_op_auth_env(env: Mapping[str, str]) -> dict[str, str]:
+    """Return a copy of `env` without any 1Password CLI authentication vars.
+
+    The one shared scrub for every task or agent process Coga spawns. Apply it
+    only after `op://` secrets are resolved: resolution shells out to `op read`
+    with the parent's own `os.environ`, never with the scrubbed dict.
+    """
+    return {k: v for k, v in env.items() if not is_op_auth_env_var(k)}
+
+
 def build_launch_env(
     cfg: Config,
     declared: object,
@@ -1756,12 +1801,16 @@ def build_launch_env(
 
     The spawned agent or recipe receives only the ticket's scoped secret names (for
     example `STRIPE_KEY=<value>`), never the raw source env vars an `env:VAR`
-    reference points at. Scrub each referenced source variable from the inherited
-    environment first, then add back only the resolved, scoped aliases.
+    reference points at, nor the 1Password CLI auth vars (`scrub_op_auth_env`).
+    Order matters: resolve the secrets first (in this process, which still holds
+    the 1Password auth), then scrub, then add back only the resolved, scoped
+    aliases. A ticket that explicitly declares one of the auth names as a
+    destination therefore still receives it — a visible, reviewable opt-in.
     """
-    env = dict(os.environ if base_env is None else base_env)
+    resolved = select_launch_secrets(cfg, declared)
+    env = scrub_op_auth_env(os.environ if base_env is None else base_env)
     for _name, ref in parse_inline_secrets(declared):
         if ref.startswith("env:"):
             env.pop(ref[len("env:") :], None)
-    env.update(select_launch_secrets(cfg, declared))
+    env.update(resolved)
     return env

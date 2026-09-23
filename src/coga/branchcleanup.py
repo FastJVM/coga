@@ -86,6 +86,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Callable
 
+from coga import git
 from coga.autoclose import (
     GhError,
     parse_branch_name,
@@ -146,6 +147,9 @@ class WorktreeCleanupResult:
     worktree: str | None = None
     removed: bool = False
     already_gone: bool = False
+    # The proof refused the path as not a linked worktree of this repository,
+    # so a caller naming a remedy judges it with `git.classify_checkout`.
+    not_linked: bool = False
     notes: list[str] = field(default_factory=list)
 
 
@@ -325,6 +329,7 @@ def inspect_worktree_for_removal(
         return None
 
     if not _is_linked_worktree_of(root, path):
+        result.not_linked = True
         _wnote(
             result,
             echo,
@@ -419,30 +424,14 @@ def remove_inspected_worktree(
 def _is_linked_worktree_of(root: Path, path: Path) -> bool:
     """True iff `path` is a linked worktree sharing `root`'s common git dir.
 
-    A linked worktree has its own administrative git dir while sharing the
-    repository's common dir; the primary checkout and an independent clone
-    report the same path for both. Comparing the common dir against `root`'s
-    also rejects a linked worktree belonging to some *other* repository.
+    The proof is `git.classify_checkout`, shared with the autoclose sweep so
+    the remedy it names for a preserved checkout and the decision made here
+    cannot drift. Only `"linked"` passes: the primary checkout, an independent
+    clone, another repository's linked worktree, and every unknown verdict are
+    preserved.
     """
-    git_dir = _git_path(path, "--git-dir")
-    common_dir = _git_path(path, "--git-common-dir")
-    root_common_dir = _git_path(root, "--git-common-dir")
-    if git_dir is None or common_dir is None or root_common_dir is None:
-        return False
-    return git_dir != common_dir and common_dir == root_common_dir
-
-
-def _git_path(cwd: Path, flag: str) -> Path | None:
-    proc = _git(cwd, "rev-parse", "--path-format=absolute", flag)
-    if proc.returncode != 0:
-        return None
-    out = proc.stdout.strip()
-    if not out:
-        return None
-    try:
-        return Path(out).resolve()
-    except OSError:
-        return None
+    relation = git.classify_checkout(root, path)
+    return relation is not None and relation.kind == "linked"
 
 
 def _same_path(left: Path, right: Path) -> bool:

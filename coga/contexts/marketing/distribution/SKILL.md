@@ -43,17 +43,11 @@ channel and again before submission. Sources:
 
 ## Measurement and interpretation
 
-The measurement policy belongs to `coga/principles` (§5); the telemetry
-implementation must update it as specified in its ticket.
-
-Finish PostHog for basic adoption/activity signals under the existing
-[telemetry ticket](../../../tasks/marketing/add-telemetry.md). The owner's
-September 20 policy reversal and September 21 confirmation supersede this
-context's earlier instrumentation ban. This is approved work, not a claim
-that telemetry has shipped. Its payload, identity, opt-out, cadence,
-limitations and owner ingestion verification remain owned by that ticket
-until implementation lands its dedicated contract. Resolve the evaluator's
-suppression/resume finding and owner project setup before implementation.
+The measurement policy belongs to `coga/principles` (§5). The concrete
+[payload and sweep contract](../../coga/telemetry/SKILL.md) owns the weekly
+PostHog signal, opt-out and limits; [operator procedures](../../../../docs/telemetry.md)
+cover queried-row acceptance in shared project 606347. This measures repos with
+active sweeps, not installs. Owner ingestion proof remains a release gate.
 
 Launch execution records dated reactions, objections, first-run friction,
 and available adoption/activity observations, with their limits. PostHog's

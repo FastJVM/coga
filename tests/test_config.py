@@ -11,10 +11,12 @@ from coga.config import (
     LOCAL_CONFIG_ENV,
     ConfigError,
     SecretError,
+    build_launch_env,
     find_repo_root,
     load_config,
     local_config_path,
     parse_inline_secrets,
+    scrub_op_auth_env,
     select_launch_secrets,
 )
 from coga.ticket import CANONICAL_TICKET_KEYS
@@ -1131,6 +1133,78 @@ def test_select_launch_secrets_op_read_nonzero(
     assert "not signed in" in msg
 
 
+# --- 1Password CLI auth scrub --------------------------------------------------
+
+_OP_AUTH_ENV = {
+    "OP_SERVICE_ACCOUNT_TOKEN": "ops_token",
+    "OP_CONNECT_TOKEN": "connect_token",
+    "OP_CONNECT_HOST": "https://connect.example",
+    "OP_SESSION_my": "personal_session",
+}
+
+
+def test_scrub_op_auth_env_drops_every_auth_var_and_keeps_the_rest() -> None:
+    env = {**_OP_AUTH_ENV, "PATH": "/bin", "OP_BIOMETRIC_UNLOCK_ENABLED": "1"}
+    scrubbed = scrub_op_auth_env(env)
+    assert scrubbed == {"PATH": "/bin", "OP_BIOMETRIC_UNLOCK_ENABLED": "1"}
+    # A copy: the caller's mapping (normally `os.environ`) is untouched.
+    assert env["OP_SERVICE_ACCOUNT_TOKEN"] == "ops_token"
+
+
+def test_build_launch_env_resolves_op_in_parent_then_scrubs_auth(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key, value in _OP_AUTH_ENV.items():
+        monkeypatch.setenv(key, value)
+    seen: list[dict[str, object]] = []
+
+    def fake_run(argv, **kwargs):
+        # `op read` inherits the parent's own env: no scrubbed `env=` is passed,
+        # and the parent still holds the token while it runs.
+        seen.append(
+            {
+                "env": kwargs.get("env"),
+                "token": os.environ.get("OP_SERVICE_ACCOUNT_TOKEN"),
+            }
+        )
+        return subprocess.CompletedProcess(argv, 0, stdout="sk_op\n", stderr="")
+
+    monkeypatch.setattr("coga.config.subprocess.run", fake_run)
+    env = build_launch_env(None, [{"STRIPE_KEY": "op://vault/stripe/key"}])
+
+    assert env["STRIPE_KEY"] == "sk_op"
+    assert seen == [{"env": None, "token": "ops_token"}]
+    assert not [key for key in env if key in _OP_AUTH_ENV]
+    assert os.environ["OP_SERVICE_ACCOUNT_TOKEN"] == "ops_token"
+
+
+def test_build_launch_env_scrubs_auth_from_an_explicit_base_env() -> None:
+    env = build_launch_env(None, [], base_env={**_OP_AUTH_ENV, "HOME": "/h"})
+    assert env == {"HOME": "/h"}
+
+
+def test_build_launch_env_honors_an_explicit_auth_destination(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Declaring an auth name as a destination is a visible, reviewable opt-in.
+    monkeypatch.setenv("OP_SERVICE_ACCOUNT_TOKEN", "ops_token")
+    monkeypatch.setenv("TASK_OP_SOURCE", "task_token")
+    env = build_launch_env(
+        None, [{"OP_SERVICE_ACCOUNT_TOKEN": "env:TASK_OP_SOURCE"}]
+    )
+    assert env["OP_SERVICE_ACCOUNT_TOKEN"] == "task_token"
+    assert "TASK_OP_SOURCE" not in env
+
+
+def test_build_launch_env_can_alias_the_token_under_another_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OP_SERVICE_ACCOUNT_TOKEN", "ops_token")
+    env = build_launch_env(None, [{"TASK_OP_TOKEN": "env:OP_SERVICE_ACCOUNT_TOKEN"}])
+    assert env["TASK_OP_TOKEN"] == "ops_token"
+    assert "OP_SERVICE_ACCOUNT_TOKEN" not in env
+
+
 def test_unsupported_version(tmp_path: Path) -> None:
     _write(tmp_path / "coga.toml", "version = 99\n")
     _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
@@ -1719,4 +1793,33 @@ def test_upstream_in_shared_toml_rejected(repo: Path) -> None:
     with (repo / "coga.toml").open("a") as f:
         f.write('[upstream]\ncheckouts = ["/one/path"]\n')
     with pytest.raises(ConfigError, match=r"coga.toml has unknown key\(s\) \['upstream'\]"):
+        load_config(repo)
+
+
+@pytest.mark.parametrize("shared,local,expected", [(None,None,True),(False,None,False),(True,False,False),(False,True,True)])
+def test_telemetry_precedence(repo, shared, local, expected):
+    for filename, value in (("coga.toml",shared),("coga.local.toml",local)):
+        if value is not None:
+            p = repo/filename
+            p.write_text(p.read_text()+f"\n[telemetry]\nenabled = {str(value).lower()}\n")
+    assert load_config(repo).telemetry_enabled is expected
+    assert load_config(repo).git_enabled is True
+    assert load_config(repo).slack_enabled is True
+
+
+@pytest.mark.parametrize("filename", ["coga.toml", "coga.local.toml"])
+@pytest.mark.parametrize("invalid", ['telemetry = false\n', '[telemetry]\nenabled = "false"\n', '[telemetry]\nenabled = 1\n', '[telemetry]\nendpoint = "bad"\n'])
+def test_telemetry_schema_rejects_invalid_both_layers(repo, filename, invalid):
+    p = repo/filename
+    p.write_text(invalid+p.read_text() if not invalid.startswith("[") else p.read_text()+"\n"+invalid)
+    with pytest.raises(ConfigError, match="telemetry"):
+        load_config(repo)
+
+
+def test_telemetry_invalid_shared_not_hidden_by_local(repo):
+    p = repo/"coga.toml"
+    p.write_text(p.read_text()+'\n[telemetry]\nenabled = "bad"\n')
+    p = repo/"coga.local.toml"
+    p.write_text(p.read_text()+'\n[telemetry]\nenabled = true\n')
+    with pytest.raises(ConfigError, match="telemetry"):
         load_config(repo)

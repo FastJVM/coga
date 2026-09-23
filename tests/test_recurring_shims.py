@@ -13,6 +13,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+from conftest import load_phone_home
 from typer.testing import CliRunner
 
 from coga.cli import app
@@ -20,7 +21,7 @@ from coga.config import load_config
 from coga.launch_script import SCRIPT_ENTRY_POINT
 from coga.recurring import create_named
 from coga.runner import RECIPES, run_recipe
-from coga.taskfile import read_blackboard
+from coga.taskfile import read_blackboard, replace_blackboard
 from coga.tasks import read_ticket
 
 
@@ -265,3 +266,38 @@ def test_failing_recipe_leaves_its_reason_on_the_period_blackboard(
 def _mkdir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def test_phone_home_real_suppressed_shim_updates_parent_and_finishes(seeded, capfd):
+    """The first due run uses the real ticket code, never an agent or production HTTP."""
+    _state = load_phone_home()._state
+    for area in ("recurring", "workflows"):
+        shutil.copytree(PACKAGED / area / "phone-home", seeded / area / "phone-home")
+    cfg = load_config(seeded)
+    outcome = create_named(cfg, "phone-home")
+    assert outcome.created
+    result = CliRunner().invoke(app, ["launch", outcome.ref.id_slug])
+    assert result.exit_code == 0, result.output
+    assert read_ticket(outcome.ref).status == "done"
+    state, _ = _state(read_blackboard(seeded / "recurring/phone-home/ticket.md"))
+    assert state["run"] == 1 and state["repo_id"] is None
+    assert "capture suppressed" in read_blackboard(outcome.ref.ticket_path)
+    assert "stale" not in capfd.readouterr().err.lower()
+
+
+def test_phone_home_failure_reaches_the_period_blackboard_without_a_registry_entry(seeded):
+    """Edge code keeps the `## Recipe Failure` floor through `run_reported`."""
+    assert "phone-home" not in RECIPES
+    for area in ("recurring", "workflows"):
+        shutil.copytree(PACKAGED / area / "phone-home", seeded / area / "phone-home")
+    parent = seeded / "recurring/phone-home/ticket.md"
+    replace_blackboard(parent, "\nperiod_state: {}\n")
+    cfg = load_config(seeded)
+    outcome = create_named(cfg, "phone-home")
+    assert outcome.created
+    result = CliRunner().invoke(app, ["launch", outcome.ref.id_slug])
+    assert result.exit_code != 0
+    assert read_ticket(outcome.ref).status != "done"
+    report = read_blackboard(outcome.ref.ticket_path)
+    assert "## Recipe Failure" in report and "Recipe: `phone-home`" in report
+    assert "invalid phone-home period_state" in report

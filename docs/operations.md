@@ -176,17 +176,13 @@ schedules inside the templates do the rest.
 
 ### Autoclose's retire worklist
 
-The daily `autoclose-merged` sweep closes merged final-step tickets but never
-deletes their feature checkouts — that is `coga retire`'s job, with its safety
-proofs. The sweep keeps the list of retires still owed in
-`coga/recurring/autoclose-merged/retires.md`, a plain markdown file beside the
-template, and prunes it on every run once a checkout's worktree and branch are
-both gone; `coga retire <slug>` clears its own line the moment it disposes of
-the checkout. Read that file, not the period task's blackboard, when you want
-to know what is left to retire: the period task is deleted at the next period.
-The rules — what an entry means, when it clears, the line shape for a
-hand-written backfill and its field encoding — are in the
-[`coga/autoclose/sweep` skill](../coga/skills/coga/autoclose/sweep/SKILL.md).
+The daily `autoclose-merged` sweep closes merged final-step tickets and runs
+the shared retire proofs to dispose of their feature checkouts. Refused
+checkouts stay in `coga/recurring/autoclose-merged/retires.md`, a durable
+markdown worklist beside the recurring template. Read that file to see what
+still needs attention; the period task's blackboard is a report of one run.
+The [`coga/autoclose/sweep` skill](../coga/skills/coga/autoclose/sweep/SKILL.md)
+owns the disposal, manual-remedy, and worklist discharge rules.
 
 **Adopting it in a repo initialized before Coga shipped this** (the sweep
 formerly wrote the list only to the period task, so follow-ups older than a
@@ -284,3 +280,10 @@ things operations depend on:
 
 Both make a network call, so they're opt-in rather than part of the default
 read-only validate.
+
+## Weekly telemetry and opt-out
+
+For the shared/local `[telemetry] enabled = false` opt-out, release-wheel
+verification, project read-back and deletion, see [Telemetry operations](telemetry.md).
+The [behavioral contract](../coga/contexts/coga/telemetry/SKILL.md) owns what is sent
+and when; telemetry is a sweep activity signal, not an install count.

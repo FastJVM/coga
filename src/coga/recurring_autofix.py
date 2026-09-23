@@ -53,7 +53,7 @@ from pathlib import Path
 import typer
 
 from coga import git
-from coga.config import AgentType, Config, ConfigError
+from coga.config import AgentType, Config, ConfigError, scrub_op_auth_env
 from coga.create import create_task
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.notification import post
@@ -641,7 +641,9 @@ def analyze_record(
     prompt = build_prompt(record_text, open_autofix_tickets(cfg))
     cmd = build_analyze_command(agent, prompt)
     cwd = cfg.repo_root.parent if cfg.repo_root.name == "coga" else cfg.repo_root
-    env = os.environ.copy()
+    # The analysis agent resolves no `op://` secret, so it gets no 1Password
+    # CLI auth either.
+    env = scrub_op_auth_env(os.environ)
     used_subscription_fallback = False
     # One budget for the whole analysis — first attempt, auth probe, and retry
     # all draw down the same deadline, so `COGA_AUTOFIX_TIMEOUT` still bounds

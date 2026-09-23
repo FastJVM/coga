@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 from importlib.resources import files
 from pathlib import Path
@@ -2684,6 +2685,48 @@ def test_launch_injects_op_secret(
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 0, result.output
     assert captured.get("stripe_key") == "sk_op_secret"
+
+
+def test_launch_resolves_op_secret_but_scrubs_1password_auth_from_agent(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+    op_auth = {
+        "OP_SERVICE_ACCOUNT_TOKEN": "ops_token",
+        "OP_CONNECT_TOKEN": "connect_token",
+        "OP_CONNECT_HOST": "https://connect.example",
+        "OP_SESSION_my": "personal_session",
+    }
+    for key, value in op_auth.items():
+        monkeypatch.setenv(key, value)
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    t = Ticket.read(ref.ticket_path)
+    t.frontmatter["secrets"] = [{"stripe_key": "op://vault/stripe/key"}]
+    t.write(ref.ticket_path)
+
+    captured: dict[str, str] = {}
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        if cmd[:2] == ["op", "read"]:
+            # Resolution runs in the parent, which still holds the token.
+            assert os.environ["OP_SERVICE_ACCOUNT_TOKEN"] == "ops_token"
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout="sk_op_secret\n", stderr=""
+            )
+        captured.update(kwargs.get("env") or {})
+        return type("R", (), {"returncode": 0})()
+
+    monkeypatch.setattr("coga.config.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code == 0, result.output
+    assert captured.get("stripe_key") == "sk_op_secret"
+    assert not [key for key in captured if key in op_auth]
 
 
 def test_direct_launch_timeout_exits_non_zero(

@@ -32,8 +32,13 @@ later `code/open-pr` step does that, after self-review and fixes.
    only when the evidence is concrete; if a human decision is genuinely
    needed, escalate that ask per your launch mode instead (ask the
    attending human; `coga block` in a queue run).
-3. **Set up the feature checkout.** Two layouts are first-class; pick one
-   deliberately, because every later step reads `worktree:` to decide where it
+3. **Set up the feature checkout.** Use the **single-checkout layout by
+   default**. Create a separate feature checkout only when the human asks for
+   one, or when the primary checkout cannot host the branch: it has
+   uncommitted work you must not disturb, or it already holds another live
+   ticket's branch. Every extra worktree stays on disk until `coga autoclose`
+   or `coga retire` disposes of it, so an unneeded one is clutter the operator
+   must clean up by hand. Every later step reads `worktree:` to decide where it
    runs. Either way, pick a short descriptive branch name — it does *not* have
    to match the slug — and write the machine-readable fields
    `branch: <branch-name>` and `worktree: <path>` under a `## Dev` section on
@@ -42,14 +47,9 @@ later `code/open-pr` step does that, after self-review and fixes.
    ``worktree: `/path with spaces` (other repo)``). See the `dev/code` context
    for the full convention.
 
-   *Separate feature checkout.* From the primary checkout on `main`, create the
-   feature branch in a worktree outside the repo directory, for example
-   `git worktree add ../coga-<branch-name> -b <branch-name> main`. Then return
-   to the primary checkout, on the control branch, to write `## Dev` and to run
-   `coga bump` at the end of the step.
-
-   *Single checkout.* When the ticket is run in one checkout — you are already
-   in the primary checkout and no second copy will be created — create the
+   *Single checkout (default).* From the primary checkout, on an up-to-date
+   control branch (`main` in these examples), fetch and fast-forward explicitly
+   (`git fetch origin main && git merge --ff-only FETCH_HEAD`), then create the
    branch in place (`git switch -c <branch-name>`) and record that checkout's
    own path as `worktree:`. Write `## Dev` there, on the feature branch: it is
    the live ticket copy, and `coga bump` and `coga open-pr` both run from that
@@ -63,6 +63,40 @@ later `code/open-pr` step does that, after self-review and fixes.
    `git add` them: generated task/log commits are not implementation work, and
    a branch carrying only task-state churn will not open a PR.
 
+   *Occupied primary checkout.* Do not switch or stash another live ticket's
+   branch, or move its dirty task/log state. First establish a separate control
+   checkout. Inspect `git worktree list --porcelain`: reuse the checkout already
+   holding the configured control branch, or, when that branch is free, create
+   one on a durable sibling path (`git worktree add ../coga-control main`). If
+   the local control ref is absent, fetch it explicitly and create the checkout
+   from that fetched tip (`git fetch origin main`, then
+   `git worktree add -b main ../coga-control FETCH_HEAD`). Never use `--force`
+   to bypass another checkout holding the branch. Seed/verify its local config
+   with the helper below, then fetch and fast-forward it explicitly from the
+   configured remote/control ref. Use `origin`/`main` here only when those are
+   the repo's configured values.
+
+   Verify that this ticket's published control copy includes the current step
+   and all needed notes. If it differs from the live copy, reconcile through
+   normal Coga publication before proceeding; do not overwrite either copy or
+   hand-copy the audit log. Record the chosen control path on this ticket's
+   blackboard. The current supervisor remains bound to the original checkout,
+   so do not silently move the live session or rewrite its ownership variables.
+   End this session and have the human relaunch this ticket from the prepared
+   control checkout (`cd ../coga-control && coga launch <slug>`); do not invoke
+   a nested agent launch. In a queue run, block with that exact handoff instead.
+   On relaunch, use the separate-feature layout below, keeping this control
+   checkout on the control branch for `## Dev`, bumps, and PR publication. The
+   first ticket's checkout stays untouched. In the remaining instructions,
+   “primary checkout” means this session's control checkout for this layout.
+
+   *Separate feature checkout (only when needed, per above).* From the
+   session's control checkout on `main`, create the
+   feature branch in a worktree outside the repo directory, for example
+   `git worktree add ../coga-<branch-name> -b <branch-name> main`. Then return
+   to the primary checkout, on the control branch, to write `## Dev` and to run
+   `coga bump` at the end of the step.
+
    **Write `## Dev` in the checkout you will bump from.** `coga bump` reads and
    syncs the ticket copy of the checkout it runs in, and nothing else. In the
    separate-checkout layout, writing these lines in the feature checkout and
@@ -73,7 +107,7 @@ later `code/open-pr` step does that, after self-review and fixes.
 
    **Read-only Git fallback.** A managed agent sandbox may allow source edits
    while mounting the primary checkout's `.git` metadata read-only. If
-   `git worktree add` fails for that reason, do not stop at a conversational
+   creating the branch or worktree fails for that reason, do not stop at a conversational
    request for the human to create it. Use ordinary Git to make an independent
    writable clone under `/tmp`, refresh it from the real remote, and create the
    feature branch there:

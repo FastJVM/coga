@@ -289,6 +289,60 @@ def test_script_only_launch_is_headless_and_receives_task_contract(
     assert not sentinel.exists()
 
 
+def test_ticket_py_phase_resolves_op_secret_without_1password_auth(
+    script_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_path = script_repo.parent / "observed.json"
+    op_auth = [
+        "OP_SERVICE_ACCOUNT_TOKEN",
+        "OP_CONNECT_TOKEN",
+        "OP_CONNECT_HOST",
+        "OP_SESSION_my",
+    ]
+    for key in op_auth:
+        monkeypatch.setenv(key, "parent-auth")
+    ref = _create_script_task(
+        script_repo,
+        f"""
+        import json
+        import os
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        Path({str(observed_path)!r}).write_text(json.dumps({{
+            "token": os.environ.get("SCRIPT_TOKEN"),
+            "op_auth": sorted(
+                key for key in os.environ
+                if key in {op_auth!r} or key.startswith("OP_SESSION_")
+            ),
+        }}))
+        raise SystemExit(subprocess.run([
+            sys.executable, "-m", "coga.cli", "bump", os.environ["COGA_TASK_SLUG"],
+        ]).returncode)
+        """,
+        secrets=[{"SCRIPT_TOKEN": "op://vault/script/token"}],
+    )
+    real_run = subprocess.run
+    op_reads: list[str | None] = []
+
+    def fake_run(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if list(cmd[:2]) == ["op", "read"]:
+            op_reads.append(os.environ.get("OP_SERVICE_ACCOUNT_TOKEN"))
+            return subprocess.CompletedProcess(cmd, 0, stdout="op-value\n", stderr="")
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr("coga.config.subprocess.run", fake_run)
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 0, result.output
+    assert op_reads and set(op_reads) == {"parent-auth"}
+    observed = json.loads(observed_path.read_text())
+    assert observed == {"token": "op-value", "op_auth": []}
+
+
 def test_script_chain_attributes_each_child_bump_to_system(
     script_repo: Path,
     capfd: pytest.CaptureFixture[str],

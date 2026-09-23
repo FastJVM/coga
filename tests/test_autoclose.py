@@ -807,6 +807,33 @@ def test_render_disposed_and_preserved_summaries() -> None:
     )
 
 
+def test_manual_command_names_branch_only_cleanup_for_a_worktree_already_gone() -> None:
+    gone = _outcome("gone-wt", ticket_exists=False, worktree_removed=False, branch_remains=True)
+    assert gone.disposal.worktree_result is not None
+    gone.disposal.worktree_result.already_gone = True
+
+    assert gone.manual_command == (
+        "the worktree is already gone; then delete branch `gone-wt` by hand "
+        "(`git branch -d gone-wt`)"
+    )
+    gone.ticket_exists = True
+    assert gone.manual_command == (
+        "the worktree is already gone; then `coga retire gone-wt` for branch `gone-wt`"
+    )
+
+
+def test_manual_command_for_a_path_git_cannot_read() -> None:
+    unreadable = _outcome("plain", worktree_removed=False, branch_remains=False)
+    assert unreadable.disposal.worktree_result is not None
+    unreadable.disposal.worktree_result.not_linked = True
+    unreadable.worktree_path = Path("/w/plain")
+
+    assert unreadable.manual_command == (
+        "`/w/plain` is not a git worktree git can read, which no proof removes — "
+        "inspect and remove it by hand"
+    )
+
+
 def test_render_retire_summary_is_one_line_naming_every_command() -> None:
     summary = am.render_retire_summary(
         [_closed("alpha", branch="alpha"), _closed("beta", worktree="/w/beta")]

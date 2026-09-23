@@ -48,8 +48,10 @@ actionable: this period task is deleted at the next period boundary, so step 7
 writes the entries to `coga/recurring/<name>/retires.md` for the template this
 task was minted from; every run re-judges the open entries (an entry whose
 ticket is gone is proven by the merged PRs for its branch name) and drops the
-ones discharged — worktree directory gone and local branch gone. The rules
-are in the `coga/autoclose/sweep` skill.
+ones discharged — local branch gone, and worktree directory gone or this
+repository's own primary checkout (a ticket worked in the single-checkout
+layout records it; nobody disposes of it, so it is never debt). The rules are
+in the `coga/autoclose/sweep` skill.
 
 This sweep is the sole trigger for auto-closing merged tickets — there is
 no manual `automerge` command. The recurring task only changes when the
@@ -73,7 +75,8 @@ blackboard for that firing (`autoclose._report_retire_followups` writes
 scheduler deletes with the period task. The durable worklist is the sibling
 file `retires.md` next to this `ticket.md`: the same run records each
 preserved closure there keyed by slug, every run re-judges the open entries
-and drops those whose worktree and branch are both gone, and
+and drops those whose branch is gone and whose worktree is gone or is the
+primary checkout, and
 `coga retire <slug>` drops its own once it has disposed of the checkout. A
 sweep that touched no checkout and discharged nothing writes nothing.
 

@@ -987,8 +987,12 @@ def create_template(
                 cfg, template, period_key, outcome, now, serviced
             )
             return outcome
+        # A done period reaching here under `replace_done` already serviced
+        # this firing, so nothing will launch: return it as `done` even when
+        # it predates its template's `ticket.py` and froze no copy.
         if (
             not allow_agent
+            and not (replace_done and ticket.status == "done")
             and not (retain_canceled and ticket.status == "canceled")
             and not (retain_paused and ticket.status == "paused")
             and resolve_script_entry_point(existing) is None

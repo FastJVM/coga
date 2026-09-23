@@ -21,8 +21,9 @@ superseded. Historical material stays in [the catalogue](../map/SKILL.md).
 - [PostHog](../../../tasks/marketing/add-telemetry.md): finish the existing
   adoption/activity measurement implementation and owner verification.
   The owner explicitly rejected replacing it with zero-telemetry measurement.
-  Its ticket owns the approved scope and unresolved design-review finding;
-  campaign simplification does not expand or waive that contract.
+  The [weekly snapshot contract](../../coga/telemetry/SKILL.md) owns the
+  implemented scope; [operator verification](../../../../docs/telemetry.md)
+  remains a review gate. Campaign simplification does not waive that gate.
 
 ## Publication sequence
 

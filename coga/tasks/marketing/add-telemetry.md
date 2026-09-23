@@ -831,3 +831,33 @@ build is needed (at most one saved insight per agreed quantity).
 
 
 Separate-repository follow-up: add `coga_weekly_snapshot` to Multiply's PostHog runbook event catalog.
+
+
+## PR review assist — 2026-09-22
+
+Owner approved the sole unresolved review request on PR #880: account for
+phone-home in the sync notification inventory. Updated the live sync context
+and packaged twin with the eighth template, weekly cadence, keyless receipt,
+suppression and independent failure handling, linking to the telemetry contract.
+Committed and pushed as `5336dddbfa2affb1d9144ed16eb306af0cf96a7e`; exact remote-tip
+lease and post-push GitHub head equality verified. Replied to the review thread
+without resolving it. No runtime change or production telemetry operation.
+
+Verification in `/tmp/coga-phone-home`:
+- `/tmp/coga-phone-home-venv/bin/python -m pytest tests/test_packaging.py -k 'live_and_packaged_copies_stay_identical or intentional_divergences_stay_real_and_explained' -q`: 2 passed, 15 deselected.
+- `git diff --check`: passed. Inventory, relative context links, and receipt
+  claims checked against the packaged templates and implementation.
+
+Ticket remains in_progress on owner review; live wheel/PostHog acceptance
+evidence remains pending. No bump, merge, or thread resolution.
+
+
+## Owner review decision — 2026-09-22
+
+Owner explicitly deferred the live wheel/PostHog acceptance proof: assume it
+works for current review; owner will test later. This supersedes the requirement
+to hold review pending first/later/disabled queried-row evidence. The live proof
+has not been performed or passed; the documented procedure remains available
+for the deferred check. Automated verification and the pushed review fix stand.
+This instruction does not authorize a merge, thread resolution, or workflow
+transition; the ticket remains on owner review.

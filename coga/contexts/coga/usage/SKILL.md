@@ -1,17 +1,15 @@
 ---
 name: coga/usage
-description: How coga records agent-session activity and token usage — bounded schema-2 JSON records appended as tagged lines to the repo-global `coga/log.md`, the Claude/Codex parser seam, and `coga usage` as the token-rollup surface. Local and committed, never a phone-home. Read before touching session capture or adding a usage consumer.
+description: How coga records agent-session activity and token usage — bounded schema-2 JSON records appended as tagged lines to the repo-global `coga/log.md`, the Claude/Codex parser seam, and `coga usage` as the token-rollup surface. Local and committed; excluded from the weekly telemetry payload. Read before touching session capture or adding a usage consumer.
 ---
 
 # Agent Session Activity and Usage
 
 Coga records the activity and token usage of every Coga-launched agent session
 as plain committed text and reads token rollups back with `coga usage`. This is
-a foundational **local** data primitive
-— JSONL lines in the repo, nothing sent off-machine — and is **not** the
-phone-home telemetry `coga/principles` #5 forbids (that ban is about
-external/anonymized install or usage pings; this records only into the repo's own
-git-tracked files). Its consumers (agent autorouting, report views) are
+a foundational **local** data primitive — JSONL lines in the repo. Session
+activity and token records are excluded from the weekly aggregate snapshot;
+`coga/telemetry` owns that separate external boundary. Its consumers (agent autorouting, report views) are
 separate tickets; this primitive ships the records and the reader, and
 deliberately defines no budget cap or "remaining".
 
@@ -153,4 +151,4 @@ needed).
 
 - The git sync that commits the log append — see `coga/sync` (`sync_log`).
 - The launch supervisor loop and the shared spawn path — see `coga/architecture`.
-- The forbidden external telemetry / phone-home ban — see `coga/principles`.
+- External weekly telemetry — see `coga/telemetry` and the policy in `coga/principles`.

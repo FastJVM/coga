@@ -1259,7 +1259,10 @@ account state committed to git.
   transport uses the user's configured remote; GitHub PR/API operations use
   `gh` auth.
 - **Repo / install identity.** The repo is identified by the git checkout and
-  `coga/` config. Coga creates no hosted account or telemetry identity.
+  `coga/` config. For the optional weekly snapshot, a UUID v4 lives as committed
+  state in the phone-home recurring parent blackboard and is shared by synced
+  clones; it is not a human account. `coga/telemetry` owns its lifecycle and
+  concurrency limits.
 - **Skill / task capability.** A task's *declared* capabilities are its
   ticket-level `secrets:` list, declared **inline** — each entry is a single-key map
   `NAME: <ref>` whose `<ref>` is an `env:VAR` or `op://vault/item/field`
@@ -1275,21 +1278,33 @@ account state committed to git.
   not a provider registry: a future provider is another explicit branch on the
   same shared secret path.
 
-  **This is a declaration, not a sandbox.** `config.build_launch_env()` starts
-  from the **full parent environment** and removes only the source variables an
-  `env:VAR` ref names, then adds back the resolved, scoped destination aliases.
-  Every variable the operator's shell carries is otherwise inherited by the
-  child. That normally includes `OP_SERVICE_ACCOUNT_TOKEN`, so a launched agent
-  can run `op read` against anything that service account can reach regardless
-  of what the ticket declared. The exact declaration can change the final
-  environment: `TASK_OP_TOKEN: env:OP_SERVICE_ACCOUNT_TOKEN` scrubs the
-  well-known name, while declaring that same well-known name as a destination
-  restores or replaces it. That scrub removes only service-account-token auth
-  through that variable; it does not log out an inherited personal `op` session
-  or remove other CLI/desktop authentication. The `secrets:` list bounds what
-  Coga *resolves and names* for a task; it does not otherwise bound what the
-  task's process can reach. Real confinement needs process isolation Coga does
-  not yet have.
+  **This is a declaration plus an env scrub, not a sandbox.**
+  `config.build_launch_env()` resolves the ticket's declared secrets first, in
+  the parent — `op read` inherits the parent's own `os.environ`, which still
+  holds the operator's 1Password authentication. It then copies the parent
+  environment through `config.scrub_op_auth_env()`, which drops every
+  1Password CLI auth variable (`OP_SERVICE_ACCOUNT_TOKEN`, `OP_CONNECT_TOKEN`,
+  `OP_CONNECT_HOST`, and every `OP_SESSION_*`), removes the source variables
+  an `env:VAR` ref names, and adds back the resolved, scoped destination
+  aliases. The same scrub applies to the two agent spawns that do not build a
+  launch env — the `coga ticket` interviewer and the recurring autofix
+  analysis call — so no task or agent process Coga spawns inherits the
+  operator's 1Password authentication through its environment. Coga's own
+  child processes are not tasks and keep it: `coga recurring` runs its inner
+  scan with the unscrubbed environment, so the launches it makes can still
+  resolve `op://` refs. One consequence follows: a launch started *from inside*
+  a task, of a ticket that declares `op://` secrets, now fails in preflight with
+  a `SecretError`, because the task has nothing to resolve with. Declaring one
+  of the scrubbed names as a destination (`OP_SERVICE_ACCOUNT_TOKEN:
+  env:TASK_OP_SOURCE`) is an explicit, reviewable opt-in and is honored; naming
+  it only as a source (`TASK_OP_TOKEN: env:OP_SERVICE_ACCOUNT_TOKEN`) hands the
+  value on under the alias and nothing else. Every other variable the
+  operator's shell carries is still inherited. And the scrub bounds the
+  environment, not the process: a same-user child can still read a token file
+  on disk, re-export the token from a shell profile it sources, or use a
+  signed-in 1Password desktop app. The `secrets:` list bounds what Coga
+  *resolves and names* for a task, and the scrub bounds what the child
+  inherits; real confinement needs process isolation Coga does not yet have.
 
 ## One shared agent-spawn path
 
@@ -1558,3 +1573,11 @@ is not plugged into bootstrap Dream.
   context carries the model; that one carries the guarantees, and is attached
   only to tickets that change those paths. The git primitive they all use is
   in `coga/sync`.
+
+## Telemetry configuration
+
+`Config.telemetry_enabled` defaults true. Shared and local `[telemetry]` admit
+only boolean `enabled`; local overrides shared, including local true over shared
+false. Both layers are validated even when overridden. No endpoint, key, cadence,
+or test bypass is configurable. Delivery, state and payload belong to
+`coga/telemetry`; git and notification switches remain independent.

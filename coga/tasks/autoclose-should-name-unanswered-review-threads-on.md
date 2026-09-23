@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 4 (review)
 agent: claude
 ---
 
@@ -36,6 +36,7 @@ Follow-up from verify-the-pr-review-comment-loop-once-the-review (phase 4 decisi
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/881
 branch: autoclose-unanswered-threads
 worktree: /home/n/Code/claude/coga-autoclose-unanswered-threads
 
@@ -108,6 +109,34 @@ the assist. No adjacent bugs found.
 
 ## Peer review
 
+2026-09-22 resume: the human confirmed the rendered Slack summary and links
+at both normal and narrow widths. `coga unblock` recorded that verification
+and resolved the open ask. The visual gate is satisfied by human verification.
+
+With the human's approval, rebased the recorded feature worktree onto fetched
+`origin/main` at `8924bc44e`. Resolved conflicts by preserving current checkout
+disposal and durable retire-worklist behavior and adding thread reporting
+alongside it. `ClosedTicket.pr` serves both disposal proofs and thread links;
+no duplicate PR URL field. Both follow-up reporters run even if retire
+reporting returns failure; thread-report write failures fall back to stdout,
+still post Slack, and fail the recipe. Current commits: `816c97c87`,
+`1cc231f9f`, and integration regression/doc commit `88176e8da`.
+
+Fresh `codex review --base origin/main` **returned**, exit 0, no actionable
+findings. Transcript: `/tmp/coga-autoclose-resume-review.log`. The review
+process lacked `tomlkit`; this session runs tests using the recorded venv.
+Focused tests: 152 passed initially; after adding reporting-failure
+regressions, autoclose + packaging tests passed (125 tests). Newer checkout
+disposal tests needed the added GitHub thread-query stub: all 9 now pass.
+Initial full run: 2752 passed, 5 failed only on that missing stub. Final full
+suite: **2760 passed in 177.60s**, exit 0, using
+`PYTHONPATH=src /home/n/Code/claude/coga/.venv/bin/python -m pytest -q -p no:cacheprovider`
+from the feature worktree. Transcript:
+`/tmp/coga-autoclose-resume-tests-final.log`. `git diff --check` is clean;
+`coga validate --task autoclose-should-name-unanswered-review-threads-on --json`
+reports one valid task, no issues. Feature branch is clean with three commits
+ahead of fetched main. Peer review is complete; ready for `open-pr`.
+
 2026-09-15: `codex review --base main` **returned** (exit 0;
 transcript `/tmp/coga-autoclose-peer-review.log`). All three must-fix findings
 were reproduced and fixed in `1c414750`:
@@ -149,14 +178,8 @@ rendered Slack message. Available tools include no browser-control runtime
 or Slack visual client; the Browser skill was inspected and its required
 execution tool is not available. The current peer-review instructions require
 driving a changed human-visible surface and say that record is the gate.
-**Blocked on that remaining check; do not advance to open-pr yet.**
+**Historical blocker, resolved by the human verification recorded above.**
 
-To resume: inspect the new 🧵 summary in a rendered Slack preview/client at
-normal and narrow widths, confirm that PR labels and every path:line link
-remain readable and open the intended thread, and record the result here.
-Provide an accessible browser/Slack visual session for the agent, or record
-the human's visual verification. The code fixes, tests, and PR body below
-are complete; rebase/test again only if the branch has materially drifted.
 
 ## PR
 
@@ -166,13 +189,15 @@ closure audit line names their locations, the sweep report includes authors,
 opening-line excerpts, and thread URLs, and one Slack follow-up links every
 thread.
 
-The read-only lookup paginates against the recorded PR's host and base
+Thread reporting runs alongside the current checkout-disposal and durable
+retire-worklist flow, including failure paths. The read-only lookup paginates
+against the recorded PR's host and base
 repository. A fetch failure leaves the ticket open for retry, and eligibility
 is rechecked after the network calls to preserve concurrent human transitions.
 Updated the autoclose contract, recurring and notification contexts, and
 their packaged twins.
 
-Test plan: `PYTHONPATH=/home/n/Code/claude/coga-autoclose-unanswered-threads/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` — 2517 passed; regressions reproduced before fixes; read-only PR 699/705/800 probe and report inspection in 80×24 and 120×40 PTYs.
+Test plan: `PYTHONPATH=src /home/n/Code/claude/coga/.venv/bin/python -m pytest -q -p no:cacheprovider` — 2760 passed. Codex review returned with no actionable findings. Human verified Slack labels and thread links at normal and narrow widths; terminal QA at 80×24 and 120×40 and read-only PR probes are recorded above.
 
 ---
 

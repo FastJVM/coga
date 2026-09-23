@@ -272,6 +272,43 @@ def test_a_relative_worktree_resolves_against_the_root_not_the_cwd(
     assert rw.is_discharged(entry, root=elsewhere, branches=frozenset())
 
 
+def test_the_primary_checkout_is_never_worktree_debt(tmp_path: Path) -> None:
+    # A ticket worked in the single-checkout layout records the primary
+    # checkout itself. It is always a directory and no proof removes it, so
+    # only its branch can hold the entry open.
+    root = _git_repo_with_branch(tmp_path / "repo", "feature")
+    entry = _entry("single", branch="feature", worktree=str(root))
+
+    assert rw.is_primary_checkout(root, str(root))
+    assert not rw.is_discharged(entry, root=root, branches=frozenset({"feature"}))
+    assert rw.is_discharged(entry, root=root, branches=frozenset({"main"}))
+
+
+def test_a_checkout_a_human_disposes_of_by_hand_stays_worktree_debt(
+    tmp_path: Path,
+) -> None:
+    # An independent clone, another repository's linked worktree, and a
+    # directory git cannot read are all preserved by the proofs, but somebody
+    # still removes them: this file is their only durable trace.
+    root = _git_repo_with_branch(tmp_path / "repo", "feature")
+    clone = tmp_path / "clone"
+    _git(tmp_path, "clone", "-q", str(root), str(clone))
+    other = _git_repo_with_branch(tmp_path / "other", "fix")
+    foreign = tmp_path / "other-wt"
+    _git(other, "worktree", "add", "-q", str(foreign), "fix")
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    linked = tmp_path / "linked"
+    _git(root, "worktree", "add", "-q", str(linked), "feature")
+
+    for path in (clone, foreign, plain, linked):
+        assert not rw.is_primary_checkout(root, str(path))
+        entry = _entry("kept", branch="gone", worktree=str(path))
+        assert not rw.is_discharged(entry, root=root, branches=frozenset())
+    # No git root, no proof: the primary checkout is kept as debt too.
+    assert not rw.is_primary_checkout(None, str(root))
+
+
 def test_local_branches_lists_heads_and_is_none_outside_a_repo(tmp_path: Path) -> None:
     repo = _git_repo_with_branch(tmp_path / "repo", "feature-x")
 
