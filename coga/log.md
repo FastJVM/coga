@@ -6146,3 +6146,4 @@ fatal: Unable to add (null) to database
 2026-09-22 16:59 [coga-build-fails-after-init-on-a-github-scaffolded] [human:nicktoper] created (status=draft)
 2026-09-22 16:59 [coga-build-fails-after-init-on-a-github-scaffolded] [human:nicktoper] activated (draft → active)
 2026-09-22 16:59 [coga-build-fails-after-init-on-a-github-scaffolded] [human:nicktoper] paused (active → paused)
+2026-09-22 17:07 [make-dream-run-correctly-under-codex] [human:nicktoper] created (status=draft)
