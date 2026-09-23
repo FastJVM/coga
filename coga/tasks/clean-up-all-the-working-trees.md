@@ -1,6 +1,6 @@
 ---
 title: clean up all the working trees
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: maintenance/with-approval
@@ -14,7 +14,6 @@ workflow:
   - name: cleanup-and-verify
     skills: []
     assignee: agent
-step: 3 (cleanup-and-verify)
 agent: claude
 ---
 
@@ -289,3 +288,6 @@ Every dry run matched the approved set exactly and nothing was locked. After pru
 
 ### Remaining
 Every RETAINED entry in the inventory is untouched. The standalone clones, test fixtures, skipped prunes, and all branch refs are unchanged.
+
+### Owner decision on O1 — 2026-09-23
+nicktoper asked for a separate investigation ticket. I created the draft `decide-the-fate-of-the-multiply-probe-harness-work`. It covers O1 and the three retained probe-evidence worktrees, about 9G. O1 stays in place and is **out of this ticket's scope**. The owner accepted this as the recorded partial completion. The cleanup is therefore complete: 42 removed, 4 prunes done, O1 deferred.
