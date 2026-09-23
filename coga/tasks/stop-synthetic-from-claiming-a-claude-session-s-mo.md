@@ -31,6 +31,18 @@ In `usage._parse_claude_session`, model attribution is last-model-wins (`model =
 
 ## Context
 
+- Code: `usage._parse_claude_session`, in the `kind == "assistant"` branch where
+  `model` is reassigned per line. Keep the token sums as they are; only the
+  model choice changes. Codex (`usage._parse_codex_rollout`) is unaffected.
+- `<synthetic>` is Claude Code's placeholder model on synthetic assistant
+  messages; it appears only on Claude transcripts.
+- Out of scope: re-attributing existing `<synthetic>` records already in
+  `coga/log.md` (the log is append-only), and sessions that switch between
+  real models mid-session (still last-model-wins; a separate problem).
+- Split out of the canceled
+  `define-the-api-equivalent-cost-proxy-and-price-tab` ticket, whose dollar
+  pricing was dropped when `agent-usage-report` shipped as token-count only.
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
