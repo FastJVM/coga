@@ -280,3 +280,10 @@ things operations depend on:
 
 Both make a network call, so they're opt-in rather than part of the default
 read-only validate.
+
+## Weekly telemetry and opt-out
+
+For the shared/local `[telemetry] enabled = false` opt-out, release-wheel
+verification, project read-back and deletion, see [Telemetry operations](telemetry.md).
+The [behavioral contract](../coga/contexts/coga/telemetry/SKILL.md) owns what is sent
+and when; telemetry is a sweep activity signal, not an install count.

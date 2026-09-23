@@ -124,11 +124,8 @@ files in your git repo, on your machine, no hosted backend. And no single model
 vendor owns you — agents are interchangeable.
 
 **Forbids:** moving state into a hosted service you can't inspect; lock-in to one
-model vendor; a format only one vendor can read. **No phoning home — no
-telemetry, usage tracking, or install ping, not even anonymized or opt-out.**
-Coga sends nothing about you or your repo anywhere; product signals come from
-public surfaces (PyPI/GitHub) you can read too, never from instrumenting the
-operator's machine.
+model vendor; a format only one vendor can read. Operational state stays local
+and git-backed. The bounded telemetry exception below does not host the OS.
 
 **Receipt:** git-backed markdown, local by default, no cloud. Nothing in Coga
 makes a network call you didn't initiate. `claude` ↔ `codex` interchangeable
@@ -142,6 +139,13 @@ nothing to un-rent. SKILL.md is an open standard.
 > one-line disable it cuts against this principle — users don't want to be
 > tracked, and a tool that phones home isn't fully *yours*. Use the PyPI/GitHub
 > estimate instead.
+
+> Owner reversal (2026-09-20, clarified 2026-09-22): permit default-on,
+> opt-out weekly aggregate usage snapshots to measure product-market fit.
+> Accept a small biased sample of repos with active operator sweeps, not an
+> install count, and lost events without retries. The closed data boundary,
+> development suppression and delivery contract belong to `coga/telemetry`.
+> No per-command or agent/session/token instrumentation is authorized.
 
 ## 6. Fail loud — surface every failure, never silent-wrong-answers
 

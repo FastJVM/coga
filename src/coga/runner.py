@@ -124,6 +124,16 @@ def run_recipe(cfg: Config, name: str, argv: list[str]) -> int:
         raise UnknownRecipeError(
             f"unknown recipe {name!r}; known recipes: {known}"
         ) from exc
+    return run_reported(cfg, name, recipe, argv)
+
+
+def run_reported(cfg: Config, name: str, recipe: RecipeFn, argv: list[str]) -> int:
+    """Run ``recipe`` under the `## Recipe Failure` floor that `run_recipe` gives.
+
+    Shared by the registry and by ticket-owned `ticket.py` code that keeps its
+    deterministic work at the edge instead of in `RECIPES`: ``name`` labels the
+    failure section, and ``recipe`` need not be registered.
+    """
     tail = _StderrTail(sys.stderr)
     failure: tuple[int, str] | None = None
     try:

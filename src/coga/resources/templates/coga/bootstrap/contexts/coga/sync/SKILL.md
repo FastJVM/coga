@@ -51,6 +51,15 @@ Live surface (`post`) — posts immediately to the named destination:
   the sweep's exit line. Re-reminding on an interval would be a behavior change
   (turning the watermark into a `last_reminded` cooldown), and so would
   watermarking only successful deliveries; neither is a bug fix.
+- `recurring/phone-home` — weekly Monday 07:00 (`0 7 * * 1`), reached by
+  operator sweeps, including the first due sweep; flow. After a capture attempt,
+  it posts one receipt containing the keyless snapshot envelope and attempt
+  outcome through `notification.post(..., fatal=False, record_failure=False)`.
+  Telemetry opt-out, development/test/CI suppression, or invalid inventory
+  skips capture and receipt; disabled or unconfigured Slack skips the receipt.
+  The receipt has its own three-second worker deadline; failure cannot affect
+  capture or task completion. See [coga/telemetry](../telemetry/SKILL.md) for
+  the payload privacy boundary, admission rules and delivery contract.
 - `coga slack` — explicit FYI (manual broadcast escape hatch); flow unless the
   sender supplies `--important`.
 - `coga bump --message "<FYI>"` — explicit FYI attached to step movement.
@@ -131,11 +140,12 @@ Silent lifecycle surface — no notification post at all:
   period template emits nothing; its `delegate: bootstrap/address-pr-comments`
   target replies on GitHub threads and posts one `coga slack` roll-up per run.
 
-Those four complete the enumeration: `coga/recurring/` ships seven templates —
+Those four complete the enumeration: `coga/recurring/` ships eight templates —
 `address-pr-comments`, `autoclose-merged`, `blocker-reminders`,
-`branch-sweep`, `dream`, `resolve-conflicts`, `skill-update` — and every one
-of them is now accounted for above. A new template accounted for on none of the three surfaces is an
-unreviewed cadence decision, not a neutral default.
+`branch-sweep`, `dream`, `phone-home`, `resolve-conflicts`, `skill-update` —
+and every one of them is now accounted for above. A new template accounted for
+on none of the three surfaces is an unreviewed cadence decision, not a neutral
+default.
 
 **This is an accounting of events, not a partition of templates.** A template
 may legitimately span surfaces, and several already do: `autoclose-merged`

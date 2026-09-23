@@ -1327,3 +1327,9 @@ Operating it:
 Scheduler wiring, how to write a run's skill or body
 logic, and notification posting mechanics (see `coga/sync`). Implementation lives
 in `src/coga/recurring.py` and `src/coga/recurring_runner.py`.
+
+## Weekly usage battery
+
+`phone-home` is ticket-owned code, not a registered recipe: its reserved
+`ticket.py` holds the whole snapshot, with a one-step `phone-home/run` workflow. Its changing parent marker, bounded delivery,
+production suppression and opt-out contract belong to `coga/telemetry`.

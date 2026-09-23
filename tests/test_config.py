@@ -1794,3 +1794,32 @@ def test_upstream_in_shared_toml_rejected(repo: Path) -> None:
         f.write('[upstream]\ncheckouts = ["/one/path"]\n')
     with pytest.raises(ConfigError, match=r"coga.toml has unknown key\(s\) \['upstream'\]"):
         load_config(repo)
+
+
+@pytest.mark.parametrize("shared,local,expected", [(None,None,True),(False,None,False),(True,False,False),(False,True,True)])
+def test_telemetry_precedence(repo, shared, local, expected):
+    for filename, value in (("coga.toml",shared),("coga.local.toml",local)):
+        if value is not None:
+            p = repo/filename
+            p.write_text(p.read_text()+f"\n[telemetry]\nenabled = {str(value).lower()}\n")
+    assert load_config(repo).telemetry_enabled is expected
+    assert load_config(repo).git_enabled is True
+    assert load_config(repo).slack_enabled is True
+
+
+@pytest.mark.parametrize("filename", ["coga.toml", "coga.local.toml"])
+@pytest.mark.parametrize("invalid", ['telemetry = false\n', '[telemetry]\nenabled = "false"\n', '[telemetry]\nenabled = 1\n', '[telemetry]\nendpoint = "bad"\n'])
+def test_telemetry_schema_rejects_invalid_both_layers(repo, filename, invalid):
+    p = repo/filename
+    p.write_text(invalid+p.read_text() if not invalid.startswith("[") else p.read_text()+"\n"+invalid)
+    with pytest.raises(ConfigError, match="telemetry"):
+        load_config(repo)
+
+
+def test_telemetry_invalid_shared_not_hidden_by_local(repo):
+    p = repo/"coga.toml"
+    p.write_text(p.read_text()+'\n[telemetry]\nenabled = "bad"\n')
+    p = repo/"coga.local.toml"
+    p.write_text(p.read_text()+'\n[telemetry]\nenabled = true\n')
+    with pytest.raises(ConfigError, match="telemetry"):
+        load_config(repo)
