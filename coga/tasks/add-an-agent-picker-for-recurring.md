@@ -421,6 +421,7 @@ both at implement time before editing them.
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/885
 branch: authoring-agent-picker
 worktree: /home/n/Code/coga
 
