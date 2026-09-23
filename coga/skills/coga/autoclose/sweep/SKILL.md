@@ -22,7 +22,9 @@ sole trigger for closing tickets whose PR has merged:
    in every `retires.md` worklist, under the shared retire proofs, and
 6. report what it disposed of and what a proof refused, with the reason —
    the refusals to the coga-important Slack channel and, under a recurring
-   period task, to the template's durable `retires.md` worklist.
+   period task, to the template's durable `retires.md` worklist, and
+7. report unresolved, non-outdated review threads with only their opening
+   comment on each closed PR.
 
 The scope is defined by `coga.autoclose.sweep_merged` (the close) and
 `coga.autoclose._dispose_checkouts` (the disposal).
@@ -205,6 +207,36 @@ the remedy names where it can be removed:
   otherwise `git branch -d`).
 - **A worktree already gone from disk**: says so, and names branch-only
   cleanup.
+
+## The unanswered-thread follow-up
+
+The `review` step is an owner gate: the owner merges from the GitHub UI, where
+an unresolved thread does not block, and nothing else looks at the PR's
+threads again (the `dev/code` context, "Review threads that merge unanswered",
+has the measurement and the decision). The sweep is the one place that already
+touches every merged PR, so when it closes a ticket it fetches that PR's
+`reviewThreads` once — `coga.autoclose.unanswered_review_threads`, one
+paginated `gh api graphql` query against the recorded PR URL's host and base
+repository — and keeps the threads that are unresolved,
+not outdated, and hold only their opening comment. Resolved means a human
+decided, outdated means the flagged line already moved, and a reply means
+someone saw it; what remains is exactly what merged unseen.
+
+Report-only, three surfaces:
+
+- the ticket's own closure line in `coga/log.md` names each thread's
+  `path:line` (`auto-bumped on merge of PR #7 → done; 1 unanswered review
+  thread: src/coga/x.py:42`) — the durable one;
+- a `## Autoclose Sweep: unanswered review threads` section beside the retire
+  section, with author, opening-line excerpt, and thread link — per-run, same
+  caveat as above;
+- one trailing Slack line linking every thread.
+
+The sweep never resolves a thread, replies to one, or blocks a merge. The
+fetch runs *before* the close: a `gh` failure there leaves the ticket open for
+the next sweep rather than closing it without its report. After the GitHub
+lookups, the sweep re-reads the ticket and checks eligibility again, preserving
+a pause, cancellation, or completion that happened while GitHub was responding.
 
 Run it directly with `coga run autoclose`. Live notification configuration is
 preflighted before each affected ticket closes. Later `gh` or task-validation

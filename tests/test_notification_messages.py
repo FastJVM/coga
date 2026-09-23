@@ -371,6 +371,7 @@ def test_automerge_links_pr_and_shows_prev_to_done(
     url = "https://github.com/o/r/pull/7"
     slug, _ = _make_task(repo, status="active", on_final=True, pr_url=url)
     monkeypatch.setattr(am, "pr_state", lambda u: "MERGED")
+    monkeypatch.setattr(am, "unanswered_review_threads", lambda u: [])
     posts = _capture(monkeypatch)
 
     result = am.sweep_merged(load_config(repo), quiet=True)
@@ -386,6 +387,7 @@ def test_automerge_workflowless_collapses_and_links(
     url = "https://github.com/o/r/pull/9"
     slug, _ = _make_task(repo, workflow=None, status="active", pr_url=url)
     monkeypatch.setattr(am, "pr_state", lambda u: "MERGED")
+    monkeypatch.setattr(am, "unanswered_review_threads", lambda u: [])
     posts = _capture(monkeypatch)
 
     result = am.sweep_merged(load_config(repo), quiet=True)

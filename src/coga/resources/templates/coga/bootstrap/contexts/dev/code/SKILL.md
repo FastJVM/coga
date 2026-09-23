@@ -474,10 +474,10 @@ superseded design itself in the blackboard section.
 `code/with-review` and its siblings freeze `code/address-pr-comments` on the
 `review` step, but that skill is an on-demand assist: the step is
 `assignee: owner`, so the launch supervisor stops, megalaunch reports
-`skipped-human-gate`, no core code polls `reviewThreads`, and the owner merges
-from the GitHub UI, where an unresolved thread does not block. Nothing surfaces
-an unanswered thread to anyone. Measured over the tickets retired from the Coga
-repo between 2026-08-17 and 2026-09-13: 7 of 38 merged PRs (18%) carried a bot
+`skipped-human-gate`, and the owner merges from the GitHub UI, where an
+unresolved thread does not block. Before the post-merge detection below,
+nothing surfaced unanswered threads after merge. Measured over the tickets
+retired from the Coga repo between 2026-08-17 and 2026-09-13: 7 of 38 merged PRs (18%) carried a bot
 review thread that was not outdated, got no reply and no code change at the
 flagged line, and merged as-is — one of them a P1 — while the assist skill was
 launched once against roughly forty owner reviews. All 55 `code/with-review`
@@ -487,10 +487,11 @@ snapshots frozen in that window carried the skill, so the frozen-empty
 Decision (2026-09-13, owner): keep the owner gate — merge and thread resolution
 stay human, and the skill still never resolves or bumps — and add post-merge
 detection rather than a new trigger. When `autoclose-merged` closes a ticket it
-should fetch that PR's `reviewThreads` once and name every unresolved,
-non-outdated, reply-less thread in its summary and Slack line, report-only,
-exactly as it already names the `coga retire` follow-up. Fix ticket:
-`autoclose-should-name-unanswered-review-threads-on`. Rejected: auto-launching
+fetches that PR's `reviewThreads` once and names every unresolved,
+non-outdated, reply-less thread in the closure's `coga/log.md` line, its sweep
+report, and one Slack line, report-only, exactly as it already names the
+`coga retire` follow-up (`coga/autoclose/sweep` skill, "The unanswered-thread
+follow-up"). Rejected: auto-launching
 the assist on review entry (bot comments arrive minutes after `open-pr`; the
 gate exists so a human reads them first), a merge-blocking check (Coga does not
 own GitHub merge policy), and doing nothing.

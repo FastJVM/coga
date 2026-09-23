@@ -117,6 +117,7 @@ def _stub_gh(
         return []
 
     monkeypatch.setattr(am, "pr_state", lambda url: "MERGED")
+    monkeypatch.setattr(am, "unanswered_review_threads", lambda url: [])
     monkeypatch.setattr("coga.branchcleanup.pr_state", lambda url: "MERGED")
     monkeypatch.setattr("coga.branchcleanup.pr_head", pr_head)
     monkeypatch.setattr("coga.branchcleanup.prs_for_head", prs_for_head)

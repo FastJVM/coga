@@ -42,6 +42,16 @@ preserved checkout in the template's durable `retires.md`
 (`coga.retire_worklist`), and on every run — hand-run or recurring — walks the
 open entries of every worklist, re-runs the proofs on each (its ticket may be
 gone by then), and drops the ones discharged. The worklist stays a worklist.
+
+Review-thread reporting is report-only. The `review` step is an
+owner gate: the owner merges from the GitHub UI, where an unresolved thread
+does not block, and nothing else ever looks at the PR's threads again. The
+sweep is the one place that already touches every merged PR, so when it closes
+a ticket it fetches that PR's `reviewThreads` once and *names* every thread
+that is unresolved, not outdated, and got no reply — in the closure's audit
+line, in the sweep report, and in one trailing Slack line — and never resolves
+or replies. See `unanswered_review_threads` and
+`_report_review_thread_followups`.
 """
 
 from __future__ import annotations
@@ -57,6 +67,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
 from coga import git
 from coga.blackboard import append_blackboard_report
@@ -91,16 +102,43 @@ class GhError(Exception):
 
 
 RETIRE_REPORT_HEADING = "## Autoclose Sweep: retire follow-ups"
+REVIEW_THREADS_REPORT_HEADING = "## Autoclose Sweep: unanswered review threads"
+
+
+@dataclass(frozen=True)
+class ReviewThread:
+    """One PR review thread that merged unresolved, current, and unanswered.
+
+    "Unanswered" is structural, not semantic: the thread holds exactly its
+    opening comment. A thread the author replied to, even to disagree, is a
+    conversation the owner saw; the sweep only reports the ones nobody touched.
+    `excerpt` is the opening comment's first line, so the audit surfaces stay
+    legible without a click.
+    """
+
+    path: str
+    line: int | None
+    author: str
+    url: str
+    excerpt: str
+
+    @property
+    def location(self) -> str:
+        return f"{self.path}:{self.line}" if self.line is not None else self.path
 
 
 @dataclass(frozen=True)
 class ClosedTicket:
-    """One ticket a sweep finished, plus the checkout state it left behind.
+    """One ticket a sweep finished, plus the follow-ups it left behind.
 
     `branch` / `worktree` are the `## Dev` lines as they read at close time.
     They are captured *during* the sweep on purpose: they are the only trace of
     which checkout belongs to this ticket, and a later reader may find them
     gone — retire clears them, and a deleted task takes them with it.
+
+    `unanswered_threads` is the PR's review-thread state at the same instant,
+    fetched once per closure. A thread answered or resolved after the sweep is
+    a human catching up, not a reason to re-query.
 
     `worktree` is the one field filtered rather than copied: this repository's
     own primary checkout, recorded by a ticket worked in the single-checkout
@@ -115,10 +153,16 @@ class ClosedTicket:
     # The `pr:` link the close was decided on; the disposal proofs read the
     # merged head from it.
     pr: str | None = None
+    unanswered_threads: tuple[ReviewThread, ...] = ()
 
     @property
     def retire_command(self) -> str:
         return f"coga retire {self.slug}"
+
+    @property
+    def pr_label(self) -> str:
+        number = parse_pr_number(self.pr or "")
+        return f"PR #{number}" if number is not None else "the linked PR"
 
     @property
     def checkout_state(self) -> str:
@@ -284,6 +328,11 @@ class AutocloseResult:
     def preserved(self) -> list[CheckoutOutcome]:
         return [item for item in self.checkouts if not item.disposed]
 
+    @property
+    def review_threads_pending(self) -> list[ClosedTicket]:
+        """Closed tickets whose PR merged with an unanswered review thread."""
+        return [item for item in self.closed if item.unanswered_threads]
+
 
 _DEV_SECTION_RE = re.compile(
     r"^##\s+Dev\s*\n(.*?)(?=\n##\s|\Z)",
@@ -303,6 +352,9 @@ _DEV_SECTION_RE = re.compile(
 # `pr:` line at all.
 _PR_LINE_RE = re.compile(r"^[ \t]*(?:-[ \t]*)?pr:[ \t]*(.+?)[ \t]*$", re.MULTILINE)
 _PR_NUMBER_RE = re.compile(r"/pull/(\d+)")
+# The GraphQL query needs the base repository's coordinates, which the recorded
+# PR URL carries even when the PR comes from a fork.
+_PR_COORDINATES_RE = re.compile(r"/([^/]+)/([^/]+)/pull/(\d+)")
 # The `branch:` line is written inconsistently across existing tickets:
 # `branch: my-branch`, `- branch: \`my-branch\``, ``branch: `my-branch` ``.
 # Tolerate an optional `- ` list prefix and capture the rest of the line; the
@@ -508,6 +560,156 @@ def pr_view(url: str, fields: str) -> dict[str, object]:
     return data
 
 
+# Mirrors the `code/address-pr-comments` skill's query, trimmed to what the
+# report needs. `comments(first: 1)` plus `totalCount` is the whole
+# "unanswered" test — a thread with more than its opening comment is a
+# conversation someone had — so no per-thread comment pagination is needed.
+_REVIEW_THREADS_QUERY = """
+query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          isResolved
+          isOutdated
+          path
+          line
+          originalLine
+          comments(first: 1) {
+            totalCount
+            nodes { body url author { login } }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+_EXCERPT_LIMIT = 80
+# Bot reviewers open with markup — `**<sub>![P1 Badge](…)</sub> Title**` is
+# the Codex shape — that reads as noise in a one-line report. Keep an image's
+# alt text (the priority badge is signal) and drop tags and bold markers.
+_MD_IMAGE_RE = re.compile(r"!\[([^\]]*)\]\([^)]*\)")
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def pr_review_threads(url: str) -> list[dict[str, object]]:
+    """Return every review thread on one PR, paginating `gh api graphql`.
+
+    `gh pr view --comments` is not a substitute: it does not expose inline
+    thread resolution state. Raises `GhError` on any CLI or shape failure, like
+    the other `gh` helpers here, so the sweep's existing loud/quiet handling
+    covers it.
+    """
+    parsed = urlsplit(url)
+    match = _PR_COORDINATES_RE.search(parsed.path)
+    if not parsed.hostname or not match:
+        raise GhError(f"cannot derive owner/repo/number from PR URL {url}")
+    owner, repo, number = match.group(1), match.group(2), match.group(3)
+    threads: list[dict[str, object]] = []
+    cursor: str | None = None
+    while True:
+        argv = [
+            "gh",
+            "api",
+            "graphql",
+            "--hostname",
+            parsed.hostname,
+            "-f",
+            f"owner={owner}",
+            "-f",
+            f"repo={repo}",
+            "-F",
+            f"number={number}",
+            "-f",
+            f"query={_REVIEW_THREADS_QUERY}",
+        ]
+        if cursor is not None:
+            argv.extend(["-F", f"cursor={cursor}"])
+        try:
+            result = subprocess.run(argv, capture_output=True, text=True, check=False)
+        except FileNotFoundError as exc:
+            raise GhError("`gh` not found on PATH") from exc
+        if result.returncode != 0:
+            raise GhError(
+                f"`gh api graphql` (reviewThreads of {url}) failed "
+                f"(exit {result.returncode}): {result.stderr.strip()}"
+            )
+        try:
+            data = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            raise GhError(
+                f"`gh api graphql` (reviewThreads of {url}) returned non-JSON: {exc}"
+            ) from exc
+        try:
+            connection = data["data"]["repository"]["pullRequest"]["reviewThreads"]
+            nodes = connection["nodes"]
+            page = connection["pageInfo"]
+        except (KeyError, TypeError) as exc:
+            raise GhError(
+                f"`gh api graphql` (reviewThreads of {url}) returned unexpected JSON"
+            ) from exc
+        threads.extend(node for node in nodes if isinstance(node, dict))
+        if not page.get("hasNextPage"):
+            return threads
+        cursor = str(page.get("endCursor") or "")
+        if not cursor:
+            raise GhError(
+                f"`gh api graphql` (reviewThreads of {url}) paginates without a cursor"
+            )
+
+
+def _excerpt(body: object) -> str:
+    """The opening comment's first non-empty line, clipped for a one-line report."""
+    for line in str(body or "").splitlines():
+        text = _HTML_TAG_RE.sub("", _MD_IMAGE_RE.sub(r"\1", line))
+        text = " ".join(text.replace("**", "").split())
+        if text:
+            if len(text) > _EXCERPT_LIMIT:
+                return text[: _EXCERPT_LIMIT - 1].rstrip() + "…"
+            return text
+    return ""
+
+
+def unanswered_review_threads(url: str) -> list[ReviewThread]:
+    """The PR's threads that are unresolved, not outdated, and reply-less.
+
+    Report-only by contract: this reads the PR and never resolves a thread or
+    posts a reply. An outdated thread is skipped because the flagged line has
+    already changed; a resolved one because a human decided; a thread with a
+    reply because someone saw it. What is left is exactly what merged unseen.
+    """
+    found: list[ReviewThread] = []
+    for node in pr_review_threads(url):
+        if node.get("isResolved") or node.get("isOutdated"):
+            continue
+        comments = node.get("comments")
+        if not isinstance(comments, dict) or comments.get("totalCount") != 1:
+            continue
+        opening = next(
+            (c for c in comments.get("nodes") or [] if isinstance(c, dict)), None
+        )
+        if opening is None:
+            continue
+        author = opening.get("author")
+        login = author.get("login") if isinstance(author, dict) else None
+        line = node.get("line")
+        if line is None:
+            line = node.get("originalLine")
+        found.append(
+            ReviewThread(
+                path=str(node.get("path") or ""),
+                line=int(line) if isinstance(line, int) else None,
+                author=str(login or "unknown"),
+                url=str(opening.get("url") or url),
+                excerpt=_excerpt(opening.get("body")),
+            )
+        )
+    return found
+
+
 def _on_final_step(ticket: Ticket) -> bool:
     wf = ticket.workflow
     if not isinstance(wf, dict) or not wf.get("steps"):
@@ -575,8 +777,13 @@ def _try_bump_one(
     if state != "MERGED":
         return None
 
-    # Re-read in case a concurrent caller (other hook, status, manual
-    # bump) already handled this ticket. Mark_done is the gate.
+    # Fetched before the close, not after: a GhError leaves the ticket open
+    # for retry. Complete all GitHub reads before rechecking eligibility so a
+    # human transition during this paginated lookup cannot be overwritten.
+    threads = tuple(unanswered_review_threads(url))
+
+    # Re-read after the network calls: another caller may have paused,
+    # canceled, or completed the ticket while GitHub was responding.
     try:
         ticket = read_ticket(ref)
     except TicketError:
@@ -584,8 +791,16 @@ def _try_bump_one(
     if not _candidate(ticket):
         return None
 
-    number = parse_pr_number(url)
-    pr_label = f"PR #{number}" if number is not None else "the linked PR"
+    closed = ClosedTicket(
+        slug=ref.id_slug,
+        title=ticket.title,
+        branch=parse_branch_name(blackboard),
+        worktree=_recorded_worktree(cfg, parse_worktree_path(blackboard)),
+        pr=url,
+        unanswered_threads=threads,
+    )
+
+    pr_label = closed.pr_label
     pr_link = f"<{url}|{pr_label}>"
     actor = f"human:{cfg.current_user}"
     # A workflow-less ticket has no current step, so collapse the transition.
@@ -594,16 +809,13 @@ def _try_bump_one(
     slack_text = (
         f"🎉 *{ref.id_slug}* \"{ticket.title}\"{transition} — {pr_link} merged"
     )
+    # The audit line is the durable surface: the sweep report and Slack line
+    # are per-run, but `log.md` is what a later reader greps.
     log_message = f"auto-bumped on merge of {pr_label} → done"
+    if closed.unanswered_threads:
+        log_message += "; " + render_unanswered_threads_note(closed)
     echo = None if quiet else f"{ref.id_slug}: done (auto, {pr_label})"
 
-    closed = ClosedTicket(
-        slug=ref.id_slug,
-        title=ticket.title,
-        branch=parse_branch_name(blackboard),
-        worktree=_recorded_worktree(cfg, parse_worktree_path(blackboard)),
-        pr=url,
-    )
     if before_close is not None:
         before_close(closed)
 
@@ -1135,6 +1347,141 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
     return failure is None
 
 
+def render_unanswered_threads_note(item: ClosedTicket) -> str:
+    """One clause naming a closed ticket's unanswered threads, for `log.md`.
+
+    Kept to locations only: the audit line is one line per event, and the
+    report section carries the author, excerpt, and link.
+    """
+    count = len(item.unanswered_threads)
+    noun = "unanswered review thread" if count == 1 else "unanswered review threads"
+    locations = ", ".join(thread.location for thread in item.unanswered_threads)
+    return f"{count} {noun}: {locations}"
+
+
+def render_review_threads_report(
+    *,
+    generated_at: str,
+    task_slug: str | None,
+    pending: list[ClosedTicket],
+) -> str:
+    """Render the report naming each closed ticket's unanswered review threads.
+
+    Like `render_retire_report`, only called with a non-empty `pending`, so a
+    clean sweep adds nothing to the recurring task's blackboard.
+    """
+    lines = [REVIEW_THREADS_REPORT_HEADING, "", f"Generated: {generated_at}"]
+    if task_slug:
+        lines.append(f"Task: `{task_slug}`")
+    lines.extend(
+        [
+            "",
+            f"{len(pending)} auto-closed ticket(s) merged with a review thread "
+            "that is unresolved, not outdated, and got no reply. Autoclose only "
+            "names them — reading, resolving, or replying stays with a human:",
+            "",
+        ]
+    )
+    for item in pending:
+        lines.append(f'- `{item.slug}` "{item.title}" — {item.pr_label}:')
+        for thread in item.unanswered_threads:
+            excerpt = f' "{thread.excerpt}"' if thread.excerpt else ""
+            lines.append(
+                f"  - `{thread.location}` by @{thread.author}:{excerpt} — {thread.url}"
+            )
+    return "\n".join(lines) + "\n"
+
+
+def render_review_threads_summary(pending: list[ClosedTicket]) -> str:
+    """Render the single trailing Slack line for a whole sweep."""
+    subject = (
+        "1 auto-closed ticket merged with an unanswered review thread"
+        if len(pending) == 1
+        else f"{len(pending)} auto-closed tickets merged with unanswered review threads"
+    )
+    per_ticket = []
+    for item in pending:
+        links = ", ".join(
+            f"<{thread.url}|{thread.location}>" for thread in item.unanswered_threads
+        )
+        per_ticket.append(f"<{item.pr}|{item.pr_label}> {links}")
+    return f"🧵 {subject}: " + "; ".join(per_ticket)
+
+
+def _report_followup(cfg: Config, report: str, summary: str) -> bool:
+    """Deliver one sweep-level follow-up on its two surfaces.
+
+    The run report goes to the task blackboard when run under a task, stdout
+    otherwise; the summary is one trailing Slack line for the whole sweep.
+
+    The per-ticket `🎉 ... merged` line is deliberately left alone. It
+    announces a lifecycle event, while a follow-up is an operational to-do
+    with a different audience — repeating it on every Done line turns the
+    outcome feed into a command list and buries the action item. This summary
+    is a plain live `post` rather than a `notify` outcome: the `notify` kinds
+    are per-ticket outcomes, which a sweep-level summary is not.
+    """
+    # Scoped to the root this sweep actually walked, so an inherited blackboard
+    # from another checkout falls back to stdout.
+    blackboard = blackboard_from_env(cfg.repo_root)
+    success = True
+    if blackboard:
+        try:
+            _append_blackboard_report(cfg, blackboard, report)
+        except (OSError, UnicodeError) as exc:
+            success = False
+            sys.stderr.write(
+                f"[autoclose] could not write review thread report to {blackboard}: {exc}\n"
+            )
+            sys.stdout.write(report)
+    else:
+        sys.stdout.write(report)
+
+    post(
+        cfg,
+        summary,
+        task_path=(
+            blackboard.parent
+            if blackboard is not None and blackboard.name == "ticket.md"
+            else blackboard
+        ),
+        # The tickets are already `done` on disk and the report is already
+        # written; an undeliverable hint must not fail the recurring run. A
+        # task-scoped run supplies its validated task path above, so the miss
+        # is also durable in the repo-global audit log.
+        fatal=False,
+    )
+    return success
+
+
+def _report_review_thread_followups(cfg: Config, result: AutocloseResult) -> bool:
+    """Name the review threads that merged unanswered on the PRs this sweep closed.
+
+    Silent when every closed PR's threads were resolved, outdated, or replied
+    to. Report-only: the owner gate on the `review` step stays human, and so
+    does resolving or answering a thread.
+    """
+    pending = result.review_threads_pending
+    if not pending:
+        return True
+    return _report_followup(
+        cfg,
+        render_review_threads_report(
+            generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            task_slug=os.environ.get("COGA_TASK_SLUG"),
+            pending=pending,
+        ),
+        render_review_threads_summary(pending),
+    )
+
+
+def _report_followups(cfg: Config, result: AutocloseResult) -> bool:
+    """Every sweep-level follow-up, in a fixed order, each silent when empty."""
+    retire_ok = _report_retire_followups(cfg, result)
+    threads_ok = _report_review_thread_followups(cfg, result)
+    return retire_ok and threads_ok
+
+
 def run_autoclose_recipe(
     cfg: Config, argv: list[str], *, result: AutocloseResult | None = None
 ) -> int:
@@ -1171,12 +1518,12 @@ def run_autoclose_recipe(
         )
     except (GhError, TaskValidationError) as exc:
         result.disposal_skipped = "the sweep failed before checkout disposal ran"
-        _report_retire_followups(cfg, result)
+        _report_followups(cfg, result)
         sys.stderr.write(f"[autoclose] {exc}\n")
         return 2
     except BaseException:
         result.disposal_skipped = "the sweep failed before checkout disposal ran"
-        _report_retire_followups(cfg, result)
+        _report_followups(cfg, result)
         raise
     if not result.closed:
         sys.stdout.write("[autoclose] no tickets bumped.\n")
@@ -1186,7 +1533,7 @@ def run_autoclose_recipe(
             f"[autoclose] checkout disposal skipped ({result.disposal_skipped}) "
             "— every recorded checkout preserved.\n"
         )
-    return 0 if _report_retire_followups(cfg, result) else 2
+    return 0 if _report_followups(cfg, result) else 2
 
 
 def _read_dev_blackboard(ticket: Path) -> str | None:
@@ -1208,8 +1555,13 @@ __all__ = [
     "ClosedTicket",
     "GhError",
     "RETIRE_REPORT_HEADING",
+    "REVIEW_THREADS_REPORT_HEADING",
+    "ReviewThread",
     "render_retire_report",
     "render_retire_summary",
+    "render_review_threads_report",
+    "render_review_threads_summary",
+    "render_unanswered_threads_note",
     "render_disposed_summary",
     "render_preserved_summary",
     "run_autoclose_recipe",
@@ -1219,7 +1571,9 @@ __all__ = [
     "parse_branch_name",
     "parse_worktree_path",
     "pr_head",
+    "pr_review_threads",
     "pr_view",
     "pr_state",
     "prs_for_head",
+    "unanswered_review_threads",
 ]

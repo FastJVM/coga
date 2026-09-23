@@ -1122,14 +1122,12 @@ The output is unchanged; the loop is what got added after it
    more. Of the shipped templates `skill-update` writes one on every run,
    through `render_blackboard_report` / `append_report` in
    `src/coga/skill_update.py`, which appends a `## Skill Update` section.
-   `autoclose-merged` writes one **conditionally**: when it closes a ticket
-   that still has a recorded branch or worktree, `_report_retire_followups`
-   renders the pending-retire report and `_append_blackboard_report` writes it
-   to the period task, so that run does give the analyst more than the seeded
-   placeholder. That section is the run record, not the worklist — the same
-   run records the follow-ups in the template's durable `retires.md` (see
-   "Last-run state" below). A sweep that closed nothing, or nothing needing
-   retire, still leaves only the placeholder. `branch-sweep` writes a `## Branch Sweep`
+   `autoclose-merged` writes reports conditionally for checkout disposal,
+   preserved checkouts, and unanswered review threads on the PRs it closes.
+   See `coga/autoclose/sweep` for the report contract. These sections are run
+   records; the durable retire worklist is the template's `retires.md` (see
+   "Last-run state" below). A sweep with no reportable activity leaves only
+   the placeholder. `branch-sweep` writes a `## Branch Sweep`
    section on every run — outcome lists plus each per-branch decision — since
    the 2026-09-08 period landed with an empty blackboard and no record of
    what the sweep decided. `blocker-reminders` still hands the analyst a
