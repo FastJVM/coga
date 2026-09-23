@@ -134,7 +134,7 @@ Follow [Dream's Phase 6 filing and gap rules](../../recurring/dream/ticket.md#ph
 reuse an open ticket that already owns the work, or file a described draft at
 the task root for human triage. Dream does not file new findings under `v2/`.
 Moving a reviewed draft here is an explicit human deferral, governed by the
-[roadmap's Deferred work rule](../../contexts/coga/roadmap/SKILL.md#deferred-work).
+[roadmap's Deferred work rule](../../../docs/contexts/coga/roadmap/SKILL.md#deferred-work).
 Dream's template owns the routing contract; this directory is the parking
 destination only after that human decision.
 
