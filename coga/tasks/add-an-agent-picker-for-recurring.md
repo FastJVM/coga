@@ -37,7 +37,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 ---
 
 ## Description
@@ -419,6 +419,67 @@ twin to sync. Packaged contexts do: every
 both at implement time before editing them.
 
 <!-- coga:blackboard -->
+
+## Dev
+branch: authoring-agent-picker
+worktree: /home/n/Code/coga
+
+## Owner decisions — 2026-09-23 (implement, attended)
+
+Resolving the evaluator's three P2s:
+
+1. **Megalaunch diagnostic:** `_author_draft` catches the resolver's
+   `ConfigError`, prints one stderr line naming the task, the winning source,
+   and the `--agent` remedy, leaves the draft untouched, and continues the batch.
+2. **Picker without a valid default:** zero agents → fail loud ("no agent
+   types configured"). Exactly one agent → auto-select it and echo it, even
+   if the would-be default was invalid (the operator asked to pick). Two or
+   more with no valid default → mark nothing; empty input re-prompts.
+   `_pick_authoring_agent` always returns a configured name.
+3. **`--agent` + `--pick-agent`:** rejected together ("pass --agent or
+   --pick-agent, not both").
+
+## Implementation notes — 2026-09-23
+
+- **Code drifted since the design pass.** Ticket `assignee:` is now a
+  rejected key and the chain was already
+  `agent_override or resolve_main_agent(bootstrap.agent or ticket.agent,
+  allow_prospective_default=True)`. So "drop `source_ticket.assignee`" is
+  moot, and term 5 is `bootstrap/ticket`'s `agent:`, not `assignee:`. The
+  bootstrap-assignee human-name test was not written (the field no longer
+  exists).
+- **Term 6 kept:** `Config.default_agent()` stays as the last resort (the
+  existing `allow_prospective_default` behaviour) instead of the spec's
+  "all empty raises"; that error now fires only with zero agents.
+- `authoring.resolve_authoring_agent` validates the winner and never falls
+  through. The error names its source plus "pass --agent <name> to
+  override". Term 4 is skipped when the target *is* the bootstrap ticket.
+- `coga ticket`: the `--agent`/`--pick-agent` conflict and the `--pick-agent`
+  TTY checks run before target resolution, so neither scaffolds a draft.
+  `_pick_authoring_agent` lives in `commands/ticket.py` and accepts a number
+  or a name.
+- `_author_draft`: resolution `ConfigError` → yellow stderr line
+  `<slug>: skipping guided authoring: <msg>`, then return. `typer` is now
+  imported in `megalaunch.py`.
+- Docs: `coga/tickets` owns the precedence list, `coga/configuration` got
+  the `[authoring]` row, the local-only rationale and the shared rejection,
+  and `coga/megalaunch` got a one-line pointer. All three twins are
+  byte-identical. The bootstrap ticket prose was rewritten (no live twin),
+  and it notes that `coga launch bootstrap/ticket` doesn't use this chain.
+- `tests/conftest.py` scrubs `COGA_AUTHORING_AGENT` for every test.
+- Behaviour change to note in the PR: `coga ticket <slug>` on a ticket whose
+  `agent:` names a removed agent type now fails loud (use `--agent`), where
+  bootstrap's `claude` used to mask it.
+- Full suite: 2898 passed, 3 failed. The failures
+  (`test_recurring_shims::test_phone_home_real_suppressed_shim_updates_parent_and_finishes`,
+  `test_recurring_shims::test_phone_home_failure_reaches_the_period_blackboard_without_a_registry_entry`,
+  `test_telemetry::test_real_worker_inherits_test_gate`) fail the same way on
+  unmodified `main` in this environment (they spawn `sys.executable` workers
+  under a borrowed venv). They are unrelated to this change.
+- Tests ran under `/home/n/Code/claude/coga/.venv/bin/python` with
+  `PYTHONPATH=src` (this checkout has no `.venv`). `coga validate --json`:
+  the example fixture is clean; the repo has only pre-existing
+  `unsynthesized-draft-blackboard` errors on unrelated drafts.
 
 ## Evaluator review
 
