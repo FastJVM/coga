@@ -36,7 +36,6 @@ from coga.skill_update import (
     run_skill_update_recipe,
 )
 from coga.task_env import blackboard_from_env, discover_coga_os_root
-from coga.telemetry import run_phone_home_recipe
 from coga.text import strip_ansi
 
 
@@ -45,7 +44,6 @@ class RecipeFn(Protocol):
 
 
 RECIPES: dict[str, RecipeFn] = {
-    "phone-home": run_phone_home_recipe,
     "autoclose": run_autoclose_recipe,
     "blocker-reminders": run_blocker_reminders_recipe,
     "branch-sweep": run_branch_sweep_recipe,
@@ -126,6 +124,16 @@ def run_recipe(cfg: Config, name: str, argv: list[str]) -> int:
         raise UnknownRecipeError(
             f"unknown recipe {name!r}; known recipes: {known}"
         ) from exc
+    return run_reported(cfg, name, recipe, argv)
+
+
+def run_reported(cfg: Config, name: str, recipe: RecipeFn, argv: list[str]) -> int:
+    """Run ``recipe`` under the `## Recipe Failure` floor that `run_recipe` gives.
+
+    Shared by the registry and by ticket-owned `ticket.py` code that keeps its
+    deterministic work at the edge instead of in `RECIPES`: ``name`` labels the
+    failure section, and ``recipe`` need not be registered.
+    """
     tail = _StderrTail(sys.stderr)
     failure: tuple[int, str] | None = None
     try:

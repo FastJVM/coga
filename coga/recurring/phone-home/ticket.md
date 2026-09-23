@@ -11,7 +11,7 @@ state_keys:
 
 ## Description
 
-Attempt one weekly usage snapshot through `coga run phone-home`, without an
+Attempt one weekly usage snapshot from the sibling `ticket.py`, without an
 agent. See `coga/telemetry` for the data boundary, opt-out, and loss semantics.
 Coga installs no scheduler. This measures repos with active sweeps, not installs.
 

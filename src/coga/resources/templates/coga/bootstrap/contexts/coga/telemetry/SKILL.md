@@ -1,15 +1,19 @@
 ---
 name: coga/telemetry
-description: Weekly phone-home recipe contract — closed wire boundary, production admission, state, cursor, approximate metrics and accepted loss.
+description: Weekly phone-home ticket contract — closed wire boundary, production admission, state, cursor, approximate metrics and accepted loss.
 ---
 
 # Weekly usage snapshots
 
-`coga run phone-home` is one fixed, co-versioned recipe in `runner.RECIPES`,
-implemented by `telemetry.run_phone_home_recipe`. It accepts no public options.
-The shipped `recurring/phone-home/ticket.py` invokes it and then bumps through
-the CLI; `phone-home/run` has one agent-owned `send` step with no skills, so
-normal completion needs no agent. Schedule: `0 7 * * 1` (operator-local time).
+The snapshot is ticket-owned edge code, not a registered recipe: all of it
+lives in the shipped `recurring/phone-home/ticket.py`, which imports only
+shared core. It runs the snapshot under `runner.run_reported` (the
+`## Recipe Failure` floor) and then bumps through the CLI; `phone-home/run` has
+one agent-owned `send` step with no skills, so normal completion needs no agent.
+It accepts no operands. Run by hand outside a launch, it prints its report
+and leaves no step to close. The
+repo's copy comes from `coga init` and does not follow `pip install -U`; see
+`ship-edge-ticket-py-code-upgrades-with-the-wheel`. Schedule: `0 7 * * 1` (operator-local time).
 New templates are due on the first sweep, too. Coga installs no scheduler.
 Downloads, init, and ordinary commands send no events. Repos that never sweep
 never report: these are repos with active sweeps, **not install counts**.
@@ -112,7 +116,7 @@ Snapshots supply current inventory; never sum historical inventories.
 One `coga_weekly_snapshot` attempt per eligible valid run, HTTPS POST to
 `https://us.i.posthog.com/i/v0/e/`, TLS verified, no redirects or SDK. Recipient:
 FastJVM US Cloud project `606347`, shared with Multiply. Its public write-only
-key is embedded only in `telemetry.POSTHOG_CAPTURE_KEY`. Publishing it permits
+key is embedded only in the ticket script's `POSTHOG_CAPTURE_KEY`. Publishing it permits
 spam injection; rotation affects old Multiply builds too. Operational key
 source, rotation and project settings are in the runbook.
 
@@ -140,7 +144,8 @@ service routing metadata, and block acceptance on unexpected enrichment.
 
 ## Transport and reports
 
-A private short-lived Python worker reads the prepared keyless event on stdin,
+A private short-lived Python worker (the same `ticket.py` re-run with
+`--worker`) reads the prepared keyless event on stdin,
 validates the closed schema, adds the constant key and does one POST. The parent
 enforces a three-second wall deadline including stalled DNS/connect/read,
 kills and reaps on expiry (plus teardown overhead). No response body is read.

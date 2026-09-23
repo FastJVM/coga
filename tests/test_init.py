@@ -11,6 +11,7 @@ import tomllib
 from pathlib import Path
 
 import pytest
+from conftest import load_phone_home
 from typer.testing import CliRunner
 
 import coga.agent_skills as agent_skills
@@ -2533,12 +2534,12 @@ def test_init_bails_before_scaffolding_when_required_dep_missing(
 
 
 def test_init_ships_phone_home_disclosure_without_running_it(tmp_path, fake_vendor, monkeypatch):
-    monkeypatch.setattr("coga.telemetry._bounded_worker", lambda *a: pytest.fail("init sent telemetry"))
+    monkeypatch.setattr(load_phone_home(), "_bounded_worker", lambda *a: pytest.fail("init sent telemetry"))
     target = _make_git_repo(tmp_path / "company")
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
     from coga.taskfile import read_blackboard
-    from coga.telemetry import _state
+    _state = load_phone_home()._state
     state, _ = _state(read_blackboard(target / "coga/recurring/phone-home/ticket.md"))
     assert state["run"] == 0 and state["repo_id"] is None
     config = (target / "coga/coga.toml").read_text()

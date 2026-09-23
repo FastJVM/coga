@@ -36,7 +36,7 @@ US public capture endpoint and top-level identity fields.
 
 The write-only capture key is in
 `op://coga/multiply-posthog-project-key-production/password`. It is deliberately
-public in `src/coga/telemetry.py::POSTHOG_CAPTURE_KEY`; it cannot query or delete,
+public in `recurring/phone-home/ticket.py::POSTHOG_CAPTURE_KEY` (live and packaged copies); it cannot query or delete,
 but publishing it enables spam injection into this shared project. Use a checked
 `op read` (successful and nonempty) directly into the constant through a local
 script; never echo it or pass its value as a shell argument. Do not read or
@@ -106,8 +106,9 @@ by opaque repo UUID; do not switch to personless capture to simplify deletion.
 
 Perform a known forward advance/completion on a non-recurring work ticket using
 the normal CLI. Record the exact qualifying audit lines. For a later snapshot,
-run `coga run phone-home` directly from this installed wheel (or wait for the next
-due sweep); it is the same recipe and reads the same parent. Query again with
+run `/tmp/coga-telemetry-release/bin/python recurring/phone-home/ticket.py` from
+`coga/` (or wait for the next due sweep); it runs the same ticket code, reads the
+same parent and prints its report. Query again with
 the command above: expect another row, the same UUID, and the known movement
 count. Repeated direct runs are extra attempts, not a scheduler.
 

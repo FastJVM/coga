@@ -9,4 +9,4 @@ steps:
 
 ## send
 
-The reserved `ticket.py` runs `phone-home` and bumps through the CLI.
+The reserved `ticket.py` sends the snapshot and bumps through the CLI.

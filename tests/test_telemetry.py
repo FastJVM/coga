@@ -10,8 +10,8 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
+from conftest import PHONE_HOME_SCRIPT, load_phone_home
 
-from coga import telemetry as t
 from coga.config import load_config
 from coga.taskfile import read_blackboard, replace_blackboard
 
@@ -19,6 +19,7 @@ PACKAGED = Path(__file__).resolve().parents[1] / "src/coga/resources/templates/c
 REPO_ID = "dd2433c0-7277-4a63-8640-c73089700480"
 NOW = datetime(2026, 9, 22, tzinfo=timezone.utc)
 PRIVATE = "PRIVATE-SENTINEL-titles-paths-actors-bodies"
+t = load_phone_home()
 
 
 def _write(path: Path, text: str) -> None:
@@ -60,7 +61,7 @@ def _run(repo, monkeypatch, *, enabled=True, outcome="accepted"):
         sent.append((kind, data))
         return outcome
     cfg = replace(load_config(repo), telemetry_enabled=enabled)
-    assert t.run_phone_home_recipe(cfg, [], sender=sender, clock=lambda: NOW, identity=lambda: UUID(REPO_ID)) == 0
+    assert t.run_phone_home(cfg, [], sender=sender, clock=lambda: NOW, identity=lambda: UUID(REPO_ID)) == 0
     return sent
 
 
@@ -81,7 +82,7 @@ def test_disabled_has_no_identity_worker_or_receipt_and_reenable_counts_gap(repo
     monkeypatch.setattr(t, "_bounded_worker", lambda *a: pytest.fail("worker created"))
     monkeypatch.setattr(t, "_admitted", lambda cfg: cfg.telemetry_enabled)
     cfg = replace(load_config(repo), telemetry_enabled=False)
-    t.run_phone_home_recipe(cfg, [], identity=lambda: pytest.fail("minted identity"))
+    t.run_phone_home(cfg, [], identity=lambda: pytest.fail("minted identity"))
     assert _state(repo)["repo_id"] is None
     _run(repo, monkeypatch)
     (repo / "log.md").write_bytes(_line())
@@ -252,7 +253,8 @@ def test_admission_all_gates_and_symlinks(repo, monkeypatch, tmp_path):
     monkeypatch.delenv("PYTEST_CURRENT_TEST")
     monkeypatch.delenv("CI", raising=False)
     assert not t._admitted(cfg)  # source import
-    monkeypatch.setattr(t, "__file__", str(tmp_path/"site-packages/coga/telemetry.py"))
+    monkeypatch.setattr(t, "_PACKAGE_FILE", tmp_path/"site-packages/coga/__init__.py")
+    monkeypatch.setattr(t, "__file__", str(tmp_path/"company/coga/recurring/phone-home/ticket.py"))
     assert t._admitted(cfg)
     assert not t._admitted(replace(cfg, telemetry_enabled=False))
     monkeypatch.setenv("PYTEST_CURRENT_TEST", "")
@@ -274,12 +276,12 @@ def test_admission_all_gates_and_symlinks(repo, monkeypatch, tmp_path):
 
 
 def test_suppressed_updates_marker_without_identity(repo):
-    t.run_phone_home_recipe(load_config(repo), [], identity=lambda: pytest.fail("identity"), sender=lambda *a: pytest.fail("sender"))
+    t.run_phone_home(load_config(repo), [], identity=lambda: pytest.fail("identity"), sender=lambda *a: pytest.fail("sender"))
     assert _state(repo)["run"] == 1 and _state(repo)["repo_id"] is None
 
 
 def test_real_worker_inherits_test_gate(repo):
-    result = subprocess.run([sys.executable, "-c", "from coga.telemetry import _worker_main; _worker_main()", "capture", str(repo)], input="{}", text=True, capture_output=True, timeout=5)
+    result = subprocess.run([sys.executable, str(PHONE_HOME_SCRIPT), "--worker", "capture", str(repo)], input="{}", text=True, capture_output=True, timeout=5)
     assert result.stdout.strip() == "suppressed"
 
 
@@ -320,7 +322,7 @@ def test_period_report_aggregates_delivery_failure_without_failing(repo, monkeyp
     def sender(cfg, kind, data):
         calls.append(kind)
         return "rejected" if kind == "capture" else "timed-out"
-    assert t.run_phone_home_recipe(cfg, [], sender=sender) == 0
+    assert t.run_phone_home(cfg, [], sender=sender) == 0
     assert calls == ["capture", "receipt"]
     report = read_blackboard(period)
     assert report.count("Warning:") == 1
@@ -334,7 +336,7 @@ def test_corrupt_state_and_argv_fail_visibly_without_sending(repo, state):
     replace_blackboard(parent, "\nperiod_state: "+state+"\n")
     for argv in ([], ["--help"]):
         with pytest.raises(t.TelemetryError):
-            t.run_phone_home_recipe(load_config(repo), argv, sender=lambda *a: pytest.fail("sent"))
+            t.run_phone_home(load_config(repo), argv, sender=lambda *a: pytest.fail("sent"))
 
 
 def test_parent_publication_reaches_second_checkout_without_dirty_files(git_repo, monkeypatch, tmp_path):
@@ -402,13 +404,13 @@ def test_cas_detects_parent_edit_and_preserves_prose(repo, monkeypatch):
     monkeypatch.setattr(t, "replace_blackboard", race)
     from coga.taskfile import TaskFileError
     with pytest.raises(TaskFileError, match="changed"):
-        t.run_phone_home_recipe(load_config(repo), [])
+        t.run_phone_home(load_config(repo), [])
     assert parent.read_bytes() == original + b"\nConcurrent prose\n"
 
 
 def test_suppressed_cursor_baselines_complete_eof(repo):
     (repo/"log.md").write_bytes(_line()+b"partial")
-    t.run_phone_home_recipe(load_config(repo), [])
+    t.run_phone_home(load_config(repo), [])
     assert _state(repo)["offset"] == len(_line())
     assert _state(repo)["repo_id"] is None
 
@@ -430,7 +432,7 @@ def test_slack_failure_cannot_change_successful_capture(repo, monkeypatch):
     def send(cfg, kind, data):
         calls.append((kind, data))
         return "accepted" if kind == "capture" else "network-error"
-    assert t.run_phone_home_recipe(cfg, [], sender=send) == 0
+    assert t.run_phone_home(cfg, [], sender=send) == 0
     assert [k for k,_ in calls] == ["capture","receipt"]
     assert calls[1][1]["outcome"] == "accepted"
     assert _state(repo)["run"] == 1
@@ -440,7 +442,7 @@ def test_crlf_parent_preserves_header_and_unrelated_prose(repo):
     parent = repo/"recurring/phone-home/ticket.md"
     raw = parent.read_bytes().replace(b"\n", b"\r\n") + b"\r\nExtra prose\r\n"
     parent.write_bytes(raw)
-    t.run_phone_home_recipe(load_config(repo), [])
+    t.run_phone_home(load_config(repo), [])
     after = parent.read_bytes()
     assert after.split(b"period_state:")[0] == raw.split(b"period_state:")[0]
     assert after.endswith(b"\r\n\r\nExtra prose\r\n")

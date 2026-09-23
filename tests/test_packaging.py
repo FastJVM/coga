@@ -550,7 +550,8 @@ def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
 
 def test_phone_home_parent_header_matches_and_packaged_seed_is_unused():
     from coga.taskfile import read_blackboard
-    from coga.telemetry import _state
+    from conftest import load_phone_home
+    _state = load_phone_home()._state
     live = REPO_ROOT / "coga/recurring/phone-home/ticket.md"
     seed = REPO_ROOT / PACKAGED_ROOT / "recurring/phone-home/ticket.md"
     fence = b"<!-- coga:blackboard -->"
@@ -580,19 +581,23 @@ from typer.testing import CliRunner
 from coga.cli import app
 from coga.config import load_config
 from coga.recurring import create_named
-from coga.runner import run_recipe
 from coga.taskfile import read_blackboard
-from coga import telemetry as t
+import importlib.util
 import subprocess
-assert "installed" in t.__file__
 subprocess.run(["git","init","-b","main"],check=True,capture_output=True)
 subprocess.run(["git","config","user.name","Test"],check=True)
 subprocess.run(["git","config","user.email","test@example.test"],check=True)
 def forbidden(*args, **kwargs):
     raise AssertionError("production transport/worker invoked")
-with patch("coga.commands.init._check_external_dependencies"), patch.object(t,"_post_http",forbidden), patch.object(t,"_bounded_worker",forbidden):
+with patch("coga.commands.init._check_external_dependencies"):
     result=CliRunner().invoke(app,["init",".","--user","tester"])
-    assert result.exit_code == 0, result.output
+assert result.exit_code == 0, result.output
+# The ticket code init copied into the repo, run against the installed package.
+spec=importlib.util.spec_from_file_location("phone_home_ticket",Path("coga/recurring/phone-home/ticket.py"))
+t=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(t)
+assert "installed" in str(t._PACKAGE_FILE)
+with patch.object(t,"_post_http",forbidden), patch.object(t,"_bounded_worker",forbidden):
     cfg=load_config(Path("coga"))
     parent=Path("coga/recurring/phone-home/ticket.md")
     assert t._state(read_blackboard(parent))[0]["run"] == 0
@@ -600,7 +605,7 @@ with patch("coga.commands.init._check_external_dependencies"), patch.object(t,"_
     assert outcome.created
     shim=outcome.ref.task_dir/"ticket.py"
     assert shim.is_file()
-    assert run_recipe(cfg,"phone-home",[]) == 0
+    assert t.run_phone_home(cfg,[]) == 0
     state=t._state(read_blackboard(parent))[0]
     assert state["run"] == 1 and state["repo_id"] is None
     assert not t._admitted(cfg)

@@ -1328,6 +1328,6 @@ in `src/coga/recurring.py` and `src/coga/recurring_runner.py`.
 
 ## Weekly usage battery
 
-`phone-home` is a fixed recipe with a one-step `phone-home/run` workflow and
-reserved `ticket.py` shim. Its changing parent marker, bounded delivery,
+`phone-home` is ticket-owned code, not a registered recipe: its reserved
+`ticket.py` holds the whole snapshot, with a one-step `phone-home/run` workflow. Its changing parent marker, bounded delivery,
 production suppression and opt-out contract belong to `coga/telemetry`.
