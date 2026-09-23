@@ -6201,3 +6201,4 @@ fatal: Unable to add (null) to database
   all 1Password CLI auth vars, covers the ticket/autofix spawns, and fixes the PTY env overlay.
 2026-09-23 11:04 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-09-23 11:09 [ship-edge-ticket-py-code-upgrades-with-the-wheel] [human:nicktoper] created (status=draft)
+2026-09-23 11:09 [gigantic-refactor-move-recurring-recipes-out-of-co] [human:nicktoper] created (status=draft)
