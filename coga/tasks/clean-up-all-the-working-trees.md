@@ -1,8 +1,21 @@
 ---
 title: clean up all the working trees
-status: draft
+status: active
 owner: nicktoper
-workflow: maintenance/with-approval
+workflow:
+  name: maintenance/with-approval
+  steps:
+  - name: inventory
+    skills: []
+    assignee: agent
+  - name: approve
+    skills: []
+    assignee: owner
+  - name: cleanup-and-verify
+    skills: []
+    assignee: agent
+step: 1 (inventory)
+agent: claude
 ---
 
 ## Description
@@ -89,35 +102,3 @@ what was removed, approximate space recovered, and what remains with reasons.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Ticket authoring notes
-
-- Owner confirmed all repositories under `/tmp` and `~/Code`; preserve
-  worktrees with uncommitted or unmerged work and report them for review.
-- Owner approved adding `maintenance/with-approval`: inventory, owner approval,
-  cleanup and verification. Main agent remains unset so activation uses the
-  configured default; no contexts or extra skills are needed.
-- Read-only discovery found separate Coga clones, linked worktrees, and many
-  Git test fixtures. The scope and inventory instructions distinguish these.
-  No cleanup has run. Final draft confirmation remains.
-- Independent review found no must-fix issues. Its two optional clarifications
-  are now in Context: distinguish per-worktree registrations from shared Git
-  storage, and keep repetitive fixture findings from overwhelming approval.
-- All three planned prompts compose successfully. Repository validation also
-  reports pre-existing authoring-note errors on three other draft tickets;
-  this draft's authoring sections will be cleared after final confirmation.
-
-## Evaluator review
-
-**Must-fix:** None found. A future agent can begin discovery without interview history. The ticket defines the two roots, distinguishes separate clones from linked worktrees, protects dirty or uncertain work, and states concrete completion evidence. The scope is coherent for one maintenance task.
-
-The workflow fits: inventory precedes a distinct owner gate, and cleanup follows approval of exact actions. Draft approval cannot authorize deletion. Rechecking eligibility, preserving changed candidates, avoiding forced removal, and requiring owner acceptance of partial completion provide appropriate safeguards.
-
-No context attachments appear necessary. The inline specification contains the task-specific rules, and the workflow supplies the process. There are no broad attached contexts, cited contexts requiring attachment, or stale size-based citation justifications.
-
-**Optional clarifications:**
-
-- “Shared Git metadata may not be deleted” could distinguish the shared repository itself from individual worktree administrative registrations. Normal removal and approved pruning necessarily remove those registrations. The intended distinction is inferable, but stating it would eliminate a literal conflict.
-- Discovery may produce many fixtures and retained candidates. Keep the approval table easy to review, with exact paths and evidence for every proposed action; summarize repetitive fixture findings where individual details do not affect eligibility. Missing merge or activity evidence should remain a reason to retain, as already specified.
-
-**Prompt-size review:** The shared base prompt accounts for approximately 44–45% at every step, exceeding the proportional review threshold. Its core-development guidance is a concrete trim candidate for a separate shared-prompt improvement. This is baseline overhead, not excessive ticket attachment. Ticket context is approximately 30%; its detail supports the deletion safeguards. No ticket-controlled layer currently exceeds 40%.
