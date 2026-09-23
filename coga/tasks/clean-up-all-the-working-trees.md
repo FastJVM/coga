@@ -1,6 +1,6 @@
 ---
 title: clean up all the working trees
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: maintenance/with-approval
@@ -14,7 +14,6 @@ workflow:
   - name: cleanup-and-verify
     skills: []
     assignee: agent
-step: 3 (cleanup-and-verify)
 agent: claude
 ---
 
@@ -247,5 +246,8 @@ Result: every retained worktree's owning ticket already names its branch or work
   - xpllm/.scratch/annotation-research-01: 2 unpushed. The paused ticket names the path.
 - Owner follow-ups (not in this ticket's scope): push and open PRs for the no-PR branches, or give the orphaned recurring-control-worktree commits an owning ticket.
 
-### Owner decision needed at `approve`
+### Owner approval — 2026-09-23
+nicktoper approved "all of the changes": **R1–R42, P1–P4, and O1** (O1 = repair the back-link, then a normal remove). Nothing else was approved: the probe-data worktrees, the retained entries above, the standalone clones, and every push/PR follow-up stay as they are. The approval does not override the preservation rules. The cleanup step still rechecks each path first, including O1's nested probe fixture repos, and skips anything that changed.
+
+### Owner decision needed at `approve` (resolved above)
 Approve R1–R42 and P1–P4 individually or as a set. Optionally approve O1. The probe-data worktrees stay retained unless you decide otherwise.
