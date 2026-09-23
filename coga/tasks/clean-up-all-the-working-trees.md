@@ -1,6 +1,6 @@
 ---
 title: clean up all the working trees
-status: done
+status: in_progress
 owner: nicktoper
 workflow:
   name: maintenance/with-approval
@@ -14,6 +14,7 @@ workflow:
   - name: cleanup-and-verify
     skills: []
     assignee: agent
+step: 3 (cleanup-and-verify)
 agent: claude
 ---
 
@@ -249,5 +250,42 @@ Result: every retained worktree's owning ticket already names its branch or work
 ### Owner approval — 2026-09-23
 nicktoper approved "all of the changes": **R1–R42, P1–P4, and O1** (O1 = repair the back-link, then a normal remove). Nothing else was approved: the probe-data worktrees, the retained entries above, the standalone clones, and every push/PR follow-up stay as they are. The approval does not override the preservation rules. The cleanup step still rechecks each path first, including O1's nested probe fixture repos, and skips anything that changed.
 
+### Reopened — 2026-09-23 15:1x
+The first cleanup launch (15:08) was interrupted before it ran anything, and at 15:10 the ticket was advanced again, which marked it `done` with **no cleanup performed**. I checked that sample paths (R1, R19, R30, R36, R39, R42) still exist. At the owner's explicit request the frontmatter was hand-reset to `status: in_progress`, `step: 3 (cleanup-and-verify)`. The approval above still stands. The cleanup session should start from the inventory and run the final `coga bump` itself.
+
 ### Owner decision needed at `approve` (resolved above)
 Approve R1–R42 and P1–P4 individually or as a set. Optionally approve O1. The probe-data worktrees stay retained unless you decide otherwise.
+
+## Cleanup results — 2026-09-23 (step 3)
+
+### Prechecks, run immediately before removal
+I rechecked every R1–R42 path first:
+- The path exists, is not a symlink, and has the expected common dir.
+- HEAD matches the table, and `git status --porcelain` is empty.
+- There is no unfinished Git operation and no lock.
+- No process has its cwd under the path.
+- No ticket modified since the inventory references it.
+
+Ignored contents matched the inventory: pycache, pytest cache, `target/`, `.venv`, and `coga/.agent-skills/`. The `coga.local.toml` in R25, R32, R34, R36, and R38 has the same sha1 as the primary's copy (41b6881a…). All 42 passed.
+
+### Removed: R1–R42, all 42, ~15.35 GiB by du
+- Each was removed with `git -C <primary> worktree remove <path>`, no `--force`. There were no refusals.
+- After each removal: the directory is gone, it is no longer in `git worktree list`, and the local branch ref is unchanged at the recorded HEAD.
+- `df /`: available space went from 354G to 370G, **+15.32 GiB**.
+- The largest items were R30 (3.4G), R36 (1.9G), R37 (1.8G), R32 (1.7G), R34 (1.6G), R31 (1.3G), R35 (1.0G), and R33 (1.0G).
+
+### Pruned: P1–P4 (metadata only)
+Every dry run matched the approved set exactly and nothing was locked. After pruning, each repo's dry run is empty.
+- multiply: removed debug-messages, nice-messages, and sandbox-test-note. The branches `debug-messages`, `nice-messages`, and `docs/managed-sandbox-tests` still exist.
+- patents: removed calendar-past-due-watchdog. The branch still exists.
+- admin: removed ops-roadmap. The branch still exists.
+- xpllm/perfo-isolated/home4/work: removed dispatch-original. cea93ab is still contained in `master`.
+
+### O1 `claude/multiply-probe-harness`: NOT performed, held for the owner
+- **Finding:** the precheck found non-empty ignored `probes/local/`. It holds 142M, 16 nested fixture repos, and the `current` symlink points to `20260821T185147Z/`, which is inside the tree.
+- **Why that matters:** the done ticket `multiply/v1/1b-lifecycle-experiments` (around line 739) cites `probes/local/20260821T185147Z/` in this worktree as the location of its interactive-probe run evidence.
+- **Why it stays:** that is the same class of data as the retained probe-evidence worktrees, and it falls outside the "regenerable" rule. Neither the repair nor the removal was run.
+- **Other facts:** the tree is otherwise clean, HEAD is f51f7629 on `codex/multiply-probe-harness`, and no process is using it.
+
+### Remaining
+Every RETAINED entry in the inventory is untouched. The standalone clones, test fixtures, skipped prunes, and all branch refs are unchanged.
