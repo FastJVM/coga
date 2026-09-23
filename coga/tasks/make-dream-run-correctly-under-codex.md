@@ -1,6 +1,6 @@
 ---
 title: make dream run correctly under codex
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - dev/code
