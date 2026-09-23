@@ -23,8 +23,21 @@ Entries are keyed by task slug, so re-recording one refreshes the checkout it
 names and keeps the first sighting's date. When an entry is **discharged** is
 `is_discharged`'s rule; the `coga/autoclose/sweep` skill owns the prose. The
 one design constant: the file is a record of debt, so every unknown (a branch
-list or git root that cannot be read) keeps the entry — the failure mode is
-"listed one time too many", never "silently forgotten".
+list or git root that cannot be read, a checkout git cannot answer for) keeps
+the entry — the failure mode is "listed one time too many", never "silently
+forgotten".
+
+The rule's other half is that debt has to be clearable by somebody. One
+recorded `worktree:` never is: this repository's own primary checkout, which a
+ticket worked in the single-checkout layout records as its own, and which no
+proof removes and no operator deletes — counting it kept such an entry listed,
+and re-posted to coga-important, forever. `is_primary_checkout` is that one
+exception, applied through `git.classify_checkout` both where autoclose records
+a closure and where `is_discharged` judges an entry, so the two sides cannot
+disagree. A checkout the proofs preserve but a human can dispose of — an
+independent fallback clone, or another repository's linked worktree, which is
+what cross-repo work records — stays listed, because this file is its only
+durable trace once the ticket is gone.
 
 The file is plain markdown so a human can read, hand-edit, or backfill it.
 The one line shape is::
@@ -73,8 +86,9 @@ only while a proof keeps refusing it — a dirty worktree, an independent clone,
 a branch another live ticket records — and clears on the next run after the
 cause is fixed. Run `coga retire <slug>` to see the proofs at first hand.
 Entries are keyed by slug, so a later sweep refreshes one rather than
-duplicating it, and an entry is dropped once both its worktree directory and
-its local branch are gone. An entry whose ticket no longer exists — retire
+duplicating it, and an entry is dropped once its local branch is gone and its
+worktree directory is gone or is this repository's own primary checkout, which
+nobody disposes of. An entry whose ticket no longer exists — retire
 preserved the checkout and then deleted the ticket — is still walked: the
 merge proof then uses the merged PRs for the recorded branch name.
 
@@ -244,19 +258,41 @@ def local_branches(root: Path) -> frozenset[str] | None:
     return frozenset(ref.removeprefix("refs/heads/") for ref in result.stdout.split())
 
 
+def is_primary_checkout(root: Path | None, recorded: str | None) -> bool:
+    """Whether a recorded `worktree:` is provably this repository's primary checkout.
+
+    The one recorded path that is never retire debt: no proof removes it and
+    no operator deletes it (see the module docstring). A relative value
+    resolves against `root`. Every unknown answers False — no git root, a path
+    that is not a directory, a checkout `git.classify_checkout` cannot read —
+    so a caller that drops the worktree half on True only ever drops it on
+    proof.
+    """
+    if root is None or not recorded:
+        return False
+    path = Path(recorded).expanduser()
+    if not path.is_absolute():
+        path = root / path
+    if not path.is_dir():
+        return False
+    relation = git.classify_checkout(root, path)
+    return relation is not None and relation.kind == "primary"
+
+
 def is_discharged(
     entry: RetireFollowUp, *, root: Path | None, branches: frozenset[str] | None
 ) -> bool:
     """Whether `coga retire <slug>` has nothing left to dispose of.
 
-    Discharged means the recorded worktree path is no longer a directory *and*
-    the recorded branch is no longer a local branch; either half still on disk
-    keeps the entry. A relative `worktree:` resolves against the git root the
-    ticket lives in, never the process working directory. Every unknown keeps
-    the entry: a relative worktree with no git root to anchor it (`root is
-    None`), or a branch list that could not be read (`branches is None`).
+    Discharged means the recorded worktree path is no longer a directory, or is
+    this repository's own primary checkout (`is_primary_checkout`), *and* the
+    recorded branch is no longer a local branch; either half still to dispose
+    of keeps the entry. A relative `worktree:` resolves against the git root
+    the ticket lives in, never the process working directory. Every unknown
+    keeps the entry: a relative worktree with no git root to anchor it (`root
+    is None`), or a branch list that could not be read (`branches is None`).
     """
-    if entry.worktree:
+    if entry.worktree and not is_primary_checkout(root, entry.worktree):
         path = Path(entry.worktree).expanduser()
         if not path.is_absolute():
             if root is None:
@@ -361,6 +397,7 @@ __all__ = [
     "all_worklists",
     "discharge_slug",
     "is_discharged",
+    "is_primary_checkout",
     "local_branches",
     "parse_worklist",
     "reconcile_worklist",

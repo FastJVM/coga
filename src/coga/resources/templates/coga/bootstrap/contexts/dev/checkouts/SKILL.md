@@ -5,10 +5,32 @@ description: Where code-ticket work runs: the two supported checkout layouts, th
 
 # Feature checkouts
 
-Choose a layout when the branch is created and record it in `worktree:`
-([dev/dev-record](../dev-record/SKILL.md)); every later step reads that line.
-Retiring checkouts is covered in
-[dev/checkout-cleanup](../checkout-cleanup/SKILL.md).
+Two layouts are supported, and **single checkout is the default**. Use a
+separate feature checkout only when the human asks for one or the primary
+checkout cannot host the branch (it has uncommitted work to protect, or already
+holds another live ticket's branch). A linked worktree persists until
+`coga autoclose` or `coga retire` disposes of it
+([dev/checkout-cleanup](../checkout-cleanup/SKILL.md)). Autoclose preserves
+every checkout when run off the control branch, and nothing disposes of one
+when a PR is merged by hand and the ticket is never retired, so defaulting to
+one worktree per ticket left operators with piles of stale ones. Record the
+chosen layout in `worktree:` ([dev/dev-record](../dev-record/SKILL.md)); every
+later step reads that line.
+
+**When the primary checkout is occupied by another live ticket**, leave its
+branch and dirty task/log state in place. Use an existing checkout holding the
+configured control branch, or create a durable linked control checkout when
+that branch is free. Seed its local config, explicitly fetch and fast-forward
+from the configured remote/control ref (no tracking configuration is required),
+and verify this ticket's published state before resuming there. A running
+supervisor is bound to its original checkout: do not change its ownership
+variables or silently transplant the session. Hand off to a fresh human-invoked
+`coga launch <slug>` in the control checkout; a queue session blocks with that
+handoff. `code/implement` owns the setup commands and reconciliation procedure.
+This ticket then uses a separate feature checkout, with its live control copy,
+`## Dev`, `coga bump`, and `coga open-pr` in the new control checkout. In this
+layout the "primary" control checkout below means the one this session was
+launched from, not the occupied checkout belonging to the first ticket.
 
 ## Two layouts
 

@@ -435,10 +435,12 @@ def run_with_done_marker(
                 os.close(gate_read_fd)
             if released != b"\0":
                 os._exit(126)
-        for k, v in child_env.items():
-            os.environ[k] = v
         try:
-            os.execvp(cmd[0], cmd)
+            # `env` is the complete child environment, not an overlay. The
+            # fork inherited the parent's `os.environ`; using `execvp` after
+            # assigning only present keys would preserve every key the caller
+            # deliberately omitted (including scrubbed credentials).
+            os.execvpe(cmd[0], cmd, child_env)
         except OSError as exc:
             # E2BIG (an argv element over MAX_ARG_STRLEN), ENOENT, and EACCES
             # all land here. A bare 127 reads as "command not found" and hides

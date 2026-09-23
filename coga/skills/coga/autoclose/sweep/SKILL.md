@@ -47,9 +47,11 @@ carries its reason into every surface below:
    `worktree:` path. A scan that cannot complete (an unreadable workspace or
    ticket) counts as a refusal.
 2. *The worktree is disposable.* The recorded path is a linked worktree of
-   the checkout the sweep runs from (`branchcleanup._is_linked_worktree_of` —
-   an independent clone, an unrelated repository, and the primary checkout
-   are preserved), it is not the checkout running the sweep, it holds the
+   the checkout the sweep runs from (`branchcleanup._is_linked_worktree_of`
+   over `git.classify_checkout` — an independent clone, another repository's
+   linked worktree, and anything git cannot answer for are preserved; the
+   primary checkout is not debt at all, below), it is not the checkout
+   running the sweep, it holds the
    recorded branch, and it carries no tracked or untracked local state
    (ignored regenerable caches — `__pycache__/`, `.pytest_cache/`,
    `.ruff_cache/`, `.mypy_cache/` — are deleted with it; any other ignored
@@ -90,8 +92,8 @@ no checkout; the fourth is the durable worklist:
 - a `## Autoclose Sweep: retire follow-ups` section — appended to the task
   blackboard when run under a task, written to stdout otherwise — listing each
   checkout disposed of, and each preserved one with its reason, the proof
-  notes, and the manual path (`coga retire <slug>` while the ticket exists;
-  otherwise dispose of the recorded worktree and branch by hand). **That
+  notes, and the manual remedy (`CheckoutOutcome.manual_command`; see
+  *Remedies a human can act on* below). **That
   surface is per-run, not a worklist.** Autoclose's only recurring caller is
   `recurring/autoclose-merged`, and the `coga/period-task` context is explicit
   that a period task's blackboard is scratch space for one firing, deleted
@@ -102,7 +104,8 @@ no checkout; the fourth is the durable worklist:
   closed ticket as it did before;
 - one coga-flow Slack line naming what the run disposed of;
 - one **coga-important** Slack line naming every checkout a proof refused,
-  with its reason. A preserved checkout is work a human must do — the proofs
+  with its reason — and, for a worktree refused as not linked here, its
+  remedy, since the generic refusal cannot say where to act. A preserved checkout is work a human must do — the proofs
   will refuse it again tomorrow — which is the `coga/important` bar, so it is
   re-posted on every run until the cause is fixed and the entry clears. The
   per-ticket `🎉 ... merged` line is left alone: it announces a lifecycle
@@ -118,8 +121,9 @@ no checkout; the fourth is the durable worklist:
   task slug (re-recording one refreshes the branch and worktree it names and
   keeps the first sighting's date), and everywhere it drops every entry that
   is **discharged** — its recorded worktree path is no longer a directory
-  *and* its recorded branch is no longer a local branch. Either half still on
-  disk keeps the entry, and a branch list that cannot be read keeps every
+  (or is this repository's own primary checkout, below) *and* its recorded
+  branch is no longer a local branch. Either half still to dispose of keeps
+  the entry, and a branch list that cannot be read keeps every
   entry: the failure mode is one listing too many, never a forgotten
   checkout. `coga retire <slug>` drops its own line by the same rule once its
   cleanup has really disposed of the checkout; a retire that *preserved* the
@@ -146,6 +150,61 @@ no checkout; the fourth is the durable worklist:
   recorded path or branch; use the same encoding when hand-editing or
   backfilling. A malformed line fails the sweep loudly rather than growing a
   second section nobody would find.
+
+### The primary checkout is not debt
+
+A recorded `worktree:` is debt while somebody still has to dispose of it.
+Exactly one recorded path never is: **this repository's own primary
+checkout**. A ticket worked in the single-checkout layout records it as its
+own `worktree:`; the worktree proof refuses it forever (it is always a
+directory and never a linked worktree), and nobody deletes it. Counted as
+debt, such an entry was preserved, re-posted to coga-important on every run,
+and — once retro deleted the ticket — told a human to dispose of the repo by
+hand.
+
+Both halves apply one probe, `retire_worklist.is_primary_checkout` over
+`git.classify_checkout`, so they cannot disagree: a closure drops the
+worktree half before the proofs run (a live branch still gets a branch-only
+follow-up; neither gets none), and an entry already on disk stops counting
+its worktree half and clears once its branch is gone — no hand edit of
+`retires.md`. The verdict compares common git dirs, so it holds when the
+sweep runs from a recurring control worktree rather than the primary
+checkout. Every unknown keeps the worktree half: a relative path with no git
+root, a directory inside a checkout rather than its root, or a checkout git
+cannot read.
+
+**A checkout `coga retire` will not remove is still listed.** Retire and
+the sweep dispose of one shape, a linked worktree of this repository; an
+independent fallback clone and another repository's linked worktree they
+preserve by design, and a human removes those by hand. They stay on the
+worklist until the directory goes, because this file is their only durable
+trace once the ticket is deleted — the ticket's own `## Dev` dies with it, and
+another repository's sweeps never see a ticket here.
+
+### Remedies a human can act on
+
+`coga retire <slug>` is named only where it can help: the task still exists
+here and its proofs could pass from this repository. A worktree the proof
+refused as not a linked worktree of this repository is classified again, and
+the remedy names where it can be removed:
+
+- **Another repository's linked worktree** (cross-repo work): the owning
+  repository's main checkout and read-only worktree/status inspection commands.
+  Classification proves ownership only, not that deletion is safe. Verify the
+  recorded branch, preserve tracked/untracked/ignored local data, and check live
+  claims, open PRs, and landed-or-exact-merged-head evidence in the owning repo
+  before removing anything. Plan worktree and branch cleanup together: ordinary
+  `branch -d` can refuse squash/rebase-merged tips; forced deletion needs the
+  exact merged-head proof. Keep the directory until both halves are verified,
+  because its removal can discharge this worklist entry. No runnable deletion
+  command is advertised without those proofs. `coga retire` fails the same
+  proof from here, and the task does not exist in the owning repo.
+- **An independent clone, or a path git cannot read**: says so, and to
+  inspect and remove the directory by hand; a local branch still here is
+  named separately (`coga retire <slug>` for it while the ticket exists,
+  otherwise `git branch -d`).
+- **A worktree already gone from disk**: says so, and names branch-only
+  cleanup.
 
 Run it directly with `coga run autoclose`. Live notification configuration is
 preflighted before each affected ticket closes. Later `gh` or task-validation

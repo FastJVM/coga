@@ -175,3 +175,13 @@ dream = "recurring launch dream"
 # via `load_config().extensions["<ns>"]` or by parsing coga.toml directly.
 # [extensions.patent]
 # calendar_id = "<your-google-calendar-id>"
+
+# Weekly aggregate counts/movement and bounded version/platform fields go to
+# FastJVM's US PostHog project shared with Multiply, under an opaque repo UUID.
+# Only operator sweeps report (Monday 07:00); this is not an install count.
+# Download/init send nothing. No task content; the peer sees source IP, which
+# project settings discard, with GeoIP disabled. Source/editable builds do not send.
+# Opt out here or locally. Disabling stops sending; movement from the gap may
+# appear in the first count after re-enabling. See coga/telemetry and docs/telemetry.md.
+[telemetry]
+enabled = true

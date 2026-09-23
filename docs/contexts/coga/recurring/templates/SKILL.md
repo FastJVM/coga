@@ -126,3 +126,10 @@ see [coga/packaging](../../packaging/SKILL.md)). Downstream and promoted
 templates need no twin. A job that force-pushes a reused branch must resolve the
 remote tip at push time (`git ls-remote`) rather than lease against a possibly
 stale tracking ref, as `src/coga/skill_manager.py` does.
+
+## Weekly usage battery
+
+`phone-home` is ticket-owned code, not a registered recipe: its reserved
+`ticket.py` holds the whole snapshot, with a one-step `phone-home/run`
+workflow. Its changing parent marker, bounded delivery, production suppression
+and opt-out contract belong to [coga/telemetry](../../telemetry/SKILL.md).

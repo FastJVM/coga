@@ -22,7 +22,7 @@ from coga.commands.launch import (
 from coga.compose import ComposeError
 from coga.repl_supervisor import AgentCliNotFound
 from coga.bump import OperatorResolutionError, resolve_main_agent
-from coga.config import Config, ConfigError, load_config
+from coga.config import Config, ConfigError, load_config, scrub_op_auth_env
 from coga.dependencies import agent_cli_missing_message
 from coga.tasks import (
     BootstrapRef,
@@ -215,14 +215,15 @@ def _run_authoring_session(
     # Ticket authoring routes through the shared single-shot spawn without the
     # launch supervisor chain. It runs no task work, so it receives no Coga
     # secret injection; secrets flow through the `coga launch` chokepoint only
-    # (least privilege). The kickoff token makes `coga ticket` greet first.
+    # (least privilege), and 1Password CLI auth is scrubbed so the interviewer
+    # cannot `op read` either. The kickoff token makes `coga ticket` greet first.
     try:
         session = spawn_agent_session(
             cfg,
             ref,
             ticket,
             agent,
-            env=os.environ.copy(),
+            env=scrub_op_auth_env(os.environ),
             actor=f"human:{cfg.current_user}",
             log_message=(
                 "ticket authoring launched "

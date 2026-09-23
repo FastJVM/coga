@@ -26,6 +26,7 @@ before adding a row.
 | Dream validate-drift summary | `dream_validate_drift.py` | flow |
 | Megalaunch drain summary (non-empty) | `commands/megalaunch.py` | flow |
 | Autoclose retire-pending summary | `autoclose.py` `_report_retire_followups` (`fatal=False`) | flow |
+| `recurring/phone-home` weekly snapshot receipt (keyless envelope plus attempt outcome), after a capture attempt only; opt-out, development/test/CI suppression, invalid inventory, or disabled Slack skip it; own three-second worker deadline, failure cannot affect capture or completion ([coga/telemetry](../../telemetry/SKILL.md)) | phone-home `ticket.py` (`fatal=False`, `record_failure=False`) | flow |
 | Autofix filed a ticket for a problem run (failed, silently idle, or with recorded errors) | `recurring_autofix.py` `run_autofix` and `run_autofix_analyze_recipe` | flow |
 
 Downstream reminder sweeps built on `src/coga/reminders.py` post their alerts

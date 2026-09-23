@@ -1,6 +1,6 @@
 ---
 title: Scrub the service-account token from the launch child environment
-status: blocked
+status: canceled
 owner: nicktoper
 agent: claude
 contexts:
@@ -25,7 +25,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
 ---
 
 ## Description

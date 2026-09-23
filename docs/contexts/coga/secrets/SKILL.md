@@ -37,8 +37,9 @@ non-zero (not signed in, no access), or an unset variable. Messages name the
 Coga secret and reference, never the value.
 
 `build_launch_env` then builds the child environment: it starts from the
-**full parent environment**, removes each source variable an `env:VAR` ref
-names, and writes each resolved value under its declared name.
+parent environment with every 1Password CLI auth variable scrubbed, removes
+each source variable an `env:VAR` ref names, and writes each resolved value
+under its declared name (see below).
 
 ## `coga secret get <ref>`
 
@@ -73,27 +74,36 @@ operator already exports); verify with `coga secret get <ref>` in a clean
 environment where `OP_SERVICE_ACCOUNT_TOKEN` is the only credential. A
 personal `op` login reads everything and gives a false pass.
 
-## A declaration, not a sandbox
+## A declaration plus an env scrub, not a sandbox
 
 Vault scoping bounds what a leaked token can read. It does not confine a
-launched task. Because the child inherits the whole parent environment:
+launched task. `config.build_launch_env()` resolves the declared refs in the
+parent, then builds the child environment from the parent's minus every
+1Password CLI auth variable (`OP_SERVICE_ACCOUNT_TOKEN`, `OP_CONNECT_TOKEN`,
+`OP_CONNECT_HOST`, `OP_SESSION_*`, via `config.scrub_op_auth_env()`) and each
+named `env:VAR` source, then adds each resolved value under its declared
+destination alias. The same scrub covers the `coga ticket` interviewer and the
+recurring autofix analysis call. Coga's own child processes are not tasks and
+keep it: `coga recurring` runs its inner scan unscrubbed, so the launches it
+makes can still resolve `op://` refs.
 
-- `OP_SERVICE_ACCOUNT_TOKEN` normally survives, so the agent can `op read`
-  anything in the automation vault, whatever its ticket declared.
-- Destination names change the outcome.
-  `TASK_OP_TOKEN: env:OP_SERVICE_ACCOUNT_TOKEN` scrubs the well-known name.
-  `OP_SERVICE_ACCOUNT_TOKEN: env:OP_SERVICE_ACCOUNT_TOKEN` restores it.
-  `OP_SERVICE_ACCOUNT_TOKEN: env:OTHER_TOKEN` replaces it. A child that must
-  keep using the service account needs that name among the final
-  destinations; using it only as a source is not enough.
-- Scrubbing the token does not log `op` out. An inherited personal session,
-  desktop-app integration, or other ambient credential may still
-  authenticate, possibly with broader access. A command that works that way
-  proves operator authority, not ticket-scoped access.
+- A launched agent cannot `op read` through an inherited token, whatever its
+  ticket declared. A launch started from inside a task, of a ticket that
+  declares `op://` secrets, therefore fails preflight with a `SecretError`.
+- Destination names still change the outcome.
+  `TASK_OP_TOKEN: env:OP_SERVICE_ACCOUNT_TOKEN` hands the token on under that
+  alias only. `OP_SERVICE_ACCOUNT_TOKEN: env:OTHER_TOKEN` deliberately
+  restores the well-known name — an explicit, reviewable opt-in. A child that
+  must keep using the service account declares `OP_SERVICE_ACCOUNT_TOKEN` as a
+  destination; without that, the scrub removes it.
+- The scrub bounds the environment, not the process. A token file on disk, a
+  shell profile that re-exports it, or a signed-in desktop app may still
+  authenticate the child, possibly with broader access. A command that works
+  that way proves ambient operator authority, not ticket-scoped access.
 
 The `secrets:` list bounds what Coga resolves and names for a task. Read the
-service-account boundary as the final child environment plus the vault
-grant, and the process boundary as every inherited credential. Real
+vault and service-account grant as the boundary of what a leaked token reads,
+and every same-user credential source as the boundary of the process. Real
 confinement needs process isolation Coga does not have. New reference kinds
 would be another prefix branch in `parse_inline_secrets` /
 `select_launch_secrets`, not a provider registry.

@@ -14,9 +14,10 @@ record directly.
 
 ## The rules in brief
 
-- **Pick a checkout layout and record it.** Either a separate feature
-  checkout beside a control-plane primary checkout, or a single checkout on
-  the feature branch. The agent moves itself; launch never changes its cwd.
+- **Pick a checkout layout and record it.** A single checkout on the feature
+  branch is the default; use a separate feature checkout beside a
+  control-plane primary checkout only when asked or when the primary checkout
+  cannot host the branch. The agent moves itself; launch never changes its cwd.
   Seed `coga.local.toml` and agent discovery links in any fresh checkout.
   See [dev/checkouts](../checkouts/SKILL.md).
 - **Record `## Dev` early and in the right copy.** `branch:` when the branch

@@ -20,10 +20,10 @@ credentials. Use indirection ([coga/secrets](../secrets/SKILL.md)).
 
 `coga.toml` top level: `version` (must be `1`), `default_status`, `owner`,
 `agents`, `notification`, `git`, `launch`, `ticket`, `aliases`,
-`extensions`, `layout`, `autofix`.
+`extensions`, `layout`, `autofix`, `telemetry`.
 
 `coga.local.toml` top level: `user`, `agents`, `notification`, `git`,
-`upstream`.
+`upstream`, `telemetry`.
 
 | Table | Keys | Where |
 |---|---|---|
@@ -37,6 +37,7 @@ credentials. Use indirection ([coga/secrets](../secrets/SKILL.md)).
 | `[layout]` | `contexts` | shared only ([coga/context-layout](../context-layout/SKILL.md)) |
 | `[autofix]` | `agent` | shared only |
 | `[upstream]` | `checkouts` | local only |
+| `[telemetry]` | `enabled` (boolean only) | both; local overrides shared, including local true over shared false |
 
 The split is deliberate. `[layout]` and `[autofix]` are team policy: one
 clone must not resolve a context ref somewhere another clone does not.
@@ -85,3 +86,9 @@ fail-loud path.
 `owner` (the recurring operator), `[launch]` limits, and `[autofix]` are
 owned by [coga/recurring](../recurring/SKILL.md). `[aliases]` expand to
 Coga argv ([coga/cli](../cli/SKILL.md)).
+
+`Config.telemetry_enabled` defaults true. Both `[telemetry]` layers are
+validated even when overridden. No endpoint, key, cadence, or test bypass is
+configurable. Delivery, state and payload belong to
+[coga/telemetry](../telemetry/SKILL.md); git and notification switches remain
+independent.

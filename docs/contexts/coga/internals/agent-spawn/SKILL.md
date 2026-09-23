@@ -41,7 +41,8 @@ Secrets are minted per step from the freshly read config and ticket.
 ## Per-caller parameters
 
 - `env`: launch passes `build_launch_env`; authoring passes the ambient
-  environment with no Coga secrets (`secrets_are_scoped=False` keeps usage
+  environment scrubbed of 1Password CLI auth (`config.scrub_op_auth_env`),
+  with no Coga secrets (`secrets_are_scoped=False` keeps usage
   redaction from matching unrelated variables).
 - `discussion`: for `bootstrap/orient` and `bootstrap/ticket`, the prompt
   goes through the agent's `discussion = "...{prompt}..."` template, else the

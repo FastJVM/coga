@@ -77,14 +77,21 @@ State is plain files in your Git repository on your machine, with no hosted
 backend, and agents are interchangeable.
 
 **Forbids:** state in a hosted service you cannot inspect; lock-in to one model
-vendor or a format only one vendor reads; phoning home — telemetry, usage
-tracking or install pings, even anonymized or opt-out. Coga makes no network
-call you did not initiate.
+vendor or a format only one vendor reads. Operational state stays local and
+Git-backed; the bounded telemetry exception below does not host the OS.
 
 **Receipt:** Git-backed markdown; Claude Code and Codex interchangeable through
 `[agents.*]` and `other-agent` rotation ([`coga/agents`](../agents/SKILL.md));
 `coga init` writes plain markdown and TOML into the repo — no venv, no second
 CLI, nothing to un-rent.
+
+> Owner reversal (2026-09-20, clarified 2026-09-22): permit default-on,
+> opt-out weekly aggregate usage snapshots to measure product-market fit.
+> Accept a small biased sample of repos with active operator sweeps, not an
+> install count, and lost events without retries. The closed data boundary,
+> development suppression and delivery contract belong to
+> [`coga/telemetry`](../telemetry/SKILL.md). No per-command or
+> agent/session/token instrumentation is authorized.
 
 ## 6. Fail loud — never a silent wrong answer
 

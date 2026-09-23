@@ -31,7 +31,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 6 (review)
 ---
 
 ## Description
@@ -1026,3 +1026,98 @@ its prerequisites before handing it to `implement`.
 - Exact opening copy and the remaining design decisions are still open.
   No prerequisite creation, runtime/config edit, or workflow advance is
   authorized by this clarification.
+
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/875
+branch: docs-library
+worktree: /home/n/Code/coga-docs-library
+
+## Owner decisions at implement (2026-09-22, attended)
+
+- Owner advanced to `implement` without answering the five open questions
+  in writing; asked in-session. Answers: **full migration in one PR** (the
+  owner explicitly overrides the recommended four-prerequisite split), and
+  **use the draft managed-prompt opening as written** for README, to be
+  edited in PR review.
+- Working assumption, stated for PR review: the proposed tree, subject/ref
+  map, distribution policy (bootstrap-fallback / init-seeded browser pair /
+  local-only), and archive/cut dispositions in the Description are the
+  contract. Anything not accounted for keeps a destination, not a deletion.
+- Corpus has drifted since the 2026-09-08 audit (new docs pages and
+  contexts, e.g. `coga/blackboard`, `marketing/map`, `marketing/distribution`,
+  docs trial/comparison pages). The implementation refreshes the ledger at
+  the branch base and records the final map in `docs/context-migration.md`.
+- `[layout] contexts = "docs/contexts"` is still the owner's edit in the
+  feature checkout once the move is ready; the agent does not edit coga.toml.
+
+## Implementation (2026-09-22)
+
+Branch `docs-library` (5 commits, rebased on origin/main 5b3fe756), not pushed:
+1. byte-preserving moves (`coga/contexts` → `docs/contexts`, research →
+   `docs/evidence/`, CLI proposals → `docs/design/`, Relay + launch history →
+   `docs/archive/`); 2. topic rewrite (75 leaves, legacy manuals deleted,
+   `docs/README.md` reading paths, package bootstrap mirror, `_template`
+   size policy); 3. consumers + `tests/test_packaging.py` distribution sets;
+   4. `[layout] contexts = "docs/contexts"` + `docs/context-migration.md`;
+   5. open-ticket `contexts:` selections (46 files; separable commit).
+- Owner told the agent to apply the `[layout]` edit itself (in-session,
+  "no do it"); applied only in the feature checkout's `coga/coga.toml`.
+- Drift vs design: browser topics are now bootstrap-fallback (repair landed),
+  so no topic is init-seeded — only scaffolds. `coga/digest` not written
+  (digest/spool removed in #786). G6/G5 added `coga/codebase/gotchas`,
+  `dev/checkout-cleanup`, `coga/notifications/{producers,failures}`.
+  `marketing/launch-history` retired to `docs/archive/launch-programs/`.
+- Source-true corrections (full list in docs/context-migration.md): the state
+  sweep never publishes contexts (#848) — the design's feature→control
+  publication hazard for contexts no longer exists; workflow freezes at
+  activation; init installs no managed skills; 9 default aliases.
+
+## Verification
+
+- `python -m pytest` (full, scratch venv with test extra): 2740 passed.
+  Targeted re-run after rebase: 439 passed.
+- `coga validate --json`: 237 OK, 50 warn, 2 errors — identical to the main
+  baseline (pre-existing draft-blackboard errors on
+  `clean-up-all-the-working-trees`, `v2/autotrigger-ticket-type`).
+- `load_config(coga).contexts_root` = `docs/contexts`; local refs resolve there.
+- Link + anchor walk over docs, README/AGENTS/CLAUDE/CONTRIBUTING, skills,
+  workflows, recurring, resources: 332 files, 0 problems. `git diff --check` ok.
+- Size: every leaf < 200 lines / 10 KB / 2,500 tokens; overviews ≤ ~1,000.
+  Over the 1,500 target (under review threshold, reasons in ledgers):
+  tickets, lifecycle, blackboard, extension-model, skill-management,
+  recurring/templates, recurring/scheduling, state-publication, launch,
+  dom-backed (untouched).
+- Frozen-fixture composition (task text from main, only refs changed),
+  context / total est. tokens, before → after: orient 28,415/30,716 →
+  3,364/5,664; cloning 18,858 → 3,566; service-recurring 25,654 → 6,209;
+  stop-syncing 32,793 → 5,697; launch-activates 3,174 → 3,324;
+  marketing/readme-top (post-doc-as-cache no longer exists) 1,519 → 1,578;
+  Dream period-task 2,106 → 819 (total 67.5K dominated by its own 57K-token
+  blackboard; above the 120 KB prompt-file threshold before and after).
+  All within budget. Disjoint notifications vs context-layout selections
+  exclude each other. No task-performance claim.
+- Built wheel (`pip wheel`), clean venv, fresh `coga init` in disposable repos
+  (default, and relocated via `[layout]` + move): all 64 bundled refs resolve
+  from site-packages byte-identical to canonical; orient, browser-automation,
+  ticket, resolve-conflicts, address-pr-comments compose from the package;
+  installed bootstrap link closure 0 missing. `browser/api-first` fallback
+  now resolves.
+
+## Follow-ups for the owner (not fixed here)
+
+- megalaunch never runs a ticket's `ticket.py` (spawns agents directly).
+- `--prompt-report` still classified as sweeping (`cli._should_sweep_coga_state`).
+- Stale source comments: `launch.py` "strict assist path" docstring,
+  `open_pr` / `repl_supervisor.ASSIST_BRANCH_ENV` PR-branch comments,
+  `cli._sweep_coga_state` old-root comment.
+- principles §5 still bans telemetry vs the pending PostHog work; vision's
+  old "not a product" line vs V1 launch; README opening overlaps draft
+  `marketing/readme-top`.
+- Six tickets' premises likely changed by the migration (notes added in their
+  bodies): apply-12-context-and-skill-corrections, correct-two-stale-marketing-
+  map-catalogue-rows, keep-agent-edits-to-contexts-and-skills-off-the-co,
+  give-the-three-kinds-of-work-taxonomy, implement-the-include-allowlist,
+  phase-0-audit-is-complete.
+- Cutover: merge config+content together with schedulers paused; every
+  operating checkout needs the matching package (editable or new wheel).

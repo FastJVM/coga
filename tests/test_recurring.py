@@ -1694,6 +1694,7 @@ def test_repo_recurring_dispatch_uses_current_python_and_ordinary_argv(
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr(recurring_cmd.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setenv("OP_SERVICE_ACCOUNT_TOKEN", "ops_token")
 
     code = recurring_cmd._run_repo_recurring(
         coga_os,
@@ -1703,6 +1704,9 @@ def test_repo_recurring_dispatch_uses_current_python_and_ordinary_argv(
     )
 
     assert code == 0
+    # The inner scan is Coga itself, not a task: it must keep 1Password auth so
+    # the launches it makes can still resolve `op://` secrets.
+    assert captured["env"]["OP_SERVICE_ACCOUNT_TOKEN"] == "ops_token"
     assert captured["command"] == [
         recurring_cmd.sys.executable,
         "-m",
@@ -5308,6 +5312,30 @@ def test_scan_due_stale_done_replacement_respects_tty_gate(
     assert read_serviced_period(
         repo / "recurring" / "weekly-check" / "ticket.md"
     ) == "2026-W17"
+
+
+def test_scan_due_serviced_done_period_skips_without_tty(
+    repo: Path, capsys
+) -> None:
+    """A done period that already serviced this firing launches nothing, so
+    a TTY-less scan reports it as `done` rather than as a template error —
+    even when it carries no frozen `ticket.py`."""
+    cfg = load_config(repo)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
+    ref = first.tasks[0].ref
+    assert not (ref.path / "ticket.py").exists()
+    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "done"
+    ticket.write(ref.path / "ticket.md")
+
+    scan = scan_due(
+        cfg, now=datetime(2026, 4, 23, 10, 0, 0), allow_interactive=False
+    )
+    assert scan.errors == []
+    assert [(t.template, t.status, t.created) for t in scan.tasks] == [
+        ("weekly-check", "done", False)
+    ]
+    assert "requires a TTY" not in capsys.readouterr().err
 
 
 def test_create_named_replaces_stale_done_run(repo: Path) -> None:

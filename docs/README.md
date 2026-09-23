@@ -56,6 +56,9 @@ comparisons), [`design/`](#proposals-and-history) (unbuilt proposals), and
   [failures](contexts/coga/notifications/failures/SKILL.md)),
   [coga-important](contexts/coga/important/SKILL.md),
   [usage records](contexts/coga/usage/SKILL.md),
+  [weekly telemetry](contexts/coga/telemetry/SKILL.md) (opt-out, and the
+  [operator runbook](telemetry.md) for release verification, read-back and
+  deletion),
   [reusable patterns](contexts/coga/patterns/SKILL.md).
 - Browser work: [API first](contexts/browser/api-first/SKILL.md),
   [DOM-backed runners](contexts/browser/dom-backed/SKILL.md).

@@ -9,9 +9,12 @@ the real env can override these with `monkeypatch.setenv` themselves.
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import shutil
 import subprocess
+import sys
+from types import ModuleType
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
@@ -455,3 +458,34 @@ def hold_by_agent(ticket: "Ticket", role: str = "agent") -> None:
     step = ticket.current_step()
     assert step is not None, "ticket has no current step to route to an agent"
     step["assignee"] = role
+
+
+PHONE_HOME_SCRIPT = (
+    Path(__file__).resolve().parents[1]
+    / "src/coga/resources/templates/coga/recurring/phone-home/ticket.py"
+)
+
+
+def load_phone_home() -> ModuleType:
+    """The packaged phone-home `ticket.py`, imported once as a module.
+
+    The code is ticket-owned, not part of `coga`, so tests load it by path.
+    """
+    module = sys.modules.get("phone_home_ticket")
+    if module is None:
+        spec = importlib.util.spec_from_file_location("phone_home_ticket", PHONE_HOME_SCRIPT)
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["phone_home_ticket"] = module
+        spec.loader.exec_module(module)
+    return module
+
+
+@pytest.fixture(autouse=True)
+def _reject_production_telemetry(monkeypatch):
+    """Tests must intercept transport explicitly; subprocesses inherit pytest/CI."""
+    def reject(body):
+        raise AssertionError("production telemetry transport called by a test")
+    phone_home = load_phone_home()
+    monkeypatch.setattr(phone_home, "_post_http", reject)
+    monkeypatch.setattr(phone_home, "POSTHOG_CAPTURE_KEY", "test-capture-key")

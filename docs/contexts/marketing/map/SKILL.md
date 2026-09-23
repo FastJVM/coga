@@ -19,7 +19,7 @@ helps find support; reviewing it is not a separate execution step.
 | One argument with concrete proof | [Idea piece](../../../../coga/tasks/marketing/idea-piece.md) |
 | README opening and reader path | [README ticket](../../../../coga/tasks/marketing/readme-top.md) |
 | Installation through one useful task | [Installer/onboarding](../../../../coga/tasks/marketing/fix-installer.md) |
-| Adoption/activity measurement | [PostHog ticket](../../../../coga/tasks/marketing/add-telemetry.md) |
+| Adoption/activity measurement | [Weekly snapshot contract](../../coga/telemetry/SKILL.md) |
 
 Live ticket status is in `coga status marketing`, not here.
 

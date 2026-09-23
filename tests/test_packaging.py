@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import zipfile
 from importlib.resources import files
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import tomllib
@@ -14,11 +16,19 @@ if TYPE_CHECKING:
     import pytest
 
 import coga.resources
-from coga.paths import packaged_template_path
+from coga.paths import (
+    bootstrap_workflow_path,
+    packaged_template_path,
+    resolve_workflow_path,
+)
 from coga.ticket import Ticket
 
 
 EXPECTED_BOOTSTRAP_RESOURCES = (
+    "coga/resources/templates/coga/recurring/phone-home/ticket.md",
+    "coga/resources/templates/coga/recurring/phone-home/ticket.py",
+    "coga/resources/templates/coga/workflows/phone-home/run.md",
+    "coga/resources/templates/coga/bootstrap/contexts/coga/telemetry/SKILL.md",
     # Keeps `coga.resources` a regular package in the built wheel, not a
     # namespace package — see `test_coga_resources_is_a_regular_package`.
     "coga/resources/__init__.py",
@@ -65,13 +75,13 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/recurring/skill-update/ticket.md",
     "coga/resources/templates/coga/workflows/autoclose-merged/sweep.md",
     "coga/resources/templates/coga/workflows/blocker-reminders/run.md",
-    "coga/resources/templates/coga/workflows/brief-for-human.md",
     "coga/resources/templates/coga/workflows/direct/body.md",
-    "coga/resources/templates/coga/workflows/draft-for-human.md",
     "coga/resources/templates/coga/workflows/skill-update/run.md",
     # Bundled reusable workflows ship under bootstrap/workflows/ (local-first
     # fallback) so a fresh repo can run the core code loop, the docs flow, the
     # Dream workflow without hand-copying.
+    "coga/resources/templates/coga/bootstrap/workflows/brief-for-human.md",
+    "coga/resources/templates/coga/bootstrap/workflows/draft-for-human.md",
     "coga/resources/templates/coga/bootstrap/workflows/code/"
     "with-review.md",
     "coga/resources/templates/coga/bootstrap/workflows/code/"
@@ -395,6 +405,7 @@ REQUIRED_BOOTSTRAP_CONTEXT_REFS = frozenset(
         "coga/session-conduct",
         "coga/skill-management",
         "coga/sync",
+        "coga/telemetry",
         "coga/testing",
         "coga/tickets",
         "coga/uninstall",
@@ -696,6 +707,43 @@ def test_bundled_bootstrap_tickets_attach_only_bootstrap_contexts() -> None:
             )
 
 
+# `--workflow <name>` as shipped text spells it; `<name>` placeholders in the
+# CLI prose do not match because the name must start with a word character.
+WORKFLOW_FLAG_REF = re.compile(r"--workflow[ =]+[`'\"]?(\w(?:[\w./-]*\w)?)")
+
+
+def test_shipped_workflow_refs_resolve_without_a_seeded_copy(
+    tmp_path: Path,
+) -> None:
+    """Every `--workflow <name>` in shipped text must resolve from the package.
+
+    `paths.resolve_workflow_path` falls back to `bootstrap/workflows/` only.
+    `templates/coga/workflows/**` is seeded into a repo once by `coga init`
+    and is never a runtime fallback, so a workflow that lives only there is
+    missing from every repo initialized before it was added. Dream once told
+    agents to file drafts with `--workflow brief-for-human` while that
+    workflow was scaffold-only, and `coga create` failed with "Workflow not
+    found" in such a repo.
+    """
+    packaged_root = REPO_ROOT / PACKAGED_ROOT
+    cfg = SimpleNamespace(repo_root=tmp_path)
+    refs: dict[str, list[str]] = {}
+    for path in sorted(packaged_root.rglob("*.md")):
+        for name in WORKFLOW_FLAG_REF.findall(path.read_text(encoding="utf-8")):
+            refs.setdefault(name, []).append(
+                path.relative_to(REPO_ROOT).as_posix()
+            )
+    assert "brief-for-human" in refs
+
+    for name, sources in sorted(refs.items()):
+        resolved = resolve_workflow_path(cfg, name)
+        assert resolved == bootstrap_workflow_path(cfg, name), (
+            f"--workflow {name} (named in {', '.join(sorted(set(sources)))}) "
+            "does not resolve from the packaged bootstrap/workflows/; a "
+            "workflow that shipped text depends on must be a bootstrap battery."
+        )
+
+
 def test_no_launch_entrypoint_run_py_files_remain() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     packaged_root = repo_root / "src" / "coga" / "resources" / "templates" / "coga"
@@ -842,3 +890,71 @@ def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
         assert (
             f"coga/resources/templates/coga/bootstrap/contexts/{ref}/SKILL.md" in names
         )
+
+
+def test_phone_home_parent_header_matches_and_packaged_seed_is_unused():
+    from coga.taskfile import read_blackboard
+    from conftest import load_phone_home
+    _state = load_phone_home()._state
+    live = REPO_ROOT / "coga/recurring/phone-home/ticket.md"
+    seed = REPO_ROOT / PACKAGED_ROOT / "recurring/phone-home/ticket.md"
+    fence = b"<!-- coga:blackboard -->"
+    assert live.read_bytes().split(fence)[0] == seed.read_bytes().split(fence)[0]
+    state, _ = _state(read_blackboard(seed))
+    assert state["run"] == state["offset"] == 0
+    assert state["repo_id"] is None
+    import hashlib
+    assert state["digest"] == hashlib.sha256(b"").hexdigest()
+
+
+def test_installed_wheel_init_and_phone_home_are_isolated(tmp_path):
+    """Exercise the installed artifact outside source; preserve CI and fake HTTP."""
+    wheel_dir = tmp_path / "dist"
+    subprocess.run([sys.executable, "-m", "pip", "wheel", "--no-build-isolation", "--no-deps", ".", "-w", str(wheel_dir)], cwd=REPO_ROOT, capture_output=True, check=True)
+    [wheel] = wheel_dir.glob("coga-*.whl")
+    installed = tmp_path/"installed"
+    subprocess.run([sys.executable,"-m","pip","install","--no-deps","--target",str(installed),str(wheel)],capture_output=True,check=True)
+    target = tmp_path/"company"
+    target.mkdir()
+    env = {**os.environ, "PYTHONPATH":str(installed), "CI":"true"}
+    script = r'''
+import json
+from pathlib import Path
+from unittest.mock import patch
+from typer.testing import CliRunner
+from coga.cli import app
+from coga.config import load_config
+from coga.recurring import create_named
+from coga.taskfile import read_blackboard
+import importlib.util
+import subprocess
+subprocess.run(["git","init","-b","main"],check=True,capture_output=True)
+subprocess.run(["git","config","user.name","Test"],check=True)
+subprocess.run(["git","config","user.email","test@example.test"],check=True)
+def forbidden(*args, **kwargs):
+    raise AssertionError("production transport/worker invoked")
+with patch("coga.commands.init._check_external_dependencies"):
+    result=CliRunner().invoke(app,["init",".","--user","tester"])
+assert result.exit_code == 0, result.output
+# The ticket code init copied into the repo, run against the installed package.
+spec=importlib.util.spec_from_file_location("phone_home_ticket",Path("coga/recurring/phone-home/ticket.py"))
+t=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(t)
+assert "installed" in str(t._PACKAGE_FILE)
+with patch.object(t,"_post_http",forbidden), patch.object(t,"_bounded_worker",forbidden):
+    cfg=load_config(Path("coga"))
+    parent=Path("coga/recurring/phone-home/ticket.md")
+    assert t._state(read_blackboard(parent))[0]["run"] == 0
+    outcome=create_named(cfg,"phone-home")
+    assert outcome.created
+    shim=outcome.ref.task_dir/"ticket.py"
+    assert shim.is_file()
+    assert t.run_phone_home(cfg,[]) == 0
+    state=t._state(read_blackboard(parent))[0]
+    assert state["run"] == 1 and state["repo_id"] is None
+    assert not t._admitted(cfg)
+print("installed init and suppressed first snapshot passed")
+'''
+    result = subprocess.run([sys.executable,"-c",script],cwd=target,env=env,capture_output=True,text=True,timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "suppressed first snapshot passed" in result.stdout

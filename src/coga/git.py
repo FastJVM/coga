@@ -53,8 +53,10 @@ import tempfile
 import threading
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Literal
 
 from coga.config import Config
 from coga.github_source import redacted_git_source
@@ -879,6 +881,121 @@ def is_linked_worktree(start: Path) -> bool:
     return Path(git_dir).resolve() != Path(common).resolve()
 
 
+CheckoutKind = Literal["primary", "linked", "foreign-linked", "standalone"]
+
+
+@dataclass(frozen=True)
+class CheckoutRelation:
+    """`classify_checkout`'s verdict on one recorded checkout.
+
+    `owner` is set only for `"foreign-linked"`: the main working tree of the
+    repository the checkout belongs to, which is where a human runs the
+    `git worktree remove` / `git branch -d` that no Coga command here can.
+    """
+
+    kind: CheckoutKind
+    owner: Path | None = None
+
+
+def classify_checkout(root: Path, path: Path) -> CheckoutRelation | None:
+    """How the checkout at `path` relates to the repository `root` belongs to.
+
+    One probe for every caller that must judge a recorded `worktree:` before
+    acting on it, so they cannot disagree:
+
+    - `"linked"` — a linked worktree of `root`'s repository: its own
+      administrative git dir under the shared common dir. The one shape
+      `coga retire` and the autoclose disposal phase ever remove.
+    - `"primary"` — the primary checkout of `root`'s repository, whose git dir
+      *is* the common dir. A ticket worked in the single-checkout layout
+      records it as its own `worktree:`; nobody ever disposes of it, so it is
+      never retire debt.
+    - `"foreign-linked"` — a linked worktree of some *other* repository, with
+      that repository's main working tree as `owner`.
+    - `"standalone"` — a checkout with its own repository: an independent
+      clone (including the sandbox `/tmp` fallback) or an unrelated repo.
+    - `None` — no answer: `path` or `root` is not a git checkout git can read,
+      `path` is a directory *inside* a checkout rather than its root, or `git`
+      could not run. Every caller fails closed on it.
+
+    The comparison is between common dirs, never between `root` and `path`
+    themselves, so the verdict does not change when the caller runs from a
+    linked worktree (a recurring control worktree) instead of the primary
+    checkout. `is_linked_worktree` above answers the unscoped "is this
+    checkout linked at all" and folds its unknowns into `False`.
+    """
+    probed = _checkout_dirs(path)
+    anchor = _checkout_dirs(root)
+    if probed is None or anchor is None:
+        return None
+    git_dir, common_dir, top = probed
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return None
+    if top != resolved:
+        return None
+    linked = git_dir != common_dir
+    if common_dir == anchor[1]:
+        return CheckoutRelation("linked" if linked else "primary")
+    if not linked:
+        return CheckoutRelation("standalone")
+    return CheckoutRelation(
+        "foreign-linked", owner=_main_worktree(path) or common_dir.parent
+    )
+
+
+def _checkout_dirs(path: Path) -> tuple[Path, Path, Path] | None:
+    """`path`'s resolved git dir, common dir, and toplevel, or `None`.
+
+    Decoded with `os.fsdecode` so a path that does not decode under the
+    ambient locale yields a comparable path rather than an exception in the
+    middle of a sweep.
+    """
+    try:
+        result = _run(
+            [
+                "git",
+                "-C",
+                str(path),
+                "rev-parse",
+                "--path-format=absolute",
+                "--git-dir",
+                "--git-common-dir",
+                "--show-toplevel",
+            ]
+        )
+    except GitError:
+        return None
+    if result.returncode != 0:
+        return None
+    lines = os.fsdecode(result.stdout).splitlines()
+    if len(lines) != 3 or not all(lines):
+        return None
+    try:
+        git_dir, common_dir, top = (Path(line).resolve() for line in lines)
+    except OSError:
+        return None
+    return git_dir, common_dir, top
+
+
+def _main_worktree(path: Path) -> Path | None:
+    """The main working tree of the repository containing `path`, or `None`.
+
+    `git worktree list --porcelain` always lists the main working tree first.
+    """
+    try:
+        result = _run(["git", "-C", str(path), "worktree", "list", "--porcelain"])
+    except GitError:
+        return None
+    if result.returncode != 0:
+        return None
+    for line in os.fsdecode(result.stdout).splitlines():
+        if line.startswith("worktree "):
+            return Path(line[len("worktree "):])
+    return None
+
+
 def summarize_git_failure(output: str) -> str:
     """Keep only the `error:`/`fatal:`/`CONFLICT` lines of git output, deduped.
 
@@ -1117,6 +1234,8 @@ def worktree_holding_branch(root: Path, branch: str) -> Path | None:
 
 
 __all__ = [
+    "CheckoutKind",
+    "CheckoutRelation",
     "GitError",
     "MAX_PUBLISH_ATTEMPTS",
     "PUBLISHED_REF",
@@ -1124,6 +1243,7 @@ __all__ = [
     "STALE_CONTROL_EXIT_CODE",
     "StateRegressionError",
     "UncertainPublishError",
+    "classify_checkout",
     "control_branch_mismatch_message",
     "control_branch_present",
     "current_branch",
