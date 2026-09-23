@@ -29,6 +29,21 @@ of one when a PR is merged by hand and the ticket is never retired, so
 defaulting to one worktree per ticket left operators with piles of stale ones. Record the chosen layout in `worktree:`; every later
 step reads that line to decide where it runs.
 
+**When the primary checkout is occupied by another live ticket**, leave its
+branch and dirty task/log state in place. Use an existing checkout holding the
+configured control branch, or create a durable linked control checkout when
+that branch is free. Seed its local config, explicitly fetch and fast-forward
+from the configured remote/control ref (no tracking configuration is required),
+and verify this ticket's published state before resuming there. A running
+supervisor is bound to its original checkout: do not change its ownership
+variables or silently transplant the session. Hand off to a fresh human-invoked
+`coga launch <slug>` in the control checkout; a queue session blocks with that
+handoff. `code/implement` owns the setup commands and reconciliation procedure.
+This ticket then uses a separate feature checkout, with its live control copy,
+`## Dev`, `coga bump`, and `coga open-pr` in the new control checkout. In this
+layout the “primary” control checkout below means the one this session was
+launched from, not the occupied checkout belonging to the first ticket.
+
 **Separate feature checkout.** Treat the primary repo checkout as the Coga
 control-plane checkout and keep it on `main` when possible. Do code changes in a
 feature worktree outside the primary checkout, then return to the primary
