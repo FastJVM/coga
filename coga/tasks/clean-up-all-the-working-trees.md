@@ -80,6 +80,12 @@ what was removed, approximate space recovered, and what remains with reasons.
    Keep the approval table concise, with exact paths and evidence for every
    proposed action. Summarize repetitive retained test fixtures where that
    does not hide a candidate's eligibility or a discovery limitation.
+6. For every worktree retained for an unfinished ticket, check the owning
+   ticket's pointer block (`pr:` / `branch:` / `worktree:`). If a PR exists
+   and the ticket lacks a `pr:` pointer, add it so the work stays findable.
+   If there is no PR, report the worktree with its unpushed-commit count and
+   whether the ticket names its branch/worktree. Do not push branches or open
+   PRs; that is an owner decision.
 
 ### Cleanup and verification
 
@@ -223,6 +229,23 @@ Prune SKIPPED, because the dry-run set includes entries that must be kept:
 2. Run `git -C <primary> worktree remove <path>` with no `--force`. A refusal means skip and report; there is no fallback.
 3. For P1–P4: rerun `worktree prune --dry-run -v` and prune only if the output exactly matches the approved list.
 4. Afterwards confirm: the path is gone; `git worktree list` no longer shows it; the branch ref is unchanged; the primaries (`~/Code/coga`, `claude/coga`, `codex/coga`, `multiply`, `codex/multiply`, `patents`, `xpllm`, `admin`, `perfo…/home4/work`) still have `git status` working. Also run `df` before and after, and record per-path du totals.
+
+### Unfinished-ticket pointer check — 2026-09-23 (owner-requested, no pushes/PRs)
+Result: every retained worktree's owning ticket already names its branch or worktree. Both worktrees that have a PR already carry a `pr:` pointer, so no ticket was edited.
+- **PR exists, pointer present:**
+  - claude/coga-autoclose-unanswered-threads: #881 is **merged** and nothing is unpushed. The ticket is still in_progress (review), so the worktree only stays because the ticket is stale. It becomes eligible once that ticket closes.
+  - multiply-install-onboarding: #126 is **merged** with HEAD=prhead. `v1/4-onboarding` is still in_progress (review), the same situation.
+- **No PR (reported; work is local only):**
+  - claude/coga-reconcile-audit-lifecycle: 2 unpushed commits. Ticket is at open-pr and names the branch and worktree.
+  - claude/coga-split-ticket-contract: 1 unpushed. Ticket is at peer-review and names the branch and worktree.
+  - claude/coga-ticket-relationships: 1 unpushed. Ticket is blocked and names the branch and worktree.
+  - claude/coga-recurring-control-worktree (1 unpushed) and codex/coga-recurring-control-worktree (**4 unpushed**): these commits come after the merged #749/#846. Their owning tickets are **done**. The blocked `run-recurring-agent-templates-off-the-control-bran` names the branch (a8c12607) only in its notes and has no pointer block. **No open ticket owns these 5 commits.**
+  - multiply-license-and-terms: 1 unpushed. The ticket names the branch in its body.
+  - multiply-pass-events: 1 unpushed. Ticket is at implement and names the branch and worktree.
+  - /tmp/multiply-reporting: 1 unpushed, **plus a new uncommitted `coga/log.md` change since the inventory**. The `v1/7-reporting` ticket copies disagree: `codex/multiply` is at step 4 (open-pr) with `worktree:`, while `~/Code/multiply` is at step 3 with no pointer.
+  - xpllm/.scratch/slice-poc-01-audit: 2 commits on a detached HEAD that no ref contains. The in_progress `slice-channel/02` cites it as audit evidence.
+  - xpllm/.scratch/annotation-research-01: 2 unpushed. The paused ticket names the path.
+- Owner follow-ups (not in this ticket's scope): push and open PRs for the no-PR branches, or give the orphaned recurring-control-worktree commits an owning ticket.
 
 ### Owner decision needed at `approve`
 Approve R1–R42 and P1–P4 individually or as a set. Optionally approve O1. The probe-data worktrees stay retained unless you decide otherwise.
