@@ -57,7 +57,10 @@ from pathlib import Path
 from typing import Literal
 from uuid import uuid4
 
+import typer
+
 from coga import git
+from coga.authoring import resolve_authoring_agent
 from coga.blackboard import (
     Blocker,
     open_blockers,
@@ -940,19 +943,23 @@ def _author_draft(
     except TaskNotFoundError:
         return
     bootstrap_ticket = read_ticket(bootstrap_ref)
-    # Interviewer selection precedence, unchanged apart from the rename:
-    # explicit override, then `bootstrap/ticket`'s own explicit agent, then the
-    # edited draft's explicit agent, then the configured default. This picks who
-    # runs the interview and never persists onto the edited ticket.
-    from coga.bump import OperatorResolutionError, resolve_main_agent
-
+    # Interviewer selection is the same chain `coga ticket` uses, minus its
+    # picker: this batched pass never prompts. It picks who runs the interview
+    # and never persists onto the edited ticket. A bad agent from any term is
+    # reported, then the draft is left as it is and the run continues.
     try:
-        launch_agent = agent_override or resolve_main_agent(
+        launch_agent = resolve_authoring_agent(
             cfg,
-            bootstrap_ticket.agent or ticket.agent,
-            allow_prospective_default=True,
+            source_ticket=ticket,
+            bootstrap_ticket=bootstrap_ticket,
+            agent_override=agent_override,
         )
-    except OperatorResolutionError:
+    except ConfigError as exc:
+        typer.secho(
+            f"{ref.id_slug}: skipping guided authoring: {exc}",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
         return
     try:
         _run_authoring_session(

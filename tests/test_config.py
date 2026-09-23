@@ -497,6 +497,48 @@ def test_launch_worktree_key_rejected(repo: Path) -> None:
         load_config(repo)
 
 
+def test_authoring_agent_defaults_to_empty(repo: Path) -> None:
+    assert load_config(repo).authoring_agent == ""
+
+
+def test_authoring_agent_parsed_from_local(repo: Path) -> None:
+    """Shape only: the name is checked against `[agents]` when authoring
+    resolves it, so a stale value breaks authoring, not every command."""
+    (repo / "coga.local.toml").write_text(
+        (repo / "coga.local.toml").read_text() + '\n[authoring]\nagent = "codex"\n'
+    )
+    assert load_config(repo).authoring_agent == "codex"
+
+
+@pytest.mark.parametrize("value", ["1", '""', '"  "'])
+def test_authoring_agent_non_string_or_empty_rejected(repo: Path, value: str) -> None:
+    (repo / "coga.local.toml").write_text(
+        (repo / "coga.local.toml").read_text() + f"\n[authoring]\nagent = {value}\n"
+    )
+    with pytest.raises(ConfigError, match=r"\[authoring\].agent must be a non-empty"):
+        load_config(repo)
+
+
+def test_authoring_unknown_key_rejected(repo: Path) -> None:
+    (repo / "coga.local.toml").write_text(
+        (repo / "coga.local.toml").read_text() + '\n[authoring]\nmodel = "opus"\n'
+    )
+    with pytest.raises(ConfigError, match=r"\[authoring\] has unknown key\(s\).*model"):
+        load_config(repo)
+
+
+def test_authoring_table_in_shared_toml_rejected(repo: Path) -> None:
+    """Which agent a quota-limited operator authors with is machine-local, so
+    the shared table gets a tailored error, not the generic unknown-key one."""
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text() + '\n[authoring]\nagent = "claude"\n'
+    )
+    with pytest.raises(
+        ConfigError, match=r"\[authoring\] is machine-local and belongs in coga.local.toml"
+    ):
+        load_config(repo)
+
+
 def test_autofix_agent_defaults_to_none(repo: Path) -> None:
     """No `[autofix]` table → the analyst keeps `default_agent()`."""
     assert load_config(repo).autofix_agent is None

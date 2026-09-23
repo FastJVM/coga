@@ -9,8 +9,10 @@ import sys
 import typer
 
 from coga.authoring import (
+    AUTHORING_AGENT_ENV,
     AuthoringError,
     finalize_authored,
+    resolve_authoring_agent,
     snapshot_authoring_state,
 )
 from coga.commands.create import create_draft
@@ -21,7 +23,6 @@ from coga.commands.launch import (
 )
 from coga.compose import ComposeError
 from coga.repl_supervisor import AgentCliNotFound
-from coga.bump import OperatorResolutionError, resolve_main_agent
 from coga.config import Config, ConfigError, load_config, scrub_op_auth_env
 from coga.dependencies import agent_cli_missing_message
 from coga.tasks import (
@@ -50,6 +51,11 @@ AUTHORING_KICKOFF = "Begin"
 AUTHORING_KICKOFF_NEW = "Begin (new ticket)"
 AUTHORING_KICKOFF_EDIT = "Begin (editing existing ticket)"
 
+TTY_REQUIRED_MESSAGE = (
+    "Cannot launch guided ticket authoring: it requires "
+    "a TTY (stdin and stdout must both be terminals)."
+)
+
 
 def ticket(
     target: str | None = typer.Argument(
@@ -66,8 +72,22 @@ def ticket(
         "--agent",
         help="Agent nickname to use for the authoring interview.",
     ),
+    pick_agent: bool = typer.Option(
+        False,
+        "--pick-agent",
+        help=(
+            "Choose the authoring interview's agent from the configured types "
+            "for this run. Nothing is saved."
+        ),
+    ),
 ) -> None:
     """Run the bootstrap/ticket authoring skill."""
+    if pick_agent and agent_override:
+        _bail("Pass --agent or --pick-agent, not both.")
+    # Checked before any target is scaffolded, so a non-TTY `--pick-agent`
+    # never leaves a fresh draft behind or blocks on a prompt.
+    if pick_agent and not _interactive_stdio_has_tty():
+        _bail(TTY_REQUIRED_MESSAGE)
     try:
         cfg = load_config()
     except ConfigError as exc:
@@ -90,18 +110,22 @@ def ticket(
         ref, source_ticket, created = _resolve_or_create_target(cfg, target)
         kickoff = AUTHORING_KICKOFF_NEW if created else AUTHORING_KICKOFF_EDIT
 
-    # Interviewer selection: explicit `--agent`, then `bootstrap/ticket`'s own
-    # explicit agent, then the edited ticket's explicit agent, then the
-    # configured default. `--agent` selects the *interviewer* only — the
-    # interview never writes an agent onto the ticket it is editing; the human
-    # chooses that through the authoring allowlist.
-    try:
-        launch_agent = agent_override or resolve_main_agent(
-            cfg,
-            bootstrap_ticket.agent or source_ticket.agent,
-            allow_prospective_default=True,
+    # Interviewer selection is `resolve_authoring_agent`'s precedence chain,
+    # shared with megalaunch's picked-draft pass. It selects the *interviewer*
+    # only — the interview never writes an agent onto the ticket it is editing;
+    # the human chooses that through the authoring allowlist.
+    if pick_agent:
+        agent_override = _pick_authoring_agent(
+            cfg, source_ticket=source_ticket, bootstrap_ticket=bootstrap_ticket
         )
-    except OperatorResolutionError as exc:
+    try:
+        launch_agent = resolve_authoring_agent(
+            cfg,
+            source_ticket=source_ticket,
+            bootstrap_ticket=bootstrap_ticket,
+            agent_override=agent_override,
+        )
+    except ConfigError as exc:
         _bail(f"No authoring agent available: {exc}")
         return
 
@@ -113,6 +137,60 @@ def ticket(
         kickoff=kickoff,
         bootstrap_title=bootstrap_ticket.title or "",
     )
+
+
+def _pick_authoring_agent(
+    cfg: Config, *, source_ticket: Ticket, bootstrap_ticket: Ticket
+) -> str:
+    """Ask which configured agent type runs this authoring interview.
+
+    Lives in the command module, not `coga.authoring`, so megalaunch's batched
+    authoring pass can never reach a prompt. Always returns a configured name:
+    zero agents fail loud, a single agent is selected without asking, and with
+    no valid default an empty answer re-prompts instead of guessing.
+    """
+    names = list(cfg.agents)
+    if not names:
+        _bail(
+            "No agent types are configured; declare at least one `[agents.*]` "
+            "table in coga.toml or coga.local.toml (e.g. `[agents.claude]`)."
+        )
+    if len(names) == 1:
+        typer.echo(f"Only one agent type is configured; using {names[0]}.")
+        return names[0]
+    try:
+        current: str | None = resolve_authoring_agent(
+            cfg, source_ticket=source_ticket, bootstrap_ticket=bootstrap_ticket
+        )
+    except ConfigError as exc:
+        typer.secho(f"No default agent: {exc}", fg=typer.colors.YELLOW, err=True)
+        current = None
+    typer.echo("Authoring agent:")
+    for index, name in enumerate(names, start=1):
+        marker = "  (default)" if name == current else ""
+        typer.echo(f"  {index}. {name}{marker}")
+    while True:
+        answer = typer.prompt(
+            "Pick a number or name",
+            default=current or "",
+            show_default=bool(current),
+        ).strip()
+        if answer.isdigit() and 1 <= int(answer) <= len(names):
+            choice = names[int(answer) - 1]
+            break
+        if answer in cfg.agents:
+            choice = answer
+            break
+        typer.secho(
+            f"Enter 1-{len(names)} or one of: {', '.join(names)}.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+    typer.echo(
+        f'To keep {choice} for authoring, set `[authoring] agent = "{choice}"` '
+        f"in coga.local.toml or `export {AUTHORING_AGENT_ENV}={choice}`."
+    )
+    return choice
 
 
 def _resolve_or_create_target(
@@ -193,10 +271,7 @@ def _run_authoring_session(
     bootstrap_title: str,
 ) -> None:
     if not _interactive_stdio_has_tty():
-        _bail(
-            "Cannot launch guided ticket authoring: it requires "
-            "a TTY (stdin and stdout must both be terminals)."
-        )
+        _bail(TTY_REQUIRED_MESSAGE)
 
     try:
         agent = cfg.agent_type(launch_agent)

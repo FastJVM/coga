@@ -51,6 +51,8 @@ or `DIR`. A selection runs in three stages:
 
 1. **Prepare** — if the pick has drafts, one `[Y/n]` prompt offers the guided
    `coga ticket` interview for each; an authoring failure leaves the draft.
+   The interviewer follows the authoring-agent order in
+   [coga/tickets](../tickets/SKILL.md) and is never prompted for.
 2. **Check** — draft/paused/blocked picks are validated against their
    prospective `active` view without writing; failures report now.
 3. **Launch** — each pick is reread and reclassified when reached, then

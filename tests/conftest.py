@@ -174,6 +174,16 @@ def _clear_supervised_session_env(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _clear_authoring_agent_env(monkeypatch):
+    """Ignore an operator's `COGA_AUTHORING_AGENT` quota-fallback export.
+
+    Run from a shell that set it, the suite would author every `coga ticket`
+    and megalaunch fixture as that agent. Tests of the override set it
+    themselves (autouse runs first, so their `monkeypatch.setenv` wins)."""
+    monkeypatch.delenv("COGA_AUTHORING_AGENT", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _disable_autofix(monkeypatch, request):
     """Default-off the recurring autofix loop so no test spawns an agent.
 
