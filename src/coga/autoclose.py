@@ -1299,7 +1299,9 @@ def _report_followup(cfg: Config, report: str, summary: str) -> bool:
             _append_blackboard_report(cfg, blackboard, report)
         except (OSError, UnicodeError) as exc:
             success = False
-            sys.stderr.write(f"[autoclose] could not write review thread report to {blackboard}: {exc}\n")
+            sys.stderr.write(
+                f"[autoclose] could not write review thread report to {blackboard}: {exc}\n"
+            )
             sys.stdout.write(report)
     else:
         sys.stdout.write(report)

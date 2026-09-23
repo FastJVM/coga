@@ -1975,3 +1975,42 @@ def test_coga_status_never_calls_gh(
     result = runner.invoke(app, ["status"])
     assert result.exit_code == 0, result.output
     assert Ticket.read(path).status == "active"
+
+
+@pytest.mark.parametrize("failure", [OSError("disk full"), UnicodeError("bad text")])
+def test_review_report_write_failure_keeps_stdout_and_slack_and_fails_recipe(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+    failure: Exception,
+) -> None:
+    url = "https://github.com/o/r/pull/36"
+    _, path = _make_task(repo, on_final=True, pr_url=url, branch=None)
+    _, host = _make_task(repo, title="Autoclose merged", status="draft")
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(host))
+    _stub_pr_state(monkeypatch, {url: "MERGED"})
+    _stub_review_threads(monkeypatch, {url: [_thread()]})
+    posts = _capture_posts(monkeypatch)
+
+    def fail_append(*args, **kwargs):
+        raise failure
+
+    monkeypatch.setattr(am, "_append_blackboard_report", fail_append)
+    assert am.run_autoclose_recipe(load_config(repo), []) == 2
+    output = capsys.readouterr()
+    assert am.REVIEW_THREADS_REPORT_HEADING in output.out
+    assert "could not write review thread report" in output.err
+    assert any("🧵" in post for post in posts)
+    assert Ticket.read(path).status == "done"
+
+
+def test_retire_reporting_failure_does_not_suppress_review_threads(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    url = "https://github.com/o/r/pull/36"
+    _make_task(repo, on_final=True, pr_url=url, branch=None)
+    _stub_pr_state(monkeypatch, {url: "MERGED"})
+    _stub_review_threads(monkeypatch, {url: [_thread()]})
+    posts = _capture_posts(monkeypatch)
+    monkeypatch.setattr(am, "_report_retire_followups", lambda *args: False)
+    assert am.run_autoclose_recipe(load_config(repo), []) == 2
+    assert am.REVIEW_THREADS_REPORT_HEADING in capsys.readouterr().out
+    assert any("🧵" in post for post in posts)

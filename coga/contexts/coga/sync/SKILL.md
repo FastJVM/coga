@@ -63,11 +63,10 @@ Live surface (`post`) — posts immediately to the named destination:
   may duplicate work; important, under the existing best-effort warning guard.
 - the Dream validate-drift summary — bounded maintenance result; flow.
 - the megalaunch drain summary — non-empty aggregate result; flow.
-- the `autoclose-merged` sweep's follow-up summaries — a recorded checkout
-  still needs `coga retire`, or a closed PR has unanswered review threads
-  (see `coga/autoclose/sweep`); flow. Each uses a plain `post` rather than a
-  `notify` outcome: `notify` restricts the event *kind*
-  (`done` / `canceled` / `recurring-error`), and neither follow-up is one.
+- the `autoclose-merged` sweep's checkout and review-thread summaries
+  (see `coga/autoclose/sweep`): disposed checkouts and unanswered review
+  threads use flow; refused checkout disposals use important. These use
+  plain `post` calls rather than per-ticket `notify` outcomes.
 - recurring autofix filing a ticket for a problem it diagnosed in a recurring
   run — not only a failed one: a run that exits zero but whose blackboard shows
   it silently did nothing, or recorded real errors, is classified a problem too.
@@ -452,8 +451,9 @@ new string:
   `blocker_reminders.py::remind_blocked_tasks`; the script-failure path
   in `launch_script.py` (important); the stale-period-state warning in
   `mark.py` (important); `dream_validate_drift.py` (flow);
-  `autoclose.py::_report_followup` (the checkout and review-thread sweep
-  summaries, flow, `fatal=False`); `recurring_autofix.py` on both its ticket-filing paths
+  `autoclose.py::_report_retire_followups` (checkout summaries, flow or
+  important) and `_report_followup` (review-thread summaries, flow), both
+  `fatal=False`; `recurring_autofix.py` on both its ticket-filing paths
   (`run_autofix` and `run_autofix_analyze_recipe`, flow); and
   `commands/megalaunch.py` (flow). The `commands/*` module fronting a
   lifecycle transition contributes the `preflight_post(cfg)` configuration
