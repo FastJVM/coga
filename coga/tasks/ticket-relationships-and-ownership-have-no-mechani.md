@@ -247,7 +247,8 @@ worktree: /home/n/Code/claude/coga-ticket-relationships
 
 ## Blockers
 
-- [ ] [2026-09-15 22:52] [agent:codex] id=20260915T225238 Choose how coga owner should reassign an in_progress owner-held gate without stranding it, including how to handle a live assisting agent (stop first or invalidate its routing lease). The current pause-first policy prevents normal bump/launch. See Peer review on the blackboard for the returned review and two P1 state-loss races.
+- [x] [2026-09-15 22:52] [agent:codex] id=20260915T225238 Choose how coga owner should reassign an in_progress owner-held gate without stranding it, including how to handle a live assisting agent (stop first or invalidate its routing lease). The current pause-first policy prevents normal bump/launch. See Peer review on the blackboard for the returned review and two P1 state-loss races.
+  resolved: [2026-09-23 16:56] [human:nicktoper] Preserve in_progress when reassigning an owner-held gate, but require any live assisting agent to stop before reassignment. Do not invalidate a live agent routing lease to permit reassignment. Fix the stale control publication and local mutation races with the existing guarded state mechanisms.
 
 ---
 
