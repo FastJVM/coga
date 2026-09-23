@@ -14,7 +14,7 @@ workflow:
   - name: cleanup-and-verify
     skills: []
     assignee: agent
-step: 2 (approve)
+step: 3 (cleanup-and-verify)
 agent: claude
 ---
 
