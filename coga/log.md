@@ -6179,3 +6179,4 @@ fatal: Unable to add (null) to database
 2026-09-23 10:38 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-09-23
 2026-09-23 10:38 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-09-23
 2026-09-23 10:38 [recurring/upstream-coga] [system] started (active → in_progress) via coga launch
+2026-09-23 10:38 [recurring/upstream-coga] [system] launched as a script (ticket.py)
