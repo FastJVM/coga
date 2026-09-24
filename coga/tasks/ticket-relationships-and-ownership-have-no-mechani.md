@@ -287,6 +287,7 @@ pytest cache. The branch remains clean; no fix commit, push, PR, or bump.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/886
 branch: ticket-relationships
 worktree: /home/n/Code/claude/coga-ticket-relationships
 
