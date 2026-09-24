@@ -202,6 +202,11 @@ leaves only in that knowledge PR, never by direct delete. Report it under
 `Unshipped scope` in the PR body and in the run's result so the caller can
 route a follow-up ticket; Retro does not file one.
 
+Skip this check for a claim the snapshot marks `owner: coga`. Its scope lives
+in the Coga package, not in this checkout, so its absence here proves nothing:
+route it as **Coga-owned findings are not local knowledge** directs above,
+never as unshipped scope, a local context edit, or a knowledge PR.
+
 ## Isolation boundary
 
 Run only inside a subagent whose cwd is a dedicated isolated checkout. Use the

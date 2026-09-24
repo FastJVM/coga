@@ -651,6 +651,8 @@ def test_retro_checks_a_done_tickets_scope_reached_the_control_branch() -> None:
     assert "| Unshipped scope |" in retro
     assert "- Unshipped scope: <ticket, missing scope, and target context" in retro
     assert "every unshipped scope is preserved as required above" in retro
+    assert "Skip this check for a claim the snapshot marks `owner: coga`." in retro
+    assert "never as unshipped scope, a local context edit, or a knowledge PR" in retro
     lifecycle = " ".join(
         (RESOURCES.parents[2] / "docs" / "contexts" / "coga" / "lifecycle" / "SKILL.md")
         .read_text()
