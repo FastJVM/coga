@@ -1,11 +1,11 @@
 ---
 title: Blocker reminders
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: c2dcb7f9-ffc5-44be-8944-b98c37f157a3
+period_generation: 75018a86-0897-45ab-9aef-e75eada52d6c
 workflow:
   name: blocker-reminders/run
   steps:
@@ -13,6 +13,7 @@ workflow:
     skills:
     - coga/blockers/remind
     assignee: agent
+step: 1 (remind)
 ---
 
 ## Description
@@ -44,8 +45,9 @@ selection; it only makes unresolved asks visible again.
 
 A recurring **agent** period task that calls `coga block` does not stay
 `blocked` long enough to be scanned. The scheduled-run contract in the
-`coga/recurring/scheduling` context requires an agent run to reach `done` in one launch,
-so when the sweep gets control back it rewrites the period `blocked → paused`;
+`coga/recurring/scheduling` context requires an agent run to reach `done` in
+one launch, so when the sweep gets control back it rewrites the period
+`blocked → paused`;
 `_stop_if_unfinished_after_launch` in `src/coga/recurring_runner.py` returns
 early for a script-recorded block and never for an agent one. The unresolved ask is still
 sitting on the paused ticket, but `status: paused` fails this scan's only
