@@ -639,3 +639,21 @@ def test_dream_keeps_coga_owned_files_out_of_a_client_repo_scan() -> None:
     )
     assert "`human-needed`, `upstream-captured`" in dream_contract
     assert "`coga/upstream-coga.md`" in dream_contract
+
+
+def test_retro_checks_a_done_tickets_scope_reached_the_control_branch() -> None:
+    retro = " ".join(
+        (DREAM.parents[1] / "retro" / "done-ticket" / "SKILL.md").read_text().split()
+    )
+    assert "### Done is a status, not a receipt" in retro
+    assert "against the current files of the isolated checkout" in retro
+    assert "do not extract its claimed fix, and do not cite it as delivered" in retro
+    assert "| Unshipped scope |" in retro
+    assert "- Unshipped scope: <ticket, missing scope, and target context" in retro
+    assert "every unshipped scope is preserved as required above" in retro
+    lifecycle = " ".join(
+        (RESOURCES.parents[2] / "docs" / "contexts" / "coga" / "lifecycle" / "SKILL.md")
+        .read_text()
+        .split()
+    )
+    assert "`retro/done-ticket` checks the scope against the tip" in lifecycle
