@@ -776,6 +776,82 @@ def test_non_ascii_cache_filename_is_still_regenerable(
     assert not feature.exists()
 
 
+def _ignore_coga_local_state(repo: Path) -> None:
+    (repo / ".gitignore").write_text("coga.local.toml\n.agent-skills/\n")
+    skill = repo / "coga" / "skills" / "demo"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("# demo\n")
+    _git(repo, "add", ".gitignore", "coga/skills")
+    _git(repo, "commit", "-m", "ignore coga local state")
+
+
+def _copy_coga_local_state(repo: Path, feature: Path) -> None:
+    """What a worktree made for `coga bump` carries: the operator's config
+    copied in, and the `.agent-skills` symlink view Coga rebuilt there."""
+    view = feature / "coga" / ".agent-skills"
+    view.mkdir()
+    (view / "demo").symlink_to(Path("..") / "skills" / "demo")
+    (feature / "coga" / "coga.local.toml").write_bytes(
+        (repo / "coga" / "coga.local.toml").read_bytes()
+    )
+
+
+def test_copied_local_config_and_skill_view_are_disposable(
+    repo: Path, tmp_path: Path
+) -> None:
+    _ignore_coga_local_state(repo)
+    feature = tmp_path / "feature"
+    _add_worktree(repo, feature, "feat")
+    _copy_coga_local_state(repo, feature)
+
+    notes: list[str] = []
+    result = remove_ticket_worktree(
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", worktree=str(feature)),
+        echo=notes.append,
+    )
+
+    assert result.removed is True
+    assert not feature.exists()
+    assert (repo / "coga" / "coga.local.toml").is_file()
+    removal = next(note for note in notes if "removed linked worktree" in note)
+    assert "under '.agent-skills/'" in removal
+    assert "1 copy of the operator's coga.local.toml" in removal
+
+
+def test_edited_local_config_copy_preserves_the_checkout(
+    repo: Path, tmp_path: Path
+) -> None:
+    _ignore_coga_local_state(repo)
+    feature = tmp_path / "feature"
+    _add_worktree(repo, feature, "feat")
+    _copy_coga_local_state(repo, feature)
+    local = feature / "coga" / "coga.local.toml"
+    local.write_text(local.read_text() + 'agent = "codex"\n')
+
+    notes: list[str] = []
+    result = remove_ticket_worktree(
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", worktree=str(feature)),
+        echo=notes.append,
+    )
+
+    assert result.removed is False
+    assert 'agent = "codex"' in local.read_text()
+    refusal = next(note for note in notes if "left in place" in note)
+    assert "coga/coga.local.toml" in refusal
+    assert ".agent-skills" not in refusal
+
+
+def test_classifier_keeps_config_it_is_not_told_is_a_copy() -> None:
+    state = _classify_status_records("!! coga/coga.local.toml\0")
+
+    assert state.blocking == ["!! coga/coga.local.toml"]
+    assert state.config_copies == []
+
+
 def test_classifier_consumes_rename_source_record() -> None:
     """A rename's source path is its own `-z` record, not a bare entry."""
     state = _classify_status_records("R  new.txt\0old.txt\0!! __pycache__/m.pyc\0")

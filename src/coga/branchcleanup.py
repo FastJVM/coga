@@ -31,9 +31,12 @@ Worktree safety model:
     deleting them along with a checkout retire is already authorized to delete
     loses nothing. The removal note says how many went. Every code ticket runs
     its tests in the feature worktree, so without that carve-out the refusal
-    was not an edge case but the normal outcome. Anything the status probe
-    cannot parse counts as blocking. A locked worktree likewise survives with
-    its failure reported.
+    was not an edge case but the normal outcome. A `coga.local.toml` is the
+    one ignored file judged by content: a byte-identical copy of the operator's
+    own local config (`config.local_config_path`) is disposable, since the
+    original survives; any other copy preserves the checkout. Anything the
+    status probe cannot parse counts as blocking. A locked worktree likewise
+    survives with its failure reported.
   - Retire never removes the checkout it is running from.
   - A recorded path that is already gone is reported, not pruned: clearing the
     stale registration is a repo-wide operation that belongs to branch sweep.
@@ -96,7 +99,7 @@ from coga.autoclose import (
     pr_state,
     prs_for_head,
 )
-from coga.config import Config
+from coga.config import Config, local_config_path
 
 
 @dataclass
@@ -113,9 +116,14 @@ class BranchCleanupResult:
 # Ignored directories whose contents are derived from tracked files and
 # regenerate on the next tool run. Retire deletes these along with the
 # checkout; every other ignored entry is treated as unique and preserves it.
+# `.agent-skills` is Coga's own symlink view of the skill tree, rebuilt from
+# scratch by `agent_skills.refresh_agent_skill_view`; removing it deletes links,
+# never their targets.
 REGENERABLE_IGNORED_DIRS: frozenset[str] = frozenset(
-    {"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache"}
+    {"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".agent-skills"}
 )
+
+LOCAL_CONFIG_NAME = "coga.local.toml"
 
 
 @dataclass
@@ -129,6 +137,8 @@ class _WorktreeLocalState:
     blocking: list[str] = field(default_factory=list)
     regenerable: list[str] = field(default_factory=list)
     regenerable_dirs: set[str] = field(default_factory=set)
+    # `coga.local.toml` entries identical to the operator's own copy.
+    config_copies: list[str] = field(default_factory=list)
     # True while every blocking entry is a parsed ignored (`!!`) record, which
     # is what lets the refusal offer `--force`. An unparsed record clears it:
     # retire will not invite a force over state it could not identify.
@@ -230,7 +240,13 @@ def remove_worktree(
         result = WorktreeCleanupResult(worktree=worktree)
     path = resolve_worktree_path(root, worktree)
     local_state = inspect_worktree_for_removal(
-        root, path, branch, result=result, echo=echo, recorded=worktree
+        root,
+        path,
+        branch,
+        result=result,
+        echo=echo,
+        recorded=worktree,
+        local_config=local_config_path(cfg.repo_root),
     )
     if local_state is None:
         return result
@@ -289,6 +305,7 @@ def inspect_worktree_for_removal(
     result: WorktreeCleanupResult,
     echo: Callable[[str], None] = print,
     recorded: str | None = None,
+    local_config: Path | None = None,
 ) -> _WorktreeLocalState | None:
     """Run the structural and pristine proofs on one checkout.
 
@@ -298,7 +315,8 @@ def inspect_worktree_for_removal(
     noting why the checkout must be preserved (or that it is already gone,
     with `result.already_gone` set). Merge authorization is the caller's:
     `remove_worktree` proves it from a PR, branch sweep from its own landed
-    verdict.
+    verdict. `local_config` is the operator's `coga.local.toml`; a copy of it
+    in the checkout is disposable only when one is given and the bytes match.
     """
     recorded = recorded if recorded is not None else str(path)
     if not path.is_dir():
@@ -350,7 +368,7 @@ def inspect_worktree_for_removal(
         )
         return None
 
-    local_state, status_error = _worktree_local_state(path)
+    local_state, status_error = _worktree_local_state(path, local_config)
     if status_error is not None:
         _wnote(
             result,
@@ -442,7 +460,9 @@ def _same_path(left: Path, right: Path) -> bool:
         return False
 
 
-def _worktree_local_state(path: Path) -> tuple[_WorktreeLocalState, str | None]:
+def _worktree_local_state(
+    path: Path, local_config: Path | None = None
+) -> tuple[_WorktreeLocalState, str | None]:
     """Split every tracked, untracked, and ignored entry in ``path`` by disposability.
 
     ``git worktree remove`` without ``--force`` protects ordinary dirt but
@@ -466,14 +486,38 @@ def _worktree_local_state(path: Path) -> tuple[_WorktreeLocalState, str | None]:
     if proc.returncode != 0:
         detail = (proc.stderr + proc.stdout).strip() or "git status failed"
         return _WorktreeLocalState(), detail
-    return _classify_status_records(proc.stdout), None
+    return (
+        _classify_status_records(
+            proc.stdout,
+            is_config_copy=lambda entry: _is_config_copy(path / entry, local_config),
+        ),
+        None,
+    )
 
 
-def _classify_status_records(stdout: str) -> _WorktreeLocalState:
+def _is_config_copy(candidate: Path, local_config: Path | None) -> bool:
+    """True iff ``candidate`` is a byte-identical copy of the operator's config.
+
+    Fails closed: no reference, the reference itself, or any read error keeps
+    the file.
+    """
+    if local_config is None or candidate.name != LOCAL_CONFIG_NAME:
+        return False
+    try:
+        if candidate.is_symlink() or _same_path(candidate, local_config):
+            return False
+        return candidate.read_bytes() == local_config.read_bytes()
+    except OSError:
+        return False
+
+
+def _classify_status_records(
+    stdout: str, *, is_config_copy: Callable[[str], bool] = lambda _entry: False
+) -> _WorktreeLocalState:
     """Sort NUL-separated porcelain-v1 status records into blocking vs regenerable.
 
     Fails closed: a record that does not parse as ``XY <path>`` is blocking,
-    never regenerable.
+    never regenerable. ``is_config_copy`` is asked only about ignored entries.
     """
     state = _WorktreeLocalState()
     records = stdout.split("\0")
@@ -493,7 +537,9 @@ def _classify_status_records(stdout: str) -> _WorktreeLocalState:
             index += 1
         entry = f"{xy} {entry_path}"
         cache_dir = _regenerable_dir(xy, entry_path)
-        if cache_dir is None:
+        if cache_dir is None and xy == "!!" and is_config_copy(entry_path):
+            state.config_copies.append(entry)
+        elif cache_dir is None:
             state.block(entry, ignored=xy == "!!")
         else:
             state.regenerable.append(entry)
@@ -518,12 +564,19 @@ def _regenerable_dir(xy: str, entry_path: str) -> str | None:
 
 def _regenerable_suffix(state: _WorktreeLocalState) -> str:
     """The parenthetical naming what a successful removal also deleted."""
-    if not state.regenerable:
+    parts: list[str] = []
+    if state.regenerable:
+        count = len(state.regenerable)
+        plural = "entry" if count == 1 else "entries"
+        dirs = ", ".join(repr(f"{name}/") for name in sorted(state.regenerable_dirs))
+        parts.append(f"{count} regenerable cache {plural} under {dirs}")
+    if state.config_copies:
+        count = len(state.config_copies)
+        plural = "copy" if count == 1 else "copies"
+        parts.append(f"{count} {plural} of the operator's {LOCAL_CONFIG_NAME}")
+    if not parts:
         return ""
-    count = len(state.regenerable)
-    plural = "entry" if count == 1 else "entries"
-    dirs = ", ".join(repr(f"{name}/") for name in sorted(state.regenerable_dirs))
-    return f" (also deleted {count} regenerable cache {plural} under {dirs})"
+    return f" (also deleted {' and '.join(parts)})"
 
 
 def _sample(entries: list[str]) -> str:

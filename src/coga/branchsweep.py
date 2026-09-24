@@ -78,7 +78,7 @@ from coga.branchcleanup import (
     remove_inspected_worktree,
 )
 from coga.checkout_disposal import live_checkout_claim
-from coga.config import Config
+from coga.config import Config, local_config_path
 from coga import git
 from coga.github_preflight import coga_root_prefix, is_coga_state_path
 from coga.lifecycle import TERMINAL_STATUSES
@@ -365,7 +365,12 @@ def _remove_pinning_worktree(
         )
         return cleanup
     local_state = inspect_worktree_for_removal(
-        root, path, branch, result=cleanup, echo=echo
+        root,
+        path,
+        branch,
+        result=cleanup,
+        echo=echo,
+        local_config=local_config_path(cfg.repo_root),
     )
     if local_state is None:
         # `already_gone` (pruned between the listing and now) no longer pins

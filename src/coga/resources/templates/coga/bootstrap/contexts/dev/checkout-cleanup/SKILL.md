@@ -33,11 +33,14 @@ head and uses force-with-lease, so a reused branch is never deleted on stale
 PR state.
 
 **Ignored state.** Tracked, untracked, and ignored files all preserve the
-checkout, except the regenerable caches in
+checkout, except the regenerable entries in
 `branchcleanup.REGENERABLE_IGNORED_DIRS` (`__pycache__`, `.pytest_cache`,
-`.ruff_cache`, `.mypy_cache`), which retire deletes and counts. Machine-local
-state (`coga.local.toml`, `.env`, `.venv/`, `.coga/`, a rebuilt
-`.agent-skills/`, agent discovery links) preserves it. For ignored-only state
+`.ruff_cache`, `.mypy_cache`, and Coga's rebuilt `.agent-skills/` symlink
+view), which retire deletes and counts. A copied `coga.local.toml` is judged
+by content: byte-identical to the operator's own (`local_config_path`, so
+`COGA_LOCAL_CONFIG` when set) it is deleted and counted, since the original
+survives; an edited copy preserves the checkout. Other machine-local state
+(`.env`, `.venv/`, `.coga/`, agent discovery links) preserves it. For ignored-only state
 retire prints and records the explicit opt-in
 `git worktree remove --force '<path>'`; it never offers that over tracked or
 untracked work.
