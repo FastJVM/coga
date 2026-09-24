@@ -49,7 +49,12 @@ The decide-half scans are prompt-only skills under `bootstrap/dream/scan/`
 They run as bounded shard subagents that write findings to disk. Completion is
 reconciled at the barrier by the set of **distinct shard ids** that wrote a
 completion line to the append-only `progress.md`, never by counting lines; a
-missing line is not zero findings. One retry, then `partial`.
+missing line is not zero findings. One retry, then `partial`. Every
+subagent starts with a fresh context, and shards run in waves capped by the
+agent's concurrent-subagent limit. An agent capability preflight (writable Git
+common dir, reachable remote, `gh` auth) fails the run before Phase 1 when the
+sandbox cannot support the execute half; the codex grant is the
+[testing](../testing/SKILL.md) topic's `## Restricted sandboxes` recipe.
 
 **Known corpus limitation.** Both scans exclude package-backed
 `bootstrap/skills/**` (a run indexed zero entries while ~30 Markdown files live

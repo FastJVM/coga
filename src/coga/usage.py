@@ -539,6 +539,10 @@ def _parse_codex_session(
         meta = _read_codex_session_meta(path)
         if meta is None:
             continue
+        # A codex subagent writes its own rollout with the parent's cwd; only
+        # the top-level session is the launched run.
+        if meta.get("thread_source") == "subagent" or meta.get("parent_thread_id"):
+            continue
         if meta.get("cwd") != cwd_str:
             continue
         started_at = _parse_ts(meta.get("timestamp"))
@@ -766,6 +770,8 @@ def _read_codex_session_meta(path: Path) -> dict[str, str] | None:
                     "id": str(payload.get("id") or ""),
                     "cwd": str(payload.get("cwd") or ""),
                     "model_provider": str(payload.get("model_provider") or ""),
+                    "thread_source": str(payload.get("thread_source") or ""),
+                    "parent_thread_id": str(payload.get("parent_thread_id") or ""),
                     "timestamp": str(
                         payload.get("timestamp") or obj.get("timestamp") or ""
                     ),

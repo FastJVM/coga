@@ -24,8 +24,9 @@ and no `## Pruned` bookkeeping. A linked worktree uses
 because its refs and worktree are already separate. Recovery is via
 `git restore`. Retro never leaves a processed done ticket on disk.
 
-Retro runs only inside a subagent whose working directory is a dedicated
-isolated checkout. Prefer the agent's native linked-worktree isolation, then a
+Retro runs only inside a subagent that works in a dedicated isolated
+checkout: its cwd, or, when the agent's subagents take no cwd (Codex), the
+absolute path the caller names for every command. Prefer the agent's native linked-worktree isolation, then a
 caller-created linked worktree. If the managed sandbox makes the caller's
 `.git` metadata read-only, use the documented independent
 `git clone --no-hardlinks` fallback under `/tmp`, repointed to the configured
@@ -189,12 +190,19 @@ first available shape:
 
 1. Claude callers may supply native `isolation: worktree`.
 2. A caller whose agent tool has no isolation argument (including Codex)
-   creates a linked checkout with `git worktree add`, then tells the subagent to
-   run every command from that exact absolute path.
+   creates a linked checkout with `git worktree add` under a root that is
+   already writable to the session, then tells the subagent to run every
+   command from that exact absolute path. A Codex child takes no cwd: it
+   starts in the caller's cwd. The delegation message therefore names the
+   checkout's absolute path, and every shell command sets that path as its
+   working directory.
 3. If and only if the managed sandbox prevents writing the caller's `.git`
    branch lock, create an independent `git clone --no-hardlinks` under `/tmp`.
    Repoint its configured remote name to the caller's real remote URL; never
-   leave it pointed at the local primary checkout.
+   leave it pointed at the local primary checkout. This fallback only works
+   around a read-only `.git`: fetch, push, and PR creation still need
+   network access, which the Dream agent capability preflight establishes
+   before any phase runs.
 
 For every shape, read `[git].remote` and `[git].control_branch` from the shared
 `coga.toml` (defaults `origin` and `main`), fetch that exact ref, and create a
