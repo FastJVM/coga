@@ -7,6 +7,7 @@ steps:
     requires: branch
     skills:
       - code/implement
+      - code/split-ticket
   - name: self-qa
     assignee: agent
     skills:

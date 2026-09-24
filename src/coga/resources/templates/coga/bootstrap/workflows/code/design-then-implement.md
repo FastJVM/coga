@@ -6,6 +6,7 @@ steps:
     assignee: agent
     skills:
       - code/design
+      - code/split-ticket
   - name: evaluate-design
     assignee: other-agent
     skills:
@@ -17,6 +18,7 @@ steps:
     requires: branch
     skills:
       - code/implement
+      - code/split-ticket
   - name: open-pr
     assignee: agent
     requires: pr

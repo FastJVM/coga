@@ -24,10 +24,10 @@ later `code/open-pr` step does that, after self-review and fixes.
    a refactor. Apply this even to a raw `coga create` ticket that never passed
    through guided authoring or a design step.
 
-   A ticket whose `## Context` opens with `**Split from` is one sibling of
-   a split; if that paragraph names an `After:` ticket that is not yet
-   `done`, block on it by the *Splitting a ticket* contract below before
-   setting up a checkout.
+   A ticket whose `## Description` opens with `**Split from` is one sibling
+   of a split; if that paragraph names an `After:` ticket that is not yet
+   `done`, block on it by the `code/split-ticket` skill composed beside this
+   one before setting up a checkout.
 2. **Close already-satisfied tickets directly.** If every requested
    checklist item has already landed in other work and there is genuinely
    no branch, diff, or PR to create, do not manufacture one and do not
@@ -231,65 +231,10 @@ later `code/open-pr` step does that, after self-review and fixes.
 - Self-QA the diff — that's `code/self-qa`.
 - Resolve unrelated test failures it didn't cause.
 
-## Splitting a ticket
-
-Split when the honest scope is more than one PR, or when two concerns that
-would merge separately are coupled under one ticket. The mechanic is the same
-in `code/design` and `code/implement`: this section is byte-identical in both
-skills, and `tests/test_code_split_contract.py` keeps it so.
-
-1. **Siblings are drafts made by `coga create`, never files written by
-   hand.** Run it from the checkout you bump from, in the source ticket's own
-   directory (`coga create "v2/<title>" --description "…"` when the source
-   sits under `v2/`). The slug is whatever `coga create` makes of the title,
-   so give each sibling a title that names its own outcome — no shared
-   prefix, numbering, or "part 2 of …": `slugify` truncates at 50 characters
-   and the slug never changes, so the relationship lives in the body, not the
-   filename. Do not activate a sibling; scheduling stays with the owner.
-2. **Record the split under one blackboard heading, `## Split`, on the source
-   ticket.** Date it, mark the whole split `Co-equal` or `Sequenced`, and give
-   one line per sibling: its exact path-qualified slug and the slice it owns.
-
-   ```markdown
-   ## Split
-
-   Sequenced (2026-09-16). The source keeps slice 1.
-
-   1. `define-the-report-durability-contract` — the contract itself
-   2. `cite-the-report-contract-from-the-period-context` — after 1, the
-      context rewrite that cites it
-   ```
-3. **Cross-link from every sibling in its composed body.** Each sibling's
-   `## Context` opens with a bold paragraph that survives the source ticket's
-   deletion:
-
-   ```markdown
-   **Split from `<source-slug>` (<date>).** Siblings: `<a>`, `<b>`.
-   After: `<prerequisite-slug>`.
-   ```
-
-   `After:` appears only on a sequenced successor and names the one sibling
-   that must merge first. A ticket whose `## Context` opens this way is the
-   only way a later reader learns the split existed once the source is retired.
-4. **Co-equal versus sequenced.** *Co-equal* siblings are independently
-   mergeable in any order; the cross-link is all they need. *Sequenced*
-   siblings depend on a predecessor's merge, and that order stays prose until
-   the successor is activated, because a draft cannot be blocked. When you
-   pick up a successor whose `After:` ticket is not yet `done`, run
-   `coga block --task <successor> --reason "Needs <exact prerequisite slug> merged first"`
-   as the terminal action: that ask is the declared dependency, and the
-   megalaunch dependency drain retries the successor once the prerequisite
-   finishes. Do not invent a `dependencies:` field or a second heading.
-5. **Narrow the source or retire it.** If the source keeps a slice that fits
-   one PR, rewrite `## Description` to that slice and continue the step. If
-   nothing remains, `coga mark canceled <slug> --message "Split into <a>, <b>"`
-   and stop: that is the intentional-abandonment transition, and it releases a
-   queue. Never leave the source describing work its siblings now own.
-
 ## Gotchas
 
 - If the work is too big for one PR, **stop and split the ticket** by the
-  *Splitting a ticket* contract above. Don't ship a half-implementation.
+  `code/split-ticket` skill. Don't ship a half-implementation.
 - If the test suite fails for reasons unrelated to your change, write
   it to the blackboard and escalate per your launch mode rather than
   masking it.

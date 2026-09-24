@@ -2,37 +2,28 @@ from __future__ import annotations
 
 from pathlib import Path
 
-# The "Splitting a ticket" contract is inlined, byte-identical, in both step
-# skills that instruct a split. It has no single owner file on purpose: the
-# split decision arises inside a composed `code/design` or `code/implement`
-# step, `dev/code` is attached per ticket rather than composed by default, and
-# no CLI prints a bundled non-step skill for a downstream repo's agent to read.
-# Like the live/packaged twin rule, the duplication is enforced here rather
-# than remembered.
+import yaml
 
-_SKILLS = "src/coga/resources/templates/coga/bootstrap/skills"
-_HEADING = "## Splitting a ticket\n"
+# `code/split-ticket` is the one owner of the split mechanic. The steps that
+# can reach a split decision compose it beside their own skill, and those
+# skills point at it rather than restating it.
 
-
-def _section(skill: str) -> str:
-    repo_root = Path(__file__).resolve().parents[1]
-    text = (repo_root / _SKILLS / skill / "SKILL.md").read_text()
-    assert text.count(_HEADING) == 1, skill
-    body = text.split(_HEADING, 1)[1]
-    return body.split("\n## ", 1)[0]
+_BOOTSTRAP = Path(__file__).resolve().parents[1] / (
+    "src/coga/resources/templates/coga/bootstrap"
+)
 
 
-def test_design_and_implement_share_one_split_contract() -> None:
-    assert _section("code/design") == _section("code/implement")
+def _skill(name: str) -> str:
+    return (_BOOTSTRAP / "skills" / name / "SKILL.md").read_text()
 
 
-def test_split_contract_names_its_conventions() -> None:
-    section = _section("code/implement")
+def test_split_ticket_skill_names_its_conventions() -> None:
+    section = _skill("code/split-ticket")
 
-    assert "made by `coga create`" in section
+    assert "drafts made by `coga create`, complete when created" in section
+    assert "Do not edit a sibling after creating it" in section
     assert "`## Split`" in section
-    assert "**Split from `<source-slug>` (<date>).**" in section
-    assert "After: `<prerequisite-slug>`." in section
+    assert "**Split from `<source-slug>` (<date>).** After: `<prerequisite-slug>`." in section
     assert "*Co-equal*" in section and "*Sequenced*" in section
     assert "a draft cannot be blocked" in section
     assert "megalaunch dependency drain" in section
@@ -40,11 +31,27 @@ def test_split_contract_names_its_conventions() -> None:
     assert "Do not invent a `dependencies:` field" in section
 
 
-def test_both_step_skills_point_at_the_split_contract() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
-    design = (repo_root / _SKILLS / "code/design/SKILL.md").read_text()
-    implement = (repo_root / _SKILLS / "code/implement/SKILL.md").read_text()
+def test_design_and_implement_point_at_the_split_skill_without_restating_it() -> None:
+    design = _skill("code/design")
+    implement = _skill("code/implement")
 
-    assert "*Splitting a\n   ticket* contract below" in design
-    assert "*Splitting a ticket* contract above" in implement
-    assert "opens with `**Split from`" in implement
+    for text in (design, implement):
+        assert "`code/split-ticket`" in text
+        assert "## Splitting a ticket" not in text
+        assert "## Split\n" not in text
+    assert "`## Description` opens with `**Split from`" in implement
+
+
+def test_every_design_and_implement_step_composes_the_split_skill() -> None:
+    steps = []
+    for path in sorted((_BOOTSTRAP / "workflows" / "code").glob("*.md")):
+        frontmatter = yaml.safe_load(path.read_text().split("---", 2)[1])
+        steps += [
+            (path.name, step)
+            for step in frontmatter["steps"]
+            if {"code/design", "code/implement"} & set(step.get("skills", []))
+        ]
+
+    assert steps
+    for name, step in steps:
+        assert "code/split-ticket" in step["skills"], (name, step["name"])

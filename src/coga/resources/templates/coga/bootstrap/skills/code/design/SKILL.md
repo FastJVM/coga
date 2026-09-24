@@ -65,8 +65,8 @@ build, and it should not have to re-derive intent.
    owner answers them in `review-design`; when the frozen workflow includes an
    independent evaluator, that evaluator first tests whether they are complete.
 6. **Split the ticket if it is too big.** If the honest Proposed Shape
-   is more than one PR's worth of work, split it by the *Splitting a
-   ticket* contract below rather than writing a spec you know is
+   is more than one PR's worth of work, split it by the `code/split-ticket`
+   skill composed beside this one rather than writing a spec you know is
    oversized: the spec under `## Description` covers only the slice the
    source keeps, and each sibling draft carries its own. The owner can
    still cancel a sibling in `review-design`.
@@ -96,61 +96,6 @@ build, and it should not have to re-derive intent.
   decides in `review-design`.
 - Invent answers to genuine product decisions — surface them as open
   questions instead.
-
-## Splitting a ticket
-
-Split when the honest scope is more than one PR, or when two concerns that
-would merge separately are coupled under one ticket. The mechanic is the same
-in `code/design` and `code/implement`: this section is byte-identical in both
-skills, and `tests/test_code_split_contract.py` keeps it so.
-
-1. **Siblings are drafts made by `coga create`, never files written by
-   hand.** Run it from the checkout you bump from, in the source ticket's own
-   directory (`coga create "v2/<title>" --description "…"` when the source
-   sits under `v2/`). The slug is whatever `coga create` makes of the title,
-   so give each sibling a title that names its own outcome — no shared
-   prefix, numbering, or "part 2 of …": `slugify` truncates at 50 characters
-   and the slug never changes, so the relationship lives in the body, not the
-   filename. Do not activate a sibling; scheduling stays with the owner.
-2. **Record the split under one blackboard heading, `## Split`, on the source
-   ticket.** Date it, mark the whole split `Co-equal` or `Sequenced`, and give
-   one line per sibling: its exact path-qualified slug and the slice it owns.
-
-   ```markdown
-   ## Split
-
-   Sequenced (2026-09-16). The source keeps slice 1.
-
-   1. `define-the-report-durability-contract` — the contract itself
-   2. `cite-the-report-contract-from-the-period-context` — after 1, the
-      context rewrite that cites it
-   ```
-3. **Cross-link from every sibling in its composed body.** Each sibling's
-   `## Context` opens with a bold paragraph that survives the source ticket's
-   deletion:
-
-   ```markdown
-   **Split from `<source-slug>` (<date>).** Siblings: `<a>`, `<b>`.
-   After: `<prerequisite-slug>`.
-   ```
-
-   `After:` appears only on a sequenced successor and names the one sibling
-   that must merge first. A ticket whose `## Context` opens this way is the
-   only way a later reader learns the split existed once the source is retired.
-4. **Co-equal versus sequenced.** *Co-equal* siblings are independently
-   mergeable in any order; the cross-link is all they need. *Sequenced*
-   siblings depend on a predecessor's merge, and that order stays prose until
-   the successor is activated, because a draft cannot be blocked. When you
-   pick up a successor whose `After:` ticket is not yet `done`, run
-   `coga block --task <successor> --reason "Needs <exact prerequisite slug> merged first"`
-   as the terminal action: that ask is the declared dependency, and the
-   megalaunch dependency drain retries the successor once the prerequisite
-   finishes. Do not invent a `dependencies:` field or a second heading.
-5. **Narrow the source or retire it.** If the source keeps a slice that fits
-   one PR, rewrite `## Description` to that slice and continue the step. If
-   nothing remains, `coga mark canceled <slug> --message "Split into <a>, <b>"`
-   and stop: that is the intentional-abandonment transition, and it releases a
-   queue. Never leave the source describing work its siblings now own.
 
 ## Gotchas
 

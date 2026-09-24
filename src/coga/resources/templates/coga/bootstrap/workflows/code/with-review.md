@@ -7,6 +7,7 @@ steps:
     requires: branch
     skills:
       - code/implement
+      - code/split-ticket
   - name: peer-review
     assignee: other-agent
   - name: open-pr
