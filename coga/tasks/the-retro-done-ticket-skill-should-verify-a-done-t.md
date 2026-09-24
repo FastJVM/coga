@@ -1,7 +1,7 @@
 ---
 title: The retro done-ticket skill should verify a done ticket's claimed fix reached
   main before extracting it
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
