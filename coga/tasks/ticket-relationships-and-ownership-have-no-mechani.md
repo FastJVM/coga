@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -174,6 +174,53 @@ so clearing the claim would lie about a child that is still running.
 
 ## Peer review
 
+### Current review (2026-09-23)
+
+`codex review --base origin/main` **returned**, exit 0, after the approved
+fixes. Its first run found one P2: the supervised-session witness is an
+absolute path, not a slug. Fixed the comparison and replaced the synthetic
+slug fixture with `build_supervised_step_env()` plus real task metadata,
+covering both the original checkout and a feature checkout. The second native
+review **returned**, exit 0, with **no actionable regressions**. Both review
+processes could not collect their own tests because their ambient interpreter
+lacked `tomlkit`; the explicit-venv runs below are the test evidence.
+
+The old review's three must-fix findings are addressed in commit `dfd8ab908`:
+strict exact-byte control publication and no-sweep failure handling; a locked
+read/validate/compare/write transaction that preserves concurrent edits; and
+`--assist-stopped` for owner-held gates without changing status or step. The
+human explicitly approved that confirmation in this attended session. It is
+an attestation, not automatic cross-checkout liveness detection. Outstanding
+launch claims and calls from the ticket's supervised session are refused.
+
+The feature branch was freshly fetched and rebased before work and again
+after the fix commit. Documentation conflicts were resolved into the current
+`coga/tickets`, `coga/lifecycle`, and `coga/cli` owners and packaged twins;
+deleted monolithic docs were not revived. Branch `ticket-relationships` is
+clean with two commits ahead of `origin/main`; final tip `dfd8ab908`.
+
+PTY smoke: `python -m coga.cli owner --help` with feature `PYTHONPATH` under
+the existing venv rendered its arguments, policy, and `--assist-stopped`
+option cleanly with terminal dimensions 80x24 and 120x30. No pager,
+interactive prompt, raw-terminal loop, or Slack renderer changed.
+
+Validation and test commands (feature source):
+- `PYTHONPATH=/home/n/Code/claude/coga-ticket-relationships/src /home/n/Code/claude/coga/.venv/bin/python -m pytest tests/test_owner.py tests/test_packaging.py -q`
+  → **48 passed** before the final witness fix.
+- Same interpreter/source, `python -m pytest tests/test_owner.py -q`
+  → **26 passed** after the witness fix.
+- Same interpreter/source, `python -m pytest`
+  → **2902 passed in 187.31s** before the final witness fix; final committed,
+  post-rebase run → **2903 passed in 171.09s** (exit 0).
+- Same interpreter/source, `python -m coga.cli validate --task ticket-relationships-and-ownership-have-no-mechani --json`
+  from primary → **1 valid, no issues**.
+- `env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/claude/coga-ticket-relationships/src /home/n/Code/claude/coga/.venv/bin/python -m coga.cli validate --json`
+  from feature `example/` → **4 valid, no issues**. The inherited bare webhook
+  variable was removed for that fixture invocation; no configuration edited.
+- `git diff --check origin/main...HEAD` → clean.
+
+### Prior review (2026-09-15; findings now fixed)
+
 `codex review --base main` **returned**, exit 0, on 2026-09-15 against
 commit `8e3680b2` in the recorded feature checkout. It found two P1 bugs and
 one P2 policy problem. Its 380 focused tests passed; additional real-Git and
@@ -271,3 +318,43 @@ repository helper, remote main fetched and fast-forward verified. Relaunch
 this ticket there with `coga launch ticket-relationships-and-ownership-have-no-mechani`.
 The existing clean feature checkout and branch in `## Dev` are unchanged.
 No code fixes, review rerun, tests, or workflow bump occurred this session.
+
+## Peer review follow-up (2026-09-23)
+
+Attended resolution: the human explicitly approved `--assist-stopped` as the
+confirmation for an `in_progress` owner-held gate. Coga has no reliable
+cross-checkout live-assist registry; this is a human attestation, and calls
+from that ticket's supervised session are refused. Outstanding launch claims
+are refused rather than cleared. Agent steps still require stopping and pausing.
+
+Rebased the recorded feature checkout onto current origin/main. Main replaced
+the old publication API with `git.state_lock` and `sync_task_state(expect=...,
+strict=True)`, so the fixes use these current guards. Relationship docs moved
+from the deleted architecture monolith into `coga/tickets` (ownership) and
+`coga/lifecycle` (dependency and supersession), with packaged twins updated.
+Local input is compared after validation; definite publication failures restore
+only the command's own bytes and retract its audit, while uncertain failures
+retain evidence. Both exit 75 without the generic CLI sweep.
+
+Focused verification: owner and packaging tests **48 passed**, then **26 owner
+tests passed** after the final review correction. Native review returned with
+no actionable findings; the final full suite passed **2903 tests**. See the
+current `## Peer review` entry for commands and receipts.
+
+## PR
+
+Add `coga owner <slug> <name>` to reassign the human of record without changing
+ticket progress. An in-progress owner gate requires `--assist-stopped`, an
+explicit human confirmation that any assisting session has ended, so the new
+owner can still bump the gate. The command refuses terminal tickets, agent
+steps still in progress, outstanding launch claims, and calls from the ticket's
+own supervised session.
+
+Guard the reassignment with the existing state lock and exact-byte control
+publication. Concurrent edits are preserved; definite publication failures undo
+only this command's mutation, and uncertain failures retain reconciliation
+evidence without an unguarded exit sweep. Document dependency blocker spelling
+and cancellation-based supersession in the lifecycle contract, and update the
+ownership contract, CLI index, and their enforced packaged twins.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-ticket-relationships/src /home/n/Code/claude/coga/.venv/bin/python -m pytest` → **2903 passed**; scoped ticket and example validation passed; PTY help checked at 80 and 120 columns; `codex review --base origin/main` returned with no actionable findings.
