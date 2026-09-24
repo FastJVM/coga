@@ -24,8 +24,9 @@ For the line format and field encoding, see the `coga/autoclose/sweep` skill.
 
 ## Follow-ups (open)
 
+- `add-an-agent-picker-for-recurring` — branch `authoring-agent-picker`, worktree `/home/n/Code/coga`, recorded `2026-09-24`
 - `adjudicate-parked-and-active-tickets-whose-premise` — branch `adjudicate-moved-premises`, worktree `/home/n/Code/claude/coga-adjudicate-moved-premises`, recorded `2026-09-18`
-- `agent-usage-report` — branch `usage-report`, worktree `/home/n/Code/codex/coga-usage-report`, recorded `2026-09-22`
+- `autoclose-should-name-unanswered-review-threads-on` — branch `autoclose-unanswered-threads`, worktree `/home/n/Code/claude/coga-autoclose-unanswered-threads`, recorded `2026-09-24`
 - `cleanup/quiet-the-first-run-noise-from-recurring-jobs-and` — branch `quiet-first-run`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-22`
 - `document-the-remedy-for-a-bloated-blackboard-sibli` — branch `bloated-blackboard-remedy`, worktree `/home/n/Code/claude/coga-bloated-blackboard-remedy`, recorded `2026-09-22`
 - `installer-managed-skills-the-local-adaptation-guar` — branch `gh-backed-readonly-context`, worktree `/home/n/Code/coga`, recorded `2026-09-22`
