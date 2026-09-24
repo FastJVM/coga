@@ -191,7 +191,9 @@ first available shape:
 1. Claude callers may supply native `isolation: worktree`.
 2. A caller whose agent tool has no isolation argument (including Codex)
    creates a linked checkout with `git worktree add` under a root that is
-   already writable to the session, then tells the subagent to run every
+   already writable to the session (Dream uses `<run-dir>/checkout` inside
+   its `mktemp -d` run directory, and probes write access there before
+   delegating), then tells the subagent to run every
    command from that exact absolute path. A Codex child takes no cwd: it
    starts in the caller's cwd. The delegation message therefore names the
    checkout's absolute path, and every shell command sets that path as its

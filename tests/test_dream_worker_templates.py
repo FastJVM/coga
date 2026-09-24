@@ -714,6 +714,7 @@ def test_retro_isolation_covers_codex_children_without_a_cwd() -> None:
     assert "This fallback only works around a read-only `.git`" in retro
     assert "fetch, push, and PR creation still need network access" in retro
     assert "Dream agent capability preflight" in retro
+    assert "Dream uses `<run-dir>/checkout` inside its `mktemp -d` run directory" in retro
 
 
 def test_testing_topic_owns_the_codex_sandbox_grant() -> None:
