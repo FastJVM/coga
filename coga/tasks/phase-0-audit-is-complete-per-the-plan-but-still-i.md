@@ -151,3 +151,12 @@ Nothing in this PR changes a lifecycle. When
 preparation is accepted, advance
 `marketing/phase-0-audit` from step 2 yourself (its step 3
 `report-to-coga` then runs, and Dream's done-ticket sweep can reap it).
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `phase-0-audit-is-complete-per-the-plan-but-still-i`
+Recorded: 2026-09-24T03:57:23+00:00
+
+    Branch 'reconcile-audit-lifecycle' is not safe to publish. current branch does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Overlapping paths: coga/contexts/marketing/map/SKILL.md, coga/contexts/marketing/plan/SKILL.md, coga/tasks/marketing/phase-0-audit/ticket.md. Reconcile it and relaunch, or `coga block --task phase-0-audit-is-complete-per-the-plan-but-still-i`.
