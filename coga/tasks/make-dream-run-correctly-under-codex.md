@@ -32,7 +32,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (review-design)
+step: 5 (open-pr)
 agent: claude
 ---
 
@@ -69,24 +69,24 @@ Owner decisions (2026-09-22, design step):
   machinery. It applies to every codex session in the repo, which is
   accepted.
 - The usage fix is **in scope**.
-- ~~The real-run verification is an owner-launched W40 run after merge.~~
-  Superseded 2026-09-24: the design findings are probes, not proof. The
-  implement step **runs Dream under codex for real, in a loop, until it
-  works** (see `### Run/fix loop`), against a disposable clone that pushes
-  to the private scratch repo `FastJVM/coga-dream-scratch`. The W40 run on
-  the real repo becomes a separate confirmation ticket,
-  `verify-dream-under-codex-on-the-real-repo-w40`, launched by the owner
-  after merge. That also keeps autoclose from closing this ticket before a
+- **Verification is a real run/fix loop** (owner, 2026-09-24): the implement
+  step runs Dream under codex for real, in a loop, until it works (see
+  `### Run/fix loop`). The loop runs against a disposable clone that pushes to
+  the private scratch repo `FastJVM/coga-dream-scratch`. The run on the real
+  repo is a separate confirmation ticket for the first Dream period after
+  merge, `verify-dream-under-codex-on-the-real-repo-w40`, launched by the
+  owner. That split also keeps autoclose from closing this ticket before a
   real run.
 - **Nested-launch exception (owner grant, 2026-09-24).** The base prompt
   forbids `coga launch` from inside a launch. For this ticket's implement
   step only, the owner waives that rule, **scoped to the scratch clone**:
-  the implement agent may run `coga dream --agent codex` there. It may not
-  launch anything against this checkout or `FastJVM/coga`.
+  the implement agent may run exactly `coga dream --agent codex` there, with
+  the clone's own `coga` and config. No other launch, no bare
+  `coga recurring`, and nothing against this checkout or `FastJVM/coga`.
 
 ### Acceptance criteria
 
-- [ ] The Dream template (`coga/recurring/dream/ticket.md` and its packaged
+- [x] The Dream template (`coga/recurring/dream/ticket.md` and its packaged
       twin, byte-identical) has an **agent capability preflight** that runs
       before Phase 1. It checks three things from Dream's checkout:
       - the Git common dir is writable;
@@ -95,10 +95,10 @@ Owner decisions (2026-09-22, design step):
       - `gh auth status` succeeds.
 
       On any failure it names the missing capability and points at the
-      `coga/codebase` sandbox recipe. It then escalates per Session conduct:
+      `coga/testing` sandbox recipe. It then escalates per Session conduct:
       attended, it asks the human; unattended, it runs `coga block` with that
       reason. It does not start Phase 1. A claude run passes it unchanged.
-- [ ] Dream's delegation wording is agent-neutral and covers the codex
+- [x] Dream's delegation wording is agent-neutral and covers the codex
       constraints:
       - every delegated subagent (scan shards and the Retro worker) starts
         with a fresh context and a self-contained delegation message (codex:
@@ -108,14 +108,14 @@ Owner decisions (2026-09-22, design step):
         launches;
       - "returned" at the barrier means that subagent's final answer has been
         delivered.
-- [ ] `retro/done-ticket` `## Isolation boundary`, item 2, says explicitly
+- [x] `retro/done-ticket` `## Isolation boundary`, item 2, says explicitly
       that a codex child takes no cwd and starts in the caller's cwd. The
       delegation message names the absolute checkout path, and every shell
       command sets it as its working directory. Item 3 says the
       independent-clone fallback only works around a read-only `.git`; fetch,
       push, and PR creation still need network, which the Dream preflight
       establishes.
-- [ ] `coga/codebase` `## Sandbox and cross-machine dev loop` (live and
+- [x] `coga/testing` `## Restricted sandboxes` (live and
       packaged twin) owns the codex grant recipe: the exact
       `.codex/config.toml` keys (`sandbox_mode = "workspace-write"`,
       `[sandbox_workspace_write] network_access = true`,
@@ -125,12 +125,12 @@ Owner decisions (2026-09-22, design step):
       Dream scan paragraph (live and twin) gains one sentence on fresh-context
       waves and the preflight, and links to the recipe instead of restating
       it.
-- [ ] `src/coga/usage.py`: `_parse_codex_session` ignores rollouts whose
+- [x] `src/coga/usage.py`: `_parse_codex_session` ignores rollouts whose
       `session_meta.payload` marks a subagent: `thread_source == "subagent"`,
       or a non-empty `parent_thread_id`. A parent rollout plus N child
       rollouts sharing one cwd resolves to the parent's usage. Two genuine
       top-level rollouts on one cwd stay `unknown`, as today.
-- [ ] Tests:
+- [x] Tests:
       - `tests/test_usage.py` gains a parent-plus-subagent-rollouts case, and
         `test_parse_codex_rollout_ambiguous_cwd_matches_are_unknown` still
         passes;
@@ -145,21 +145,20 @@ Owner decisions (2026-09-22, design step):
         `clean-up-all-the-working-trees` and `v2/autotrigger-ticket-type`, plus
         50 warnings). Record the observed baseline, and do not repair
         unrelated drafts to clear it.
-- [ ] **A clean codex Dream run in the scratch clone (run/fix loop).**
+- [x] **A clean codex Dream run in the scratch clone (run/fix loop).**
       Starting from the branch head, a Dream run launched under codex through
-      the real `coga launch` path finishes the preflight and all six phases
-      without a human stepping in, apart from answering Dream's own attended
-      prompts. It routes findings to PRs (on the scratch repo), draft
-      tickets, and markers, and its run record shows `usage_status: ok`. Every
-      iteration's failures, root causes, and fixes are logged on the
-      blackboard, and the clean run's summary is recorded next to the W39
-      claude baseline. Every fix lands on this branch; nothing is patched only
-      in the clone.
-- [ ] The Retro linked checkout is created under a root that is already
+      the real `coga launch` path meets every condition under
+      `**A run is clean**` in `### Run/fix loop`. The only human-style input
+      it gets is answers to Dream's own attended prompts. Each iteration's
+      failures, root causes, and fixes are logged on the blackboard, and the
+      clean run's numbers are recorded next to the W39 claude baseline. Every
+      fix lands on this branch; the one change allowed only in the clone is
+      the scratch reset commit.
+- [x] The Retro linked checkout is created under a root that is already
       writable under the grant, and the Retro step checks for write access
       there before delegating. That root is chosen during the loop, from
       what the runs show (evaluator P1), and recorded in the Retro skill and
-      the codebase recipe.
+      the testing topic’s sandbox recipe.
 
 ### Proposed shape
 
@@ -186,8 +185,8 @@ Owner decisions (2026-09-22, design step):
    the two sentences in `## Isolation boundary`. The `## Isolation`
    one-liners near the top stay consistent.
 4. **Contexts:**
-   - `docs/contexts/coga/codebase/SKILL.md`: add the recipe as a bullet in the
-     sandbox section.
+   - `docs/contexts/coga/testing/SKILL.md`: add the recipe in
+     `## Restricted sandboxes`.
    - `docs/contexts/coga/architecture/SKILL.md`: add one sentence to the
      Dream scan paragraph.
    - Mirror both into `src/coga/resources/templates/coga/bootstrap/contexts/coga/`.
@@ -207,48 +206,103 @@ spells out the procedure instead.
 1. Clone the repo to a directory outside this checkout, for example
    `~/Code/codex/coga-dream-scratch`. Point `origin` at
    `https://github.com/FastJVM/coga-dream-scratch.git` and remove every other
-   remote, so `git` and `gh` can only reach the scratch repo.
+   remote, so `git` and `gh` can only reach the scratch repo. **Never add a
+   scratch remote to this checkout.**
 2. Give the clone **its own venv** and run `pip install -e ".[test]"` there.
-   The global `coga` is a uv tool install that doesn't run branch code. Every
-   loop command runs the clone's `coga`.
-3. Write the clone's `coga.local.toml` (copy the local one, then set
-   `[notification.slack].enabled = false`), so test runs never post to the
-   real channel.
-4. Write the clone's `.codex/config.toml` from the recipe, with the **clone's**
-   absolute `.git` in `writable_roots`, and trust the clone's project in
-   codex.
+   The global `coga` is a uv tool install that doesn't run branch code.
+3. Write `<clone>/coga/coga.local.toml` (the config root is `coga/`): copy
+   this checkout's local file (today it holds only `user = "nicktoper"`,
+   which the `owner` gate needs), then add
+   `[notification.slack]` `enabled = false`, so test runs never post to the
+   real channel. That flag also suppresses `--important` posts.
+4. Write `<clone>/.codex/config.toml` from the recipe, with the **clone's**
+   absolute `.git` in `writable_roots`. Trust the clone in codex. That adds
+   one `[projects."<clone path>"] trust_level` entry to `~/.codex/config.toml`,
+   the one edit outside the clone that the loop is allowed to make.
+5. Codex is 0.156.1 as of 2026-09-24; the design probed 0.155.1. In the first
+   iteration, re-check that `fork_turns` and the 3-child limit still behave
+   as recorded in the design findings.
 
-**Each iteration** (cap: 5 full runs; if the loop still fails after 5,
-stop and ask the owner rather than keep going):
+**Each iteration** (cap: 5 full runs):
 
-1. **Reset the scratch repo to the branch.** Force-push the branch head to
-   `coga-dream-scratch` `main`, and close any open PRs there. Then
-   hard-reset the clone to it and delete its local branches, so every run
-   starts from clean state. The scratch repo is disposable, so force-pushing
-   is fine there, and **only** there.
-2. **Launch.** In a detached `tmux` session with the clone as cwd, run
-   `coga dream --agent codex`. Launches are interactive-only (they need a
-   TTY), which is why it runs under tmux. Drive the session with
-   `tmux capture-pane` and `send-keys`: answer Dream's attended prompts the
-   way the owner would, and don't approve anything aimed outside the clone
-   or the scratch repo.
-3. **Watch and collect.** Follow the pane, the clone's `coga/log.md`, the
-   Dream ticket's blackboard, `.coga/` run records, and the parent and child
-   rollouts under `~/.codex/sessions/`. A phase that stalls, a wrong result,
-   a sandbox denial, or usage that isn't `ok` all count as failures.
+1. **Reset the scratch repo to the branch.** Run every step from inside the
+   clone, whose only remote is the scratch repo:
+   - clear the previous run: `tmux kill-session`, then
+     `git worktree remove --force` every extra worktree and `git worktree
+     prune`, delete every local branch except `main`, close every open PR on
+     the scratch repo, and delete every remote branch there except `main`;
+   - `git fetch <abs path of this checkout> <branch>` then
+     `git reset --hard FETCH_HEAD`;
+   - **make the current period launchable.** `main` already holds a
+     serviced Dream run for the current ISO week (W39 on 2026-09-24):
+     `coga/tasks/recurring/dream/` is `done`, and `coga/log.md` records the
+     period in the serviced ledger (`recurring.read_serviced_ledger`). As
+     long as both are there, `recurring.create_template` returns the done
+     task and `coga dream` launches nothing. In the clone only, delete that
+     task directory and remove the log lines that record Dream's current
+     period as serviced, then commit that as a "scratch reset" commit.
+     Confirm with a check that the ledger no longer reports the period
+     (don't guess the log format). This commit never goes to the branch;
+   - `git push --force origin HEAD:main`. Force-pushing is fine only for the
+     scratch repo, and only from the clone.
+2. **Launch.** Start a detached `tmux` session with the clone as cwd. In it:
+   - put the clone venv's `bin` first on `PATH`, because Dream's own `coga`
+     calls go through `PATH`;
+   - `unset` every inherited `COGA_*` variable. `COGA_LOCAL_CONFIG` in
+     particular would load this checkout's local config, with Slack on;
+   - check with `which coga` and `coga --version`;
+   - then run exactly `coga dream --agent codex`.
+
+   Launches are interactive-only (they need a TTY), which is why it runs
+   under tmux. Drive the session with `tmux capture-pane` and `send-keys`:
+   - answer Dream's attended prompts the way the owner would;
+   - answer codex's trust, update, and notice prompts;
+   - don't approve anything aimed outside the clone or the scratch repo.
+3. **Watch and collect.** Follow:
+   - the pane;
+   - the clone's `coga/log.md`;
+   - the Dream ticket's blackboard;
+   - the `.coga/` run records;
+   - the parent and child rollouts under `~/.codex/sessions/`.
 4. **Log, fix, repeat.** Add an iteration entry to the blackboard: what
    failed, the evidence, the root cause, and the fix. Fix it on the branch
    in this checkout, with a test when the fix is in code. Commit, then go
-   back to step 1.
+   back to step 1. Nothing gets patched only in the clone. The one exception
+   is the scratch reset commit.
 
-A run is clean when the preflight passes, all six phases finish, the
-findings routing looks sensible next to the W39 baseline, and usage is `ok`.
-A single clean run ends the loop. After that, tear down the tmux session;
-the clone and the scratch repo stay until the PR merges.
+**A run is clean** when all of these hold:
+- the pane shows the preflight line and every phase's console completion
+  line;
+- no parent or child rollout contains a sandbox or network denial;
+- every PR the run reports exists on `FastJVM/coga-dream-scratch`;
+- the Dream task ends `done`;
+- the run record shows `usage_status: ok`.
 
-**Out of bounds for the loop:** `FastJVM/coga`, this checkout's
-`coga/tasks/**` state, the real Slack channel, and codex config outside the
-clone.
+Record the numbers next to the W39 baseline. That comparison is for the
+record, not a pass/fail gate. A single clean run ends the loop. Then kill
+the tmux session; the clone and the scratch repo stay until the PR merges.
+
+**Stop and ask the owner** when any of these happens:
+- five runs have failed;
+- a fix would need machinery that `### Out of scope` rules out;
+- a failure is outside Coga's control, such as a codex bug with no
+  workaround.
+
+A run takes about an hour, so the loop may outgrow one session. Before the
+context runs out, write a checkpoint to the blackboard: the iteration
+number, the branch head, what is still open, and the clone path. The owner
+then relaunches the implement step and the loop continues from there.
+
+**Out of bounds for the loop:**
+- any write to `FastJVM/coga`. Read-only `gh` calls on its PR URLs are
+  fine, because many task files carry them;
+- this checkout's `coga/tasks/**` state;
+- the real Slack channel;
+- codex config outside the clone, except for the one trust entry;
+- `coga recurring` without the `launch dream` target, which would fire
+  other templates, including `upstream-coga`;
+- any `coga launch` other than the exact `coga dream --agent codex` in the
+  clone.
 
 ### Out of scope
 
@@ -304,9 +358,9 @@ clone.
   including the parent, and no cwd parameter or close tool. Children share
   the parent's cwd and sandbox. Codex's system prompt permits spawning only
   when instructions explicitly ask for delegation.
-- **Existing sandbox knowledge:** `docs/contexts/coga/codebase/SKILL.md`
-  `## Sandbox and cross-machine dev loop` already lists the codex
-  read-only-`.git` wall and the independent-clone fallback. The grant recipe
+- **Existing sandbox knowledge:** `docs/contexts/coga/testing/SKILL.md`
+  `## Restricted sandboxes` describes restricted `.git` writes and links
+  to the independent-clone fallback in `dev/checkouts`. The grant recipe
   extends that section. `.codex` and `.codex/skills/coga` are already in
   `.gitignore`.
 - **Prior art:** done ticket `dream-phases-2-3-cannot-complete-scan-subagents-re`
@@ -336,19 +390,109 @@ clone.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Owner revision (2026-09-24, ticket edit)
+## Dev
 
-The owner pointed out that nothing in the design proves Dream works under
-codex, and asked for a real test/fix loop. Body changes:
-- a run/fix loop in the implement step against the scratch clone, with a
-  nested-launch exception scoped to that clone;
-- W40 split out to `verify-dream-under-codex-on-the-real-repo-w40`, which
-  also resolves evaluator P1 #2 (autoclose);
-- validator criterion changed to "no new attributable errors" (P2);
-- the Retro checkout root to be chosen during the loop (P1 #1);
-- the evaluator's recommendations folded into `## Context`.
+branch: dream-under-codex
+worktree: /home/n/Code/codex/coga
+
+Single-checkout layout (primary checkout on the feature branch).
+
+## Implementation (2026-09-24)
+
+Commit `83a00b9aa` on `dream-under-codex`:
+- `usage._parse_codex_session` skips rollouts whose session_meta has
+  `thread_source == "subagent"` or a non-empty `parent_thread_id`
+  (`_read_codex_session_meta` now returns both). Tests: parametrized
+  parent + 3 children (each marker alone, and both), child-only set stays
+  unknown; existing ambiguous-cwd test unchanged and passing. Confirmed live on
+  a real 0.156.1 parent + 4 child rollouts: resolves to parent, `ok`.
+- Dream template (live + packaged twin): `### Agent capability preflight`
+  before Phase 1; fresh-context + wave rules in scan step 3; "returned" and
+  once-per-attempt reconciliation in step 4; retry in waves; Retro delegation
+  fresh-context, linked checkout at `<run-dir>/checkout` with a write probe
+  before delegating, absolute path in the delegation message.
+- Retro `## Isolation boundary` items 2/3 + top summary.
+- `coga/testing` `### Codex sandbox grant` (live + twin).
+- **Deviation:** the "Dream scan paragraph" no longer lives in
+  `coga/architecture` (now overview + topic map); it lives in `coga/dream`,
+  so the one-sentence summary went there (live + twin), linking the testing
+  recipe. Architecture untouched.
+- Retro linked-checkout root: `<run-dir>/checkout` inside the `mktemp -d` run
+  dir. Initial choice; confirm in the loop.
+
+Verification:
+- `.venv/bin/python -m pytest -q` → 2912 passed (no baseline failures seen).
+- `coga validate --json` → exit 1; 1 error (`unsynthesized-draft-blackboard`
+  on `v2/autotrigger-ticket-type`, pre-existing) + 45 warnings. Nothing
+  attributable to this branch; baseline has shrunk since 2026-09-22.
+
+## Run/fix loop
+
+Setup:
+- Clone: `/home/n/Code/codex/coga-dream-scratch`, only remote `origin` =
+  `https://github.com/FastJVM/coga-dream-scratch.git`; venv `.venv` (editable).
+- `coga/coga.local.toml`: `user = "nicktoper"` + `[notification.slack]
+  enabled = false`.
+- `.codex/config.toml`: grant recipe with the clone's `.git`.
+- `~/.codex/config.toml`: added `[projects."/home/n/Code/codex/coga-dream-scratch"]
+  trust_level = "trusted"` (backup in the session scratchpad).
+- Reset script: `scratch_reset.sh` (session scratchpad) — clears worktrees,
+  branches, scratch PRs/remote branches, resets to the branch, deletes
+  `coga/tasks/recurring/dream/` and the `created recurring/dream for <period>`
+  log line, confirms via `recurring.serviced_periods`, force-pushes.
+
+Codex 0.156.1 re-check (`codex exec` probe in the clone, grant active):
+- sandbox banner: `workspace-write [workdir, /tmp, $TMPDIR, <clone>/.git]
+  (network access enabled)`; `.git` probe, `ls-remote`, `gh auth status`,
+  `git worktree add` under `mktemp -d` all OK.
+- 4 `spawn_agent(fork_turns:"none")` calls all returned without a limit error,
+  but rollout timestamps show max 3 concurrent (4th started after the 1st
+  ended): the cap now queues instead of erroring. Wave wording still correct.
+- Child session_meta still has `thread_source:"subagent"` +
+  `parent_thread_id`.
+- Gotcha: `codex exec` with a piped/non-TTY stdin waits for stdin EOF; use
+  `</dev/null`.
+
+## Superseded designs
+
+### 2026-09-24: verification only after merge, by an owner W40 run
+
+The design step's plan: land the prompt, doc, and usage changes, then check
+them with one owner-launched W40 codex Dream run at the `review` gate. The
+owner replaced it, because the design findings were probes, not proof that
+Dream works end to end. Now the implement step tests in a real run/fix loop
+against a scratch clone (`### Run/fix loop`), and the real-repo run moved to
+`verify-dream-under-codex-on-the-real-repo-w40`.
+
+The body now resolves the 2026-09-22 evaluator review below:
+- P1 Retro root: chosen in the loop, with an acceptance criterion;
+- P1 autoclose: resolved by the split;
+- P2 validator baseline: "no new attributable errors".
+
+A second cold review of the loop (2026-09-24) raised five issues, all folded
+into `### Run/fix loop`: the W39 serviced reset, the clone `PATH` and
+`COGA_*` isolation, the codex trust entry, the reset and force-push scope,
+and the concrete clean-run checks.
 
 ## Evaluator review
+
+### Review-design follow-up — 2026-09-24
+
+The revised body addresses the three original findings: the Retro root is
+an explicit run/fix-loop acceptance condition; real-repo verification has
+its own existing draft ticket; validation permits only reproduced baseline
+errors. The chosen Retro root still needs runtime evidence during implement.
+
+One documentation target has drifted: `coga/codebase` no longer contains
+`Sandbox and cross-machine dev loop`. Current sandbox guidance lives in
+`docs/contexts/coga/testing/SKILL.md`, `## Restricted sandboxes`, linked to
+`dev/checkouts`. Owner approved the correction and advancement to implement
+(2026-09-24): put the grant recipe
+in that testing section and its packaged twin, and point Dream's preflight
+and the architecture summary there. Keep codebase as an overview link;
+do not recreate a second sandbox owner. No implementation or runtime tests
+were performed. Ticket-body targets now reflect the approved correction;
+advancing to implement with `coga bump` is the final action of this step.
 
 2026-09-22 — Cold review of the body against the current repository.
 **Verdict: resolve the following before implementation.** The proposed usage
@@ -495,7 +639,125 @@ session and resolved on 2026-09-22 (recorded in `## Description`):
 
 - grant = documented local `.codex/config.toml`;
 - usage fix in scope;
-- verification = owner-launched W40 codex run at the review gate.
+- verification = the implement-step run/fix loop in the scratch clone
+  (revised 2026-09-24; see `## Superseded designs`).
 
 One implement-time check: confirm the pre-existing `main` test failures (if
 any) before attributing a red suite to this change.
+
+### Iteration 1 (branch head 83a00b9aa + scratch reset 81b90f5f7), started 2026-09-24T20:19Z
+
+- Launched in tmux `dream` in the clone via `coga dream --agent codex`
+  (venv coga, no `COGA_*`). Parent rollout
+  `rollout-2026-09-24T13-19-08-01a0d512-...jsonl`.
+- Preflight ran first and passed (git-common-dir probe, `ls-remote origin
+  main`, `gh auth status`); reported in prose rather than the example
+  `preflight: ...` line.
+- validate-drift: 45 issues (0 direct, 2 pr-proposal, 43 human-needed).
+- Knowledge scan: 380 files, 30 shards; spawns use `fork_turns:"none"`, first
+  wave of 3, then `wait_agent`.
+- **Harness finding (not a Dream bug):** codex runs commands with
+  `bash -lc`; `~/.profile` prepends `~/.local/bin`, so Dream's `coga` inside
+  codex resolves to the global uv tool (editable `/home/n/Code/coga`, branch
+  `split-ticket-contract`), not the clone venv. The supervising `coga launch`
+  (which records usage) is the venv. Fix for iteration 2+: add
+  `allow_login_shell = false` to the clone's `.codex/config.toml` (clone-local
+  harness setting; not part of the published recipe).
+
+**Iteration 1 result (ended 2026-09-24T21:59Z, ~1h41m, `done`): all five
+clean-run conditions hold, but not counted as clean** — Dream's own `coga`
+calls ran the global uv tool (`/home/n/Code/coga`, branch
+`split-ticket-contract`), violating the loop's "branch code on PATH" setup.
+- Phase results: preflight pass; validate-drift 45 issues; knowledge scan 30
+  shards (22 first-attempt, 8 retries, all complete), 60 findings total with
+  the audit; contract audit 20 shards, no retries; Retro 7 eligible → PR #1 +
+  6 direct deletes, verified on `origin/main`, checkout at
+  `/tmp/dream-retro-<rand>/checkout` (the `<run-dir>/checkout` root works
+  under the grant); cleanup-orphan-markers none; disposition 8 more PRs + 5
+  drafts; 101 retirement debt; Slack suppressed locally; `coga mark done`.
+- 9 PRs on scratch (#1–#9), all exist. No sandbox/network denial in the parent
+  or any of the ~68 child rollouts (all denial-string hits were corpus text
+  quoting old failures); no escalation requests.
+- Run record: `usage_status: ok`, session = parent id, 77 agent turns,
+  input 557,899 / output 58,562 / cache-read 27,693,312, 6040 s. The usage
+  fix works on a real run (without it: `multiple codex rollouts matched cwd`).
+- Consequence of the harness flaw: global coga froze `code/with-review` with
+  a `code/split-ticket` skill absent here → `broken-skill`; Dream noticed,
+  deleted and re-created the four code drafts with `PYTHONPATH=src`.
+- **Fix:** `allow_login_shell = false` (top-level) in the clone's
+  `.codex/config.toml`; verified `command -v coga` → clone venv. Documented the
+  gotcha in `coga/testing` "Which code you are actually testing" (commit
+  on branch). No Dream/template defect found.
+- Observation (not a gate): 8/30 knowledge shards returned `incomplete` on
+  the first attempt (budget exhausted by comparison reads); the retry path
+  handled all of them.
+- **Adjacent finding, not fixed here:** with `coga dream --agent codex`, the
+  audit actor and Slack label say `agent:claude` / "claude on" (log lines
+  for `slack`, `task done`). `commands/common.py::completion_identity` and
+  `commands/slack.py` resolve the operator via `resolve_operator` from the
+  ticket/default agent; the launch-time `--agent` override is not persisted,
+  so they fall back to the configured default (claude). The launch line
+  itself records `launch_agent=codex, agent=codex`. Existing follow-up: none
+  found yet.
+
+### Iteration 2 — CLEAN (branch head 096e35b4b + scratch reset 4b7a3ceb0), 2026-09-24T22:03Z–23:34Z
+
+Harness: clone `.codex/config.toml` + `allow_login_shell = false`; Dream's
+`coga` calls confirmed on the clone venv (parent rollout
+`rollout-2026-09-24T15-03-58-01a0d572-...jsonl`).
+
+Clean-run conditions:
+- Preflight line + every phase result (summary table and console): pass.
+- No sandbox/network denial or escalation request in the parent or any child
+  rollout (every denial-string hit is corpus text quoting old failures).
+- 7 reported PRs all exist on `FastJVM/coga-dream-scratch` (#10–#16).
+- Dream task `done`; run record `usage_status: ok`, session = parent id.
+- Retro linked checkout at `/tmp/dream-retro-<rand>/checkout` again →
+  root confirmed; now named in the Retro skill (commit "Name Retro's verified
+  linked-checkout root").
+
+Numbers vs W39 claude baseline (record only, not a gate):
+
+| | W39 claude (2026-09-21) | codex run 2 (2026-09-24) |
+|---|---|---|
+| wall time | ~1 h (3609 s) | ~1 h 31 m (5449 s) |
+| agent turns | 94 | 78 |
+| validate-drift | 50 issues, 3 class drafts | 45 issues (2 proposals, 43 human-needed), classes already owned |
+| knowledge scan | complete | **partial**: 57 shards launched (37 + 20 retries), 42/45 final leaves |
+| contract audit | — | 11/11 shards, 13 findings (8 new) |
+| Retro | 4 knowledge PRs + 7 deletes | 1 knowledge PR + 5 direct deletes (6 eligible) |
+| proposal PRs | 6 stale/drift | 6 (incl. 1 Phase-1 history compaction) |
+| drafts | 12 | 2 (29 findings already ticketed) |
+| tokens | in 824 / out 409,502 / cache-read 82.9 M | in 717,280 / out 62,220 / cache-read 34.7 M |
+
+Knowledge scan `partial` (for owner judgment): 3 attempt-2 leaves
+(k26r1a, k27r1a, k30r1a) read every owned file but their owner-search
+output (rg/owner-description dumps of 55–95 KB) blew the 150 KB allowance;
+Dream reported `partial`, kept `/tmp/dream-knowledge-ogovzjt2`, and filed a
+human-needed line — the protocol working as specified, not a codex
+capability failure. Run 1 had the same pressure (8/30 first-attempt
+retries) but all retries completed. Possible follow-up: bound owner-search
+output in the scan protocol. Not changed here (scan budget is out of this
+ticket's scope).
+
+Also seen again: `[agent:claude]` on the `slack` and `task done` log lines and
+`[human:nicktoper]` on agent-run `coga create` lines — the adjacent actor
+attribution finding from iteration 1.
+
+### Checkpoint / handoff (2026-09-24)
+
+- Loop ended after 2 runs (1 clean). tmux session killed. Clone
+  `/home/n/Code/codex/coga-dream-scratch` and scratch PRs #10–#16 kept until
+  merge, per ticket. `~/.codex/config.toml` trust entry for the clone remains.
+- Branch `dream-under-codex` rebased onto origin/main `b95983e4d`; commits:
+  `dc8810521` (implementation), `c1b8fbbac` (codex login-shell PATH note in
+  `coga/testing`), `7ea57bfbd` (Retro root named in the Retro skill).
+- `python -m pytest` after rebase: 2940 passed, 1 failed —
+  `test_packaging.py::test_live_and_packaged_copies_stay_identical` on
+  `coga/recurring/phone-home/ticket.md` vs packaged twin. **Reproduced on
+  main** (`b95983e4d` itself has differing bytes); this branch does not touch
+  those files. Both Dream runs also reported this drift.
+- `coga validate --json` after rebase: exit 1, 49 issues, 1 error (the
+  pre-existing `unsynthesized-draft-blackboard` on
+  `v2/autotrigger-ticket-type`); none attributable to this branch.
+- Not pushed, no PR (open-pr step).
