@@ -1,12 +1,12 @@
 ---
 title: Address PR review comments
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
 delegate: bootstrap/address-pr-comments
-period_generation: 9d567fbf-cb5a-4ebc-8243-a2c55a255985
+period_generation: 880100fc-75ce-4cc7-903c-ae6db421b808
 workflow:
   name: direct/body
   steps:
@@ -14,6 +14,7 @@ workflow:
     skills:
     - direct/body
     assignee: agent
+step: 1 (execute)
 ---
 
 ## Description
@@ -41,7 +42,7 @@ override and selected queue session conduct), and marks the period task
 `done` only after the delegated command's final `coga slack` roll-up emits
 its bootstrap done sentinel. Everything else about how a delegated period is
 preflighted, leased, published, timed out, and left retryable is the
-`delegate` contract in the `coga/recurring` context, shared with
+`delegate` contract in the `coga/recurring/delegation` context, shared with
 `recurring/resolve-conflicts`.
 
 Because the delegated run is an agent launch, a cron-driven headless
