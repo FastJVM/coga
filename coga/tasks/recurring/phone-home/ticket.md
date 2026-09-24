@@ -1,6 +1,6 @@
 ---
 title: Weekly Coga usage snapshot
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
   - name: send
     skills: []
     assignee: agent
-step: 1 (send)
 ---
 
 ## Description
@@ -27,3 +26,7 @@ Coga installs no scheduler. This measures repos with active sweeps, not installs
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Phone home
+
+Run 1: capture suppressed; receipt suppressed.
