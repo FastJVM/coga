@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -9,7 +10,7 @@ from hashlib import sha256
 from pathlib import Path
 
 from coga import git
-from coga.config import Config
+from coga.config import Config, ConfigError
 from coga.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -18,10 +19,76 @@ from coga.tasks import (
     read_ticket,
     resolve_task,
 )
+from coga.ticket import Ticket
 from coga.validate import assert_task_valid
 
 
 AUTHORING_SYNC_DIRS = ("tasks", "contexts", "skills")
+
+# Session-length override for the authoring interview's agent — e.g.
+# `export COGA_AUTHORING_AGENT=codex` while a Claude quota is exhausted. Read
+# here rather than in `config.py`, like `COGA_REPL_*` over `[launch]`.
+AUTHORING_AGENT_ENV = "COGA_AUTHORING_AGENT"
+
+
+def resolve_authoring_agent(
+    cfg: Config,
+    *,
+    source_ticket: Ticket,
+    bootstrap_ticket: Ticket,
+    agent_override: str | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> str:
+    """Pick the agent type that runs a ticket-authoring interview.
+
+    Shared by `coga ticket` and megalaunch's picked-draft authoring pass. The
+    first non-empty term wins:
+
+    1. `agent_override` (`--agent`, `coga megalaunch --agent`, or the
+       `coga ticket --pick-agent` answer);
+    2. the `COGA_AUTHORING_AGENT` environment variable;
+    3. `[authoring] agent` in coga.local.toml;
+    4. the target ticket's own `agent:` (skipped when the target *is* the
+       bootstrap ticket, as on a bare `coga ticket`);
+    5. `bootstrap/ticket`'s `agent:` — the install-level default;
+    6. `Config.default_agent()`, the first declared `[agents.*]` type.
+
+    The winner must name a configured agent type. An unknown or malformed name
+    fails loud with the term that supplied it rather than falling through to a
+    later term. The choice selects the interviewer only and is never written
+    onto the ticket.
+    """
+    env = os.environ if environ is None else environ
+    candidates: list[tuple[object, str]] = [
+        (agent_override or None, "--agent"),
+        (env.get(AUTHORING_AGENT_ENV) or None, AUTHORING_AGENT_ENV),
+        (cfg.authoring_agent or None, "[authoring] agent in coga.local.toml"),
+    ]
+    if source_ticket is not bootstrap_ticket:
+        candidates.append((source_ticket.agent, "the ticket's `agent:`"))
+    candidates.append((bootstrap_ticket.agent, "bootstrap/ticket's `agent:`"))
+    for value, source in candidates:
+        if value is None:
+            continue
+        hint = "" if source == "--agent" else "; pass --agent <name> to override"
+        if not isinstance(value, str) or not value.strip():
+            raise ConfigError(
+                f"Authoring agent must be a non-empty agent type name, got "
+                f"{value!r} (from {source}{hint})."
+            )
+        name = value.strip()
+        try:
+            cfg.agent_type(name)
+        except ConfigError as exc:
+            raise ConfigError(f"{exc} (from {source}{hint})") from exc
+        return name
+    default = cfg.default_agent()
+    if default is None:
+        raise ConfigError(
+            "No agent types are configured; declare at least one `[agents.*]` "
+            "table in coga.toml or coga.local.toml (e.g. `[agents.claude]`)."
+        )
+    return default.name
 
 
 def authoring_sync_roots(cfg: Config) -> tuple[Path, ...]:

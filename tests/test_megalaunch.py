@@ -4364,6 +4364,118 @@ def test_author_draft_prefers_megalaunch_agent_override(
     assert Ticket.read(draft["path"]).agent == "claude"
 
 
+def _capture_author_draft(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
+    """Stub the interview and fail on any prompt: the batched pass never asks."""
+    captured: dict[str, object] = {}
+
+    def no_prompt(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("megalaunch authoring must never prompt")
+
+    monkeypatch.setattr("typer.prompt", no_prompt)
+    monkeypatch.setattr(
+        "coga.commands.ticket._run_authoring_session",
+        lambda **kwargs: captured.update(kwargs),
+    )
+    return captured
+
+
+def test_author_draft_prefers_draft_agent_over_bootstrap(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The picked draft's own `agent:` beats the packaged bootstrap/ticket's
+    `agent: claude`."""
+    from coga.megalaunch import _author_draft
+    from coga.tasks import resolve_task
+
+    cfg = load_config(repo)
+    draft = create_task(
+        cfg=cfg,
+        title="Author as draft agent",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="codex",
+        status="draft",
+    )
+    captured = _capture_author_draft(monkeypatch)
+
+    _author_draft(cfg, resolve_task(cfg, draft["slug"]), Ticket.read(draft["path"]))
+
+    assert captured["launch_agent"] == "codex"
+
+
+def test_author_draft_honors_authoring_agent_env(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from coga.megalaunch import _author_draft
+    from coga.tasks import resolve_task
+
+    cfg = load_config(repo)
+    draft = create_task(
+        cfg=cfg,
+        title="Author during quota outage",
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
+    )
+    monkeypatch.setenv("COGA_AUTHORING_AGENT", "codex")
+    captured = _capture_author_draft(monkeypatch)
+
+    _author_draft(cfg, resolve_task(cfg, draft["slug"]), Ticket.read(draft["path"]))
+
+    assert captured["launch_agent"] == "codex"
+    assert Ticket.read(draft["path"]).agent == "claude"
+
+
+def test_megalaunch_authoring_reports_unknown_agent_and_continues(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A bad authoring agent skips each picked draft's interview loudly —
+    naming the task, the source, and the override — leaves the draft bytes
+    untouched, and lets the rest of the batch run."""
+    cfg = load_config(repo)
+    drafts = []
+    for title in ("First unready", "Second unready"):
+        draft = create_task(
+            cfg=cfg,
+            title=title,
+            workflow_name="code",
+            contexts=[],
+            owner="marc",
+            agent="claude",
+            status="draft",
+        )
+        t = Ticket.read(draft["path"])
+        t.frontmatter["workflow"] = None
+        t.write(draft["path"])
+        drafts.append(draft)
+    before = {d["slug"]: Path(d["path"]).read_bytes() for d in drafts}
+    monkeypatch.setenv("COGA_AUTHORING_AGENT", "ghost")
+    _capture_author_draft(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.ticket._run_authoring_session",
+        lambda **kwargs: pytest.fail("no interview may spawn"),
+    )
+    launched = _done_on_spawn(monkeypatch)
+
+    run = run_megalaunch(
+        cfg, selection=[d["slug"] for d in drafts], author_drafts=True
+    )
+
+    assert launched == []
+    assert run.counts["skipped-unlaunchable"] == 2
+    err = capsys.readouterr().err
+    for draft in drafts:
+        assert f"{draft['slug']}: skipping guided authoring" in err
+        assert Path(draft["path"]).read_bytes() == before[draft["slug"]]
+    assert "from COGA_AUTHORING_AGENT" in err
+    assert "pass --agent" in err
+
+
 def test_megalaunch_selection_resumes_blocked_and_reblocks_unresolved(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

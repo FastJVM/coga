@@ -111,6 +111,20 @@ the blackboard.
   `skills:`; a local `coga/skills/bootstrap/ticket/` overrides it. Standard
   `claude`/`codex` receive the prompt as system/developer context
   (`[agents.<type>].discussion` overrides the argv template).
+- **Authoring agent.** `authoring.resolve_authoring_agent` picks who runs
+  the interview, for `coga ticket` and megalaunch's picked drafts alike;
+  the first set term wins: (1) `--agent`, `coga megalaunch --agent`, or the
+  `--pick-agent` answer; (2) `COGA_AUTHORING_AGENT`; (3) `[authoring] agent`
+  in `coga.local.toml`; (4) the target ticket's `agent:`; (5)
+  `bootstrap/ticket`'s `agent:`, the install-level default; (6)
+  `Config.default_agent()`. An unknown name from any term fails loud naming
+  that term, never falling through. The choice selects the interviewer only
+  and is never written to the ticket. `coga ticket --pick-agent` (TTY only;
+  refused with `--agent`) lists the configured types in declaration order,
+  marks the would-be default, and takes Enter for it; with no valid default,
+  Enter re-prompts. One configured type is used without asking; none fails.
+  It prints how to make the choice stick and writes no config. Megalaunch
+  never prompts: an unresolvable agent is reported and the draft left.
 - `coga show <ref>` renders the ticket and its `coga/log.md` history for
   humans; bootstrap targets show only `ticket.md`. Read files directly for
   scripting.

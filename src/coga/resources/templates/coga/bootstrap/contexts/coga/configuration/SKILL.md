@@ -23,7 +23,7 @@ credentials. Use indirection ([coga/secrets](../secrets/SKILL.md)).
 `extensions`, `layout`, `autofix`, `telemetry`.
 
 `coga.local.toml` top level: `user`, `agents`, `notification`, `git`,
-`upstream`, `telemetry`.
+`upstream`, `telemetry`, `authoring`.
 
 | Table | Keys | Where |
 |---|---|---|
@@ -37,6 +37,7 @@ credentials. Use indirection ([coga/secrets](../secrets/SKILL.md)).
 | `[layout]` | `contexts` | shared only ([coga/context-layout](../context-layout/SKILL.md)) |
 | `[autofix]` | `agent` | shared only |
 | `[upstream]` | `checkouts` | local only |
+| `[authoring]` | `agent` | local only ([coga/tickets](../tickets/SKILL.md)) |
 | `[telemetry]` | `enabled` (boolean only) | both; local overrides shared, including local true over shared false |
 
 The split is deliberate. `[layout]` and `[autofix]` are team policy: one
@@ -46,7 +47,11 @@ repos on this machine, so it is accepted only locally and validated for
 shape alone: a list of non-empty strings, `~` expanded, required to be
 absolute. A path missing on disk still loads and is skipped by its consumer,
 because failing config load would brick every command when a client repo
-moves. `user` is always local and never guessed
+moves. `[authoring] agent` is local for the same reason: which agent an
+operator authors tickets with (say, while one agent's quota is exhausted) is
+a fact about that operator. Load checks only its shape; the name is checked
+against `[agents]` when authoring resolves it, and `COGA_AUTHORING_AGENT`
+overrides it. `user` is always local and never guessed
 ([coga/init](../init/SKILL.md)).
 
 ## Unknown keys fail loud
@@ -62,11 +67,13 @@ Free-form maps are exempt because their keys are data: `[aliases]`,
 `[extensions]` (a repo-owned namespace Coga passes through uninterpreted),
 `[notification.slack.gifs]`, and `[notification.slack.users]`.
 
-Known-but-removed keys raise tailored migration errors **before** the
+Known-but-removed or misplaced keys raise tailored errors **before** the
 generic check, so the actionable message survives:
 
 - `[assignees]` and `[megalaunch]` in `coga.toml`;
 - `[secrets]` in `coga.local.toml` (secrets are declared inline on tickets);
+- `[authoring]` in `coga.toml` (machine-local; the install-level default is
+  `bootstrap/ticket`'s `agent:`);
 - `[slack]` in either file (moved under `[notification.slack]`);
 - `auto`, `skip_permissions`, `skip_permissions_argv` in any
   `[agents.<name>]`, reported against the file that contains them.

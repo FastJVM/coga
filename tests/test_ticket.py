@@ -731,6 +731,277 @@ def test_ticket_ambiguous_bare_leaf_bails_without_launching(
     assert not (repo / "tasks" / "relaunch.md").exists()
 
 
+# --- authoring-agent resolution and `--pick-agent` -----------------------------
+
+
+_TWO_AGENT_TOML = """
+    version = 1
+    default_status = "draft"
+
+    [notification.slack]
+    webhook = "env:SLACK_WEBHOOK_URL"
+    [agents.claude]
+    cli = "claude"
+    file = "CLAUDE.md"
+    mode = "local"
+    [agents.codex]
+    cli = "codex"
+    file = "AGENTS.md"
+    mode = "local"
+    """
+
+
+def _authoring_setup(
+    repo: Path,
+    *,
+    bootstrap_agent: str | None = "claude",
+    local_agent: str | None = None,
+    agents_toml: str = _TWO_AGENT_TOML,
+) -> None:
+    """Configure agents, the bootstrap ticket's `agent:`, and `[authoring]`."""
+    _write(repo / "coga.toml", agents_toml)
+    local = 'user = "marc"\n'
+    if local_agent is not None:
+        local += f'\n[authoring]\nagent = "{local_agent}"\n'
+    (repo / "coga.local.toml").write_text(local)
+    path = repo / "bootstrap" / "ticket" / "ticket.md"
+    bootstrap = Ticket.read(path)
+    if bootstrap_agent is None:
+        bootstrap.frontmatter.pop("agent", None)
+    else:
+        bootstrap.frontmatter["agent"] = bootstrap_agent
+    bootstrap.write(path)
+
+
+def _draft_with_agent(repo: Path, agent: str) -> str:
+    ref = create_task(
+        cfg=load_config(repo),
+        title="Authoring target",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        agent=agent,
+        status="draft",
+    )
+    return str(ref["slug"])
+
+
+def test_ticket_target_agent_beats_bootstrap_agent(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A ticket whose `agent:` is codex gets a codex interview, even though
+    bootstrap/ticket ships `agent: claude`."""
+    _authoring_setup(repo, bootstrap_agent="claude")
+    slug = _draft_with_agent(repo, "codex")
+    captured: dict[str, object] = {}
+    _capture_ticket_launch(monkeypatch, captured)
+
+    result = CliRunner().invoke(app, ["ticket", slug])
+    assert result.exit_code == 0, result.output
+    assert captured["cmd"][0] == "codex"
+
+
+def test_ticket_bare_interview_uses_bootstrap_agent(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With nothing else set, a bare `coga ticket` uses bootstrap/ticket's
+    `agent:` — here codex, so the configured default (claude) cannot pass."""
+    _authoring_setup(repo, bootstrap_agent="codex")
+    captured: dict[str, object] = {}
+    _capture_ticket_launch(monkeypatch, captured)
+
+    result = CliRunner().invoke(app, ["ticket"])
+    assert result.exit_code == 0, result.output
+    assert captured["cmd"][0] == "codex"
+
+
+@pytest.mark.parametrize(
+    ("args", "env_agent", "local_agent", "expected"),
+    [
+        # `--agent` beats the env var and the local key.
+        (["--agent", "claude"], "codex", "codex", "claude"),
+        # The env var beats the local key.
+        ([], "claude", "codex", "claude"),
+        # The local key beats the ticket's own `agent:` (claude).
+        ([], None, "codex", "codex"),
+    ],
+)
+def test_ticket_authoring_agent_precedence(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    args: list[str],
+    env_agent: str | None,
+    local_agent: str | None,
+    expected: str,
+) -> None:
+    _authoring_setup(repo, local_agent=local_agent)
+    slug = _draft_with_agent(repo, "claude")
+    if env_agent is not None:
+        monkeypatch.setenv("COGA_AUTHORING_AGENT", env_agent)
+    captured: dict[str, object] = {}
+    _capture_ticket_launch(monkeypatch, captured)
+
+    result = CliRunner().invoke(app, ["ticket", slug, *args])
+    assert result.exit_code == 0, result.output
+    assert captured["cmd"][0] == expected
+    # The choice selects the interviewer only; the ticket keeps its agent.
+    assert Ticket.read(repo / "tasks" / f"{slug}.md").agent == "claude"
+
+
+@pytest.mark.parametrize(
+    ("env_agent", "local_agent", "source"),
+    [
+        ("ghost", None, "COGA_AUTHORING_AGENT"),
+        (None, "ghost", "[authoring] agent in coga.local.toml"),
+    ],
+)
+def test_ticket_unknown_authoring_agent_names_its_source(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    env_agent: str | None,
+    local_agent: str | None,
+    source: str,
+) -> None:
+    _authoring_setup(repo, local_agent=local_agent)
+    if env_agent is not None:
+        monkeypatch.setenv("COGA_AUTHORING_AGENT", env_agent)
+    captured: dict[str, object] = {}
+    _capture_ticket_launch(monkeypatch, captured)
+
+    result = CliRunner().invoke(app, ["ticket"])
+    assert result.exit_code == 2
+    combined = result.output + (result.stderr or "")
+    assert "'ghost' is not defined in [agents]" in combined
+    assert f"from {source}" in combined
+    assert "pass --agent" in combined
+    assert "cmd" not in captured
+
+
+def test_ticket_rejects_agent_with_pick_agent(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _authoring_setup(repo)
+    captured: dict[str, object] = {}
+    _capture_ticket_launch(monkeypatch, captured)
+
+    result = CliRunner().invoke(
+        app, ["ticket", "--agent", "codex", "--pick-agent"]
+    )
+    assert result.exit_code == 2
+    assert "not both" in result.output + (result.stderr or "")
+    assert "cmd" not in captured
+
+
+def test_ticket_pick_agent_requires_tty_before_scaffolding(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _authoring_setup(repo)
+    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: False)
+
+    result = CliRunner().invoke(app, ["ticket", "Picked title", "--pick-agent"])
+    assert result.exit_code == 2
+    assert "requires a TTY" in result.output + (result.stderr or "")
+    assert not (repo / "tasks" / "picked-title.md").exists()
+
+
+def test_ticket_pick_agent_lists_marks_and_uses_answer(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _authoring_setup(repo)
+    local_before = (repo / "coga.local.toml").read_bytes()
+    captured: dict[str, object] = {}
+    _capture_ticket_launch(monkeypatch, captured)
+
+    # An out-of-range number and an unknown name re-prompt; then "2" picks.
+    result = CliRunner().invoke(
+        app, ["ticket", "--pick-agent"], input="9\nnope\n2\n"
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["cmd"][0] == "codex"
+    out = result.output
+    # Declaration order, with the would-be default marked.
+    assert out.index("1. claude  (default)") < out.index("2. codex")
+    assert "(default)" not in out.split("2. codex", 1)[1].splitlines()[0]
+    assert out.count("Pick a number or name") == 3
+    assert '[authoring] agent = "codex"' in out
+    assert "export COGA_AUTHORING_AGENT=codex" in out
+    # The picker writes no config.
+    assert (repo / "coga.local.toml").read_bytes() == local_before
+
+
+def test_ticket_pick_agent_enter_keeps_marked_default(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _authoring_setup(repo, local_agent="codex")
+    captured: dict[str, object] = {}
+    _capture_ticket_launch(monkeypatch, captured)
+
+    result = CliRunner().invoke(app, ["ticket", "--pick-agent"], input="\n")
+    assert result.exit_code == 0, result.output
+    assert "2. codex  (default)" in result.output
+    assert captured["cmd"][0] == "codex"
+
+
+def test_ticket_pick_agent_without_valid_default_reprompts_on_enter(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _authoring_setup(repo)
+    monkeypatch.setenv("COGA_AUTHORING_AGENT", "ghost")
+    captured: dict[str, object] = {}
+    _capture_ticket_launch(monkeypatch, captured)
+
+    result = CliRunner().invoke(app, ["ticket", "--pick-agent"], input="\n1\n")
+    assert result.exit_code == 0, result.output
+    assert "(default)" not in result.output
+    assert "No default agent" in result.output + (result.stderr or "")
+    assert result.output.count("Pick a number or name") == 2
+    assert captured["cmd"][0] == "claude"
+
+
+def test_ticket_pick_agent_single_agent_skips_prompt(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One configured agent is selected without asking — even when the
+    would-be default names an agent that no longer exists."""
+    monkeypatch.setenv("COGA_AUTHORING_AGENT", "ghost")
+    captured: dict[str, object] = {}
+    _capture_ticket_launch(monkeypatch, captured)
+
+    result = CliRunner().invoke(app, ["ticket", "--pick-agent"], input="")
+    assert result.exit_code == 0, result.output
+    assert "using claude" in result.output
+    assert "Pick a number or name" not in result.output
+    assert captured["cmd"][0] == "claude"
+
+
+def test_ticket_pick_agent_with_no_agents_fails_loud(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _authoring_setup(
+        repo,
+        agents_toml="""
+        version = 1
+        default_status = "draft"
+        """,
+    )
+    captured: dict[str, object] = {}
+    _capture_ticket_launch(monkeypatch, captured)
+
+    result = CliRunner().invoke(app, ["ticket", "--pick-agent"], input="")
+    assert result.exit_code == 2
+    assert "No agent types are configured" in result.output + (result.stderr or "")
+    assert "cmd" not in captured
+
+
 # --- simplified format: rendering, rejection, and the raw-value contract ------
 
 

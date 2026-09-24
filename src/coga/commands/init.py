@@ -60,6 +60,12 @@ user = ""
 # Per-agent permission-skip policy from older installs is removed. Current
 # launch rejects those keys as unknown config because Coga no longer has a
 # ticket-level unattended execution axis.
+
+# Default agent for `coga ticket` authoring interviews on this machine — e.g.
+# switch to codex while a Claude quota is exhausted. COGA_AUTHORING_AGENT wins
+# over it; `coga ticket --agent` wins over both.
+# [authoring]
+# agent = "codex"
 """
 
 _RELOCATED_CONTEXTS_GITIGNORE = """\

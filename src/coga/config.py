@@ -136,6 +136,14 @@ class Config:
     launch_idle_timeout: float | None = None
     launch_idle_timeout_present: bool = False
     launch_max_session: float | None = None
+    # `[authoring] agent` from coga.local.toml: this operator's default agent
+    # for the `coga ticket` / megalaunch picked-draft authoring interview. It is
+    # machine-local because agent quota exhaustion is per-operator. Empty means
+    # unset. Not validated against `[agents]` here — `coga.authoring.
+    # resolve_authoring_agent` does that, so a stale value breaks only
+    # authoring, not every command. The `COGA_AUTHORING_AGENT` env override
+    # still wins over it, mirroring `[launch]` and `COGA_REPL_*`.
+    authoring_agent: str = ""
     # The repo's recurring owner: the one operator whose checkout may launch
     # recurring sweeps. Committed in `coga.toml` — unlike machine-local
     # `current_user` — so every clone agrees on who runs them, which is what
@@ -341,6 +349,15 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
             "Move each key into the tickets that need it and delete the "
             "[secrets] table."
         )
+    # `[authoring]` is machine-local: which agent a quota-limited operator
+    # authors with is not repo policy. The committed install-level default is
+    # `bootstrap/ticket`'s own `agent:`.
+    if "authoring" in shared:
+        raise ConfigError(
+            "[authoring] is machine-local and belongs in coga.local.toml, not "
+            "coga.toml. To change the authoring default for the whole install, "
+            "set `agent:` on a local coga/bootstrap/ticket/ticket.md instead."
+        )
     for source, table in (("coga.toml", shared), ("coga.local.toml", local)):
         if "slack" in table:
             raise ConfigError(
@@ -383,6 +400,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
     contexts_dir = _parse_layout(shared.get("layout"), root)
     upstream_checkouts = _parse_upstream(local.get("upstream"))
     autofix_agent = _parse_autofix(shared.get("autofix"), agents)
+    authoring_agent = _parse_authoring(local.get("authoring"))
 
     # The operator's `user` must be set explicitly in `coga.local.toml` — coga
     # never guesses it. A guessed name (git `user.name`, OS username) can
@@ -436,6 +454,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         contexts_dir=contexts_dir,
         upstream_checkouts=upstream_checkouts,
         autofix_agent=autofix_agent,
+        authoring_agent=authoring_agent,
     )
 
 
@@ -499,6 +518,7 @@ _ALLOWED_LOCAL_SECTIONS: frozenset[str] = frozenset({
     "git",
     "telemetry",
     "upstream",
+    "authoring",
 })
 _ALLOWED_AGENT_KEYS: frozenset[str] = frozenset({
     "cli",
@@ -545,6 +565,8 @@ _ALLOWED_AUTOFIX_KEYS: frozenset[str] = frozenset({"agent"})
 # committing them in coga.toml would name directories no other clone has.
 # See `_parse_upstream` and `Config.upstream_checkouts`.
 _ALLOWED_UPSTREAM_KEYS: frozenset[str] = frozenset({"checkouts"})
+# `[authoring]` is local-only, like `[upstream]`: see `Config.authoring_agent`.
+_ALLOWED_AUTHORING_KEYS: frozenset[str] = frozenset({"agent"})
 
 
 def _reject_unknown_sections(shared: dict, local: dict) -> None:
@@ -1592,6 +1614,29 @@ def _parse_launch(
         "idle_timeout" in shared,
         _seconds("max_session"),
     )
+
+
+def _parse_authoring(local: object) -> str:
+    """Parse `[authoring] agent` from coga.local.toml, or "" if unset.
+
+    Shape only: the name is checked against `[agents]` when authoring resolves
+    its agent (`coga.authoring.resolve_authoring_agent`), not at config load.
+    """
+    if local is None:
+        return ""
+    if not isinstance(local, dict):
+        raise ConfigError(
+            f"[authoring] must be a table (got {type(local).__name__})"
+        )
+    _reject_unknown_keys(local, _ALLOWED_AUTHORING_KEYS, "[authoring]")
+    if "agent" not in local:
+        return ""
+    value = local["agent"]
+    if not isinstance(value, str) or not value.strip():
+        raise ConfigError(
+            f"[authoring].agent must be a non-empty agent type name (got {value!r})"
+        )
+    return value.strip()
 
 
 def _parse_autofix(shared: object, agents: dict[str, AgentType]) -> str | None:
