@@ -114,8 +114,9 @@ A fresh linked worktree or clone has nothing Git ignores:
 - **One branch, one checkout.** `git worktree add` refuses a branch another
   worktree holds.
 
-Copied config, rebuilt `.agent-skills/`, and discovery links are ignored,
-non-regenerable state, so they make `coga retire` preserve the checkout.
+A rebuilt `.agent-skills/` and an unedited copy of `coga.local.toml` do not
+block `coga retire`; an edited copy and discovery links are ignored,
+non-regenerable state, so they make it preserve the checkout.
 
 ## Which checkout you invoke Coga from
 
