@@ -147,8 +147,9 @@ dependency spelling there and rule 4 here should be checked for agreement.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/889
 branch: split-ticket-contract
-worktree: /home/n/Code/claude/coga-split-ticket-contract
+worktree: /home/n/Code/coga
 
 ## Peer review
 
@@ -187,3 +188,12 @@ two split sections. The overlapping parked draft was canceled on control
 with a pointer to this ticket; its adjacent-finding requirement already shipped.
 
 Test plan: `PYTHONPATH=/home/n/Code/claude/coga-split-ticket-contract/src /tmp/coga-split-review-venv/bin/python -m pytest` — 2880 passed (two sandbox cache-write warnings); both live/packaged `cmp` checks, `git diff --check`, and `coga validate --task define-the-split-a-ticket-mechanic-shared-by-code --json` pass.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `define-the-split-a-ticket-mechanic-shared-by-code`
+Recorded: 2026-09-24T05:50:17+00:00
+
+    `coga open-pr` must run from the primary control checkout on 'main', not branch 'authoring-agent-picker'. Return to the control checkout and rerun it; the command will still push the recorded feature branch by name.
