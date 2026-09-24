@@ -6294,3 +6294,5 @@ fatal: Unable to add (null) to database
 2026-09-24 13:15 [recurring/phone-home] [system] started (active → in_progress) via coga launch
 2026-09-24 13:15 [recurring/phone-home] [system] launched as a script (ticket.py)
 2026-09-24 13:15 [recurring/phone-home] [system] task done
+2026-09-24 13:15 [recurring/phone-home] [system] script exited with code 0
+2026-09-24 13:15 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
