@@ -177,17 +177,27 @@ fetched `origin/main` (`cfa3332b1`).
 
 ## PR
 
-Define the shared split procedure for `code/design` and `code/implement`:
-create outcome-named sibling drafts, record `## Split` on the source, and
-cross-link each sibling's context. Distinguish independently mergeable slices
-from sequenced successors using `After:` and the existing blocker mechanism;
-narrow or cancel the source when its work moves to siblings.
+Define the split procedure for oversized tickets in one new skill,
+`code/split-ticket`, loaded beside `code/design` / `code/implement` in the
+design and implement steps of every bundled `code/*` workflow: outcome-named
+sibling drafts created by `coga create` with their complete body (including
+the `**Split from …** After: …` cross-link), a `## Split` roster on the source
+blackboard, co-equal versus sequenced siblings via `After:` and the existing
+blocker mechanism, and narrowing or canceling the source. The step skills
+point to it and fall back to reading the file when a ticket's workflow froze
+before it shipped.
 
-Keep both packaged skill twins synchronized and enforce agreement between the
-two split sections. The overlapping parked draft was canceled on control
-with a pointer to this ticket; its adjacent-finding requirement already shipped.
+Test plan: full suite 2904 passed; contract + packaging tests rerun after the
+fallback commit (26 passed); `git diff --check` clean; `coga validate --json`
+issue count unchanged from main.
 
-Test plan: `PYTHONPATH=/home/n/Code/claude/coga-split-ticket-contract/src /tmp/coga-split-review-venv/bin/python -m pytest` — 2880 passed (two sandbox cache-write warnings); both live/packaged `cmp` checks, `git diff --check`, and `coga validate --task define-the-split-a-ticket-mechanic-shared-by-code --json` pass.
+## Review assist (2026-09-24)
+
+Addressed both Codex P1 threads on #889 (replied, not resolved): contract
+moved to the single `code/split-ticket` owner (91db4ab); sibling cross-links
+now written via `coga create --description` so the create sync publishes
+them; frozen-workflow fallback added in the step skills. Branch rebased onto
+main and pushed under exact leases.
 
 ## Recipe Failure
 
