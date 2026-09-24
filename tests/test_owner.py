@@ -206,6 +206,29 @@ def test_owner_gate_remains_progressable(repo: Path) -> None:
     assert Ticket.read(path).status == "done"
 
 
+@pytest.mark.parametrize(
+    ("first_role", "gate"), [(None, True), ("owner", True), ("agent", False)]
+)
+def test_owner_resolves_inherited_step_role(
+    repo: Path, first_role: str | None, gate: bool
+) -> None:
+    slug, path = _owner_gate(repo)
+    ticket = Ticket.read(path)
+    steps = ticket.frontmatter["workflow"]["steps"]
+    steps[0].pop("assignee")
+    if first_role is not None:
+        steps[0]["assignee"] = first_role
+    steps[1].pop("assignee")
+    ticket.write(path)
+    result = CliRunner().invoke(app, ["owner", slug, "marc", "--assist-stopped"])
+    if gate:
+        assert result.exit_code == 0, result.output
+        assert (Ticket.read(path).owner, Ticket.read(path).status) == ("marc", "in_progress")
+    else:
+        assert result.exit_code == 2
+        assert "agent step" in result.output
+
+
 @pytest.mark.parametrize("other_checkout", [False, True])
 def test_owner_refuses_own_supervised_session(repo: Path, monkeypatch, other_checkout) -> None:
     from coga.repl_supervisor import build_supervised_step_env

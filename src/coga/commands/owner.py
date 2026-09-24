@@ -19,6 +19,7 @@ from pathlib import Path
 import typer
 
 from coga import git
+from coga.bump import effective_step_role
 from coga.config import ConfigError, load_config
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log, retract_log_lines
@@ -76,8 +77,12 @@ def owner(
             _bail(f"Task {ref.id_slug} has an outstanding launch claim; stop the "
                   "session and recover the claim before reassignment.")
         if ticket.status == "in_progress":
+            # A step that omits `assignee:` inherits the nearest preceding
+            # role (default `owner`), so derive it rather than read it raw.
             step = ticket.current_step()
-            if step is None or step.get("assignee") != "owner":
+            if step is None or effective_step_role(
+                ticket.workflow["steps"], ticket.step_index()
+            ) != "owner":
                 _bail(f"Task {ref.id_slug} is 'in_progress' on an agent step; "
                       f"stop the agent and run `coga mark paused {ref.id_slug}` first.")
             if not assist_stopped:
