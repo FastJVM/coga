@@ -23,8 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
-launch_generation: 3db1bae4-16b4-4047-859f-282c8b5666fc
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -150,3 +149,41 @@ dependency spelling there and rule 4 here should be checked for agreement.
 
 branch: split-ticket-contract
 worktree: /home/n/Code/claude/coga-split-ticket-contract
+
+## Peer review
+
+2026-09-23: `codex review --base main` ran in the recorded feature worktree
+and **returned**: no actionable defects. Its attempted test run lacked
+`tomlkit`; a separate temporary environment now contains the declared test
+extra, and the full suite is running with an absolute worktree `PYTHONPATH`.
+
+Ran `git fetch origin main` and `git rebase FETCH_HEAD` unconditionally.
+Resolved the design-skill conflict in both twins by preserving main's added
+step and numbering (split step 6, bump step 7) and this branch's split text.
+Rebased feature commit: `b36286d6b`; worktree clean. `git diff --check` and
+both live/packaged `cmp` checks pass. No terminal, pager, TTY prompt, or Slack
+rendering behavior changed; reviewed the Markdown instructions directly.
+`coga validate --task define-the-split-a-ticket-mechanic-shared-by-code --json`
+returned one valid ticket and no issues.
+
+Full-suite verification:
+`PYTHONPATH=/home/n/Code/claude/coga-split-ticket-contract/src /tmp/coga-split-review-venv/bin/python -m pytest`
+returned **2880 passed, 2 warnings in 264.20s**. Warnings concern pytest cache
+writes denied in the feature worktree by the sandbox; no test failures.
+The temporary environment was installed with the package's declared `[test]`
+extra. Final feature worktree is clean and committed, one commit ahead of
+fetched `origin/main` (`cfa3332b1`).
+
+## PR
+
+Define the shared split procedure for `code/design` and `code/implement`:
+create outcome-named sibling drafts, record `## Split` on the source, and
+cross-link each sibling's context. Distinguish independently mergeable slices
+from sequenced successors using `After:` and the existing blocker mechanism;
+narrow or cancel the source when its work moves to siblings.
+
+Keep both packaged skill twins synchronized and enforce agreement between the
+two split sections. The overlapping parked draft was canceled on control
+with a pointer to this ticket; its adjacent-finding requirement already shipped.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga-split-ticket-contract/src /tmp/coga-split-review-venv/bin/python -m pytest` — 2880 passed (two sandbox cache-write warnings); both live/packaged `cmp` checks, `git diff --check`, and `coga validate --task define-the-split-a-ticket-mechanic-shared-by-code --json` pass.
