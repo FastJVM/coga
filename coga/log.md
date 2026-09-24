@@ -6238,3 +6238,5 @@ fatal: Unable to add (null) to database
 2026-09-23 16:55 [ticket-relationships-and-ownership-have-no-mechani] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-23 16:55 [ticket-relationships-and-ownership-have-no-mechani] [human:nicktoper] launched (operator=codex, agent=codex)
 2026-09-23 16:56 [ticket-relationships-and-ownership-have-no-mechani] [human:nicktoper] unblocked (asks resolved, still in_progress): Preserve in_progress when reassigning an owner-held gate, but require any live assisting agent to stop before reassignment. Do not invalidate a live agent routing lease to permit reassignment. Fix the stale control publication and local mutation races with the existing guarded state mechanisms.
+2026-09-23 17:01 [ticket-relationships-and-ownership-have-no-mechani] [git] sync failed: `git hash-object` failed: error: unable to create temporary file: Read-only file system
+fatal: Unable to add (null) to database

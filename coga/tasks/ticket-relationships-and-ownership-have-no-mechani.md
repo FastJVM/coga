@@ -255,3 +255,19 @@ worktree: /home/n/Code/claude/coga-ticket-relationships
 ## Blocker reminders
 
 - d137baf1e3d7 last_reminded: 2026-09-16 10:58
+
+## Attended resolution and checkout handoff (2026-09-23)
+
+Human approved preserving `in_progress` at owner-held gates while requiring
+any live assisting agent to stop before reassignment; do not invalidate its
+routing lease to allow reassignment. `coga unblock --answer` recorded the
+resolution; all open asks are resolved. The three review fixes remain pending.
+
+This supervised session was launched from `/home/n/Code/coga` on another
+live branch, `authoring-agent-picker`, with unrelated dirty state. Per
+`dev/checkouts`, do not transplant the running supervisor. Prepared control
+checkout: `/home/n/Code/coga-control` on `main`; local config seeded by the
+repository helper, remote main fetched and fast-forward verified. Relaunch
+this ticket there with `coga launch ticket-relationships-and-ownership-have-no-mechani`.
+The existing clean feature checkout and branch in `## Dev` are unchanged.
+No code fixes, review rerun, tests, or workflow bump occurred this session.
