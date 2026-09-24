@@ -1,6 +1,6 @@
 ---
 title: Add PostHog phone-home telemetry for V1 product-market-fit signal
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -33,7 +33,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 6 (review)
 ---
 
 ## Description

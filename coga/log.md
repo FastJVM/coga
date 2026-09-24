@@ -6306,3 +6306,4 @@ fatal: Unable to add (null) to database
 2026-09-24 13:22 [add-an-agent-picker-for-recurring] [human:nicktoper] auto-bumped on merge of PR #885 → done
 2026-09-24 13:22 [autoclose-preserved-checkout-remedies] [human:nicktoper] auto-bumped on merge of PR #873 → done
 2026-09-24 13:22 [autoclose-should-name-unanswered-review-threads-on] [human:nicktoper] auto-bumped on merge of PR #881 → done
+2026-09-24 13:22 [marketing/add-telemetry] [human:nicktoper] auto-bumped on merge of PR #880 → done
