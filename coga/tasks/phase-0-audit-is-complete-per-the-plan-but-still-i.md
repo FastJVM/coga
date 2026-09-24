@@ -1,6 +1,6 @@
 ---
 title: phase-0-audit is complete per the plan but still in_progress
-status: in_progress
+status: canceled
 owner: nicktoper
 agent: claude
 workflow:
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
 ---
 
 ## Description
@@ -152,11 +151,19 @@ preparation is accepted, advance
 `marketing/phase-0-audit` from step 2 yourself (its step 3
 `report-to-coga` then runs, and Dream's done-ticket sweep can reap it).
 
-## Recipe Failure
+## Outcome — open-pr, 2026-09-23: canceled, no PR
 
-Recipe: `open-pr`
-Exit: 2
-Task: `phase-0-audit-is-complete-per-the-plan-but-still-i`
-Recorded: 2026-09-24T03:57:23+00:00
+`coga open-pr` refused the branch as stale, with overlapping paths. On
+`origin/main`, #872 deleted `coga/tasks/marketing/phase-0-audit/` and archived
+it under `docs/archive/launch-programs/phase-0-audit/`. #875 moved the
+marketing plan and map to `docs/contexts/marketing/` and rewrote them. All
+three files this branch edited are gone, the rebased diff would be empty,
+and nothing on `main` still assigns the audit lifecycle to this ticket. Main
+has settled the contradiction the ticket named: the audit is retired and the
+plan no longer makes the "complete input" claim. On the owner's instruction,
+the ticket is canceled and the unpushed `reconcile-audit-lifecycle` branch and
+worktree are deleted.
 
-    Branch 'reconcile-audit-lifecycle' is not safe to publish. current branch does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Overlapping paths: coga/contexts/marketing/map/SKILL.md, coga/contexts/marketing/plan/SKILL.md, coga/tasks/marketing/phase-0-audit/ticket.md. Reconcile it and relaunch, or `coga block --task phase-0-audit-is-complete-per-the-plan-but-still-i`.
+Primary-checkout note: `main` was held by `/home/n/Code/coga-control`, so
+borrowing it meant detaching that worktree briefly (owner-approved). Both
+checkouts are restored.
