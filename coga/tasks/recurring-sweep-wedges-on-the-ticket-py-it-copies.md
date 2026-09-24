@@ -740,3 +740,51 @@ PYTHONPATH=$PWD/src python3.12 -m pytest -q \
 The full suite was not run for this design-only review. The frozen
 `code/design-then-implement` workflow correctly hands these findings to the owner
 at `review-design`. No ticket-body, source, fixture, or workflow edits were made.
+
+## Owner decisions — 2026-09-24 (implement, attended)
+
+Owner accepted resolving the evaluator's four findings inside implementation
+rather than returning to design. These **supersede the Proposed shape** where
+they conflict:
+
+1. **P1-1 (Stage A breadth).** Drop an untracked path only when its bytes are
+   identical to the blob at that path in the adopted ref (`landed` / `base`).
+   Differing content is left in place; the rebase then fails, Stage B unwinds,
+   and the failure is reported. Test: matching copied shim at both
+   restore/rebase sites, plus a differing untracked attachment that survives.
+2. **P1-2 (Stage D location).** The detector moves ahead of the
+   `lease_changed` removal branch in `_broadcast_scan`. If the create sync
+   recorded a failure and the lease then changed, report an error
+   (`period_contradiction` + `scan.sync_problems`) instead of the silent
+   "changed on control during admission" skip. A clean competing control
+   generation with no recorded failure keeps today's skip. Attach
+   `coga/launch-internals` ("Recurring admission generations") before coding.
+   Tests: real ticket-byte replacement (incl. generation change) and a
+   successful competing control generation.
+3. **P1-3 (Stage C coverage).** The `_fetch_control_branch` fallback calls
+   `git.sync_paths(..., raise_git_error=True)` inside a handler that feeds the
+   sink; audit the early missing-template fallback too. Append to the sink
+   before any early exit and before `_append_sync_failure`'s
+   `anchor_path.is_dir()` guard. Test through the real fallback, not a mock.
+4. **P2-4 (Stage B scope).** The `try` covers everything after the
+   restore-to-`HEAD` (untracked drop + rebase); any `Exception`, OS errors
+   included, restores from `landed` then re-raises. Fault-injection test on the
+   cleanup step as well as the rebase.
+
+Evaluator optional notes adopted: acceptance 1 observes `active` + clean tree
+after create sync (launch stubbed); Stage D's exemption is `--force`
+(`sync_existing`) only — `--all` runs ordinary due sweeps.
+
+## Control checkout handoff
+
+Primary checkout `/home/n/Code/coga` is occupied by
+`define-the-split-a-ticket-mechanic-shared-by-code` (branch
+`split-ticket-contract`, PR #889 in review). Control checkout prepared at
+`/home/n/Code/coga-control` on `main` @ `7aeff6f18`, local config seeded.
+(Local `main` was moved from `cefe5fc00` to `origin/main` by the owner; that
+commit's content was verified present on origin.)
+
+**Relaunch:** `cd /home/n/Code/coga-control && coga launch recurring-sweep-wedges-on-the-ticket-py-it-copies`.
+On relaunch use the separate-feature layout: feature worktree outside the repo
+(e.g. `../coga-recurring-wedge`), `## Dev` and `coga bump` in the control
+checkout.
