@@ -22,6 +22,7 @@ BUILTIN_COMMANDS: frozenset[str] = frozenset(
         "bump",
         "block",
         "unblock",
+        "owner",
         "delete",
         "retire",
         "slack",
