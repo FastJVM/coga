@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -41,3 +41,26 @@ Two independent tickets record the same failure: a `status: done` ticket whose b
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: retro-verify-done-scope
+worktree: /home/n/Code/coga-control
+
+## Implemented (commit 4a0b6909a)
+
+Decision, confirmed with the owner: Retro **preserves and reports** the gap and does not file a follow-up ticket itself. Routing the follow-up stays with the caller (Dream Phase 6 or a human). This keeps a knowledge PR limited to knowledge edits and source deletions.
+
+- `retro/done-ticket` (packaged-only owner): new `### Done is a status, not a receipt` subsection after `### Unresolved adjacent bugs`. It checks the `## Description` scope (path, symbol, test, context token) against the isolated checkout's current files, which are the fresh control-branch tip. The check reads the current tree only, so it is consistent with the skill's no-history baseline rule. When the scope is absent or partial, Retro does not extract or cite the claimed fix and preserves the gap as a known failure mode. The source counts as knowledge-bearing, so it is never direct-deleted. Also added:
+  - a step-3 reference to the new subsection;
+  - a `Unshipped scope` classification row;
+  - a step-9 deletion gate;
+  - a PR-body `Unshipped scope:` line.
+- `coga/lifecycle` (canonical copy and bootstrap twin, byte-identical): a bullet saying `done` is a control-plane transition, not a receipt, pointing to `retro/done-ticket`.
+- Test: `tests/test_dream_worker_templates.py::test_retro_checks_a_done_tickets_scope_reached_the_control_branch`.
+
+## Verification
+
+- Full suite (py3.12, uv ephemeral env): 2876 passed and 2 failed. Both failures are in `test_packaging` wheel builds, because that env has no pip. They are environmental, not caused by this change.
+- In a real py3.12 venv with `pip install -e ".[test]"`: `tests/test_packaging.py` plus `tests/test_dream_worker_templates.py` gave 37 passed.
+- Note: the system `python` here is 3.9, and there is no repo `.venv`.
