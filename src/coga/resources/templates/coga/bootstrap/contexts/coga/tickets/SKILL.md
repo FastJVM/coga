@@ -117,53 +117,36 @@ the blackboard.
 
 Installed `coga <cmd> --help` is the syntax authority.
 
-## Ticket relationships
+## Ownership and ticket relationships
 
-The ticket model carries exactly three relationships — one ticket-to-person
-and two ticket-to-ticket — and each has one spelling. Nothing else in a
-ticket body is read by a command: a prose `### Blocks` or "supersedes" note is
-a pointer for humans, and a reader that trusts it as state will be wrong the
-moment it drifts. Each relationship rides an existing writer rather than a
-frontmatter key, so there is no `superseded_by`, `dependencies`, or
-`assignee` field to keep in sync with the status it would only restate.
+`owner:` is the human of record: owner steps route to that person, megalaunch
+filters by owner, and notifications mention them. Reassign with
+`coga owner <slug> <name>`. There is no independent `assignee:` or legacy
+`human:` field to update. The command preserves status, step, and body, rejects
+blank or unchanged names and terminal records, and writes an audit line without
+a Slack post.
 
-- **Ownership: `owner:`, written by `coga owner <slug> <name>`.** The owner
-  is the human of record — the `owner` step role resolves to it, megalaunch
-  and the dependency drain select on it, Slack mentions derive from it. The
-  command is the only writer: it validates the prospective ticket, writes
-  under the publication barrier, appends `owner '<old>' → '<new>'` to the
-  audit log, and syncs to control under the ordinary state guard, without a
-  Slack post. It accepts every status except the terminal outcomes (a
-  finished record keeps the owner it finished under) and `in_progress`,
-  because a live session's routing lease compares `owner` — pause the ticket
-  first. A hand edit of `owner:` skips all four steps, which is how a ticket
-  ends up naming someone who handed it off months earlier; `coga validate`
-  cannot tell a stale owner from a current one, so the command is the
-  discipline.
-- **Dependency: a blocker ask naming the prerequisite's exact
-  path-qualified slug.** Declaring that ticket B waits on ticket A is
-  `coga block --task <B> --reason "Depends on <A>: <what B needs from it>"`,
-  run once B is `active` (block accepts `active`, `in_progress`, and
-  `blocked`; activate a draft first). That is not a workaround for a missing
-  field — the blocker *is* the mechanism. The ask is visible in
-  `coga status --blocked` and the blocker reminders, and the megalaunch
-  dependency drain ([coga/megalaunch](../megalaunch/SKILL.md)) reads the slug out of the reason and retries B
-  automatically once A is `done` or has been retired. The slug must be the
-  complete path-qualified ref (`v2/some-ticket`, not `some-ticket`), matched
-  as a whole token; a title or a partial slug names nothing. A dependency
-  declared from the successor's side ("this blocks X") is invisible to every
-  command and stays prose.
-- **Supersession: `coga mark canceled <old> --message "Superseded by <new>"`.**
-  When a newer ticket replaces an older one, the older one is canceled with a
-  reason that begins `Superseded by ` followed by the successor's exact
-  path-qualified slug (and a date if useful). Cancellation already provides
-  everything a separate `superseded` terminal would: it is terminal, so the
-  ticket leaves `coga status`, blocker sweeps, and launch candidates; the
-  reason is required and lands in the audit log; `step:` is cleared and the
-  body and blackboard are left as history. A superseded ticket left at
-  `paused` or `draft` is the failure mode — it keeps surfacing as live work.
-  When readers of the file itself need the pointer, `## Context` opens with
-  the same words in bold: `**Superseded by `<new>` (<date>).**`; that line is
-  a courtesy copy of the log reason, not the record. A design pivot *within*
-  one ticket is a different shape and keeps its `## Superseded designs`
-  convention (`dev/code`).
+An `in_progress` agent step must stop and be paused before reassignment. An
+`in_progress` **owner-held gate** instead requires `--assist-stopped`: the
+human confirms any assisting agent has stopped, from outside that ticket's
+supervised session. This preserves the gate so its new owner can still bump
+it. Coga has no cross-checkout live-session registry; the flag is an explicit
+human attestation, not an automatic liveness check. A supervised session cannot
+reassign its own ticket, and an outstanding `launch_generation` is refused;
+stop the session and follow [claim recovery](../internals/claim-recovery/SKILL.md)
+first. Reassignment never clears or invalidates a launch claim.
+
+The package-private transaction is why this command lives in core: it holds
+`git.state_lock` across the read, prospective validation, local byte comparison,
+write, audit, and strict publication with the original ticket bytes as `expect`.
+A concurrent local edit is preserved. A definite publication failure restores
+only the command's own ticket bytes and retracts its audit; an uncertain push
+keeps the write for reconciliation. Both failures exit 75 to suppress the generic
+sweep. Refresh/reconcile control before retrying. With Git disabled or unavailable
+through a documented soft-skip, the local write remains the result
+([state publication](../internals/state-publication/SKILL.md)).
+
+Ticket-to-ticket relationships use the dependency and supersession conventions
+in [coga/lifecycle](../lifecycle/SKILL.md), rather than new `dependencies:` or
+`superseded_by:` frontmatter. Successor-side “this blocks X” prose is a human
+pointer, not machine-readable ordering.

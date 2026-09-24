@@ -99,7 +99,7 @@ content. A check that can fail on configuration (such as
 `unresolvable-step-assignee`) must run against a **prospective** copy before
 writing: copy the `Ticket`, apply the change, pass
 `ticket_override=...`, then write, log and sync. `mark_done`,
-`mark_canceled`, bump's step advance and the assist freeze do this;
+`mark_canceled`, bump's step advance the assist freeze, and `coga owner` do this;
 `mark_active`, `mark_in_progress`, `mark_blocked`, and `mark_paused` still
 validate after writing.
 
@@ -114,3 +114,25 @@ files (or `-` without git). `--blocked` shows one row per open ask on
 `status: blocked` tasks. When the view covers `tasks/recurring/`, a one-line
 `Recurring` footer summarizes templates, due counts and load errors (full view:
 `coga recurring list`, [coga/recurring](../recurring/SKILL.md)).
+
+## Dependencies and supersession
+
+A dependency is an open blocker ask on the **dependent** ticket:
+`coga block --task <B> --reason "Depends on <A>: <what B needs from it>"`.
+Use A's exact path-qualified slug (for example `v2/some-ticket`), as a whole
+token, not its title or a partial slug. B must be active, in_progress, or
+blocked; activate a draft first. This uses the existing blocker mechanism:
+status and reminders show the ask, and the
+[megalaunch dependency drain](../megalaunch/SKILL.md) can retry B once A is
+`done` or retired. It is not a general dependency graph or a `dependencies:`
+field, and cancellation does not count as completion.
+
+When a newer ticket supersedes an older one, use
+`coga mark canceled <old> --message "Superseded by <new>"`, with the successor's
+exact path-qualified slug. The cancellation reason starts with `Superseded by `;
+an optional date or explanation may follow. Cancellation removes the old ticket
+from live queues, clears its step, and keeps its body and blackboard as history.
+There is no separate `superseded` status. Leaving the replaced ticket paused or
+draft keeps it live. If file readers need the pointer, open `## Context` with
+**Superseded by `<new>` (<date>).** as a courtesy copy of the logged reason.
+A superseded design within one ticket follows [dev/code](../../dev/code/SKILL.md).
