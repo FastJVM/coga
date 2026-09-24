@@ -45,6 +45,13 @@ workflow, or task-model changes.
   verify branches with `PYTHONPATH`. A checkout `.venv/` is the test
   environment, not what `coga` on PATH runs. If `src/coga/` edits do not show
   up, check which checkout the install imports.
+- **Codex runs its commands in a login shell** (`bash -lc`), which re-reads
+  `~/.profile`; one that prepends `~/.local/bin` puts the uv tool `coga` back
+  in front of a checkout venv you put first on PATH before launching. To
+  dogfood a branch's `coga` under codex (for example a Dream run in a scratch
+  clone), set top-level `allow_login_shell = false` in that checkout's
+  gitignored `.codex/config.toml` and confirm with `command -v coga` from a
+  codex session.
 - Installed-versus-source skew warnings from `launch`/`validate` are owned by
   [coga/launch](../launch/SKILL.md).
 
