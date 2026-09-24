@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -45,7 +45,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: retro-verify-done-scope
-worktree: /home/n/Code/coga-control
+worktree: /home/n/Code/coga-retro-verify-done-scope
 
 ## Implemented (commit 4a0b6909a)
 
@@ -64,3 +64,20 @@ Decision, confirmed with the owner: Retro **preserves and reports** the gap and 
 - Full suite (py3.12, uv ephemeral env): 2876 passed and 2 failed. Both failures are in `test_packaging` wheel builds, because that env has no pip. They are environmental, not caused by this change.
 - In a real py3.12 venv with `pip install -e ".[test]"`: `tests/test_packaging.py` plus `tests/test_dream_worker_templates.py` gave 37 passed.
 - Note: the system `python` here is 3.9, and there is no repo `.venv`.
+
+
+## Peer review
+
+- `codex review --base main` returned with no actionable findings. Its attempted targeted test run lacked `tomlkit`; the full run below used the complete Python 3.12 environment and passed.
+- Ran `git fetch origin main` and `git rebase --autostash FETCH_HEAD`; rebase completed without conflicts. Reviewed implementation is now commit `cab1e5a73`, one commit ahead of fetched main (`996fa06c9`). No review fixes were needed.
+- Verification: `PYTHONPATH=/home/n/Code/coga-control/src /tmp/claude-1000/-home-n-Code-coga-control/b29692c5-07f5-471d-8d1b-bfece98eb698/scratchpad/venv/bin/python -m pytest` — **2878 passed** in 168.19s. Output: `/tmp/retro-peer-review-pytest.log`. `git diff --check` passed.
+- Reviewed the instructions against the existing current-tree baseline, missing/partial-scope reporting, and deletion rules. No terminal or rendered UI surface changed; no manual terminal exercise applies. The template assertions guard instruction presence, not agent compliance.
+- Corrected the checkout handoff: `/home/n/Code/coga-control` is a linked checkout, so it cannot use open-pr's single-checkout exception. Returned it to `main` and moved the committed feature branch to `/home/n/Code/coga-retro-verify-done-scope`, with local config seeded. The feature worktree is clean. Task/log state remains in the control checkout for CLI publication.
+
+## PR
+
+Retro previously trusted a done ticket's claimed fix without checking whether its description's scope reached the control branch. Require a current-tree check before extracting or citing that claim. Preserve absent or partial scope as a known failure mode in the knowledge PR, and report it for the caller to route follow-up work before deleting the source.
+
+Update the packaged Retro skill, the lifecycle topic and its identical bootstrap twin, and the template regression test. Retro continues to leave follow-up ticket creation to its caller.
+
+Test plan: `PYTHONPATH=/home/n/Code/coga-control/src /tmp/claude-1000/-home-n-Code-coga-control/b29692c5-07f5-471d-8d1b-bfece98eb698/scratchpad/venv/bin/python -m pytest` — 2878 passed; `git diff --check` passed.
