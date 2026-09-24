@@ -70,6 +70,10 @@ build, and it should not have to re-derive intent.
    oversized: the spec under `## Description` covers only the slice the
    source keeps, and each sibling draft carries its own. The owner can
    still cancel a sibling in `review-design`.
+   If `code/split-ticket` is not composed in your prompt (a workflow frozen
+   before it shipped), read `coga/skills/code/split-ticket/SKILL.md`, or the
+   bundled copy under `coga/resources/templates/coga/bootstrap/skills/` in
+   the installed package when the repo has no local one.
 7. **Bump — this is what ends the step.** Run `coga bump <slug>`. It
    advances the workflow to its next frozen step and is the only thing that
    does so — there is no autobump. If you stop without running it, the

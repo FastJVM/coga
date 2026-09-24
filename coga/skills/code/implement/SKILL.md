@@ -28,6 +28,10 @@ later `code/open-pr` step does that, after self-review and fixes.
    of a split; if that paragraph names an `After:` ticket that is not yet
    `done`, block on it by the `code/split-ticket` skill composed beside this
    one before setting up a checkout.
+   If `code/split-ticket` is not composed in your prompt (a workflow frozen
+   before it shipped), read `coga/skills/code/split-ticket/SKILL.md`, or the
+   bundled copy under `coga/resources/templates/coga/bootstrap/skills/` in
+   the installed package when the repo has no local one.
 2. **Close already-satisfied tickets directly.** If every requested
    checklist item has already landed in other work and there is genuinely
    no branch, diff, or PR to create, do not manufacture one and do not

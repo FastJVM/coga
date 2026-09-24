@@ -39,6 +39,7 @@ def test_design_and_implement_point_at_the_split_skill_without_restating_it() ->
         assert "`code/split-ticket`" in text
         assert "## Splitting a ticket" not in text
         assert "## Split\n" not in text
+        assert "a workflow frozen\n   before it shipped" in text
     assert "`## Description` opens with `**Split from`" in implement
 
 
