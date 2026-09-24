@@ -69,8 +69,20 @@ Owner decisions (2026-09-22, design step):
   machinery. It applies to every codex session in the repo, which is
   accepted.
 - The usage fix is **in scope**.
-- The real-run verification is an **owner-launched W40 Dream run under
-  codex** after merge.
+- ~~The real-run verification is an owner-launched W40 run after merge.~~
+  Superseded 2026-09-24: the design findings are probes, not proof. The
+  implement step **runs Dream under codex for real, in a loop, until it
+  works** (see `### Run/fix loop`), against a disposable clone that pushes
+  to the private scratch repo `FastJVM/coga-dream-scratch`. The W40 run on
+  the real repo becomes a separate confirmation ticket,
+  `verify-dream-under-codex-on-the-real-repo-w40`, launched by the owner
+  after merge. That also keeps autoclose from closing this ticket before a
+  real run.
+- **Nested-launch exception (owner grant, 2026-09-24).** The base prompt
+  forbids `coga launch` from inside a launch. For this ticket's implement
+  step only, the owner waives that rule, **scoped to the scratch clone**:
+  the implement agent may run `coga dream --agent codex` there. It may not
+  launch anything against this checkout or `FastJVM/coga`.
 
 ### Acceptance criteria
 
@@ -126,15 +138,28 @@ Owner decisions (2026-09-22, design step):
         fresh-context and wave wording, and the Retro codex-cwd sentence;
       - `tests/test_packaging.py` twin checks pass;
       - `python -m pytest` passes (modulo failures reproduced on `main`,
-        listed on the blackboard) and `coga validate --json` is clean.
-- [ ] **Real run (review gate, owner-launched).** After merge, the owner
-      applies the `.codex/config.toml` recipe and launches W40 with
-      `--agent codex`, attended. The run completes all six phases and routes
-      findings to PRs, draft tickets, and markers. Its run summary, its usage
-      record (`usage_status: ok`), and any new gaps are recorded on this
-      ticket's blackboard, next to the W39 claude baseline, before the ticket
-      closes. A new gap gets a fix or a filed ticket; it is never left only on
-      the blackboard.
+        listed on the blackboard);
+      - `coga validate --json` adds no error attributable to this branch.
+        `main` already exits 1 (2026-09-22: two
+        `unsynthesized-draft-blackboard` errors, on
+        `clean-up-all-the-working-trees` and `v2/autotrigger-ticket-type`, plus
+        50 warnings). Record the observed baseline, and do not repair
+        unrelated drafts to clear it.
+- [ ] **A clean codex Dream run in the scratch clone (run/fix loop).**
+      Starting from the branch head, a Dream run launched under codex through
+      the real `coga launch` path finishes the preflight and all six phases
+      without a human stepping in, apart from answering Dream's own attended
+      prompts. It routes findings to PRs (on the scratch repo), draft
+      tickets, and markers, and its run record shows `usage_status: ok`. Every
+      iteration's failures, root causes, and fixes are logged on the
+      blackboard, and the clean run's summary is recorded next to the W39
+      claude baseline. Every fix lands on this branch; nothing is patched only
+      in the clone.
+- [ ] The Retro linked checkout is created under a root that is already
+      writable under the grant, and the Retro step checks for write access
+      there before delegating. That root is chosen during the loop, from
+      what the runs show (evaluator P1), and recorded in the Retro skill and
+      the codebase recipe.
 
 ### Proposed shape
 
@@ -167,10 +192,63 @@ Owner decisions (2026-09-22, design step):
      Dream scan paragraph.
    - Mirror both into `src/coga/resources/templates/coga/bootstrap/contexts/coga/`.
 5. **Template tests:** add them in `tests/test_dream_worker_templates.py`.
-6. **Verify:** run `python -m pytest` and `coga validate --json`. Optionally
-   repeat the `codex sandbox -c ...` capability probe (blackboard) with the
-   documented keys, to prove the recipe text is exact. Record commands and
-   results on the blackboard.
+6. **Verify:** run `python -m pytest` and `coga validate --json`, and record
+   the commands and results on the blackboard.
+7. **Run/fix loop** (below) until a clean run lands. Then `open-pr`.
+
+### Run/fix loop
+
+The loop runs inside the implement step as one long session. A Coga workflow
+can't loop (steps are linear and agents never step back), so the ticket
+spells out the procedure instead.
+
+**One-time setup** (record the paths on the blackboard):
+
+1. Clone the repo to a directory outside this checkout, for example
+   `~/Code/codex/coga-dream-scratch`. Point `origin` at
+   `https://github.com/FastJVM/coga-dream-scratch.git` and remove every other
+   remote, so `git` and `gh` can only reach the scratch repo.
+2. Give the clone **its own venv** and run `pip install -e ".[test]"` there.
+   The global `coga` is a uv tool install that doesn't run branch code. Every
+   loop command runs the clone's `coga`.
+3. Write the clone's `coga.local.toml` (copy the local one, then set
+   `[notification.slack].enabled = false`), so test runs never post to the
+   real channel.
+4. Write the clone's `.codex/config.toml` from the recipe, with the **clone's**
+   absolute `.git` in `writable_roots`, and trust the clone's project in
+   codex.
+
+**Each iteration** (cap: 5 full runs; if the loop still fails after 5,
+stop and ask the owner rather than keep going):
+
+1. **Reset the scratch repo to the branch.** Force-push the branch head to
+   `coga-dream-scratch` `main`, and close any open PRs there. Then
+   hard-reset the clone to it and delete its local branches, so every run
+   starts from clean state. The scratch repo is disposable, so force-pushing
+   is fine there, and **only** there.
+2. **Launch.** In a detached `tmux` session with the clone as cwd, run
+   `coga dream --agent codex`. Launches are interactive-only (they need a
+   TTY), which is why it runs under tmux. Drive the session with
+   `tmux capture-pane` and `send-keys`: answer Dream's attended prompts the
+   way the owner would, and don't approve anything aimed outside the clone
+   or the scratch repo.
+3. **Watch and collect.** Follow the pane, the clone's `coga/log.md`, the
+   Dream ticket's blackboard, `.coga/` run records, and the parent and child
+   rollouts under `~/.codex/sessions/`. A phase that stalls, a wrong result,
+   a sandbox denial, or usage that isn't `ok` all count as failures.
+4. **Log, fix, repeat.** Add an iteration entry to the blackboard: what
+   failed, the evidence, the root cause, and the fix. Fix it on the branch
+   in this checkout, with a test when the fix is in code. Commit, then go
+   back to step 1.
+
+A run is clean when the preflight passes, all six phases finish, the
+findings routing looks sensible next to the W39 baseline, and usage is `ok`.
+A single clean run ends the loop. After that, tear down the tmux session;
+the clone and the scratch repo stay until the PR merges.
+
+**Out of bounds for the loop:** `FastJVM/coga`, this checkout's
+`coga/tasks/**` state, the real Slack channel, and codex config outside the
+clone.
 
 ### Out of scope
 
@@ -187,8 +265,11 @@ Owner decisions (2026-09-22, design step):
 - Rewriting `dev/code`'s independent-clone fallback. The grant also removes
   the read-only `.git` wall for codex code tickets, but that context stays as
   is.
-- Running Dream from inside the implement agent. `coga launch` from inside a
-  launch is forbidden, and the real run makes real PRs and deletes.
+- Running Dream against the real repo. That happens in
+  `verify-dream-under-codex-on-the-real-repo-w40`, after merge and launched
+  by the owner.
+- Turning the run/fix loop into a Coga workflow or skill. If a second ticket
+  needs this dogfood loop, propose a skill then.
 
 ## Context
 
@@ -231,6 +312,22 @@ Owner decisions (2026-09-22, design step):
 - **Prior art:** done ticket `dream-phases-2-3-cannot-complete-scan-subagents-re`
   (PR #703) introduced the sharded, disk-delivered scan protocol. It is why
   codex's final-message delivery does not matter for Phases 2–3.
+- **Evaluator recommendations to honor** (2026-09-22 review):
+  - Keep a wave's **join** separate from the attempt's **reconciliation**.
+    Waiting for one wave only frees slots, so manifest rows not launched yet
+    are not missing or due for retry. Reconcile the whole attempt once every
+    wave has joined (scan-protocol `Reconcile at the barrier`).
+  - "Git common dir is writable" means creating and then removing a
+    uniquely named probe file in the resolved absolute common dir, not a
+    permission-bit check, and not a Git lock name.
+  - The template tests assert that the preflight fails before Phase 1 and
+    takes the Session-conduct route, not only that the heading exists.
+  - Usage tests cover `thread_source` alone and `parent_thread_id` alone
+    each excluding a child, and show that a set with only children stays
+    unknown.
+- **Scratch target:** `FastJVM/coga-dream-scratch` (private, created
+  2026-09-24, seeded from `main`). It is disposable, so force-pushes and junk
+  PRs there are expected.
 - **Baseline:** W39 Dream under claude, 2026-09-21: validate-drift 50 issues
   (3 class drafts), 4 knowledge PRs + 7 deletes, 6 stale/drift PRs, 12
   drafts, ~1 h, 94 agent turns.
@@ -238,6 +335,18 @@ Owner decisions (2026-09-22, design step):
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Owner revision (2026-09-24, ticket edit)
+
+The owner pointed out that nothing in the design proves Dream works under
+codex, and asked for a real test/fix loop. Body changes:
+- a run/fix loop in the implement step against the scratch clone, with a
+  nested-launch exception scoped to that clone;
+- W40 split out to `verify-dream-under-codex-on-the-real-repo-w40`, which
+  also resolves evaluator P1 #2 (autoclose);
+- validator criterion changed to "no new attributable errors" (P2);
+- the Retro checkout root to be chosen during the loop (P1 #1);
+- the evaluator's recommendations folded into `## Context`.
 
 ## Evaluator review
 
