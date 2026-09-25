@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (self-qa)
+step: 3 (pr)
 agent: claude
 ---
 
@@ -61,3 +61,21 @@ worktree: /home/n/Code/codex/coga
 - Implementation committed as `340171406` after rebasing on `origin/main` (`944d6dd4a`). Only live ticket/log state is dirty; no implementation work remains uncommitted. Final full-suite run uses the isolated `TMPDIR` above after rebase.
 - Final verification: `TMPDIR=/tmp/coga-daily-autoclose-tests PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest`: **2938 passed, 1 failed in 267.22s**. Sole failure is the owner-approved pre-existing phone-home twin drift, tracked by PR #895; the recurring cleanup check passed. `git diff --check` passed. Full output: `/tmp/coga-daily-autoclose-final.log`.
 - Ready for self-QA. No push or PR performed in this step. Daily branch cleanup is wired through the existing registered recipe; standalone direct autoclose remains unchanged, and the weekly branch-sweep template remains available.
+
+## Self-QA
+
+- Confirmed primary checkout `/home/n/Code/codex/coga` on `daily-autoclose-branches`, implementation commit `340171406`; initial dirty files were only this ticket and CLI-written `coga/log.md` state.
+- Review returned: completed the manual branch-diff review against `main` permitted when `/code-review` is unavailable. No actionable findings. Traced recipe ordering, failure reporting, report append behavior, recurring-report claim exclusions, and the existing local/remote cleanup gates; no review remains in flight.
+- `/simplify` is not callable in this harness; performed its reuse, quality, and efficiency pass directly. No worthwhile simplifications: the script reuses both registered recipes without adding core machinery, and tests reuse existing Git fixtures. No implementation changes were needed.
+- No changed interactive terminal, pager, or Slack rendering surface requires a manual visual sweep. Headless execution and branch/ref outcomes are exercised by the recurring lifecycle and bare-origin integration tests.
+- Example validation: from `example/coga`, `env -u SLACK_WEBHOOK_URL -u COGA_IMPORTANT_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m coga.cli validate --json`: 4 OK, no issues. `git diff --check` passed.
+- Full-suite rerun: `TMPDIR=/tmp/coga-daily-autoclose-tests PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest`: **2938 passed, 1 failed in 277.48s**. The sole failure remains `tests/test_packaging.py::test_live_and_packaged_copies_stay_identical` for the unchanged phone-home twin runtime drift, already approved by the owner for proceeding and tracked by PR #895. Output: `/tmp/coga-daily-autoclose-self-qa.log`. No new regressions; ready for the PR step.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `run-the-landed-branch-sweep-daily-from-autoclose`
+Recorded: 2026-09-25T17:44:58+00:00
+
+    Branch 'daily-autoclose-branches' is not safe to publish. current branch does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Overlapping paths: coga/log.md, coga/tasks/run-the-landed-branch-sweep-daily-from-autoclose.md. Reconcile it and relaunch, or `coga block --task run-the-landed-branch-sweep-daily-from-autoclose`.
