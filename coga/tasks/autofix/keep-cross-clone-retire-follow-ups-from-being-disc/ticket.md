@@ -89,3 +89,24 @@ Moved from FastJVM/multiply on 2026-09-24: filed there by Dream/autofix against 
 
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Implement handoff — 2026-09-24
+
+- Human approved persisting the owning clone in each worklist entry, checking
+  branches there, and reporting retained debt with the owning-clone cleanup
+  command. Keep old lines readable; unresolved ownership retains debt, with
+  manual ownership backfill potentially needed for old entries.
+- Verified the attached `run-log.md` corroborates the cross-clone loss.
+  `src/coga/retire_worklist.py` plus `is_discharged` currently checks only the
+  caller's branch set; `src/coga/autoclose.py` plus `_report_retire_followups`
+  constructs entries without persisting an owner. No implementation yet.
+- This session's checkout is occupied by `retired-ticket-recovery`, with
+  that other ticket and the audit log dirty. Left its branch and state in place.
+- Prepared control checkout: `/home/n/Code/codex/coga-control`, branch `main`.
+  Seeded local config with `code/implement/seed_local_config.py`; explicitly
+  fetched `origin main` and fast-forwarded. Before this handoff, the published
+  ticket there was byte-identical to this session's live ticket.
+- Per the occupied-primary rule in `code/implement`, relaunch from that control
+  checkout, then create a separate feature checkout for implementation. No
+  feature branch or `## Dev` record yet; no bump until implementation completes.
+- Relaunch: `cd /home/n/Code/codex/coga-control && coga launch autofix/keep-cross-clone-retire-follow-ups-from-being-disc`.
