@@ -20,7 +20,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -115,4 +115,19 @@ Related evaluation record: `docs/evidence/pitch-evaluation.md`,
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: three-kinds-of-work
+worktree: /home/n/Code/coga-three-kinds-of-work
+
+## Decisions
+
+- Draft wording approved by owner in session: vision section `## Three kinds of work`; principles names it as a plain path; rewind relabelled in current-direction and lifecycle.
+
+## Implement result
+
+- Committed 85359ac92 on `three-kinds-of-work` (6 files: vision, principles + twin, lifecycle + twin, current-direction). Worktree clean; not pushed.
+- `grep -rni exceptional docs/contexts src/coga/resources`: no hits.
+- `pytest tests/test_packaging.py`: 22 pass, 1 fail — `coga/recurring/phone-home/ticket.md` twin drift, pre-existing on main (not from this change). Twins edited here are byte-identical.
+- `coga validate --json`: 1 error, pre-existing and unrelated (`v2/autotrigger-ticket-type` unsynthesized-draft-blackboard).
+- Follow-up: phone-home live/packaged drift needs its own fix.
