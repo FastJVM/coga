@@ -6396,3 +6396,4 @@ fatal: Unable to add (null) to database
 2026-09-25 10:35 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
 2026-09-25 10:35 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
 2026-09-25 10:35 [the-retro-done-ticket-skill-should-verify-a-done-t] [human:nicktoper] auto-bumped on merge of PR #887 → done
+2026-09-25 10:35 [ticket-relationships-and-ownership-have-no-mechani] [human:nicktoper] auto-bumped on merge of PR #886 → done
