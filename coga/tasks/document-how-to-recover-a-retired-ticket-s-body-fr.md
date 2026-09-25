@@ -1,7 +1,7 @@
 ---
 title: Document how to recover a retired ticket's body from git, including pre-rename
   paths
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
