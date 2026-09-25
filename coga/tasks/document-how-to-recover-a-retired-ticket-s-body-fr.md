@@ -46,3 +46,48 @@ Two independent tickets rediscovered that the task tree was `relay-os/tasks/` be
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Control checkout (2026-09-24)
+
+control: `/home/n/Code/codex/coga-control` (on `main`, fast-forwarded to origin/main 153b72250)
+
+The primary checkout `/home/n/Code/codex/coga` holds `dream-under-codex`, the
+live branch of `make-dream-run-correctly-under-codex` (PR #891). Its dirty
+task/log state is left untouched. The human chose to follow `code/implement`
+step 3's occupied-primary path: relaunch this ticket from the control checkout
+(`cd ../coga-control && coga launch document-how-to-recover-a-retired-ticket-s-body-fr`)
+and use the separate-feature layout there. `seed_local_config.py` has already
+been run for the control checkout (rc 0).
+
+## Plan (agreed with the owner)
+
+- Single owner is `coga/tickets` (`docs/contexts/coga/tickets/SKILL.md`, plus
+  its packaged twin `src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/SKILL.md`).
+  In `## Where tasks live and how they are named`, right after the sentence
+  "moving a task orphans its history under the old tag", add a short
+  paragraph saying:
+  - A retired or deleted ticket (`coga retire`, `delete-task`, Retro) keeps its
+    body and blackboard only as a git blob, so `coga show <slug>` won't find it.
+  - Recipe: `git log --all --diff-filter=D --name-only -- 'coga/tasks/<slug>*' 'relay-os/tasks/<slug>*'`,
+    then `git show <commit>^:<path>`.
+  - The task tree was `relay-os/tasks/` before d0645a197 ("Rename relay to
+    coga", #454), so search both pathspecs.
+  - If the relay-os pathspec only hits d0645a197, the file was renamed there,
+    not retired. Search the coga path for the later deletion.
+- `coga/tasks/v2/README.md` premise check item 3: replace the inline recipe
+  with a link to `coga/tickets`.
+- `bootstrap/ticket` (packaged `bootstrap/skills/bootstrap/ticket/SKILL.md`
+  plus a live twin if one exists): add one pointer line to the citation
+  guidance about recovering a cited ticket that has been retired, linking to
+  `coga/tickets`.
+- Run `python -m pytest tests/test_packaging.py` and the full suite.
+
+## Adjacent finding (not fixed here)
+
+- `code/implement/seed_local_config.py` does `import tomllib` at module top.
+  So on Python < 3.11 (for example the system `python3` 3.9.12 here) it fails
+  with ModuleNotFoundError before reaching the documented fallback that
+  "re-runs itself under the `coga` console script's interpreter". The skill's
+  claim that "any `python` works" is false on 3.9.
+  Workaround: run it with the interpreter from the shebang of `which coga`.
+  No follow-up ticket exists yet.
