@@ -135,6 +135,7 @@ This session runs under the old single-checkout rule (feature branch in this
 checkout) because the new rule is what it implements.
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/896
 branch: stop-using-worktrees
 
 Pushed through `e2efc271ad79` after peer review and rebase; launch checkout
