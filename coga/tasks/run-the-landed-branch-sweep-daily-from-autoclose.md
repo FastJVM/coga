@@ -39,6 +39,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/898
 branch: daily-autoclose-branches
 worktree: /home/n/Code/codex/coga
 
@@ -70,6 +71,21 @@ worktree: /home/n/Code/codex/coga
 - No changed interactive terminal, pager, or Slack rendering surface requires a manual visual sweep. Headless execution and branch/ref outcomes are exercised by the recurring lifecycle and bare-origin integration tests.
 - Example validation: from `example/coga`, `env -u SLACK_WEBHOOK_URL -u COGA_IMPORTANT_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m coga.cli validate --json`: 4 OK, no issues. `git diff --check` passed.
 - Full-suite rerun: `TMPDIR=/tmp/coga-daily-autoclose-tests PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest`: **2938 passed, 1 failed in 277.48s**. The sole failure remains `tests/test_packaging.py::test_live_and_packaged_copies_stay_identical` for the unchanged phone-home twin runtime drift, already approved by the owner for proceeding and tracked by PR #895. Output: `/tmp/coga-daily-autoclose-self-qa.log`. No new regressions; ready for the PR step.
+
+## PR
+
+Daily recurring autoclose now runs the existing landed-branch sweep after ticket cleanup succeeds. This removes eligible branches without live tickets on the next daily run, while retaining the existing deletion proofs, reports, and weekly retry. Direct `coga run autoclose` remains unchanged. Cleanup and scheduling contracts and packaged twins are updated together.
+
+Regression coverage checks recipe ordering, failure propagation, and local/bare-origin cleanup: bookkeeping-only follow-ups are deleted while unpushed source changes retain both refs and are reported.
+
+Verification:
+- `TMPDIR=/tmp/coga-daily-autoclose-tests PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest`: 2938 passed, one owner-approved existing phone-home twin failure (tracked by #895).
+- After merging current `origin/main`, `env TMPDIR=/tmp/coga-daily-autoclose-tests PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest tests/test_recurring_shims.py tests/test_branchsweep.py tests/test_autoclose_sweep.py tests/test_packaging.py -q`: 98 passed, the same phone-home failure.
+- `git diff --check`: passed.
+
+## Publication reconciliation
+
+- Owner authorized reconciling with `origin/main` after the first publication refusal. Merge `1980d062d` incorporates generated state only; implementation is unchanged. The ticket conflict was resolved using the published current ticket; the audit log merged automatically. All saved ticket/log content is preserved. Stash `daily-autoclose-pr-reconciliation` remains as a recovery copy.
 
 ## Recipe Failure
 
