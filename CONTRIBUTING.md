@@ -21,14 +21,15 @@ up Coga to file an issue. Small typo fixes can go straight to a pull request.
 Use Python 3.11+ and Git. Fork and clone the repository, then run from its root:
 
 ```sh
-python3 -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ".[test]"
 python -m pytest
 ```
 
-The [testing](docs/contexts/coga/testing/SKILL.md) topic covers the CLI smoke
-check and test commands; [codebase](docs/contexts/coga/codebase/SKILL.md)
+CI runs the suite on Python 3.11, the declared floor, and 3.12. The
+[testing](docs/contexts/coga/testing/SKILL.md) topic covers the CLI smoke
+check, test commands, and CI posture; [codebase](docs/contexts/coga/codebase/SKILL.md)
 covers source layout, coding style, and commit conventions;
 [configuration](docs/contexts/coga/configuration/SKILL.md) covers `coga.toml`
 and `coga.local.toml`; and [packaging](docs/contexts/coga/packaging/SKILL.md)

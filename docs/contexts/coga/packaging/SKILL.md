@@ -108,3 +108,14 @@ views under the templates tree dedup the collision away. Verify packaging
 changes against a fresh `git clone` or `git worktree` as well as a dev tree.
 Build artifacts (`.coga/`, `.venv/`, `__pycache__/`) are excluded so a dirty
 tree cannot ship a stale venv into every `coga init`.
+
+### Resource anchors must be regular packages
+
+Before adding an `importlib.resources.files("coga.<pkg>")` consumer, make sure
+the anchor package has a tracked `__init__.py` that ships in the wheel, and
+keep a regression check for it. Without the marker the anchor is a namespace
+package; on Python 3.11 its `MultiplexedPath` accepts one `joinpath` segment
+and has no `__fspath__`, so multi-segment lookups and `Path(files(...))` fail
+even when the same code passes on 3.12. The marker belongs to the anchor
+package, not every data-only directory below it; keep existing markers even
+when empty.
