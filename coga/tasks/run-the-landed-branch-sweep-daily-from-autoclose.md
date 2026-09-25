@@ -1,6 +1,6 @@
 ---
 title: Run the landed-branch sweep daily from autoclose
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-self-review
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
