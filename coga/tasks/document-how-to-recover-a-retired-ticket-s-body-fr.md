@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -47,17 +47,45 @@ Two independent tickets rediscovered that the task tree was `relay-os/tasks/` be
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Control checkout (2026-09-24)
+## Dev
 
-control: `/home/n/Code/codex/coga-control` (on `main`, fast-forwarded to origin/main 153b72250)
+branch: retired-ticket-recovery
+worktree: /home/n/Code/codex/coga
 
-The primary checkout `/home/n/Code/codex/coga` holds `dream-under-codex`, the
-live branch of `make-dream-run-correctly-under-codex` (PR #891). Its dirty
-task/log state is left untouched. The human chose to follow `code/implement`
-step 3's occupied-primary path: relaunch this ticket from the control checkout
-(`cd ../coga-control && coga launch document-how-to-recover-a-retired-ticket-s-body-fr`)
-and use the separate-feature layout there. `seed_local_config.py` has already
-been run for the control checkout (rc 0).
+Single-checkout layout. The owner changed course from the control-checkout
+plan: `dream-under-codex` (PR #891) was confirmed pushed (local ==
+origin), its task/log state was published, `../coga-control` was removed, and
+this primary checkout switched to `main` and branched here.
+
+## Implementation (2026-09-24)
+
+Commit 375935944, rebased on origin/main 970806606.
+
+- `coga/tickets` `## Where tasks live and how they are named` (live + packaged
+  twin): new paragraph plus recipe
+  `git log origin/main --diff-filter=D --name-only -- 'coga/tasks/<slug>*' 'relay-os/tasks/<slug>*'`
+  then `git show <commit>^:<path>`.
+  - Deviations from the plan, both from testing on real slugs:
+    - It searches `origin/main`, not `--all`. `--all` surfaced an off-main
+      "Refresh coga state after launch" deletion of
+      `improve-prompt-for-relay-ticket` ahead of the real `ffb0a3835`.
+    - "Newest hit = retirement; older hits = rename or `.md` ↔ `<slug>/`
+      conversion" replaced the planned "`— deleted` subject" rule, because
+      Retro deletes tickets inside its "New context: …" PR commits, not in
+      `— deleted` commits.
+  - Also notes that old directory-form tasks kept a sibling `blackboard.md`.
+  - Verified on `detect-recurring-runs-that-mark-done-without-advan`
+    (pre-rename, `d7086ecde`) and on `improve-prompt-for-relay-ticket`.
+- `coga/tasks/v2/README.md` premise check item 3: the inline recipe is
+  replaced with a link to the `coga/tickets` anchor.
+- `bootstrap/ticket` (packaged only; there is no live twin under
+  `coga/skills/bootstrap/`): a paragraph after "Citing code in `## Context`"
+  says to copy the cited ticket's substance, cite it for provenance only, and
+  recover a retired source with the `coga/tickets` recipe.
+- Tests: `.venv/bin/python -m pytest` gave 2932 passed, 1 failed. The failure
+  is `test_live_and_packaged_copies_stay_identical`, on
+  `coga/recurring/phone-home/ticket.md` twin drift. It is pre-existing and
+  already noted in PR #892's log line; this branch doesn't touch it.
 
 ## Plan (agreed with the owner)
 
