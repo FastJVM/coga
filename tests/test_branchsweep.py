@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import runpy
 import subprocess
 from pathlib import Path
 from textwrap import dedent
@@ -943,6 +944,50 @@ def test_tip_moved_by_real_changes_is_skipped(repo: Path, monkeypatch) -> None:
         "PR #7" in note and "src/thing.py" in note for note in result.notes
     ), result.notes
     assert any("no merged PR vouching for it" in note for note in result.notes)
+
+
+@pytest.mark.parametrize("unpushed_source", [False, True])
+def test_daily_autoclose_sweeps_unclaimed_branches(
+    repo: Path, monkeypatch, capsys, unpushed_source: bool,
+) -> None:
+    """Exercise the daily script and real recipes against a local bare origin."""
+    _push_branch(repo, "feat")
+    merged_head = _tip(repo, "feat")
+    _squash_merge(repo, "feat")
+    _state_commit(repo, "feat", "one")
+    if unpushed_source:
+        _commit(repo, "feat.txt", "unpushed source change", "follow-up")
+    _git(repo, "checkout", "main")
+    _fake_gh(monkeypatch, {"feat": merged_head})
+    cfg = _cfg(repo)
+    monkeypatch.setattr("coga.config.load_config", lambda: cfg)
+    monkeypatch.setenv("COGA_TASK_SLUG", "recurring/autoclose-merged")
+    run = subprocess.run
+    bumps = []
+
+    def run_with_bump(argv, **kwargs):
+        if argv[1:4] == ["-m", "coga.cli", "bump"]:
+            bumps.append(argv[4])
+            return subprocess.CompletedProcess(argv, 0)
+        return run(argv, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", run_with_bump)
+    script = (
+        Path(__file__).resolve().parents[1]
+        / "src/coga/resources/templates/coga/recurring/autoclose-merged/ticket.py"
+    )
+    with pytest.raises(SystemExit) as exc:
+        runpy.run_path(str(script))
+
+    assert exc.value.code == 0
+    assert bumps == ["recurring/autoclose-merged"]
+    assert _branch_exists_local(repo, "feat") is unpushed_source
+    assert _branch_exists_remote(repo, "feat") is unpushed_source
+    output = capsys.readouterr().out
+    assert "no tickets bumped" in output
+    assert "Branch Sweep" in output
+    if unpushed_source:
+        assert "feat.txt" in output
 
 
 def test_evil_merge_of_control_state_keeps_branch(repo: Path, monkeypatch) -> None:

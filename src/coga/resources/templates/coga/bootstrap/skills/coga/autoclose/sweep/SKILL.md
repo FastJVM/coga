@@ -10,7 +10,10 @@ This skill documents the merged-ticket auto-close sweep behind the
 registered `autoclose` recipe (`coga.autoclose.run_autoclose_recipe`)
 through `coga.runner.run_recipe` — no agent, no composed prompt — and the
 same sweep is available as `coga run autoclose`. It is the
-sole trigger for closing tickets whose PR has merged:
+sole trigger for closing tickets whose PR has merged. The recurring script
+also runs branch-sweep after this recipe succeeds;
+[coga/recurring/scheduling](context:coga/recurring/scheduling) owns that
+composition. The autoclose recipe itself performs these steps:
 
 1. scan active and in-progress tickets,
 2. read each ticket blackboard's `## Dev` `pr:` link,
