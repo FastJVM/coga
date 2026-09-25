@@ -6376,3 +6376,12 @@ fatal: Unable to add (null) to database
 2026-09-24 22:43 [stop-using-worktrees] [agent:claude] advanced to step 4 (review) → nicktoper
 2026-09-24 22:43 [stop-using-worktrees] [system] {"agent":"claude","agent_turns":2,"cache_creation_input_tokens":64253,"cache_read_input_tokens":365880,"cli":"claude","content_status":"ok","elapsed_seconds":31.734241,"ended_at":"2026-09-25T05:43:29.546176Z","human_turns":0,"input_tokens":16,"model":"claude-opus-5-5","outcome":"`pr:` recorded, checkout clean on `main`. Bumping with the same runtime.","outcome_status":"completed","output_tokens":2047,"provider":"anthropic","request":null,"schema":2,"session_id":"ec1f9e9b-b3e6-4590-ae34-7c69ad693a97","slug":"stop-using-worktrees","started_at":"2026-09-25T05:42:57.811935Z","step":"open-pr","title":"stop using worktrees","ts":"2026-09-25T05:43:29.546176Z","usage_status":"ok"}
 2026-09-24 22:45 [give-the-three-kinds-of-work-taxonomy-an-owning-do] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
+2026-09-25 10:24 [recurring/address-pr-comments] [system] created (status=active)
+2026-09-25 10:24 [recurring/address-pr-comments] [system] deleted completed prior-period task before 2026-09-25
+2026-09-25 10:24 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-09-25
+2026-09-25 10:24 [recurring/autoclose-merged] [system] created (status=active)
+2026-09-25 10:24 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-09-25
+2026-09-25 10:24 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-09-25
+2026-09-25 10:24 [recurring/blocker-reminders] [system] created (status=active)
+2026-09-25 10:24 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-09-25
+2026-09-25 10:24 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-09-25
