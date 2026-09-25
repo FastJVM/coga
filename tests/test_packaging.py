@@ -180,6 +180,13 @@ INTENTIONALLY_DIVERGENT_TWINS = {
         "The live copy is this repo's append-only audit trail; the packaged "
         "copy is the empty log a fresh repo starts with."
     ),
+    "coga/recurring/phone-home/ticket.md": (
+        "The live copy's `period_state:` carries this repo's telemetry run "
+        "counter, log offset, and digest, advanced by every weekly snapshot; "
+        "the packaged copy is the zero seed a fresh repo starts from. "
+        "test_phone_home_parent_header_matches_and_packaged_seed_is_unused "
+        "still pins the header above the fence and the seed's zero state."
+    ),
 }
 
 
