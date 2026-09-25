@@ -1873,6 +1873,7 @@ def run_recurring_scan(
         agent_override=agent_override,
         scan_lines=scan_lines_for_record(scan, force=force),
         scan_errors=list(scan.errors),
+        scan_problems=list(scan.sync_problems),
     )
     # Forced preparation mutates each DueTask's status. Remember admitted
     # watchdog recoveries so an unsuccessful retry cannot report success.
@@ -1990,7 +1991,10 @@ def _record_unlaunched_creates(scan: DueScan, record: RunRecord) -> None:
         if task.ref is not None and reason != _ALREADY_HANDLED_ON_CONTROL
     ]
     unlaunched += [
-        (task.ref.id_slug, "no launch outcome was recorded")
+        (
+            task.ref.id_slug,
+            task.period_contradiction or "no launch outcome was recorded",
+        )
         for task in scan.tasks
         if task.ref is not None
         and (task.created or task.replaced_done)
@@ -3692,6 +3696,7 @@ def _sync_recurring_create(
     force_record_period: bool = False,
     expected_period_key: str | None = None,
     control_ledger: dict[str, str] | None = None,
+    sync_failures: list[str] | None = None,
 ) -> bool:
     """Sync the period task and ledger record that make deletion idempotent.
 
@@ -3702,11 +3707,20 @@ def _sync_recurring_create(
     `control_ledger` is the caller's per-run snapshot of control's serviced
     periods; see `_control_serviced_period_cached` for why a sweep must share
     one.
+    `sync_failures`, when given, collects the text of every git failure this
+    sync swallows, so a sweep can count what it otherwise only prints.
     """
     template_dir = recurring_dir(cfg) / template_name
     message = f"Ticket: {ref.id_slug} — recurring create"
     if not template_dir.is_dir():
-        git.sync_task_state(cfg, ref.path, message=message)
+        try:
+            git.sync_task_state(
+                cfg, ref.path, message=message, strict=sync_failures is not None
+            )
+        except git.GitError as exc:
+            # Already reported and logged by `sync_task_state`.
+            assert sync_failures is not None
+            sync_failures.append(str(exc))
         return True
     # The serviced-period ledger is the repo-global, union-merged `coga/log.md`
     # (appended by `_record_run`), which never rides the cross-branch overlay —
@@ -3769,6 +3783,7 @@ def _sync_recurring_create(
             force_record_period=force_record_period,
             state_keys=state_keys,
             control_ledger=control_ledger,
+            sync_failures=sync_failures,
         )
     except RecurringError:
         raise
@@ -3779,7 +3794,7 @@ def _sync_recurring_create(
         # the created task on disk is the source of truth, so a sync miss is
         # non-fatal: report + log, keep the task launchable.
         sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
-        _append_sync_failure(cfg, ref.path, exc)
+        _append_sync_failure(cfg, ref.path, exc, sink=sync_failures)
     finally:
         if restore_ticket:
             template_ticket.write_text(restore_ticket)
@@ -3806,6 +3821,7 @@ def _sync_recurring_create_paths(
     force_record_period: bool,
     state_keys: list[str],
     control_ledger: dict[str, str] | None = None,
+    sync_failures: list[str] | None = None,
 ) -> tuple[str, bool]:
     """Publish a period create, or adopt control's copy when it already ran.
 
@@ -3953,6 +3969,8 @@ def _sync_recurring_create_paths(
                     control_ledger=control_ledger,
                     deduplicate=respect_handled_period,
                     bind_published=bind_published,
+                    anchor_path=anchor_path,
+                    sync_failures=sync_failures,
                 )
             _adopt_control_template(
                 root, template_ticket, ticket_rel, base, local_ticket
@@ -4008,7 +4026,7 @@ def _sync_recurring_create_paths(
         raise
     except git.GitError as exc:
         sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
-        _append_sync_failure(cfg, anchor_path, exc)
+        _append_sync_failure(cfg, anchor_path, exc, sink=sync_failures)
         return original_ticket, True
 
 
@@ -4026,6 +4044,8 @@ def _adopt_control_period(
     control_ledger: dict[str, str] | None,
     deduplicate: bool,
     bind_published: Callable[[], None],
+    anchor_path: Path,
+    sync_failures: list[str] | None = None,
 ) -> tuple[str, bool]:
     """Unwind a local create to control's copy; publish only the log line.
 
@@ -4036,6 +4056,12 @@ def _adopt_control_period(
     the log publish leaves the tree clean. Even this rejected create publishes
     the other pending sweep targets' records, so the publish is guarded like
     a create and the cache is bound to the revision it lands.
+
+    The adoption is decided once the restore has run: a failed log
+    publication is reported and counted in `sync_failures`, but the period is
+    still returned as handled on control. Letting that `GitError` reach the
+    caller's transport handler would report `created_on_control=True` over the
+    peer's restored task, which admission then reads as a contradiction.
     """
     _restore_selected_paths_from_ref(root, base, rels)
     if _current_branch(root) == cfg.git_control_branch:
@@ -4051,13 +4077,30 @@ def _adopt_control_period(
             deduplicate=deduplicate,
         )
 
-    if git.publish(cfg, [log_path(cfg)], message, guard=guard_log_publication):
-        bind_published()
+    try:
+        if git.publish(cfg, [log_path(cfg)], message, guard=guard_log_publication):
+            bind_published()
+    except git.GitError as exc:
+        sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
+        _append_sync_failure(cfg, anchor_path, exc, sink=sync_failures)
     return _control_template_or_local(root, base, ticket_rel, original_ticket), False
 
 
-def _append_sync_failure(cfg: Config, anchor_path: Path, exc: Exception) -> None:
-    """Best-effort global-log note for non-fatal git sync failures."""
+def _append_sync_failure(
+    cfg: Config,
+    anchor_path: Path,
+    exc: Exception,
+    *,
+    sink: list[str] | None = None,
+) -> None:
+    """Best-effort global-log note for non-fatal git sync failures.
+
+    `sink` receives the failure first, before the anchor check: a restore can
+    already have removed the task directory, and the caller still needs to
+    count the failure even when there is nothing left to tag the log line to.
+    """
+    if sink is not None:
+        sink.append(str(exc))
     if not anchor_path.is_dir():
         return
     try:
@@ -4861,6 +4904,7 @@ def _broadcast_scan(
         control_ledger[_LEDGER_LOADED] = "yes"
         control_ledger[_LEDGER_REVISION] = control_revision
     for task in list(scan.tasks):
+        sync_failures: list[str] = []
         try:
             if not task.created and not task.replaced_done:
                 _validate_control_serviced_period(
@@ -4895,12 +4939,23 @@ def _broadcast_scan(
                 force_record_period=False,
                 expected_period_key=task.period_key,
                 control_ledger=control_ledger,
+                sync_failures=sync_failures,
             )
         except RecurringError as exc:
             scan.tasks.remove(task)
             sys.stderr.write(f"[recurring] skipping {task.template}: {exc}\n")
             scan.errors.append((task.template, str(exc)))
             continue
+        if sync_failures:
+            # Recorded before any exit below: the task on disk stays the source
+            # of truth and may still launch, but the run must not read clean.
+            scan.sync_problems.append(
+                (
+                    task.ref.id_slug,
+                    "create sync to the control branch failed: "
+                    + "; ".join(sync_failures),
+                )
+            )
         if not (task.ref.ticket_path).is_file():
             scan.tasks.remove(task)
             scan.admission_skips.append((task, _ALREADY_HANDLED_ON_CONTROL))
@@ -4934,6 +4989,22 @@ def _broadcast_scan(
                 f"{task.ref.id_slug} was already handled on the control branch; "
                 "not launching.",
                 fg=typer.colors.BRIGHT_BLACK,
+            )
+            continue
+        if lease_changed and sync_failures and not sync_existing:
+            # A peer's generation replacing ours is an admission skip. The same
+            # change after our own sync failed is that sync leaving some other
+            # copy — once, the prior period's `done` ticket — in place
+            # of the create. Every post-create byte change lands here, so this
+            # is the one site that can see it; the status is not trusted as a
+            # skip (the `_template_damage` rule). `--force` reconciles existing
+            # tasks, so it keeps the ordinary admission skip.
+            task.status = read_ticket(task.ref).status
+            _flag_period_contradiction(
+                cfg,
+                task,
+                f"created this period but its failed create sync left a "
+                f"{task.status} ticket in its place",
             )
             continue
         if lease_changed:
@@ -4972,6 +5043,33 @@ def _broadcast_scan(
             important=True,
             fatal=False,
         )
+
+
+def _flag_period_contradiction(cfg: Config, task: DueTask, reason: str) -> None:
+    """Refuse a period this sweep created but cannot have launched as created.
+
+    The task stays in `scan.tasks` so both renderers print the error, and
+    `_record_unlaunched_creates` counts it: it has no launch outcome, and
+    `DueScan.due` and `forced` never admit it.
+    """
+    assert task.ref is not None
+    task.period_contradiction = reason
+    detail = (
+        f"{task.template} was created for period {task.period_key} but its "
+        f"ticket is now {task.status}; the create did not land as written and "
+        "another copy is standing in for it. The period did not run."
+    )
+    typer.secho(f"{task.ref.id_slug}: {detail}", fg=typer.colors.RED, err=True)
+    # `fatal=False`: this runs before the launch loop; see the scan-errors
+    # alert in `_broadcast_scan`.
+    notify(
+        cfg,
+        f"⚠️ *{task.ref.id_slug}*: {detail}",
+        kind="recurring-error",
+        task_path=task.ref.path,
+        important=True,
+        fatal=False,
+    )
 
 
 def _refresh_forced_status_from_control(cfg: Config, task: DueTask) -> None:
@@ -5013,6 +5111,10 @@ def _print_table(scan: DueScan, *, force: bool = False) -> None:
             # was removed afterwards (a later Dream retro pass or `coga delete`).
             action = typer.style(
                 "skip (ran this period)", fg=typer.colors.BRIGHT_BLACK
+            )
+        elif task.period_contradiction:
+            action = typer.style(
+                f"error ({task.period_contradiction})", fg=typer.colors.RED
             )
         elif task.resuming:
             # An orphaned `in_progress` period task from a dead sweep — relaunch

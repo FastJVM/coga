@@ -128,4 +128,11 @@ stops the loop, `recurring_runner._record_abandoned_due` names the stopping task
 and each due task "admitted as due but never launched" in `problems:`. Absence
 is a failure: an admitted watchdog recovery or a created period with no launch
 outcome makes the sweep exit 2, except `skip (already handled on control)`.
+A create sync to control that fails is non-fatal for the task — the created
+period still launches — but it is named in `problems:` and exits 2. If the
+created ticket then changed under that failed sync, the scan prints
+`error (…)` for the template instead of any skip, and it never launches;
+`--force` keeps the ordinary admission skip. A period adopted from control
+stays `skip (already handled on control)` even when publishing its log line
+fails; that failure is still named in `problems:`.
 The [autofix](../autofix/SKILL.md) loop runs afterwards without changing the code.
