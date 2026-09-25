@@ -19,11 +19,15 @@ fatal: Unable to add (null) to database
 The transition itself still happens on disk, as the sync contract requires,
 but the ticket and log changes never reach `origin/main`. They sit dirty in
 the checkout until some later sync outside the sandbox picks them up, or a
-human pushes them by hand. In the 2026-09-25 session the owner had to
-hand-commit ticket files onto `main` through a temporary worktree. The failure
-is frequent and ongoing: `coga/log.md` holds 191 of these "Read-only file
-system" sync failures since 2026-06-09, after bumps by both `claude` and
-`codex` sessions.
+human pushes them by hand. The failure is frequent and ongoing:
+`coga/log.md` holds 191 of these "Read-only file system" sync failures since
+2026-06-09. Of the 35 that follow a logged launch line, 32 were launched with
+`agent=codex`, and only 3 with `agent=claude`.
+
+Note that the log's `[agent:<name>]` attribution names the ticket's configured
+agent, not the process that ran the command. For example, the 2026-09-25 10:49
+`[agent:claude] advanced` line came from a `launch_agent=codex` session. Read
+the preceding `launched (...)` line to see which CLI actually ran.
 
 Done when a state change made from inside a sandboxed agent session reaches
 the control branch without a human pushing it. A regression test must cover
@@ -36,11 +40,20 @@ published, for example by the supervisor after the session exits. The
 **Cause, as far as known:** `git.sync_task_state` publishes without touching
 the working tree, by writing blobs with `git hash-object -w --stdin` (in
 `git.py`) and building the commit from them. That needs write access to
-`.git/objects`. The agent CLIs' sandboxes (Codex's workspace-write mode, the
-Claude Code sandbox) mount the repo's `.git` read-only, so the very first
-object write fails. Confirm this before designing: check whether `.git` is
-read-only in a launched session, and whether a linked worktree's shared
-`.git` behaves differently from the primary checkout.
+`.git/objects`. The likely culprit is Codex's default `workspace-write` sandbox:
+it lets the agent edit the workspace but keeps `.git` read-only, so the very
+first object write fails. Coga launches `codex` with no sandbox flags
+(`[agents.codex]` in `coga/coga.toml`), and the owner's `~/.codex/config.toml`
+sets no `sandbox_mode`, so the default applies. Claude Code as configured here
+has no sandbox: an attended claude session wrote to `.git` (worktree, commit,
+push) without error on 2026-09-25.
+
+Confirm before designing:
+- Reproduce with a codex-launched `coga bump`.
+- Explain the 3 claude-launched failures. They may be codex bumps under a
+  claude-configured ticket, a different sandbox, or a separate cause.
+- Check whether a linked worktree's shared `.git` behaves differently from the
+  primary checkout.
 
 **Candidate directions** (pick one in implementation, and weigh them on the
 blackboard):
@@ -50,10 +63,10 @@ blackboard):
   chain"). Tradeoff: state is published at session end, not at bump time.
   That is also exactly when the supervisor rereads the ticket to decide the
   next step.
-- Configure the agent sandboxes to allow writes to `.git` (via the
-  `[agents.*]` launch argv in `coga/coga.toml`). Tradeoff: this widens what
-  every agent session may write, and it doesn't help sessions not started by
-  Coga.
+- Let the Codex sandbox write to `.git`, for example with a sandbox
+  writable-roots setting in the `[agents.codex]` launch argv or the user's
+  Codex config. Tradeoff: every codex session can then rewrite git history
+  and refs, and it doesn't help Codex sessions not started by Coga.
 - Detect the read-only case and log a clear "deferred" note, not a scary
   failure, then publish later. This only makes sense combined with one of the
   above.
