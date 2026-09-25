@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -257,3 +257,137 @@ Verification: `coga validate --task launch-moves-the-checkout-to-main-before-and
 None awaiting owner input for this draft. The evaluator should specifically
 check exception classification, script-step boundary coverage, and sweep
 suppression across in-process recurring calls.
+
+## Evaluator review
+
+Cold review (claude, evaluate-design, 2026-09-25). Verified against
+`src/coga/commands/launch.py`, `launch_script.py`, `git.py`, `cli.py`,
+`repl_supervisor.py`, `megalaunch.py`, `recurring_runner.py`, `recurring.py`,
+`.gitattributes`, and `dev/checkouts`, `coga/launch`,
+`coga/internals/state-publication`. Everything the Context section says
+about the code checks out: `refresh` does not move feature or detached
+checkouts, `fast_forward_control` may move a different holder,
+`run_script_chain` loops on its own, delegates are always `BootstrapRef`
+(`recurring.resolve_agent_delegate`), and `cli.main` skips the sweep only
+on 75. The architectural placement (a primitive in `git.py`, policy in
+`_launch`, not in `spawn_agent_session`) is sound. **Verdict: not ready.**
+Four defects would make the feature fail in ordinary use or regress other
+paths.
+
+### Must resolve before implementation
+
+1. **Byte equality can never prove that `coga/log.md` was published from a
+   feature branch.** `.gitattributes` marks `**/log.md` (and `retires.md`)
+   `merge=union`. `git._publish_locked` lands the union on control, and
+   `fast_forward_control` rewrites working bytes to the landed bytes only
+   when *this* checkout holds control. On a feature branch the working log
+   stays as the branch-point log plus the session's new lines, while control
+   holds every line that landed since. They differ whenever control moved
+   after the branch point: always for `address-pr-comments` on an existing
+   branch, and often during `implement`. Teardown would refuse on nearly
+   every code step, which defeats the ticket. The current manual procedure
+   (`dev/checkouts` End, `git diff --quiet origin/main`) has the same flaw.
+   Define a published-proof rule for union paths, for example "union-merging
+   the working file onto the pinned tree with base HEAD is a no-op" (every
+   working line is already on control), or a `PUBLISHED_REF`-based
+   witness. Add a test where control gains a log line after the branch point.
+2. **Entry refusal with exit 75 can leave launch stuck.** Unpublished
+   log/task dirt is common on control today. This checkout shows it right
+   now: HEAD is behind `origin/main`, and `coga/log.md` carries two lines
+   not on `origin/main` (this ticket's `launched` line and the prior usage
+   record). Under criterion 3/4 that dirt is "unsafe", so entry refuses with
+   75 and `cli.main` then skips `_sweep_coga_state`. Launch can never recover
+   on its own, and it has become the one command that used to heal this.
+   Warn-only teardown suppression has the same effect. The owner must pick
+   the behavior: (a) run the existing `sync_coga_state` publication once
+   before admission and only refuse what it cannot land (routine pending
+   state is different from "rejected" state); (b) when already on control,
+   tolerate dirt that a `--ff-only` move does not touch, as today; or
+   (c) keep refusing but let the sweep run. The Out of Scope line "automatic
+   publication of rejected state" needs a definition that separates the two.
+3. **"Supervised" does not identify sessions that launch will return.**
+   `repl_supervisor.build_supervised_step_env` sets `COGA_SUPERVISED=1` for
+   both supervisors. Its docstring says "Both interactive launch
+   supervisors", and `megalaunch.py` calls it. Megalaunch gets no teardown
+   (it is out of scope and spawns through `spawn_agent_session`). Once the
+   code-step skills say "supervised code steps... bump last without manually
+   returning", megalaunch sessions will stop returning and the next pick will
+   compose from a feature branch. That regresses the incident this ticket
+   fixes. Name the signal the skill text keys on (a new env witness minted
+   only by `_launch`'s normalizing path, or a composed prompt layer), and
+   say whether megalaunch sessions keep the manual return. Also say what
+   bootstrap/chat sessions that edit code do, since they are exempt.
+4. **Initial resolution runs before normalization, so launching a ticket
+   created after the branch point still fails.** Criterion 1 pins identity
+   to the pre-normalization `resolve_target`. When the checkout sits on an
+   older feature branch, a ticket created later on control is missing from
+   its working tree. `_launch` bails with `TaskNotFoundError` (exit 2, and
+   the sweep runs) before normalization gets a chance. That is the obvious
+   follow-on to the `daily-autoclose-branches` incident. Direct recurring
+   already solves this ("resolving first made a safely materialized remote
+   period look nonexistent"). Specify either "normalize, then resolve when
+   local resolution fails and the spelling is not a bootstrap ref", or
+   resolution against the pinned control tree, and test it.
+
+### Should resolve (implementer would otherwise guess)
+
+5. **Recurring scope is internally inconsistent.** Criterion 9 grants
+   periods "per-session return... in the checkout the runner selected" but
+   also says "no sibling or temporary runner checkout is... cleaned".
+   `recurring_runner._service_from_control_worktree` (temporary control
+   worktree) and `_relay_to_control_worktree` (a sibling holding control)
+   run `_launch(recurring_authorized=True)` *from* that checkout. Say whether
+   the boundary runs there, where it is a no-op switch plus fast-forward.
+   Also say how a between-step or teardown refusal reaches the in-process
+   `coga recurring` loop (a return kind or `SystemExit(75)`), and whether
+   later periods in the same sweep continue. Cite
+   `coga/internals/recurring-temp-worktrees` and `recurring-admission`.
+6. **Sweep-suppression scope under in-process recurring.** One
+   `coga recurring` invocation runs many periods. Invocation-wide suppression
+   after one period's teardown refusal also withholds other periods'
+   legitimate state. Specify the granularity. Note the existing precedent:
+   the `control_relay_started` ContextVar is reset per `main()` and read in
+   `_sweep_coga_state`, so it is the natural home.
+7. **"Positively identified recorded sandbox clone" has no witness.** Name
+   the rule, for example "invoking toplevel equals the target ticket's
+   recorded `worktree:`, read from the invoking checkout, and it is not the
+   repo's primary checkout". `_recorded_single_checkout_assist_branch`'s
+   `same_git_checkout` is the obvious helper. Per `dev/checkouts`, launch is
+   not normally run in the clone, so also confirm the exemption is needed.
+8. **Recorded-assist classification reads stale bytes.** Classification
+   only happens when `agent_override is not None`, and
+   `_recorded_single_checkout_assist_branch` needs `branch:`, `worktree:`,
+   and `pr:` in the *invoking checkout's* ticket bytes. On a feature branch
+   those fields are often not in the working tree, because they are
+   published to control and never committed on the branch. The assist then
+   misclassifies as ordinary, and launch switches to control (safely, since
+   the tree is clean). State that this fallback is acceptable, or read
+   classification from the pinned control tree.
+9. **"Publish it through the existing lifecycle command, and bump last"** is
+   ambiguous. Is that `bump` itself (which publishes the whole ticket file
+   and log via `sync_task_state`) or the `sync_coga_state` one-liner from
+   `dev/checkouts`? Name the command.
+10. **Missing owning topics.** `coga/internals/state-publication` owns the
+    sweep contract, including the 75 exception ("The end-of-command sweep").
+    The new suppression mechanism changes it, so add it to step 5. Also check
+    `coga/internals/human-assist`, `coga/internals/pr-publication` ("open-pr
+    runs from the launch checkout on the control branch"), and
+    `coga/cli` for restatements.
+
+### Optional recommendations
+
+- Say whether the existing `_refresh_launch_checkout` calls (the `finally`
+  in `_launch`, `refresh_after_script`) are replaced by teardown or kept for
+  exempt paths. Bootstrap on control still needs today's refresh.
+- A launch from the main checkout while an old linked worktree holds
+  control will refuse. Give that refusal the `git worktree remove` remedy,
+  as `recurring_runner` does.
+- Scope is large (four modules, around eight topics or skills plus twins,
+  about 20 test scenarios). It is still one coherent PR, because the skill
+  change must ship with the launch wiring. A plan that lands and tests the
+  `git.py` primitive first would reduce risk.
+- Criteria 3–6 are well specified for tracked, staged, and rename cases.
+  Consider saying explicitly that `.agent-skills/` regeneration (ignored)
+  happens after normalization, so it never appears as dirt.
+
+No ticket-body edits, branch, code, or PR were produced by this review.
