@@ -1,6 +1,6 @@
 ---
 title: Blocker reminders
-status: active
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - coga/blockers/remind
     assignee: agent
-step: 1 (remind)
 ---
 
 ## Description

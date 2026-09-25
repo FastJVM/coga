@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: active
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
-step: 1 (sweep)
 ---
 
 ## Description
@@ -75,3 +74,62 @@ nothing.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-09-25T17:36:01+00:00
+Task: `recurring/autoclose-merged`
+
+1 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
+
+- `the-retro-done-ticket-skill-should-verify-a-done-t` "The retro done-ticket skill should verify a done ticket's claimed fix reached main before extracting it": worktree `/home/n/Code/coga-retro-verify-done-scope`, branch `retro-verify-done-scope`
+
+11 checkout(s) preserved — a proof refused; each stays on the worklist until a human acts:
+
+- `ticket-relationships-and-ownership-have-no-mechani` "Ticket relationships and ownership have no mechanism": worktree `/home/n/Code/claude/coga-ticket-relationships`, branch `ticket-relationships` — could not delete local 'ticket-relationships': error: cannot delete branch 'ticket-relationships' used by worktree at '/home/n/Code/claude/coga-ticket-relationships' (the worktree is already gone; then `coga retire ticket-relationships-and-ownership-have-no-mechani` for branch `ticket-relationships`)
+  - Worktree cleanup: recorded worktree '/home/n/Code/claude/coga-ticket-relationships' is already gone.
+  - Branch cleanup: could not delete local 'ticket-relationships': error: cannot delete branch 'ticket-relationships' used by worktree at '/home/n/Code/claude/coga-ticket-relationships'
+  - Branch cleanup: skipping remote origin/ticket-relationships because the local branch remains.
+- `add-an-agent-picker-for-recurring` (worklist backlog): worktree `/home/n/Code/coga`, branch `authoring-agent-picker` — live ticket 'define-the-split-a-ticket-mechanic-shared-by-code' also records worktree '/home/n/Code/coga' (`coga retire add-an-agent-picker-for-recurring`)
+  - Checkout cleanup: skipped (live ticket 'define-the-split-a-ticket-mechanic-shared-by-code' also records worktree '/home/n/Code/coga').
+- `adjudicate-parked-and-active-tickets-whose-premise` (worklist backlog): worktree `/home/n/Code/claude/coga-adjudicate-moved-premises`, branch `adjudicate-moved-premises` — local 'adjudicate-moved-premises' has unmerged work and no merged PR vouching for it — left in place. (the worktree is already gone; then `coga retire adjudicate-parked-and-active-tickets-whose-premise` for branch `adjudicate-moved-premises`)
+  - Worktree cleanup: recorded worktree '/home/n/Code/claude/coga-adjudicate-moved-premises' is already gone.
+  - Branch cleanup: local 'adjudicate-moved-premises' advanced past the merged PR head ee178b909780 — preserving it.
+  - Branch cleanup: local 'adjudicate-moved-premises' has unmerged work and no merged PR vouching for it — left in place.
+  - Branch cleanup: skipping remote origin/adjudicate-moved-premises because the local branch remains.
+- `autoclose-should-name-unanswered-review-threads-on` (worklist backlog): worktree `/home/n/Code/claude/coga-autoclose-unanswered-threads`, branch `autoclose-unanswered-threads` — local 'autoclose-unanswered-threads' has unmerged work and no merged PR vouching for it — left in place. (the worktree is already gone; then `coga retire autoclose-should-name-unanswered-review-threads-on` for branch `autoclose-unanswered-threads`)
+  - Worktree cleanup: recorded worktree '/home/n/Code/claude/coga-autoclose-unanswered-threads' is already gone.
+  - Branch cleanup: local 'autoclose-unanswered-threads' advanced past the merged PR head a49d1dc50989 — preserving it.
+  - Branch cleanup: local 'autoclose-unanswered-threads' has unmerged work and no merged PR vouching for it — left in place.
+  - Branch cleanup: skipping remote origin/autoclose-unanswered-threads because the local branch remains.
+- `cleanup/quiet-the-first-run-noise-from-recurring-jobs-and` (worklist backlog): worktree `/home/n/Code/codex/coga`, branch `quiet-first-run` — live ticket 'document-how-to-recover-a-retired-ticket-s-body-fr' also records worktree '/home/n/Code/codex/coga' (`coga retire cleanup/quiet-the-first-run-noise-from-recurring-jobs-and`)
+  - Checkout cleanup: skipped (live ticket 'document-how-to-recover-a-retired-ticket-s-body-fr' also records worktree '/home/n/Code/codex/coga').
+- `document-the-remedy-for-a-bloated-blackboard-sibli` (worklist backlog): worktree `/home/n/Code/claude/coga-bloated-blackboard-remedy`, branch `bloated-blackboard-remedy` — local 'bloated-blackboard-remedy' has unmerged work and no merged PR vouching for it — left in place. (the worktree is already gone; then `coga retire document-the-remedy-for-a-bloated-blackboard-sibli` for branch `bloated-blackboard-remedy`)
+  - Worktree cleanup: recorded worktree '/home/n/Code/claude/coga-bloated-blackboard-remedy' is already gone.
+  - Branch cleanup: local 'bloated-blackboard-remedy' advanced past the merged PR head 449bf55590e8 — preserving it.
+  - Branch cleanup: local 'bloated-blackboard-remedy' has unmerged work and no merged PR vouching for it — left in place.
+  - Branch cleanup: skipping remote origin/bloated-blackboard-remedy because the local branch remains.
+- `installer-managed-skills-the-local-adaptation-guar` (worklist backlog): worktree `/home/n/Code/coga`, branch `gh-backed-readonly-context` — live ticket 'define-the-split-a-ticket-mechanic-shared-by-code' also records worktree '/home/n/Code/coga' (`coga retire installer-managed-skills-the-local-adaptation-guar`)
+  - Checkout cleanup: skipped (live ticket 'define-the-split-a-ticket-mechanic-shared-by-code' also records worktree '/home/n/Code/coga').
+- `persist-autoclose-retire-follow-ups` (worklist backlog): worktree `/home/n/Code/claude/coga-autoclose-retire-worklist`, branch `autoclose-retire-worklist` — local 'autoclose-retire-worklist' has unmerged work and no merged PR vouching for it — left in place. (the worktree is already gone; then `coga retire persist-autoclose-retire-follow-ups` for branch `autoclose-retire-worklist`)
+  - Worktree cleanup: recorded worktree '/home/n/Code/claude/coga-autoclose-retire-worklist' is already gone.
+  - Branch cleanup: local 'autoclose-retire-worklist' advanced past the merged PR head 5bfd5348ed22 — preserving it.
+  - Branch cleanup: local 'autoclose-retire-worklist' has unmerged work and no merged PR vouching for it — left in place.
+  - Branch cleanup: skipping remote origin/autoclose-retire-worklist because the local branch remains.
+- `record-or-clear-the-standing-repo-wide-coga-valida` (worklist backlog): worktree `/home/n/Code/claude/coga-validate-baseline`, branch `validate-baseline` — local 'validate-baseline' has unmerged work and no merged PR vouching for it — left in place. (the worktree is already gone; then `coga retire record-or-clear-the-standing-repo-wide-coga-valida` for branch `validate-baseline`)
+  - Worktree cleanup: recorded worktree '/home/n/Code/claude/coga-validate-baseline' is already gone.
+  - Branch cleanup: local 'validate-baseline' advanced past the merged PR head 2782fc74dcd8 — preserving it.
+  - Branch cleanup: local 'validate-baseline' has unmerged work and no merged PR vouching for it — left in place.
+  - Branch cleanup: skipping remote origin/validate-baseline because the local branch remains.
+- `reuse-the-existing-control-worktree-for-recurring` (worklist backlog): worktree `/home/n/Code/codex/coga-recurring-control-worktree`, branch `recurring-control-worktree` — local 'recurring-control-worktree' has unmerged work and no merged PR vouching for it — left in place. (the worktree is already gone; then `coga retire reuse-the-existing-control-worktree-for-recurring` for branch `recurring-control-worktree`)
+  - Worktree cleanup: recorded worktree '/home/n/Code/codex/coga-recurring-control-worktree' is already gone.
+  - Branch cleanup: local 'recurring-control-worktree' advanced past the merged PR head 22d39a2588f7 — preserving it.
+  - Branch cleanup: local 'recurring-control-worktree' has unmerged work and no merged PR vouching for it — left in place.
+  - Branch cleanup: skipping remote origin/recurring-control-worktree because the local branch remains.
+- `the-period-task-context-never-covers-the-determini` (worklist backlog): worktree `/home/n/Code/claude/coga-period-task-recipe-firing`, branch `period-task-recipe-firing` — local 'period-task-recipe-firing' has unmerged work and no merged PR vouching for it — left in place. (the worktree is already gone; then `coga retire the-period-task-context-never-covers-the-determini` for branch `period-task-recipe-firing`)
+  - Worktree cleanup: recorded worktree '/home/n/Code/claude/coga-period-task-recipe-firing' is already gone.
+  - Branch cleanup: local 'period-task-recipe-firing' advanced past the merged PR head 92d62d5bbaa9 — preserving it.
+  - Branch cleanup: local 'period-task-recipe-firing' has unmerged work and no merged PR vouching for it — left in place.
+  - Branch cleanup: skipping remote origin/period-task-recipe-firing because the local branch remains.
+
+Recorded in the durable worklist `/home/n/Code/claude/coga/coga/recurring/autoclose-merged/retires.md`; this period task is deleted at the next period boundary.

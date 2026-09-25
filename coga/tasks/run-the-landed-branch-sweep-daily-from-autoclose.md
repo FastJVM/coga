@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (self-qa)
+step: 3 (pr)
 agent: claude
 ---
 
@@ -70,3 +70,12 @@ worktree: /home/n/Code/codex/coga
 - No changed interactive terminal, pager, or Slack rendering surface requires a manual visual sweep. Headless execution and branch/ref outcomes are exercised by the recurring lifecycle and bare-origin integration tests.
 - Example validation: from `example/coga`, `env -u SLACK_WEBHOOK_URL -u COGA_IMPORTANT_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m coga.cli validate --json`: 4 OK, no issues. `git diff --check` passed.
 - Full-suite rerun: `TMPDIR=/tmp/coga-daily-autoclose-tests PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest`: **2938 passed, 1 failed in 277.48s**. The sole failure remains `tests/test_packaging.py::test_live_and_packaged_copies_stay_identical` for the unchanged phone-home twin runtime drift, already approved by the owner for proceeding and tracked by PR #895. Output: `/tmp/coga-daily-autoclose-self-qa.log`. No new regressions; ready for the PR step.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `run-the-landed-branch-sweep-daily-from-autoclose`
+Recorded: 2026-09-25T17:44:58+00:00
+
+    Branch 'daily-autoclose-branches' is not safe to publish. current branch does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Overlapping paths: coga/log.md, coga/tasks/run-the-landed-branch-sweep-daily-from-autoclose.md. Reconcile it and relaunch, or `coga block --task run-the-landed-branch-sweep-daily-from-autoclose`.
