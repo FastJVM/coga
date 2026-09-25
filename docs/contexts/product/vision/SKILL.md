@@ -69,6 +69,37 @@ be evaluated with the rigor you would apply to a contractor? If any answer is
 no, decompose the task until each part passes, or keep doing it yourself.
 Confident automation of work nobody can evaluate is the failure to avoid.
 
+## Three kinds of work
+
+The three questions above sort tasks by whether they can be automated. A
+second sort, by how much of the task is known before it starts, decides which
+Coga mechanism carries it:
+
+- **Routine**: repeatable upkeep such as fixing merge conflicts or bumping
+  dependencies. It runs as recurring templates
+  ([`coga/recurring`](../../coga/recurring/SKILL.md)), a ticket's `ticket.py`
+  sibling ([`coga/script-tickets`](../../coga/script-tickets/SKILL.md)), or a
+  fixed `coga run` recipe (`runner.RECIPES`).
+- **Understood**: work you can fully specify before doing it, like a support
+  request or a planned feature. It becomes a ticket created with a workflow
+  whose steps are frozen ([`coga/workflows`](../../coga/workflows/SKILL.md)),
+  and it can be queued through
+  [`coga/megalaunch`](../../coga/megalaunch/SKILL.md).
+- **Unknown**: work you discover by doing. There is a known cone of what you
+  have already done, and beyond it everything is blurred. For this work there
+  is `coga chat` (the bootstrap orient ticket), the
+  [blackboard](../../coga/blackboard/SKILL.md) as working memory, a human
+  rewind that moves the step back and keeps everything learned
+  ([`coga/lifecycle`](../../coga/lifecycle/SKILL.md)), `## Superseded
+  designs` kept on disk but out of the prompt, `coga ticket` re-authoring at
+  any status ([`coga/tickets`](../../coga/tickets/SKILL.md)), and
+  [Dream](../../coga/dream/SKILL.md) for the maintenance that follows.
+
+Coga handles all three kinds, but it is **built for unknown work**. Routine
+and understood work are where the human's thinking has already been captured.
+Unknown work is where it still happens, and the correction loop in `## Purpose`
+exists to serve it. How these pieces run day to day is in `## Operating model`.
+
 ## Operating model
 
 - **Local and attended by default.** The correction loop closes cheaply when the
