@@ -1,6 +1,6 @@
 ---
 title: don't recurr for inactive repo
-status: draft
+status: canceled
 owner: nicktoper
 workflow: null
 ---
