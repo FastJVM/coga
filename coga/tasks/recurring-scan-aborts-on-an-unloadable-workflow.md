@@ -1,6 +1,6 @@
 ---
 title: A recurring template whose workflow does not load aborts the whole scan
-status: draft
+status: canceled
 owner: nicktoper
 workflow: null
 ---

@@ -1,6 +1,6 @@
 ---
 title: 'some recurring tasks are not launched correctly: too often or never'
-status: draft
+status: canceled
 owner: nicktoper
 agent: claude
 workflow: null

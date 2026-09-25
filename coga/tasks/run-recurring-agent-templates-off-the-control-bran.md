@@ -55,8 +55,10 @@ design step's job is to decide whether a created checkout for agent sessions is
 worth having at all, and if so, what shape it takes — a *persistent* control
 worktree being the leading candidate over a throwaway one.
 
-Launch this only after the two siblings have landed, so the design is written
-against real code rather than two speculative APIs.
+Both siblings have landed. Launch this only after `stop-using-worktrees` has
+also merged: it removes linked worktrees from ordinary ticket work, which
+changes two of the three known breaks below, so the design has to be written
+against that code rather than today's.
 
 If the conclusion is "do not build", that is a complete and successful outcome
 for this step, not a failure to finish it. Write the recommendation and its
@@ -73,8 +75,10 @@ this work's first draft.
 
 ### Known breaks in the throwaway-worktree shape
 
-These are established failures, not open considerations. A design that keeps
-the throwaway shape must answer all three.
+These were established failures as of 2026-09-09. `stop-using-worktrees`
+(see *Dependency* below) is expected to remove #1 and may shrink or remove #2;
+#3 stands regardless. Re-verify each against merged code. A design that keeps
+the throwaway shape must answer whichever survive.
 
 1. **The agent's own worktree lands inside the directory cleanup deletes.**
    `coga/skills/code/implement/SKILL.md` instructs `git worktree add
@@ -83,6 +87,10 @@ the throwaway shape must answer all three.
    parent that the sibling's `finally` `rmtree`s. A Dream run that opens a
    ticket, branches, and implements would have its feature checkout destroyed by
    cleanup. This is the shipped skill's default instruction, not a hypothetical.
+   *Expected to go away:* `stop-using-worktrees` makes `code/implement` branch
+   in the launch checkout with no linked worktree, so the feature branch would
+   live in the created checkout itself. Confirm; note the branch then outlives
+   the checkout only as a ref, which is fine once pushed.
 
 2. **`worktree:` gets recorded pointing at a temp path.** `src/coga/open_pr.py`
    reads it back via `parse_worktree_path` and requires that checkout to exist,
@@ -95,6 +103,11 @@ the throwaway shape must answer all three.
    path. A bump from a different checkout therefore reads a different
    `ticket.md` and can pass or fail on a stale `## Dev` block; the gate never
    notices the worktree is gone, and `open-pr` is where that surfaces.
+   *Depends on:* `stop-using-worktrees` decides whether `worktree:` is kept,
+   dropped, or made optional in `dev/dev-record`, and reworks
+   `open_pr._checkout_mode`. Re-read `_has_branch_linkage` and `open_pr` after
+   it merges; if neither requires a surviving recorded checkout, this break is
+   gone.
 
 3. **Lock duration is wrong by an order of magnitude.** Checking the control
    branch out *is* the concurrency lock in the sibling's design, and that is
@@ -105,7 +118,10 @@ the throwaway shape must answer all three.
 
 A **persistent** control worktree removes the data-loss path, the recording
 path, and the cleanup-on-signal problem in one move, at the cost of a durable
-directory to manage. Evaluate it as the primary option — and name its owner
+directory to manage. It was the leading option while breaks #1 and #2 stood;
+if `stop-using-worktrees` removes them, a throwaway created checkout may be
+viable again and the comparison must be redone rather than assumed. Evaluate
+both — and name its owner
 explicitly, because that is the whole decision: *who creates it, where, when,
 and who removes it.* If the answer is "the operator creates it once, by hand",
 this ticket collapses into sibling 2's already-shipped case plus a
@@ -126,16 +142,35 @@ control, and no control worktree exists" — which may be rare enough not to
 justify the machinery. **Say so if that is the conclusion**; recommending this
 ticket be closed unbuilt is a valid design outcome.
 
-Sibling state as of 2026-09-09: `service-recurring-from-a-temp-control-worktree-ins`
-is `done`, landed as `e44e7c29` (PR #749) — and the shipped code is considerably
-richer than that ticket's Proposed Shape (ownership markers, stale-worktree
-reaping, process-group-aware cleanup that retains rather than unlinks under a
-live child, run-log preservation, and `_control_worktree_agent_refusal`, which
-refuses agent phases in that mode). Read the code, not that ticket's design
-section. `reuse-the-existing-control-worktree-for-recurring` is `in_progress` at
-`peer-review`, committed on branch `recurring-control-worktree` but not merged —
-so this ticket's launch precondition is not yet met. Re-verify everything below
-at launch rather than trusting this text.
+Sibling state as of 2026-09-25: both siblings are `done`.
+
+- `service-recurring-from-a-temp-control-worktree-ins` landed as `e44e7c29`
+  (PR #749). The shipped code is considerably richer than that ticket's
+  Proposed Shape (ownership markers, stale-worktree reaping,
+  process-group-aware cleanup that retains rather than unlinks under a live
+  child, run-log preservation, and `_control_worktree_agent_refusal` in
+  `recurring_runner`, which refuses agent phases in that mode). Read the code,
+  not that ticket's design section.
+- `reuse-the-existing-control-worktree-for-recurring` landed as `eb725dfa3`
+  (PR #846). It **does** admit agent templates and `delegate:` templates into an
+  existing control worktree (stdio and TTY inherited; see
+  `coga/internals/recurring-control`), and ships `config.LOCAL_CONFIG_ENV`
+  (`COGA_LOCAL_CONFIG`). So the remaining gap is exactly "agent template, off
+  control, no control worktree exists".
+
+### Dependency: `stop-using-worktrees`
+
+Owner direction (2026-09-25): ordinary ticket work stops using linked
+worktrees; Coga-internal recurring/Dream worktrees stay. That is ticket
+`stop-using-worktrees` (`in_progress` at `review` as of 2026-09-25), whose
+description keeps `coga/internals/recurring-temp-worktrees` explicitly out of
+scope. Its effect here: an agent session inside a created control checkout
+would branch and commit in that checkout, not in a sibling `../coga-<branch>`,
+and must end back on `main` — which is exactly the control branch the created
+checkout holds. Check that its "start clean on `main`, end on `main`" rule
+composes with a created checkout (fast-forward to `origin/main` inside a
+worktree that owns `main`), and whether its "dirty or on another ticket's
+branch → stop and ask/block" rule fires spuriously there.
 
 ### Delegating templates
 
@@ -236,7 +271,11 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Blockers
 
-- [ ] [2026-09-09 12:03] [agent:nick] id=20260909T120328 Blocked on sibling `reuse-the-existing-control-worktree-for-recurring` merging first. Its branch `recurring-control-worktree` (a8c12607) is unmerged with no PR open, and its `COGA_LOCAL_CONFIG` / `local_config_path` seam is still in peer-review. That seam, plus its 'agent templates are admitted' and 'delegate: works unchanged' conclusions, are load-bearing for this ticket's ## Context and for its likely close-unbuilt outcome. Unblock once that branch lands, then re-verify ## Context against the merged code before launching design.
+- [x] [2026-09-09 12:03] [agent:nick] id=20260909T120328 Blocked on sibling `reuse-the-existing-control-worktree-for-recurring` merging first. Its branch `recurring-control-worktree` (a8c12607) is unmerged with no PR open, and its `COGA_LOCAL_CONFIG` / `local_config_path` seam is still in peer-review. That seam, plus its 'agent templates are admitted' and 'delegate: works unchanged' conclusions, are load-bearing for this ticket's ## Context and for its likely close-unbuilt outcome. Unblock once that branch lands, then re-verify ## Context against the merged code before launching design.
+  resolved: [2026-09-25 11:19] [human:nicktoper] Sibling reuse-the-existing-control-worktree-for-recurring merged as eb725dfa3 (PR #846); ## Context re-verified and updated 2026-09-25.
+
+- [ ] [2026-09-25 11:19] [agent:claude] id=20260925T111958 Wait for stop-using-worktrees to merge. It removes linked worktrees from ordinary ticket work and decides the fate of the worktree: field, which changes known breaks #1 and #2 in ## Context. Unblock once it lands, re-verify those two breaks against merged code, then launch design.
+
 
 ---
 
