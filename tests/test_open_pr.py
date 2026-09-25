@@ -443,9 +443,9 @@ def test_open_pr_dirty_own_ticket_steers_to_stash_not_commit(tmp_path, monkeypat
 
     "Commit or stash" is the instruction that manufactures the committed
     duplicate one step later; for the ticket file itself the message must say
-    to preserve generated drift's text in the primary ticket and discard it
-    here, while leaving room for the intentional authored-body change that
-    `dev/dev-record` allows as implementation work.
+    to move every wanted change, an intentional authored-body edit included,
+    to the live ticket and discard the clone copy: control already rewrote
+    this path, so a branch commit is an overlapping stranded write.
     """
     repo = init_git_repo(tmp_path)
     bin_dir = tmp_path / "bin"
@@ -465,8 +465,10 @@ def test_open_pr_dirty_own_ticket_steers_to_stash_not_commit(tmp_path, monkeypat
     assert "Do not commit it here unchecked" in message
     assert "Inspect the diff first" in message
     assert "git restore --staged --worktree -- coga/tasks/dirty-own/ticket.md" in message
-    assert "do not stash it just to pass this gate" in message
+    assert "do not commit or stash it just to pass this gate" in message
     assert "intentional change to the authored ticket body" in message
+    assert "into the live ticket in the primary checkout" in message
+    assert "discard the clone's copy" in message
     assert "confirmed duplicate hunks" not in message
     assert stranded_copy.read_text().endswith("feature-checkout note\n")
 

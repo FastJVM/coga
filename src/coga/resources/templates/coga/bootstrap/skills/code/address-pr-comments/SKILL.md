@@ -47,6 +47,19 @@ there instead of switching in the launch checkout.) Do not infer a missing
 value from the task slug or current checkout. Fail loud and ask the attending
 human to repair the ticket if the linkage is missing, ambiguous, or stale.
 
+**Recorded legacy checkout.** An older review ticket may record a linked
+worktree or clone as `worktree:`. When this session already runs in that
+exact checkout (`git rev-parse --show-toplevel` resolves to the recorded
+`worktree:`) and HEAD is on the recorded `branch:`, launch recognized it as
+the assist checkout and already fast-forwarded it to the verified PR head.
+Work there: skip steps 1 and 2 below and the end-of-step return to `main`,
+and stay on the recorded branch. Launch has already published its audit to
+control, so dirty Coga state in that checkout (`coga/log.md`, task files,
+recurring state) is expected; leave it unstaged and never commit it with a
+fix. Any other dirt still stops the assist. A recorded `worktree:` that is
+not the current checkout, or a current checkout on another branch, gets no
+such exception: ask the attending human.
+
 Confirm `gh auth status` succeeds. Then, in the launch checkout:
 
 1. Run the `dev/checkouts` start check: HEAD on `main`, a clean tree (Coga
@@ -241,11 +254,13 @@ The concrete call shape is:
 gh api graphql -F threadId=<thread-node-id> -f body='<reply>' -f query='<mutation-above>'
 ```
 
-Finish by running the `dev/checkouts` end-of-step return: discard dirty Coga
-state only after proving it already matches `origin/main`, `git switch main`,
-and `git merge --ff-only origin/main`. If anything dirty is unpublished or
+In a recorded legacy checkout, finish on the recorded branch and leave the
+launch-published Coga state as it is. Otherwise, finish by running the
+`dev/checkouts` end-of-step return: discard dirty Coga state only after
+proving it already matches `origin/main`, `git switch main`, and
+`git merge --ff-only origin/main`. If anything dirty is unpublished or
 outside Coga state, stop and ask instead of discarding it.
-Then, on `main`, give the attending human a compact list of addressed
+Then give the attending human a compact list of addressed
 threads, the pushed commit, the exact test result, and anything that still
 needs their judgment, and stop naturally with the ticket still `in_progress`
 on `review`. The launch supervisor publishes its trailing usage-log line to

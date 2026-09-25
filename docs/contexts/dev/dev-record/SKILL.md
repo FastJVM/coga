@@ -72,7 +72,10 @@ the next transition). A dirty task/log hunk in a sandbox clone is a duplicate
 only after its content is preserved in the primary ticket or verified in the
 authoritative log; discard only confirmed duplicates, never commit or stash
 them to pass the clean-tree gate, and never hand-edit `coga/log.md`.
-Intentional ticket-body changes, `ticket.py`, and attachments under
+This ticket's own file is never implementation diff: control has already
+rewritten it, so a branch commit of it is an overlapping stranded write. Move
+an intentional authored-body change to the live ticket in the primary
+checkout and discard the clone's copy. `ticket.py` and attachments under
 `coga/tasks/` can be implementation work and stay in the diff.
 
 ## `coga open-pr <slug>`

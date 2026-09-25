@@ -306,20 +306,20 @@ def _check_recorded_clone(
                 f"The dirt is this ticket's own file ({listed}). Do not "
                 "commit it here unchecked: "
             )
-        # Only generated drift gets the destructive restore. `dev/dev-record`
-        # allows an intentional authored-body change as implementation
-        # work, and the restore below would discard its only copy.
+        # Control has already rewritten this ticket path (branch record,
+        # lifecycle transitions), so any commit of it on the branch is an
+        # overlapping stranded write the freshness gate refuses. Every
+        # wanted change, authored body included, moves to the live copy.
         remediation = (
-            f"{lead}the live copy is the primary checkout's, and committing "
-            "lifecycle or blackboard drift on this branch strands a "
-            "duplicate that conflicts with control at merge. Inspect the "
-            "diff first. If it is generated state — frontmatter, `## Dev`, "
-            "blackboard handoff — preserve any needed blackboard text in the "
-            "primary ticket, then discard the edit here "
+            f"{lead}the live copy is the primary checkout's, and control has "
+            "already rewritten this path, so committing it on this branch "
+            "strands an overlapping write that the freshness gate refuses. "
+            "Inspect the diff first and move everything still wanted — "
+            "blackboard text or an intentional change to the authored ticket "
+            "body — into the live ticket in the primary checkout, then "
+            "discard the clone's copy "
             f"(`git restore --staged --worktree -- {' '.join(ticket_dirt)}`); "
-            "do not stash it just to pass this gate. Only an intentional "
-            "change to the authored ticket body that is part of the "
-            "implementation is committed, as `dev/dev-record` allows. "
+            "do not commit or stash it just to pass this gate. "
         )
     else:
         remediation = (
