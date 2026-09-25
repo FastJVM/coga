@@ -1,7 +1,7 @@
 ---
 title: Document how to recover a retired ticket's body from git, including pre-rename
   paths
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
