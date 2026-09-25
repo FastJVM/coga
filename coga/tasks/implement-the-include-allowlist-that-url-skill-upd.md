@@ -1,6 +1,6 @@
 ---
 title: Implement the include allowlist that url skill updates already promise
-status: draft
+status: canceled
 owner: nicktoper
 agent: claude
 workflow: code/with-review
