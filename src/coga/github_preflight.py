@@ -208,20 +208,21 @@ def check_branch_contains_control(
     *,
     cwd: str | Path | None = None,
     coga_root: str | Path,
-    allow_identical_coga_state_overlaps: bool = False,
+    head: str = "HEAD",
 ) -> CheckResult:
-    """Verify the branch contains material control changes.
+    """Verify `head` contains material control changes.
 
     Coga advances the control branch for task and audit-log state between agent
     steps. Missing only that generated state is safe when the feature branch did
-    not touch the same files. A proven single-checkout caller may also allow
-    generated task/log paths that changed on both sides, but each such blob must
-    be byte-identical at both tips; source, documentation, config, mixed, or
-    divergent overlapping state remains a hard failure.
+    not touch the same files; source, documentation, config, mixed, or
+    overlapping drift is a hard failure. `head` defaults to the checked-out
+    branch; `coga open-pr` passes a fully qualified branch ref so it can check
+    a branch by name from the control checkout.
     """
     # Fetch into the remote-tracking ref and read that, never the checkout-wide
     # `FETCH_HEAD` a concurrent Coga process may replace between the two steps.
     control_ref = f"refs/remotes/{remote}/{control_branch}"
+    branch_label = "current branch" if head == "HEAD" else head
     rc, _out, err = _run(
         [
             "git",
@@ -248,31 +249,31 @@ def check_branch_contains_control(
         )
 
     rc, _out, err = _run(
-        ["git", "merge-base", "--is-ancestor", control_ref, "HEAD"], cwd=cwd
+        ["git", "merge-base", "--is-ancestor", control_ref, head], cwd=cwd
     )
     if rc is None:
         return CheckResult(
             "git-branch-current",
             False,
-            f"could not compare HEAD with {remote}/{control_branch} "
+            f"could not compare {head} with {remote}/{control_branch} "
             f"({_first_line(err) or 'unknown error'}).",
         )
     if rc == 0:
         return CheckResult(
             "git-branch-current",
             True,
-            f"HEAD contains latest {remote}/{control_branch}",
+            f"{head} contains latest {remote}/{control_branch}",
         )
     if rc != 1:
         return CheckResult(
             "git-branch-current",
             False,
-            f"could not compare HEAD with {remote}/{control_branch} "
-            f"(`git merge-base --is-ancestor {control_ref} HEAD` failed: "
+            f"could not compare {head} with {remote}/{control_branch} "
+            f"(`git merge-base --is-ancestor {control_ref} {head}` failed: "
             f"{_first_line(err) or 'no output'}).",
         )
 
-    rc, out, err = _run(["git", "merge-base", control_ref, "HEAD"], cwd=cwd)
+    rc, out, err = _run(["git", "merge-base", control_ref, head], cwd=cwd)
     merge_base = _first_line(out)
     if rc != 0 or not merge_base:
         return CheckResult(
@@ -289,12 +290,12 @@ def check_branch_contains_control(
             False,
             f"could not inspect changes on {remote}/{control_branch} ({path_error}).",
         )
-    feature_paths, path_error = _changed_paths(merge_base, "HEAD", cwd=cwd)
+    feature_paths, path_error = _changed_paths(merge_base, head, cwd=cwd)
     if feature_paths is None:
         return CheckResult(
             "git-branch-current",
             False,
-            f"could not inspect changes on the current branch ({path_error}).",
+            f"could not inspect changes on {branch_label} ({path_error}).",
         )
 
     coga_prefix, path_error = coga_root_prefix(coga_root)
@@ -305,33 +306,7 @@ def check_branch_contains_control(
             f"could not locate the configured Coga OS in git ({path_error}).",
         )
 
-    overlapping = control_paths & feature_paths
-    identical_overlaps: set[str] = set()
-    identical_candidates = (
-        {
-            path
-            for path in overlapping
-            if is_coga_state_path(path, coga_prefix=coga_prefix)
-        }
-        if allow_identical_coga_state_overlaps
-        else set()
-    )
-    for path in identical_candidates:
-        rc, _out, err = _run(
-            ["git", "diff", "--quiet", control_ref, "HEAD", "--", path],
-            cwd=cwd,
-        )
-        if rc == 0:
-            identical_overlaps.add(path)
-        elif rc not in (1,):
-            return CheckResult(
-                "git-branch-current",
-                False,
-                f"could not compare generated state path {path!r} between "
-                f"HEAD and {remote}/{control_branch} "
-                f"({_first_line(err) or 'no output'}).",
-            )
-    unsafe_overlaps = overlapping - identical_overlaps
+    unsafe_overlaps = control_paths & feature_paths
     if (
         all(
             is_coga_state_path(path, coga_prefix=coga_prefix)
@@ -339,12 +314,11 @@ def check_branch_contains_control(
         )
         and not unsafe_overlaps
     ):
-        overlap_note = " or byte-identical" if identical_overlaps else ""
         return CheckResult(
             "git-branch-current",
             True,
-            f"{remote}/{control_branch} advanced only through non-overlapping"
-            f"{overlap_note} Coga task/log state; branch is safe to publish",
+            f"{remote}/{control_branch} advanced only through non-overlapping "
+            "Coga task/log state; branch is safe to publish",
             value="state-only-drift",
         )
 
@@ -354,7 +328,7 @@ def check_branch_contains_control(
     return CheckResult(
         "git-branch-current",
         False,
-        f"current branch does not contain latest {remote}/{control_branch}. "
+        f"{branch_label} does not contain latest {remote}/{control_branch}. "
         f"Rebase or merge before opening a PR, e.g. "
         f"`git fetch {remote} {control_branch}` then `git rebase {remote}/{control_branch}`."
         f"{reason}",

@@ -1,80 +1,100 @@
 ---
 name: dev/checkouts
-description: Where code-ticket work runs: the two supported checkout layouts, the sandbox clone fallback, seeding and restoring a fresh checkout, and which checkout to invoke Coga from.
+description: Where code-ticket work runs: the launch checkout, the start check and end-of-step return to `main`, the sandbox clone fallback, seeding a fresh clone, and which checkout to invoke Coga from.
 ---
 
 # Feature checkouts
 
-Two layouts are supported, and **single checkout is the default**. Use a
-separate feature checkout only when the human asks for one or the primary
-checkout cannot host the branch (it has uncommitted work to protect, or already
-holds another live ticket's branch). A linked worktree persists until
-`coga autoclose` or `coga retire` disposes of it
-([dev/checkout-cleanup](../checkout-cleanup/SKILL.md)). Autoclose preserves
-every checkout when run off the control branch, and nothing disposes of one
-when a PR is merged by hand and the ticket is never retired, so defaulting to
-one worktree per ticket left operators with piles of stale ones. Record the
-chosen layout in `worktree:` ([dev/dev-record](../dev-record/SKILL.md)); every
-later step reads that line.
+Code-ticket work runs in the checkout the session was launched from. There are
+no linked worktrees and no control checkouts for ticket work: every code step
+starts on `main` and ends on `main`, and the feature branch is only checked out
+while code is being changed. Linked worktrees left over from an earlier layout
+are still disposed of by `coga retire` and autoclose
+([dev/checkout-cleanup](../checkout-cleanup/SKILL.md)); nothing creates new ones.
+The one alternative checkout is the sandbox clone fallback below.
 
-**When the primary checkout is occupied by another live ticket**, leave its
-branch and dirty task/log state in place. Use an existing checkout holding the
-configured control branch, or create a durable linked control checkout when
-that branch is free. Seed its local config, explicitly fetch and fast-forward
-from the configured remote/control ref (no tracking configuration is required),
-and verify this ticket's published state before resuming there. A running
-supervisor is bound to its original checkout: do not change its ownership
-variables or silently transplant the session. Hand off to a fresh human-invoked
-`coga launch <slug>` in the control checkout; a queue session blocks with that
-handoff. `code/implement` owns the setup commands and reconciliation procedure.
-This ticket then uses a separate feature checkout, with its live control copy,
-`## Dev`, `coga bump`, and `coga open-pr` in the new control checkout. In this
-layout the "primary" control checkout below means the one this session was
-launched from, not the occupied checkout belonging to the first ticket.
+## Start, work, end
 
-## Two layouts
+1. **Start check.** Before anything else, `git fetch origin main`, then require
+   HEAD on `main` (the configured control branch), a clean tree with Coga state
+   included (`git status --porcelain --untracked-files=all` prints nothing),
+   and a successful `git merge --ff-only origin/main`. `coga launch` publishes
+   its own `launched` audit line before the agent starts, so a clean tree is
+   the normal case. (Launch also regenerates the ignored
+   `coga/.agent-skills/` view; a repo initialized before `coga init` wrote
+   that ignore rule sees it as dirt — add `.agent-skills/` to
+   `coga/.gitignore`, never commit it.) Anything else — dirty files, another
+   ticket's branch, a diverged `main` — means stop: ask the attending human,
+   or `coga block` in a queue run. Do not work around an occupied checkout with a
+   linked worktree, a control checkout, a stash, or a switch.
+2. **Work.** Write any ticket state you need while still on `main` (plan,
+   blackboard notes), publish it as described below, then create or switch to
+   the feature branch and change code there. On the branch, edit code only:
+   ticket and blackboard edits made on a feature branch are not published
+   until the next sweep, so the end procedure would find them unpublished.
+3. **End.** Commit, push the branch (`git push -u origin <branch>`, or
+   `--force-with-lease` after a rebase), then return:
+   - `git fetch origin main`;
+   - for every dirty path under `coga/tasks/`, `coga/log.md`, and
+     `coga/recurring/`, verify its working bytes equal `origin/main`'s
+     (`git diff --quiet origin/main -- <path>`) and discard it
+     (`git restore --source=HEAD --staged --worktree -- <path>`). `git diff`
+     skips untracked files, so compare an untracked one with
+     `git show origin/main:<path> | cmp - <path>` and delete it only when
+     identical;
+   - `git switch main`, then `git merge --ff-only origin/main`.
 
-- **Separate feature checkout.** The primary checkout is the control-plane
-  checkout, kept on `main` when possible. Code changes happen in a feature
-  worktree outside it. Blackboard and `## Dev` writes, `coga bump`,
-  `coga slack`, `coga block`, and `coga open-pr` run in the primary checkout
-  on the control branch; `open-pr` pushes the recorded branch by name and never
-  enters the feature checkout. Commit any task-state changes separately from
-  the code PR. `code/open-pr` calls this the legacy layout, meaning the older
-  supported shape, not a deprecated one.
-- **Single checkout.** `worktree:` names the primary checkout itself; the agent
-  stays on the recorded feature branch for code and control-plane work. The
-  feature-branch ticket is the live copy: write `## Dev`, bump, and open the PR
-  there without switching back. `open_pr._checkout_mode` recognizes this when
-  the recorded worktree is this same checkout, it is not a linked worktree,
-  and `COGA_EXPECTED_TASK` proves the session owns the ticket. Do not
-  `git add` the live task, log, or recurring state there.
+   If any dirty Coga-state path is *not* already on `origin/main`, or any
+   other path is dirty, stop and escalate. Never discard unpublished state.
+   Then write the step's handoff (`## Dev`, blackboard notes) on `main` and
+   run `coga bump`, which publishes it. The session leaves the checkout on
+   `main`, clean.
+
+`origin` and `main` stand for the configured `[git].remote` and
+`[git].control_branch`.
+
+Steps that only read the branch — peer review's first pass, open-pr — never
+switch: `git diff main...<branch>` and `git log main..<branch>` read it by
+name, and `coga open-pr` pushes it by name from `main`. A step that then needs
+to change code (fixes, a rebase) follows start/work/end above.
 
 **The agent moves itself.** `coga launch` never chooses a working directory
 (`repl_supervisor.run_with_done_marker` takes no `cwd`; `src/coga/` has no
-`os.chdir`). The session inherits the cwd `coga launch` was typed in. Launch
-reads `worktree:` only to validate checkout and assist scope. Every "change
-into the feature worktree" instruction is the agent's to carry out and verify;
-in the separate layout an edit made before moving lands in the control
-checkout.
+`os.chdir`). The session inherits the cwd `coga launch` was typed in, which is
+the checkout it works in.
+
+### Publish pre-branch ticket edits
+
+Writing `branch:` or plan notes on `main` does not publish them: Git carries
+uncommitted edits across a branch switch. Before switching, publish those
+edits with the existing state sweep, using a Python interpreter that imports
+the installed Coga package (see [coga/testing](../../coga/testing/SKILL.md)):
+
+```sh
+python -c 'from coga.config import load_config; from coga.git import sync_coga_state; sync_coga_state(load_config())'
+git status --porcelain --untracked-files=all
+```
+
+Require the status output to be empty before switching. The sweep reports
+publication failures without raising, so its exit code alone is not proof.
+If the tree remains dirty, stop and escalate; do not switch, stash, or commit
+the ticket edit on the feature branch. The same publication applies to a
+sandbox clone's `worktree:` record in the primary checkout, before starting
+work in the clone.
 
 **Sandbox clone fallback.** When the sandbox mounts the primary `.git`
-read-only so `git worktree add` fails, make `git clone --no-hardlinks` under
-`/tmp`, repoint `origin` at the real remote, fetch the control branch, and
-record the clone's path in `worktree:`. It is a separate-checkout variant:
-`_checkout_mode` cannot prove ownership from a foreign repository, so
-control-plane writes, bump, and `open-pr` stay in the primary checkout. Do not
-force writes through protected metadata or stop to ask when this fallback is
-available.
-
-**Keep it durable.** A `/tmp` checkout dies at reboot. For multi-session work
-use a sibling path (`../coga-<branch>`) or push the branch before ending the
-session; an unpushed branch whose only checkout is under `/tmp` is one reboot
-from unrecoverable.
+read-only so `git switch -c` fails, make `git clone --no-hardlinks` under
+`/tmp`, repoint `origin` at the real remote, fetch the control branch, create
+the branch there, and record the clone's path in `worktree:`
+([dev/dev-record](../dev-record/SKILL.md)). Ticket state, `coga bump`, and
+`coga open-pr` stay in the primary checkout on `main`; `open-pr` runs its git
+checks inside the recorded clone. Do not force writes through protected
+metadata or stop to ask when this fallback is available. A `/tmp` clone dies
+at reboot, so push the branch before ending the session.
 
 ## What a fresh checkout lacks
 
-A fresh linked worktree or clone has nothing Git ignores:
+A fresh sandbox clone has nothing Git ignores:
 
 - **`coga.local.toml`: hard error.** Commands that act as someone (`bump`,
   `block`, `create`, `mark`, `launch`, `run`, `slack`, ...) load with
@@ -111,21 +131,19 @@ A fresh linked worktree or clone has nothing Git ignores:
 - **`.coga/` is created on demand** (run records, megalaunch selection).
   `.venv/`, `.env*`, `.secrets/` are not needed: `coga` runs from its own
   install and `env:` refs read the process environment.
-- **One branch, one checkout.** `git worktree add` refuses a branch another
-  worktree holds.
 
 A rebuilt `.agent-skills/` and an unedited copy of `coga.local.toml` do not
-block `coga retire`; an edited copy and discovery links are ignored,
-non-regenerable state, so they make it preserve the checkout.
+block `coga retire` of a leftover linked worktree; an edited copy and discovery
+links are ignored, non-regenerable state, so they make it preserve the checkout.
 
 ## Which checkout you invoke Coga from
 
 - **Mutating commands publish from wherever they run.** The exit sweep
   (`sync_coga_state`) publishes every dirty path under `coga/tasks/`,
   `coga/log.md`, and `coga/recurring/` to control, even after a config
-  failure; contexts, skills, workflows, and config are never swept. Commit
-  deliberate ticket prose on the control branch before running a mutating
-  command from a feature checkout. Which invocations sweep is owned by
+  failure; contexts, skills, workflows, and config are never swept. Write
+  deliberate ticket prose on `main`, not on a feature branch. Which
+  invocations sweep is owned by
   [coga/sync](../../coga/sync/SKILL.md).
 - **`coga launch <target> --prompt-report` writes.** It sweeps like any launch
   and regenerates `.agent-skills/`. For a write-free view call

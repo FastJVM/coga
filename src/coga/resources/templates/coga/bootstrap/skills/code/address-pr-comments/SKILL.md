@@ -35,41 +35,41 @@ human merges.
 
 ## 1. Verify the recorded PR and checkout
 
-Read the current ticket's `## Dev` block. Require all three recorded values:
+Read the current ticket's `## Dev` block. Require both recorded values:
 
 ```text
 branch: <branch-name>
-worktree: <path>
 pr: <full-pr-url>
 ```
 
-Do not infer a missing value from the task slug or current checkout. Fail loud
-and ask the attending human to repair the ticket if the linkage is missing,
-ambiguous, or stale.
+(`worktree:` appears only when the branch lives in a sandbox clone; work
+there instead of switching in the launch checkout.) Do not infer a missing
+value from the task slug or current checkout. Fail loud and ask the attending
+human to repair the ticket if the linkage is missing, ambiguous, or stale.
 
-Confirm `gh auth status` succeeds. In the recorded worktree:
+**Recorded legacy checkout.** An older review ticket may record a linked
+worktree or clone as `worktree:`. When this session already runs in that
+exact checkout (`git rev-parse --show-toplevel` resolves to the recorded
+`worktree:`) and HEAD is on the recorded `branch:`, launch recognized it as
+the assist checkout and already fast-forwarded it to the verified PR head.
+Work there: skip steps 1 and 2 below and the end-of-step return to `main`,
+and stay on the recorded branch. Launch has already published its audit to
+control, so dirty Coga state in that checkout (`coga/log.md`, task files,
+recurring state) is expected; leave it unstaged and never commit it with a
+fix. Any other dirt still stops the assist. A recorded `worktree:` that is
+not the current checkout, or a current checkout on another branch, gets no
+such exception: ask the attending human.
 
-1. Verify `git branch --show-current` equals `branch:`.
-2. Verify `git status --short` is clean before starting. Do not absorb unrelated
-   local changes or stage `coga/log.md` with a fix. The launch supervisor owns
-   its audit lines. When launch runs from the exact recorded checkout (primary,
-   linked worktree, or independent fallback clone), it first proves the open
-   PR's actual head repository and OID, then fast-forwards a merely-behind
-   checkout *before* activation and its final
-   ticket/config/prompt reads and operator classification. Draft, paused, and
-   blocked activation waits for all preflights; the committed feature ticket's
-   status and persisted routing inputs (`owner`, `agent`, the frozen step roles,
-   and the current position) must exactly match fresh control state, and the
-   combined lifecycle commit is built on the verified tip and moves the local
-   branch with an expected-old-OID ref CAS; its captured OID is pushed only if
-   both the control-state and exact remote-tip leases hold. A refusal
-   restores the prior task/log state before any child or start notification.
-   If the PR branch or control ticket moves after prompt composition, launch
-   refuses to spawn and asks for a retry instead of working underneath stale
-   instructions. A failed generated-log push leaves the append dirty rather
-   than stranding a divergent audit commit, and its temporary-failure exit
-   suppresses the CLI catch-all sweep so that append stays retryable.
-   Publication still requires the configured remote and a safely aligned tip.
+Confirm `gh auth status` succeeds. Then, in the launch checkout:
+
+1. Run the `dev/checkouts` start check: HEAD on `main`, a clean tree (Coga
+   state included), and `git merge --ff-only origin/main` after a fetch. If
+   it fails, stop and ask the attending human; do not stash, commit, or
+   switch past another ticket's work.
+2. `git switch <branch-name>` and verify `git status --short` is still clean.
+   Do not absorb unrelated local changes or stage `coga/log.md` with a fix.
+   From here until you return to `main`, edit code only: ticket and
+   blackboard edits made on the branch are not published.
 3. Read `[git].remote` from `coga.toml` (default `origin`) and use that configured
    remote to resolve the publication destination with
    `git remote get-url --push --all <configured-remote>`. Require exactly one
@@ -104,10 +104,8 @@ Confirm `gh auth status` succeeds. In the recorded worktree:
    the exact recorded OID when it is merely behind. If it is ahead unexpectedly
    or diverged, ask the human before rewriting published history.
 
-Remain on the recorded branch for the entire assist. Inspect another ref with
-read-only Git commands rather than checking it out: the launch supervisor pins
-its generated teardown commits to the recorded branch and deliberately leaves
-them uncommitted if `HEAD` changes.
+Stay on the recorded branch until the replies are posted. Inspect another ref
+with read-only Git commands rather than checking it out.
 
 Extract the base repository owner, repository name, and PR number from the
 recorded PR URL. The URL identifies the base repository even when the PR comes
@@ -256,18 +254,15 @@ The concrete call shape is:
 gh api graphql -F threadId=<thread-node-id> -f body='<reply>' -f query='<mutation-above>'
 ```
 
-Finish by giving the attending human a compact list of addressed threads, the
-pushed commit, the exact test result, and anything that still needs their
-judgment. Then stop naturally with the ticket still `in_progress` on `review`.
-The launch supervisor owns the trailing usage-log commit; when the PR branch
-still matches its configured remote, it publishes that log-only commit and any
-generated control-state refresh during teardown so the local and remote tips
-stay aligned. Those writes remain pinned to the recorded branch, publish their
-captured generated OID, and restore the prior local tip/dirty bytes if an
-exact-tip lease loses a race. The task-scoped branch capability also lets the
-mandatory blocker-resolution preamble publish `coga unblock` or an explicit
-`coga block` without leaking that authority into nested ordinary launches; if
-an unresolved resumed blocker must be parked again after exit, the supervisor
-publishes that reblock under a fresh lease and restores the prior task/log bytes
-if the lease loses a race. Do not add a completion commit or signal to imitate
-teardown.
+In a recorded legacy checkout, finish on the recorded branch and leave the
+launch-published Coga state as it is. Otherwise, finish by running the
+`dev/checkouts` end-of-step return: discard dirty Coga state only after
+proving it already matches `origin/main`, `git switch main`, and
+`git merge --ff-only origin/main`. If anything dirty is unpublished or
+outside Coga state, stop and ask instead of discarding it.
+Then give the attending human a compact list of addressed
+threads, the pushed commit, the exact test result, and anything that still
+needs their judgment, and stop naturally with the ticket still `in_progress`
+on `review`. The launch supervisor publishes its trailing usage-log line to
+control during teardown; do not add a completion commit or signal to imitate
+it.

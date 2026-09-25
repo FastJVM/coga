@@ -58,8 +58,9 @@ owner/human handoff), or on a terminal (`done`/`canceled`), `paused`, or
 ## implement
 
 Agent step, owned by the `code/implement` skill. It declares `requires: branch`,
-so `coga bump` refuses to advance until `branch:` and `worktree:` are recorded
-under `## Dev` in the ticket copy of the checkout the bump runs from.
+so `coga bump` refuses to advance until `branch:` is recorded under `## Dev`
+in the ticket copy of the checkout the bump runs from — `main`, after the
+step pushes its branch and returns (`dev/checkouts`).
 
 ## peer-review
 
@@ -71,10 +72,14 @@ tool you natively speak:
 - **Codex**: run `codex review --base <branch you forked from>`
   (usually `main`).
 
-From the feature worktree on the recorded branch, apply must-fix
-findings, skip nits, re-run `python -m pytest`, commit (e.g.
-`peer-review: apply review findings`), then `coga bump <slug>` from the
-primary checkout.
+Start with the `dev/checkouts` start check on `main`, and read the change by
+name without switching (`git diff main...<branch>`, `git log
+main..<branch>`) when your tool allows it; a tool that reviews the checked-out
+branch needs the switch below first. To apply must-fix findings (skip nits)
+and freshen the branch, `git switch <branch>`, re-run `python -m pytest`,
+commit (e.g. `peer-review: apply review findings`), push, and run the
+`dev/checkouts` end-of-step return to a clean `main`. Write `## Peer review`
+and `## PR` there, then `coga bump <slug>` from `main`.
 
 **Wait for the review to return before you bump.** A review that has been
 *started* is not a review that has returned. This step owns that wait: the
@@ -107,16 +112,18 @@ so anything needing review judgment must be done *here* before you bump:
   body (falling back to `## Description` if you skip it), so this is where the
   human-facing description is written.
 - **Make the branch fresh, not just conflict-free.** Don't wait for a
-  conflict: run `git fetch origin main && git rebase FETCH_HEAD` in the
-  feature worktree unconditionally, resolve whatever surfaces, re-run
-  `python -m pytest`, and commit. `coga open-pr` refuses unsafe material drift,
+  conflict: run `git fetch origin main && git rebase FETCH_HEAD` on the
+  feature branch unconditionally, resolve whatever surfaces, re-run
+  `python -m pytest`, commit, and push with `--force-with-lease`. `coga
+  open-pr` refuses unsafe material drift,
   and the next step is intentionally mechanical — this step is the last one
   that makes rebase decisions. If a conflict needs a call you can't make,
   escalate per your launch mode — ask the attending human, or `coga block`
   in a queue run.
 
-Leave the branch clean and committed with commits ahead of `main`; `coga
-open-pr` refuses to publish an empty branch.
+Leave the branch committed and pushed with commits ahead of `main`, and the
+checkout back on a clean `main`; `coga open-pr` refuses to publish an empty
+branch.
 
 ## open-pr
 
@@ -140,11 +147,11 @@ which carries the do-not-merge and do-not-bump rules for that assist.
 After the human merges, the `autoclose-merged` recurring sweep marks the task
 `done` on its next run (≤24h); `coga bump` closes it immediately.
 
-`done` is not the end of the ticket. Its feature checkout and branch, recorded
-under `## Dev`, outlive the close: neither the sweep nor `coga bump` disposes
+`done` is not the end of the ticket. Its feature branch (and any leftover
+recorded worktree), recorded under `## Dev`, outlive the close: neither the sweep nor `coga bump` disposes
 of them, because destructive behavior is never implicit. The closing act is
 the owner's — once the ticket is `done`, run `coga retire <slug>`. Retire
-attempts a best-effort cleanup: it removes the recorded worktree and prunes
+attempts a best-effort cleanup: it removes any recorded worktree and prunes
 the landed branch only after proving that is safe, and otherwise preserves
 them — a dirty, locked, missing or mismatched checkout, one shared with
 another live ticket, or a run made off the control branch all skip cleanup.

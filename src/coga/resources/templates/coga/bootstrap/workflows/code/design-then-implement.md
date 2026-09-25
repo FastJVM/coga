@@ -50,8 +50,9 @@ step instead of bumping.
 ## implement
 
 Agent step, owned by the `code/implement` skill. It declares `requires: branch`,
-so `coga bump` refuses to advance until `branch:` and `worktree:` are recorded
-under `## Dev` in the ticket copy of the checkout the bump runs from.
+so `coga bump` refuses to advance until `branch:` is recorded under `## Dev`
+in the ticket copy of the checkout the bump runs from — `main`, after the
+step pushes its branch and returns (`dev/checkouts`).
 
 ## open-pr
 
@@ -73,11 +74,11 @@ do-not-bump rules for that assist.
 After the human merges, the `autoclose-merged` recurring sweep marks the task
 `done` on its next run (≤24h); `coga bump` closes it immediately.
 
-`done` is not the end of the ticket. Its feature checkout and branch, recorded
-under `## Dev`, outlive the close: neither the sweep nor `coga bump` disposes
+`done` is not the end of the ticket. Its feature branch (and any leftover
+recorded worktree), recorded under `## Dev`, outlive the close: neither the sweep nor `coga bump` disposes
 of them, because destructive behavior is never implicit. The closing act is
 the owner's — once the ticket is `done`, run `coga retire <slug>`. Retire
-attempts a best-effort cleanup: it removes the recorded worktree and prunes
+attempts a best-effort cleanup: it removes any recorded worktree and prunes
 the landed branch only after proving that is safe, and otherwise preserves
 them — a dirty, locked, missing or mismatched checkout, one shared with
 another live ticket, or a run made off the control branch all skip cleanup.

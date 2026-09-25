@@ -379,11 +379,10 @@ def _warn_stranded_task_state(cfg: Config, ref: TaskRef) -> None:
     cheap: both refs live in this repository, so no `worktree:` pointer is
     followed and no other checkout is read.
 
-    The layout exemption is a *diagnostic* rule, deliberately simpler than
-    `open_pr._checkout_mode`'s ownership proof: when this checkout is standing
-    on the recorded branch, or the recorded worktree resolves to this same
-    checkout, the committed ticket on that branch is the live copy working as
-    designed, so nothing is said. Erring toward silence is the right failure
+    The layout exemption is a *diagnostic* rule for tickets from the retired
+    single-checkout layout: when this checkout is standing on the recorded
+    branch, or the recorded worktree resolves to this same checkout, the
+    committed ticket on that branch was the live copy, so nothing is said. Erring toward silence is the right failure
     for a warning.
 
     Never blocks, never changes the exit code, never writes to the ticket or

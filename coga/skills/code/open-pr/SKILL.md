@@ -22,71 +22,47 @@ gate, not your say-so.
 
 ## Order of operations
 
-1. **Confirm the handoff state.** Read the machine-readable `branch:` /
-   `worktree:` fields under `## Dev` on the blackboard. A trailing annotation
+1. **Confirm the handoff state.** Run the `dev/checkouts` start check: the
+   launch checkout is on `main`, clean, and fast-forwarded to `origin/main`.
+   If it is not, stop and ask the attending human, or `coga block` in a queue
+   run; do not switch or stash your way past it. Then read the
+   machine-readable `branch:` field (and `worktree:`, present only for a
+   sandbox clone) under `## Dev` on the blackboard. A trailing annotation
    must follow a backtick-delimited value or live on a separate line; bare
-   values consume the whole remainder of the line. The implement / peer-review
+   values consume the whole remainder of the line. The implement / review
    steps must have created the feature branch, recorded it, and left it
-   committed and ahead of the base branch. If `branch:` / `worktree:` are
-   missing, that is an earlier-step gap — do not improvise a branch here;
-   escalate per your launch mode by asking the attending human, or by using
-   `coga block` with a one-line reason in a queue run. Those steps are also not
-   finished while a review they ordered is still running — see *Refuse to
-   publish ahead of a review in flight* below before you run anything.
-2. **Run `coga open-pr <slug>` from the checkout that owns the live ticket.**
-   In the legacy layout where `worktree:` names a separate linked worktree,
-   return to the primary control checkout first; the control-branch ticket is
-   authoritative there. When `worktree:` names the primary checkout itself,
-   stay in that checkout on the recorded feature branch; its ticket is the live
-   copy because there is no second checkout to diverge. The command proves that
-   ownership against `COGA_EXPECTED_TASK`, the anchor your outer `coga launch`
-   session pins to this task and that nothing downstream reassigns. This keeps
-   an independent fallback clone behind the control-checkout gate.
+   committed and ahead of the base branch. If `branch:` is missing, that is
+   an earlier-step gap — do not improvise a branch here; escalate per your
+   launch mode by asking the attending human, or by using `coga block` with
+   a one-line reason in a queue run. Those steps are also not finished while
+   a review they ordered is still running — see *Refuse to publish ahead of a
+   review in flight* below before you run anything.
+2. **Run `coga open-pr <slug>` from `main`.** Never switch to the feature
+   branch for this step: the command checks and pushes it by name, and
+   refuses to run on any branch other than `main`. **Never hand-open the PR
+   with `gh pr create` to route around a refusal** without explicit human
+   approval: the recorded `pr:` line is what the `requires: pr` gate reads,
+   and a hand-opened PR leaves the ticket ungated.
 
-   **If the primary control checkout is parked on *another* ticket's branch,
-   `coga open-pr` refuses.** Nothing is wrong with your branch — a concurrent
-   session simply left the shared checkout somewhere else. Borrow it and give it
-   back: stash that checkout's drift (`git stash --include-untracked`),
-   `git switch <control-branch>`, run `coga open-pr`, then restore the stash and
-   return the checkout to the branch you found it on. Two things you must not
-   do. **Never commit another ticket's drift** to move it aside — that lands
-   unreviewed work under someone else's slug. And **never hand-open the PR with
-   `gh pr create` to route around the refusal** without explicit human approval:
-   the recorded `pr:` line is what the `requires: pr` gate reads, and a
-   hand-opened PR leaves the ticket ungated and the checkout unexplained.
-
-   It resolves the ticket first, identifies the layout, and:
-   - reads `branch:` / `worktree:` from `## Dev`,
-   - publishes the launcher's pending `coga/log.md` append to control in a
-     single-checkout launch, then confirms the recorded checkout is on that
-     branch, clean (the live task, log, and recurring state Coga keeps dirty
-     by design is excluded in the single-checkout layout), ahead of the base
-     (`[git].control_branch`, default `main`), and has no unsafe material drift
-     from the latest `<remote>/<base>` (non-overlapping generated task/log
-     drift is safe; any divergent generated blob still fails); in the
-     single-checkout layout, generated task/log commits do not count as
-     implementation work, so at least one other committed path must exist,
+   It resolves the ticket first and:
+   - reads `branch:` (and `worktree:`) from `## Dev`,
+   - confirms the branch exists here as `refs/heads/<branch>` — or, for a
+     recorded sandbox clone, that the clone is on that branch and clean —
+     is ahead of the base (`[git].control_branch`, default `main`), and has
+     no unsafe material drift from the latest `<remote>/<base>`
+     (non-overlapping generated task/log drift is safe),
    - pushes the branch by name (using an explicit force-with-lease when a safe
      retry follows a rebase),
    - opens the PR with `gh pr create` — or `gh pr ready` if a draft already
      exists, or reuses an already-open PR (idempotent on re-run),
-   - writes `pr: <url>` back under `## Dev`; in the single-checkout layout it
-     syncs that generated ticket update to the feature branch *and* the control
-     branch, so the checkout stays clean, the PR contains its own linkage, and
-     both tips keep identical ticket bytes for the next freshness check.
+   - writes `pr: <url>` back under `## Dev` in this checkout's ticket, which
+     the command's exit sweep publishes to control.
 
-   It always operates on the recorded feature branch **by name**. For separate
-   worktrees or fallback clones, keeping the command on the control checkout
-   prevents writes to a stale ticket copy; for a proven primary-checkout
-   feature branch, syncing the write to both branches prevents the command from
-   making its own retry dirty *or* stale. It **fails loud**
-   (non-zero, nothing pushed/opened) on: no usable `branch:` / `worktree:`, a
-   missing worktree, the recorded checkout on the wrong branch or dirty, **no
-   commits ahead of base** (the incident case — no empty PR), a stale branch,
-   or a `git push` / `gh` auth failure *before* the PR exists. Once `gh` has
-   opened the PR and `pr:` is on the ticket, a failing record sync is reported
-   on stderr rather than raised — the recorded artifact is the gate, and the
-   next bump's own publishing sync lands the same state.
+   It **fails loud** (non-zero, nothing pushed/opened) on: no usable
+   `branch:`, a branch this checkout does not have, a missing, off-branch,
+   or dirty sandbox clone, **no commits ahead of base** (the incident case —
+   no empty PR), a stale branch, or a `git push` / `gh` auth failure *before*
+   the PR exists.
 
    **PR title** = the ticket title. **PR body** comes, in order, from: a `## PR`
    section (blackboard first, then ticket body), else the ticket's
@@ -94,13 +70,9 @@ gate, not your say-so.
    appended. So author a `## PR` section in the earlier steps if you want a
    curated summary + test plan; omitting it is fine.
 3. **Bump.** Once `coga open-pr` reports the URL and `pr:` is recorded under
-   `## Dev`, run `coga bump <slug>` to hand off to the next step. The bump's
-   `requires: pr` gate will pass because the URL is now recorded. In the
-   single-checkout layout that gate also republishes the just-committed
-   post-transition ticket state to the PR branch, keeping its `step:` copy
-   identical to control and mergeable. When this agent session
-   exits, launch also publishes its trailing usage-log commit to that already-open
-   branch, so the local and PR tips do not diverge after the gated bump.
+   `## Dev`, run `coga bump <slug>` from `main` to hand off to the next step.
+   The bump's `requires: pr` gate will pass because the URL is now recorded.
+   The checkout never left `main`, so there is nothing to return from.
 
 ## Refuse to publish ahead of a review in flight
 
@@ -164,51 +136,41 @@ ticket's `pr:` linkage stays pointed at the merged PR and is not rewritten.
 
 Fix the cause and re-run it — it is idempotent:
 
-- Missing `branch:` / `worktree:` or a torn-down worktree → an earlier step
-  didn't record/keep it; escalate per your launch mode if you can't recover
-  it here.
-- Nothing publishable ahead of base → implement/peer-review produced no change;
-  lifecycle-only task/log commits do not count in a single checkout. Build the
-  requested change rather than opening a state-only PR, escalating per your
+- Missing `branch:` → an earlier step didn't record it; escalate per your
+  launch mode if you can't recover it here.
+- Branch not in this checkout → the implement step pushed it; fetch it
+  (`git fetch origin <branch>:<branch>`) and re-run.
+- Nothing ahead of base → implement/review produced no change. Build the
+  requested change rather than opening an empty PR, escalating per your
   launch mode if that needs human direction.
+- Refused because the checkout is not on `main` → an earlier step did not
+  return it. If it is this ticket's branch and clean apart from Coga state
+  already on `origin/main`, run the `dev/checkouts` end-of-step return and
+  re-run. Anything else — another ticket's branch, unpublished dirt — stop
+  and escalate; do not commit, stash, or discard it.
 - Stranded ticket write (the refusal names this ticket's own file and says
-  not to rebase) → in the recorded checkout, inspect the diff it prints,
-  preserve anything still needed in the primary ticket, then restore the
-  merge base's copy and commit exactly as the message spells out. The branch
-  then contributes no change to the ticket and the gate passes. If the message
-  also names other overlapping paths, drop the ticket write first and bring
-  control in with `git merge FETCH_HEAD`, not a rebase. `coga bump` already
-  warned about this when it left the implement step, so a fix there is cheaper.
-- Stale branch → rebase the control branch in the recorded checkout, re-run
-  `python -m pytest`, and commit. Then re-run `coga open-pr` from the primary
-  control checkout for a separate-worktree layout, or from the recorded primary
-  checkout for a single-checkout layout. If an earlier attempt already pushed,
-  the retry republishes the rewritten branch with an explicit force-with-lease.
-- Primary control checkout parked on another ticket's branch → stash its drift,
-  `git switch <control-branch>`, re-run, then restore the stash and the branch.
-  See step 2 — do not commit the drift, and do not hand-open the PR.
+  not to rebase) → switch to the branch, inspect the diff it prints,
+  preserve anything still needed in the `main` ticket (after returning),
+  then restore the merge base's copy and commit exactly as the message
+  spells out, push, and return to `main`. The branch then contributes no
+  change to the ticket and the gate passes. If the message also names other
+  overlapping paths, drop the ticket write first and bring control in with
+  `git merge origin/main`, not a rebase.
+- Stale branch → switch to the branch, rebase onto `origin/main`, re-run
+  `python -m pytest`, commit, and push with `--force-with-lease`; then run
+  the `dev/checkouts` end-of-step return and re-run `coga open-pr` from
+  `main`.
 - `git` / `gh` auth failure → follow the setup hint the command prints (fix the
   remote, load your SSH key / credential helper, `gh auth login`), then re-run.
-- Dirty task/log files in the separate-checkout layout → inspect the diff.
-  The refusal names this ticket's own file apart from any other dirt and
-  tells you not to commit it. For an accidental edit to this task's `## Dev`
-  or blackboard, preserve any missing text in the primary ticket, then discard
-  only confirmed duplicate hunks in the feature checkout (`git restore
-  --staged --worktree -- <path>`). Verify audit entries in the authoritative log
-  before discarding duplicate log hunks; preserve unique audit evidence and
-  escalate reconciliation without hand-editing `coga/log.md`. Do not commit or
-  stash confirmed duplicates to satisfy the gate. Intentional ticket-body or
-  `ticket.py`/attachment changes can belong to the implementation and stay in
-  the feature diff. In the single-checkout layout the ticket is the live copy
-  and is excluded from the gate: never `git add` it or `coga/log.md` to the
-  branch — Coga publishes them to control. See the `dev/dev-record` context.
-- Dirty checkout naming only `coga/.agent-skills/` in a single-checkout layout
-  → that merged skill view is regenerated by every `coga launch`, and this
-  command *is* a launch, so it lands in the very checkout being published. A
-  repo initialized before that ignore rule existed will hit this as a confusing
-  "uncommitted changes" refusal. Add `.agent-skills/` to `coga/.gitignore`
-  (`coga init` writes it inside the coga-managed block), then re-run. Do not
-  commit the generated view to satisfy the gate.
+- Dirty sandbox clone → inspect the diff. The refusal names this ticket's
+  own file apart from any other dirt and tells you not to commit it. For an
+  accidental edit to this task's `## Dev` or blackboard, preserve any
+  missing text in the launch checkout's ticket, then discard only confirmed
+  duplicate hunks in the clone (`git restore --staged --worktree -- <path>`).
+  Do not commit or stash confirmed duplicates to satisfy the gate.
+  Intentional ticket-body or `ticket.py`/attachment changes can belong to the
+  implementation and stay in the feature diff. See the `dev/dev-record`
+  context.
 
 ## Acceptance for this step
 

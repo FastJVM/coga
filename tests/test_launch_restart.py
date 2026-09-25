@@ -199,6 +199,31 @@ def test_supervisor_respawns_next_step_after_bump(
     assert ticket.status == "done"
 
 
+def test_task_launch_publishes_its_launch_line_before_each_spawn(
+    plain_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every supervised task step asks spawn to publish its `launched` line.
+
+    A code step's start check (`dev/checkouts`) requires a clean tree, Coga
+    state included, so the launch audit cannot wait for teardown's sweep.
+    """
+    slug = _create_agent_task(plain_repo, ["implement", "finish"])
+    fake = _FakeAgent(plain_repo, actions=["bump", "bump"])
+    commit_logs: list[object] = []
+
+    def recording(cfg, ref, ticket, agent, *args, **kwargs):  # noqa: ANN001
+        commit_logs.append(kwargs.get("commit_log"))
+        return fake(cfg, ref, ticket, agent, *args, **kwargs)
+
+    _patch_launch_env(monkeypatch, fake)
+    monkeypatch.setattr("coga.commands.launch.spawn_agent_session", recording)
+
+    result = CliRunner().invoke(app, ["launch", slug])
+    assert result.exit_code == 0, result.output
+
+    assert commit_logs == [True, True]
+
+
 def test_supervisor_auto_restarts_through_three_steps(
     plain_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
