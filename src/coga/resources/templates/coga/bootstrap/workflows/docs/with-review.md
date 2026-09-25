@@ -57,8 +57,9 @@ state.
 
 ## implement
 
-Implement the docs change on a feature branch, commit it, and stop before
-push/PR. The mechanics match a code task, but the verification bar is
+Implement the docs change on a feature branch in the launch checkout,
+commit and push it, and return the checkout to `main`; stop before the PR.
+Follow `dev/checkouts` ("Start, work, end") — no linked worktrees. The mechanics match a code task, but the verification bar is
 docs-oriented: prove the changed markdown, workflow, context, or template is
 accurate and reachable rather than running tests that cover nothing.
 
@@ -66,23 +67,22 @@ accurate and reachable rather than running tests that cover nothing.
    the ticket touches real code, write that mismatch to the blackboard and
    escalate per your launch mode — ask the attending human, or `coga block`
    in a queue run — so the task can move to `code/with-review`.
-2. **Create a feature worktree.** From the primary checkout on `main`,
-   create a feature branch in a separate worktree outside the repo
-   directory, for example:
-   `git worktree add ../coga-<branch-name> -b <branch-name> main`.
-   Return to the primary checkout and write `branch: <branch-name>` and
-   `worktree: <path>` under `## Dev` on the blackboard.
-   Immediately after creation, and on resume or checkout recreation, invoke
-   the `seed_local_config.py` attachment beside the resolved `code/implement`
-   skill before the first Coga command in that checkout:
+2. **Start check, then branch.** Run the `dev/checkouts` start check:
+   HEAD on `main`, a clean tree (Coga state included), and a successful
+   `git merge --ff-only origin/main` after a fetch; otherwise stop and
+   escalate per your launch mode — do not work around it with a worktree,
+   a stash, or a switch. Create the branch without leaving `main`
+   (`git branch <branch-name>`), write `branch: <branch-name>` under
+   `## Dev` on the blackboard, then `git switch <branch-name>`. If Git
+   metadata is read-only, use the sandbox clone fallback described in
+   `code/implement`: record its path as `worktree:`, and before the first
+   Coga command there (and again on resume) seed its local config with
    `python /resolved/code/implement/seed_local_config.py /primary/repo/coga /feature/repo`.
-   Follow `dev/checkouts`' "What a fresh checkout lacks" contract; stop on failure.
-   If Git metadata is read-only, use the independent-clone fallback described
-   in `code/implement` and run the same helper against the clone. Both paths
-   preserve the primary actor and keep local config ignored.
-3. **Edit in the feature worktree.** Keep the diff scoped to the ticket; no
-   opportunistic rewrites. If you find adjacent cleanup, note it on the
-   blackboard for a follow-up instead of folding it in.
+   The launch checkout then stays on `main`.
+3. **Edit on the feature branch.** Keep the diff scoped to the ticket; no
+   opportunistic rewrites. Edit docs only while on the branch — note
+   adjacent cleanup for a follow-up and write it to the blackboard after
+   returning to `main`.
 4. **Keep shipped copies in sync.** If you touched a shipped Coga context or
    template that has both a live copy under `coga/` and a packaged copy under
    `src/coga/resources/templates/coga/`, edit **both** in the same commit
@@ -97,9 +97,10 @@ accurate and reachable rather than running tests that cover nothing.
    - Run `python -m pytest` only if you actually touched code or a fixture.
      A pure prose edit does not require the full suite.
 
-6. **Commit.** Use a short factual subject and mention the ticket slug in the
-   body. Leave the feature worktree clean.
-7. **Bump from the primary checkout.** Run `coga bump <slug>` only after the
+6. **Commit, push, and return.** Use a short factual subject and mention the
+   ticket slug in the body. Push the branch, then run the `dev/checkouts`
+   end-of-step return to a clean `main`.
+7. **Bump from `main`.** Run `coga bump <slug>` only after the
    blackboard is current. If you cannot reach a clean committed state, write
    the blocker to the blackboard and escalate per your launch mode — ask the
    attending human, or `coga block` in a queue run.
@@ -107,8 +108,9 @@ accurate and reachable rather than running tests that cover nothing.
 ## peer-review
 
 You are running the peer-review step for a docs change. Review the **content**.
-Read the changed markdown vs `main` (`git diff main -- '*.md'` plus any non-markdown docs
-the ticket names) and check:
+From `main`, without switching, read the changed markdown by branch name
+(`git diff main...<branch> -- '*.md'` plus any non-markdown docs the ticket
+names) and check:
 
 - **Accuracy** — do the claims match how the system actually behaves?
   Commands, paths, flags, and references should be real. Spot-check
@@ -124,9 +126,10 @@ the ticket names) and check:
 - **Tests** — run `python -m pytest` **only if** the change actually
   touched code or a fixture; a pure prose edit does not need it.
 
-From the feature worktree on the recorded branch, apply must-fix findings,
-skip nits, commit (e.g. `peer-review: apply review findings`), then
-`coga bump <slug>` from the primary checkout. If the change reads as wrong
+To apply must-fix findings (skip nits), follow `dev/checkouts`: switch to
+the recorded branch, commit (e.g. `peer-review: apply review findings`),
+push, return to a clean `main`, then write your notes and
+`coga bump <slug>` there. If the change reads as wrong
 in premise (documents behavior that doesn't exist, or contradicts a
 canonical context), write to the blackboard and escalate per your launch mode
 — ask the attending human, or `coga block` in a queue run — instead of patching
@@ -137,22 +140,24 @@ around it.
 Push the reviewed branch and open the PR. This step is still docs-oriented,
 but it owns the same publication and handoff guarantees as a code PR.
 
-1. **Find the feature worktree.** Read `branch:` and `worktree:` under
-   `## Dev` on the blackboard. Change into that worktree, confirm it is on
-   the recorded branch, and confirm the working tree is clean.
-2. **Push** the branch from the feature worktree.
+1. **Find the branch.** Run the `dev/checkouts` start check, then read
+   `branch:` under `## Dev` on the blackboard (and `worktree:`, present only
+   for a sandbox clone). Confirm the branch has commits ahead of `main`.
+2. **Push** the branch by name from `main` (`git push -u origin
+   <branch-name>`), or from the sandbox clone.
 3. **Open the PR** with `gh pr create`. If a draft PR already exists, mark it
    ready instead. Title = ticket title. Body = short summary + "Closes
    ticket: `<slug>`" + a one-line verification plan.
-4. **Record the URL in durable task state.** From the primary checkout, add
+4. **Record the URL in durable task state.** On `main`, add
    `pr: <url>` under `## Dev` on the blackboard. Also add or update a `## PR`
    section in the ticket body with the PR URL before you bump.
 
 After the PR is open, **resolve any merge conflicts with the base branch
 before the handoff**: check that the PR is mergeable (e.g. `gh pr view
 <PR#> --json mergeable,mergeStateStatus`), and if it conflicts with
-`main`, merge/rebase `main` into the feature branch, resolve the
-conflicts, and push so the human reviewer receives a clean, mergeable PR.
+`main`, switch to the feature branch, merge/rebase `main` into it, resolve
+the conflicts, push, and return to a clean `main` (`dev/checkouts`) so the
+human reviewer receives a clean, mergeable PR.
 If conflict resolution touches code or fixtures, run `python -m pytest`;
 otherwise re-run the docs-specific verification that applies to the changed
 files.
@@ -181,11 +186,11 @@ merge. After the human merges, the `autoclose-merged` recurring sweep
 marks the task `done` on its next run (≤24h); to close it immediately,
 run `coga bump`.
 
-`done` is not the end of the ticket. Its feature checkout and branch, recorded
-under `## Dev`, outlive the close: neither the sweep nor `coga bump` disposes
+`done` is not the end of the ticket. Its feature branch (and any leftover
+recorded worktree), recorded under `## Dev`, outlive the close: neither the sweep nor `coga bump` disposes
 of them, because destructive behavior is never implicit. The closing act is
 the owner's — once the ticket is `done`, run `coga retire <slug>`. Retire
-attempts a best-effort cleanup: it removes the recorded worktree and prunes
+attempts a best-effort cleanup: it removes any recorded worktree and prunes
 the landed branch only after proving that is safe, and otherwise preserves
 them — a dirty, locked, missing or mismatched checkout, one shared with
 another live ticket, or a run made off the control branch all skip cleanup.

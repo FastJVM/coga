@@ -1,6 +1,6 @@
 ---
 name: dev/dev-record
-description: The `## Dev` blackboard record that links a code ticket to its branch, checkout, and PR, the `requires: branch` / `requires: pr` gates, `coga open-pr`, stranded-write repair, and the review-step reading rules.
+description: The `## Dev` blackboard record that links a code ticket to its branch and PR (plus the sandbox clone, when one is used), the `requires: branch` / `requires: pr` gates, `coga open-pr`, stranded-write repair, and the review-step reading rules.
 ---
 
 # The `## Dev` record
@@ -11,9 +11,14 @@ blackboard instead of letting tools infer it from the slug:
 ```
 ## Dev
 branch: <branch-name>
-worktree: <path-to-feature-checkout>
 pr: <pr-url>
 ```
+
+`worktree: <path>` is added only when the work happens in a sandbox clone
+([dev/checkouts](../checkouts/SKILL.md)); otherwise the branch lives in the
+launch checkout and `branch:` is the whole linkage. Tickets from the retired
+linked-worktree layout may still carry a `worktree:` line; retire and
+autoclose read it to dispose of that checkout.
 
 A bare `branch:` or `worktree:` value runs to end of line (paths may contain
 spaces); a bare `pr:` value ends at the first whitespace. To annotate, wrap the
@@ -24,20 +29,19 @@ to [dev/design-history](../design-history/SKILL.md).
 
 ## When to write each line
 
-- **`branch:`** the moment the branch exists, so a crash or handoff can find
-  the work.
-- **`worktree:`** the moment the checkout exists. In the separate layout use a
-  path outside the primary checkout; in the single-checkout layout record the
-  primary checkout's own path ([dev/checkouts](../checkouts/SKILL.md)).
+- **`branch:`** as soon as the branch exists, so a crash or handoff can find
+  the work. Create it from `main` with `git branch <name>`, record the line
+  while still on `main`, then switch to it.
+- **`worktree:`** only for a sandbox clone, as soon as the clone exists.
 - **`pr:`** the full URL containing `/pull/<number>`; a trailing note is fine,
   a placeholder reads as no PR. Where the workflow's PR step uses
   `code/open-pr`, `coga open-pr` writes it; in a hand-run flow write it as soon
   as `gh pr create` returns.
 
-Write `branch:` and `worktree:` into the ticket copy of the checkout you will
-bump from: the primary checkout on control in the separate layout, the feature
-branch in the single-checkout layout. The implement step declares
-`requires: branch`, so `coga bump` refuses until that copy has both lines.
+Write every `## Dev` line on `main`, the checkout state you bump from: ticket
+edits made on a feature branch are not published before the end-of-step
+return and would be refused there. The implement step declares
+`requires: branch`, so `coga bump` refuses until that copy has `branch:`.
 
 Know the gate's limits. It checks presence, not freshness: on a retry the
 earlier attempt's lines pass while this attempt's write strands. And it is
@@ -46,11 +50,11 @@ to resurface later.
 
 ## Stranded ticket writes
 
-A `## Dev` or blackboard write made in a separate feature checkout and then
-bumped from the primary checkout strands on the feature branch. It resurfaces
-as `coga open-pr`'s "Recorded worktree has uncommitted changes" refusal (which
-names this ticket's file separately) or, once committed, as a stranded ticket
-write that `open-pr`'s freshness gate refuses and `bump` warns about on stderr.
+A ticket write committed on the feature branch strands there: control keeps
+rewriting the same file at every transition. `open-pr`'s freshness gate
+refuses it and `bump` warns about it on stderr. In a sandbox clone an
+uncommitted ticket edit surfaces as `coga open-pr`'s "Recorded worktree has
+uncommitted changes" refusal, which names this ticket's file separately.
 The comparison is one-directional; a branch copy control already absorbed is
 silent.
 
@@ -62,26 +66,25 @@ git restore --staged --worktree --source=$(git merge-base <control> <branch>) --
 ```
 
 Do not rebase to fix it, and do not restore control's copy (it goes stale at
-the next transition). In the separate layout, a dirty task/log hunk is a
-duplicate only after its content is preserved in the primary ticket or
-verified in the authoritative log; discard only confirmed duplicates, never
-commit or stash them to pass the clean-tree gate, and never hand-edit
-`coga/log.md`. Intentional ticket-body changes, `ticket.py`, and attachments
-under `coga/tasks/` can be implementation work and stay in the diff. None of
-this applies to the single-checkout layout, where the ticket is the live copy:
-commit task/log edits separately from implementation work.
+the next transition). A dirty task/log hunk in a sandbox clone is a duplicate
+only after its content is preserved in the primary ticket or verified in the
+authoritative log; discard only confirmed duplicates, never commit or stash
+them to pass the clean-tree gate, and never hand-edit `coga/log.md`.
+Intentional ticket-body changes, `ticket.py`, and attachments under
+`coga/tasks/` can be implementation work and stay in the diff.
 
 ## `coga open-pr <slug>`
 
 The default alias for `coga run open-pr <slug>` (implementation
-`coga.open_pr`). Run it from the checkout that owns the live ticket. It reads
-`branch:` and `worktree:`, pushes the recorded branch by name, opens the PR,
-prints the bare URL, and writes `pr:` back; it fails loud when linkage is
-missing or there is nothing to PR. In the single-checkout layout it publishes
-the launcher's pending log append, excludes live task, log, and recurring
-state from its clean-tree gate, requires at least one committed non-generated
-path (`_single_checkout_publishable_paths`), and publishes its `pr:` write to
-control only. The PR step declares `requires: pr`. Publication guarantees are
+`coga.open_pr`). Run it from the launch checkout on `main`
+(`open_pr._checkout_mode` refuses any other branch). It reads `branch:`,
+checks the branch by name — commits ahead of `main`, freshness against
+`<remote>/main` — pushes it, opens the PR, prints the bare URL, and writes
+`pr:` back; it fails loud when linkage is missing or there is nothing to PR.
+With a recorded `worktree:` (a sandbox clone) it runs those checks inside the
+clone, which must be on the branch and clean. A `worktree:` naming the launch
+checkout itself, left by the retired single-checkout layout, is treated as
+absent. The PR step declares `requires: pr`. Publication guarantees are
 owned by [coga/internals/pr-publication](../../coga/internals/pr-publication/SKILL.md).
 
 ## Consumers and multi-ticket PRs

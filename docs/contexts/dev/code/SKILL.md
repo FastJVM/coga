@@ -14,19 +14,18 @@ record directly.
 
 ## The rules in brief
 
-- **Pick a checkout layout and record it.** A single checkout on the feature
-  branch is the default; use a separate feature checkout beside a
-  control-plane primary checkout only when asked or when the primary checkout
-  cannot host the branch. The agent moves itself; launch never changes its cwd.
-  Seed `coga.local.toml` and agent discovery links in any fresh checkout.
-  See [dev/checkouts](../checkouts/SKILL.md).
-- **Record `## Dev` early and in the right copy.** `branch:` when the branch
-  exists, `worktree:` when the checkout exists, `pr:` from `coga open-pr`.
-  Write them where you will run `coga bump`. See
+- **Work in the launch checkout; start and end on `main`.** No linked
+  worktrees. Each code step starts on a clean, current `main`, switches to the
+  feature branch only to change code, pushes, and returns to `main` before its
+  handoff. An occupied checkout means stop and ask (or block). The sandbox
+  clone is the one fallback. See [dev/checkouts](../checkouts/SKILL.md).
+- **Record `## Dev` early and on `main`.** `branch:` when the branch exists,
+  `worktree:` only for a sandbox clone, `pr:` from `coga open-pr`. See
   [dev/dev-record](../dev-record/SKILL.md), which also covers stranded ticket
   writes and the review step.
-- **Do not remove your own checkout.** `coga retire` and the autoclose sweep
-  dispose of it under shared proofs. See
+- **Leave branch cleanup to retire.** `coga retire` and the autoclose sweep
+  delete the landed branch (and any leftover recorded worktree) under shared
+  proofs. See
   [dev/checkout-cleanup](../checkout-cleanup/SKILL.md).
 - **Keep the body current.** Archive abandoned plans in one
   `## Superseded designs` blackboard section. See

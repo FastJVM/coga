@@ -46,9 +46,9 @@ terminal action; merely saying "blocked" or asking hangs the queue until a
 liveness timeout fails the task. An ordinary step is released only by
 `coga bump`, `coga mark done`, `coga block`, or an authorized
 `coga mark canceled`; a final response or agent `task_complete` event does
-not release it. Both point code steps that cannot create a linked worktree
-under a read-only `.git` mount to the `/tmp` clone fallback in the
-`code/implement` skill.
+not release it. Both point code steps that cannot create a branch under a
+read-only `.git` mount to the `/tmp` clone fallback in the `code/implement`
+skill.
 
 Megalaunch adds:
 

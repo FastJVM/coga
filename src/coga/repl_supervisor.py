@@ -41,17 +41,15 @@ from coga.atomicio import atomic_write_text
 SENTINEL_ENV = "COGA_DONE_SENTINEL"
 
 # Env vars scoped to a supervised launch step, naming the task/step that
-# composed the session. Two readers, so this is a launch-wide contract rather
-# than a bump-private one — do not narrow it:
-#
-#   - `coga bump` uses both as a compare-and-swap guard: it may only bump the
-#     ticket/step that composed the session it is finishing.
-#   - the `open-pr` recipe reads `EXPECTED_TASK_ENV` to prove a
-#     single-checkout feature branch owns the live ticket. It cannot use the
-#     `COGA_TASK_*` contract for that: those name whatever the environment last
-#     described, and a nested launch rewrites them. This pair survives because
-#     nothing downstream reassigns it — which is precisely why it must keep
-#     naming the session's own task.
+# composed the session. This is a launch-wide contract rather than a
+# bump-private one — do not narrow it. `coga bump` uses both as a
+# compare-and-swap guard: it may only bump the ticket/step that composed the
+# session it is finishing; other lifecycle commands and the recorded PR assist
+# read `EXPECTED_TASK_ENV` to scope their authority the same way. They cannot
+# use the `COGA_TASK_*` contract for that: those name whatever the
+# environment last described, and a nested launch rewrites them. This pair
+# survives because nothing downstream reassigns it — which is precisely why it
+# must keep naming the session's own task.
 EXPECTED_TASK_ENV = "COGA_EXPECTED_TASK"
 EXPECTED_STEP_ENV = "COGA_EXPECTED_STEP"
 

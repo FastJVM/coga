@@ -144,10 +144,8 @@ def test_checkout_guidance_invokes_helper_for_creation_and_resume() -> None:
     for relative in ['skills/code/implement/SKILL.md', 'workflows/docs/with-review.md']:
         text = (bootstrap / relative).read_text()
         assert 'seed_local_config.py /primary/repo/coga /feature/repo' in text
-        assert 'independent-clone fallback' in text
+        assert 'sandbox clone fallback' in text
         assert 'resume' in text
-    recovery = (REPO_ROOT / 'src/coga/open_pr.py').read_text()
-    assert 'seed_local_config.py attachment beside code/implement' in recovery
 
 
 def _isolated_env(tmp_path: Path, *, with_console: bool) -> dict[str, str]:

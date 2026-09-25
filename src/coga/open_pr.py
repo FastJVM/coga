@@ -9,21 +9,15 @@ with nothing on stdout. The workflow's `requires: pr` completion gate is
 separate: `coga bump` advances only after this recipe records the PR URL
 under `## Dev`.
 
-Two contracts callers depend on: the **bare PR URL on stdout** (so
-`$(coga open-pr <slug>)` captures exactly the URL), and the
-`COGA_EXPECTED_TASK` ownership proof in `_checkout_mode`. That witness is what
-separates a real launched session from an independent fallback clone that
-would otherwise update its stale ticket copy: the agent's own `coga launch`
-pins it to that session's task path, and nothing downstream reassigns it.
-Running as a recipe preserves the inherited `COGA_TASK_*` metadata, but the
-anchor stays the gate's witness because only it names the *session's* task
-rather than whatever the environment last described.
+The contract callers depend on is the **bare PR URL on stdout** (so
+`$(coga open-pr <slug>)` captures exactly the URL). The command runs from the
+launch checkout on the control branch and checks the recorded branch by name;
+only a recorded sandbox clone (`worktree:`, see `dev/checkouts`) is entered.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import re
 import subprocess
 import sys
@@ -42,17 +36,9 @@ from coga.github_preflight import (
     stranded_task_state_paths,
     stranded_task_state_remediation,
 )
-from coga.git import (
-    GitError,
-    is_linked_worktree,
-    sync_log,
-    sync_task_state,
-    union_merge_paths,
-)
+from coga.git import GitError
 from coga.lifecycle import TERMINAL_STATUSES
-from coga.paths import log_path, recurring_dir, tasks_dir
-from coga.repl_supervisor import EXPECTED_TASK_ENV
-from coga.taskfile import TaskFileError, split_body
+from coga.taskfile import split_body
 from coga.tasks import TaskNotFoundError, read_ticket, resolve_task
 from coga.ticket import Ticket
 
@@ -148,160 +134,6 @@ def _dirty_paths(porcelain_z: str) -> list[str]:
     return paths
 
 
-def _single_checkout_publishable_paths(
-    *,
-    base_ref: str,
-    checkout_root: Path,
-    coga_root: Path,
-) -> list[str]:
-    """Return branch changes other than generated Coga task/audit state.
-
-    A primary-checkout feature branch accumulates lifecycle commits from
-    `launch` / `bump`, so a non-zero commit count does not prove that the
-    implementation produced anything to review. Compare the branch side of the
-    fork and drop what Coga generated — but decide that by *ownership of the
-    bytes*, not by pathspec. A blanket `coga/tasks/**` exclusion refuses a
-    ticket-prose PR (rewriting a description or acceptance criteria is real,
-    reviewable work), and a blanket allowance would let a branch carrying only
-    lifecycle churn open an empty PR.
-
-    Two content-level rules replace it. A `merge=union` file is an append-only
-    machine queue or audit log by construction — git itself is asked, so a
-    future union file is covered without being named here. A ticket is
-    generated-only when its authored half — frontmatter minus the lifecycle
-    fields Coga commands write, plus the body above the blackboard fence — is
-    byte-identical on both sides; a ticket Coga only advanced is invisible,
-    while one whose prose a human changed is publishable. Anything unparseable
-    or newly added counts as publishable: refusing a real PR is the worse
-    failure.
-    """
-    try:
-        coga_prefix = coga_root.resolve().relative_to(checkout_root).as_posix()
-    except ValueError as exc:
-        raise OpenPrError(
-            f"Configured Coga root {str(coga_root)!r} is not inside the recorded "
-            f"checkout {str(checkout_root)!r}; refusing to publish."
-        ) from exc
-
-    changed = _git(
-        ["diff", "--no-renames", "--name-only", "-z", f"{base_ref}...HEAD"],
-        cwd=str(checkout_root),
-    )
-    if changed.returncode != 0:
-        raise OpenPrError(
-            "Could not inspect the feature branch's committed paths while "
-            f"checking for publishable work: {changed.stderr.strip() or 'no output'}"
-        )
-
-    prefix = "" if coga_prefix == "." else f"{coga_prefix}/"
-    tasks_prefix = f"{prefix}tasks/"
-    candidates = [path for path in changed.stdout.split("\0") if path]
-    if not candidates:
-        return []
-    union_paths = _union_attributed_paths(candidates, cwd=str(checkout_root))
-    publishable = []
-    for path in candidates:
-        if path in union_paths:
-            continue
-        if path.startswith(tasks_prefix) and path.endswith(".md"):
-            base_text = _blob_text(f"{base_ref}:{path}", cwd=str(checkout_root))
-            head_text = _blob_text(f"HEAD:{path}", cwd=str(checkout_root))
-            if base_text is None or head_text is None:
-                publishable.append(path)
-                continue
-            base_authored = _authored_ticket_signature(base_text)
-            head_authored = _authored_ticket_signature(head_text)
-            if (
-                base_authored is not None
-                and base_authored == head_authored
-            ):
-                continue
-        publishable.append(path)
-    return publishable
-
-
-# Frontmatter fields Coga's own commands write as a task moves through its
-# workflow. Everything else in the frontmatter — title, contexts, owner,
-# secrets — is authored, so a change to one is reviewable work.
-#
-# `workflow:` is the deliberate borderline case. `mark_active` and `bump` do
-# write it, freezing a bare reference into an inline definition, so by byte
-# ownership it belongs here. It is left on the authored side anyway: a human
-# who changes which workflow a ticket runs has done reviewable work, and this
-# gate's stated bias is that refusing a real PR is worse than admitting an
-# empty one. The cost is that a branch whose *only* change is that freeze reads
-# as publishable — reachable only when reconciliation has already failed closed.
-_GENERATED_TICKET_KEYS = frozenset(
-    {"status", "step", "assignee", "launch_generation"}
-)
-
-
-def _authored_ticket_signature(text: str) -> str | None:
-    """The human-authored half of a ticket, or None when it does not parse.
-
-    Everything a Coga command owns is dropped: the lifecycle frontmatter fields
-    and the whole blackboard region, which is working memory rather than review
-    payload. What remains is what a reviewer would actually read a diff of.
-
-    A dropped key takes its continuation lines with it — an indented block or a
-    `-` list item — and nothing else. Only a genuine continuation extends the
-    drop: `Ticket.render` emits `launch_generation` immediately before the
-    `# --- extensions ---` marker, and a state machine that carried the drop
-    across every colon-free line would swallow that marker on one side only,
-    making a ticket Coga merely advanced look hand-authored.
-    """
-    if not text.startswith("---\n"):
-        return None
-    end = text.find("\n---\n", 3)
-    if end == -1:
-        return None
-    frontmatter = text[4 : end + 1]
-    body = text[end + 5 :]
-    kept: list[str] = []
-    dropping = False
-    for line in frontmatter.splitlines():
-        if line[:1] not in {" ", "\t", "-"}:
-            key = line.split(":", 1)[0].strip() if ":" in line else None
-            dropping = key in _GENERATED_TICKET_KEYS
-        if not dropping:
-            kept.append(line)
-    try:
-        above, _blackboard = split_body(body, blackboard_required=False)
-    except TaskFileError:
-        return None
-    return "\n".join(kept) + "\n\x00" + above
-
-
-def _union_attributed_paths(paths: list[str], *, cwd: str) -> set[str]:
-    """Paths git resolves to the `merge=union` driver — append-only by design.
-
-    Asking git rather than naming `log.md` and the digest spool keeps a future
-    union file covered the moment `.gitattributes` marks it. The probe itself
-    is `git.union_merge_paths`, the same one the sync layer uses to keep union
-    files off the cross-branch overlay — one reading of `check-attr`'s flat
-    triples, one batching rule, one answer to "is this file append-only".
-
-    A failed probe is fatal here. Answering "no union files" on error would flip
-    this gate from refusing a state-only branch to opening an empty PR, and it
-    would do it silently — the failure mode `coga/principles` #6 forbids.
-    """
-    try:
-        return union_merge_paths(Path(cwd), paths)
-    except GitError as exc:
-        raise OpenPrError(
-            "could not read git attributes to tell generated Coga state from "
-            f"reviewable work: {exc}"
-        ) from exc
-
-
-def _blob_text(revision_path: str, *, cwd: str) -> str | None:
-    """Decoded blob content at `<rev>:<path>`, or None when it is not there."""
-    result = _git(["show", revision_path], cwd=cwd)
-    if result.returncode != 0:
-        return None
-    return result.stdout
-
-
 def _remote_branch_oid(remote: str, branch: str, *, cwd: str) -> str | None:
     """Return the advertised remote branch OID, or None when it does not exist."""
     result = _git(
@@ -350,45 +182,14 @@ def set_dev_pr(blackboard_text: str, url: str) -> str:
     return f"{blackboard_text}{sep}\n## Dev\npr: {url}\n"
 
 
-def _sync_pr_record(
-    cfg: Config,
-    *,
-    worktree: str,
-    blackboard_path: Path,
-    slug: str,
-) -> None:
-    """Publish a single-checkout ticket's generated `pr:` line to control.
-
-    Same `sync_task_state` every other publisher uses: control only, never
-    the feature branch (Coga does not commit on any local branch). Failure is
-    reported, not raised: by this point the PR is open and its URL is on the
-    live ticket, so the recorded artifact is the gate and the following bump
-    or sweep lands the same state. The publish's provenance check refuses to
-    overlay a ticket another checkout has already finished.
-    """
-    checkout_root = _git_checkout_root(worktree)
-    if checkout_root is None:
-        raise OpenPrError(
-            f"Could not resolve the Git checkout containing {worktree!r} while "
-            "committing the recorded PR URL."
-        )
-    try:
-        blackboard_path.resolve().relative_to(checkout_root)
-    except ValueError as exc:
-        raise OpenPrError(
-            f"Ticket {str(blackboard_path)!r} is not inside the recorded "
-            f"checkout {str(checkout_root)!r}; refusing to commit the PR URL."
-        ) from exc
-
-    sync_task_state(cfg, blackboard_path, message=f"Ticket: {slug} — PR opened")
-
-
 def _stranded_ticket_detail(
     overlaps: tuple[str, ...],
     *,
     base: str,
     branch: str,
-    worktree: str,
+    head_ref: str,
+    cwd: str,
+    worktree: str | None,
     blackboard_path: Path,
 ) -> str | None:
     """Re-word a freshness refusal caused by this ticket's own stranded write.
@@ -397,10 +198,8 @@ def _stranded_ticket_detail(
     file: a refusal for source drift, a fetch failure, or another ticket's
     state keeps the probe's generic wording, because "rebase" is the right
     advice there and wrong here. The comparison runs against `FETCH_HEAD` in
-    the recorded checkout — the tip the probe just fetched and compared — not
-    the local control ref, which a fetch does not advance. Separate-checkout
-    layout only: in a single checkout the branch copy *is* the live ticket.
-    When control also carries other unsafe overlaps they are named after the
+    the checkout the probe ran in — the tip it just fetched and compared — not
+    the local control ref, which a fetch does not advance. When control also carries other unsafe overlaps they are named after the
     ticket remediation so that reason is not hidden; drop the ticket write
     first, then bring control in with a merge rather than a rebase.
     """
@@ -408,7 +207,7 @@ def _stranded_ticket_detail(
     if ticket_rel is None or ticket_rel not in overlaps:
         return None
     stranded = stranded_task_state_paths(
-        "FETCH_HEAD", "HEAD", [ticket_rel], cwd=worktree
+        "FETCH_HEAD", head_ref, [ticket_rel], cwd=cwd
     )
     if stranded is None:
         provenance = ""
@@ -426,7 +225,7 @@ def _stranded_ticket_detail(
     others = [path for path in overlaps if path != ticket_rel]
     remediation = stranded_task_state_remediation(
         control_ref="FETCH_HEAD",
-        branch_ref="HEAD",
+        branch_ref=head_ref,
         paths=[ticket_rel],
         checkout=worktree,
     )
@@ -440,9 +239,101 @@ def _stranded_ticket_detail(
     return (
         f"Branch {branch!r} has committed changes to this ticket's own file "
         f"({ticket_rel}) that {base} does not contain. This is a stranded "
-        "ticket write: the ticket was edited or bumped from inside the feature "
-        f"checkout while `coga` advanced the same file on {base}. Rebasing "
+        "ticket write: the ticket was edited and committed on the feature "
+        f"branch while `coga` advanced the same file on {base}. Rebasing "
         f"would replay it and conflict.{provenance} {remediation}{tail}"
+    )
+
+
+def _check_recorded_clone(
+    worktree: str, branch: str, *, blackboard_path: Path
+) -> None:
+    """Refuse a recorded sandbox clone that is missing, off-branch, or dirty.
+
+    The clone is the one checkout open-pr enters, because its branch is not a
+    ref of this repository. Uncommitted edits to the ticket file there are a
+    duplicate in the making: committing them is what turns the stranded write
+    into a merge conflict a step later, so they get their own remediation.
+    Attachments and `ticket.py` beside a directory ticket are ordinary
+    implementation dirt and keep the commit instruction.
+    """
+    if not Path(worktree).is_dir():
+        raise OpenPrError(
+            f"Recorded worktree {worktree!r} does not exist. If the recorded path "
+            "has a trailing repository note, delimit the path with backticks "
+            "(for example: worktree: `/path` (other repo)), or put the note on "
+            "a separate line. A sandbox clone under /tmp does not survive a "
+            "reboot: if the branch was pushed, fetch it into this checkout and "
+            "drop the `worktree:` line; otherwise `coga block` the ticket."
+        )
+    head = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=worktree)
+    if head.returncode != 0:
+        raise OpenPrError(
+            f"`git rev-parse` failed in {worktree!r}: {head.stderr.strip() or 'no output'}"
+        )
+    current_branch = head.stdout.strip()
+    if current_branch != branch:
+        raise OpenPrError(
+            f"Recorded worktree {worktree!r} is on {current_branch!r}, not the "
+            f"recorded branch {branch!r}. If the recorded branch has a trailing "
+            "repository note, delimit the name with backticks "
+            "(for example: branch: `name` (other repo)), or put the note on a "
+            "separate line. Otherwise, check it out there before open-pr runs."
+        )
+    dirty = _git(
+        ["status", "--porcelain", "-z", "--untracked-files=all", "--", "."],
+        cwd=worktree,
+    )
+    if dirty.returncode != 0:
+        raise OpenPrError(
+            f"`git status` failed in {worktree!r}: {dirty.stderr.strip() or 'no output'}"
+        )
+    if not dirty.stdout.strip("\x00"):
+        return
+    dirty_paths = _dirty_paths(dirty.stdout)
+    ticket_rel = _live_ticket_relpath(blackboard_path)
+    ticket_dirt = [path for path in dirty_paths if path == ticket_rel]
+    other_dirt = [path for path in dirty_paths if path != ticket_rel]
+    if ticket_dirt:
+        listed = ", ".join(ticket_dirt)
+        if other_dirt:
+            lead = (
+                f"Commit the implementation dirt ({', '.join(other_dirt)}) "
+                f"— but not this ticket's own file ({listed}) unchecked: "
+            )
+        else:
+            lead = (
+                f"The dirt is this ticket's own file ({listed}). Do not "
+                "commit it here unchecked: "
+            )
+        # Only generated drift gets the destructive restore. `dev/dev-record`
+        # allows an intentional authored-body change as implementation
+        # work, and the restore below would discard its only copy.
+        remediation = (
+            f"{lead}the live copy is the primary checkout's, and committing "
+            "lifecycle or blackboard drift on this branch strands a "
+            "duplicate that conflicts with control at merge. Inspect the "
+            "diff first. If it is generated state — frontmatter, `## Dev`, "
+            "blackboard handoff — preserve any needed blackboard text in the "
+            "primary ticket, then discard the edit here "
+            f"(`git restore --staged --worktree -- {' '.join(ticket_dirt)}`); "
+            "do not stash it just to pass this gate. Only an intentional "
+            "change to the authored ticket body that is part of the "
+            "implementation is committed, as `dev/dev-record` allows. "
+        )
+    else:
+        remediation = (
+            "In a sandbox clone, inspect task/log edits: preserve needed "
+            "blackboard text in the primary ticket and verify audit entries in "
+            "the authoritative log before discarding only confirmed duplicate "
+            "hunks here. Preserve unique audit evidence for reconciliation and "
+            "keep intentional ticket or attachment changes that belong to the "
+            "implementation. "
+        )
+    raise OpenPrError(
+        f"Recorded worktree {worktree!r} has uncommitted changes. The "
+        "implement/peer-review steps must commit implementation work before "
+        f"open-pr. {remediation}Then relaunch."
     )
 
 
@@ -491,22 +382,18 @@ def open_pr(
     *,
     slug: str,
     blackboard_path: Path,
-    single_checkout: bool = False,
 ) -> str:
     """Push the feature branch and open (or ready) its PR; return the PR URL.
 
-    Reads `branch:` / `worktree:` (and an optional `## PR` body) from the
-    ticket's `## Dev` blackboard section, confirms the recorded checkout is on
-    that branch, clean, ahead of the base branch, and has no material stale
-    drift from `<remote>/<base>`, pushes, opens the PR (`gh pr create`, or `gh
-    pr ready` for an existing draft, or reuses an already-open PR), and writes
-    `pr: <url>` back under `## Dev`. When the recorded checkout also contains
-    the live Coga ticket, the generated URL write is synced to the feature
-    branch *and* the control branch so the checkout stays clean, the PR
-    contains it, and both tips keep identical ticket bytes for the next
-    freshness check; that layout must also contain a committed change outside
-    generated task/log state. The caller sets `single_checkout` only after the
-    CLI proves that live-ticket ownership from its launch metadata.
+    Reads `branch:` (plus `worktree:` for a sandbox clone, and an optional
+    `## PR` body) from the ticket's `## Dev` blackboard section. Without a
+    recorded clone the branch is checked by name in this checkout, which stays
+    on the control branch: it must exist locally, be ahead of the base branch,
+    and have no material stale drift from `<remote>/<base>`. With a recorded
+    clone the same checks run inside it, and it must also be on the branch and
+    clean. Then it pushes, opens the PR (`gh pr create`, or `gh pr ready` for
+    an existing draft, or reuses an already-open PR), and writes `pr: <url>`
+    back under `## Dev`; the CLI exit sweep publishes that write.
 
     Raises `OpenPrError` on any fail-loud condition — the caller must not
     advance the workflow step when that happens.
@@ -533,153 +420,49 @@ def open_pr(
         )
 
     worktree = parse_worktree_path(blackboard)
-    if not worktree:
-        raise OpenPrError(
-            "No usable `worktree:` recorded under `## Dev` on the blackboard. "
-            "open-pr pushes from the recorded checkout; record its path there "
-            f"(see the dev/dev-record context), or `coga block --task {slug}`."
-        )
-    if not Path(worktree).is_dir():
-        raise OpenPrError(
-            f"Recorded worktree {worktree!r} does not exist. If the recorded path "
-            "has a trailing repository note, delimit the path with backticks "
-            "(for example: worktree: `/path` (other repo)), or put the note on "
-            "a separate line. If the worktree was torn down before the PR was "
-            "opened, recreate it "
-            f"(`git worktree add {worktree} {branch}`), then run the "
-            "seed_local_config.py attachment beside code/implement with the "
-            "primary Coga workspace and recreated checkout root before any Coga "
-            "command there (dev/checkouts: What a fresh checkout lacks). Stop if "
-            "setup fails; apply the same check when resuming an existing checkout. "
-            f"Or `coga block --task {slug}`."
-        )
+    if worktree and same_git_checkout(cfg.repo_root, worktree):
+        # Left by the retired single-checkout layout: the branch lives in this
+        # checkout, so check it by name like any other.
+        worktree = None
+    if worktree:
+        cwd, head_ref = worktree, "HEAD"
+        _check_recorded_clone(worktree, branch, blackboard_path=blackboard_path)
+    else:
+        root = _git_checkout_root(cfg.repo_root)
+        if root is None:
+            raise OpenPrError(
+                f"Could not resolve the Git checkout containing {str(cfg.repo_root)!r}."
+            )
+        cwd, head_ref = str(root), f"refs/heads/{branch}"
+        if _git(["rev-parse", "--verify", "--quiet", head_ref], cwd=cwd).returncode != 0:
+            raise OpenPrError(
+                f"Recorded branch {branch!r} does not exist in this checkout. If "
+                "the recorded branch has a trailing repository note, delimit the "
+                "name with backticks (for example: branch: `name` (other repo)), "
+                "or put the note on a separate line. If only the remote has it, "
+                f"fetch it (`git fetch {remote} {branch}:{branch}`) and rerun, or "
+                f"`coga block --task {slug}`."
+            )
 
     already = parse_pr_url(blackboard)
-    if single_checkout and (
-        not same_git_checkout(cfg.repo_root, worktree)
-        or is_linked_worktree(Path(worktree))
-    ):
-        raise OpenPrError(
-            "The caller marked this as a single-checkout open-pr, but the "
-            "recorded worktree is a distinct checkout. Refusing to commit the "
-            "generated PR URL to the wrong ticket copy."
-        )
-
-    # --- confirm branch, cleanliness, commits ahead of base ------------------
-    head = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=worktree)
-    if head.returncode != 0:
-        raise OpenPrError(
-            f"`git rev-parse` failed in {worktree!r}: {head.stderr.strip() or 'no output'}"
-        )
-    current_branch = head.stdout.strip()
-    if current_branch != branch:
-        raise OpenPrError(
-            f"Recorded worktree {worktree!r} is on {current_branch!r}, not the "
-            f"recorded branch {branch!r}. If the recorded branch has a trailing "
-            "repository note, delimit the name with backticks "
-            "(for example: branch: `name` (other repo)), or put the note on a "
-            "separate line. Otherwise, check it out there before open-pr runs."
-        )
-
-    dirty_pathspecs = ["--", "."]
-    if single_checkout:
-        # A supervised agent launch appends its audit line before the agent runs,
-        # while the normal teardown sync happens only after the agent bumps and
-        # exits. In the single-checkout layout this feature checkout holds the
-        # live task-state copy, which Coga publishes to control but never
-        # commits on the branch: task, log, and recurring state are dirty here
-        # by design, so publish the log now and leave that state out of the
-        # cleanliness gate. Any product or other Coga dirt still fails below.
-        sync_log(cfg, message=f"Log: {slug}")
-        dirty_pathspecs += [
-            f":(exclude){path}"
-            for path in (tasks_dir(cfg), log_path(cfg), recurring_dir(cfg))
-        ]
-
-    dirty = _git(
-        ["status", "--porcelain", "-z", "--untracked-files=all", *dirty_pathspecs],
-        cwd=worktree,
-    )
-    if dirty.returncode != 0:
-        raise OpenPrError(
-            f"`git status` failed in {worktree!r}: {dirty.stderr.strip() or 'no output'}"
-        )
-    if dirty.stdout.strip("\x00"):
-        # The ticket *file* is the one path `coga` rewrites on control at every
-        # transition, so uncommitted edits to it in a separate feature checkout
-        # are a duplicate in the making: committing them is what turns the
-        # stranded write into a merge conflict a step later. Attachments and
-        # `ticket.py` beside a directory ticket are ordinary implementation
-        # dirt and keep the commit instruction.
-        dirty_paths = _dirty_paths(dirty.stdout)
-        ticket_rel = None if single_checkout else _live_ticket_relpath(blackboard_path)
-        ticket_dirt = [path for path in dirty_paths if path == ticket_rel]
-        other_dirt = [path for path in dirty_paths if path != ticket_rel]
-        if single_checkout:
-            remediation = (
-                "This is the single-checkout layout: live task/log state is "
-                "already excluded, so the remaining dirt is product or other "
-                "Coga work; commit or discard it. "
-            )
-        elif ticket_dirt:
-            listed = ", ".join(ticket_dirt)
-            if other_dirt:
-                lead = (
-                    f"Commit the implementation dirt ({', '.join(other_dirt)}) "
-                    f"— but not this ticket's own file ({listed}) unchecked: "
-                )
-            else:
-                lead = (
-                    f"The dirt is this ticket's own file ({listed}). Do not "
-                    "commit it here unchecked: "
-                )
-            # Only generated drift gets the destructive restore. `dev/dev-record`
-            # allows an intentional authored-body change as implementation
-            # work, and the restore below would discard its only copy.
-            remediation = (
-                f"{lead}the live copy is the primary checkout's, and committing "
-                "lifecycle or blackboard drift on this branch strands a "
-                "duplicate that conflicts with control at merge. Inspect the "
-                "diff first. If it is generated state — frontmatter, `## Dev`, "
-                "blackboard handoff — preserve any needed blackboard text in the "
-                "primary ticket, then discard the edit here "
-                f"(`git restore --staged --worktree -- {' '.join(ticket_dirt)}`); "
-                "do not stash it just to pass this gate. Only an intentional "
-                "change to the authored ticket body that is part of the "
-                "implementation is committed, as `dev/dev-record` allows. "
-            )
-        else:
-            remediation = (
-                "In a separate feature checkout, inspect task/log edits: "
-                "preserve needed blackboard text in the primary ticket and "
-                "verify audit entries in the authoritative log before discarding "
-                "only confirmed duplicate hunks here. Preserve unique audit "
-                "evidence for reconciliation and keep intentional ticket or "
-                "attachment changes that belong to the implementation. "
-            )
-        raise OpenPrError(
-            f"Recorded worktree {worktree!r} has uncommitted changes. The "
-            "implement/peer-review steps must commit implementation work before "
-            f"open-pr. {remediation}Then relaunch."
-        )
 
     # Commits ahead of the base branch. Resolve the base as the local ref first
     # (shared across worktrees), then the remote-tracking ref. Zero commits ahead
     # is the incident's mis-branch case — fail loud instead of opening an empty PR.
     base_ref = base
-    if _git(["rev-parse", "--verify", "--quiet", base], cwd=worktree).returncode != 0:
+    if _git(["rev-parse", "--verify", "--quiet", base], cwd=cwd).returncode != 0:
         remote_base = f"{remote}/{base}"
-        if _git(["rev-parse", "--verify", "--quiet", remote_base], cwd=worktree).returncode == 0:
+        if _git(["rev-parse", "--verify", "--quiet", remote_base], cwd=cwd).returncode == 0:
             base_ref = remote_base
         else:
             raise OpenPrError(
-                f"Base branch {base!r} not found in {worktree!r} (neither {base!r} "
+                f"Base branch {base!r} not found in {cwd!r} (neither {base!r} "
                 f"nor {remote}/{base}). Fetch it, or set [git].control_branch."
             )
-    ahead = _git(["rev-list", "--count", f"{base_ref}..HEAD"], cwd=worktree)
+    ahead = _git(["rev-list", "--count", f"{base_ref}..{head_ref}"], cwd=cwd)
     if ahead.returncode != 0:
         raise OpenPrError(
-            f"`git rev-list` failed in {worktree!r}: {ahead.stderr.strip() or 'no output'}"
+            f"`git rev-list` failed in {cwd!r}: {ahead.stderr.strip() or 'no output'}"
         )
     if ahead.stdout.strip() == "0":
         raise OpenPrError(
@@ -693,49 +476,22 @@ def open_pr(
     # Task-step and audit-log sync advances the control branch between agent
     # steps. The shared preflight permits only non-overlapping generated state;
     # any source/docs/config or overlapping drift remains a hard failure.
-    if single_checkout:
-        checkout_root = _git_checkout_root(worktree)
-        if checkout_root is None:
-            raise OpenPrError(
-                f"Could not resolve the Git checkout containing {worktree!r} "
-                "while checking branch freshness."
-            )
-        try:
-            blackboard_path.resolve().relative_to(checkout_root)
-        except ValueError as exc:
-            raise OpenPrError(
-                f"Ticket {str(blackboard_path)!r} is not inside the recorded "
-                f"checkout {str(checkout_root)!r}; refusing to publish."
-            ) from exc
-        if not _single_checkout_publishable_paths(
-            base_ref=base_ref,
-            checkout_root=checkout_root,
-            coga_root=cfg.repo_root,
-        ):
-            raise OpenPrError(
-                f"Branch {branch!r} has no committed changes outside generated "
-                "Coga task/log state — there is no implementation to open a PR "
-                "for. Build and commit the requested change before relaunching."
-            )
-
     freshness = check_branch_contains_control(
         remote,
         base,
-        cwd=worktree,
+        cwd=cwd,
         coga_root=cfg.repo_root,
-        allow_identical_coga_state_overlaps=single_checkout,
+        head=head_ref,
     )
     if not freshness.ok:
-        stranded_detail = (
-            None
-            if single_checkout
-            else _stranded_ticket_detail(
-                freshness.overlaps,
-                base=base,
-                branch=branch,
-                worktree=worktree,
-                blackboard_path=blackboard_path,
-            )
+        stranded_detail = _stranded_ticket_detail(
+            freshness.overlaps,
+            base=base,
+            branch=branch,
+            head_ref=head_ref,
+            cwd=cwd,
+            worktree=worktree,
+            blackboard_path=blackboard_path,
         )
         if stranded_detail is not None:
             raise OpenPrError(
@@ -754,7 +510,7 @@ def open_pr(
     # `gh` is optional at init, so the PR step owns the point-of-need check.
     # Run it before pushing: a missing or logged-out CLI should produce the
     # actionable preflight hint without leaving a remote branch behind first.
-    remote_url = _git(["remote", "get-url", remote], cwd=worktree)
+    remote_url = _git(["remote", "get-url", remote], cwd=cwd)
     host = (
         _remote_host(remote_url.stdout.strip())
         if remote_url.returncode == 0
@@ -770,14 +526,14 @@ def open_pr(
     # Use an explicit lease against the OID observed immediately before push:
     # rewritten local history is publishable, but concurrent remote updates are
     # still rejected instead of overwritten.
-    remote_oid = _remote_branch_oid(remote, branch, cwd=worktree)
+    remote_oid = _remote_branch_oid(remote, branch, cwd=cwd)
     push_args = ["push", "-u"]
     if remote_oid:
         push_args.append(
             f"--force-with-lease=refs/heads/{branch}:{remote_oid}"
         )
     push_args.extend([remote, branch])
-    push = _git(push_args, cwd=worktree)
+    push = _git(push_args, cwd=cwd)
     if push.returncode != 0:
         hint = check_git_auth(remote).detail
         rendered = " ".join(push_args)
@@ -790,11 +546,11 @@ def open_pr(
     title = ticket.title or slug
     body = _pr_body(ticket, blackboard, above, slug)
 
-    existing = _open_pr_url(branch, worktree)
+    existing = _open_pr_url(branch, cwd)
     if existing is not None:
         url = existing["url"]
         if existing.get("isDraft"):
-            ready = _run(["gh", "pr", "ready", url], cwd=worktree)
+            ready = _run(["gh", "pr", "ready", url], cwd=cwd)
             if ready.returncode != 0:
                 raise OpenPrError(
                     f"`gh pr ready {url}` failed: {ready.stderr.strip() or 'no output'}"
@@ -808,7 +564,7 @@ def open_pr(
                 "--title", title,
                 "--body", body,
             ],
-            cwd=worktree,
+            cwd=cwd,
         )
         if create.returncode != 0:
             stderr = create.stderr.strip()
@@ -828,7 +584,7 @@ def open_pr(
     # update: it leaves frontmatter + body untouched and cannot cross child
     # admission.
     try:
-        updated = update_blackboard_under_barrier(
+        update_blackboard_under_barrier(
             cfg,
             blackboard_path,
             lambda current: (
@@ -839,14 +595,6 @@ def open_pr(
         )
     except GitError as exc:
         raise OpenPrError(f"could not serialize the PR record: {exc}") from exc
-    if updated is not None and single_checkout:
-        _sync_pr_record(
-            cfg,
-            worktree=worktree,
-            blackboard_path=blackboard_path,
-            slug=slug,
-        )
-
     if already and already != url:
         # Not an error — record it so a stale link replacement is visible in
         # logs, off the value channel (see the stderr note above).
@@ -860,15 +608,11 @@ def run_open_pr_recipe(cfg: Config, argv: list[str]) -> int:
     """`coga run open-pr <task>` — resolve the target, gate, publish, print URL.
 
     Resolves the task from ordinary recipe argv, then applies the checkout gate
-    before touching git or `gh`. In the legacy
-    two-checkout layout the command runs from the primary control checkout,
-    which holds the authoritative ticket, and pushes the `## Dev` branch by name
-    from the separately recorded worktree — the separation that retires the
-    cross-worktree divergence trap. When `worktree:` records the primary
-    checkout itself, that checkout's feature branch holds the *live* ticket, so
-    requiring the control branch would make the recorded-branch check impossible
-    to satisfy; the recipe runs there instead and commits its `pr:` write to
-    that branch.
+    before touching git or `gh`: the command runs from the launch checkout on
+    the control branch, which holds the authoritative ticket, and pushes the
+    `## Dev` branch by name (from inside a recorded sandbox clone when there is
+    one). Every code step returns the checkout to the control branch before
+    its handoff (`dev/checkouts`), so no feature-branch mode exists.
 
     Stdout carries the bare PR URL and nothing else; every refusal goes to
     stderr and returns 2, so nothing advances and the open-pr step's
@@ -888,24 +632,14 @@ def run_open_pr_recipe(cfg: Config, argv: list[str]) -> int:
         return _fail(str(exc))
 
     # read_ticket validates the ticket resolves before we touch git/gh.
-    ticket = read_ticket(ref)
-    _, blackboard = split_body(ticket.body)
+    read_ticket(ref)
 
-    single_checkout, reason = _checkout_mode(
-        cfg,
-        recorded_worktree=parse_worktree_path(blackboard or ""),
-        task_path=ref.path,
-    )
+    reason = _checkout_mode(cfg)
     if reason is not None:
         return _fail(reason)
 
     try:
-        url = open_pr(
-            cfg,
-            slug=ref.id_slug,
-            blackboard_path=ref.ticket_path,
-            single_checkout=single_checkout,
-        )
+        url = open_pr(cfg, slug=ref.id_slug, blackboard_path=ref.ticket_path)
     except OpenPrError as exc:
         return _fail(str(exc))
 
@@ -913,54 +647,22 @@ def run_open_pr_recipe(cfg: Config, argv: list[str]) -> int:
     return 0
 
 
-def _checkout_mode(
-    cfg: Config,
-    *,
-    recorded_worktree: str | None,
-    task_path: Path,
-) -> tuple[bool, str | None]:
-    """Resolve the checkout gate: `(single_checkout, refusal)`.
+def _checkout_mode(cfg: Config) -> str | None:
+    """The checkout gate: a refusal unless this checkout is on control.
 
-    Keeps task resolution and blackboard writes on the control checkout, except
-    for the one layout where that is impossible: with a single checkout the
-    feature-branch ticket *is* the live task-state copy, so demanding the
-    control branch would refuse every publish. `owns_live_ticket` is what keeps
-    that exception honest — see this module's docstring for why the witness is
-    `COGA_EXPECTED_TASK`.
-
-    Distinct or unproven checkouts retain the gate that prevents writes to a
-    stale ticket copy.
+    Task resolution and the `pr:` write stay on the control branch, where the
+    live ticket is; a feature branch's ticket copy is stale by construction.
     """
-    same_checkout = bool(
-        recorded_worktree
-        and same_git_checkout(cfg.repo_root, recorded_worktree)
-        and not is_linked_worktree(cfg.repo_root)
-    )
-    launched_task = os.environ.get(EXPECTED_TASK_ENV)
-    owns_live_ticket = bool(
-        launched_task and Path(launched_task).resolve() == task_path.resolve()
-    )
-    if same_checkout and owns_live_ticket:
-        return True, None
-
     result = _git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=str(cfg.repo_root))
     branch = result.stdout.strip() if result.returncode == 0 else ""
     if branch == cfg.git_control_branch:
-        return False, None
+        return None
     actual = branch or "<unknown>"
-    if same_checkout:
-        return False, (
-            "`coga open-pr` cannot prove that this feature checkout owns the "
-            "live ticket. Run it from the task's active `coga launch` session "
-            "in the primary checkout, or return to the primary control "
-            f"checkout on {cfg.git_control_branch!r}. This guard keeps an "
-            "independent fallback clone from updating its stale ticket copy."
-        )
-    return False, (
-        "`coga open-pr` must run from the primary control checkout on "
-        f"{cfg.git_control_branch!r}, not branch {actual!r}. Return to the "
-        "control checkout and rerun it; the command will still push the "
-        "recorded feature branch by name."
+    return (
+        "`coga open-pr` must run from the launch checkout on "
+        f"{cfg.git_control_branch!r}, not branch {actual!r}. Return to "
+        f"{cfg.git_control_branch!r} (`dev/checkouts`, end of step) and rerun "
+        "it; the command pushes the recorded feature branch by name."
     )
 
 
