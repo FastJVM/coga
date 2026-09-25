@@ -1,6 +1,6 @@
 ---
 title: stop using worktrees
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
