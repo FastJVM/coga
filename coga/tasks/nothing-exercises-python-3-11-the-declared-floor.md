@@ -1,6 +1,6 @@
 ---
 title: Nothing exercises Python 3.11, the declared floor
-status: blocked
+status: canceled
 owner: nicktoper
 agent: claude
 workflow:
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
@@ -76,8 +75,13 @@ reads a red suite as evidence here.
 ## Dev
 
 branch: ci/python311-floor
-worktree: /home/n/Code/codex/coga-ci-python311
-pr: https://github.com/FastJVM/coga/pull/894
+pr: https://github.com/FastJVM/coga/pull/894 (closed unmerged)
+
+Canceled 2026-09-24 by the owner: test verification is a Coga workflow
+property (implement/self-qa/review steps), not a GitHub Actions gate. PR #894
+was closed and its branch and worktree deleted; the CI port survives as commit
+58630a20f. Its twin-check fix for the phone-home ticket was split out as
+PR #895.
 
 Re-ported onto main 2026-09-24 in an orient session (old commit 28541821b was
 624 commits behind): guidance now lives in coga/testing and coga/packaging, and

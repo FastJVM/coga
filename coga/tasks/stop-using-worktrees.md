@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 4 (review)
 agent: claude
 ---
 
@@ -135,13 +135,12 @@ This session runs under the old single-checkout rule (feature branch in this
 checkout) because the new rule is what it implements.
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/896
 branch: stop-using-worktrees
-worktree: /home/n/Code/coga
 
-(This ticket ran under the old single-checkout rule: the installed `coga`
-still requires `worktree:` and uses the same-checkout open-pr mode. The
-branch is committed and rebased on origin/main, not pushed — the old
-implement skill defers the push to open-pr.)
+Pushed through `e2efc271ad79` after peer review and rebase; launch checkout
+returned to clean `main`. No sandbox clone or linked worktree was used.
+See the runtime handoff below: the installed CLI predates this change.
 
 ## Implementation notes (implement step)
 
@@ -190,3 +189,94 @@ Follow-ups (not done here, scope):
   opposite direction; the owner should cancel or rewrite it.
 - `bump._warn_stranded_task_state` keeps its legacy single-checkout silence
   rule; harmless, could be dropped later.
+
+
+## Peer review
+
+`codex review --base main` **returned** (exit 0). It found two must-fix issues:
+
+- P1: the new implement/docs instructions wrote `branch:` on `main` but
+  switched without publishing, carrying unpublished ticket edits onto the
+  feature branch. The owner approved publication before switching. Updated
+  the owning `dev/checkouts` contract, `dev/dev-record`, implementation skill,
+  docs workflow, and packaged twins to publish through `sync_coga_state` and
+  require a clean tree before switching (also for the clone record).
+- P2: the docs PR step ran `gh pr create` from `main` without a feature head.
+  Added explicit recorded `--head` and configured `--base` arguments.
+
+Both fixed in `e2efc271ad79`. Review log:
+`/tmp/stop-using-worktrees-review.log`. No new raw-terminal, pager, TTY prompt,
+or rendered-message surface was introduced. The human-facing Git procedure
+was exercised in a disposable repository with a local bare remote: reproduced
+unpublished state following a switch, then verified record → publish → clean
+switch → implementation commit → rebase → push → clean return to `main`,
+with the branch record retained on control. Probe:
+`/tmp/stop-using-worktrees-sequence.py`.
+
+Verification after `git fetch origin main && git rebase FETCH_HEAD`:
+
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest`:
+  **2925 passed, 1 failed** in 179.58s. Sole failure is the pre-existing
+  `tests/test_packaging.py::test_live_and_packaged_copies_stay_identical`
+  (`coga/recurring/phone-home/ticket.md` runtime drift). No new failure.
+  Full output: `/tmp/stop-using-worktrees-pytest.log`.
+- Compared all 121 `IDENTICAL_LIVE_PACKAGED_PAIRS` directly, rather than
+  stopping at the first mismatch: only that same phone-home ticket differs.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task stop-using-worktrees --json`:
+  1 OK, no issues.
+- From `example/`, `env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json`:
+  4 OK, no issues. The inherited bare Slack variable was removed only for
+  this fixture check; no config was edited.
+- `PYTHONPATH=/home/n/Code/coga/src:/home/n/Code/coga/tests .venv/bin/python /tmp/stop-using-worktrees-sequence.py`:
+  passed the real-Git sequence above.
+- `git diff --check`: clean.
+
+Pushed with `git push --force-with-lease -u origin stop-using-worktrees`, then
+fetched, switched to `main`, and fast-forwarded it. The later main advance
+changed only non-overlapping Coga ticket/log state, which the freshness gate
+explicitly permits.
+
+## Runtime handoff for open-pr
+
+The installed `/home/n/.local/share/uv/tools/coga/` package still implements
+the old checkout contract, and returning to `main` also removes the new
+source from the working tree. To let the next mechanical step run the reviewed
+by-ref recipe from `main`, a source-only runtime snapshot was extracted from
+commit `e2efc271ad79` (no Git checkout/worktree):
+
+`/tmp/coga-stop-using-worktrees-runtime-e2efc271ad79/src`
+
+Its import was verified with the installed CLI interpreter. From the launch
+checkout on `main`, use:
+
+```sh
+PYTHONPATH=/tmp/coga-stop-using-worktrees-runtime-e2efc271ad79/src coga open-pr stop-using-worktrees
+```
+
+Use the same `PYTHONPATH` for the next step's bump. If the snapshot has been
+removed, recreate its `src` from `git archive stop-using-worktrees src` into
+a fresh temporary directory and point `PYTHONPATH` there. This is a migration
+handoff, not a change to the installed package. The already-running old launch
+supervisor may still leave its next `launched` audit line unpublished; preserve
+it through the normal state sweep before applying the strict clean-tree gate.
+
+## PR
+
+Code-ticket steps now work in the launch checkout, start from clean current
+`main`, and push their feature branch before returning to `main` for ticket
+state and workflow handoff. Occupied checkouts require escalation; sandbox
+clones remain the fallback for read-only Git metadata, and internal recurring
+worktrees retain their existing behavior.
+
+`coga open-pr` publishes the recorded branch by name from `main`; only a
+recorded sandbox clone is entered. The branch gate no longer requires
+`worktree:`, ordinary launches publish their audit line before spawning, and
+checkout contracts, skills, workflows, fixtures, and packaged twins follow
+the new sequence. Initial branch records are explicitly published before
+switching; docs PR creation names its feature head.
+
+Validation: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest`
+→ 2925 passed, 1 pre-existing phone-home packaging-drift failure; task and
+example validation passed; all 121 packaged pairs checked (only that known
+mismatch); disposable real-Git checkout sequence passed; `git diff --check`
+clean.
