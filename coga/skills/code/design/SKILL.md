@@ -64,9 +64,10 @@ build, and it should not have to re-derive intent.
    goes under an `## Open Questions` section in the ticket's blackboard region. The
    owner answers them in `review-design`; when the frozen workflow includes an
    independent evaluator, that evaluator first tests whether they are complete.
-6. **Split the ticket if it is too big.** If the honest Proposed Shape
-   is more than one PR's worth of work, say so on the blackboard and
-   recommend a split rather than writing a spec you know is oversized.
+6. **Flag it if it is too big.** If the honest Proposed Shape is more
+   than one PR's worth of work, say so under `## Open Questions` and name
+   the separable pieces; the owner decides the scope in `review-design`.
+   Do not create tickets or write a spec you know is oversized.
 7. **Bump — this is what ends the step.** Run `coga bump <slug>`. It
    advances the workflow to its next frozen step and is the only thing that
    does so — there is no autobump. If you stop without running it, the
