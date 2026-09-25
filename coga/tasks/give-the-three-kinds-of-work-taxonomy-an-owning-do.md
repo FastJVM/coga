@@ -20,7 +20,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 4 (review)
 agent: claude
 ---
 
@@ -113,12 +113,17 @@ beyond an optional one-line summary-and-link; any code or CLI behavior change.
 Related evaluation record: `docs/evidence/pitch-evaluation.md`,
 `docs/evidence/research-work-comparison.md` (unknown work vs CE/Kortix).
 
+## PR
+
+https://github.com/FastJVM/coga/pull/897
+
 <!-- coga:blackboard -->
 
 ## Dev
 
 branch: three-kinds-of-work
 worktree: /home/n/Code/coga-three-kinds-of-work
+pr: https://github.com/FastJVM/coga/pull/897
 
 ## Decisions
 
@@ -131,3 +136,12 @@ worktree: /home/n/Code/coga-three-kinds-of-work
 - `pytest tests/test_packaging.py`: 22 pass, 1 fail — `coga/recurring/phone-home/ticket.md` twin drift, pre-existing on main (not from this change). Twins edited here are byte-identical.
 - `coga validate --json`: 1 error, pre-existing and unrelated (`v2/autotrigger-ticket-type` unsynthesized-draft-blackboard).
 - Follow-up: phone-home live/packaged drift needs its own fix.
+
+## Peer review
+
+- Reviewed `git diff main -- '*.md'` in the recorded feature worktree; `git diff main...HEAD --stat` confirms the branch introduces only the six intended prose files. Other two-dot differences are later control-state activity on main.
+- No must-fix findings; no review patch or extra feature commit needed. Taxonomy has one owning section, principles uses the required portable plain path, and both rewind framings are present.
+- Spot-checked rewind preservation in `bump.advance_step`, archive omission in `blackboard._without_superseded_designs`, chat alias, frozen workflows, ticket re-authoring, and mechanism topics. Vision relative links resolve; principles and lifecycle twins are byte-identical; `git diff --check main...HEAD` passes; `rg -ni exceptional docs/contexts src/coga/resources` has no matches.
+- Did not rerun pytest: the peer-review step explicitly excludes tests for pure prose. Confirmed both phone-home files match main and differ from each other there, corroborating implement's packaging failure baseline.
+- `coga validate --json` still reports only the unrelated `v2/autotrigger-ticket-type` unsynthesized-draft-blackboard error (plus warnings). Installed CLI warns of version skew; attempted source CLI validation could not start because the default Python lacks `tomlkit`. No code changed in this branch.
+- Ready for open-pr, with existing packaging/validation limitations disclosed.
