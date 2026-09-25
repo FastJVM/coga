@@ -33,6 +33,22 @@ from the ref. Log lines are tagged with the ref and never rewritten, so moving
 a task orphans its history under the old tag: record the prior ref in the body
 and grep for it.
 
+A retired or deleted task (`coga retire`, `delete-task`, Retro) leaves its
+body and blackboard only as a Git blob; `coga show` no longer finds it. Find
+the deleting commit on the control branch (`origin/main` by default), then
+read the file from its parent:
+
+```bash
+git log origin/main --diff-filter=D --name-only -- 'coga/tasks/<slug>*' 'relay-os/tasks/<slug>*'
+git show <commit>^:<path>
+```
+
+Search both pathspecs: the tree was `relay-os/tasks/` before the relay → coga
+rename (`d0645a197`, #454), so a `coga/tasks/`-only search misses earlier
+deletions. The newest hit is the retirement; older hits are that rename or a
+`.md` ↔ `<slug>/` format conversion. Older directory-form tasks kept the
+blackboard in a sibling `blackboard.md`; read it the same way.
+
 A directory-form task may reserve the exact sibling `ticket.py` as its
 deterministic phase ([coga/script-tickets](../script-tickets/SKILL.md)); no
 other attachment changes dispatch. Attachments are never composed.
