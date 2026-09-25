@@ -1,6 +1,6 @@
 ---
 title: Give the three-kinds-of-work taxonomy an owning doc
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/knowledge
