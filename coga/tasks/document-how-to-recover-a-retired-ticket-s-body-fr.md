@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -119,3 +119,44 @@ Commit 375935944, rebased on origin/main 970806606.
   claim that "any `python` works" is false on 3.9.
   Workaround: run it with the interpreter from the shebang of `which coga`.
   No follow-up ticket exists yet.
+
+
+## Peer review
+
+- `codex review --base main` returned: no actionable defects found; no
+  must-fix edits were needed.
+- `git fetch origin main` and `git rebase FETCH_HEAD` completed cleanly onto
+  `346ea8d0a`. The canonical `coga/tickets` and packaged twin still match
+  byte-for-byte (`cmp`); `git diff --check` passed.
+- Executed the documented history search and `git show` for
+  `detect-recurring-runs-that-mark-done-without-advan` at `d7086ecde^`
+  (both `relay-os/tasks/.../ticket.md` and sibling `blackboard.md`) and
+  `improve-prompt-for-relay-ticket` at `ffb0a3835^` (`coga/tasks/...md`).
+  All bodies were recovered successfully. This is a documentation-only
+  change with no terminal or rendered interaction to exercise.
+- Review tool ran `.venv/bin/python -m pytest tests/test_packaging.py -q`:
+  22 passed, 1 failed. The failure is the existing phone-home twin drift;
+  both files are unchanged from `origin/main`, whose blobs also differ.
+
+- Post-rebase `.venv/bin/python -m pytest`: 2932 passed, 1 failed in
+  189.63s; the sole failure is the same pre-existing phone-home twin drift.
+
+## PR
+
+Document recovery of retired ticket bodies and blackboards in `coga/tickets`,
+including deletions under the former `relay-os/tasks/` tree and separate
+historical blackboards. Point the parked-ticket premise check and ticket
+citation guidance at that owner; keep its packaged context twin synchronized.
+
+Test plan: verified recovery of pre-rename and current-path tickets with the
+documented Git commands; packaging checks: 22 passed, 1 pre-existing failure
+from unchanged phone-home twin drift; post-rebase `.venv/bin/python -m pytest`: 2932 passed, 1 failed (the same baseline mismatch).
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `document-how-to-recover-a-retired-ticket-s-body-fr`
+Recorded: 2026-09-25T02:24:10+00:00
+
+    Branch 'retired-ticket-recovery' is not safe to publish. current branch does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Overlapping paths: coga/log.md. Reconcile it and relaunch, or `coga block --task document-how-to-recover-a-retired-ticket-s-body-fr`.
