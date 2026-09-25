@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 MACHINE = re.compile(
-    r"^(Log:|Sync coga state|Dream|Ticket: recurring/|Autofix:|Ticket: autofix/|Recurring"
+    r"^(Log:|Sync coga state|Dream|Ticket: recurring/|Autofix:|Ticket: autofix/"
     r"|Update Coga-managed skills"
     r"|Merge pull request #\d+ from \S+/(claude/dream-|coga/skill-update|coga/dream|dream/))"
 )

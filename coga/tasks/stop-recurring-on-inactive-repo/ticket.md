@@ -36,8 +36,13 @@ it into the acceptance checklist):
 2026-09-25, reproduces the baseline below — coga active, magicator active,
 xpllm inactive since 2026-09-04 — and would have made xpllm dormant from about
 2026-08-14 and again from 2026-09-18, while never making coga dormant and
-never making magicator dormant during its September work (gaps ≤ 8 days). The
-behavior is documented in the owning topic and covered by tests.
+never making magicator dormant during its September work (gaps ≤ 8 days).
+Magicator *does* go dormant during its 15- and 28-day lulls in May–June; the
+owner accepted that as correct. That real-repo check is a one-time manual
+verification recorded on the blackboard; the automated tests use synthetic git
+fixtures (human commits, machine commits, machine-PR merges, histories either
+side of the window boundary, which design makes explicit as inclusive or
+exclusive). The behavior is documented in the owning topic.
 
 ## Context
 
@@ -54,10 +59,34 @@ reference classifier for this ticket:
 Key finding: **without excluding machine-PR merges, magicator looks active on
 2026-09-23** — that day was purely the owner merging Dream PRs #924–#927. A
 naive "any human-authored commit" signal lets recurring keep itself alive.
-Subject-regex classification is what the baseline script does, but it is
-fragile; the design step should decide whether a sturdier marker (a commit
-trailer on machine commits, branch-prefix rule for machine PRs) is worth it,
-keeping the baseline result as the pass/fail check either way.
+The pass/fail check is the baseline *result*, not the script's regex. The
+regex is known to be imperfect. It only knows the machine-PR prefixes
+`claude/dream-`, `coga/dream`, `dream/` and `coga/skill-update`, and it counts
+human-launched `Log: bootstrap/*` lines as machine work. It still reproduces
+the baseline. Design decides whether a sturdier marker, such as a commit
+trailer on machine commits or a machine-branch rule, replaces subject
+matching. Excluding `Sync coga state` is safe only because every human ticket
+event lands as its own commit.
+
+**Design questions the review raised (settle in `code/design`):**
+- **Ref:** the script hardcodes `origin/main`. Production code must use the
+  configured `[git]` remote and control branch, and say whether it trusts the
+  local remote-tracking ref or fetches first. It also needs a defined fallback
+  when there is no remote or it can't be reached. Known blind spot, accepted
+  unless design objects: unmerged work on feature branches or in worktrees is
+  invisible.
+- **Gate placement:** the check runs after the branch and owner gates and
+  *before* a period is created. Otherwise the "created period with no launch
+  outcome → exit 2" rule fires. An inactivity skip must not make the sweep
+  exit non-zero, and under `--all` the parent must not report an inactive repo
+  as a failed repo.
+- **`--force` under `--all`:** the parent passes force through to every child,
+  so a forced `--all` bypasses the check in every repo. Confirm or narrow that.
+- **Autofix:** the post-sweep analyst produced the xpllm `Autofix:` tickets. An
+  all-skipped sweep must not trigger it.
+- **Exempt set:** `autoclose-merged` is exempt by default. Decide whether
+  `branch-sweep` should be exempt too. `blocker-reminders` is not exempt: the
+  owner chose to pause everything else.
 
 **Code and docs.** Sweep logic is in `src/coga/recurring_runner.py` (sweeps,
 admission, `--all`); templates and ledger in `src/coga/recurring.py`. The
