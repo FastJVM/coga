@@ -35,19 +35,26 @@ and grep for it.
 
 A retired or deleted task (`coga retire`, `delete-task`, Retro) leaves its
 body and blackboard only as a Git blob; `coga show` no longer finds it. Find
-the deleting commit on the control branch (`origin/main` by default), then
-read the file from its parent:
+the deleting commit on the control ref, then read the file from its parent.
+`<control>` is `<remote>/<control_branch>` from `coga.toml` `[git]`
+([coga/configuration](../configuration/SKILL.md) owns the keys and defaults),
+or the local `<control_branch>` in a repo with no remote:
 
 ```bash
-git log origin/main --diff-filter=D --name-only -- 'coga/tasks/<slug>*' 'relay-os/tasks/<slug>*'
+git log <control> --diff-filter=D --name-only -- \
+  ':(glob)coga/tasks/**/<slug>.md' ':(glob)coga/tasks/**/<slug>/**' \
+  ':(glob)relay-os/tasks/**/<slug>.md' ':(glob)relay-os/tasks/**/<slug>/**'
 git show <commit>^:<path>
 ```
 
-Search both pathspecs: the tree was `relay-os/tasks/` before the relay → coga
-rename (`d0645a197`, #454), so a `coga/tasks/`-only search misses earlier
-deletions. The newest hit is the retirement; older hits are that rename or a
-`.md` ↔ `<slug>/` format conversion. Older directory-form tasks kept the
-blackboard in a sibling `blackboard.md`; read it the same way.
+The pathspecs name the slug exactly, in both the `<slug>.md` and `<slug>/`
+forms at any group depth, so a task whose slug merely starts with `<slug>` is
+not matched. Search both trees: the tree was `relay-os/tasks/` before the
+relay → coga rename (`d0645a197`, #454), so a `coga/tasks/`-only search misses
+earlier deletions. The newest hit that deletes `<slug>.md` or
+`<slug>/ticket.md` is the retirement; older hits are a `.md` ↔ `<slug>/`
+format conversion or an attachment removed earlier. Older directory-form
+tasks kept the blackboard in a sibling `blackboard.md`; read it the same way.
 
 A directory-form task may reserve the exact sibling `ticket.py` as its
 deterministic phase ([coga/script-tickets](../script-tickets/SKILL.md)); no
