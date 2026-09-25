@@ -6477,3 +6477,9 @@ fatal: Unable to add (null) to database
 2026-09-25 15:20 [launch-moves-the-checkout-to-main-before-and-after] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-25 16:09 [stop-recurring-on-inactive-repo] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-25 16:09 [stop-recurring-on-inactive-repo] [human:nicktoper] started (active → in_progress) via coga launch
+2026-09-25 15:20 [launch-moves-the-checkout-to-main-before-and-after] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
+2026-09-25 15:23 [launch-moves-the-checkout-to-main-before-and-after] [human:nicktoper] advanced to step 2 (evaluate-design) → codex
+2026-09-25 15:23 [launch-moves-the-checkout-to-main-before-and-after] [git] sync failed: `git hash-object` failed: error: unable to create temporary file: Read-only file system
+fatal: Unable to add (null) to database
+2026-09-25 15:23 [coga] [git] sync failed: `git hash-object` failed: error: unable to create temporary file: Read-only file system
+fatal: Unable to add (null) to database
