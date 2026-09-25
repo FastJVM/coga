@@ -3969,6 +3969,8 @@ def _sync_recurring_create_paths(
                     control_ledger=control_ledger,
                     deduplicate=respect_handled_period,
                     bind_published=bind_published,
+                    anchor_path=anchor_path,
+                    sync_failures=sync_failures,
                 )
             _adopt_control_template(
                 root, template_ticket, ticket_rel, base, local_ticket
@@ -4042,6 +4044,8 @@ def _adopt_control_period(
     control_ledger: dict[str, str] | None,
     deduplicate: bool,
     bind_published: Callable[[], None],
+    anchor_path: Path,
+    sync_failures: list[str] | None = None,
 ) -> tuple[str, bool]:
     """Unwind a local create to control's copy; publish only the log line.
 
@@ -4052,6 +4056,12 @@ def _adopt_control_period(
     the log publish leaves the tree clean. Even this rejected create publishes
     the other pending sweep targets' records, so the publish is guarded like
     a create and the cache is bound to the revision it lands.
+
+    The adoption is decided once the restore has run: a failed log
+    publication is reported and counted in `sync_failures`, but the period is
+    still returned as handled on control. Letting that `GitError` reach the
+    caller's transport handler would report `created_on_control=True` over the
+    peer's restored task, which admission then reads as a contradiction.
     """
     _restore_selected_paths_from_ref(root, base, rels)
     if _current_branch(root) == cfg.git_control_branch:
@@ -4067,8 +4077,12 @@ def _adopt_control_period(
             deduplicate=deduplicate,
         )
 
-    if git.publish(cfg, [log_path(cfg)], message, guard=guard_log_publication):
-        bind_published()
+    try:
+        if git.publish(cfg, [log_path(cfg)], message, guard=guard_log_publication):
+            bind_published()
+    except git.GitError as exc:
+        sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
+        _append_sync_failure(cfg, anchor_path, exc, sink=sync_failures)
     return _control_template_or_local(root, base, ticket_rel, original_ticket), False
 
 

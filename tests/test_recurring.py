@@ -12861,3 +12861,84 @@ def test_forced_sweep_keeps_admission_skip_after_create_sync_failure(
         "changed on control during admission"
     ]
     assert ticket_path.is_file()
+
+
+def test_adopted_period_stays_handled_when_its_log_publication_fails(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """A peer-serviced period stays a skip when publishing our log line fails.
+
+    Adoption restores the peer's task first and then publishes only the local
+    log line. A remote outage on that second publication must be counted as a
+    sync failure without turning the restored peer ticket into a contradiction
+    ("created this period but its failed create sync left a done ticket").
+    """
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _seed_agent_workflow(coga_os)
+    _write_recurring_agent(
+        coga_os, "weekly-check", schedule="0 9 * * 1", title="Weekly check"
+    )
+    git_repo.git("add", "coga")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+    _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))
+    _allow_interactive_recurring(monkeypatch)
+    original_scan = recurring_cmd.scan_due
+    peer_ticket = ""
+
+    def scan_then_compete(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal peer_ticket
+        scan = original_scan(*args, **kwargs)
+        assert scan.tasks[0].created
+        _push_competing_serviced_period(git_repo, "weekly-check", "2026-W24")
+        ticket = Ticket.read(scan.tasks[0].ref.ticket_path)
+        ticket.frontmatter["status"] = "done"
+        peer_ticket = ticket.render()
+        git_repo.push_competing_commit(
+            "coga/tasks/recurring/weekly-check/ticket.md", peer_ticket
+        )
+        return scan
+
+    original_publish = coga_git.publish
+    adoption_publishes = 0
+
+    def publish(cfg, paths, message, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal adoption_publishes
+        guard = kwargs.get("guard")
+        if getattr(guard, "__name__", "") == "guard_log_publication":
+            adoption_publishes += 1
+            raise coga_git.GitError("simulated log outage")
+        return original_publish(cfg, paths, message, **kwargs)
+
+    launched: list[str] = []
+    records: list[recurring_cmd.RunRecord] = []
+    monkeypatch.setattr(recurring_cmd, "scan_due", scan_then_compete)
+    monkeypatch.setattr(coga_git, "publish", publish)
+    monkeypatch.setattr(recurring_cmd, "notify", lambda *args, **kwargs: None)
+    _patch_recurring_command_launch(
+        monkeypatch, coga_os, lambda slug, **kwargs: launched.append(slug)
+    )
+    monkeypatch.setattr(
+        recurring_cmd, "run_autofix", lambda cfg, record, **kw: records.append(record)
+    )
+
+    # The swallowed log publication is still a problem, so the sweep fails.
+    assert recurring_cmd.run_recurring_scan(load_config(coga_os)) == 2
+
+    assert adoption_publishes == 1
+    assert launched == []
+    captured = capsys.readouterr()
+    assert "[git] sync failed: simulated log outage" in captured.err
+    assert "failed create sync left" not in captured.out + captured.err
+    ticket_path = coga_os / "tasks/recurring/weekly-check/ticket.md"
+    assert ticket_path.read_text() == peer_ticket
+    text = records[-1].render()
+    assert "skip (already handled on control)" in text
+    assert "failed create sync left" not in text
+    assert "created this sweep but never launched" not in text
+    assert "- problems: 1" in text
+    assert (
+        "- `recurring/weekly-check`: create sync to the control branch failed: "
+        "simulated log outage"
+    ) in text
