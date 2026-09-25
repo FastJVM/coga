@@ -5,7 +5,7 @@ description: Short, dated product decisions currently in force for Coga, with li
 
 # Coga — current direction
 
-Last updated: 2026-09-22.
+Last updated: 2026-09-25.
 
 Each entry is a decision with its date and the topic that owns the resulting
 contract. Enduring rules live in those topics, not here. Live execution state

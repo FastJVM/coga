@@ -91,7 +91,10 @@ Coga mechanism carries it:
   [blackboard](../../coga/blackboard/SKILL.md) as working memory, a human
   rewind that moves the step back and keeps everything learned
   ([`coga/lifecycle`](../../coga/lifecycle/SKILL.md)), `## Superseded
-  designs` kept on disk but out of the prompt, `coga ticket` re-authoring at
+  designs` kept on disk but out of the prompt
+  ([`coga/blackboard`](../../coga/blackboard/SKILL.md),
+  [`coga/prompt-composition`](../../coga/prompt-composition/SKILL.md)),
+  `coga ticket` re-authoring at
   any status ([`coga/tickets`](../../coga/tickets/SKILL.md)), and
   [Dream](../../coga/dream/SKILL.md) for the maintenance that follows.
 
