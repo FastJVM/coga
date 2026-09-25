@@ -48,7 +48,9 @@ PR yet** — the later `code/open-pr` step does that, after review and fixes.
    Still on `main`, write `branch: <branch-name>` under a `## Dev` section on
    the blackboard (keep trailing annotations on a separate line, or
    backtick-delimit the value first; see the `dev/dev-record` context), plus
-   any plan notes worth keeping. Then `git switch <branch-name>`. From here
+   any plan notes worth keeping. Publish these edits using `dev/checkouts`
+   ("Publish pre-branch ticket edits") and require a clean tree; writing on
+   `main` alone does not publish them. Then `git switch <branch-name>`. From here
    until you return to `main`, edit code only: ticket and blackboard edits
    made on the branch are not published, and the end-of-step return refuses
    to discard them.
@@ -70,7 +72,9 @@ PR yet** — the later `code/open-pr` step does that, after review and fixes.
    ```
 
    Record that clone's repo path as `worktree:` next to `branch:` in the
-   launch checkout's ticket; the launch checkout stays on `main` and keeps
+   launch checkout's ticket, publish that record using the same pre-branch
+   procedure, and require a clean primary tree before working in the clone;
+   the launch checkout stays on `main` and keeps
    the ticket, `coga bump`, and `coga open-pr`. If the independent clone or
    its required fresh fetch also fails, escalate per your launch mode — ask
    the attending human, or in a queue run

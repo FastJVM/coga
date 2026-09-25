@@ -73,9 +73,12 @@ accurate and reachable rather than running tests that cover nothing.
    escalate per your launch mode — do not work around it with a worktree,
    a stash, or a switch. Create the branch without leaving `main`
    (`git branch <branch-name>`), write `branch: <branch-name>` under
-   `## Dev` on the blackboard, then `git switch <branch-name>`. If Git
+   `## Dev` on the blackboard, publish it using `dev/checkouts` ("Publish
+   pre-branch ticket edits"), and require a clean tree before
+   `git switch <branch-name>`. If Git
    metadata is read-only, use the sandbox clone fallback described in
-   `code/implement`: record its path as `worktree:`, and before the first
+   `code/implement`: record its path as `worktree:` and publish that record
+   with the same procedure before working in the clone. Before the first
    Coga command there (and again on resume) seed its local config with
    `python /resolved/code/implement/seed_local_config.py /primary/repo/coga /feature/repo`.
    The launch checkout then stays on `main`.
@@ -145,7 +148,9 @@ but it owns the same publication and handoff guarantees as a code PR.
    for a sandbox clone). Confirm the branch has commits ahead of `main`.
 2. **Push** the branch by name from `main` (`git push -u origin
    <branch-name>`), or from the sandbox clone.
-3. **Open the PR** with `gh pr create`. If a draft PR already exists, mark it
+3. **Open the PR** with `gh pr create --head <branch-name> --base <control-branch>`
+   (use the recorded branch and configured control branch, normally `main`).
+   If a draft PR already exists, mark it
    ready instead. Title = ticket title. Body = short summary + "Closes
    ticket: `<slug>`" + a one-line verification plan.
 4. **Record the URL in durable task state.** On `main`, add

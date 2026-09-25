@@ -31,7 +31,9 @@ to [dev/design-history](../design-history/SKILL.md).
 
 - **`branch:`** as soon as the branch exists, so a crash or handoff can find
   the work. Create it from `main` with `git branch <name>`, record the line
-  while still on `main`, then switch to it.
+  while still on `main`, publish it with the pre-branch procedure in
+  [dev/checkouts](../checkouts/SKILL.md), and require a clean tree before
+  switching to it.
 - **`worktree:`** only for a sandbox clone, as soon as the clone exists.
 - **`pr:`** the full URL containing `/pull/<number>`; a trailing note is fine,
   a placeholder reads as no PR. Where the workflow's PR step uses

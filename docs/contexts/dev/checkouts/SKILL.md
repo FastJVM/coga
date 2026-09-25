@@ -28,10 +28,10 @@ The one alternative checkout is the sandbox clone fallback below.
    or `coga block` in a queue run. Do not work around an occupied checkout with a
    linked worktree, a control checkout, a stash, or a switch.
 2. **Work.** Write any ticket state you need while still on `main` (plan,
-   blackboard notes), then create or switch to the feature branch and change
-   code there. On the branch, edit code only: ticket and blackboard edits made
-   on a feature branch are not published until the next sweep, so the end
-   procedure would find them unpublished.
+   blackboard notes), publish it as described below, then create or switch to
+   the feature branch and change code there. On the branch, edit code only:
+   ticket and blackboard edits made on a feature branch are not published
+   until the next sweep, so the end procedure would find them unpublished.
 3. **End.** Commit, push the branch (`git push -u origin <branch>`, or
    `--force-with-lease` after a rebase), then return:
    - `git fetch origin main`;
@@ -62,6 +62,25 @@ to change code (fixes, a rebase) follows start/work/end above.
 (`repl_supervisor.run_with_done_marker` takes no `cwd`; `src/coga/` has no
 `os.chdir`). The session inherits the cwd `coga launch` was typed in, which is
 the checkout it works in.
+
+### Publish pre-branch ticket edits
+
+Writing `branch:` or plan notes on `main` does not publish them: Git carries
+uncommitted edits across a branch switch. Before switching, publish those
+edits with the existing state sweep, using a Python interpreter that imports
+the installed Coga package (see [coga/testing](../../coga/testing/SKILL.md)):
+
+```sh
+python -c 'from coga.config import load_config; from coga.git import sync_coga_state; sync_coga_state(load_config())'
+git status --porcelain --untracked-files=all
+```
+
+Require the status output to be empty before switching. The sweep reports
+publication failures without raising, so its exit code alone is not proof.
+If the tree remains dirty, stop and escalate; do not switch, stash, or commit
+the ticket edit on the feature branch. The same publication applies to a
+sandbox clone's `worktree:` record in the primary checkout, before starting
+work in the clone.
 
 **Sandbox clone fallback.** When the sandbox mounts the primary `.git`
 read-only so `git switch -c` fails, make `git clone --no-hardlinks` under
