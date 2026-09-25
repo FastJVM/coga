@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -296,3 +296,104 @@ The blackboard is a notepad to be written to often as the human and agent works 
   It is out of scope here.
 - `idle_days` is shared-only (team policy). Is a `coga.local.toml` override
   wanted?
+
+## Evaluator review (2026-09-25, evaluate-design)
+
+Verdict: **nearly ready.** The design is coherent, fits in one PR, and stays
+inside the `recurring-scan` recipe boundary. Its code claims check out. Two
+items need an owner decision before implementation, because an implementer
+would otherwise have to guess. The rest are small spec gaps or accepted-limit
+notes.
+
+Verified against the repo: the order in `run_recurring_scan` (relay →
+`_sync_control_checkout_ahead` → `_refuse_non_owner` → `_valid_agent_override`
+→ `scan_due`) matches. `run_recurring_named` never calls `scan_due`.
+`run_autofix` bails only on empty outcomes, scan_errors and notes, so the
+no-due `record.note(...)` does reach the analyst today. `_create_at_slug`
+reads only named template fields, so `run_when_inactive` cannot leak into
+period tasks, even outside `_TEMPLATE_PASSTHROUGH`. `validate.py` calls
+`Template.load`, so a bad value is flagged there. Every commit-subject writer
+named in Context exists with the stated text: `git.sync_coga_state`,
+`sync_log` callers, `_sync_recurring_create`, `recurring_autofix`,
+`blocker_reminders`, `skill_manager`/`skill_update`, and
+`SKILL_UPDATE_BRANCH = "coga/skill-update"`. All three topics have packaged
+twins under `src/coga/resources/templates/coga/bootstrap/contexts/`. The
+boundary math reproduces 08-14 and 09-18.
+
+### Must resolve before implementation
+
+1. **`address-pr-comments` (and `resolve-conflicts`) pause while a human is
+   actively reviewing.** Both are shipped templates
+   (`src/coga/resources/templates/coga/recurring/`). They exist to serve open
+   human PRs, and GitHub review comments are not commits on control. A repo
+   whose owner spends two weeks reviewing a long PR, with nothing merged,
+   goes "inactive", and the daily comment-addressing stops exactly when it is
+   wanted. The AC pins "No other shipped template sets it". The owner should
+   either exempt `address-pr-comments` (its pushes land on PR branches, so it
+   cannot keep the repo awake) or accept the gap explicitly in the
+   accepted-limits note. The same question applies to `resolve-conflicts` and
+   is weaker there, since it runs weekly.
+2. **Autofix guard contradicts "exempt templates behave exactly as today".**
+   The guard "repo active, or `record.outcomes` non-empty" suppresses autofix
+   on an inactive repo whenever no launch outcome exists. That includes an
+   exempt template that is watchdog-paused (it adds `scan_problems` and
+   notifies, but records no outcome). It also covers template load errors
+   and `sync_problems`. Today all of these reach the analyst. Suggested
+   resolution: on an inactive repo, drop only the synthetic no-due note, so
+   the guard is `active or record.outcomes or record.scan_errors or
+   record.scan_problems`. Alternatively, keep the stricter guard and reword
+   the "exempt behave exactly as today" AC to carve out autofix. Either way,
+   pick one so the tests are unambiguous.
+
+### Should fix in the spec (implementer would trip)
+
+3. **`_print_table` early return.** `recurring_runner._print_table` returns
+   immediately when `not scan.tasks and not scan.errors and not
+   scan.admission_skips`. An all-inactive repo would print no rows, which
+   breaks the "one row per paused template" AC. Proposed Shape step 5 should
+   say to add `inactivity_skips` to that condition. `scan_lines_for_record`
+   has no such guard.
+4. **`[recurring]` must be added to `_ALLOWED_SHARED_SECTIONS`.**
+   `config._reject_unknown_sections` otherwise rejects the table. It should
+   stay out of `_ALLOWED_LOCAL_SECTIONS`, which enforces the shared-only
+   decision for free. `_parse_recurring` should also call
+   `_reject_unknown_keys` like `_parse_launch`. Worth one line in step 1.
+5. **Git-disabled repos.** With `cfg.git_enabled = False` the spec's fail-open
+   path prints the yellow note on every sweep. Suggest treating git-disabled
+   as silently active, and keeping the note for real git failures and
+   unresolved refs.
+
+### Accepted-limit notes to add (owner acknowledgment; no design change)
+
+6. **Human ticket edits published as `Sync coga state` count as machine.**
+   Every coga command's post-run sweep (`cli.py` → `git.sync_coga_state`)
+   publishes hand edits under `coga/` (ticket bodies, blackboards,
+   recurring templates) with that subject. The Description says "every
+   human ticket event already lands as a commit". That is true, but these
+   commits are classified machine. A repo touched only by hand-editing
+   tickets goes dormant. This fails toward false dormancy, unlike the other
+   notes, and is recoverable by any real commit or `--force`.
+7. **Bare `Dream` prefix over-matches.** coga's own history has
+   `Dream findings have three routing holes that lose work every run (#799)`,
+   a human-titled PR, and it classifies as machine. The impact is low, since
+   it matters only when it is the sole human commit in the window. Either
+   tighten the prefix to `Dream:` / `Dream 20` or list it as a limit.
+8. **Agent-created ordinary tickets count as human.** `coga create` and
+   `coga retire` write `Ticket: <slug> — created` / `— created (retire)`.
+   Dream or another period task creating follow-up tickets therefore reads
+   as human activity. This is the same class as the already-noted
+   `— deleted`: it happens only while awake and fails safe.
+
+### Optional
+
+9. Resolve the refs as `refs/heads/<branch>` and `refs/remotes/<remote>/<branch>`
+   to avoid short-name ambiguity. "Stream and stop at the first human commit"
+   across two refs relies on git's date-ordered walk. To guarantee "newest
+   across both wins" under clock skew, take the first human commit per ref
+   and compare `%ct`.
+10. `measure-activity.py` uses `%cs` (committer's timezone), but the spec says
+    local date of `%ct`. These can differ by a day near midnight. The manual
+    baseline AC already requires the production classifier, so this is
+    informational only.
+11. The AC/test list has no row for fail-open when git itself errors, as
+    opposed to a missing ref. Consider one test that stubs a failing git.
