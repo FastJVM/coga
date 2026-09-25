@@ -1,8 +1,7 @@
 ---
-title: 'some recurring tasks are not launched correctly: too often or never'
-status: canceled
+title: Ticket sync fails with read-only git inside agent sandboxes
+status: draft
 owner: nicktoper
-agent: claude
 workflow: null
 ---
 

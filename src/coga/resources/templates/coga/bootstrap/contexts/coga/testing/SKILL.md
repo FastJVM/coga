@@ -133,17 +133,23 @@ sandbox_mode = "workspace-write"
 
 [sandbox_workspace_write]
 network_access = true
-writable_roots = ["<absolute repo path>/.git"]
+writable_roots = ["<git common dir>"]
 ```
 
-- The file is gitignored and machine-local: `writable_roots` needs the
-  absolute path of this machine's checkout. Coga ships no launch machinery
-  for it.
+- `<git common dir>` is the output of
+  `git rev-parse --path-format=absolute --git-common-dir`, run in the
+  checkout the codex session starts in: the directory Git writes to and the
+  one Dream's preflight probes. Do not substitute `<checkout>/.git`. In a
+  linked worktree, such as the control-branch worktree `coga recurring`
+  relays Dream into, `.git` is a gitfile pointing into the primary checkout,
+  so granting it leaves the common dir read-only.
+- The file is gitignored and machine-local: `writable_roots` needs this
+  machine's absolute path. Coga ships no launch machinery for it.
 - Codex reads a project `.codex/config.toml` only for a trusted project
   (`[projects."<absolute repo path>"] trust_level = "trusted"` in
   `~/.codex/config.toml`, which codex's first-run trust prompt writes).
 - It covers every codex session launched in that checkout, not only Dream.
-- Linked worktrees share the granted `.git`. Create them under an already
+- Linked worktrees share the granted common dir. Create them under an already
   writable root, such as a `mktemp -d` directory, rather than as a sibling of
   the checkout: Dream's Retro pass puts its linked checkout inside its
   temporary run directory for this reason.

@@ -7,6 +7,7 @@ contexts:
 - coga/recurring/scheduling
 - coga/recurring/autofix
 - coga/testing
+- coga/internals/recurring-admission
 workflow:
   name: code/design-then-implement
   steps:
@@ -35,7 +36,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 6 (review)
 ---
 
 ## Description
@@ -758,7 +759,7 @@ they conflict:
    (`period_contradiction` + `scan.sync_problems`) instead of the silent
    "changed on control during admission" skip. A clean competing control
    generation with no recorded failure keeps today's skip. Attach
-   `coga/launch-internals` ("Recurring admission generations") before coding.
+   `coga/internals/recurring-admission` (the admission-generation contract; `coga/launch-internals` is now only its index) — attached.
    Tests: real ticket-byte replacement (incl. generation change) and a
    successful competing control generation.
 3. **P1-3 (Stage C coverage).** The `_fetch_control_branch` fallback calls
@@ -788,3 +789,68 @@ commit's content was verified present on origin.)
 On relaunch use the separate-feature layout: feature worktree outside the repo
 (e.g. `../coga-recurring-wedge`), `## Dev` and `coga bump` in the control
 checkout.
+
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/892
+branch: recurring-sync-wedge
+worktree: /home/n/Code/coga-recurring-wedge
+
+## Implement — 2026-09-24 (attended)
+
+**#848 (`1210b7c39`, "Simplify git sync") already removed the wedge.** It
+deleted `_sync_recurring_create_on_checked_out_control_branch`, the
+restore-to-`HEAD` + `rebase.autoStash` pair, and the short-circuit pair; creates
+now land through `git.publish` (build a tree off control, push, then
+`fast_forward_control`, which stages the published files, the untracked
+`ticket.py` included, before `merge --ff-only`). Proof:
+`test_recurring_create_lands_with_untracked_period_script` (case 3) **fails on
+`1210b7c39^`** with the exact FastJVM text (`could not rebase checked-out
+control branch … untracked working tree files would be overwritten … could not
+detach HEAD`) and **passes on `main` unchanged**. Kept as a regression guard.
+Stages A and B (untracked drop, unwind) have no code left to change.
+
+Owner chose: outcome 2 + the regression test + the Stage D guard.
+
+What changed:
+- **Stage C (outcome 2).** `_append_sync_failure(..., sink=)` appends before its
+  `is_dir()` guard; `sync_failures` threads through `_sync_recurring_create` →
+  `_sync_recurring_create_paths` (both handlers). The offline fallback's
+  `git.publish` raises into the outer `GitError` handler, so it is covered by
+  the sink; the missing-template branch now calls `sync_task_state(strict=True)`
+  when a sink is given. `_broadcast_scan` records `(slug, "create sync to the
+  control branch failed: …")` in new `DueScan.sync_problems` before any early
+  exit; `run_recurring_scan` seeds `RunRecord.scan_problems` from it → counted
+  in `problems:`, exit 2. The task still launches.
+  `test_recurring_scan_launches_even_when_create_sync_crashes` flips 0 → 2 by
+  design.
+- **Stage D (outcome 3), relocated.** The post-read detector in the spec is
+  unreachable: every created/replaced task captures a lease, and any byte change
+  after sync (a status flip included) hits `lease_changed` and `continue`s
+  first. The detector sits on that branch instead (owner decision 2):
+  `lease_changed and sync_failures and not sync_existing` →
+  `_flag_period_contradiction` sets new `DueTask.period_contradiction`, prints
+  red, notifies `recurring-error` (`fatal=False`), and keeps the task in
+  `scan.tasks`. `DueScan.due`/`forced` exclude it, both renderers print
+  `error (…)` before the fallback, and `_record_unlaunched_creates` uses the
+  contradiction as its reason. A clean peer replacement keeps today's admission
+  skip.
+- Contexts: `coga/recurring/scheduling` (Failures and exit code) and
+  `coga/recurring/autofix` (run record) plus byte-identical twins.
+
+Not done / follow-up: a named `coga recurring launch <name>` create
+(`run_recurring_named` → `_sync_recurring_create`) still does not feed its record;
+it was out of this ticket's sweep scope.
+
+Verification (after rebasing onto `origin/main` @ `e4b1e7443`, commit `4feb72990`):
+`PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q` (py3.12 venv in the
+worktree) → `1 failed, 2937 passed`. The one failure is pre-existing and not
+from this branch: `test_packaging.py::test_live_and_packaged_copies_stay_identical`
+on `coga/recurring/phone-home/ticket.md` (live dogfood telemetry state from
+`ece93634f` differs from the packaged twin; this branch does not touch it).
+The recurring context twins are byte-identical. `coga validate --task <slug> --json` → no issues.
+New tests: `test_recurring_create_lands_with_untracked_period_script`,
+`test_recurring_sweep_reports_create_sync_failure_as_problem` (goes through the
+real offline fallback), `test_recurring_sweep_refuses_contradictory_done_skip`,
+`test_forced_sweep_keeps_admission_skip_after_create_sync_failure`,
+`test_record_scan_reports_a_contradictory_create_as_an_error`.

@@ -183,6 +183,31 @@ the running delta, keep at least one source carrying the evidence in the PR
 that preserves it; that source must remain on the control branch until the
 knowledge and deletion land together. An in-memory note alone is not durable.
 
+### Done is a status, not a receipt
+
+`status: done` is a control-plane transition; it carries no proof that the
+ticket's `## Description` shipped. Before extracting a done ticket's
+`## Implemented` or `## Verification` claim as durable knowledge, or citing the
+ticket as the fix for anything, check what the `## Description` scoped — the
+named source path, symbol, test, or context token — against the current files
+of the isolated checkout, which sits on the fresh control-branch tip. Compare
+the scope against those files, not against the ticket's own prose. This is a
+read of the current tree like the comparison baseline, not a history search.
+
+When the scoped change is absent or only partly present, the ticket is
+unshipped: do not extract its claimed fix, and do not cite it as delivered.
+Preserve the gap as a known failure mode, exactly as for an **Unresolved
+adjacent bug** above — what the description scoped, what the ticket claimed,
+and what the control-branch tip lacks — so the source is knowledge-bearing and
+leaves only in that knowledge PR, never by direct delete. Report it under
+`Unshipped scope` in the PR body and in the run's result so the caller can
+route a follow-up ticket; Retro does not file one.
+
+Skip this check for a claim the snapshot marks `owner: coga`. Its scope lives
+in the Coga package, not in this checkout, so its absence here proves nothing:
+route it as **Coga-owned findings are not local knowledge** directs above,
+never as unshipped scope, a local context edit, or a knowledge PR.
+
 ## Isolation boundary
 
 Run only inside a subagent whose cwd is a dedicated isolated checkout. Use the
@@ -383,8 +408,9 @@ marker for the same source task.
    Extract candidate durable knowledge: domain facts, repo conventions, sharp
    gotchas, durable decisions, corrected assumptions, known failure modes, and
    boundaries future agents should inherit. Apply **Unresolved adjacent bugs**
-   above to parked follow-up findings before classifying any ticket as carrying
-   no new durable knowledge. Read the ticket files themselves —
+   above to parked follow-up findings, and **Done is a status, not a receipt**
+   to each claimed fix, before classifying any ticket as carrying no new
+   durable knowledge. Read the ticket files themselves —
    do not consult git history, prior PRs, or old revisions for any of this.
 
 4. **Maintain the running delta.**
@@ -425,6 +451,7 @@ marker for the same source task.
    | Duplicate or stale existing context | Merge, rewrite, or delete the obsolete block/file. |
    | Repeatable process knowledge | Update an existing skill, or create a focused skill if none fits. |
    | Unresolved adjacent bug | Preserve the actionable finding as a known failure mode in a fitting context; delete its source in that knowledge PR. |
+   | Unshipped scope | Preserve the missing scope as a known failure mode in a fitting context; do not extract the claimed fix; delete its source in that knowledge PR. |
    | One-off execution detail | Drop. |
 
    "New and useful" means a future launched agent would make a better decision
@@ -460,9 +487,10 @@ marker for the same source task.
    knowledge.
 
 9. **Delete every processed source task.**
-   Before any deletion, verify that every unresolved adjacent bug is preserved
-   as required above. A source with an uncovered bug cannot take the direct-delete
-   path, even when it contains no other durable knowledge.
+   Before any deletion, verify that every unresolved adjacent bug and every
+   unshipped scope is preserved as required above. A source with an uncovered
+   bug or unshipped scope cannot take the direct-delete path, even when it
+   contains no other durable knowledge.
    A source task that contributed new durable knowledge is deleted inside the PR
    that records its `## Retro` marker, after recording that marker — in its
    theme's knowledge PR. A source task with no new durable knowledge is deleted
@@ -524,6 +552,7 @@ Knowledge PR — use this shape:
 - Moved into context: <bullets>
 - Moved into skill: <bullets or "none">
 - Unresolved adjacent bugs: <finding and target context, or "none">
+- Unshipped scope: <ticket, missing scope, and target context, or "none">
 - Already covered: <bullets or "none">
 - Dropped as one-off: <bullets or "none">
 

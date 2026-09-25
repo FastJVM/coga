@@ -82,6 +82,17 @@ PostHog. The proposed zero-telemetry substitution was explicitly rejected.
 Prior campaign decisions are archived outside this ticket; the current body
 and marketing contexts own the V1 plan. Existing human step is preserved.
 
+## Readiness — 2026-09-25
+
+- PostHog: implemented and merged (PR #880, 2026-09-22) and documented in
+  `coga/telemetry` and `coga/telemetry/operations`. The live clean-wheel proof
+  was deferred by the owner and has **not** run. It is tracked in
+  `marketing/verify-posthog-telemetry-with-the-live-clean-wheel` (draft).
+  It is a launch gate.
+- README (`marketing/readme-top`), installer/onboarding
+  (`marketing/fix-installer`) and the idea piece (`marketing/idea-piece`) are
+  still drafts and have not been launched.
+
 ## Authoring handoff
 
 This revision consolidates the marketing queue and moves public audit evidence

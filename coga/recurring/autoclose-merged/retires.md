@@ -34,3 +34,4 @@ For the line format and field encoding, see the `coga/autoclose/sweep` skill.
 - `record-or-clear-the-standing-repo-wide-coga-valida` — branch `validate-baseline`, worktree `/home/n/Code/claude/coga-validate-baseline`, recorded `2026-09-18`
 - `reuse-the-existing-control-worktree-for-recurring` — branch `recurring-control-worktree`, worktree `/home/n/Code/codex/coga-recurring-control-worktree`, recorded `2026-09-22`
 - `the-period-task-context-never-covers-the-determini` — branch `period-task-recipe-firing`, worktree `/home/n/Code/claude/coga-period-task-recipe-firing`, recorded `2026-09-18`
+- `ticket-relationships-and-ownership-have-no-mechani` — branch `ticket-relationships`, worktree `/home/n/Code/claude/coga-ticket-relationships`, recorded `2026-09-25`

@@ -731,10 +731,33 @@ def test_testing_topic_owns_the_codex_sandbox_grant() -> None:
 
     assert '`.codex/config.toml`: ```toml sandbox_mode = "workspace-write"' in testing
     assert "[sandbox_workspace_write] network_access = true" in testing
-    assert 'writable_roots = ["<absolute repo path>/.git"]' in testing
+    assert 'writable_roots = ["<git common dir>"]' in testing
+    assert "git rev-parse --path-format=absolute --git-common-dir" in testing
+    assert "Do not substitute `<checkout>/.git`" in testing
+    assert "`.git` is a gitfile pointing into the primary checkout" in testing
     assert "gitignored and machine-local" in testing
     assert "only for a trusted project" in testing
     assert "covers every codex session launched in that checkout" in testing
     assert "agent capability preflight" in dream_contract
     assert "fresh context" in dream_contract
     assert "`## Restricted sandboxes` recipe" in dream_contract
+
+
+def test_retro_checks_a_done_tickets_scope_reached_the_control_branch() -> None:
+    retro = " ".join(
+        (DREAM.parents[1] / "retro" / "done-ticket" / "SKILL.md").read_text().split()
+    )
+    assert "### Done is a status, not a receipt" in retro
+    assert "against the current files of the isolated checkout" in retro
+    assert "do not extract its claimed fix, and do not cite it as delivered" in retro
+    assert "| Unshipped scope |" in retro
+    assert "- Unshipped scope: <ticket, missing scope, and target context" in retro
+    assert "every unshipped scope is preserved as required above" in retro
+    assert "Skip this check for a claim the snapshot marks `owner: coga`." in retro
+    assert "never as unshipped scope, a local context edit, or a knowledge PR" in retro
+    lifecycle = " ".join(
+        (RESOURCES.parents[2] / "docs" / "contexts" / "coga" / "lifecycle" / "SKILL.md")
+        .read_text()
+        .split()
+    )
+    assert "`retro/done-ticket` checks the scope against the tip" in lifecycle

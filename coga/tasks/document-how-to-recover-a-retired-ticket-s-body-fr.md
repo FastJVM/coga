@@ -1,7 +1,7 @@
 ---
 title: Document how to recover a retired ticket's body from git, including pre-rename
   paths
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -23,7 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 4 (review)
+agent: claude
 ---
 
 ## Description
@@ -45,3 +46,118 @@ Two independent tickets rediscovered that the task tree was `relay-os/tasks/` be
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+pr: https://github.com/FastJVM/coga/pull/893
+branch: retired-ticket-recovery
+worktree: /home/n/Code/codex/coga
+
+Single-checkout layout. The owner changed course from the control-checkout
+plan: `dream-under-codex` (PR #891) was confirmed pushed (local ==
+origin), its task/log state was published, `../coga-control` was removed, and
+this primary checkout switched to `main` and branched here.
+
+## Implementation (2026-09-24)
+
+Commit 375935944, rebased on origin/main 970806606.
+
+- `coga/tickets` `## Where tasks live and how they are named` (live + packaged
+  twin): new paragraph plus recipe
+  `git log origin/main --diff-filter=D --name-only -- 'coga/tasks/<slug>*' 'relay-os/tasks/<slug>*'`
+  then `git show <commit>^:<path>`.
+  - Deviations from the plan, both from testing on real slugs:
+    - It searches `origin/main`, not `--all`. `--all` surfaced an off-main
+      "Refresh coga state after launch" deletion of
+      `improve-prompt-for-relay-ticket` ahead of the real `ffb0a3835`.
+    - "Newest hit = retirement; older hits = rename or `.md` ↔ `<slug>/`
+      conversion" replaced the planned "`— deleted` subject" rule, because
+      Retro deletes tickets inside its "New context: …" PR commits, not in
+      `— deleted` commits.
+  - Also notes that old directory-form tasks kept a sibling `blackboard.md`.
+  - Verified on `detect-recurring-runs-that-mark-done-without-advan`
+    (pre-rename, `d7086ecde`) and on `improve-prompt-for-relay-ticket`.
+- `coga/tasks/v2/README.md` premise check item 3: the inline recipe is
+  replaced with a link to the `coga/tickets` anchor.
+- `bootstrap/ticket` (packaged only; there is no live twin under
+  `coga/skills/bootstrap/`): a paragraph after "Citing code in `## Context`"
+  says to copy the cited ticket's substance, cite it for provenance only, and
+  recover a retired source with the `coga/tickets` recipe.
+- Tests: `.venv/bin/python -m pytest` gave 2932 passed, 1 failed. The failure
+  is `test_live_and_packaged_copies_stay_identical`, on
+  `coga/recurring/phone-home/ticket.md` twin drift. It is pre-existing and
+  already noted in PR #892's log line; this branch doesn't touch it.
+
+## Plan (agreed with the owner)
+
+- Single owner is `coga/tickets` (`docs/contexts/coga/tickets/SKILL.md`, plus
+  its packaged twin `src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/SKILL.md`).
+  In `## Where tasks live and how they are named`, right after the sentence
+  "moving a task orphans its history under the old tag", add a short
+  paragraph saying:
+  - A retired or deleted ticket (`coga retire`, `delete-task`, Retro) keeps its
+    body and blackboard only as a git blob, so `coga show <slug>` won't find it.
+  - Recipe: `git log --all --diff-filter=D --name-only -- 'coga/tasks/<slug>*' 'relay-os/tasks/<slug>*'`,
+    then `git show <commit>^:<path>`.
+  - The task tree was `relay-os/tasks/` before d0645a197 ("Rename relay to
+    coga", #454), so search both pathspecs.
+  - If the relay-os pathspec only hits d0645a197, the file was renamed there,
+    not retired. Search the coga path for the later deletion.
+- `coga/tasks/v2/README.md` premise check item 3: replace the inline recipe
+  with a link to `coga/tickets`.
+- `bootstrap/ticket` (packaged `bootstrap/skills/bootstrap/ticket/SKILL.md`
+  plus a live twin if one exists): add one pointer line to the citation
+  guidance about recovering a cited ticket that has been retired, linking to
+  `coga/tickets`.
+- Run `python -m pytest tests/test_packaging.py` and the full suite.
+
+## Adjacent finding (not fixed here)
+
+- `code/implement/seed_local_config.py` does `import tomllib` at module top.
+  So on Python < 3.11 (for example the system `python3` 3.9.12 here) it fails
+  with ModuleNotFoundError before reaching the documented fallback that
+  "re-runs itself under the `coga` console script's interpreter". The skill's
+  claim that "any `python` works" is false on 3.9.
+  Workaround: run it with the interpreter from the shebang of `which coga`.
+  No follow-up ticket exists yet.
+
+
+## Peer review
+
+- `codex review --base main` returned: no actionable defects found; no
+  must-fix edits were needed.
+- `git fetch origin main` and `git rebase FETCH_HEAD` completed cleanly onto
+  `346ea8d0a`. The canonical `coga/tickets` and packaged twin still match
+  byte-for-byte (`cmp`); `git diff --check` passed.
+- Executed the documented history search and `git show` for
+  `detect-recurring-runs-that-mark-done-without-advan` at `d7086ecde^`
+  (both `relay-os/tasks/.../ticket.md` and sibling `blackboard.md`) and
+  `improve-prompt-for-relay-ticket` at `ffb0a3835^` (`coga/tasks/...md`).
+  All bodies were recovered successfully. This is a documentation-only
+  change with no terminal or rendered interaction to exercise.
+- Review tool ran `.venv/bin/python -m pytest tests/test_packaging.py -q`:
+  22 passed, 1 failed. The failure is the existing phone-home twin drift;
+  both files are unchanged from `origin/main`, whose blobs also differ.
+
+- Post-rebase `.venv/bin/python -m pytest`: 2932 passed, 1 failed in
+  189.63s; the sole failure is the same pre-existing phone-home twin drift.
+
+## PR
+
+Document recovery of retired ticket bodies and blackboards in `coga/tickets`,
+including deletions under the former `relay-os/tasks/` tree and separate
+historical blackboards. Point the parked-ticket premise check and ticket
+citation guidance at that owner; keep its packaged context twin synchronized.
+
+Test plan: verified recovery of pre-rename and current-path tickets with the
+documented Git commands; packaging checks: 22 passed, 1 pre-existing failure
+from unchanged phone-home twin drift; post-rebase `.venv/bin/python -m pytest`: 2932 passed, 1 failed (the same baseline mismatch).
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `document-how-to-recover-a-retired-ticket-s-body-fr`
+Recorded: 2026-09-25T02:24:10+00:00
+
+    Branch 'retired-ticket-recovery' is not safe to publish. current branch does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Overlapping paths: coga/log.md. Reconcile it and relaunch, or `coga block --task document-how-to-recover-a-retired-ticket-s-body-fr`.
