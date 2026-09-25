@@ -1,6 +1,6 @@
 ---
 title: Run the landed-branch sweep daily from autoclose
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-self-review
