@@ -1,6 +1,6 @@
 ---
 title: Define the split-a-ticket mechanic shared by code design and implement
-status: in_progress
+status: canceled
 owner: nicktoper
 agent: claude
 workflow:
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description
