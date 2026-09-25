@@ -1,6 +1,6 @@
 ---
 title: stop recurring on inactive repo
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
