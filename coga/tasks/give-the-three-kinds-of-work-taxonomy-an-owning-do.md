@@ -1,9 +1,9 @@
 ---
 title: Give the three-kinds-of-work taxonomy an owning doc
-status: draft
+status: active
 owner: nicktoper
 contexts:
-  - coga/knowledge
+- coga/knowledge
 workflow:
   name: docs/with-review
   steps:
@@ -21,6 +21,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
@@ -46,8 +47,10 @@ Do three things:
    state that Coga is built for unknown work.
 2. **Point to it from `coga/principles`.** One sentence in the root paragraph
    so "think better" names what the human thinks about (the unknown work),
-   linking to the vision section. Edit the canonical topic and its packaged
-   twin together.
+   naming the vision section. Edit the canonical topic and its packaged
+   twin together. The twin ships to other repos, which have no
+   `product/vision`, so name it as a plain repo path the way
+   `## Not covered here` names `marketing/strategy`, not as a relative link.
 3. **Relabel the human rewind** (`coga bump --to` / `--backward`) as both:
    recovery for understood work, and a normal move for unknown work. Fix the
    one surviving "exceptional recovery operation" phrase in
@@ -84,6 +87,9 @@ Topics this ticket edits (cited, not attached; read each first):
   planes stay split" bullet ("a human rewind is an exceptional recovery
   operation"). Local-only, no twin.
 
+Check `## Operating model` in vision before writing: link to it rather than
+restate any mechanism it already describes.
+
 Twins must stay byte-identical (`tests/test_packaging.py`).
 
 Receipts to link from the vision section, rather than restate:
@@ -92,12 +98,14 @@ Receipts to link from the vision section, rather than restate:
   (`coga/script-tickets`), `coga run` recipes (`runner.RECIPES`).
 - Understood: `coga create --workflow`, frozen steps (`coga/workflows`),
   `coga megalaunch` (`coga/megalaunch`).
-- Unknown: `coga chat` (`bootstrap/orient`), the blackboard
+- Unknown: `coga chat` (the packaged orient ticket
+  `src/coga/resources/templates/coga/bootstrap/orient/ticket.md`; not a
+  topic), the blackboard
   (`coga/blackboard`), human rewind (`bump.rewind_status_error` /
   `REWINDABLE_STATUSES`: reposition-only, status and blackboard untouched, so
   everything learned stays), `## Superseded designs` (kept out of the prompt
   by `blackboard._without_superseded_designs`), `coga ticket <slug>`
-  re-authoring at any status, Dream (`coga/dream`).
+  re-authoring at any status (`coga/tickets`), Dream (`coga/dream`).
 
 Out of scope: rewriting the pitch or `docs/contexts/marketing/strategy/SKILL.md`
 beyond an optional one-line summary-and-link; any code or CLI behavior change.

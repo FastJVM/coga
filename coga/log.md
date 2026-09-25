@@ -6388,3 +6388,4 @@ fatal: Unable to add (null) to database
 2026-09-25 10:24 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-09-25 10:24 [recurring/address-pr-comments] [system] started (active → in_progress) via recurring delegation to bootstrap/address-pr-comments
 2026-09-25 10:24 [recurring/address-pr-comments] [system] launched delegated target bootstrap/address-pr-comments
+2026-09-25 10:27 [give-the-three-kinds-of-work-taxonomy-an-owning-do] [human:nicktoper] activated (draft → active) — auto on launch
