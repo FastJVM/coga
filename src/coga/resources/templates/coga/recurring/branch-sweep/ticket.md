@@ -18,7 +18,9 @@ cleanup is best-effort — `git`/`gh` failures are swallowed there, and a
 branch also leaks when a ticket is deleted without going through retire, or
 a session dies mid-flight. Retire covers the common path daily (in effect,
 every time a ticket finishes); this sweep runs weekly to catch what leaks
-past it.
+past it. The daily autoclose template now also invokes this same branch pass;
+this standalone weekly run remains an independent retry. Cadence is owned by
+[coga/recurring/scheduling](context:coga/recurring/scheduling).
 
 Once a week this recurring task's `ticket.py` runs the branch sweep,
 which:
@@ -30,7 +32,7 @@ which:
    branch a non-terminal ticket names anywhere in its task files — the
    ticket body, its blackboard, or an attachment — not only under a `## Dev`
    `branch:` line; a mere mention pins, because a false positive only defers
-   a delete by a week. A recurring period task pins only its `## Dev`
+   a delete until the next pass. A recurring period task pins only its `## Dev`
    `branch:`, since its blackboard is generated reports naming branches,
 4. for the rest, authorizes deletion two independent ways — the local tip
    being reachable from the control branch, a merge-commit or fast-forward

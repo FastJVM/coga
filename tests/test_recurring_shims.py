@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import ast
 import importlib
+import runpy
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -133,6 +135,58 @@ def test_every_shimmed_template_dropped_the_recipe_field() -> None:
         assert "\nrecipe:" not in ticket, template
 
 
+@pytest.mark.parametrize(
+    ("autoclose_code", "sweep_code", "expected", "exit_code"),
+    [
+        (0, 0, ["autoclose", "branch-sweep", "bump"], 0),
+        (2, 0, ["autoclose"], 2),
+        (0, 2, ["autoclose", "branch-sweep"], 2),
+    ],
+)
+def test_autoclose_shim_sweeps_branches_before_bumping(
+    seeded, monkeypatch, autoclose_code, sweep_code, expected, exit_code,
+) -> None:
+    cfg = load_config(seeded)
+    calls = []
+    blackboard = seeded / "tasks/recurring/autoclose-merged/ticket.md"
+    blackboard.parent.mkdir(parents=True)
+    blackboard.write_text("---\ntitle: Autoclose\n---\n\n<!-- coga:blackboard -->\n")
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
+
+    def recipe(name, code):
+        def run(cfg, argv):
+            calls.append(name)
+            assert argv == []
+            return code
+        return run
+
+    run = subprocess.run
+
+    def bump(argv, **kwargs):
+        if argv[1:4] != ["-m", "coga.cli", "bump"]:
+            return run(argv, **kwargs)
+        calls.append("bump")
+        assert argv[1:] == ["-m", "coga.cli", "bump", "recurring/autoclose-merged"]
+        return subprocess.CompletedProcess(argv, 0)
+
+    monkeypatch.setitem(RECIPES, "autoclose", recipe("autoclose", autoclose_code))
+    monkeypatch.setitem(RECIPES, "branch-sweep", recipe("branch-sweep", sweep_code))
+    monkeypatch.setenv("COGA_TASK_SLUG", "recurring/autoclose-merged")
+    monkeypatch.setattr(subprocess, "run", bump)
+    # Config loading also probes git; resolve it before replacing subprocess.
+    monkeypatch.setattr("coga.config.load_config", lambda: cfg)
+    with pytest.raises(SystemExit) as exc:
+        runpy.run_path(str(PACKAGED / "recurring/autoclose-merged/ticket.py"))
+    assert exc.value.code == exit_code
+    assert calls == expected
+    report = read_blackboard(blackboard)
+    if exit_code:
+        assert "## Recipe Failure" in report
+        assert f"Recipe: `{expected[-1]}`" in report
+    else:
+        assert "## Recipe Failure" not in report
+
+
 @pytest.fixture
 def seeded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A throwaway copy of the seeded example repo (see `test_smoke`)."""
@@ -186,7 +240,8 @@ def test_period_task_runs_its_shim_headlessly_and_closes_its_own_step(
         "from coga.runner import run_recipe",
         "from coga.runner import RECIPES, run_recipe\n"
         "RECIPES.clear()\n"
-        f"RECIPES[{recipe_name!r}] = lambda cfg, args: 0",
+        f"RECIPES[{recipe_name!r}] = lambda cfg, args: 0\n"
+        "RECIPES['branch-sweep'] = lambda cfg, args: 0",
     ))
 
     result = CliRunner().invoke(app, ["launch", ref.id_slug])

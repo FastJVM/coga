@@ -53,7 +53,7 @@ a ticket is deleted without going through retire or a session dies mid-flight.
    ref takes only a merged PR at its exact tip: its objects are usually not
    local, and ancestry never authorizes deleting `<remote>/<branch>`.
 
-   **A rebased copy is refused by design, every week, until a human deletes
+   **A rebased copy is refused by design, on every pass, until a human deletes
    it.** The verdict above admits ancestors only; it has no `git cherry` /
    patch-id equivalence check (`branchsweep.py`, `branchcleanup.py`). So a
    local ref whose commits were re-applied under new SHAs from *another*

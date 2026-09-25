@@ -1,6 +1,6 @@
 ---
 schedule: "0 8 * * *"
-schedule_comment: "Every day at 8am - close merged final-step tickets the team forgot to mark done"
+schedule_comment: "Every day at 8am - close merged tickets and sweep landed branches"
 title: "Autoclose merged tickets"
 # The reserved `ticket.py` sibling is this task's deterministic half: `coga
 # launch` runs it directly, with no agent and no composed prompt. The one-step
@@ -11,7 +11,7 @@ workflow: autoclose-merged/sweep
 ## Description
 
 Close Coga tickets whose linked GitHub PR has already merged and whose Coga
-workflow is at its final step.
+workflow is at its final step, then sweep landed branches without live tickets.
 
 Tickets can get stuck `in_progress` after the owner merges the PR on GitHub but
 forgets to run `coga mark done`. Once a day this recurring task fires. Its
@@ -59,8 +59,12 @@ sweep runs; it does not change which tickets are safe to close.
 
 Done events produced by the sweep go through the shared `mark_done` finalizer,
 so each closure posts live to Slack exactly as a manual `coga mark done` would.
-A quiet day with no merged final-step tickets exits successfully and changes
-nothing.
+After the autoclose recipe succeeds, `ticket.py` runs the registered
+`branch-sweep` recipe, even when no ticket closed. It then bumps only if both
+recipes succeeded. The daily cadence and reporting contract live in
+[coga/recurring/scheduling](context:coga/recurring/scheduling); the deletion
+proofs and worktree opt-in remain those in
+[dev/checkout-cleanup](context:dev/checkout-cleanup).
 
 <!-- coga:blackboard -->
 

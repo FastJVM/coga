@@ -93,9 +93,16 @@ worktree pins its branch forever, and `coga run branch-sweep` reports it
 > landed, locally pristine linked worktree that no non-terminal ticket
 > records is finished work, not someone's scratch checkout.
 
-With it set, the weekly branch sweep removes such a worktree before deleting
+With it set, the branch sweep removes such a worktree before deleting
 its landed branch, under the same linked-worktree, exact-branch, pristine, and
 unclaimed proofs. Setting it is the owner's call: afterwards a scratch checkout
 worth keeping must be dirty, unlanded, or recorded on a live ticket. The sweep
 also runs `git worktree prune` repo-wide first, because a wiped `/tmp`
 worktree's registration keeps pinning its branch.
+
+The daily autoclose template also runs this existing branch pass after its
+ticket/worklist cleanup, including on days when no ticket closes. The standalone
+weekly sweep remains a retry; cadence and failure ordering live in
+[recurring scheduling](../../coga/recurring/scheduling/SKILL.md).
+Both passes preserve and report local refs with unpushed non-bookkeeping
+commits. A closed but unmerged PR alone is not evidence that its work landed.

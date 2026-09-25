@@ -15,6 +15,11 @@ from coga.runner import run_recipe
 code = run_recipe(load_config(), "autoclose", [])
 if code:
     sys.exit(code)
+# Catch landed branches without a live ticket, even when autoclose closed none.
+# Keep both the branch report and any failure on this period's blackboard.
+code = run_recipe(load_config(), "branch-sweep", [])
+if code:
+    sys.exit(code)
 # Complete the step through the CLI: calling a Typer command function
 # in-process would pass `OptionInfo` sentinels instead of real defaults.
 sys.exit(
