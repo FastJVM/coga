@@ -6400,3 +6400,4 @@ fatal: Unable to add (null) to database
 2026-09-25 10:36 [recurring/autoclose-merged] [system] task done
 2026-09-25 10:36 [recurring/autoclose-merged] [system] script exited with code 0
 2026-09-25 10:36 [recurring/blocker-reminders] [system] started (active → in_progress) via coga launch
+2026-09-25 10:36 [recurring/blocker-reminders] [system] launched as a script (ticket.py)
