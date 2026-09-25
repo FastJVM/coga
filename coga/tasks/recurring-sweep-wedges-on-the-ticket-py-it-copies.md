@@ -7,6 +7,7 @@ contexts:
 - coga/recurring/scheduling
 - coga/recurring/autofix
 - coga/testing
+- coga/internals/recurring-admission
 workflow:
   name: code/design-then-implement
   steps:
@@ -758,7 +759,7 @@ they conflict:
    (`period_contradiction` + `scan.sync_problems`) instead of the silent
    "changed on control during admission" skip. A clean competing control
    generation with no recorded failure keeps today's skip. Attach
-   `coga/launch-internals` ("Recurring admission generations") before coding.
+   `coga/internals/recurring-admission` (the admission-generation contract; `coga/launch-internals` is now only its index) — attached.
    Tests: real ticket-byte replacement (incl. generation change) and a
    successful competing control generation.
 3. **P1-3 (Stage C coverage).** The `_fetch_control_branch` fallback calls
