@@ -3,7 +3,7 @@ title: Implement the include allowlist that url skill updates already promise
 status: draft
 owner: nicktoper
 agent: claude
-workflow: null
+workflow: code/with-review
 ---
 
 ## Description
