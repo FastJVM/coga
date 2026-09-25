@@ -6463,3 +6463,4 @@ fatal: Unable to add (null) to database
 2026-09-25 11:34 [ticket-sync-fails-with-read-only-git-inside-agent] [human:nicktoper] created (status=draft)
 2026-09-25 11:39 [bootstrap/orient] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
 2026-09-25 12:07 [define-the-split-a-ticket-mechanic-shared-by-code] [human:nicktoper] canceled (in_progress → canceled): Won't do: oversized work escalates to the owner instead (PR #899); #889 closed
+2026-09-25 14:45 [v2/remove-the-twin-check-and-the-twin-concept] [human:nicktoper] created (status=draft)
