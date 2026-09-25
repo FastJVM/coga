@@ -1,8 +1,29 @@
 ---
 title: stop using worktrees
-status: draft
+status: active
 owner: nicktoper
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+step: 1 (implement)
+agent: claude
 ---
 
 ## Description
