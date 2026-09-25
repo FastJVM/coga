@@ -1,6 +1,7 @@
 # Coga
+Coga is a tool built to amplify your thinking and learning.
 
-Coga is a new way to work with AI by managing what it works from. You and the AI maintain the intent, instructions, relevant knowledge, and working state. Coga assembles that material into the prompt for the next session. As you learn, you can change both the work and the guidance that directs it.
+It is a work system for humans and AI agents. It helps you focus on the parts of a problem that are still unclear, while agents automate the known parts. As you learn, you update the work. Coga carries those changes into the next agent sessions.
 
 ## One piece of work
 

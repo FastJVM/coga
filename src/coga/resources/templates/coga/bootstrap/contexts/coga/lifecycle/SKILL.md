@@ -41,6 +41,10 @@ Tickets without a workflow move through statuses only via `coga mark`.
   reactivates a canceled ticket. `mark done --force` / final-step
   `bump --force` finish a `direct/body` ticket while acknowledging product code
   stranded off the control branch.
+- `done` is a control-plane transition, not a receipt: a done ticket's own
+  verification prose is no proof that the change its `## Description` scoped
+  reached the control branch. `retro/done-ticket` checks the scope against the
+  tip before extracting it.
 - A terminal transition is a verdict about the ticket, never a repair of
   validator output. "Clears a validate error" is not a cancellation reason:
   cancelling parked drafts is the cheapest route to a green gate and trades

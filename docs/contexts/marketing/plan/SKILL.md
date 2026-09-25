@@ -18,12 +18,15 @@ superseded. Historical material is indexed in [the catalogue](../map/SKILL.md).
 - [Installer and one-task onboarding](../../../../coga/tasks/marketing/fix-installer.md):
   a clean installation reaches one useful completed task with human direction
   and review. Prove the actual installed-package path.
-- [PostHog](../../../../coga/tasks/marketing/add-telemetry.md): finish the existing
-  adoption/activity measurement implementation and owner verification.
-  The owner explicitly rejected replacing it with zero-telemetry measurement.
-  The [weekly snapshot contract](../../coga/telemetry/SKILL.md) owns the
-  implemented scope; [operator verification](../../coga/telemetry/operations/SKILL.md)
-  remains a review gate. Campaign simplification does not waive that gate.
+- [PostHog](../../../../coga/tasks/marketing/add-telemetry.md): adoption/activity
+  measurement is implemented (PR #880, merged 2026-09-22). The owner explicitly
+  rejected replacing it with zero-telemetry measurement. The
+  [weekly snapshot contract](../../coga/telemetry/SKILL.md) owns the implemented
+  scope. The owner deferred the live clean-wheel proof in
+  [operator verification](../../coga/telemetry/operations/SKILL.md) at review.
+  It remains the one open PostHog launch gate, tracked in
+  [its own ticket](../../../../coga/tasks/marketing/verify-posthog-telemetry-with-the-live-clean-wheel.md).
+  Campaign simplification does not waive that gate.
 
 ## Publication sequence
 
