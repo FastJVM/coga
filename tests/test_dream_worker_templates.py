@@ -641,6 +641,108 @@ def test_dream_keeps_coga_owned_files_out_of_a_client_repo_scan() -> None:
     assert "`coga/upstream-coga.md`" in dream_contract
 
 
+def test_dream_preflights_agent_capabilities_before_phase_1() -> None:
+    """A sandboxed agent (codex workspace-write) can read the repo but not
+    write `.git`, reach the remote, or call `gh`; Dream checks those first and
+    escalates instead of spending the decide half on a run that cannot land."""
+    text = DREAM_PROMPT.read_text()
+    norm = " ".join(text.replace("**", "").split())
+
+    preflight = text.index("### Agent capability preflight")
+    phase_1 = text.index("### Phase 1 — validate-drift")
+    assert preflight < phase_1
+    section = " ".join(text[preflight:phase_1].replace("**", "").split())
+
+    assert "agent capability preflight, validate-drift, knowledge scan" in norm
+    assert "git rev-parse --path-format=absolute --git-common-dir" in section
+    assert "create a uniquely named probe file" in section
+    assert "then remove it" in section
+    assert "A permission-bit check does not count" in section
+    assert "never uses a Git lock name" in section
+    assert "`git ls-remote <configured-remote> <configured-control-branch>`" in section
+    assert "`gh auth status` succeeds" in section
+    assert "the preflight fails before Phase 1" in section
+    assert "do not start Phase 1 or any later phase" in section
+    assert "Name the missing capability" in section
+    assert "`coga/testing` topic, under `## Restricted sandboxes`" in section
+    assert "escalate per this prompt's Session conduct layer" in section
+    assert "attended, ask the human and wait" in section
+    assert "unattended, run `coga block --task <this-dream-task>" in section
+
+
+def test_dream_delegates_fresh_context_subagents_in_waves() -> None:
+    text = DREAM_PROMPT.read_text()
+    norm = " ".join(text.replace("**", "").split())
+
+    assert "Start every shard subagent with a fresh context" in norm
+    assert "the subagent inherits none of this conversation" in norm
+    assert '(codex: `spawn_agent` with `fork_turns: "none"`' in norm
+    assert "no larger than the agent's concurrent-subagent limit (codex: 3)" in norm
+    assert "let each wave join" in norm
+    assert "before launching the next" in norm
+    # A wave's join frees slots; the attempt reconciles once, after all waves.
+    assert "manifest rows not launched yet are pending, not missing" in norm
+    assert "A subagent has *returned* when its final answer has been delivered" in norm
+    assert "once per attempt, after every wave of that attempt has joined" in norm
+    # Retro's worker is a fresh-context subagent too, in a writable checkout
+    # whose absolute path the delegation message carries.
+    assert "Start it with a fresh context and a self-contained delegation" in norm
+    assert "`git worktree add` at `<run-dir>/checkout`" in norm
+    assert "check write access there by creating and removing a" in norm
+    assert "the delegation message names the checkout's absolute path" in norm
+
+
+def test_retro_isolation_covers_codex_children_without_a_cwd() -> None:
+    retro = " ".join(
+        (
+            RESOURCES
+            / "templates"
+            / "coga"
+            / "bootstrap"
+            / "skills"
+            / "retro"
+            / "done-ticket"
+            / "SKILL.md"
+        )
+        .read_text()
+        .split()
+    )
+
+    assert "A Codex child takes no cwd: it starts in the caller's cwd." in retro
+    assert "The delegation message therefore names the checkout's absolute path" in retro
+    assert "every shell command sets that path as its working directory" in retro
+    assert "This fallback only works around a read-only `.git`" in retro
+    assert "fetch, push, and PR creation still need network access" in retro
+    assert "Dream agent capability preflight" in retro
+    assert "Dream uses `<run-dir>/checkout` inside its `mktemp -d` run directory" in retro
+
+
+def test_testing_topic_owns_the_codex_sandbox_grant() -> None:
+    testing = " ".join(
+        (RESOURCES.parents[2] / "docs" / "contexts" / "coga" / "testing" / "SKILL.md")
+        .read_text()
+        .split()
+    )
+    dream_contract = " ".join(
+        (RESOURCES.parents[2] / "docs" / "contexts" / "coga" / "dream" / "SKILL.md")
+        .read_text()
+        .split()
+    )
+
+    assert '`.codex/config.toml`: ```toml sandbox_mode = "workspace-write"' in testing
+    assert "[sandbox_workspace_write] network_access = true" in testing
+    assert 'writable_roots = ["<git common dir>"]' in testing
+    assert "git rev-parse --path-format=absolute --git-common-dir" in testing
+    assert "Do not substitute `<checkout>/.git`" in testing
+    assert "`.git` is a gitfile pointing into the primary checkout" in testing
+    assert "gitignored and machine-local" in testing
+    assert "only for a trusted project" in testing
+    assert "covers every codex session launched in that checkout" in testing
+    assert "agent capability preflight" in dream_contract
+    assert "fresh context" in dream_contract
+    assert "`## Restricted sandboxes` recipe" in dream_contract
+
+
 def test_retro_checks_a_done_tickets_scope_reached_the_control_branch() -> None:
     retro = " ".join(
         (DREAM.parents[1] / "retro" / "done-ticket" / "SKILL.md").read_text().split()

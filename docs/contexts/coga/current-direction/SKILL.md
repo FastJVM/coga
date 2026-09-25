@@ -5,7 +5,7 @@ description: Short, dated product decisions currently in force for Coga, with li
 
 # Coga — current direction
 
-Last updated: 2026-09-22.
+Last updated: 2026-09-25.
 
 Each entry is a decision with its date and the topic that owns the resulting
 contract. Enduring rules live in those topics, not here. Live execution state
@@ -73,8 +73,8 @@ is `coga status` and the ticket bodies; sequencing is
   not post or log; notifications are for agent-driven transitions. Contract:
   [`coga/notifications`](../notifications/SKILL.md).
 - **Control and data planes stay split.** `coga launch` owns
-  `active` → `in_progress`; `coga bump` owns `step:`; a human rewind is an
-  exceptional recovery operation. Contract:
+  `active` → `in_progress`; `coga bump` owns `step:`; a human rewind is
+  recovery for understood work and a normal move for unknown work. Contract:
   [`coga/lifecycle`](../lifecycle/SKILL.md).
 
 ## Open intent, not live direction

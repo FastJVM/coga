@@ -45,6 +45,13 @@ workflow, or task-model changes.
   verify branches with `PYTHONPATH`. A checkout `.venv/` is the test
   environment, not what `coga` on PATH runs. If `src/coga/` edits do not show
   up, check which checkout the install imports.
+- **Codex runs its commands in a login shell** (`bash -lc`), which re-reads
+  `~/.profile`; one that prepends `~/.local/bin` puts the uv tool `coga` back
+  in front of a checkout venv you put first on PATH before launching. To
+  dogfood a branch's `coga` under codex (for example a Dream run in a scratch
+  clone), set top-level `allow_login_shell = false` in that checkout's
+  gitignored `.codex/config.toml` and confirm with `command -v coga` from a
+  codex session.
 - Installed-versus-source skew warnings from `launch`/`validate` are owned by
   [coga/launch](../launch/SKILL.md).
 
@@ -109,3 +116,41 @@ and counts, for example `PYTHONPATH=$PWD/src python3.12 -m pytest` ->
   forbids `.git/index.lock`; rerun unsandboxed or grant `.git` write access.
 - When `git worktree add` cannot write the primary `.git`, use the
   independent-clone fallback in [dev/checkouts](../../dev/checkouts/SKILL.md).
+
+### Codex sandbox grant
+
+`coga launch` spawns plain `codex <prompt>`, so a codex session's sandbox
+comes entirely from codex's own config layers. In a trusted project that is
+`workspace-write`: the checkout and temp dirs are writable, `.git` is
+read-only, and network is off. Git sync, `git worktree add`, fetch, push,
+`gh`, and `coga slack` then fail. Dream's agent capability preflight checks
+for exactly these capabilities and points here. The grant that fixes this
+without bypassing the sandbox lives in the repo's project-local
+`.codex/config.toml`:
+
+```toml
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+network_access = true
+writable_roots = ["<git common dir>"]
+```
+
+- `<git common dir>` is the output of
+  `git rev-parse --path-format=absolute --git-common-dir`, run in the
+  checkout the codex session starts in: the directory Git writes to and the
+  one Dream's preflight probes. Do not substitute `<checkout>/.git`. In a
+  linked worktree, such as the control-branch worktree `coga recurring`
+  relays Dream into, `.git` is a gitfile pointing into the primary checkout,
+  so granting it leaves the common dir read-only.
+- The file is gitignored and machine-local: `writable_roots` needs this
+  machine's absolute path. Coga ships no launch machinery for it.
+- Codex reads a project `.codex/config.toml` only for a trusted project
+  (`[projects."<absolute repo path>"] trust_level = "trusted"` in
+  `~/.codex/config.toml`, which codex's first-run trust prompt writes).
+- It covers every codex session launched in that checkout, not only Dream.
+- Linked worktrees share the granted common dir. Create them under an already
+  writable root, such as a `mktemp -d` directory, rather than as a sibling of
+  the checkout: Dream's Retro pass puts its linked checkout inside its
+  temporary run directory for this reason.
+- The grant takes effect in a new codex session; relaunch after editing it.

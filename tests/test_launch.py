@@ -881,7 +881,7 @@ def test_spawn_commits_log_append_when_commit_log_set(git_repo, monkeypatch):
 
     Without it the append lingers uncommitted and blocks the next `git pull` at
     the checkout gate (merge=union only saves committed content). The launch
-    command passes `commit_log=is_bootstrap`, so this is the bootstrap path.
+    command passes `commit_log=True` for every target; this is the bootstrap path.
     """
     cfg = load_config(git_repo.coga_os)
     ref = BootstrapRef(name="orient", path=git_repo.coga_os / "bootstrap" / "orient")
@@ -4801,8 +4801,12 @@ def test_launch_agent_override_assists_human_handoff_without_reassigning(
 
     log = _read_log(active_task)
     assert "operator=marc, launch_agent=codex, agent=codex" in log
-    # The session's usage record is published to control at teardown.
-    assert sync_calls == [{"message": "Log: fix-retry-logic"}]
+    # The launch line publishes before the spawn, and the session's usage
+    # record publishes at teardown.
+    assert sync_calls == [
+        {"message": "Log: fix-retry-logic"},
+        {"message": "Log: fix-retry-logic"},
+    ]
 
 
 def test_recorded_assist_pr_head_requires_the_configured_head_repository(

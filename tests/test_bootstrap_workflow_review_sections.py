@@ -9,8 +9,8 @@ BOOTSTRAP_WORKFLOWS = (
     / "src/coga/resources/templates/coga/bootstrap/workflows"
 )
 
-# Every packaged workflow whose implement step records `branch:` and
-# `worktree:` under `## Dev`; its `done` ticket leaves a checkout behind.
+# Every packaged workflow whose implement step records `branch:` under
+# `## Dev`; its `done` ticket leaves a branch (or legacy worktree) behind.
 CHECKOUT_BEARING_WORKFLOWS = (
     "code/with-review.md",
     "code/with-self-review.md",

@@ -115,7 +115,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert archived_ref.ticket_path.read_bytes() == archived_before
 
     # 3. Advance steps. Each gated step refuses until its required artifact is
-    #    recorded — `implement` needs branch/worktree linkage, `pr` needs the
+    #    recorded — `implement` needs the `branch:` line, `pr` needs the
     #    PR URL — then the remaining bumps walk to and finish the last step.
     runner = CliRunner()
     slug = ref["slug"]
@@ -125,8 +125,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     replace_blackboard(
         task_path,
         read_blackboard(task_path)
-        + "\n\n## Dev\nbranch: feat/stripe-retry\n"
-        + "worktree: /tmp/example-stripe-retry\n",
+        + "\n\n## Dev\nbranch: feat/stripe-retry\n",
     )
     r = runner.invoke(app, ["bump", slug])
     assert r.exit_code == 0, r.output

@@ -21,7 +21,11 @@ PTY watcher and REPLs stopped releasing on the sentinel.
    bytes (megalaunch), then append `prompt_suffix` (launch arguments only).
 3. Write the prompt file; build argv with `build_agent_command`.
 4. `validate_before_spawn` guard; append the launch audit (unless deferred
-   into the spawn gate); `before_recompose` (recurring: after the audit
+   into the spawn gate) and, with `commit_log`, publish it at once. `coga
+   launch` always sets `commit_log`, so a code step's start check
+   ([dev/checkouts](../../../dev/checkouts/SKILL.md)) finds a clean tree;
+   megalaunch's deferred audit publishes with its launch admission.
+   `before_recompose` (recurring: after the audit
    publishes, exit this pass so the caller reloads and recomposes);
    `before_spawn` final boundary.
 5. `repl_supervisor.run_with_done_marker`, optionally with the held-child
@@ -35,7 +39,8 @@ rotation, `COGA_SUPERVISED`, respawn) wraps this call and stays launch-only.
 `build_supervised_step_env` pins `COGA_SUPERVISED=1`, `COGA_EXPECTED_TASK`
 (absolute task path), and `COGA_EXPECTED_STEP` per step; the spawn never
 reassigns that pair, so it keeps naming the outer session for `coga bump`'s
-stale-session guard and `coga open-pr` ([PR publication](../pr-publication/SKILL.md)).
+stale-session guard and the other lifecycle commands that scope their
+authority to it.
 Secrets are minted per step from the freshly read config and ticket.
 
 ## Per-caller parameters

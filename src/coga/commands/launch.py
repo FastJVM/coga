@@ -1716,11 +1716,11 @@ def _launch(
                     max_session=max_session,
                     label="Launch",
                     warn_blackboard=True,
-                    # A bootstrap target has no later task-state sync to carry
-                    # its launch line; a single-checkout assist runs on the PR
-                    # branch, whose open-pr clean-tree gate already excludes
-                    # live Coga state.
-                    commit_log=is_bootstrap,
+                    # Publish the launch line before the agent starts: a code
+                    # step's start check (`dev/checkouts`) requires a clean
+                    # tree, Coga state included, and a bootstrap target has no
+                    # later task-state sync to carry the line anyway.
+                    commit_log=True,
                     assist_branch=assist_branch,
                     assist_agent=(
                         (step_agent or launch_agent)
@@ -2590,10 +2590,12 @@ def spawn_agent_session(
     The launch supervisor loop and step chaining deliberately stay outside.
 
     `commit_log` immediately publishes the `log.md` launch append (via
-    `sync_log`) instead of leaving it for the end-of-command sweep. Stateless
-    bootstrap launches use it because no later task-state sync will carry the
-    log. `assist_branch` and `assist_agent` name an explicit assist on a
-    human-owned step running in the recorded single-checkout PR worktree: the
+    `sync_log`) instead of leaving it for the end-of-command sweep. The
+    ordinary launch path always sets it: stateless bootstrap launches have no
+    later task-state sync to carry the log, and a code step's start check
+    requires a clean tree before the agent branches. `assist_branch` and
+    `assist_agent` name an explicit assist on a human-owned step running in
+    the recorded single-checkout PR worktree: the
     child inherits them so its in-session lifecycle commands attribute audit
     lines to the assisting agent rather than the human ticket owner. `coga
     ticket` leaves them unset. `secrets_are_scoped` is False only

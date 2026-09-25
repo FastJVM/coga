@@ -73,9 +73,9 @@ Four questions, in this order:
    available. **Provenance-only citations are not premise failures**:
    a self-contained draft may retain a retired source or example, including
    after its required substance has been recovered and inlined. For a
-   dangling dependency, recover the missing substance from git history —
-   `git log --all --diff-filter=D --name-only -- 'coga/tasks/<slug>*'` finds
-   the deleting commit, and `git show <commit>^:<path>` reads the file. Do not
+   dangling dependency, recover the missing substance from git history with
+   the [retired-task recipe in `coga/tickets`](../../../docs/contexts/coga/tickets/SKILL.md#where-tasks-live-and-how-they-are-named),
+   which also covers tickets deleted under the pre-rename `relay-os/tasks/`. Do not
    repair a dangling citation by pointing at a different live ticket: that is
    how `autotrigger-ticket-type`'s fix-up rotted the same way its original
    did. Either inline the recovered substance into the draft or, if it cannot

@@ -522,6 +522,11 @@ class DueTask:
     replaced_done_ticket_bytes: bytes | None = None
     watchdog_pause: str = ""
     launch_refusal: str = ""
+    # Set when this sweep created (or replaced) the period and then read back a
+    # ticket that cannot be that create: it is already closed, or its failed
+    # sync left a different copy in its place. The task stays in `tasks` so
+    # both scan renderers report it, but it is never launched.
+    period_contradiction: str = ""
 
     @property
     def watchdog_paused(self) -> bool:
@@ -585,6 +590,12 @@ class DueScan:
     admission_skips: list[tuple[DueTask, str]] = field(
         default_factory=list, repr=False
     )
+    # `(id_slug, detail)` for failures observed while admitting the scan — a
+    # swallowed create-sync error — in `RunRecord.scan_problems`' shape, so the
+    # run record counts them instead of leaving them on stderr alone.
+    sync_problems: list[tuple[str, str]] = field(
+        default_factory=list, repr=False
+    )
 
     @property
     def due(self) -> list[DueTask]:
@@ -601,7 +612,9 @@ class DueScan:
         (A resuming Dream orphan still sorts last: cleanup-after-the-rest wins
         over resume-first for the janitor itself, which is what we want.)
         """
-        return _order_for_launch(t for t in self.tasks if t.launchable)
+        return _order_for_launch(
+            t for t in self.tasks if t.launchable and not t.period_contradiction
+        )
 
     @property
     def forced(self) -> list[DueTask]:
@@ -616,7 +629,11 @@ class DueScan:
         reporting after an admission refusal is never launched.
         """
         return _order_for_launch(
-            t for t in self.tasks if t.ref is not None and not t.launch_refusal
+            t
+            for t in self.tasks
+            if t.ref is not None
+            and not t.launch_refusal
+            and not t.period_contradiction
         )
 
 

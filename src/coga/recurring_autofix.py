@@ -174,7 +174,8 @@ class RunRecord:
     agent_override: str | None = None
     scan_lines: list[str] = field(default_factory=list)
     scan_errors: list[tuple[str, str]] = field(default_factory=list)
-    # Failures inherited from earlier runs, not launches in this sweep.
+    # Failures observed outside the launch loop: runs inherited from earlier
+    # sweeps, create syncs that failed, periods created but never launched.
     scan_problems: list[tuple[str, str]] = field(default_factory=list)
     outcomes: list[TaskOutcome] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
@@ -943,6 +944,8 @@ def scan_lines_for_record(scan, *, force: bool = False) -> list[str]:
         when = _firing_label(task.last_fire, now)
         if task.ref is None:
             action = "skip (ran this period)"
+        elif task.period_contradiction:
+            action = f"error ({task.period_contradiction})"
         elif task.resuming:
             action = "resume"
         elif task.launchable or (force and not task.launch_refusal):

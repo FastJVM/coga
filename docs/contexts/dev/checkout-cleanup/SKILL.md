@@ -5,13 +5,17 @@ description: How finished tickets and their feature checkouts are disposed of: `
 
 # Retiring tickets and checkouts
 
-You do not remove your own feature checkout. `coga retire` (manual, while the
+You do not delete your own feature branch. `coga retire` (manual, while the
 ticket and its `## Dev` lines exist) and the daily autoclose sweep (for every
 ticket it closes and every open `retires.md` entry) run one shared set of
 proofs: `checkout_disposal.py` over the per-checkout proofs in
-`branchcleanup.py`. Both remove the recorded worktree first, since a branch
-checked out in a linked worktree cannot be deleted, then prune the branch.
-Keep `worktree:` accurate; it is what they act on.
+`branchcleanup.py`. Ticket work no longer creates linked worktrees
+([dev/checkouts](../checkouts/SKILL.md)), so a current ticket records only
+`branch:` and the disposal is branch-only. A ticket from the retired
+linked-worktree layout may still record `worktree:`; the disposal removes that
+worktree first, since a branch checked out in a linked worktree cannot be
+deleted, then prunes the branch. Keep `worktree:` accurate where it exists; it
+is what they act on.
 
 ## The checkout proofs
 

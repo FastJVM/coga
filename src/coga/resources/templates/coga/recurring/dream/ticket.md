@@ -27,7 +27,7 @@ order, and output conventions.
 ### Console Progress
 
 Write short progress updates to the console before and after each phase:
-validate-drift, knowledge scan, contract audit, Retro pass,
+agent capability preflight, validate-drift, knowledge scan, contract audit, Retro pass,
 cleanup-orphan-markers, disposition, and the final status mark. Include the
 command or file path being
 acted on and the result count when available. For the sharded scan phases, say
@@ -67,6 +67,37 @@ this Dream task. Before each run, read the matching skill's
 then invoke the exact `coga run` command below. The recipe inherits this
 task's `COGA_TASK_*` context and writes its `## Dream Skill: <name>` section
 directly to this task's blackboard. Do not create child worker tasks.
+
+### Agent capability preflight
+
+Run this once, from Dream's checkout, before Phase 1. The execute half
+fetches, pushes, opens PRs, and syncs ticket state. An agent sandbox that
+cannot do those fails each of them in turn, after the decide half has already
+spent the run, so check the capabilities first. Read `[git].remote` and
+`[git].control_branch` from the shared `coga.toml` (defaults `origin` and
+`main`), then check:
+
+1. **The Git common dir is writable.** Resolve
+   `git rev-parse --path-format=absolute --git-common-dir`, create a uniquely
+   named probe file in that directory (for example
+   `mktemp "<common-dir>/coga-dream-preflight.XXXXXX"`), then remove it. A
+   permission-bit check does not count, and the probe never uses a Git lock
+   name.
+2. **The remote is reachable.**
+   `git ls-remote <configured-remote> <configured-control-branch>` succeeds.
+3. **The GitHub CLI is authenticated.** `gh auth status` succeeds.
+
+Print one console line with the result, for example
+`preflight: git-common-dir ok, remote ok, gh ok`. If any check fails, the
+preflight fails before Phase 1: do not start Phase 1 or any later phase. Name
+the missing capability and the failing command's error, and point at the
+agent sandbox grant recipe in the `coga/testing` topic, under
+`## Restricted sandboxes`. Then escalate per this prompt's Session conduct
+layer: attended, ask the human and wait; unattended, run
+`coga block --task <this-dream-task> --reason "<missing capability>; see the
+coga/testing Restricted sandboxes recipe"`. A sandbox grant takes effect only
+in a new agent session, so after fixing it the human relaunches Dream. An
+agent with ordinary machine access passes all three checks unchanged.
 
 ### Phase 1 — validate-drift
 
@@ -137,8 +168,19 @@ nothing is indistinguishable from a clean repo. Run each scan like this:
    skill, passing the scan directory's absolute path, the shard id, and that
    shard's exact paths. Shards append to the shared `findings.md` and
    `progress.md`; they do not report findings back through their final message.
-4. **Reconcile before believing the result.** Reconcile only at the barrier,
-   once every shard subagent you launched for this attempt has returned; a
+   Start every shard subagent with a **fresh context**: the delegation message
+   is self-contained and the subagent inherits none of this conversation
+   (codex: `spawn_agent` with `fork_turns: "none"`; its default forks the
+   whole history and spends the shard's budget before it reads a file). Run
+   the shards in **waves** no larger than the agent's concurrent-subagent
+   limit (codex: 3), and let each wave join — every subagent in it has
+   returned — before launching the next. A wave's join only frees slots:
+   manifest rows not launched yet are pending, not missing, and never retry
+   candidates.
+4. **Reconcile before believing the result.** A subagent has *returned* when
+   its final answer has been delivered to you. Reconcile only at the barrier,
+   once per attempt, after every wave of that attempt has joined and every
+   shard subagent you launched for it has returned; a
    shard that goes idle after writing its completion line has finished, and a
    mid-flight read of `progress.md` cannot tell that apart from a shard that
    has not written yet. Compare the active leaf shard rows in `manifest.md`
@@ -151,7 +193,8 @@ nothing is indistinguishable from a clean repo. Run each scan like this:
    never returned. Do not treat a missing line as zero findings.
 5. **Retry once, then report honestly.** For any missing or `incomplete`
    assignment, append a manifest `supersede <parent> -> <children>` row plus
-   smaller attempt-2 child rows and retry those leaves once. If an attempt-2
+   smaller attempt-2 child rows and retry those leaves once, in waves as in
+   step 3. If an attempt-2
    leaf still does not complete, the phase result is `partial`: keep the scan
    directory, and record its path, the unread paths, and a `human-needed` line
    in the run summary.
@@ -249,10 +292,19 @@ handoff is unchanged.
 
 Delegate the entire Retro pass to one subagent in a dedicated **isolated git
 checkout**, running `retro/done-ticket <slug> [<slug> ...]` there and passing
-every eligible slug. Fetch the configured remote control branch first and base
+every eligible slug. Start it with a fresh context and a self-contained
+delegation message, as for the scan shards (codex: `fork_turns: "none"`).
+Fetch the configured remote control branch first and base
 the checkout's unique temporary branch on that fresh tip. Use native
 `isolation: worktree` when the agent supports it; otherwise create a temporary
-linked checkout with `git worktree add` and tell the subagent its exact cwd. If
+linked checkout with `git worktree add` at `<run-dir>/checkout`, inside the
+temporary run directory above, which is already writable to this session.
+Before delegating, check write access there by creating and removing a
+uniquely named probe file in the new checkout; if that fails, preserve the
+paths and escalate as the preflight does. An agent without native isolation
+(codex) starts the subagent in Dream's cwd, so the delegation message names
+the checkout's absolute path and tells the subagent to run every shell command
+with that path as its working directory. If
 the managed sandbox makes the primary `.git` metadata read-only, use an
 independent `git clone --no-hardlinks` under `/tmp`, repointed to the configured
 real remote, instead. Do not run Retro in Dream's checkout or fall back to an

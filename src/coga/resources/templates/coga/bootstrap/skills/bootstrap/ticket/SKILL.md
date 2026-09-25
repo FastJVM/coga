@@ -211,6 +211,12 @@ tree that has moved on. Cite them in the form that survives that:
 
 This is the same rule `code/review-design` applies to evaluator findings.
 
+The same holds for a ticket cited in `## Context`: copy the substance this
+task needs, and cite the slug only for provenance. Retro and `coga retire` may
+delete it first. When the source is already gone, recover its body with the
+retired-task recipe in `coga/tickets` (`Where tasks live and how they are
+named`), which also searches the pre-rename `relay-os/tasks/` tree.
+
 ## Step 3 — Interview the human
 
 Cover these, in this order, in plain conversation. Stop pulling once you

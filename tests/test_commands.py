@@ -856,10 +856,10 @@ def test_bump_rewind_ignores_requires_gate(repo: Path) -> None:
 def test_bump_branch_gate_blocks_until_dev_linkage_recorded(repo: Path) -> None:
     """The `branch` gate refuses the bump when `## Dev` never reached this copy.
 
-    This is the stranded-write failure: the implement agent records
-    `branch:`/`worktree:` in the feature checkout's ticket copy and bumps from
-    the primary checkout, so the copy `bump` reads (and syncs) never saw the
-    write and `coga open-pr` fails a step later with a misleading message.
+    This is the stranded-write failure: the implement agent records `branch:`
+    in a ticket copy other than the one `bump` reads (and syncs), so the copy
+    never saw the write and `coga open-pr` fails a step later with a
+    misleading message.
     """
     slug, task_path = _make_task(repo)
     _set_step_requires(task_path, 0, "branch")  # gate the current `implement` step
@@ -868,11 +868,10 @@ def test_bump_branch_gate_blocks_until_dev_linkage_recorded(repo: Path) -> None:
     blocked = runner.invoke(app, ["bump", slug])
     assert blocked.exit_code == 2, blocked.output
     assert "requires a recorded `branch`" in blocked.output
-    assert "`worktree:`" in blocked.output
     assert "checkout it runs from" in blocked.output
     assert Ticket.read(task_path).step == "1 (implement)"
 
-    _record_dev(task_path, "branch: feat/x\nworktree: /home/dev/coga-feat-x")
+    _record_dev(task_path, "branch: feat/x")
     allowed = runner.invoke(app, ["bump", slug])
     assert allowed.exit_code == 0, allowed.output
     assert Ticket.read(task_path).step == "2 (pr)"
@@ -890,17 +889,16 @@ def test_bump_branch_gate_rejects_placeholder_branch(repo: Path) -> None:
     assert Ticket.read(task_path).step == "1 (implement)"
 
 
-def test_bump_branch_gate_rejects_branch_without_worktree(repo: Path) -> None:
-    """Both lines are required: `coga open-pr` rejects on either one missing."""
+def test_bump_branch_gate_accepts_recorded_sandbox_clone(repo: Path) -> None:
+    """A `worktree:` line (the sandbox clone fallback) does not hurt the gate."""
     slug, task_path = _make_task(repo)
     _set_step_requires(task_path, 0, "branch")
-    _record_dev(task_path, "branch: feat/x")
+    _record_dev(task_path, "branch: feat/x\nworktree: /tmp/coga-feature.abc/repo")
 
     result = CliRunner().invoke(app, ["bump", slug])
 
-    assert result.exit_code == 2, result.output
-    assert "requires a recorded `branch`" in result.output
-    assert Ticket.read(task_path).step == "1 (implement)"
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(task_path).step == "2 (pr)"
 
 
 def test_bump_branch_gate_accepts_single_checkout_layout(

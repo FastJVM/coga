@@ -17,9 +17,10 @@ steps:
 ---
 
 ## implement
-Create the feature branch and its checkout, then record both under `## Dev` as
-`branch:` and `worktree:` lines. `requires: branch` refuses the bump until they
-are present in the ticket copy of the checkout you bump from.
+From a clean `main`, create the feature branch, record it under `## Dev` as a
+`branch:` line, and work on it in the same checkout; push it and return to
+`main` before bumping. `requires: branch` refuses the bump until the line is
+present in the ticket copy of the checkout you bump from.
 
 ## pr
 Push the recorded branch and open a PR. Title the PR after the task title.

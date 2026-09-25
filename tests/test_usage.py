@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from textwrap import dedent
 
+import pytest
 from typer.testing import CliRunner
 
 from coga.cli import app
@@ -261,6 +262,97 @@ def test_parse_codex_rollout_ambiguous_cwd_matches_are_unknown(
     assert parsed.usage_status == "unknown"
     assert parsed.provider == "openai"
     assert parsed.session_id is None
+
+
+_SUBAGENT_MARKERS = (
+    '"thread_source":"subagent"',
+    '"parent_thread_id":"parent"',
+    '"thread_source":"subagent","parent_thread_id":"parent"',
+)
+
+
+def _write_codex_rollout(
+    path: Path, *, session_id: str, cwd: Path, extra_meta: str, total: int
+) -> None:
+    meta = f'"id":"{session_id}","cwd":"{cwd.resolve()}","model_provider":"openai"'
+    if extra_meta:
+        meta += "," + extra_meta
+    _write(
+        path,
+        f"""
+        {{"type":"session_meta","payload":{{{meta}}}}}
+        {{"type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":{total},"cached_input_tokens":0,"output_tokens":0,"reasoning_output_tokens":0,"total_tokens":{total}}}}}}}}}
+        """,
+    )
+
+
+@pytest.mark.parametrize("child_marker", _SUBAGENT_MARKERS)
+def test_parse_codex_rollout_ignores_subagent_rollouts_on_same_cwd(
+    tmp_path: Path, monkeypatch, child_marker: str
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    sessions = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23"
+    _write_codex_rollout(
+        sessions / "rollout-parent.jsonl",
+        session_id="parent",
+        cwd=cwd,
+        extra_meta='"thread_source":"user"',
+        total=100,
+    )
+    for index in range(3):
+        _write_codex_rollout(
+            sessions / f"rollout-child-{index}.jsonl",
+            session_id=f"child-{index}",
+            cwd=cwd,
+            extra_meta=child_marker,
+            total=7,
+        )
+    start, end = _window()
+
+    parsed = parse_session(
+        "codex",
+        cwd=cwd,
+        session_id=None,
+        pre_existing=set(),
+        window_start=start,
+        window_end=end,
+    )
+
+    assert parsed.usage_status == "ok"
+    assert parsed.session_id == "parent"
+    assert parsed.input_tokens == 100
+
+
+def test_parse_codex_rollout_with_only_subagent_rollouts_is_unknown(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    sessions = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23"
+    for index, marker in enumerate(_SUBAGENT_MARKERS):
+        _write_codex_rollout(
+            sessions / f"rollout-child-{index}.jsonl",
+            session_id=f"child-{index}",
+            cwd=cwd,
+            extra_meta=marker,
+            total=7,
+        )
+    start, end = _window()
+
+    parsed = parse_session(
+        "codex",
+        cwd=cwd,
+        session_id=None,
+        pre_existing=set(),
+        window_start=start,
+        window_end=end,
+    )
+
+    assert parsed.usage_status == "unknown"
+    assert parsed.reason == f"codex rollout not found for cwd: {cwd.resolve()}"
 
 
 def test_parse_codex_rollout_ignores_matches_outside_launch_window(

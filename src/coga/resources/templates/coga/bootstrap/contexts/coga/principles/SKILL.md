@@ -8,7 +8,9 @@ description: Coga's seven non-negotiable design constraints, derived from one ro
 Most tools say **don't think**: delegate and forget. Coga's root is the
 opposite: **don't don't think — think better.** The system exists to make human
 judgment sharper, not absent, and to stay **yours**: legible, hackable, on your
-disk.
+disk. What the human thinks about is mostly the unknown work, the kind
+discovered by doing; the three kinds of work are defined in
+`docs/contexts/product/vision/SKILL.md` (`## Three kinds of work`).
 
 The slogan alone is vague; the seven consequences below are the teeth. Each is
 timeless, each can reject a change, and each names a receipt. When a change

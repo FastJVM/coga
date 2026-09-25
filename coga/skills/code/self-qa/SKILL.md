@@ -12,18 +12,20 @@ this step just makes sure the diff they see is already clean.
 
 ## Order of operations
 
-1. **Confirm state.** Read `branch:` and `worktree:` under `## Dev` on
-   the blackboard. If there is no branch because the implement step
-   recorded concrete `## Already satisfied` evidence, verify that evidence
-   from the repo, add a short `## Self-QA` note, run
-   `coga mark done <slug>`, and stop. Otherwise, change into the recorded
-   checkout — the feature worktree, or the primary checkout itself when
-   `worktree:` names it (the single-checkout layout in `dev/checkouts`) — and
-   confirm it is on the recorded branch with a clean working tree (the
-   previous `code/implement` step committed). If the branch/worktree is missing
-   without already-satisfied evidence, escalate per your launch mode — ask
-   the attending human, or `coga block` in a queue run — because something
-   is off.
+1. **Confirm state.** Run the `dev/checkouts` start check: the launch
+   checkout is on `main`, clean, and fast-forwarded to `origin/main`;
+   otherwise stop and escalate per your launch mode. Read `branch:` (and
+   `worktree:`, present only for a sandbox clone) under `## Dev` on the
+   blackboard. If there is no branch because the implement step recorded
+   concrete `## Already satisfied` evidence, verify that evidence from the
+   repo, add a short `## Self-QA` note, run `coga mark done <slug>`, and
+   stop. Otherwise `git switch <branch>` (or, for a sandbox clone, work in
+   the clone) and confirm it is clean — the previous `code/implement` step
+   committed and pushed. If the branch is missing without already-satisfied
+   evidence, escalate per your launch mode — ask the attending human, or
+   `coga block` in a queue run — because something is off. From here until
+   you return to `main`, edit code only; keep review notes for the
+   blackboard until then.
 2. **Run `/code-review`.** Invoke the `/code-review` slash command at
    default effort against the branch's diff vs `main`. Note the findings;
    you'll address them in step 4. Do not use `/code-review ultra` here —
@@ -70,13 +72,13 @@ this step just makes sure the diff they see is already clean.
 5. **Re-run tests.** `python -m pytest` (and `coga validate --json`
    against the example fixture if validation behavior may have
    changed). If anything regressed, fix it before bumping.
-6. **Commit.** One commit summarizing the QA pass — e.g. `self-qa:
-   apply /code-review and /simplify findings`. If `/simplify` already
-   committed on its own, leave its commits as-is and add one more for
-   the residual `/code-review` fixes (if any).
-7. **Wait for the review to return, then bump from the primary
-   checkout.** A review that has been *started* is not a review that has
-   returned. If `/code-review` or `codex review --base main` is still running,
+6. **Commit and push.** One commit summarizing the QA pass — e.g.
+   `self-qa: apply /code-review and /simplify findings`. If `/simplify`
+   already committed on its own, leave its commits as-is and add one more
+   for the residual `/code-review` fixes (if any). Push the branch
+   (`--force-with-lease` if you rebased it).
+7. **Wait for the review to return, return to `main`, then bump.** A
+   review that has been *started* is not a review that has returned. If `/code-review` or `codex review --base main` is still running,
    wait for its findings and apply them (steps 4-6) before you bump. This is
    the step that owns that wait: the `pr` step which follows is mechanical, and
    by the time its agent is composed this session has already exited, so
@@ -85,16 +87,15 @@ this step just makes sure the diff they see is already clean.
    it — `code/open-pr` carries the matching refusal, but only this step can
    actually wait.
 
-   Then record the outcome in the `## Self-QA` note as durable evidence: which
+   Then record the outcome (on `main`, below) in the `## Self-QA` note as
+   durable evidence: which
    review form ran, that it **returned**, and what it found. A fresh session
    cannot otherwise tell a returned review from one still in flight, and the
    note is the only thing that crosses the session boundary. If you cannot wait,
    escalate per your launch mode — ask the attending human, or `coga block` in a
-   queue run — rather than bumping. Finally, return to the primary checkout
-   and run `coga bump <slug>` to advance to `pr` — in the single-checkout
-   layout (`dev/checkouts`: `worktree:` names the primary checkout itself) you are
-   already there, so stay on the feature branch and bump from it; do not
-   switch to the control branch first.
+   queue run — rather than bumping. Finally, run the `dev/checkouts`
+   end-of-step return to `main`, write the `## Self-QA` note there, and run
+   `coga bump <slug>` from `main` to advance to `pr`.
 
 ## Acceptance for this step
 
@@ -130,8 +131,8 @@ this step just makes sure the diff they see is already clean.
   human reviewer is one step away — leave the code in the safer state
   and note the disagreement on the blackboard.
 - Commit any edit under the live `coga/` tree (contexts, skills, the
-  recurring ticket templates) *before* running a `coga` command from the
-  feature worktree — a smoke run of `coga skill update`, say. Coga's state
+  recurring ticket templates) *before* running a `coga` command on the
+  feature branch — a smoke run of `coga skill update`, say. Coga's state
   sync treats every uncommitted `coga/` file as task state: it commits it
   as `Sync coga state` on the control branch too and pushes, which lands
   the live twin on `main` ahead of its packaged copy and turns

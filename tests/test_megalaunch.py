@@ -248,11 +248,10 @@ def test_megalaunch_resolves_op_secret_and_scrubs_1password_auth(
     assert not [key for key in captured_env if key in op_auth]
 
 
-def test_megalaunch_step_env_proves_single_checkout_owns_live_ticket(
+def test_megalaunch_step_env_pins_expected_task_and_step(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The expected-task witness admits the supported single-checkout path."""
-    from coga.open_pr import _checkout_mode
+    """Each spawned step carries the witness `coga bump` checks it against."""
     from coga.repl_supervisor import EXPECTED_STEP_ENV, EXPECTED_TASK_ENV
 
     cfg = load_config(repo)
@@ -268,27 +267,15 @@ def test_megalaunch_step_env_proves_single_checkout_owns_live_ticket(
     monkeypatch.setattr(
         "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
-    monkeypatch.setattr("coga.open_pr.same_git_checkout", lambda *args: True)
-    monkeypatch.setattr("coga.open_pr.is_linked_worktree", lambda *args: False)
 
     class _Session:
         exit_code = 0
         termination_kind = "natural"
 
     captured_env: dict[str, str] = {}
-    ownership: tuple[bool, str | None] | None = None
 
     def fake_spawn(cfg_, ref_obj, ticket, agent, **kwargs):  # type: ignore[no-untyped-def]
-        nonlocal ownership
         captured_env.update(kwargs["env"])
-        with monkeypatch.context() as child:
-            for key, value in captured_env.items():
-                child.setenv(key, value)
-            ownership = _checkout_mode(
-                cfg_,
-                recorded_worktree=str(cfg_.repo_root),
-                task_path=ref_obj.path,
-            )
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
         updated.frontmatter.pop("step", None)
@@ -302,7 +289,6 @@ def test_megalaunch_step_env_proves_single_checkout_owns_live_ticket(
     assert run.counts["completed"] == 1
     assert captured_env[EXPECTED_TASK_ENV] == str(Path(ref["path"]).resolve())
     assert captured_env[EXPECTED_STEP_ENV] == "1 (implement)"
-    assert ownership == (True, None)
 
 
 def test_megalaunch_step_env_refuses_stale_step_bump(

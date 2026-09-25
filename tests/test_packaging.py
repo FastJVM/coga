@@ -180,6 +180,13 @@ INTENTIONALLY_DIVERGENT_TWINS = {
         "The live copy is this repo's append-only audit trail; the packaged "
         "copy is the empty log a fresh repo starts with."
     ),
+    "coga/recurring/phone-home/ticket.md": (
+        "The live copy's `period_state:` carries this repo's telemetry run "
+        "counter, log offset, and digest, advanced by every weekly snapshot; "
+        "the packaged copy is the zero seed a fresh repo starts from. "
+        "test_phone_home_matches_seed_except_period_state_and_seed_is_unused "
+        "still pins every byte outside that one line and the seed's zero state."
+    ),
 }
 
 
@@ -893,14 +900,18 @@ def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
         )
 
 
-def test_phone_home_parent_header_matches_and_packaged_seed_is_unused():
+def test_phone_home_matches_seed_except_period_state_and_seed_is_unused():
     from coga.taskfile import read_blackboard
     from conftest import load_phone_home
     _state = load_phone_home()._state
     live = REPO_ROOT / "coga/recurring/phone-home/ticket.md"
     seed = REPO_ROOT / PACKAGED_ROOT / "recurring/phone-home/ticket.md"
-    fence = b"<!-- coga:blackboard -->"
-    assert live.read_bytes().split(fence)[0] == seed.read_bytes().split(fence)[0]
+    # Only the `period_state:` line is intentionally mutable; every other
+    # byte, blackboard prose included, must stay identical to the seed.
+    period_state = re.compile(rb"(?m)^period_state: .*$")
+    assert period_state.sub(b"period_state:", live.read_bytes()) == (
+        period_state.sub(b"period_state:", seed.read_bytes())
+    )
     state, _ = _state(read_blackboard(seed))
     assert state["run"] == state["offset"] == 0
     assert state["repo_id"] is None

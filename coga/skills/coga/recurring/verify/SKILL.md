@@ -63,7 +63,8 @@ under *What to check after a firing*, never the exit code alone.
 ## Build the sandbox
 
 Work from a scratch directory outside the repo. `$SRC` is the checkout
-holding the change — a feature worktree, or the primary checkout.
+holding the change — the launch checkout on the feature branch, or a
+sandbox clone.
 
 **Commit in `$SRC` first.** `git clone --bare` carries committed history
 only, so uncommitted work is absent from the sandbox — and the firing then
@@ -293,8 +294,8 @@ For a script-backed job:
 ## Rules that outlive the sandbox
 
 - **Do not fire a job in the live repo to test a change that has not merged.**
-- **Mutating `coga` commands run in the primary control checkout,** never in a
-  feature worktree. The sandbox is exempt because it is a disposable clone
+- **Mutating `coga` commands run on the control branch,** never on a
+  feature branch or in a sandbox clone. The sandbox is exempt because it is a disposable clone
   whose remote is a local path.
 - **Commit hand edits before any mutating `coga` command** — state sync sweeps
   a dirty tree into its own commit.
