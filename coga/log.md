@@ -6359,3 +6359,5 @@ fatal: Unable to add (null) to database
 2026-09-24 20:57 [stop-using-worktrees] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-24 20:57 [stop-using-worktrees] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-24 20:59 [run-the-landed-branch-sweep-daily-from-autoclose] [human:nicktoper] created (status=draft)
+2026-09-24 20:57 [stop-using-worktrees] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-24 21:23 [stop-using-worktrees] [agent:claude] advanced to step 2 (peer-review) → codex
