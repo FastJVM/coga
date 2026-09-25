@@ -76,7 +76,13 @@ reads a red suite as evidence here.
 ## Dev
 
 branch: ci/python311-floor
-worktree: /tmp/coga-python311-ci
+worktree: /home/n/Code/codex/coga-ci-python311
+pr: https://github.com/FastJVM/coga/pull/894
+
+Re-ported onto main 2026-09-24 in an orient session (old commit 28541821b was
+624 commits behind): guidance now lives in coga/testing and coga/packaging, and
+PR #894 also exempts the phone-home ticket's live `period_state` from the twin
+check. Local 3.11 run: 2933 passed + packaging suite green after the exemption.
 
 ## Implementation plan
 
