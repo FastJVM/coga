@@ -6453,3 +6453,4 @@ fatal: Unable to add (null) to database
 2026-09-25 11:19 [make-every-code-workflow-review-with-the-other-age] [human:nicktoper] created (status=draft)
 2026-09-25 11:14 [run-recurring-agent-templates-off-the-control-bran] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
 2026-09-25 11:19 [run-recurring-agent-templates-off-the-control-bran] [human:nicktoper] unblocked (blocked → active): Sibling reuse-the-existing-control-worktree-for-recurring merged as eb725dfa3 (PR #846); ## Context re-verified and updated 2026-09-25.
+2026-09-25 11:19 [run-recurring-agent-templates-off-the-control-bran] [agent:claude] blocked: Wait for stop-using-worktrees to merge. It removes linked worktrees from ordinary ticket work and decides the fate of the worktree: field, which changes known breaks #1 and #2 in ## Context. Unblock once it lands, re-verify those two breaks against merged code, then launch design.
