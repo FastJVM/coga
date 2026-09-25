@@ -180,8 +180,10 @@ PR yet** — the later `code/open-pr` step does that, after review and fixes.
 
 ## Gotchas
 
-- If the work is too big for one PR, **stop and split the ticket** on
-  the blackboard. Don't ship a half-implementation.
+- If the work is too big for one PR, **stop and escalate** per your
+  launch mode, naming the separable pieces on the blackboard. The owner
+  decides the scope; don't create tickets yourself or ship a
+  half-implementation.
 - If the test suite fails for reasons unrelated to your change, write
   it to the blackboard and escalate per your launch mode rather than
   masking it.
