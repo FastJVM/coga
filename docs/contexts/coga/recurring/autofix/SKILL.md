@@ -18,7 +18,10 @@ The console output is unchanged.
 1. **The run record is built, not scraped.** Per period task: how the launch
    ended (clean, timed out, failing `ticket.py`, unfinished, refused by
    `--force`, or `damaged-template`), the status afterwards, and the period
-   **blackboard**, plus templates that failed to load and sweep notes. Tee-ing
+   **blackboard**, plus templates that failed to load, failures observed
+   outside the launch loop (failed create syncs, periods created but never
+   launched, watchdog pauses) under `## Unresolved recurring failures`, and
+   sweep notes. Tee-ing
    fd 1 would make `isatty` false and break every agent launch, so the
    blackboard — the only durable per-run channel — is what carries detail.
    Successful runs contribute a report only if they write one; failures follow

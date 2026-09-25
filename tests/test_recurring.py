@@ -2309,7 +2309,8 @@ def test_recurring_scan_launches_even_when_create_sync_crashes(
     _patch_recurring_command_launch(monkeypatch, repo, fake_launch)
     monkeypatch.setattr(recurring_cmd, "_sync_recurring_create_paths", boom)
 
-    assert recurring_cmd.run_recurring_scan(cfg) == 0
+    # Launched, but the swallowed sync failure still fails the sweep.
+    assert recurring_cmd.run_recurring_scan(cfg) == 2
 
     assert launched == ["recurring/weekly-check"]
     captured = capsys.readouterr()
@@ -7060,7 +7061,7 @@ def test_forced_recurring_scan_reports_canceled_and_continues(
         ),
         delegate=None,
     )
-    scan = SimpleNamespace(forced=[canceled, later], due=[], tasks=[], errors=[], admission_skips=[])
+    scan = SimpleNamespace(forced=[canceled, later], due=[], tasks=[], errors=[], admission_skips=[], sync_problems=[])
     launched: list[str] = []
 
     monkeypatch.setattr(
@@ -7138,7 +7139,7 @@ def test_forced_recurring_scan_prepares_then_launches_task(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[task], due=[], tasks=[], errors=[], admission_skips=[]
+            forced=[task], due=[], tasks=[], errors=[], admission_skips=[], sync_problems=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -7228,7 +7229,7 @@ def test_recurring_scan_returns_failed_script_exit_without_unwinding(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[], due=[first, second], tasks=[], errors=[], admission_skips=[]
+            forced=[], due=[first, second], tasks=[], errors=[], admission_skips=[], sync_problems=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -7320,7 +7321,7 @@ def test_recurring_scan_records_the_stopping_task(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[], due=due, tasks=[], errors=[], admission_skips=[]
+            forced=[], due=due, tasks=[], errors=[], admission_skips=[], sync_problems=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -7412,7 +7413,7 @@ def test_recurring_scan_continues_past_an_unclassifiable_period(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[], due=[first, second, third], tasks=[], errors=[], admission_skips=[]
+            forced=[], due=[first, second, third], tasks=[], errors=[], admission_skips=[], sync_problems=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -7509,7 +7510,7 @@ def test_recurring_scan_names_due_tasks_abandoned_through_a_delegated_launch(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[], due=due, tasks=[], errors=[], admission_skips=[]
+            forced=[], due=due, tasks=[], errors=[], admission_skips=[], sync_problems=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -7591,7 +7592,7 @@ def test_recurring_scan_names_every_failed_template_in_the_run_record(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[], due=[first, second, third], tasks=[], errors=[], admission_skips=[]
+            forced=[], due=[first, second, third], tasks=[], errors=[], admission_skips=[], sync_problems=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -12629,3 +12630,234 @@ def test_recurring_relay_forwards_sigterm_and_waits_for_child(git_repo, tmp_path
                 os.kill(child_pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
+
+
+def test_recurring_create_lands_with_untracked_period_script(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """A control period dir without its `ticket.py` still takes the new create.
+
+    The shim-migration window: control tracks the prior period's `ticket.md`
+    but not the sibling `ticket.py` every firing copies from the template, so
+    the fresh create leaves that script untracked in a tracked directory.
+    Landing must not collide with it and resurrect the prior `done` period.
+    """
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _write_recurring_script(coga_os, "weekly-check")
+    _seed_global_log(git_repo)
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+
+    cfg = load_config(coga_os)
+    prior = create_named(cfg, "weekly-check", now=datetime(2026, 6, 1, 10, 0))
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", prior.ref)
+    _finish_period_task(coga_os, prior.ref.id_slug)
+    task_rel = f"coga/tasks/{prior.ref.id_slug}"
+    git_repo.git("rm", "--cached", f"{task_rel}/ticket.py")
+    git_repo.git("commit", "-m", "period dir from before the ticket.py shim")
+    git_repo.git("push", "origin", "main")
+    (prior.ref.path / "ticket.py").unlink()
+    assert git_repo.git("status", "--porcelain") == ""
+
+    observed: list[tuple[str, str, str]] = []
+
+    def fake_launch(slug: str, **kwargs):  # type: ignore[no-untyped-def]
+        ticket = Ticket.read(coga_os / "tasks" / slug / "ticket.md")
+        observed.append(
+            (
+                ticket.status,
+                git_repo.git("status", "--porcelain"),
+                git_repo.git("ls-files", f"{task_rel}/ticket.py"),
+            )
+        )
+        _finish_period_task(coga_os, slug)
+        return None
+
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))
+    _patch_recurring_command_launch(monkeypatch, coga_os, fake_launch)
+    monkeypatch.setattr(
+        "coga.recurring_runner._launch_script_task",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("script path")),
+        raising=False,
+    )
+
+    code = recurring_cmd.run_recurring_scan(load_config(coga_os))
+
+    captured = capsys.readouterr()
+    assert "[git] sync failed" not in captured.err
+    assert "skip (done)" not in captured.out
+    assert observed, captured.out + captured.err
+    status, porcelain, tracked = observed[0]
+    assert status == "active"
+    assert tracked.strip() == f"{task_rel}/ticket.py"
+    assert porcelain == ""
+    assert code == 0
+
+
+def test_recurring_sweep_reports_create_sync_failure_as_problem(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """A create sync that fails through the offline fallback fails the run.
+
+    The period still launches — the task on disk is the source of truth — but
+    `problems: 0` beside a printed `[git] sync failed` is what let a wedged
+    sweep go unnoticed for a day.
+    """
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _write_recurring(
+        coga_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _seed_global_log(git_repo)
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+
+    def fail_fetch(*args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        raise coga_git.GitError("simulated offline remote")
+
+    def fail_publish(*args: object, **kwargs: object) -> None:
+        raise coga_git.GitError("simulated fallback failure")
+
+    launched: list[str] = []
+    records = []
+
+    def fake_launch(slug: str, **kwargs):  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        ticket_path = coga_os / "tasks" / slug / "ticket.md"
+        finished = Ticket.read(ticket_path)
+        finished.frontmatter["status"] = "done"
+        finished.write(ticket_path)
+        return None
+
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))
+    _patch_recurring_command_launch(monkeypatch, coga_os, fake_launch)
+    monkeypatch.setattr(recurring_cmd.git, "fetch_control", fail_fetch)
+    monkeypatch.setattr(coga_git, "_publish_locked", fail_publish)
+    monkeypatch.setattr(
+        recurring_cmd, "run_autofix", lambda cfg, record, **kw: records.append(record)
+    )
+
+    assert recurring_cmd.run_recurring_scan(load_config(coga_os)) == 2
+
+    assert launched == ["recurring/weekly-check"]
+    assert "[git] sync failed: simulated fallback failure" in capsys.readouterr().err
+    text = records[-1].render()
+    assert "- problems: 1" in text
+    assert "## Unresolved recurring failures" in text
+    assert (
+        "- `recurring/weekly-check`: create sync to the control branch failed: "
+        "simulated fallback failure"
+    ) in text
+
+
+def test_recurring_sweep_refuses_contradictory_done_skip(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """A failed landing that leaves the prior `done` ticket is an error.
+
+    The shape of the 2026-08-26 report: the sweep replaced last period's done
+    task, its sync failed and put that ticket back, and the table then printed
+    `skip (done)` for a period created seconds earlier.
+    """
+    cfg = load_config(repo)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    ticket_path = first.tasks[0].ref.ticket_path
+    prior = Ticket.read(ticket_path)
+    prior.frontmatter["status"] = "done"
+    prior.frontmatter.pop("step", None)
+    prior.write(ticket_path)
+    prior_bytes = ticket_path.read_bytes()
+
+    def resurrecting_sync(cfg, template_name, ref, **kwargs):  # type: ignore[no-untyped-def]
+        kwargs["sync_failures"].append("could not detach HEAD")
+        ref.ticket_path.write_bytes(prior_bytes)
+        return True
+
+    launched: list[str] = []
+    records = []
+    _allow_interactive_recurring(monkeypatch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
+    _patch_recurring_command_launch(
+        monkeypatch, repo, lambda slug, **kwargs: launched.append(slug)
+    )
+    monkeypatch.setattr(recurring_cmd, "_sync_recurring_create", resurrecting_sync)
+    monkeypatch.setattr(
+        recurring_cmd, "run_autofix", lambda cfg, record, **kw: records.append(record)
+    )
+
+    assert recurring_cmd.run_recurring_scan(cfg) == 2
+
+    assert launched == []
+    error = (
+        "error (created this period but its failed create sync left a done "
+        "ticket in its place)"
+    )
+    out = capsys.readouterr().out
+    assert "skip (done)" not in out
+    assert error in out
+    text = records[-1].render()
+    assert "skip (done)" not in text
+    assert error in text
+    # The failed sync and the period it cost are two problems.
+    assert "- problems: 2" in text
+    assert "create sync to the control branch failed: could not detach HEAD" in text
+    assert "created this sweep but never launched" in text
+
+
+def test_forced_sweep_keeps_admission_skip_after_create_sync_failure(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """`--force` reconciles existing tasks, so it never trips the detector."""
+    cfg = load_config(repo)
+    scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    task = scan.tasks[0]
+    ticket_path = task.ref.ticket_path
+
+    def rewriting_sync(cfg, template_name, ref, **kwargs):  # type: ignore[no-untyped-def]
+        kwargs["sync_failures"].append("simulated")
+        rewritten = Ticket.read(ref.ticket_path)
+        rewritten.frontmatter["status"] = "done"
+        rewritten.write(ref.ticket_path)
+        return True
+
+    monkeypatch.setattr(recurring_cmd, "_sync_recurring_create", rewriting_sync)
+
+    recurring_cmd._broadcast_scan(cfg, scan, respect_handled_period=False, sync_existing=True)
+
+    assert task.period_contradiction == ""
+    assert [reason for _, reason in scan.admission_skips] == [
+        "changed on control during admission"
+    ]
+    assert ticket_path.is_file()

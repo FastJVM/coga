@@ -11,6 +11,7 @@ import pytest
 
 from coga import recurring_autofix as autofix
 from coga.config import AgentType, load_config
+from coga.recurring import DueScan, DueTask
 from coga.recurring_autofix import (
     Analysis,
     RunRecord,
@@ -19,7 +20,9 @@ from coga.recurring_autofix import (
     build_analyze_command,
     build_prompt,
     parse_analysis,
+    scan_lines_for_record,
 )
+from coga.tasks import TaskRef
 
 from tests.test_recurring import (  # noqa: F401 — shared repo fixture
     _write_recurring,
@@ -666,6 +669,24 @@ def test_an_on_demand_run_is_not_labelled_a_sweep() -> None:
     assert "# Recurring launch: dream" in text
     assert "on-demand `coga recurring launch dream`" in text
     assert "templates scanned" not in text
+
+
+def test_record_scan_reports_a_contradictory_create_as_an_error() -> None:
+    """A created period read back closed renders an error, not `skip (done)`."""
+    task = DueTask(
+        template="digest",
+        ref=TaskRef(slug="digest", path=Path("/nowhere/digest"), directory="recurring"),
+        last_fire=datetime(2026, 8, 26, 9, 0, 0),
+        created=True,
+        status="done",
+        period_key="2026-08-26",
+        period_contradiction="created this period but ticket is done",
+    )
+
+    [line] = scan_lines_for_record(DueScan(tasks=[task], errors=[]))
+
+    assert line.endswith("error (created this period but ticket is done)")
+    assert "skip (done)" not in line
 
 
 def test_prompt_lists_open_autofix_tickets_for_dedupe() -> None:
