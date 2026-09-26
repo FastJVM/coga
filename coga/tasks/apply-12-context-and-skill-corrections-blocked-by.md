@@ -1,7 +1,7 @@
 ---
 title: Apply 12 context and skill corrections blocked by open PRs (codebase, sync,
   current-direction, open-pr)
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
