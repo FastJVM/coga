@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -64,3 +64,26 @@ branch: docs/command-classification
   align the audit's interpretation and provenance. Codebase and
   current-direction no longer repeat the stale claim; no edit needed there.
 - Verify twins and run the full pytest suite, then push and return to main.
+
+## Implementation handoff
+
+- Corrected extension-model and its packaged twin: megalaunch is one of
+  several unresolved command placements. The table covers ticket,
+  retire/slack, read/report heads, support heads, and skill tooling, and names
+  their parked cleanup reviews. Shared infrastructure and launch trust hooks
+  keep their independent justification; no commands moved or changed behavior.
+- AGENTS.md and CLAUDE.md now point to that owner instead of repeating a
+  classification inventory. The audit distinguishes implementation mechanism
+  from permanent placement and fixes its obsolete context-home/twin claim.
+- No edits to codebase or current-direction: neither still contains the
+  disputed statement. No fixture changes or new tests were needed for this
+  documentation-only correction.
+- Verification: `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest`
+  passed: **2945 passed in 180.84s**. `git diff --check`, `cmp AGENTS.md CLAUDE.md`,
+  and `cmp docs/contexts/coga/extension-model/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md`
+  passed. The full suite includes packaging/twin coverage.
+- Branch pushed; rebased onto latest origin/main. Only an audit-log commit
+  arrived after testing; post-rebase twin comparisons and whitespace checks
+  passed. Launch checkout returned to clean main before this handoff.
+- No PR opened, as required for implement. Peer review should assess the
+  placement wording; permanent-home proofs and migrations remain deferred.
