@@ -29,18 +29,19 @@ consumer applied it correctly; actual human merge and accepted-knowledge
 reuse remain pending. Apply this evidence when reading
 the CE comparison below; the other product combinations have not been run.
 
-The marketing [positioning principle](../contexts/marketing/positioning/SKILL.md)
-and [comparative ratings](../contexts/marketing/positioning/SKILL.md)
-summarize this research for the writing work. Ratings distinguish fit for the
-discussed workflow from an existing user's reason to adopt Coga; they do not
-rank overall product quality or claim measured superiority.
+The positioning principle and comparative ratings drawn from this research
+for the writing work are recorded only on this page; the owner decision of
+2026-09-21 in [positioning](../contexts/marketing/positioning/SKILL.md)
+supersedes them. Ratings distinguish fit for the discussed workflow from an
+existing user's reason to adopt Coga; they do not rank overall product quality
+or claim measured superiority.
 
 ## Switching value of the two central ideas — 2026-09-13
 
-The owner asks whether [chosen delegation and understandable ownership](../contexts/marketing/positioning/SKILL.md)
-are compelling reasons to switch. **Together they give Coga a strong
-potential adoption motive for a particular user: delegate a job on your
-terms, with the means of directing it in a form you can read and change.**
+The owner asks whether chosen delegation and understandable ownership (see
+[pitch evaluation](pitch-evaluation.md)) are compelling reasons to switch.
+**Together they give Coga a strong potential adoption motive for a particular
+user: delegate a job on your terms, with the means of directing it in a form you can read and change.**
 They give a satisfied user of an equally adaptable setup little immediate
 reason to leave. This is a judgment about motivation, informed by the
 product comparisons; conversion and preference have not been measured.
@@ -89,8 +90,8 @@ endorsed pitch and explanation while developing this concrete reason to try.
 
 ## Worked comparison: asynchronous delegation — 2026-09-13
 
-**September 14 synthesis:** the owner's
-[message hierarchy](../contexts/marketing/positioning/SKILL.md)
+**September 14 synthesis:** the owner's message hierarchy (see
+[pitch evaluation](pitch-evaluation.md#marketing-ladder-assessment--2026-09-14))
 uses megalaunch to demonstrate the immediate payoff and the editable
 working method to explain the product's depth. Show the queue progressing
 around blockers, then how the operator defines and changes that delegation.

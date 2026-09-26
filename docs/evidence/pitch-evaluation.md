@@ -9,8 +9,9 @@ explanatory paragraph for the Bookface/newsletter writing work:
 
 **Owner's further clarification, September 13:** the two central ideas are
 choosing the level and manner of delegated responsibility, and owning a
-system one can understand and change. Read the
-[maintained statement](../contexts/marketing/positioning/SKILL.md).
+system one can understand and change. This page is the record of that
+statement; the owner decision of 2026-09-21 in
+[positioning](../contexts/marketing/positioning/SKILL.md) supersedes it.
 Legible instructions, knowledge, state and tooling make control over
 delegation practical. Preserve this connection when developing the endorsed
 explanation below; the competitive findings remain evidence about its
@@ -341,7 +342,8 @@ limits.
 
 ## Marketing ladder assessment — 2026-09-14
 
-The owner asks for the [whole message hierarchy](../contexts/marketing/positioning/SKILL.md)
+The owner asks for the whole message hierarchy (recorded only here; the
+2026-09-21 [positioning](../contexts/marketing/positioning/SKILL.md) supersedes it)
 to be evaluated against the discussed tools. **Keep this ladder. It is the
 strongest marketing structure developed in this discussion:** a concrete
 reason to try, an explanation of how the operator shapes the work, and a
@@ -611,8 +613,8 @@ proposes improvements for you to review and merge. Better agents can take
 on more responsibility while you keep directing the work through files you
 control.
 
-The maintained copy is in
-[positioning](../contexts/marketing/positioning/SKILL.md).
+This page is the only record of this draft; the owner decision of
+2026-09-21 in [positioning](../contexts/marketing/positioning/SKILL.md) supersedes it.
 The owner also positively received this revised explanation on September 13.
 It remains the leading working explanation for the writing ticket. It
 describes editable work direction, not complete ownership of every underlying
