@@ -1,6 +1,6 @@
 ---
 title: coga build fails after init on a GitHub-scaffolded repo
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
