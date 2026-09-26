@@ -8,13 +8,14 @@ description: The settled rules for where a Coga capability lives (kernel, statef
 The Python package (`src/coga/`) is a microkernel. Everything else user-facing
 is a ticket, a command ticket, a skill describing how to invoke something, or
 an external tool. Aliases are argv sugar, not a home. The dated verb-by-verb
-inventory and open classifications are in `docs/design/cli-extension-audit.md`;
+inventory is in `docs/design/cli-extension-audit.md`;
 the unshipped external-surface proposal (verify-at-compose, extraction) is in
 `docs/design/cli-external-surface.md`. Neither is settled rule.
 
 ## The microkernel rule
 
-`src/coga/` holds only two kinds of code:
+Code earns a permanent home in `src/coga/` in two ways. Existing command
+heads awaiting that decision are recorded under “Open command placements” below.
 
 1. **Shared infra with at least two real consumers**: compose, config,
    task/ticket IO, the launch machinery, shared parsers and gates (for example
@@ -38,12 +39,29 @@ never executable launch plugins.
   that adds it migrates the existing duplicates onto it in the same PR.
 - **The consumer test can keep a symbol in core.** When an implementation
   moves to the edge, any helper it shares with another core consumer stays.
-- `coga megalaunch` has no `RECIPES` entry and is the one unclassified
-  in-package implementation. Its placement is deferred to the parked
-  `coga/tasks/v2/cleanup-core-commands/` design (one paused ticket plus five
-  drafts, off the execution path per `coga/tasks/v2/README.md`). It stays in
-  core until that design is pulled forward. This is recorded status, not a
-  migration in flight.
+
+## Open command placements
+
+`megalaunch` is not the only in-package command whose permanent home is
+unsettled. The following command heads have no `runner.RECIPES` entry or
+ratified command-specific co-versioning proof. Their existing package
+residence is provisional; registration as a built-in, Python logic, side
+effects, or calling shared infrastructure does not settle their placement.
+
+| Command surface | Open decision | Parked cleanup review |
+| --- | --- | --- |
+| `megalaunch`, `retire`, `slack` | Placement of queue orchestration, retire-task creation/launch, and the user-facing notification head | `work-orchestration-commands-to-tickets` |
+| `ticket` | Whether the authoring coordinator requires co-versioning or can live at the edge | `residual-command-surfaces` |
+| `show`, `status`, `validate`, `usage`, `recurring list` | Placement of the read/report heads, separately from shared rendering and validation infrastructure | `read-report-commands-as-ticket-workflows` |
+| `secret get`, `uninstall` | Placement of acquisition/inspection and removal tooling, separately from launch-time secret injection | `support-commands-boundary` |
+| `skill *` | Explicit tooling classification; excluded from the current migration push, without a ratified permanent package-home proof | `residual-command-surfaces` |
+
+These reviews live under `coga/tasks/v2/cleanup-core-commands/`, off the
+execution path per `coga/tasks/v2/README.md`. Commands stay where they are
+until a reviewed change settles their placement. The parked drafts are dated
+proposals, not authority to migrate them or to replace the current kernel
+boundary below. Shared helpers and launch-time trust hooks retain their own
+kernel justification independently of the user-facing heads that call them.
 
 ## Choosing a home
 
