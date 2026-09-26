@@ -7,40 +7,29 @@ As you learn, you update the work. Coga carries those changes into the next agen
 
 There are hundreds of tools for working with agents. I built Coga because I couldn't find one built for work where the answer isn't known yet. Coga helps you create knowledge as you work, capture what you learn, and feed it back into the work so each new agent starts from a better place.
 
-## One piece of work
+## Getting Started
 
-An illustrative walkthrough; the file names are the ones Coga uses with its
-default layout.
+```sh
+coga build
+coga ticket my_first_ticket
+coga launch init
+```
 
-1. **Start from an incomplete idea.**
-   `coga ticket "Weekly summary of failed payments"` opens a guided
-   conversation. The AI asks what counts as failed, who reads the summary, and
-   what done means, then writes the answers into a ticket,
-   `coga/tasks/weekly-summary-of-failed-payments.md`: a Description, the
-   knowledge it should use (say, the `payments/stripe` context), and a
-   workflow of steps with an owner review.
-2. **Direct the execution.** `coga launch weekly-summary-of-failed-payments`
-   builds the prompt from that ticket, its attached contexts, the current
-   step's instructions and the ticket's blackboard, then starts Claude Code or
-   Codex. The agent does the step, notes its plan and findings on the
-   blackboard in the same file, and hands off at your review.
-   `coga launch <ticket> --prompt-report` shows what was assembled before
-   anything runs.
-3. **Inspect and correct.** You notice the summary counts charges that failed
-   once and then succeeded on retry. You fix this week's result on the ticket,
-   and you fix the reason: one line in
-   `coga/contexts/payments/stripe/SKILL.md` — "a charge that succeeds on
-   retry is not a failure" — committed like any other change.
-4. **Carry it forward.** The next ticket that attaches `payments/stripe`
-   is composed from the corrected file. Nothing was learned invisibly: the
-   ticket, its blackboard, the context diff and the entries in `coga/log.md`
-   are ordinary files you can read, review and revert.
+`coga build` is a guided discussion about your project and your goals. It turns that discussion into tickets, contexts and workflows.
 
-Conversation, planning and execution are all part of this. Tickets, contexts,
-skills, workflows, markdown and Git are how it works; the
-[documentation](docs/README.md) explains each.
+Everything it creates is just files in your repo. Edit them directly with any text editor, or use coga ticket <name> when you want to work through a ticket with an agent.
 
-## Install and start
+What it creates is far from perfect — that's the point. It gives you a structure to work from, exposes how agents understand your project and how they would approach it, and gives you something concrete to correct as your own understanding changes.
+
+coga launch <ticket> works through the ticket by launching an agent. It assembles the prompt from the ticket, relevant context, workflow instructions and working state.
+
+When the work teaches you something worth keeping, you decide what should change. Edit it yourself, ask an agent to propagate that new understanding through the project, or let Coga surface and carry it forward through its recurring work.
+
+## Install
+
+## Getting Started
+
+## Concepts
 
 Coga needs Python 3.11+, Git, and an authenticated
 [Claude Code](https://claude.com/claude-code) or
