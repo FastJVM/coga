@@ -16,8 +16,16 @@ coga validate --json                 # or: python -m coga.validate --json
 
 Coga needs Python 3.11+ (`tomllib`); an older interpreter fails loud. If pip's
 hash-checking mode blocks the editable install, use `uv` or prefix the one
-command with `PIP_REQUIRE_HASHES=0`. Run `coga validate --json` after config,
-workflow, or task-model changes.
+command with `PIP_REQUIRE_HASHES=0`. A venv made with `uv venv` (or
+`python -m venv --without-pip`) has no `pip`, which the wheel tests need; run
+`python -m ensurepip` (or `uv pip install pip`) in it first. Run
+`coga validate --json` after config, workflow, or task-model changes.
+
+**Validate `example/coga` with `env -u SLACK_WEBHOOK_URL coga validate --json`**
+when your shell exports that variable. The fixture has notifications off, and
+the config-load guard rejects a bare exported `SLACK_WEBHOOK_URL` with no
+`webhook` key ([coga/notifications](../notifications/SKILL.md)). Unset the
+variable for the one command; do not edit the fixture's config to satisfy it.
 
 ## Which code you are actually testing
 
@@ -74,7 +82,9 @@ workflow, or task-model changes.
 - `hatchling` is a tracked test extra, not a runtime dependency, because
   `tests/test_packaging.py::test_wheel_includes_bootstrap_batteries` builds
   with `--no-build-isolation` and fails (not skips) without it; see
-  [coga/packaging](../packaging/SKILL.md).
+  [coga/packaging](../packaging/SKILL.md). The wheel tests shell out to
+  `python -m pip`, so they also fail with `No module named pip` in a
+  pip-less venv; see Commands above.
 
 ## CI posture and receipts
 
@@ -112,6 +122,12 @@ and counts, for example `PYTHONPATH=$PWD/src python3.12 -m pytest` ->
 
 - `codex review --base main` fails in a read-only app-server sandbox; rerun
   unsandboxed.
+- **`codex review`'s own test attempt is expected to fail collection** (for
+  example `No module named 'tomlkit'`): it runs pytest under an ambient
+  interpreter without Coga's dependencies. That is not a finding against the
+  branch and does not void the review verdict. Run the suite yourself with a
+  Coga-capable interpreter (`PYTHONPATH=$PWD/src .venv/bin/python -m pytest`)
+  and record that command and count as the evidence.
 - State-changing commands (`create`, `bump`, `mark`) fail when the sandbox
   forbids `.git/index.lock`; rerun unsandboxed or grant `.git` write access.
 - When `git worktree add` cannot write the primary `.git`, use the
