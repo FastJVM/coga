@@ -1,6 +1,6 @@
 ---
 title: Record four repeated dev-loop verification gotchas in the coga codebase context
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
