@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -76,3 +76,19 @@ Pushed `init-hosting-scaffold-empty` (commit "Treat hosting scaffold as empty on
 - Tests: `test_init_hosting_scaffold_repo_seeds_onboarding`, `test_repo_is_empty_true_for_hosting_scaffold`, `test_repo_is_empty_false_for_real_readme` (parametrized), `test_launch_missing_onboarding_ticket_explains_filled_init`, `test_launch_missing_ordinary_task_keeps_bare_miss`. Existing "filled" tests used a `README.md` containing "hi" (now scaffold) and were switched to `main.py`.
 - Verification: `.venv/bin/python -m pytest -q` passes, 2951 tests.
 - Process note: the first pre-branch sync ran under the wrong interpreter (the global `python` lacks coga), and a chained `git switch` briefly carried the dirty ticket onto the branch. I switched back, published with `.venv/bin/python`, and reset the branch to the synced main before any work.
+
+## Peer review
+
+- `codex review --base main` returned successfully with no actionable regressions. Its focused run, `.venv/bin/python -m pytest tests/test_init.py tests/test_launch.py tests/test_packaging.py -q`, passed all 314 tests. No must-fix findings or code edits.
+- Fetched origin/main and rebased unconditionally; `git range-diff 50a4fc67e^..50a4fc67e HEAD^..HEAD` confirmed the reviewed patch was unchanged. Final commit: `1f05535ba`, pushed with `--force-with-lease`.
+- Post-rebase `.venv/bin/python -m pytest -q`: 2951 passed in 173.67s. `git diff --check`: clean.
+- Actual CLI smoke in disposable Git repos: `python -m coga.cli init <path> --user reviewer` exited 0 for both README+LICENSE-only and filled (`main.py`) repositories. Scaffold-only init printed the build next step and `resolve_target(..., "coga-build")` resolved. Filled init printed that build was unavailable; `python -m coga.cli build` expanded the alias and exited 2 with the onboarding explanation and `coga ticket "<title>"` remedy. These are plain CLI messages, with no raw-terminal, pager, or interactive rendering changes. Smoke used the checkout venv, absolute PYTHONPATH, and cleared launch-owned/Slack environment variables.
+- Canonical init documentation and packaged twin match. The CLI index already delegates init/build to that owner. Returned to clean, current `main` before writing this handoff.
+
+## PR
+
+Fix first-run onboarding in GitHub-scaffolded repositories: init now treats README stubs (at most 3 non-blank lines and under 1024 bytes), license files, and `.gitattributes` as scaffold, preserving the `coga-build` ticket. The deliberate tradeoff is that a project containing only a tiny README also receives the removable onboarding ticket.
+
+When onboarding is absent, `coga build` explains why existing-project initialization skips it and directs users to `coga ticket`; init also announces that build is unavailable. Update the canonical init contract and packaged twin, with regression coverage for scaffold detection and missing-ticket diagnostics.
+
+Test plan: `.venv/bin/python -m pytest -q` (2951 passed); `git diff --check`; actual init/build CLI smoke in temporary scaffold-only and filled Git repositories.
