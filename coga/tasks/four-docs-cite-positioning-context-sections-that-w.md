@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -78,3 +78,32 @@ approved positioning that supersedes it. No sections restored to positioning.
   uncommitted. I switched back to main at once, published with the coga tool
   interpreter (`~/.local/share/uv/tools/coga/bin/python`), and only then
   switched again. Nothing was lost.
+
+## Peer review
+
+- `codex review --base main` returned successfully with no findings. It confirmed
+  that the docs distinguish historical pitch evaluations from current positioning
+  and that the updated links resolve. The sandbox runtime initialization failed
+  on the first attempt; the approved retry completed.
+- Manually checked the four-document diff against the owner-approved plan and
+  verified the message-hierarchy heading target. No runtime or interactive
+  surface changed; no terminal UI exercise was applicable. No fixes required.
+- Refreshed with `git fetch origin main` and `git rebase FETCH_HEAD` successfully.
+  `.venv/bin/python -m pytest -q`: 2945 passed in 198.01s.
+  `git diff --check` passed.
+- Pushed with `git push --force-with-lease -u origin fix-positioning-owner-links`;
+  branch head: `8eece603c`. Returned to clean, current `main`. Subsequent main
+  updates contained only another ticket's state and audit log.
+- Handoff clarification: adoption-trial marks the candidate superseded; it does
+  not say it is the only record, as the implement handoff had stated.
+
+## PR
+
+The four dated evidence docs named positioning as the maintained owner of pitch
+statements that were never committed there. Mark those statements as superseded
+by the September 21 owner decision, preserve their historical record in the
+evidence docs, and point the central-ideas and message-hierarchy references to
+pitch evaluation. The approved positioning topic stays unchanged.
+
+Test plan: `.venv/bin/python -m pytest -q` (2945 passed); `git diff --check`;
+manual link-target inspection; `codex review --base main` returned no findings.
