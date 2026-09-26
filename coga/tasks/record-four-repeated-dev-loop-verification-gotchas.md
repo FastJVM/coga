@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -100,3 +100,35 @@ Verification: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q` ->
 
 Housekeeping: at start, the launch's own `launched` line in `coga/log.md` was
 unpublished. The owner approved it, and the pre-branch state sweep published it.
+
+
+## Peer review
+
+`codex review --base main` returned successfully with no actionable findings.
+Its targeted verification used the checkout venv successfully:
+`PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_recurring.py::test_control_worktree_is_removed_and_unregistered_after_the_run tests/test_packaging.py -q`
+-> `24 passed`. No review fixes were needed. The change touches documentation
+and test isolation only; no terminal or rendered interaction needs manual QA.
+
+Fetched `origin/main` and rebased unconditionally onto `5af4b2576`; no conflicts.
+Post-rebase verification:
+- `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q` -> `2945 passed`.
+- From `example/coga`:
+  `env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json`
+  -> `ok_count: 4`, no issues.
+- `git diff --check` -> clean.
+
+Rebased commit `f5a52825b` was pushed with `--force-with-lease`; checkout
+returned to clean `main` before writing this handoff.
+
+## PR
+
+Isolate the recurring cleanup test's temporary directory so stale worktrees
+from earlier runs cannot cause false failures. Record the reviewer dependency,
+pip-less venv, and inherited Slack webhook verification gotchas in
+`coga/testing`, with a pointer from `code/self-qa`; keep both packaged twins
+byte-identical.
+
+Test plan: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q` -> 2945 passed;
+seeded fixture validation with `env -u SLACK_WEBHOOK_URL` -> 4 OK, no issues;
+`git diff --check` clean.
