@@ -39,6 +39,28 @@ Correction (same finding): `coga/current-direction` has **no** packaged twin —
 
 ## Context
 
+Cited rather than attached: `coga/extension-model`
+(`docs/contexts/coga/extension-model/SKILL.md`), especially “The microkernel
+rule” and “Choosing a home”, owns placement; the classification table in
+`docs/design/cli-extension-audit.md` records implementation evidence.
+`src/coga/cli.py`'s `app` registrations expose the disputed command heads;
+`src/coga/runner.py`'s `RECIPES` gives none of them a registered-recipe home.
+The registration proves current implementation, not permanent placement.
+
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: docs/command-classification
+
+## Implementation plan
+
+- PRs #857 and #848 are merged. Fresh main still claims megalaunch is the
+  only unclassified implementation, while the audit and parked cleanup
+  reviews leave other command heads unresolved.
+- Correct the owning extension-model topic and packaged twin; distinguish
+  current package residence from a ratified kernel home. Keep the parked
+  cleanup work deferred and preserve runtime behavior.
+- Replace the AGENTS.md / CLAUDE.md restatements with an owner pointer and
+  align the audit's interpretation and provenance. Codebase and
+  current-direction no longer repeat the stale claim; no edit needed there.
+- Verify twins and run the full pytest suite, then push and return to main.
