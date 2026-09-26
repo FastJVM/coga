@@ -57,3 +57,13 @@ _Merged duplicate from ks-28 ("`coga validate` on `example/` needs `env -u SLACK
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: record-dev-loop-verification-gotchas
+
+Plan (agreed with owner 2026-09-25): F34 fixed in the test itself (private
+`tempfile.tempdir` under `tmp_path`) rather than documented; F37/F38/F39 as
+bullets in `coga/testing` (live + packaged twin), plus a pointer from
+`code/self-qa` for F37. The findings' `coga/codebase` targets moved to
+`coga/testing` before implementation.
