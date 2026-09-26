@@ -43,9 +43,16 @@ Then init:
    `[layout] contexts` (the shipped template does not). The destination must
    not already exist or be ignored.
 3. Seeds the `coga-build` onboarding ticket only when the target was empty
-   (nothing but `.git`, `.DS_Store`, and init's own outputs) and is not a
-   nested init. A filled repo has it pruned. `owner: new-user` placeholders
-   are stamped with your name.
+   and is not a nested init. Empty means nothing but `.git`, `.DS_Store`,
+   init's own outputs, and hosting-provider scaffold: any top-level
+   `LICENSE*`/`LICENCE*`/`COPYING*`, `.gitattributes`, and a stub `README*`
+   (at most 3 non-blank lines and under 1 KB, like GitHub's `# <name>`). A
+   larger README is a real project README. The size gate trades a stray
+   onboarding ticket for a README-only project against losing onboarding on
+   a freshly scaffolded repo. A filled repo has the ticket pruned, and init
+   says `coga build` is unavailable. There, `coga build` exits 2 explaining
+   that onboarding was skipped and pointing at `coga ticket`. `owner:
+   new-user` placeholders are stamped with your name.
 4. Writes `coga/coga.local.toml` (gitignored) with `user = "<name>"`.
 5. Pins `[git] control_branch` when the default `main` is absent and Git
    makes the answer unambiguous: the unborn HEAD of a ref-less repo with no

@@ -32,6 +32,7 @@ from uuid import uuid4
 import typer
 
 from coga import usage as usage_tracking
+from coga.aliases import ONBOARDING_TASK, onboarding_missing_message
 from coga.agent_skills import refresh_agent_skill_view
 from coga.autoclose import parse_branch_name, parse_pr_url, parse_worktree_path
 from coga.bump import (
@@ -727,6 +728,13 @@ def _launch(
     try:
         ref = resolve_target(cfg, task)
     except TaskNotFoundError as exc:
+        # `coga build` rewrites to `launch coga-build`; on a repo init
+        # classified as filled the ticket was never seeded, and the bare
+        # resolver miss gives no hint why.
+        if task == ONBOARDING_TASK and not any(
+            t.id_slug.startswith(task) for t in list_tasks(cfg)
+        ):
+            _bail(f"{exc}\n{onboarding_missing_message()}")
         _bail(str(exc))
 
     if (

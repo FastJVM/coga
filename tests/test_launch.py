@@ -2333,6 +2333,29 @@ def test_direct_recurring_delegate_rejects_period_ticket_script(
     assert Ticket.read(ticket_path).status == "active"
 
 
+def test_launch_missing_onboarding_ticket_explains_filled_init(
+    active_task: Path,
+) -> None:
+    """`coga build` → `launch coga-build` on a repo init classified as filled
+    names why the onboarding ticket is absent and what to do instead, rather
+    than the bare resolver miss."""
+    result = CliRunner().invoke(app, ["launch", "coga-build"])
+
+    assert result.exit_code == 2
+    assert "No task matches 'coga-build'" in result.output
+    assert "initialized as an existing project" in result.output
+    assert 'coga ticket "<title>"' in result.output
+
+
+def test_launch_missing_ordinary_task_keeps_bare_miss(active_task: Path) -> None:
+    """Only the onboarding slug gets the init explanation."""
+    result = CliRunner().invoke(app, ["launch", "no-such-task"])
+
+    assert result.exit_code == 2
+    assert "No task matches 'no-such-task'" in result.output
+    assert "onboarding" not in result.output
+
+
 def test_launch_refreshes_launch_checkout_on_exit(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

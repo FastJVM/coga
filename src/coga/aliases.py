@@ -38,6 +38,24 @@ BUILTIN_COMMANDS: frozenset[str] = frozenset(
 )
 
 
+# Slug of the first-run onboarding ticket ``coga init`` seeds on an empty repo
+# and prunes on a filled one. Shared by the ``build`` alias below, init's
+# seed/prune step, and launch's missing-ticket explanation.
+ONBOARDING_TASK = "coga-build"
+
+
+def onboarding_missing_message() -> str:
+    """Explain a `coga build` miss: init pruned the onboarding ticket."""
+    return (
+        f"The {ONBOARDING_TASK!r} onboarding ticket is not in this repo, so "
+        "`coga build` has nothing to launch. `coga init` seeds it only on an "
+        "empty repo (no project content beyond a stock README, LICENSE, "
+        "or .gitattributes); this repo was initialized as an existing "
+        "project, so onboarding was skipped. Author tasks with "
+        '`coga ticket "<title>"` instead.'
+    )
+
+
 # Aliases registered for every user, regardless of whether their ``coga.toml``
 # has an ``[aliases]`` section. User aliases override matching defaults. This
 # keeps ``coga chat`` discoverable and dispatchable in repos initialized before
@@ -57,7 +75,7 @@ BUILTIN_COMMANDS: frozenset[str] = frozenset(
 DEFAULT_ALIASES: dict[str, str] = {
     "chat": "launch bootstrap/orient",
     "dream": "recurring launch dream",
-    "build": "launch coga-build",
+    "build": f"launch {ONBOARDING_TASK}",
     "skill-update": "recurring launch skill-update",
     "autoclose": "recurring launch autoclose-merged",
     "pick": "megalaunch --pick",
