@@ -6501,3 +6501,4 @@ fatal: Unable to add (null) to database
 2026-09-25 17:07 [record-four-repeated-dev-loop-verification-gotchas] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-25 17:07 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-09-25 17:08 [settle-whether-megalaunch-is-the-only-unclassified] [human:nicktoper] activated (draft → active) — auto on launch
+2026-09-25 17:08 [settle-whether-megalaunch-is-the-only-unclassified] [human:nicktoper] started (active → in_progress) via coga launch
