@@ -1,7 +1,7 @@
 ---
 title: 'Settle whether megalaunch is the only unclassified verb: extension-model vs
   the CLI extension audit'
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
