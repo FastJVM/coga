@@ -1,6 +1,6 @@
 ---
 title: Keep agent edits to contexts and skills off the control branch without a merge
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/internals/state-publication
