@@ -46,3 +46,15 @@ _ca-08 — adoption-trial.md links a positioning-context section that does not e
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: fix-positioning-owner-links
+
+## Plan (owner-approved 2026-09-25)
+
+Positioning was rewritten by the owner decision of 2026-09-21 ("instrument for
+the human"), which supersedes the Sept 11–14 statements the four evidence docs
+cite. Owner chose "repoint as superseded": each dated doc becomes the record of
+its own Sept 11–14 statement, and positioning is linked only as the current
+approved positioning that supersedes it. No sections restored to positioning.
