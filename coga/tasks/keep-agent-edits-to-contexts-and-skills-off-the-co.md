@@ -1,12 +1,12 @@
 ---
 title: Keep agent edits to contexts and skills off the control branch without a merge
-status: draft
+status: active
 owner: nicktoper
 contexts:
-  - coga/internals/state-publication
-  - coga/principles
-  - coga/script-tickets
-  - coga/testing
+- coga/internals/state-publication
+- coga/principles
+- coga/script-tickets
+- coga/testing
 workflow:
   name: code/design-then-implement
   steps:
@@ -36,6 +36,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (design)
+agent: claude
 ---
 
 ## Description
