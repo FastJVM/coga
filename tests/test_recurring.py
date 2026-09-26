@@ -11326,9 +11326,15 @@ def test_recurring_all_scan_services_detached_checkout_from_worktree(
 
 
 def test_control_worktree_is_removed_and_unregistered_after_the_run(
-    git_repo
+    git_repo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """No stranded checkout, and no registration pinning the control branch."""
+    # Every fixture root is named `repo`, so the leftover glob below would
+    # match other runs' stale `coga-recurring-repo-*` dirs in the shared
+    # system tempdir; give this run a private one.
+    private_tmp = tmp_path / "tmp"
+    private_tmp.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(private_tmp))
     _seed_recipe_template_on_control(git_repo)
     git_repo.checkout_branch("agent/parked-work")
 
