@@ -67,3 +67,36 @@ Plan (agreed with owner 2026-09-25): F34 fixed in the test itself (private
 bullets in `coga/testing` (live + packaged twin), plus a pointer from
 `code/self-qa` for F37. The findings' `coga/codebase` targets moved to
 `coga/testing` before implementation.
+
+## Implement handoff
+
+Commit `08c589590` on `record-dev-loop-verification-gotchas` (pushed, based on
+`b8c297b4f`).
+
+- **F34 (code fix):** `tests/test_recurring.py`
+  `test_control_worktree_is_removed_and_unregistered_after_the_run` now
+  monkeypatches `tempfile.tempdir` to a private dir under `tmp_path`.
+  `recurring_runner` creates the control worktree with `tempfile.mkdtemp` and
+  checks ownership with `tempfile.gettempdir()`, so both follow the patch.
+  Regression evidence: with a planted `/tmp/coga-recurring-repo-stale.*` dir,
+  the unchanged test failed; the patched test passed.
+- **F37:** a new bullet under "Restricted sandboxes" in `coga/testing` says
+  `codex review`'s own test probe is expected to fail collection. It is not a
+  finding; run the suite yourself and record that command. `code/self-qa`
+  (live + packaged) points to it.
+- **F38:** the Commands section of `coga/testing` covers pip-less `uv venv`
+  (`python -m ensurepip` / `uv pip install pip`); the `hatchling` bullet says
+  the wheel tests shell out to `python -m pip`.
+- **F39:** the Commands section of `coga/testing` says to validate
+  `example/coga` with `env -u SLACK_WEBHOOK_URL coga validate --json` and not
+  to edit the fixture's config. I reproduced the guard failure first.
+- The live and packaged copies of both `coga/testing` and `code/self-qa` are
+  byte-identical (`tests/test_packaging.py` green).
+- I left `docs/development.md` untouched on purpose: `coga/testing` owns
+  these facts.
+
+Verification: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q` ->
+`2945 passed`.
+
+Housekeeping: at start, the launch's own `launched` line in `coga/log.md` was
+unpublished. The owner approved it, and the pre-branch state sweep published it.
