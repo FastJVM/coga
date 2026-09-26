@@ -41,7 +41,8 @@ or claim measured superiority.
 The owner asks whether chosen delegation and understandable ownership (see
 [pitch evaluation](pitch-evaluation.md)) are compelling reasons to switch.
 **Together they give Coga a strong potential adoption motive for a particular
-user: delegate a job on your terms, with the means of directing it in a form you can read and change.**
+user: delegate a job on your terms, with the means of directing it in a form
+you can read and change.**
 They give a satisfied user of an equally adaptable setup little immediate
 reason to leave. This is a judgment about motivation, informed by the
 product comparisons; conversion and preference have not been measured.
