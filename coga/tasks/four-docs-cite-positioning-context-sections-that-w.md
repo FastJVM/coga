@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -58,3 +58,23 @@ the human"), which supersedes the Sept 11–14 statements the four evidence docs
 cite. Owner chose "repoint as superseded": each dated doc becomes the record of
 its own Sept 11–14 statement, and positioning is linked only as the current
 approved positioning that supersedes it. No sections restored to positioning.
+
+## Implement handoff
+
+- Branch pushed: 2 commits on `fix-positioning-owner-links`, rebased on origin/main.
+- Seven links in `docs/evidence/{pitch-evaluation,why-switch-to-coga,build-vs-adopt,adoption-trial}.md`
+  no longer call positioning the "maintained" owner. The pitch-evaluation.md and adoption-trial.md
+  pages now say they are the only record of their statement, and link
+  positioning as the 2026-09-21 owner decision that supersedes it. The two
+  references in why-switch-to-coga.md that pointed at pitch statements
+  (central ideas, message hierarchy) now link pitch-evaluation.md instead;
+  the message-hierarchy one links `#marketing-ladder-assessment--2026-09-14`. build-vs-adopt.md describes the pitch candidate in past tense
+  as superseded.
+- Positioning SKILL.md is unchanged. No sections were restored (owner choice).
+- Verification: `.venv/bin/python -m pytest -q`: 2945 passed. The system `python` is 3.9, so
+  use the venv.
+- Process note: my first attempt ran `git switch` in the same command chain as a
+  sync that had failed, so the branch was entered with the ticket edit still
+  uncommitted. I switched back to main at once, published with the coga tool
+  interpreter (`~/.local/share/uv/tools/coga/bin/python`), and only then
+  switched again. Nothing was lost.

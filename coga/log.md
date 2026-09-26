@@ -6521,3 +6521,4 @@ fatal: Unable to add (null) to database
 2026-09-25 22:53 [coga-build-fails-after-init-on-a-github-scaffolded] [human:nicktoper] activated (paused → active) — auto on launch
 2026-09-25 22:53 [coga-build-fails-after-init-on-a-github-scaffolded] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-25 22:53 [coga-build-fails-after-init-on-a-github-scaffolded] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-25 22:56 [four-docs-cite-positioning-context-sections-that-w] [agent:claude] advanced to step 2 (peer-review) → codex
