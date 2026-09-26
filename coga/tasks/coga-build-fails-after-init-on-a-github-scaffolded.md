@@ -55,3 +55,12 @@ Update `coga/cli` (`## coga build`, `## coga init`) and any matching docs in the
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: init-hosting-scaffold-empty
+
+## Plan (agreed with owner)
+
+- README* is scaffold when <=3 non-blank lines and <1 KB; LICENSE*/COPYING*/.gitattributes are scaffold by name. Tradeoff: a real project whose only content is a tiny README gets the (deletable) onboarding ticket — preferred over the reverse miss this ticket reports.
+- `coga launch coga-build` miss prints an onboarding-specific explanation (filled repo -> not seeded; use `coga ticket`). Init's skip line says `coga build` is unavailable. Share the slug via one constant.
