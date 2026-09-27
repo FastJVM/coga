@@ -35,7 +35,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (review-design)
+step: 4 (implement)
 agent: claude
 ---
 
@@ -72,6 +72,9 @@ explicit.
   human-reviewed PR is required. A relocated `[layout] contexts` root is
   included. No notice is emitted for support files unchanged by the interview.
 - [ ] Support-only interviews emit the notice without calling `git.publish()`.
+  This applies to all interviews, including those targeting an existing task
+  whose files did not change during the interview. Still validate that task;
+  select it for publication only when its ticket or attachments changed.
   Mixed task/support interviews still publish tasks. The notice is visible
   even if task validation or publication subsequently fails; it does not
   convert those failures into success or claim the task was published.
@@ -85,7 +88,9 @@ explicit.
   as preservation of local edits, rather than only mocking publication.
 - [ ] Authoring tests cover new, edited, and deleted support files, relocated
   contexts, support-only and mixed interviews, and a parent without launch
-  metadata. At least one real-Git case runs finalization followed by the
+  metadata. Explicitly cover a support-only interview targeting an unchanged
+  existing task: validation still runs, but publication does not. At least one
+  real-Git case runs finalization followed by the
   sweep and proves knowledge stays off control while the authored task lands.
 - [ ] Update the owning state-publication topic, the sync overview, and the
   principle-4 receipt in the same implementation PR. Update the finalize
@@ -101,7 +106,11 @@ explicit.
    `changed_authoring_paths()`, and `support_paths()` detecting interview
    changes. In `finalize_authored()`, use the support list for the stderr
    notice before validation, and remove its extension of task publication
-   paths. Keep the existing task validation and publication sequence.
+   paths. Keep the existing task validation sequence, but separate validation
+   targets from publication targets: an existing task remains a validation
+   target even when unchanged, and enters the publication list only if the
+   interview changed its ticket or attachments. Preserve both sides of a
+   file-to-directory conversion and the existing deleted-target handling.
    Retain helpers where useful; rename misleading sync-oriented descriptions
    or remove newly unreachable support-only commit-message handling as needed.
 2. Leave `src/coga/git.py`, `publish()` and its provenance guards unchanged.
@@ -132,8 +141,9 @@ for the sweep, extends naturally to finalization with explicit feedback.
 
 - No automatic branching, commits of review work, PR creation, merges,
   actor provenance database, configuration switches, or new commands.
-- No changes to task/log/recurring publication, including recurring template
-  scripts and task attachments. These are existing operational-state policy;
+- No changes to task/log/recurring publication policy, including recurring
+  template scripts and task attachments, beyond skipping unchanged task targets
+  in authoring finalization as specified above. The ordinary sweep is unchanged;
   this ticket does not claim to gate every behavior-affecting file.
 - No global restriction in `git.publish()`, launch classification change,
   completion gate, or repeated whole-repository warning on every command.
@@ -204,10 +214,10 @@ self-approved.
 
 Cold review completed 2026-09-26. The approach closes the identified automatic
 publication gap without expanding core or coupling knowledge review to lifecycle
-transitions. One acceptance/implementation ambiguity needs an owner disposition
-before implementation; otherwise the scope and verification plan are coherent.
+transitions. The owner resolved the acceptance/implementation ambiguity below;
+the design is ready for the owner's implementation handoff.
 
-### Must resolve before implementation
+### Resolved finding
 
 1. **Define support-only behavior for an existing task interview.** Acceptance
    requires support-only interviews not to call `git.publish()`, but Proposed
@@ -225,6 +235,12 @@ before implementation; otherwise the scope and verification plan are coherent.
    choice in the spec and test that existing-task case explicitly. The former
    is the smaller change and still prevents knowledge publication; the latter
    satisfies the current literal no-call requirement but changes task selection.
+
+   **Owner disposition (2026-09-26): applies to all interviews.** The existing
+   task case has no exemption. The acceptance criteria and Proposed Shape now
+   explicitly retain validation while skipping publication of a task unchanged
+   during the interview. This resolves the finding; no workflow advance was
+   requested by this clarification.
 
 ### Optional recommendations
 
