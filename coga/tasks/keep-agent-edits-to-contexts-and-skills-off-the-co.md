@@ -35,7 +35,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 agent: claude
 ---
 
@@ -291,3 +291,47 @@ branch: fix-authoring-publication
 
 Implement the approved task-only finalization boundary, retain visible support-file
 review guidance, and verify real-Git publication plus packaged topic twins.
+
+## Implementation handoff — 2026-09-26
+
+Implemented on `fix-authoring-publication` (commit `96f2a37c4`).
+`src/coga/authoring.py::finalize_authored` now reports sorted absolute support
+paths before validation and publishes only changed task paths. Existing unchanged
+targets still validate; support-only sessions never call publish. File/directory
+conversion, attachments, bootstrap discovery, deleted targets, and existing
+validation/publication failure behavior are preserved. `src/coga/git.py` is unchanged.
+
+Regression coverage exercises context/skill additions, edits, deletions, unchanged
+files, metadata present/absent, support-only and mixed sessions, and failure order.
+Real-Git cases run the sweep alone and after finalization on control and feature
+branches across nested, root, and relocated-context layouts, checking control-tree
+contents and preservation of local review edits. The original implementation failed
+four revised authoring tests before the fix (4 failed, 6 passed).
+
+Updated the state-publication owner, sync overview, principle-4 receipt, finalize
+skill summary, and stale context-layout authoring exception; packaged twins match.
+No example change is needed: task layout, prompt composition, and workflow semantics
+are unchanged. No unresolved adjacent bug was found. Knowledge edits remain local
+review work and may leave the checkout dirty; this does not restrict explicit Git
+commands or change task/log/recurring publication.
+
+Verification (absolute checkout `PYTHONPATH` via `$PWD/src`):
+
+- `PYTHONPATH="$PWD/src" .venv/bin/python -m pytest tests/test_authoring.py tests/test_git.py -q`
+  → **96 passed in 13.01s**.
+- `PYTHONPATH="$PWD/src" .venv/bin/python -m pytest tests/test_packaging.py -q`
+  → **23 passed in 2.48s**.
+- `PYTHONPATH="$PWD/src" .venv/bin/python -m pytest -q > /tmp/coga-authoring-full-tests.log 2>&1`
+  → **2969 passed in 191.08s**.
+- `PYTHONPATH="$PWD/src" .venv/bin/python -m coga.cli validate --task keep-agent-edits-to-contexts-and-skills-off-the-co --json`
+  → **ok_count: 1, no issues**.
+- `git diff --check` → clean.
+
+Freshened onto `origin/main`; the incoming commit changed only another ticket and
+its audit log. Rebased verification is recorded below. No PR was opened in this step.
+
+- Post-rebase: `PYTHONPATH="$PWD/src" .venv/bin/python -m pytest -q > /tmp/coga-authoring-rebased-tests.log 2>&1`
+  → **2969 passed in 186.75s**.
+
+Pushed `fix-authoring-publication` at `96f2a37c4` and returned the launch checkout
+to clean `main`, fast-forwarded to `origin/main`, before writing this handoff.
