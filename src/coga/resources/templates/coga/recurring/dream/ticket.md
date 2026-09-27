@@ -325,15 +325,11 @@ report the phase as `partial` with the file's contents and preserve the run
 directory and isolated checkout for recovery; a final message alone does not
 establish completion.
 
-Tell the subagent in the delegation prompt not to run `coga slack` or any
-other Coga command that appends to the repo-global `coga/log.md` in the
-isolated checkout. Those audit lines would land only if the checkout's
-temporary branch is pushed, and a sandbox may deny that push. The subagent
-records each opened PR in `progress.md`; after it returns, Dream posts any PR
-FYI from its own checkout with `coga slack --task <this-dream-task>`, so the
-audit line lands through Dream's ordinary state sync. `coga delete` remains
-the direct-delete path: it lands its own removal on the remote control branch,
-which the check below verifies.
+Retro hands PR FYIs back as `pr` receipts in `progress.md` and never runs
+`coga slack` in the isolated checkout (skill step 12). After it returns, Dream
+posts each FYI from its own checkout with
+`coga slack --task <this-dream-task>`, so the audit line lands through Dream's
+ordinary state sync.
 
 Every processed done ticket is deleted: a ticket that contributed durable
 knowledge is deleted in its theme's knowledge PR, which also records its
@@ -344,16 +340,18 @@ remote control branch without mutating the operator's checkout, with no PR and
 no marker. Recovery is via `git restore`. Retro never leaves a processed done
 ticket on disk and never opens a marker-only PR.
 
-After the subagent returns, fetch the remote control branch and verify every
-PR branch is pushed, every direct delete is present on the remote control
-branch, and the isolated checkout is clean: no uncommitted changes, and no
-commit on its temporary branch that is absent from the remote control branch
-(`git log <remote>/<control-branch>..HEAD` is empty). Remove the copied
-`coga.local.toml`; then explicitly remove the linked worktree and its
-temporary branch, or delete the exact independent-clone directory. After recording the verified outcome on Dream's blackboard, delete
+After the subagent returns, fetch the remote control branch and verify:
+
+- every PR branch is pushed;
+- every direct delete is present on the remote control branch;
+- the isolated checkout holds nothing unlanded, by the check the
+  `retro/done-ticket` skill's **Isolation boundary** defines.
+
+Then remove the copied `coga.local.toml` and explicitly remove the linked
+worktree and its temporary branch, or delete the exact independent-clone
+directory. After recording the verified outcome on Dream's blackboard, delete
 the temporary run directory (snapshot and progress file) too. Agent-native
-cleanup is not
-guaranteed after a mutating run.
+cleanup is not guaranteed after a mutating run.
 
 If durability or cleanup cannot be verified — or Phase 4 is `partial` — do
 not delete anything: preserve the run directory, the isolated checkout, and
@@ -658,13 +656,12 @@ Keep the message to one line, for example:
 If Phase 4 preserved any path under `### Stranded Retro work`, the run is not
 done: its work is stranded where no downstream consumer can see it. Say so in
 the Slack summary, then end the run with
-`coga block --task <this-dream-task> --reason "Retro work stranded on <branch> at <checkout path> (run dir <run dir>); unlanded: <paths>. Land it, then remove the checkout and branch — see ### Stranded Retro work"`
+`coga block --task <this-dream-task> --reason "Retro work stranded on <branch> at <checkout path>; land it, then remove both — see ### Stranded Retro work"`
 instead of `coga mark done`. In an attended session, first show the human the
 stranded record and ask whether they will land it now; once they have, verify
 it against the fetched remote control branch, remove the preserved paths, and
 close normally. If they do not, this block is the answer the ticket needs:
-it is what makes the sweep count the run as a problem. Never mark this task
-done while any preserved path remains.
+it is what makes the sweep count the run as a problem.
 
 Otherwise, run `coga mark done <this-dream-task>` once the blackboard is up to
 date and the Slack summary is posted. That is the last action — **do not
