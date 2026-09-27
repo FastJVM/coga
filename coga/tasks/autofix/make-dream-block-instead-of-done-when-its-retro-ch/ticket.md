@@ -24,7 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (self-qa)
 ---
 
 ## Description
@@ -94,3 +94,20 @@ Plan (agreed with owner 2026-09-27): template-only fix in `coga/recurring/dream/
 - Final status: `coga mark done` only when nothing was preserved; otherwise end with that `coga block`.
 - Item 2 already satisfied in core (`recurring_runner._task_outcome`: blocked → `unfinished` → problem); add agent-blocked regression test.
 - Item 4 (stranded `dream/retro-2026-W36-*` + `/tmp/dream-retro-2026-W36`) lives in multiply, absent here — out of scope; manual close-out there.
+
+## Implement handoff (2026-09-27)
+
+Commit `fd9b8e162` on `dream-block-on-stranded-retro` (pushed, rebased on origin/main). No PR yet.
+
+Changed (`coga/recurring/dream/ticket.md` + byte-identical packaged twin):
+- Phase 4 delegation: subagent must not run `coga slack`/log-writing commands in the isolated checkout; Dream posts PR FYIs via `coga slack --task <this-dream-task>` from its own checkout (fix item 3 — root cause: only `coga slack` → `logfile.append_log` wrote those lines; retro skill never asked for it).
+- Durability check now fetches and requires `git log <remote>/<control-branch>..HEAD` empty (unpushed temp-branch commits = unverified).
+- "surface a blocker" replaced: preserve paths, record `### Stranded Retro work` (branch, path, run dir, commits, unlanded paths, land/remove commands).
+- `### Slack` closing rule: stranded work → `coga block` with a named reason, never `coga mark done`; attended session asks the human to land it first (reconciles with base-prompt Session conduct).
+- Item 2 was already true in core (`recurring_runner._task_outcome`: blocked → `unfinished` → `is_problem`); added `test_a_blocked_agent_run_counts_as_a_problem` (supervisor reports `kind="done"` for a blocked agent session).
+- Added `test_dream_blocks_instead_of_done_when_retro_work_is_stranded` in `tests/test_dream_worker_templates.py`.
+
+Verification: `python -m pytest` → 2947 passed; targeted re-run after rebase → 108 passed.
+
+Out of scope / follow-up: item 4 (land `dream/retro-2026-W36-1788212557` two `coga/log.md` commits, then `git worktree remove /tmp/dream-retro-2026-W36 && git branch -D ...`) must be done by a human in the multiply repo; neither exists here. `[notification.slack].important_webhook` gap also noted as out of scope in the ticket.
+Decision: enforcement is prompt-level only (owner accepted the tradeoff; code-level detection of Dream temp checkouts would put Dream-only logic in core).
