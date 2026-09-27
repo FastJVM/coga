@@ -86,6 +86,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/907
 branch: dream-block-on-stranded-retro
 
 Plan (agreed with owner 2026-09-27): template-only fix in `coga/recurring/dream/ticket.md` + packaged twin.
