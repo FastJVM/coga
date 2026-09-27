@@ -287,6 +287,7 @@ remain implementation verification requirements.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/904
 branch: fix-authoring-publication
 
 Implement the approved task-only finalization boundary, retain visible support-file
