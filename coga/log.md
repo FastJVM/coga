@@ -6591,3 +6591,4 @@ fatal: Unable to add (null) to database
 2026-09-27 16:15 [autofix/make-dream-block-instead-of-done-when-its-retro-ch] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-27 16:15 [autofix/make-dream-block-instead-of-done-when-its-retro-ch] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-09-27 16:15 [settle-whether-megalaunch-is-the-only-unclassified] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-27 16:17 [settle-whether-megalaunch-is-the-only-unclassified] [agent:claude] advanced to step 4 (review) → nicktoper
