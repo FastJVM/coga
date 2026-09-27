@@ -25,6 +25,14 @@ main agent on `open-pr`, with no manual relaunch. Megalaunch must chain the
 same way, up to its 8-step cap. A test must fail on today's behavior and pass
 after the fix.
 
+**Additional report from Zach (relayed by owner, 2026-09-27):** the Codex
+window stays open and the next step never starts. Zach relayed Claude's
+explanation that the completion signal goes to an old session instead of the
+current one, and is trying `--no-daemon` in his side-projects repo. No result
+from that experiment has been reported. This is a second observed failure
+shape alongside the exiting session above; establish which occurs in each
+reproduction rather than assuming they have the same cause.
+
 ## Context
 
 **Expected contract** (from `coga/launch`, attached, section "The step
@@ -34,6 +42,33 @@ is an agent. `agent` and `other-agent` rotate CLIs. The observed behavior
 breaks this. Megalaunch (`docs/contexts/coga/megalaunch/SKILL.md`, cited not
 attached) says a task chains through at most 8 agent steps per run, and an
 exit that changes neither step nor status is `failed`.
+
+**Codex daemon hypothesis — plausible, not confirmed:** the installed
+`codex --help` documents `--no-daemon` as "Run without the shared background
+server, even if it is already running." This is Codex's shared server, not a
+Coga daemon. Coga's `run_with_done_marker` creates a fresh sentinel path and
+exports it as `COGA_DONE_SENTINEL` in the child environment. `coga bump` calls
+`emit_done_marker` to write the ticket's `id_slug` there; the supervisor polls
+its own path and accepts matching content. If command execution through the
+shared server retains an earlier launch's environment, bump could write to an
+old path and leave the current supervisor waiting. Code inspection establishes
+the Coga mechanism, but does not establish that Codex retains that environment.
+
+To test this hypothesis:
+- Record the Codex version and launch arguments, then compare the sentinel
+  path supplied by the current supervisor with `COGA_DONE_SENTINEL` seen by a
+  shell command inside the launched Codex session. Inspect only the relevant
+  variable, not the full environment, which may contain credentials.
+- Observe which file bump writes, its ticket-slug content, and whether the
+  current supervisor detects it. Distinguish a wrong or missing environment
+  value from a write failure or a later chain-decision failure.
+- Compare equivalent launches with the shared server and `--no-daemon`,
+  including consecutive steps/launches where stale environment could matter.
+  Record whether the window closes and the next agent starts in each case.
+- Treat `--no-daemon` as an experiment or workaround until verified. If it
+  restores chaining, identify the environment mismatch or other mechanism
+  before choosing the durable fix, and pin the confirmed failure with a
+  regression test. Do not assume this explains the separate megalaunch report.
 
 **Code to start from:**
 - `repl_supervisor.run_with_done_marker` and `repl_supervisor._classify_exit`:
