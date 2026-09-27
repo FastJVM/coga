@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -134,3 +134,36 @@ Changed (live + packaged twin byte-identical):
 Confirmed gone, no change: F24, F25 (context text), F26, F27, F77, F78, F79, F81, F82.
 
 Verification: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -x` -> 2945 passed (includes test_packaging twin identity).
+
+## Peer review
+
+2026-09-26: `codex review --base main` returned successfully with no findings.
+The sandbox attempt could not initialize the app-server; the unsandboxed retry
+completed. Review checked the documentation against implementation, confirmed
+the single `unsynthesized-draft-blackboard` baseline on
+`v2/autotrigger-ticket-type`, and ran
+`PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_packaging.py -q`
+-> 23 passed. No must-fix changes were needed. This is a documentation-only
+diff; no terminal or rendered interaction changed.
+
+Fetched origin/main and rebased unconditionally without conflicts onto
+`093392c64`. Post-rebase verification:
+`PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -x` -> 2945 passed in
+180.07s; `git diff --check` passed. Pushed commit `0dd8b6342` on
+`fix-stale-testing-skill-docs` with `--force-with-lease`. Returned to clean
+main at `7d1373d3f`; the intervening main commits only update another ticket
+and the audit log. Branch retains one implementation commit ahead of main.
+
+## PR
+
+Correct the remaining stale guidance from the Dream findings: distinguish
+pytest's in-process imports from subprocess import paths, classify
+`browser/playwright` as a bundled skill with a repo local override, and point
+AGENTS.md and CLAUDE.md at per-ticket secret references. Refresh the documented
+validation baseline to the one remaining draft error and add the validate-drift
+tag. The other filed claims have already disappeared from their current homes.
+Canonical contexts and packaged twins remain byte-identical.
+
+Test plan: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -x` -> 2945 passed;
+`git diff --check` passed; `coga validate --json` confirmed the documented
+single-error baseline; `codex review --base main` returned with no findings.
