@@ -83,3 +83,14 @@ Moved from FastJVM/multiply on 2026-09-24: filed there by Dream/autofix against 
 
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: dream-block-on-stranded-retro
+
+Plan (agreed with owner 2026-09-27): template-only fix in `coga/recurring/dream/ticket.md` + packaged twin.
+- Phase 4 delegation: subagent must not run `coga slack` / log-writing commands in the isolated checkout; Dream posts FYIs from its own checkout.
+- Replace "surface a blocker" with an exact `coga block` naming preserved branch/checkout/run dir and unlanded paths.
+- Final status: `coga mark done` only when nothing was preserved; otherwise end with that `coga block`.
+- Item 2 already satisfied in core (`recurring_runner._task_outcome`: blocked → `unfinished` → problem); add agent-blocked regression test.
+- Item 4 (stranded `dream/retro-2026-W36-*` + `/tmp/dream-retro-2026-W36`) lives in multiply, absent here — out of scope; manual close-out there.
