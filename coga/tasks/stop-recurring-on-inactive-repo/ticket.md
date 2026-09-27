@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 agent: claude
 ---
 
@@ -59,23 +59,23 @@ Intended behavior (settled with the owner during authoring and design):
 
 ### Acceptance criteria
 
-- [ ] `[recurring] idle_days` in shared `coga.toml` sets the window: default
+- [x] `[recurring] idle_days` in shared `coga.toml` sets the window: default
       `14`, `0` disables the check, and anything else that is not a
       non-negative int is a `ConfigError`. It is documented in the
       configuration topic.
-- [ ] A template field `run_when_inactive: true` exempts that template. The
+- [x] A template field `run_when_inactive: true` exempts that template. The
       default is false. A non-bool value is a `RecurringError` at
       `Template.load`, so the sweep reports it as a template error and
       `coga validate` flags it. The field is not passed to period tasks.
-- [ ] The shipped `autoclose-merged` template sets `run_when_inactive: true`
+- [x] The shipped `autoclose-merged` template sets `run_when_inactive: true`
       in both the live and packaged copies. No other shipped template sets it,
       `branch-sweep` and `blocker-reminders` included.
-- [ ] **Boundary (exact):** let `last` be the local calendar date of the
+- [x] **Boundary (exact):** let `last` be the local calendar date of the
       newest human commit's committer timestamp. The repo is inactive iff
       `(today - last).days >= idle_days`. With 14: human activity 13 days
-      ago → active; 14 days ago → inactive. This reproduces "xpllm dormant
-      from 2026-08-14 (last 07-31) and from 2026-09-18 (last 09-04)".
-- [ ] **Classifier:** a first-parent commit is machine iff its subject
+      ago → active; 14 days ago → inactive. With the human bootstrap-launch exception, xpllm is dormant
+      August 17–28 (last August 3), then from September 18 (last September 4).
+- [x] **Classifier:** a first-parent commit is machine iff its subject
       matches one of:
       - `Log:`, `Sync coga state`, `Dream`, `Ticket: recurring/`, `Autofix:`,
         `Ticket: autofix/`, or `Update Coga-managed skills` (prefix; this also
@@ -84,43 +84,44 @@ Intended behavior (settled with the owner during authoring and design):
       - `Merge pull request #N from <owner>/<branch>` where `<branch>` starts
         with `claude/dream-`, `coga/dream`, `dream/`, or `coga/skill-update`.
 
+      `Log: bootstrap/*` is an explicit human exception to the `Log:` prefix.
       Everything else is human, including `Ticket: <human-slug> — …`
       transitions and `Log: bootstrap/*` from a human launch; see the note in
       Proposed shape.
-- [ ] **Ref:** evaluated over `git log --first-parent` of the local control
+- [x] **Ref:** evaluated over `git log --first-parent` of the local control
       branch **and** `<[git].remote>/<[git].control_branch>`, each only if it
       resolves. The newest human commit across both wins. There is no fetch of
       its own: the check runs after the sweep's existing control catch-up.
       If neither ref resolves, or git fails, the check **fails open**: the
       repo is treated as active and one yellow note is printed. Unmerged work
       on feature branches and in worktrees is invisible, which is accepted.
-- [ ] **Gate placement:** in `run_recurring_scan`, after the branch/freshness
+- [x] **Gate placement:** in `run_recurring_scan`, after the branch/freshness
       gate, the owner gate and agent-override validation, and before
       `scan_due`. An inactive repo creates **no** period for a non-exempt
       template. Such a template is also not resumed (`in_progress` orphan),
       not re-launched (`active`), and not escalated (watchdog-paused
       `needs attention` → no notify, no problem, no exit 2). Its existing
       period is left byte-untouched.
-- [ ] The scan table prints one row per paused template:
+- [x] The scan table prints one row per paused template:
       `skip (repo inactive since YYYY-MM-DD)`, preceded by one header line
       naming the last human commit date, days idle and the window. The
       run-record scan lines carry the same rows.
-- [ ] An inactivity skip is not a problem: it does not count in
+- [x] An inactivity skip is not a problem: it does not count in
       `problems:`, it never reaches `_record_unlaunched_creates` because
       nothing was created, and a sweep whose only non-launches are inactivity
       skips exits **0**. Under `--all` the child's 0 means the parent counts
       the repo as swept, not failed.
-- [ ] **Autofix:** on an inactive repo `run_autofix` is not invoked unless at
+- [x] **Autofix:** on an inactive repo `run_autofix` is not invoked unless at
       least one exempt template recorded a launch outcome. An all-skipped
       sweep writes no run log, makes no analyst call and creates no ticket.
-- [ ] **Overrides:** `--force` skips the check entirely, including under
+- [x] **Overrides:** `--force` skips the check entirely, including under
       `--all`, where force already passes to every child; that is confirmed,
       not narrowed. `coga recurring launch <name>` and aliases such as
       `coga dream` (`run_recurring_named`) never consult it. `idle_days = 0`
       behaves as today.
-- [ ] Exempt templates on an inactive repo behave exactly as today:
-      create, resume, launch, escalate.
-- [ ] Tests use synthetic git fixtures, not the real repos. They cover:
+- [x] Exempt templates on an inactive repo retain ordinary creation, resume,
+      launch and escalation. Autofix still requires a launch outcome, as above.
+- [x] Tests use synthetic git fixtures, not the real repos. They cover:
       human-only history; machine-only history (each classifier rule); a
       machine-PR merge on the same day as the last machine work (not
       activity); a human merge commit (activity); `idle_days - 1` vs
@@ -129,19 +130,19 @@ Intended behavior (settled with the owner during authoring and design):
       launching; watchdog-paused and `in_progress` periods untouched while
       inactive; exit 0 and no autofix call on an all-skipped sweep; and
       `idle_days = 0`.
-- [ ] A test pins the classifier to the writers. Each subject string Coga
+- [x] A test pins the classifier to the writers. Each subject string Coga
       emits for machine work (`sync_coga_state` default, `Log: …`,
       `Ticket: recurring/… — …`, `Autofix: …`, `— blocker reminder`,
       `Update Coga-managed skills`) classifies as machine, and
       `Ticket: <slug> — active` classifies as human.
-- [ ] Manual one-time check, recorded on the blackboard: the production
+- [x] Manual one-time check, recorded on the blackboard: the production
       classifier run over coga, magicator and xpllm as of 2026-09-25
       reproduces the baseline table in Context. The results must show coga
       active, magicator active and xpllm inactive since 2026-09-04. xpllm is
-      dormant from about 2026-08-14 and from 2026-09-18, coga is never
+      dormant August 17–28 and from September 18, coga is never
       dormant, and magicator is never dormant in September; its May–June
       dormancy is expected.
-- [ ] `docs/contexts/coga/recurring/scheduling/SKILL.md` documents the
+- [x] `docs/contexts/coga/recurring/scheduling/SKILL.md` documents the
       activity signal, the gate's position, the skip row, the exit/`--all`/
       autofix classification and the overrides.
       `docs/contexts/coga/recurring/templates/SKILL.md` documents
@@ -208,15 +209,17 @@ awake and is finite.
 
 ## Context
 
-**Baseline data (measured 2026-09-25, since 2026-05-01, `origin/main`
-first-parent).** Reproduce with the sibling `measure-activity.py`, the
-reference classifier for this ticket:
+**Baseline data (as of 2026-09-25, since 2026-05-01, `origin/main`
+first-parent; corrected 2026-09-27 with owner approval).** Production classifier
+with the human `Log: bootstrap/*` exception and local PDT date of `%ct`. The
+sibling `measure-activity.py` preserves the old measurement, which excluded all
+`Log:` subjects and used `%cs`; its August interval and one June date differ:
 
 | Repo | Last human activity | Gaps ≥ 5 days |
 |---|---|---|
 | coga | 2026-09-25 | none (max 4) |
-| magicator | 2026-09-22 | 15, 28, 9, 13 (May–Jul); 6, 6, 8 (Sep) |
-| xpllm | 2026-09-04 | 6; 35 (Jul 31 → Sep 4), idle since |
+| magicator | 2026-09-22 | 15, 28, 10, 13 (May–Aug); 6, 6, 8 (Sep) |
+| xpllm | 2026-09-04 | 6; 25 (Aug 3 → Aug 28); 7 (Aug 28 → Sep 4), idle since |
 
 Key finding: **without excluding machine-PR merges, magicator looks active on
 2026-09-23**. That day was purely the owner merging Dream PRs #924–#927 from
@@ -410,3 +413,69 @@ so errors without launches do not reach the analyst; `Log: bootstrap/*` is human
 an explicit exception to the `Log:` machine prefix. Implement config/template
 validation, gate before period inspection, synthetic regression tests and topic
 twins. Keep idle_days shared-only. Git-disabled repos are silently active.
+
+
+## Implementation handoff (2026-09-27)
+
+- Pushed `stop-recurring-inactive`, commit `dd2f344a3`; launch checkout returned
+  to clean, current `main`. No PR opened; next workflow step owns it.
+- Config accepts shared-only non-negative integer idle_days (14 default, 0 off).
+  Templates validate run_when_inactive and never pass it to period tasks; only
+  autoclose-merged opts in. Live template, three topic owners and packaged twins
+  match; example watchdog prose describes inactive skipping.
+- `recurring_activity.check_activity` checks both explicit control refs without
+  fetching; compares all human timestamps to handle clock skew; uses local
+  calendar dates and >= boundary. Missing refs/Git errors fail open with one
+  note; disabled Git is silently active; machine-only history displays never.
+- `recurring.scan_due` excludes non-exempt templates before period handling,
+  leaving existing bytes unchanged. Table and run record carry inactivity rows.
+  `recurring_runner.run_recurring_scan` gates after existing admission checks;
+  autofix requires a launch outcome while inactive. Named/force/zero bypasses
+  and --all force forwarding retain their contracts.
+- Owner reaffirmed retaining human bootstrap logs and correcting the historical
+  baseline. This supersedes the old evaluator concern and baseline interval.
+  Other accepted limits (manual Sync state, broad Dream prefix, ordinary agent
+  tickets, long PR reviews) are documented in the scheduling owner topic.
+
+### Verification
+
+- Regression-first activity test initially failed collection because the new
+  module did not exist; subsequent synthetic Git tests cover all subject rules,
+  actual first-parent merges, divergent/single/missing refs, Git failures, clock
+  skew, boundary and disabled checks. Writer pin reads emitted expressions.
+- `PYTHONPATH=$PWD/src .venv/bin/python -m pytest` after rebase: **3004 passed**
+  in 171.49 seconds. Includes packaging, inactive byte-preservation, watchdog,
+  real-control-history integration, exemptions, overrides and autofix checks.
+- Focused config/recurring/activity run: **670 passed** before the final added
+  integration test; packaging plus inactivity selection: **71 passed**.
+- Example validation (cwd `example/coga`):
+  `env -u SLACK_WEBHOOK_URL -u COGA_IMPORTANT_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m coga.cli validate --json`
+  → exit 0, 4 OK, no issues. Ambient webhook variables must be unset for this
+  fixture, which intentionally has no corresponding webhook declaration.
+- Repo validation: `PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --json`
+  → exit 1, sole error `unsynthesized-draft-blackboard` on
+  `v2/autotrigger-ticket-type`; unrelated pre-existing ticket, untouched here.
+  Testing topic's four-error baseline is stale; the other three listed drafts
+  no longer error. No unrelated task or testing-policy edits made.
+- `git diff --check` passed. Freshened against origin/main and pushed after
+  rebase; final tests finished before returning to main.
+
+### Manual production-classifier check
+
+Read-only `origin/main --first-parent --format=%ct%x09%s`, classified with
+`recurring_activity.is_machine_commit`; retain dates May 1–September 25, 2026,
+using local PDT conversion. No production sweep or launch was run.
+
+| Repo | Last human | Idle on Sep 25 | Classification | Dormancy intervals |
+| --- | --- | --- | --- | --- |
+| coga | Sep 25 | 0 | active | none; maximum gap 4 days |
+| magicator | Sep 22 | 3 | active | May 26–27 and June 10–24; none in September |
+| xpllm | Sep 4 | 21 | inactive | August 17–28; September 18 onward |
+
+Refs measured: coga `d4575276e159ca2bb75c9258ddc35d2510c34c85`, magicator
+`baab873eca42e7a7b0faa16e37cd8de0fa57dc30`, xpllm
+`53cae14b3ff4cc52b29a76551c64b8cd941b7a00` (checkouts `/home/n/Code/<repo>`).
+The August 3 and August 28 xpllm `Log: bootstrap/orient` commits explain the
+corrected August interval. Reapplying the old all-Log exclusion and `%cs`
+reproduces the old table exactly. Magicator's June 27 `%cs` commit falls on
+June 26 locally, making that gap 10 rather than 9 days; dormancy unaffected.
