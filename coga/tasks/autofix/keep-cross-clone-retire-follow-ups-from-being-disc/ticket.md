@@ -110,3 +110,18 @@ The blackboard is a notepad to be written to often as the human and agent works 
   checkout, then create a separate feature checkout for implementation. No
   feature branch or `## Dev` record yet; no bump until implementation completes.
 - Relaunch: `cd /home/n/Code/codex/coga-control && coga launch autofix/keep-cross-clone-retire-follow-ups-from-being-disc`.
+
+## Dev
+
+branch: retire-worklist-owner
+
+Plan (2026-09-27, primary checkout `/home/n/Code/coga`, now clean on `main`,
+so the control-checkout relaunch plan above is moot):
+- `RetireFollowUp.owner` — optional trailing `, owner `<path>`` field; old
+  lines parse unchanged. Filled only for a foreign-linked worktree (another
+  repo's linked worktree), by `reconcile_worklist` while the worktree dir still
+  exists (covers new records and backfills existing entries).
+- `is_discharged` judges `branch:` against the owner's local branches; an
+  owner that cannot be read keeps the entry.
+- Autoclose backlog walk: owner-held entry with worktree gone skips the root
+  proofs and reports `git -C <owner> branch -d <branch>`.
