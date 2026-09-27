@@ -50,6 +50,7 @@ The registration proves current implementation, not permanent placement.
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/906
 branch: docs/command-classification
 
 ## Implementation plan
