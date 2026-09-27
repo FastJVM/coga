@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -120,3 +120,17 @@ The blackboard is a notepad to be written to often as the human and agent works 
 branch: fix-stale-testing-skill-docs
 
 Re-check (2026-09-26, on main): F24, F25 (context text), F26, F27, F77, F78, F79, F81, F82 already gone — no change. Live fixes: F20 (baseline now 1 error: `v2/autotrigger-ticket-type`), F23, F21, F25 remainder in CLAUDE.md + AGENTS.md. Human approved plan.
+
+## Implement handoff
+
+Branch `fix-stale-testing-skill-docs` pushed (1 commit, rebased on origin/main). No PR yet.
+
+Changed (live + packaged twin byte-identical):
+- F20 `coga/testing` "Scope validation": baseline refreshed to 2026-09-26 — exactly one `unsynthesized-draft-blackboard` error, `v2/autotrigger-ticket-type` (verified `coga validate --json`); tag line `validate-drift: unsynthesized-draft-blackboard` added. Deviates from the fold-in's four-slug list on purpose: three cleared since filing; human approved.
+- F23 `coga/testing` "Which code you are actually testing": in-process imports follow `pythonpath = ["src"]`; subprocess children follow the `.pth` unless an absolute `PYTHONPATH` is exported.
+- F21 `coga/skill-management`: `browser/playwright` moved from Hand-vendored to Bundled (repo twin is `local-override`, same NOTICE/LICENSE).
+- F25 remainder: CLAUDE.md and AGENTS.md "Configuration & Security" now point at per-ticket `secrets:` and say only `[notification.slack]` webhook keys resolve `env:` (verified: only callers of `config._resolve_secret_value`).
+
+Confirmed gone, no change: F24, F25 (context text), F26, F27, F77, F78, F79, F81, F82.
+
+Verification: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -x` -> 2945 passed (includes test_packaging twin identity).
