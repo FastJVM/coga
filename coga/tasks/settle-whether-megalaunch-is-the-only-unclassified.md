@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -87,3 +87,37 @@ branch: docs/command-classification
   passed. Launch checkout returned to clean main before this handoff.
 - No PR opened, as required for implement. Peer review should assess the
   placement wording; permanent-home proofs and migrations remain deferred.
+
+
+## Peer review
+
+- `codex review --base main` returned with no findings. It confirmed the
+  documentation-only placement clarification and synchronized packaged twin;
+  its `.venv/bin/python -m pytest tests/test_packaging.py -q` passed: 23 passed.
+  Its initial ambient-Python attempt lacked `tomlkit`; the venv rerun succeeded.
+- Independently checked the command groups against their parked cleanup
+  reviews. The dated 2026-09-10 cleanup README note remains historical;
+  the owning topic explicitly makes those parked proposals non-authoritative.
+- Ran `git fetch origin main` and `git rebase FETCH_HEAD` successfully, then
+  `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest`:
+  **2945 passed in 175.65s**. `git diff --check main...HEAD`,
+  `cmp AGENTS.md CLAUDE.md`, and
+  `cmp docs/contexts/coga/extension-model/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md`
+  passed. No runtime or terminal UI changes require interactive surface QA.
+- No must-fix edits were needed. Pushed rebased commit `7abde3019` with
+  `git push --force-with-lease -u origin docs/command-classification` and
+  returned to clean main. Subsequent main changes touched only another
+  ticket's state and the audit log.
+
+## PR
+
+The extension-model topic called megalaunch the only unresolved command
+placement while the CLI audit and parked cleanup reviews left several other
+command heads provisional. Record the unresolved groups and their deferred
+reviews in the owning topic, synchronize its packaged twin, and point
+AGENTS.md and CLAUDE.md to that owner. Clarify that the audit's implementation
+mechanisms do not establish permanent package placement. Runtime behavior and
+command locations remain unchanged; migrations and placement proofs stay deferred.
+
+Test plan: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest`
+(2945 passed); `git diff --check main...HEAD` and both twin comparisons passed.
