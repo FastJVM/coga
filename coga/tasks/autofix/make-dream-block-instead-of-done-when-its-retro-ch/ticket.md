@@ -24,7 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (self-qa)
+step: 3 (pr)
 ---
 
 ## Description
@@ -111,3 +111,17 @@ Verification: `python -m pytest` → 2947 passed; targeted re-run after rebase �
 
 Out of scope / follow-up: item 4 (land `dream/retro-2026-W36-1788212557` two `coga/log.md` commits, then `git worktree remove /tmp/dream-retro-2026-W36 && git branch -D ...`) must be done by a human in the multiply repo; neither exists here. `[notification.slack].important_webhook` gap also noted as out of scope in the ticket.
 Decision: enforcement is prompt-level only (owner accepted the tradeoff; code-level detection of Dream temp checkouts would put Dream-only logic in core).
+
+## Self-QA (2026-09-27)
+
+Review form: `/code-review` (Skill, default effort, forked) against `main` — **returned** with 2 findings, both confirmed and fixed; plus my own read of the diff. `/simplify` (4 agents: reuse, simplification, efficiency, altitude) — **all returned**; fixes applied. No review is in flight.
+
+Fixed in `8c792fd2b` (pushed on `dream-block-on-stranded-retro`):
+- Must-fix: "no uncommitted changes" check falsely blocked healthy runs — `coga delete --keep-control-checkout` pushes via `git.publish(fast_forward=False)` and leaves the landed deletion in the worktree. Retro's Isolation boundary now owns a "nothing unlanded" check (`git log <remote>/<control>..HEAD` empty; no untracked; one `git diff --name-only <remote>/<control> -- <listed paths>` empty); Dream cites it; Retro step 9 wording aligned.
+- Should-fix: Retro step 12 told the subagent to post Slack FYIs (implement handoff's "retro skill never asked for it" was wrong). Step 12 is now "Hand PR FYIs to the caller" (`pr` receipts in `progress.md`); Dream keeps only its caller-side half.
+- Simplify: shorter `coga block` reason, dropped duplicated closing sentence, `RETRO_SKILL` test constant, trimmed wording-guard assertions.
+- Owning topic `coga/dream` (Results and safety, both twins) now records stranded → `blocked`.
+- Skipped: module-level cached `_norm` test helper (pre-existing pattern, follow-up at most).
+
+No terminal/TTY surface touched; no hand sweep needed.
+Verification: `python -m pytest` → 2948 passed + 1 failure (`test_retro_skill_template` raw-text wrap) fixed, affected files re-run 47 passed; `coga validate --json` ok.
