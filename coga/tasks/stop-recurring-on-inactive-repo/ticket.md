@@ -397,3 +397,16 @@ boundary math reproduces 08-14 and 09-18.
     informational only.
 11. The AC/test list has no row for fail-open when git itself errors, as
     opposed to a missing ref. Consider one test that stubs a failing git.
+
+## Dev
+
+branch: stop-recurring-inactive
+
+## Implementation decisions (2026-09-27)
+
+Owner confirmed in attended session: only autoclose-merged is exempt (PR review
+and conflict jobs pause too); inactive autofix requires an exempt launch outcome,
+so errors without launches do not reach the analyst; `Log: bootstrap/*` is human,
+an explicit exception to the `Log:` machine prefix. Implement config/template
+validation, gate before period inspection, synthetic regression tests and topic
+twins. Keep idle_days shared-only. Git-disabled repos are silently active.
