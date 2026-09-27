@@ -1,6 +1,6 @@
 ---
 title: Make Dream block instead of done when its Retro checkout can't land
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
