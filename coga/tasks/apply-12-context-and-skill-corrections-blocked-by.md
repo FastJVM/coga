@@ -114,3 +114,9 @@ Line 196-197 of `coga/skills/code/open-pr/SKILL.md` (the "Dirty checkout naming 
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: fix-stale-testing-skill-docs
+
+Re-check (2026-09-26, on main): F24, F25 (context text), F26, F27, F77, F78, F79, F81, F82 already gone — no change. Live fixes: F20 (baseline now 1 error: `v2/autotrigger-ticket-type`), F23, F21, F25 remainder in CLAUDE.md + AGENTS.md. Human approved plan.
