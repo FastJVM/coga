@@ -59,7 +59,8 @@ dirty worktree; and a recorded path already gone (reported, not pruned).
 Refuses unless the ticket is `status: done`. It first disposes of the
 checkout and branch under the proofs above (best-effort: a cleanup failure is
 reported, never aborts). It then drops the slug from any recurring template's
-`retires.md` worklist, but only once its local branch is gone and its recorded
+`retires.md` worklist, but only once its local branch is gone (judged in the
+owning repository when the entry records another clone as `owner`) and its recorded
 worktree directory is gone or is the repository's own primary checkout (which
 nobody disposes of). Finally it scaffolds a `retire-<slug>` task straight to `active`,
 whose body invokes the `retro/done-ticket` skill; that skill opens the PR that

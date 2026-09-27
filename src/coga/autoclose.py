@@ -79,7 +79,9 @@ from coga.retire_worklist import (
     RetireWorklistError,
     WorklistChange,
     all_worklists,
+    branch_owner,
     is_primary_checkout,
+    local_branches,
     parse_worklist,
     reconcile_worklist,
     worklist_for_period_task,
@@ -201,6 +203,9 @@ class CheckoutOutcome:
     refused the path as not a linked worktree of this repository."""
     worktree_path: Path | None = None
     """The recorded `worktree:` resolved against the sweep's git root."""
+    branch_owner: Path | None = None
+    """The other repository a backlog entry's branch lives in, set only when
+    its worktree is gone and the proofs here therefore never ran."""
 
     @property
     def disposed(self) -> bool:
@@ -229,6 +234,13 @@ class CheckoutOutcome:
         """
         retire = f"`coga retire {self.slug}`"
         branch_left = self.branch is not None and self.disposal.local_branch_remains
+        if self.branch_owner is not None and self.branch is not None:
+            owner = shlex.quote(str(self.branch_owner))
+            return (
+                f"the branch lives in the owning clone `{self.branch_owner}`, "
+                "not this repository: verify there that it landed, then delete "
+                f"it by hand (`git -C {owner} branch -d {shlex.quote(self.branch)}`)"
+            )
         if self.not_linked and self.worktree_path is not None:
             path = shlex.quote(str(self.worktree_path))
             home = self.home
@@ -248,8 +260,7 @@ class CheckoutOutcome:
                     "Plan worktree and branch cleanup together: a squash- or "
                     "rebase-merged tip may require guarded forced branch deletion "
                     "after exact merged-head verification; ordinary branch -d "
-                    "can refuse it. Keep the worktree until that plan is verified, "
-                    "because removing its directory can discharge this follow-up."
+                    "can refuse it. Keep the worktree until that plan is verified."
                 )
             if home is not None and home.kind == "standalone":
                 what = "an independent checkout with its own repository"
@@ -1034,6 +1045,17 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
             if branch is None and worktree is None:
                 continue
             ticket_exists, pr_url = _entry_ticket(cfg, entry.slug)
+            held = _owner_held_branch(
+                root,
+                entry,
+                branch=branch,
+                worktree=worktree,
+                ticket_exists=ticket_exists,
+                echo=_echo(entry.slug),
+            )
+            if held is not None:
+                result.checkouts.append(held)
+                continue
             result.checkouts.append(
                 CheckoutOutcome(
                     slug=entry.slug,
@@ -1054,6 +1076,66 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
 
     for item in result.checkouts:
         _locate_refused_worktree(root, item)
+
+
+def _owner_held_branch(
+    root: Path,
+    entry: RetireFollowUp,
+    *,
+    branch: str | None,
+    worktree: str | None,
+    ticket_exists: bool,
+    echo: Callable[[str], None],
+) -> CheckoutOutcome | None:
+    """Judge a backlog entry whose branch lives in another clone, without proofs.
+
+    Applies only once the recorded worktree is gone and the entry's `owner` is
+    not this repository (`retire_worklist.branch_owner`): the proofs here would
+    find no local branch and call it disposed while the owning clone still
+    holds it. The outcome is preserved while the owner still lists the branch
+    or cannot be read — the same verdict `retire_worklist.is_discharged` gives
+    the entry — and names the by-hand delete in the owning clone. `None`
+    leaves the entry to the ordinary proofs.
+    """
+    # Lazy for the same `autoclose -> branchcleanup -> autoclose` cycle.
+    from coga.branchcleanup import resolve_worktree_path
+    from coga.checkout_disposal import CheckoutDisposal
+
+    if branch is None or not entry.owner:
+        return None
+    if worktree is not None and resolve_worktree_path(root, worktree).is_dir():
+        return None
+    home = branch_owner(root, entry.owner)
+    if home == root:
+        return None
+    owner = Path(entry.owner)
+    disposal = CheckoutDisposal(branch=branch, worktree=None)
+    if home is None:
+        disposal.local_branch_remains = True
+        message = (
+            f"Branch cleanup: owning clone {owner} cannot be read — branch "
+            f"{branch!r} stays listed until it can be judged there."
+        )
+    else:
+        branches = local_branches(home)
+        disposal.local_branch_remains = branches is None or branch in branches
+        message = (
+            f"Branch cleanup: {branch!r} lives in the owning clone {owner}, "
+            "not this repository — left in place."
+            if disposal.local_branch_remains
+            else f"Branch cleanup: {branch!r} already gone from the owning clone {owner}."
+        )
+    disposal.notes.append(message)
+    echo(message)
+    return CheckoutOutcome(
+        slug=entry.slug,
+        title=None,
+        branch=branch,
+        worktree=None,
+        ticket_exists=ticket_exists,
+        disposal=disposal,
+        branch_owner=owner,
+    )
 
 
 def _locate_refused_worktree(root: Path, item: CheckoutOutcome) -> None:
@@ -1185,7 +1267,8 @@ def render_preserved_summary(preserved: list[CheckoutOutcome]) -> str:
     is re-posted on every run until it is gone. A worktree refused as not
     linked here also carries its remedy: the generic refusal cannot say
     whether the path is another repository's worktree or an independent clone,
-    and `coga retire` would not help with either.
+    and `coga retire` would not help with either. So does a branch left in
+    another clone, which only that clone can delete.
     """
     subject = (
         "1 feature checkout needs"
@@ -1194,7 +1277,11 @@ def render_preserved_summary(preserved: list[CheckoutOutcome]) -> str:
     )
     details = "; ".join(
         f"`{item.slug}` ({item.checkout_state}): {item.disposal.reason}"
-        + (f" — {item.manual_command}" if item.not_linked else "")
+        + (
+            f" — {item.manual_command}"
+            if item.not_linked or item.branch_owner is not None
+            else ""
+        )
         for item in preserved
     )
     return f"⚠️ {subject} a human — autoclose could not dispose of it: {details}"

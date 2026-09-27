@@ -502,6 +502,49 @@ def test_cross_repo_worktree_names_its_owning_checkout(
     assert [(e.slug, e.worktree) for e in entries] == [(slug, str(worktree))]
 
 
+def test_cross_clone_entry_outlives_its_worktree_until_the_owner_drops_the_branch(
+    git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    # The sweep fires from a clone that never had the branch. Removing the
+    # worktree in the owning clone must not read as "branch gone" here.
+    owner, worktree = _other_repo_worktree(tmp_path)
+    slug, _ = _final_step_ticket(git_repo, branch="upstream-fix", worktree=worktree)
+    _route_important(git_repo)
+    period, worklist = _period_task(git_repo, monkeypatch)
+    _stub_gh(monkeypatch, git_repo)
+    posts = _capture_posts(monkeypatch)
+    cfg = load_config(git_repo.coga_os)
+    assert am.run_autoclose_recipe(cfg, [], result=am.AutocloseResult()) == 0
+    _, [entry] = rw.parse_worklist(worklist.read_text())
+    assert entry.owner == str(owner.resolve())
+
+    _git(owner, "worktree", "remove", str(worktree))
+    posts.clear()
+    result = am.AutocloseResult()
+    assert am.run_autoclose_recipe(cfg, [], result=result) == 0
+
+    [kept] = result.preserved
+    assert kept.slug == slug and kept.branch_owner == owner.resolve()
+    assert kept.checkout_state == "branch `upstream-fix`"
+    remedy = f"`git -C {owner.resolve()} branch -d upstream-fix`"
+    assert remedy in kept.manual_command
+    assert remedy in period.read_text()
+    [important] = [text for url, text in posts if url == IMPORTANT_WEBHOOK]
+    assert remedy in important
+    _, entries = rw.parse_worklist(worklist.read_text())
+    assert entries == [entry]
+    assert _local_branch_exists(owner, "upstream-fix")
+
+    _git(owner, "branch", "-D", "upstream-fix")
+    capsys.readouterr()
+    result = am.AutocloseResult()
+    assert am.run_autoclose_recipe(cfg, [], result=result) == 0
+
+    assert [item.slug for item in result.disposed] == [slug]
+    assert rw.parse_worklist(worklist.read_text())[1] == []
+    assert f"1 discharged (`{slug}`)" in capsys.readouterr().out
+
+
 def test_independent_clone_is_named_for_removal_by_hand(
     git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
