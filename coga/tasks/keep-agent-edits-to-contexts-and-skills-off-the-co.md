@@ -35,7 +35,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -199,3 +199,72 @@ that environment issue. No runtime tests were run for this spec-only step.
 None outstanding from the attended design discussion. Independent evaluation
 and the frozen owner review-design gate remain required; this spec is not
 self-approved.
+
+## Evaluator review
+
+Cold review completed 2026-09-26. The approach closes the identified automatic
+publication gap without expanding core or coupling knowledge review to lifecycle
+transitions. One acceptance/implementation ambiguity needs an owner disposition
+before implementation; otherwise the scope and verification plan are coherent.
+
+### Must resolve before implementation
+
+1. **Define support-only behavior for an existing task interview.** Acceptance
+   requires support-only interviews not to call `git.publish()`, but Proposed
+   Shape preserves the existing task publication sequence. In
+   `src/coga/authoring.py::finalize_authored`, the `TaskRef` branch unconditionally
+   sets `task_sync_paths = [authored_ref.path]` when the task still exists,
+   even if the interview changed only a context. Removing
+   `sync_paths.extend(support_paths(...))` therefore still calls `publish` with
+   that unchanged task. This is already represented by
+   `tests/test_authoring.py::test_finalize_authored_syncs_relocated_contexts_dir`,
+   which snapshots after creating the task and then changes only a context.
+   Decide whether “support-only” means no task paths selected (bootstrap or
+   deleted target), preserving the existing-task call, or means no task changed
+   during any interview, requiring an additional selection change. State the
+   choice in the spec and test that existing-task case explicitly. The former
+   is the smaller change and still prevents knowledge publication; the latter
+   satisfies the current literal no-call requirement but changes task selection.
+
+### Optional recommendations
+
+- Pin failure expectations to today's best-effort behavior:
+  `finalize_authored` catches `git.GitError` and reports it on stderr, whereas
+  `commands/ticket.py::_run_authoring_session` turns authoring/validation errors
+  into exit 2. When testing that the notice does not turn failures into success,
+  assert these existing outcomes separately rather than introducing a new
+  nonzero publication exit contract.
+
+### Evidence and coverage assessment
+
+- `git.py::sync_coga_state` selects only tasks, log, and recurring paths;
+  `sync_task_state` selects one task plus log. Neither uses actor metadata.
+  `authoring.py::changed_authoring_paths` includes deletions and
+  `support_paths` follows `cfg.contexts_root`. The parent interview command
+  snapshots before spawning and finalizes only after exit 0. These concrete
+  claims match the spec.
+- The named authoring tests exist, including conversion, deleted target,
+  bootstrap discovery, relocated contexts, and support deletion.
+  `test_git.py::test_sweep_publishes_only_task_log_and_recurring_state` checks
+  the bare origin tree and local dirt; `tests/conftest.py::git_repo` and
+  `init_git_repo` provide reusable real-Git fixtures. The requested expanded
+  layout/metadata and finalization-plus-sweep coverage is feasible.
+- The state-publication topic and sync overview currently document the exact
+  interview exception being removed; the finalize skill promises support sync.
+  The proposed owner/summary/twin updates match the packaging contract.
+  The frozen workflow matches the packaged
+  `bootstrap/workflows/code/design-then-implement.md`: evaluate-design advances
+  once to the owner-held review-design gate. No implementation authorization
+  is implied by this review.
+
+Verification of the unchanged implementation:
+
+- `PYTHONPATH="$PWD/src" .venv/bin/python -m pytest tests/test_authoring.py tests/test_git.py -q`
+  → **72 passed in 9.56s**. These are baseline tests, including today's support
+  publication expectations, not proof of the proposed fix.
+- `PYTHONPATH="$PWD/src" .venv/bin/python -m coga.cli validate --task keep-agent-edits-to-contexts-and-skills-off-the-co --json`
+  → **ok_count: 1, no issues**.
+
+Only this evaluator blackboard section was authored. No ticket-body changes,
+implementation, branch, or PR were produced; full-suite and packaging execution
+remain implementation verification requirements.
