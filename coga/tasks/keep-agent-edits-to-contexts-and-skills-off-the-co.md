@@ -284,3 +284,10 @@ Verification of the unchanged implementation:
 Only this evaluator blackboard section was authored. No ticket-body changes,
 implementation, branch, or PR were produced; full-suite and packaging execution
 remain implementation verification requirements.
+
+## Dev
+
+branch: fix-authoring-publication
+
+Implement the approved task-only finalization boundary, retain visible support-file
+review guidance, and verify real-Git publication plus packaged topic twins.
