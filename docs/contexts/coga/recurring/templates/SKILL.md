@@ -28,6 +28,11 @@ it). There is no starter directory — copy an existing template.
   ordinary task can resolve is allowed; there is no recurring-capable registry.
 - `title` (else the humanized name), `owner`, `agent`, `contexts`, `secrets` —
   passed to each period task. `agent` omitted means the repo default agent.
+- `run_when_inactive` — optional boolean, default false; exempts the template
+  from the [repo inactivity gate](../scheduling/SKILL.md). Only the shipped
+  `autoclose-merged` opts in. Non-booleans fail `Template.load` with
+  `RecurringError` and are reported by the sweep and `coga validate`. The field
+  stays on the template and is never copied to a period task.
 - `state_keys` — list of parent-blackboard keys a run must advance (see
   [coga/period-task](../../period-task/SKILL.md)).
 - Rejected: top-level `slug`, `human`, `assignee`, `watchers`

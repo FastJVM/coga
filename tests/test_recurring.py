@@ -7061,7 +7061,7 @@ def test_forced_recurring_scan_reports_canceled_and_continues(
         ),
         delegate=None,
     )
-    scan = SimpleNamespace(forced=[canceled, later], due=[], tasks=[], errors=[], admission_skips=[], sync_problems=[])
+    scan = SimpleNamespace(forced=[canceled, later], due=[], tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[])
     launched: list[str] = []
 
     monkeypatch.setattr(
@@ -7139,7 +7139,7 @@ def test_forced_recurring_scan_prepares_then_launches_task(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[task], due=[], tasks=[], errors=[], admission_skips=[], sync_problems=[]
+            forced=[task], due=[], tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -7229,7 +7229,7 @@ def test_recurring_scan_returns_failed_script_exit_without_unwinding(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[], due=[first, second], tasks=[], errors=[], admission_skips=[], sync_problems=[]
+            forced=[], due=[first, second], tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -7321,7 +7321,7 @@ def test_recurring_scan_records_the_stopping_task(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[], due=due, tasks=[], errors=[], admission_skips=[], sync_problems=[]
+            forced=[], due=due, tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -7413,7 +7413,7 @@ def test_recurring_scan_continues_past_an_unclassifiable_period(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[], due=[first, second, third], tasks=[], errors=[], admission_skips=[], sync_problems=[]
+            forced=[], due=[first, second, third], tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -7510,7 +7510,7 @@ def test_recurring_scan_names_due_tasks_abandoned_through_a_delegated_launch(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[], due=due, tasks=[], errors=[], admission_skips=[], sync_problems=[]
+            forced=[], due=due, tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -7592,7 +7592,7 @@ def test_recurring_scan_names_every_failed_template_in_the_run_record(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[], due=[first, second, third], tasks=[], errors=[], admission_skips=[], sync_problems=[]
+            forced=[], due=[first, second, third], tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -12942,3 +12942,174 @@ def test_adopted_period_stays_handled_when_its_log_publication_fails(
         "- `recurring/weekly-check`: create sync to the control branch failed: "
         "simulated log outage"
     ) in text
+
+
+@pytest.mark.parametrize("value", ['"true"', '1', 'null', '[]'])
+def test_run_when_inactive_must_be_boolean(repo: Path, value: str) -> None:
+    from coga.validate import run
+
+    path = repo / "recurring/weekly-check/ticket.md"
+    path.write_text(path.read_text().replace('schedule:', f'run_when_inactive: {value}\nschedule:', 1))
+    with pytest.raises(RecurringError, match="run_when_inactive"):
+        Template.load(path.parent)
+    scan = scan_due(load_config(repo), inactive_since="2026-09-04")
+    assert "run_when_inactive" in scan.errors[0][1]
+    assert any("run_when_inactive" in i.message for i in run(load_config(repo)).issues)
+
+
+def test_inactive_template_exemption_does_not_pass_to_period(repo: Path) -> None:
+    path = repo / "recurring/weekly-check/ticket.md"
+    assert not Template.load(path.parent).runs_when_inactive
+    path.write_text(path.read_text().replace('schedule:', 'run_when_inactive: true\nschedule:', 1))
+    assert Template.load(path.parent).runs_when_inactive
+    scan = scan_due(load_config(repo), inactive_since="never")
+    assert len(scan.due) == 1
+    assert "run_when_inactive" not in Ticket.read(scan.due[0].ref.ticket_path).frontmatter
+    assert scan.inactivity_skips == []
+
+
+@pytest.mark.parametrize("status", ["absent", "active", "in_progress", "paused"])
+def test_inactive_sweep_leaves_periods_untouched_and_skips_autofix(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys, status: str,
+) -> None:
+    from datetime import date
+    from coga.recurring_activity import RepoActivity
+    from coga.recurring_autofix import scan_lines_for_record
+
+    cfg = load_config(repo)
+    if status != "absent":
+        cfg, ref = _in_progress_period(repo)
+        if status == "paused":
+            recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
+        else:
+            ticket = Ticket.read(ref.ticket_path)
+            ticket.frontmatter["status"] = status
+            ticket.write(ref.ticket_path)
+    saved = {p: p.read_bytes() for p in repo.rglob("*") if p.is_file()}
+    monkeypatch.setattr(recurring_cmd, "check_activity", lambda *a: RepoActivity(date(2026, 9, 4), True))
+    monkeypatch.setattr(recurring_cmd, "run_autofix", lambda *a, **kw: pytest.fail("autofix ran"))
+    monkeypatch.setattr(recurring_cmd, "notify", lambda *a, **kw: pytest.fail("watchdog notified"))
+    monkeypatch.setattr(recurring_cmd, "_launch_due_tasks", lambda *a, **kw: pytest.fail("launched"))
+    assert recurring_cmd.run_recurring_scan(cfg) == 0
+    output = capsys.readouterr().out
+    assert "skip (repo inactive since 2026-09-04)" in output
+    assert "last human commit 2026-09-04" in output
+    assert "window 14 days" in output
+    assert "needs attention" not in output
+    assert {p: p.read_bytes() for p in repo.rglob("*") if p.is_file()} == saved
+    scan = scan_due(cfg, inactive_since="2026-09-04")
+    assert not scan.tasks and not scan.admission_skips and not scan.errors
+    assert "skip (repo inactive since 2026-09-04)" in scan_lines_for_record(scan)[0]
+
+
+@pytest.mark.parametrize("override", ["force", "named", "exempt", "disabled"])
+def test_inactivity_override_launches(repo: Path, monkeypatch: pytest.MonkeyPatch, override: str) -> None:
+    from datetime import date
+    from coga.recurring_activity import RepoActivity
+
+    path = repo / "recurring/weekly-check/ticket.md"
+    if override == "exempt":
+        path.write_text(path.read_text().replace('schedule:', 'run_when_inactive: true\nschedule:', 1))
+    if override == "disabled":
+        with (repo / "coga.toml").open("a") as stream:
+            stream.write("\n[recurring]\nidle_days = 0\n")
+    else:
+        def activity(*args):
+            if override != "exempt":
+                pytest.fail("override consulted activity")
+            return RepoActivity(date(2026, 9, 4), True)
+        monkeypatch.setattr(recurring_cmd, "check_activity", activity)
+    monkeypatch.setattr(recurring_cmd, "_interactive_stdio_has_tty", lambda: True)
+    launched = []
+    records = []
+
+    def finish(slug: str, **kwargs) -> None:
+        launched.append(slug)
+        ticket_path = repo / "tasks" / slug / "ticket.md"
+        ticket = Ticket.read(ticket_path)
+        ticket.frontmatter["status"] = "done"
+        ticket.write(ticket_path)
+
+    _patch_recurring_command_launch(monkeypatch, repo, finish)
+    monkeypatch.setattr(recurring_cmd, "run_autofix", lambda cfg, record, **kw: records.append(record))
+    cfg = load_config(repo)
+    if override == "named":
+        assert recurring_cmd.run_recurring_named(cfg, "weekly-check") == 0
+    else:
+        assert recurring_cmd.run_recurring_scan(cfg, force=override == "force") == 0
+    assert launched == ["recurring/weekly-check"]
+    assert len(records) == 1
+    assert len(records[0].outcomes) == 1
+
+
+def test_shipped_inactivity_exemptions() -> None:
+    exempt = [p.name for p in (_TEMPLATES_COGA_OS / "recurring").iterdir()
+              if p.is_dir() and not p.name.startswith("_") and Template.load(p).runs_when_inactive]
+    assert exempt == ["autoclose-merged"]
+
+
+@pytest.mark.parametrize("exempt", [False, True])
+def test_inactive_watchdog_exemption_escalates_without_autofix(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, exempt: bool,
+) -> None:
+    from datetime import date
+    from coga.recurring_activity import RepoActivity
+
+    cfg, ref = _in_progress_period(repo)
+    recurring_cmd._stop_if_unfinished_after_launch(cfg, ref, timed_out=True)
+    if exempt:
+        path = repo / "recurring/weekly-check/ticket.md"
+        path.write_text(path.read_text().replace('schedule:', 'run_when_inactive: true\nschedule:', 1))
+    saved = ref.ticket_path.read_bytes()
+    notifications = []
+    monkeypatch.setattr(recurring_cmd, "check_activity", lambda *a: RepoActivity(date(2026, 9, 4), True))
+    monkeypatch.setattr(recurring_cmd, "run_autofix", lambda *a, **kw: pytest.fail("autofix without outcome"))
+    monkeypatch.setattr(recurring_cmd, "notify", lambda *a, **kw: notifications.append(a))
+    assert recurring_cmd.run_recurring_scan(cfg) == (2 if exempt else 0)
+    assert len(notifications) == (1 if exempt else 0)
+    assert ref.ticket_path.read_bytes() == saved
+
+
+def test_activity_failure_prints_one_note_and_runs(repo: Path, monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    from coga.recurring_activity import RepoActivity
+
+    monkeypatch.setattr(recurring_cmd, "check_activity", lambda *a: RepoActivity(error="git failed"))
+    monkeypatch.setattr(recurring_cmd, "_interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr(recurring_cmd, "run_autofix", lambda *a, **kw: None)
+    launched = []
+
+    def finish(slug: str, **kwargs) -> None:
+        launched.append(slug)
+        path = repo / "tasks" / slug / "ticket.md"
+        ticket = Ticket.read(path)
+        ticket.frontmatter["status"] = "done"
+        ticket.write(path)
+
+    _patch_recurring_command_launch(monkeypatch, repo, finish)
+    assert recurring_cmd.run_recurring_scan(load_config(repo)) == 0
+    assert launched == ["recurring/weekly-check"]
+    assert capsys.readouterr().err.count("Recurring activity unknown") == 1
+
+
+def test_inactive_sweep_reads_real_control_history(repo: Path, monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    """The runner wires the production activity check to the pre-create gate."""
+    root = repo.parent
+    for argv in (["init", "-b", "main"], ["config", "user.name", "Test"],
+                 ["config", "user.email", "test@example.com"], ["add", "."]):
+        subprocess.run(["git", "-C", str(root), *argv], check=True, capture_output=True)
+    stamp = "2026-01-01T12:00:00+00:00"
+    subprocess.run(
+        ["git", "-C", str(root), "commit", "-m", "Human baseline"],
+        check=True, capture_output=True,
+        env={**os.environ, "GIT_AUTHOR_DATE": stamp, "GIT_COMMITTER_DATE": stamp},
+    )
+    class FixedNow(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 9, 25, 12)
+
+    monkeypatch.setattr(recurring_cmd, "datetime", FixedNow)
+    monkeypatch.setattr(recurring_cmd, "run_autofix", lambda *a, **kw: pytest.fail("autofix ran"))
+    assert recurring_cmd.run_recurring_scan(load_config(repo)) == 0
+    assert not (repo / "tasks/recurring/weekly-check").exists()
+    assert "skip (repo inactive since 2026-01-01)" in capsys.readouterr().out
