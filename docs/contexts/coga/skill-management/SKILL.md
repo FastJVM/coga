@@ -34,11 +34,15 @@ install is explicit: `coga init` installs no skills and makes no `gh` call.
 - **Hand-vendored**: committed under a namespace with `ATTRIBUTION.md` or
   `NOTICE.txt` plus `LICENSE.txt` recording source, license, and
   modifications, and no installer metadata. `anthropic/skill-creator/` is
-  verbatim; `browser/playwright/` is adapted. Refresh by re-copying the
+  the verbatim example. Refresh by re-copying the
   reviewed upstream revision and deliberately reapplying recorded changes.
   Keep the upstream leaf `name:`.
 - **Bundled**: package-backed under `bootstrap/skills/`; `coga skill` never
   writes into `coga/bootstrap/`. See [coga/packaging](../packaging/SKILL.md).
+  A repo copy of a bundled skill shadows it and `coga skill status` reports it
+  as `local-override`: `browser/playwright/` is bundled (adapted upstream,
+  with `NOTICE.txt` and `LICENSE.txt`), and this repo's twin carries the same
+  files. Upgrading `coga` refreshes the package copy, not the repo twin.
 
 ## `coga skill` commands
 
