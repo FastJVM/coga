@@ -24,7 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (self-qa)
 ---
 
 ## Description
@@ -125,3 +125,43 @@ so the control-checkout relaunch plan above is moot):
   owner that cannot be read keeps the entry.
 - Autoclose backlog walk: owner-held entry with worktree gone skips the root
   proofs and reports `git -C <owner> branch -d <branch>`.
+
+## Implement handoff — 2026-09-27
+
+Commit `2beb8761c` on `retire-worklist-owner`, pushed, rebased on current
+`origin/main`. `python -m pytest`: 2952 passed.
+
+- `src/coga/retire_worklist.py`: `RetireFollowUp.owner` (optional trailing
+  `, owner `<path>`` on the line; old lines parse/render unchanged).
+  `worktree_owner` records an owner only for `git.classify_checkout`'s
+  `foreign-linked` verdict (not independent clones — their branch dies with
+  the directory). `branch_owner` maps a recorded owner to root (owner is a
+  checkout of root's repo, e.g. the sweep firing from the owning clone), the
+  owner path, or `None` (missing / unreadable → entry kept). `is_discharged`
+  judges `branch:` there; `reconcile_worklist` backfills `owner` on every kept
+  or recorded entry whose worktree dir still exists (reported as refreshed).
+- `src/coga/autoclose.py`: `_owner_held_branch` — backlog entry with an
+  owner outside this repo and worktree gone skips the root proofs (which
+  would have called it disposed) and becomes a preserved outcome;
+  `CheckoutOutcome.branch_owner` + `manual_command` name
+  `git -C <owner> branch -d <branch>`, also on the coga-important line.
+  Dropped the "removing its directory can discharge this follow-up" clause
+  from the foreign-linked remedy.
+- Docs: `coga/autoclose/sweep` skill gains "A branch in another clone";
+  summaries in `coga/recurring/autoclose-merged/ticket.md` and
+  `dev/checkout-cleanup`; packaged twins synced.
+- Tests: `tests/test_retire_worklist.py` (two real clones: retained after
+  worktree removal, discharged after branch delete, unreadable/missing owner
+  retained, owner==root, backfill), `tests/test_autoclose_dispose.py`
+  end-to-end three-run test.
+
+Not done here (outside this repo / Coga state):
+- The live `coga/recurring/autoclose-merged/retires.md` header text in each
+  consuming repo is not rewritten by reconcile; it still says "both gone".
+- multiply's recurring ticket "Debt the worklist cannot hold" section should
+  be retired, and existing cross-clone entries there whose worktree is
+  already gone (e.g. `2a-portable-telemetry-client-extraction`, branch
+  `refactor/portable-telemetry` in `/home/n/Code/codex/multiply`) need an
+  `owner` backfilled by hand. Entries whose worktree still exists
+  (`2-startup-upgrade-probe`, `3-manual-hook-updates`) get it automatically
+  on the next sweep after this ships.
