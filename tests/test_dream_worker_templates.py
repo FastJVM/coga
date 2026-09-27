@@ -761,3 +761,20 @@ def test_retro_checks_a_done_tickets_scope_reached_the_control_branch() -> None:
         .split()
     )
     assert "`retro/done-ticket` checks the scope against the tip" in lifecycle
+
+
+def test_dream_blocks_instead_of_done_when_retro_work_is_stranded() -> None:
+    """A preserved Retro checkout ends the run blocked, never `done`."""
+    norm = " ".join(DREAM_PROMPT.read_text().split())
+
+    # Retro's audit lines must not depend on pushing the temporary branch.
+    assert "not to run `coga slack` or any other Coga command that appends" in norm
+    assert "Dream posts any PR FYI from its own checkout" in norm
+    # Unpushed commits on the temporary branch count as unverified durability.
+    assert "`git log <remote>/<control-branch>..HEAD` is empty" in norm
+    assert "surface a blocker" not in norm
+    assert "`### Stranded Retro work`" in norm
+    assert "This run then ends blocked, never `done`" in norm
+    assert "coga block --task <this-dream-task> --reason \"Retro work stranded on" in norm
+    assert "Never mark this task done while any preserved path remains." in norm
+    assert "Otherwise, run `coga mark done <this-dream-task>`" in norm
