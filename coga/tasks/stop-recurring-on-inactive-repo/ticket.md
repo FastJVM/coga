@@ -403,6 +403,7 @@ boundary math reproduces 08-14 and 09-18.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/905
 branch: stop-recurring-inactive
 
 ## Implementation decisions (2026-09-27)
