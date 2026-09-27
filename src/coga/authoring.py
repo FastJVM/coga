@@ -97,7 +97,7 @@ def authoring_sync_roots(cfg: Config) -> tuple[Path, ...]:
     Resolved off config rather than joined onto `cfg.repo_root`, because
     `[layout] contexts` can move the contexts directory outside the coga root
     entirely. A hardcoded join would leave a relocated context edited during
-    authoring unhashed before the session and therefore unsynced after it.
+    authoring unhashed before the session and therefore unreported after it.
     """
     return tuple(
         cfg.contexts_root if name == "contexts" else cfg.repo_root / name
@@ -188,10 +188,8 @@ def authoring_sync_message(authored_refs: list[TaskRef]) -> str:
     """Commit message for a guided authoring sync."""
     if len(authored_refs) == 1:
         return f"Ticket: {authored_refs[0].id_slug} — authored"
-    if authored_refs:
-        slugs = ", ".join(ref.id_slug for ref in authored_refs)
-        return f"Ticket authoring — authored {slugs}"
-    return "Ticket authoring — support files"
+    slugs = ", ".join(ref.id_slug for ref in authored_refs)
+    return f"Ticket authoring — authored {slugs}"
 
 
 def validate_authored_task(cfg: Config, ref: TaskRef) -> None:
@@ -222,6 +220,14 @@ def finalize_authored(
 ) -> None:
     """Run post-authoring validation and sync for a completed interview."""
     changed_paths = changed_authoring_paths(before_snapshot.files, cfg)
+    support = support_paths(cfg, changed_paths)
+    if support:
+        sys.stderr.write(
+            "[ticket] Coga did not publish these context/skill changes; "
+            "carry them through a branch and human-reviewed PR:\n"
+            + "".join(f"  {path}\n" for path in support)
+        )
+
     task_sync_paths: list[Path]
     if isinstance(ref, TaskRef):
         # The interview may promote a flat task to directory form so it can
@@ -238,7 +244,15 @@ def finalize_authored(
             task_sync_paths = []
         else:
             authored_refs = [authored_ref]
-            task_sync_paths = [authored_ref.path]
+            task_root = authored_ref.path.resolve(strict=False)
+            task_sync_paths = (
+                [authored_ref.path]
+                if any(
+                    path == task_root or task_root in path.parents
+                    for path in changed_paths
+                )
+                else []
+            )
             if authored_ref.path.resolve(strict=False) != ref.path.resolve(
                 strict=False
             ):
@@ -253,10 +267,8 @@ def finalize_authored(
     for authored_ref in authored_refs:
         validate_authored_task(cfg, authored_ref)
 
-    sync_paths = task_sync_paths
-    sync_paths.extend(support_paths(cfg, changed_paths))
-    if sync_paths:
+    if task_sync_paths:
         try:
-            git.publish(cfg, sync_paths, authoring_sync_message(authored_refs))
+            git.publish(cfg, task_sync_paths, authoring_sync_message(authored_refs))
         except git.GitError as exc:
             sys.stderr.write(f"[git] sync failed: {exc}\n")

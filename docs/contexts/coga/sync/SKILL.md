@@ -31,8 +31,10 @@ transition.
 - The end-of-command sweep publishes every dirty task, log, and recurring
   path from **whichever checkout you ran the command in** — including a hand
   edit to ticket prose or a recurring template on a feature branch. Contexts,
-  skills, workflows, and config are never swept; only a `coga ticket`
-  interview publishes the contexts and skills it touched.
+  skills, workflows, and config are review work and are never swept. Guided
+  authoring also keeps knowledge edits local and reports them for a branch
+  and human-reviewed PR; see the
+  [publication contract](../internals/state-publication/SKILL.md).
 
 ## Where the detail lives
 

@@ -67,7 +67,10 @@ disposes.
 **Forbids:** opaque, learned or auto-curated memory; the system changing its own
 behavior on `main` without a human merge gate; silent knowledge updates.
 
-**Receipt:** Dream proposes knowledge changes as reviewable PRs
+**Receipt:** Automatic state publication leaves context and skill edits for a
+branch and human-reviewed PR
+([publication contract](../internals/state-publication/SKILL.md)). Dream
+proposes knowledge changes as reviewable PRs
 ([`coga/dream`](../dream/SKILL.md)). Sessions are stateless: the prompt is a
 function of the files on disk now, so an edit between runs takes full,
 inspectable effect. The blackboard is working memory; contexts are long-term

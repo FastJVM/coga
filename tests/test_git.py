@@ -763,27 +763,78 @@ def test_no_private_fetch_refs_are_left_behind(git_repo):
 # --- the sweep ----------------------------------------------------------------
 
 
-def test_sweep_publishes_only_task_log_and_recurring_state(git_repo):
+@pytest.mark.parametrize("layout", ["nested", "root", "relocated"])
+@pytest.mark.parametrize("feature", [False, True])
+@pytest.mark.parametrize("finalize", [False, True])
+def test_sweep_publishes_only_task_log_and_recurring_state(
+    git_repo, monkeypatch, capsys, layout, feature, finalize,
+):
+    from coga.authoring import finalize_authored, snapshot_authoring_state
+    from coga.tasks import resolve_task
+
+    _seed_ticket(git_repo)
+    if layout == "root":
+        for path in git_repo.coga_os.iterdir():
+            path.rename(git_repo.root / path.name)
+        git_repo.coga_os.rmdir()
+        git_repo.coga_os = git_repo.root
+        (git_repo.root / ".gitignore").write_text("coga.local.toml\n")
+        monkeypatch.chdir(git_repo.root)
+    elif layout == "relocated":
+        contexts = git_repo.root / "docs" / "contexts"
+        contexts.mkdir(parents=True)
+        (contexts / ".gitkeep").write_text("")
+        with (git_repo.coga_os / "coga.toml").open("a") as stream:
+            stream.write('[layout]\ncontexts = "docs/contexts"\n')
     cfg = load_config(git_repo.coga_os)
-    ticket = _seed_ticket(git_repo)
+    context = cfg.contexts_root / "team" / "SKILL.md"
+    skill = git_repo.coga_os / "skills" / "team" / "SKILL.md"
+    for path in (context, skill):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("---\nname: team\ndescription: team.\n---\noriginal\n")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed knowledge and layout")
+    git_repo.git("push", "origin", "main")
+    ticket = git_repo.coga_os / "tasks" / "demo.md"
+    if feature:
+        git_repo.git("switch", "-c", "feature")
+    ref = resolve_task(cfg, "demo")
+    monkeypatch.setenv("COGA_TASK_TICKET", str(ticket))
+    monkeypatch.setenv("COGA_TASK_SLUG", "demo")
+    before = snapshot_authoring_state(cfg)
     ticket.write_text(_ticket_text(status="blocked"))
     append_log(cfg, "demo", "human:marc", "hand edit")
     recurring = git_repo.coga_os / "recurring" / "weekly" / "ticket.md"
     recurring.parent.mkdir(parents=True)
     recurring.write_text("---\ntitle: weekly\n---\n")
-    context = git_repo.coga_os / "contexts" / "team" / "SKILL.md"
-    context.parent.mkdir(parents=True)
-    context.write_text("---\nname: team\n---\nreview me\n")
-    (git_repo.coga_os / "workflows" / "code.md").write_text("edited workflow\n")
+    context.write_text(context.read_text() + "review me\n")
+    skill.unlink()
+    new_skill = skill.parent / "notes.md"
+    new_skill.write_text("new knowledge\n")
+    workflow = git_repo.coga_os / "workflows" / "code.md"
+    workflow.write_text(workflow.read_text() + "\nEdited workflow prose.\n")
+    config = git_repo.coga_os / "coga.toml"
+    config.write_text(config.read_text() + "\n# review config\n")
+    review_paths = (context, skill, new_skill, workflow, config)
+    local = {path: path.read_bytes() if path.exists() else None for path in review_paths}
+    control = {path: _control(git_repo, path.relative_to(git_repo.root).as_posix())
+               for path in review_paths}
 
+    if finalize:
+        finalize_authored(cfg, before_snapshot=before, ref=ref)
+        assert "status: blocked" in _control(git_repo, ticket.relative_to(git_repo.root).as_posix())
+        assert str(context) in capsys.readouterr().err
     git.sync_coga_state(cfg)
 
-    assert "status: blocked" in _control(git_repo, "coga/tasks/demo.md")
-    assert "hand edit" in _control(git_repo, "coga/log.md")
-    assert _control(git_repo, "coga/recurring/weekly/ticket.md") is not None
-    assert _control(git_repo, "coga/contexts/team/SKILL.md") is None
-    assert "edited workflow" not in (_control(git_repo, "coga/workflows/code.md") or "")
-    assert _dirty(git_repo) == {"coga/contexts/team/SKILL.md", "coga/workflows/code.md"}
+    def landed(path):
+        return _control(git_repo, path.relative_to(git_repo.root).as_posix())
+
+    assert "status: blocked" in landed(ticket)
+    assert "hand edit" in landed(git_repo.coga_os / "log.md")
+    assert landed(recurring) == recurring.read_text()
+    for path in review_paths:
+        assert landed(path) == control[path]
+        assert (path.read_bytes() if path.exists() else None) == local[path]
 
 
 def test_sweep_leaves_a_stale_ticket_refused_but_converges_a_fresh_one(git_repo, capsys):

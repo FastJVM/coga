@@ -90,16 +90,12 @@ prose is a repo fact.
 
 ## Publication and ownership
 
-Context edits are review work. The end-of-command state sweep
-(`src/coga/git.py` `sync_coga_state`) publishes only tasks, `log.md` and
-`recurring/`, so edits under either root stay dirty until committed through
-normal Git or a PR. The sweep reloads config at that boundary
-(`src/coga/cli.py` `_sweep_coga_state`), because an agent may have edited
-`coga.toml` mid-command. The `coga ticket` authoring interview is the
-exception: it hashes the configured root before the session and publishes
-the context files it created or changed (`src/coga/authoring.py`
-`authoring_sync_roots`, `support_paths`). Moving an existing tree is an
-ordinary commit: move the files and set the key together.
+Context edits are review work, including edits under a relocated root and
+those made during guided ticket authoring. The automatic publication boundary
+and authoring notice are owned by
+[coga/internals/state-publication](../internals/state-publication/SKILL.md).
+Moving an existing tree is an ordinary reviewed commit: move the files and
+set the key together.
 
 `coga init` relocates its scaffold only when the template's `coga.toml` sets
 the key ([coga/init](../init/SKILL.md)). The whole configured root is
