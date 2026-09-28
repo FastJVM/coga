@@ -207,7 +207,13 @@ worktree is gone, the sweep does not run this repository's proofs on the
 branch — they would find no local branch and call it disposed — and reports
 the entry as preserved with the by-hand delete in the owning clone
 (`git -C <owner> branch -d <branch>`), on the run report and coga-important,
-until the owner's branch is gone. A line recorded before the field existed
+until the owner's branch is gone. When the recorded owner path is itself gone
+or unreadable, that command could not run: the entry is still kept, and the
+remedy says the branch's home is unknown and asks a human to locate the clone
+and correct the entry's `owner` (or remove the line once the branch is
+verified landed and deleted there). A union-merged duplicate of an entry
+keeps its recorded `owner` when the other line names the same worktree
+without one. A line recorded before the field existed
 whose worktree is already gone has nothing to classify: it is judged against
 this repository as before, so add its `owner` by hand if its branch lives in
 another clone.

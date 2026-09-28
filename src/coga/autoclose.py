@@ -79,6 +79,7 @@ from coga.retire_worklist import (
     RetireWorklistError,
     WorklistChange,
     all_worklists,
+    branch_owner,
     is_primary_checkout,
     owner_branch_remains,
     parse_worklist,
@@ -205,6 +206,9 @@ class CheckoutOutcome:
     branch_owner: Path | None = None
     """The other repository a backlog entry's branch lives in, set only when
     its worktree is gone and the proofs here therefore never ran."""
+    owner_unreadable: bool = False
+    """`branch_owner` is only the recorded path: it is gone or git cannot
+    read it, so nobody knows where the branch lives now."""
 
     @property
     def disposed(self) -> bool:
@@ -233,6 +237,19 @@ class CheckoutOutcome:
         """
         retire = f"`coga retire {self.slug}`"
         branch_left = self.branch is not None and self.disposal.local_branch_remains
+        if (
+            self.owner_unreadable
+            and self.branch_owner is not None
+            and self.branch is not None
+        ):
+            return (
+                f"the recorded owning clone `{self.branch_owner}` is gone or "
+                "not a repository git can read, so where branch "
+                f"`{self.branch}` lives is unknown: locate the clone that holds "
+                "it and correct the entry's `owner` in `retires.md` to that "
+                "clone's main working tree, or, once you have verified the "
+                "branch landed and deleted it there by hand, remove the entry"
+            )
         if self.branch_owner is not None and self.branch is not None:
             owner = shlex.quote(str(self.branch_owner))
             return (
@@ -1094,8 +1111,11 @@ def _owner_held_branch(
     holds it. The outcome is preserved while the owner still lists the branch
     or cannot be read (`retire_worklist.owner_branch_remains`, the verdict
     `is_discharged` gives the entry too) and names the by-hand delete in the
-    owning clone. `None`
-    leaves the entry to the ordinary proofs.
+    owning clone — except when the recorded owner path itself is gone or
+    unreadable (`retire_worklist.branch_owner` has no answer), where that
+    command could not run: the outcome is marked `owner_unreadable` and asks
+    for the owner to be located instead. `None` leaves the entry to the
+    ordinary proofs.
     """
     # Lazy for the same `autoclose -> branchcleanup -> autoclose` cycle.
     from coga.branchcleanup import resolve_worktree_path
@@ -1109,14 +1129,23 @@ def _owner_held_branch(
     if remains is None:
         return None
     owner = Path(entry.owner)
+    unreadable = remains and branch_owner(root, entry.owner) is None
     disposal = CheckoutDisposal(branch=branch, worktree=None)
     disposal.local_branch_remains = remains
-    message = (
-        f"Branch cleanup: {branch!r} lives in the owning clone {owner}, "
-        "not this repository (or that clone cannot be read) — left in place."
-        if remains
-        else f"Branch cleanup: {branch!r} already gone from the owning clone {owner}."
-    )
+    if unreadable:
+        message = (
+            f"Branch cleanup: {branch!r} was recorded in the owning clone "
+            f"{owner}, which is gone or cannot be read — left in place."
+        )
+    elif remains:
+        message = (
+            f"Branch cleanup: {branch!r} lives in the owning clone {owner}, "
+            "not this repository (or its branches cannot be read) — left in place."
+        )
+    else:
+        message = (
+            f"Branch cleanup: {branch!r} already gone from the owning clone {owner}."
+        )
     disposal.notes.append(message)
     echo(message)
     return CheckoutOutcome(
@@ -1127,6 +1156,7 @@ def _owner_held_branch(
         ticket_exists=ticket_exists,
         disposal=disposal,
         branch_owner=owner,
+        owner_unreadable=unreadable,
     )
 
 

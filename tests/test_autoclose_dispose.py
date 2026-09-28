@@ -8,6 +8,7 @@ worktree, and a bare `origin`, so the shared retire proofs
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 from textwrap import dedent
@@ -543,6 +544,41 @@ def test_cross_clone_entry_outlives_its_worktree_until_the_owner_drops_the_branc
     assert [item.slug for item in result.disposed] == [slug]
     assert rw.parse_worklist(worklist.read_text())[1] == []
     assert f"1 discharged (`{slug}`)" in capsys.readouterr().out
+
+
+def test_cross_clone_entry_with_an_unreadable_owner_asks_for_the_owner(
+    git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The recorded owner is gone along with the worktree: the entry stays
+    # (fail closed), but a `git -C <missing owner> branch -d` could never run,
+    # so the remedy asks for the owner to be located instead.
+    owner, worktree = _other_repo_worktree(tmp_path)
+    slug, _ = _final_step_ticket(git_repo, branch="upstream-fix", worktree=worktree)
+    _route_important(git_repo)
+    period, worklist = _period_task(git_repo, monkeypatch)
+    _stub_gh(monkeypatch, git_repo)
+    posts = _capture_posts(monkeypatch)
+    cfg = load_config(git_repo.coga_os)
+    assert am.run_autoclose_recipe(cfg, [], result=am.AutocloseResult()) == 0
+    _, [entry] = rw.parse_worklist(worklist.read_text())
+    assert entry.owner == str(owner.resolve())
+
+    shutil.rmtree(worktree)
+    shutil.rmtree(owner)
+    posts.clear()
+    result = am.AutocloseResult()
+    assert am.run_autoclose_recipe(cfg, [], result=result) == 0
+
+    [kept] = result.preserved
+    assert kept.slug == slug and kept.owner_unreadable
+    remedy = kept.manual_command
+    assert "branch -d" not in remedy
+    assert f"the recorded owning clone `{owner.resolve()}` is gone" in remedy
+    assert "correct the entry's `owner`" in remedy
+    [important] = [text for url, text in posts if url == IMPORTANT_WEBHOOK]
+    assert remedy in important and "branch -d" not in important
+    assert remedy in period.read_text()
+    assert rw.parse_worklist(worklist.read_text())[1] == [entry]
 
 
 def test_independent_clone_is_named_for_removal_by_hand(

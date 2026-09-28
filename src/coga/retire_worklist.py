@@ -211,8 +211,9 @@ def parse_worklist(text: str) -> tuple[str, list[RetireFollowUp]]:
     """Split a worklist into its header (through the heading) and its entries.
 
     Duplicate slugs collapse on read, keeping the first sighting's `recorded`
-    date and the later line's checkout — the same rule a re-record applies —
-    so a union-merge artifact cannot outlive the next write. A stripped
+    date, the later line's checkout, and a recorded `owner` an ownerless line
+    for the same worktree would drop — the same rule a re-record applies — so
+    a union-merge artifact cannot outlive the next write. A stripped
     trailing newline is a benign editor artifact and is normalized rather than
     failing the daily sweep; anything else unexpected fails loud.
     """
@@ -240,9 +241,22 @@ def parse_worklist(text: str) -> tuple[str, list[RetireFollowUp]]:
         )
         existing = by_slug.get(entry.slug)
         if existing is not None:
-            entry = replace(entry, recorded=existing.recorded)
+            entry = _merge_sighting(existing, entry)
         by_slug[entry.slug] = entry
     return header + separator, list(by_slug.values())
+
+
+def _merge_sighting(existing: RetireFollowUp, later: RetireFollowUp) -> RetireFollowUp:
+    """A re-sighting of `existing`'s slug: the later checkout, the first date.
+
+    An ownerless later line naming the same worktree keeps the recorded
+    `owner`, so neither a legacy line union merge resurrects nor a re-record
+    made after the directory is gone can erase it.
+    """
+    merged = replace(later, recorded=existing.recorded)
+    if not merged.owner and merged.worktree == existing.worktree:
+        merged = replace(merged, owner=existing.owner)
+    return merged
 
 
 def render_worklist(header: str, entries: Iterable[RetireFollowUp]) -> str:
@@ -461,10 +475,7 @@ def reconcile_worklist(
                 by_slug[item.slug] = item
                 change.added.append(item)
                 continue
-            merged = replace(item, recorded=existing.recorded)
-            if not merged.owner and merged.worktree == existing.worktree:
-                merged = replace(merged, owner=existing.owner)
-            by_slug[item.slug] = merged
+            by_slug[item.slug] = _merge_sighting(existing, item)
         # One refresh per slug, however many of the backfill and the pending
         # merge changed it.
         change.refreshed = [

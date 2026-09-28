@@ -131,6 +131,20 @@ def test_parse_collapses_a_union_merged_duplicate_keeping_the_first_date() -> No
     assert entries == [_entry("dup", branch="new", recorded="2026-09-01")]
 
 
+def test_parse_keeps_the_owner_when_a_legacy_duplicate_follows_it() -> None:
+    # Union merge can put the backfilled owner-bearing line before the legacy
+    # ownerless one. Dropping the owner would judge the branch here again once
+    # the worktree is gone, and silently discharge a still-live branch.
+    owned = replace(_entry("dup", recorded="2026-09-01"), owner="/elsewhere/owner")
+    text = rw.RETIRE_WORKLIST_HEADER + "\n" + "\n".join(
+        [owned.render(), _entry("dup", recorded="2026-09-05").render()]
+    ) + "\n"
+
+    _, entries = rw.parse_worklist(text)
+
+    assert entries == [owned]
+
+
 def test_parse_normalizes_a_missing_trailing_newline_instead_of_doubling() -> None:
     header, entries = rw.parse_worklist(f"# Worklist\n\n{rw.RETIRE_WORKLIST_HEADING}")
 
