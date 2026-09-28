@@ -6662,3 +6662,4 @@ fatal: Unable to add (null) to database
 2026-09-28 08:52 [give-the-three-kinds-of-work-taxonomy-an-owning-do] [human:nicktoper] auto-bumped on merge of PR #897 → done
 2026-09-28 08:52 [make-dream-run-correctly-under-codex] [human:nicktoper] auto-bumped on merge of PR #891 → done
 2026-09-28 08:52 [recurring-sweep-wedges-on-the-ticket-py-it-copies] [human:nicktoper] auto-bumped on merge of PR #892 → done
+2026-09-28 08:52 [run-the-landed-branch-sweep-daily-from-autoclose] [human:nicktoper] auto-bumped on merge of PR #898 → done
