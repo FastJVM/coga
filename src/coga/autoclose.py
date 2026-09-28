@@ -79,7 +79,9 @@ from coga.retire_worklist import (
     RetireWorklistError,
     WorklistChange,
     all_worklists,
+    branch_owner,
     is_primary_checkout,
+    owner_branch_remains,
     parse_worklist,
     reconcile_worklist,
     worklist_for_period_task,
@@ -201,6 +203,12 @@ class CheckoutOutcome:
     refused the path as not a linked worktree of this repository."""
     worktree_path: Path | None = None
     """The recorded `worktree:` resolved against the sweep's git root."""
+    branch_owner: Path | None = None
+    """The other repository a backlog entry's branch lives in, set only when
+    its worktree is gone and the proofs here therefore never ran."""
+    owner_unreadable: bool = False
+    """`branch_owner` is only the recorded path: it is gone or git cannot
+    read it, so nobody knows where the branch lives now."""
 
     @property
     def disposed(self) -> bool:
@@ -229,6 +237,26 @@ class CheckoutOutcome:
         """
         retire = f"`coga retire {self.slug}`"
         branch_left = self.branch is not None and self.disposal.local_branch_remains
+        if (
+            self.owner_unreadable
+            and self.branch_owner is not None
+            and self.branch is not None
+        ):
+            return (
+                f"the recorded owning clone `{self.branch_owner}` is gone or "
+                "not a repository git can read, so where branch "
+                f"`{self.branch}` lives is unknown: locate the clone that holds "
+                "it and correct the entry's `owner` in `retires.md` to that "
+                "clone's main working tree, or, once you have verified the "
+                "branch landed and deleted it there by hand, remove the entry"
+            )
+        if self.branch_owner is not None and self.branch is not None:
+            owner = shlex.quote(str(self.branch_owner))
+            return (
+                f"the branch lives in the owning clone `{self.branch_owner}`, "
+                "not this repository: verify there that it landed, then delete "
+                f"it by hand (`git -C {owner} branch -d {shlex.quote(self.branch)}`)"
+            )
         if self.not_linked and self.worktree_path is not None:
             path = shlex.quote(str(self.worktree_path))
             home = self.home
@@ -248,8 +276,7 @@ class CheckoutOutcome:
                     "Plan worktree and branch cleanup together: a squash- or "
                     "rebase-merged tip may require guarded forced branch deletion "
                     "after exact merged-head verification; ordinary branch -d "
-                    "can refuse it. Keep the worktree until that plan is verified, "
-                    "because removing its directory can discharge this follow-up."
+                    "can refuse it. Keep the worktree until that plan is verified."
                 )
             if home is not None and home.kind == "standalone":
                 what = "an independent checkout with its own repository"
@@ -1034,6 +1061,17 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
             if branch is None and worktree is None:
                 continue
             ticket_exists, pr_url = _entry_ticket(cfg, entry.slug)
+            held = _owner_held_branch(
+                root,
+                entry,
+                branch=branch,
+                worktree=worktree,
+                ticket_exists=ticket_exists,
+                echo=_echo(entry.slug),
+            )
+            if held is not None:
+                result.checkouts.append(held)
+                continue
             result.checkouts.append(
                 CheckoutOutcome(
                     slug=entry.slug,
@@ -1054,6 +1092,72 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
 
     for item in result.checkouts:
         _locate_refused_worktree(root, item)
+
+
+def _owner_held_branch(
+    root: Path,
+    entry: RetireFollowUp,
+    *,
+    branch: str | None,
+    worktree: str | None,
+    ticket_exists: bool,
+    echo: Callable[[str], None],
+) -> CheckoutOutcome | None:
+    """Judge a backlog entry whose branch lives in another clone, without proofs.
+
+    Applies only once the recorded worktree is gone and the entry's `owner` is
+    not this repository (`retire_worklist.branch_owner`): the proofs here would
+    find no local branch and call it disposed while the owning clone still
+    holds it. The outcome is preserved while the owner still lists the branch
+    or cannot be read (`retire_worklist.owner_branch_remains`, the verdict
+    `is_discharged` gives the entry too) and names the by-hand delete in the
+    owning clone — except when the recorded owner path itself is gone or
+    unreadable (`retire_worklist.branch_owner` has no answer), where that
+    command could not run: the outcome is marked `owner_unreadable` and asks
+    for the owner to be located instead. `None` leaves the entry to the
+    ordinary proofs.
+    """
+    # Lazy for the same `autoclose -> branchcleanup -> autoclose` cycle.
+    from coga.branchcleanup import resolve_worktree_path
+    from coga.checkout_disposal import CheckoutDisposal
+
+    if branch is None:
+        return None
+    if worktree is not None and resolve_worktree_path(root, worktree).is_dir():
+        return None
+    remains = owner_branch_remains(root, entry)
+    if remains is None:
+        return None
+    owner = Path(entry.owner)
+    unreadable = remains and branch_owner(root, entry.owner) is None
+    disposal = CheckoutDisposal(branch=branch, worktree=None)
+    disposal.local_branch_remains = remains
+    if unreadable:
+        message = (
+            f"Branch cleanup: {branch!r} was recorded in the owning clone "
+            f"{owner}, which is gone or cannot be read — left in place."
+        )
+    elif remains:
+        message = (
+            f"Branch cleanup: {branch!r} lives in the owning clone {owner}, "
+            "not this repository (or its branches cannot be read) — left in place."
+        )
+    else:
+        message = (
+            f"Branch cleanup: {branch!r} already gone from the owning clone {owner}."
+        )
+    disposal.notes.append(message)
+    echo(message)
+    return CheckoutOutcome(
+        slug=entry.slug,
+        title=None,
+        branch=branch,
+        worktree=None,
+        ticket_exists=ticket_exists,
+        disposal=disposal,
+        branch_owner=owner,
+        owner_unreadable=unreadable,
+    )
 
 
 def _locate_refused_worktree(root: Path, item: CheckoutOutcome) -> None:
@@ -1185,7 +1289,8 @@ def render_preserved_summary(preserved: list[CheckoutOutcome]) -> str:
     is re-posted on every run until it is gone. A worktree refused as not
     linked here also carries its remedy: the generic refusal cannot say
     whether the path is another repository's worktree or an independent clone,
-    and `coga retire` would not help with either.
+    and `coga retire` would not help with either. So does a branch left in
+    another clone, which only that clone can delete.
     """
     subject = (
         "1 feature checkout needs"
@@ -1194,7 +1299,11 @@ def render_preserved_summary(preserved: list[CheckoutOutcome]) -> str:
     )
     details = "; ".join(
         f"`{item.slug}` ({item.checkout_state}): {item.disposal.reason}"
-        + (f" — {item.manual_command}" if item.not_linked else "")
+        + (
+            f" — {item.manual_command}"
+            if item.not_linked or item.branch_owner is not None
+            else ""
+        )
         for item in preserved
     )
     return f"⚠️ {subject} a human — autoclose could not dispose of it: {details}"

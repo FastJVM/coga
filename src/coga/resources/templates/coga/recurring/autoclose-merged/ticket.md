@@ -50,7 +50,8 @@ actionable: this period task is deleted at the next period boundary, so step 7
 writes the entries to `coga/recurring/<name>/retires.md` for the template this
 task was minted from; every run re-judges the open entries (an entry whose
 ticket is gone is proven by the merged PRs for its branch name) and drops the
-ones discharged — local branch gone, and worktree directory gone or this
+ones discharged — local branch gone (in the owning repository, for a
+worktree another clone owns), and worktree directory gone or this
 repository's own primary checkout (a ticket worked in the single-checkout
 layout records it; nobody disposes of it, so it is never debt). The rules are
 in the `coga/autoclose/sweep` skill.

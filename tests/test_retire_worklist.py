@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 from textwrap import dedent
 
@@ -128,6 +129,20 @@ def test_parse_collapses_a_union_merged_duplicate_keeping_the_first_date() -> No
     _, entries = rw.parse_worklist(text)
 
     assert entries == [_entry("dup", branch="new", recorded="2026-09-01")]
+
+
+def test_parse_keeps_the_owner_when_a_legacy_duplicate_follows_it() -> None:
+    # Union merge can put the backfilled owner-bearing line before the legacy
+    # ownerless one. Dropping the owner would judge the branch here again once
+    # the worktree is gone, and silently discharge a still-live branch.
+    owned = replace(_entry("dup", recorded="2026-09-01"), owner="/elsewhere/owner")
+    text = rw.RETIRE_WORKLIST_HEADER + "\n" + "\n".join(
+        [owned.render(), _entry("dup", recorded="2026-09-05").render()]
+    ) + "\n"
+
+    _, entries = rw.parse_worklist(text)
+
+    assert entries == [owned]
 
 
 def test_parse_normalizes_a_missing_trailing_newline_instead_of_doubling() -> None:
@@ -309,6 +324,113 @@ def test_a_checkout_a_human_disposes_of_by_hand_stays_worktree_debt(
     assert not rw.is_primary_checkout(None, str(root))
 
 
+def test_parse_and_render_round_trip_an_owner_and_keep_ownerless_lines() -> None:
+    owned = replace(
+        _entry("cross", worktree="/w/other wt"), owner="/code/other clone"
+    )
+    rendered = rw.render_worklist(rw.RETIRE_WORKLIST_HEADER, [owned, _entry("plain")])
+
+    assert owned.render().endswith(", owner `/code/other%20clone`")
+    assert _entry("plain").render().endswith("recorded `2026-09-04`")
+    assert rw.parse_worklist(rendered)[1] == [owned, _entry("plain")]
+
+
+def _cross_clone(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """`(sweep root, owning clone, its linked worktree on "feature")`.
+
+    Two clones of one project: the recurring sweep fires from `root`, while
+    the recorded worktree and its branch belong to the other clone only.
+    """
+    root = _git_repo_with_branch(tmp_path / "repo", "unrelated")
+    owner = _git_repo_with_branch(tmp_path / "other-clone", "feature")
+    worktree = tmp_path / "other-clone-feature"
+    _git(owner, "worktree", "add", "-q", str(worktree), "feature")
+    return root, owner, worktree
+
+
+def test_a_cross_clone_entry_is_judged_against_its_owners_branches(
+    tmp_path: Path,
+) -> None:
+    root, owner, worktree = _cross_clone(tmp_path)
+    assert rw.worktree_owner(root, str(worktree)) == str(owner.resolve())
+    entry = rw.RetireFollowUp(
+        "cross", "feature", str(worktree), "2026-09-21", owner=str(owner)
+    )
+    root_branches = rw.local_branches(root)
+
+    _git(owner, "worktree", "remove", str(worktree))
+    # The worktree is gone and `root` never had the branch: the owning clone
+    # still does, so the debt stays.
+    assert not rw.is_discharged(entry, root=root, branches=root_branches)
+
+    _git(owner, "branch", "-D", "feature")
+    assert rw.is_discharged(entry, root=root, branches=root_branches)
+
+
+def test_an_owner_that_cannot_be_read_keeps_the_entry(tmp_path: Path) -> None:
+    root, owner, worktree = _cross_clone(tmp_path)
+    _git(owner, "worktree", "remove", str(worktree))
+    _git(owner, "branch", "-D", "feature")
+    missing = rw.RetireFollowUp(
+        "cross", "feature", str(worktree), "2026-09-21", owner=str(tmp_path / "gone")
+    )
+    plain = tmp_path / "not-a-repo"
+    plain.mkdir()
+    unreadable = replace(missing, owner=str(plain))
+
+    for entry in (missing, unreadable):
+        assert rw.branch_owner(root, entry.owner) is None
+        assert not rw.is_discharged(entry, root=root, branches=frozenset())
+
+
+def test_an_owner_in_this_repository_is_judged_against_root(tmp_path: Path) -> None:
+    # The same entry, read by the sweep firing from the owning clone itself.
+    _root, owner, worktree = _cross_clone(tmp_path)
+    _git(owner, "worktree", "remove", str(worktree))
+    entry = rw.RetireFollowUp(
+        "cross", "feature", str(worktree), "2026-09-21", owner=str(owner)
+    )
+
+    assert rw.branch_owner(owner, entry.owner) == owner
+    assert not rw.is_discharged(entry, root=owner, branches=frozenset({"feature"}))
+    assert rw.is_discharged(entry, root=owner, branches=frozenset({"main"}))
+
+
+def test_a_bare_owner_is_read_like_any_other_repository(tmp_path: Path) -> None:
+    # A bare repository has no working tree, yet its branch list decides.
+    root = _git_repo_with_branch(tmp_path / "repo", "unrelated")
+    source = _git_repo_with_branch(tmp_path / "source", "feature")
+    bare = tmp_path / "project.git"
+    _git(tmp_path, "clone", "-q", "--bare", str(source), str(bare))
+    worktree = tmp_path / "bare-feature"
+    _git(bare, "worktree", "add", "-q", str(worktree), "feature")
+    owner = rw.worktree_owner(root, str(worktree))
+    entry = rw.RetireFollowUp("cross", "feature", str(worktree), "2026-09-21", owner=owner)
+
+    assert rw.branch_owner(root, owner) == Path(owner)
+    _git(bare, "worktree", "remove", str(worktree))
+    assert not rw.is_discharged(entry, root=root, branches=frozenset())
+    _git(bare, "branch", "-D", "feature")
+    assert rw.is_discharged(entry, root=root, branches=frozenset())
+
+
+def test_only_another_repositorys_linked_worktree_records_an_owner(
+    tmp_path: Path,
+) -> None:
+    root, _owner, worktree = _cross_clone(tmp_path)
+    clone = tmp_path / "independent"
+    _git(tmp_path, "clone", "-q", str(root), str(clone))
+    linked = tmp_path / "linked"
+    _git(root, "worktree", "add", "-q", str(linked), "unrelated")
+
+    assert rw.worktree_owner(root, str(worktree))
+    # An independent clone's branch dies with its directory, and the rest are
+    # this repository's or unknown: none of them names an owner.
+    for recorded in (str(clone), str(linked), str(root), str(tmp_path / "gone"), ""):
+        assert rw.worktree_owner(root, recorded) == ""
+    assert rw.worktree_owner(None, str(worktree)) == ""
+
+
 def test_local_branches_lists_heads_and_is_none_outside_a_repo(tmp_path: Path) -> None:
     repo = _git_repo_with_branch(tmp_path / "repo", "feature-x")
 
@@ -386,6 +508,52 @@ def test_reconcile_refreshes_a_moved_checkout_and_preserves_unrelated_entries(
     assert change.refreshed == [_entry("s", branch="new")]
     _, entries = rw.parse_worklist(path.read_text())
     assert entries == [_entry("other"), _entry("s", branch="new")]
+
+
+def test_reconcile_records_the_owner_while_the_worktree_still_exists(
+    repo: Path, tmp_path: Path
+) -> None:
+    # Recorded by a sweep in one clone, the worktree later removed in the
+    # owning clone: the owner written on the first run is what keeps the
+    # branch half judged where it lives.
+    cfg = load_config(repo)
+    path = rw.template_worklist_path(cfg, "autoclose-merged")
+    root, owner, worktree = _cross_clone(tmp_path)
+    recorded = _entry("cross", branch="feature", worktree=str(worktree))
+    # A line written before the field existed is backfilled on the next run.
+    rw.reconcile_worklist(cfg, path, root=root, pending=[recorded])
+    path.write_text(path.read_text().replace(f", owner `{owner.resolve()}`", ""))
+
+    change = rw.reconcile_worklist(cfg, path, root=root)
+
+    owned = replace(recorded, owner=str(owner.resolve()))
+    assert change.refreshed == [owned] and change.written
+    assert rw.parse_worklist(path.read_text())[1] == [owned]
+
+    _git(owner, "worktree", "remove", str(worktree))
+    change = rw.reconcile_worklist(cfg, path, root=root)
+    assert change.open == [owned] and not change.dropped
+
+    _git(owner, "branch", "-D", "feature")
+    change = rw.reconcile_worklist(cfg, path, root=root)
+    assert change.dropped == [owned] and change.open == []
+
+
+def test_reconcile_counts_a_backfilled_and_moved_entry_as_one_refresh(
+    repo: Path, tmp_path: Path
+) -> None:
+    cfg = load_config(repo)
+    path = rw.template_worklist_path(cfg, "autoclose-merged")
+    root, owner, worktree = _cross_clone(tmp_path)
+    recorded = _entry("cross", branch="feature", worktree=str(worktree))
+    rw.reconcile_worklist(cfg, path, root=root, pending=[recorded])
+    path.write_text(path.read_text().replace(f", owner `{owner.resolve()}`", ""))
+
+    # The same run backfills the owner and takes a new branch for the slug.
+    moved = replace(recorded, branch="feature-2")
+    change = rw.reconcile_worklist(cfg, path, root=root, pending=[moved])
+
+    assert change.refreshed == [replace(moved, owner=str(owner.resolve()))]
 
 
 def test_reconcile_drops_discharged_entries_and_keeps_live_debt(

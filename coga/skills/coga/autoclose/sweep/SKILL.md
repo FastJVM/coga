@@ -127,7 +127,8 @@ no checkout; the fourth is the durable worklist:
   keeps the first sighting's date), and everywhere it drops every entry that
   is **discharged** — its recorded worktree path is no longer a directory
   (or is this repository's own primary checkout, below) *and* its recorded
-  branch is no longer a local branch. Either half still to dispose of keeps
+  branch is no longer a local branch of the repository that owns it (see
+  *A branch in another clone*, below). Either half still to dispose of keeps
   the entry, and a branch list that cannot be read keeps every
   entry: the failure mode is one listing too many, never a forgotten
   checkout. `coga retire <slug>` drops its own line by the same rule once its
@@ -149,7 +150,8 @@ no checkout; the fourth is the durable worklist:
   to own one — but it drains and prunes every existing worklist. Each line
   reads
   ``- `<slug>` — branch `<branch>`, worktree `<path>`, recorded `<YYYY-MM-DD>` ``
-  under a `## Follow-ups (open)` heading. Field values use UTF-8 percent
+  under a `## Follow-ups (open)` heading, with an optional trailing
+  ``, owner `<path>` `` for a worktree another repository owns. Field values use UTF-8 percent
   encoding, retaining `/` and `:`: for example, a backtick is `%60`, a literal
   percent is `%25`, and a space is `%20`. Decode the fields before using the
   recorded path or branch; use the same encoding when hand-editing or
@@ -186,6 +188,36 @@ worklist until the directory goes, because this file is their only durable
 trace once the ticket is deleted — the ticket's own `## Dev` dies with it, and
 another repository's sweeps never see a ticket here.
 
+### A branch in another clone
+
+Another repository's linked worktree has its branch in *that* repository —
+typically a second clone of the same project, when the recurring job fires
+from more than one. Judged against the sweeping clone's branches, such an
+entry read "branch gone" the moment its worktree directory vanished and was
+dropped silently while the branch lived on. So each entry whose worktree is
+another repository's linked worktree records that repository's main working
+tree as `owner` (`retire_worklist.worktree_owner`, over
+`git.classify_checkout`), written by the reconcile while the directory still
+exists to be classified — on the run that records it, or, for an older line,
+the next run — and the discharge rule reads the owner's local branches
+instead (`retire_worklist.branch_owner`). An owner that is a checkout of the
+sweeping repository judges the entry like any other; an owner path that is
+gone or that git cannot read is an unknown and keeps the entry. Once the
+worktree is gone, the sweep does not run this repository's proofs on the
+branch — they would find no local branch and call it disposed — and reports
+the entry as preserved with the by-hand delete in the owning clone
+(`git -C <owner> branch -d <branch>`), on the run report and coga-important,
+until the owner's branch is gone. When the recorded owner path is itself gone
+or unreadable, that command could not run: the entry is still kept, and the
+remedy says the branch's home is unknown and asks a human to locate the clone
+and correct the entry's `owner` (or remove the line once the branch is
+verified landed and deleted there). A union-merged duplicate of an entry
+keeps its recorded `owner` when the other line names the same worktree
+without one. A line recorded before the field existed
+whose worktree is already gone has nothing to classify: it is judged against
+this repository as before, so add its `owner` by hand if its branch lives in
+another clone.
+
 ### Remedies a human can act on
 
 `coga retire <slug>` is named only where it can help: the task still exists
@@ -200,8 +232,9 @@ the remedy names where it can be removed:
   claims, open PRs, and landed-or-exact-merged-head evidence in the owning repo
   before removing anything. Plan worktree and branch cleanup together: ordinary
   `branch -d` can refuse squash/rebase-merged tips; forced deletion needs the
-  exact merged-head proof. Keep the directory until both halves are verified,
-  because its removal can discharge this worklist entry. No runnable deletion
+  exact merged-head proof. Keep the directory until both halves are verified.
+  Its removal no longer discharges the entry while the owning repository
+  still holds the branch (*A branch in another clone*). No runnable deletion
   command is advertised without those proofs. `coga retire` fails the same
   proof from here, and the task does not exist in the owning repo.
 - **An independent clone, or a path git cannot read**: says so, and to

@@ -39,11 +39,25 @@ independent fallback clone, or another repository's linked worktree, which is
 what cross-repo work records — stays listed, because this file is its only
 durable trace once the ticket is gone.
 
+Another repository's linked worktree has a second consequence: its branch
+lives in *that* repository, and the recurring sweep may fire from a clone that
+never had it. Judging `branch:` against this repository's branches would read
+"branch gone" the moment the worktree directory vanished and silently drop the
+debt. So an entry records its checkout's **owner** — the owning repository's
+main working tree, `git.classify_checkout`'s `"foreign-linked"` verdict —
+while the directory still exists to be classified, and `is_discharged` asks
+that owner's branch list instead (`branch_owner`). An owner that cannot be
+read is an unknown and keeps the entry. Lines recorded before the field
+existed carry no owner and are judged against this repository as before; a
+cross-clone entry whose worktree is already gone can be backfilled by hand.
+
 The file is plain markdown so a human can read, hand-edit, or backfill it.
 The one line shape is::
 
     - `<slug>` — branch `<branch>`, worktree `<path>`, recorded `<YYYY-MM-DD>`
 
+with an optional trailing ``, owner `<path>` `` for a checkout owned by
+another repository.
 Field encoding for hand-edited entries is documented in `coga/autoclose/sweep`.
 A line that does not parse, or a file without the `## Follow-ups (open)`
 heading, fails loud rather than growing a second section no reader would find.
@@ -88,7 +102,9 @@ cause is fixed. Run `coga retire <slug>` to see the proofs at first hand.
 Entries are keyed by slug, so a later sweep refreshes one rather than
 duplicating it, and an entry is dropped once its local branch is gone and its
 worktree directory is gone or is this repository's own primary checkout, which
-nobody disposes of. An entry whose ticket no longer exists — retire
+nobody disposes of. A worktree owned by another repository records that
+repository as `owner`, and its branch is judged there: an owner this run
+cannot read keeps the entry. An entry whose ticket no longer exists — retire
 preserved the checkout and then deleted the ticket — is still walked: the
 merge proof then uses the merged PRs for the recorded branch name.
 
@@ -98,7 +114,8 @@ For the line format and field encoding, see the `coga/autoclose/sweep` skill.
 """
 _ENTRY_RE = re.compile(
     r"^- `(?P<slug>[^`]+)` — branch `(?P<branch>[^`]*)`, "
-    r"worktree `(?P<worktree>[^`]*)`, recorded `(?P<recorded>[^`]*)`$"
+    r"worktree `(?P<worktree>[^`]*)`, recorded `(?P<recorded>[^`]*)`"
+    r"(?:, owner `(?P<owner>[^`]*)`)?$"
 )
 
 
@@ -114,18 +131,28 @@ class RetireFollowUp:
     branch: str
     worktree: str
     recorded: str
+    owner: str = ""
+    """The main working tree of the repository that owns `worktree`, when
+    that is not this repository; empty otherwise (and on older lines)."""
 
     def render(self) -> str:
         # Keep the line parseable even when a path contains a backtick or a
         # newline. Escaping percent itself makes decoding unambiguous.
-        slug, branch, worktree, recorded = (
+        slug, branch, worktree, recorded, owner = (
             quote(value, safe="/:")
-            for value in (self.slug, self.branch, self.worktree, self.recorded)
+            for value in (
+                self.slug,
+                self.branch,
+                self.worktree,
+                self.recorded,
+                self.owner,
+            )
         )
-        return (
+        line = (
             f"- `{slug}` — branch `{branch}`, "
             f"worktree `{worktree}`, recorded `{recorded}`"
         )
+        return f"{line}, owner `{owner}`" if owner else line
 
 
 @dataclass
@@ -184,8 +211,9 @@ def parse_worklist(text: str) -> tuple[str, list[RetireFollowUp]]:
     """Split a worklist into its header (through the heading) and its entries.
 
     Duplicate slugs collapse on read, keeping the first sighting's `recorded`
-    date and the later line's checkout — the same rule a re-record applies —
-    so a union-merge artifact cannot outlive the next write. A stripped
+    date, the later line's checkout, and a recorded `owner` an ownerless line
+    for the same worktree would drop — the same rule a re-record applies — so
+    a union-merge artifact cannot outlive the next write. A stripped
     trailing newline is a benign editor artifact and is normalized rather than
     failing the daily sweep; anything else unexpected fails loud.
     """
@@ -208,13 +236,27 @@ def parse_worklist(text: str) -> tuple[str, list[RetireFollowUp]]:
             **{
                 key: unquote(value, errors="strict")
                 for key, value in match.groupdict().items()
+                if value is not None
             }
         )
         existing = by_slug.get(entry.slug)
         if existing is not None:
-            entry = replace(entry, recorded=existing.recorded)
+            entry = _merge_sighting(existing, entry)
         by_slug[entry.slug] = entry
     return header + separator, list(by_slug.values())
+
+
+def _merge_sighting(existing: RetireFollowUp, later: RetireFollowUp) -> RetireFollowUp:
+    """A re-sighting of `existing`'s slug: the later checkout, the first date.
+
+    An ownerless later line naming the same worktree keeps the recorded
+    `owner`, so neither a legacy line union merge resurrects nor a re-record
+    made after the directory is gone can erase it.
+    """
+    merged = replace(later, recorded=existing.recorded)
+    if not merged.owner and merged.worktree == existing.worktree:
+        merged = replace(merged, owner=existing.owner)
+    return merged
 
 
 def render_worklist(header: str, entries: Iterable[RetireFollowUp]) -> str:
@@ -258,6 +300,24 @@ def local_branches(root: Path) -> frozenset[str] | None:
     return frozenset(ref.removeprefix("refs/heads/") for ref in result.stdout.split())
 
 
+def _recorded_relation(
+    root: Path | None, recorded: str | None
+) -> git.CheckoutRelation | None:
+    """`git.classify_checkout` on a recorded `worktree:`, or `None` when unknown.
+
+    A relative value resolves against `root`; no git root, an empty value, or
+    a path that is not a directory has no verdict.
+    """
+    if root is None or not recorded:
+        return None
+    path = Path(recorded).expanduser()
+    if not path.is_absolute():
+        path = root / path
+    if not path.is_dir():
+        return None
+    return git.classify_checkout(root, path)
+
+
 def is_primary_checkout(root: Path | None, recorded: str | None) -> bool:
     """Whether a recorded `worktree:` is provably this repository's primary checkout.
 
@@ -268,15 +328,73 @@ def is_primary_checkout(root: Path | None, recorded: str | None) -> bool:
     so a caller that drops the worktree half on True only ever drops it on
     proof.
     """
-    if root is None or not recorded:
-        return False
-    path = Path(recorded).expanduser()
-    if not path.is_absolute():
-        path = root / path
-    if not path.is_dir():
-        return False
-    relation = git.classify_checkout(root, path)
+    relation = _recorded_relation(root, recorded)
     return relation is not None and relation.kind == "primary"
+
+
+def worktree_owner(root: Path | None, recorded: str) -> str:
+    """The owning repository's main working tree for a foreign-linked `worktree:`.
+
+    Empty for every other answer — a checkout of this repository, an
+    independent clone (whose branch dies with its directory), a path that is
+    not a directory, or no verdict — so only a proven "another repository's
+    linked worktree" is ever recorded as an owner. A relative value resolves
+    against `root`.
+    """
+    relation = _recorded_relation(root, recorded)
+    if relation is None or relation.kind != "foreign-linked" or relation.owner is None:
+        return ""
+    return str(relation.owner)
+
+
+def _common_dir(path: Path) -> Path | None:
+    try:
+        common = git.run_git(
+            path, "rev-parse", "--path-format=absolute", "--git-common-dir"
+        )
+    except git.GitError:
+        return None
+    return Path(common.strip()).resolve()
+
+
+def branch_owner(root: Path | None, owner: str) -> Path | None:
+    """The repository whose local branches decide a recorded `owner`'s `branch:`.
+
+    `root` itself when the owner shares `root`'s repository — the sweep firing
+    from the owning clone judges it like any other entry — the owner's path
+    when it is another repository (a bare one included: its branch list is
+    read the same way), and `None` when that cannot be answered: no git root,
+    a path that is no longer a directory, or one git cannot read. `None` keeps
+    the entry. Repositories are compared by common dir, never by path.
+    """
+    if root is None or not owner:
+        return None
+    path = Path(owner).expanduser()
+    if not path.is_dir():
+        return None
+    theirs = _common_dir(path)
+    if theirs is None:
+        return None
+    return root if theirs == _common_dir(root) else path
+
+
+def owner_branch_remains(root: Path | None, entry: RetireFollowUp) -> bool | None:
+    """Whether an entry's `branch:` is still held by its recorded `owner`.
+
+    `None` when the entry has no owner, no branch, or an owner that is
+    `root`'s own repository: the branch is judged here like any other. `True`
+    also covers an owner or branch list that cannot be read, because an
+    unknown keeps the entry.
+    """
+    if not entry.branch or not entry.owner:
+        return None
+    home = branch_owner(root, entry.owner)
+    if home is None:
+        return True
+    if home == root:
+        return None
+    branches = local_branches(home)
+    return branches is None or entry.branch in branches
 
 
 def is_discharged(
@@ -291,6 +409,11 @@ def is_discharged(
     the ticket lives in, never the process working directory. Every unknown
     keeps the entry: a relative worktree with no git root to anchor it (`root
     is None`), or a branch list that could not be read (`branches is None`).
+
+    `branches` is `root`'s branch list. An entry with a recorded `owner` is
+    judged against that owner's branches instead (`owner_branch_remains`),
+    because its branch was never this repository's to lose; an owner that
+    cannot be read keeps the entry.
     """
     if entry.worktree and not is_primary_checkout(root, entry.worktree):
         path = Path(entry.worktree).expanduser()
@@ -300,6 +423,9 @@ def is_discharged(
             path = root / path
         if path.is_dir():
             return False
+    held = owner_branch_remains(root, entry)
+    if held is not None:
+        return not held
     if entry.branch and (branches is None or entry.branch in branches):
         return False
     return True
@@ -320,7 +446,10 @@ def reconcile_worklist(
     and the replace, so a concurrent writer wins loudly instead of being
     overwritten. `branches` defaults to `local_branches(root)`, probed only
     when there are entries to judge, so a quiet day with no worklist costs no
-    git call.
+    git call. Every kept or recorded entry without an `owner` whose worktree
+    is another repository's linked worktree gains one while the directory
+    still exists to be classified (`worktree_owner`), so the discharge rule
+    can later judge its branch where it lives.
     """
     change = WorklistChange(path=path)
     with git.state_lock(cfg):
@@ -332,22 +461,28 @@ def reconcile_worklist(
         )
         if branches is None and entries and root is not None:
             branches = local_branches(root)
-        by_slug: dict[str, RetireFollowUp] = {}
+        kept: dict[str, RetireFollowUp] = {}
         for entry in entries:
             if is_discharged(entry, root=root, branches=branches):
                 change.dropped.append(entry)
             else:
-                by_slug[entry.slug] = entry
+                kept[entry.slug] = entry
+        by_slug = {slug: _with_owner(entry, root) for slug, entry in kept.items()}
         for item in pending:
+            item = _with_owner(item, root)
             existing = by_slug.get(item.slug)
             if existing is None:
                 by_slug[item.slug] = item
                 change.added.append(item)
                 continue
-            merged = replace(item, recorded=existing.recorded)
-            if merged != existing:
-                change.refreshed.append(merged)
-            by_slug[item.slug] = merged
+            by_slug[item.slug] = _merge_sighting(existing, item)
+        # One refresh per slug, however many of the backfill and the pending
+        # merge changed it.
+        change.refreshed = [
+            entry
+            for slug, entry in by_slug.items()
+            if slug in kept and entry != kept[slug]
+        ]
         change.open = sorted(by_slug.values(), key=lambda e: e.slug)
         rendered = render_worklist(header, change.open)
         if raw is not None and rendered.encode("utf-8") == raw:
@@ -365,6 +500,13 @@ def reconcile_worklist(
         atomic_write_text(path, rendered)
         change.written = True
     return change
+
+
+def _with_owner(entry: RetireFollowUp, root: Path | None) -> RetireFollowUp:
+    if entry.owner:
+        return entry
+    owner = worktree_owner(root, entry.worktree)
+    return replace(entry, owner=owner) if owner else entry
 
 
 def discharge_slug(cfg: Config, slug: str, *, root: Path) -> list[Path]:
@@ -395,13 +537,16 @@ __all__ = [
     "RetireWorklistError",
     "WorklistChange",
     "all_worklists",
+    "branch_owner",
     "discharge_slug",
     "is_discharged",
     "is_primary_checkout",
     "local_branches",
+    "owner_branch_remains",
     "parse_worklist",
     "reconcile_worklist",
     "render_worklist",
     "template_worklist_path",
     "worklist_for_period_task",
+    "worktree_owner",
 ]
