@@ -1,6 +1,6 @@
 ---
 title: 'Gigantic refactor: move recurring recipes out of core'
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
