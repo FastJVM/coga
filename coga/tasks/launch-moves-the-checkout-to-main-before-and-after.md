@@ -252,6 +252,10 @@ work remains successful without silently publishing preserved dirt.
 
 Verification: `coga validate --task launch-moves-the-checkout-to-main-before-and-after --json` reported `ok_count: 1`, no issues; `git diff --check` passed. Validation emitted the existing installed/source version-skew warning. No implementation tests run for this ticket-only design.
 
+## Dev
+
+branch: launch-normalizes-checkout
+
 ## Owner decisions (2026-09-27, implement session)
 
 Answers to the evaluator's must-resolve items; these override the ticket body
