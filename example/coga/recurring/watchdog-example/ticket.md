@@ -13,5 +13,7 @@ and finish the recorded step when explicitly resumed.
 
 <!-- coga:blackboard -->
 
-This example has a watchdog-paused period. An ordinary scan reports it as an
-unresolved failure; `coga launch recurring/watchdog-example` resumes it.
+This example has a watchdog-paused period. On an active repo, an ordinary scan
+reports it as an unresolved failure; `coga launch recurring/watchdog-example` resumes it.
+On an inactive repo the scan leaves this non-exempt period untouched and reports
+`skip (repo inactive since YYYY-MM-DD)` instead.

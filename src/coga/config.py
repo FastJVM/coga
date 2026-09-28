@@ -136,6 +136,8 @@ class Config:
     launch_idle_timeout: float | None = None
     launch_idle_timeout_present: bool = False
     launch_max_session: float | None = None
+    # Shared recurring policy; zero disables the control-history idle gate.
+    recurring_idle_days: int = 14
     # `[authoring] agent` from coga.local.toml: this operator's default agent
     # for the `coga ticket` / megalaunch picked-draft authoring interview. It is
     # machine-local because agent quota exhaustion is per-operator. Empty means
@@ -449,6 +451,7 @@ def load_config(repo_root: Path | None = None, *, require_user: bool = True) -> 
         git_worktrees_ticket_owned=git_worktrees_ticket_owned,
         launch_idle_timeout=launch_idle_timeout,
         launch_idle_timeout_present=launch_idle_timeout_present,
+        recurring_idle_days=_parse_recurring(shared.get("recurring")),
         launch_max_session=launch_max_session,
         owner=owner,
         contexts_dir=contexts_dir,
@@ -505,6 +508,7 @@ _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
     "git",
     "telemetry",
     "launch",
+    "recurring",
     "ticket",
     "aliases",
     "extensions",
@@ -1578,6 +1582,19 @@ def _require_trackable_context_entry(checkout: Path, contexts_root: Path) -> Non
                 contexts_root, Path(directory) / "SKILL.md", checkout=checkout,
                 trackable=trackable,
             )
+
+
+def _parse_recurring(shared: object) -> int:
+    """Shared-only idle window; bool is not an integer policy value."""
+    if shared is None:
+        return 14
+    if not isinstance(shared, dict):
+        raise ConfigError("[recurring] must be a table")
+    _reject_unknown_keys(shared, frozenset({"idle_days"}), "[recurring]")
+    value = shared.get("idle_days", 14)
+    if type(value) is not int or value < 0:
+        raise ConfigError("[recurring].idle_days must be a non-negative int")
+    return value
 
 
 def _parse_launch(

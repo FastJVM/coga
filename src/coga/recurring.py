@@ -393,6 +393,8 @@ class Template:
         if "schedule" not in fm:
             raise RecurringError("`schedule` is required")
         _validate_schedule(fm["schedule"], now or datetime.now())
+        if not isinstance(fm.get("run_when_inactive", False), bool):
+            raise RecurringError("`run_when_inactive` must be a bool")
         if "state_keys" in fm:
             state_keys = fm["state_keys"]
             if not isinstance(state_keys, list) or not all(
@@ -416,6 +418,10 @@ class Template:
                 "remove it from the recurring template"
             )
         return cls(path=path, name=path.name, frontmatter=fm, body=match.group(2))
+
+    @property
+    def runs_when_inactive(self) -> bool:
+        return self.frontmatter.get("run_when_inactive", False)
 
     @property
     def schedule(self) -> str:
@@ -597,6 +603,14 @@ class DueScan:
         default_factory=list, repr=False
     )
 
+    # No DueTask exists for these skips: no creation, recovery or escalation.
+    inactivity_skips: list[tuple[str, datetime]] = field(default_factory=list)
+    inactive_since: str | None = None
+
+    @property
+    def inactivity_reason(self) -> str:
+        return f"repo inactive since {self.inactive_since}"
+
     @property
     def due(self) -> list[DueTask]:
         """Launchable tasks in launch order: non-cleanup templates first, the
@@ -660,6 +674,7 @@ def scan_due(
     allow_interactive: bool = True,
     force: bool = False,
     agent_unavailable_reason: str | None = None,
+    inactive_since: str | None = None,
 ) -> DueScan:
     """Scan every recurring template and get-or-create its current-period task.
 
@@ -685,11 +700,13 @@ def scan_due(
     caller must carry the same refusal through launch rather than treating file
     presence as proof that the whole period is script-only.
     """
+    # A non-None value is a local ISO date or "never" for machine-only history.
     now = now or datetime.now()
     root = recurring_dir(cfg)
     if not root.is_dir():
         return DueScan(tasks=[], errors=[])
 
+    inactivity_skips: list[tuple[str, datetime]] = []
     tasks: list[DueTask] = []
     errors: list[tuple[str, str]] = []
     # One reverse log pass for every template in this scan, then kept current
@@ -729,6 +746,10 @@ def scan_due(
         except RecurringError as exc:
             sys.stderr.write(f"[recurring] skipping {path.name}: {exc}\n")
             errors.append((path.name, str(exc)))
+            continue
+
+        if inactive_since is not None and not force and not template.runs_when_inactive:
+            inactivity_skips.append((template.name, _last_firing(template.schedule, now)))
             continue
 
         ledger_error = ledger.errors.get(_recurring_slug(template.name))
@@ -840,6 +861,8 @@ def scan_due(
     return DueScan(
         tasks=tasks,
         errors=errors,
+        inactivity_skips=inactivity_skips,
+        inactive_since=inactive_since,
         ledger_periods=ledger_periods_before_scan,
         ledger_errors=ledger_errors_before_scan,
         period_targets=period_targets,

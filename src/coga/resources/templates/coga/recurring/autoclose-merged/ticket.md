@@ -1,5 +1,7 @@
 ---
 schedule: "0 8 * * *"
+# Keep landed-ticket cleanup running even while the repo is idle.
+run_when_inactive: true
 schedule_comment: "Every day at 8am - close merged tickets and sweep landed branches"
 title: "Autoclose merged tickets"
 # The reserved `ticket.py` sibling is this task's deterministic half: `coga

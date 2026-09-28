@@ -34,6 +34,7 @@ from coga.config import (
     local_config_path,
     parse_owner,
 )
+from coga.recurring_activity import RepoActivity, check_activity
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log, ref_tag_for_path, retract_log_lines, task_log_lines
 from coga.paths import log_path
@@ -1846,10 +1847,24 @@ def run_recurring_scan(
         agent_spawn_refusal = _AGENT_NEEDS_TTY
     else:
         agent_spawn_refusal = None
+    today = datetime.now().date()
+    activity = RepoActivity() if force else check_activity(cfg, today)
+    if activity.error:
+        typer.secho(
+            f"Recurring activity unknown ({activity.error}); treating repo as active.",
+            fg=typer.colors.YELLOW, err=True,
+        )
+    if activity.inactive:
+        idle = str((today - activity.last_human).days) if activity.last_human else "unknown"
+        typer.echo(
+            f"Repo inactive: last human commit {activity.inactive_since}; "
+            f"{idle} days idle; window {cfg.recurring_idle_days} days."
+        )
     scan = scan_due(
         cfg,
         allow_interactive=agent_spawn_refusal is None,
         force=force,
+        inactive_since=activity.inactive_since,
         agent_unavailable_reason=agent_spawn_refusal,
     )
     _broadcast_scan(
@@ -1919,7 +1934,8 @@ def run_recurring_scan(
         typer.echo(message)
         record.note(message)
         _record_unlaunched_creates(scan, record)
-        run_autofix(cfg, record, agent_override=agent_override)
+        if not activity.inactive or record.outcomes:
+            run_autofix(cfg, record, agent_override=agent_override)
         return 2 if record.scan_problems else 0
 
     label = "task(s)" if force else "due task(s)"
@@ -1966,7 +1982,8 @@ def run_recurring_scan(
             record.note(detail)
         return code or (2 if record.scan_problems or unrecovered else 0)
     finally:
-        run_autofix(cfg, record, agent_override=agent_override)
+        if not activity.inactive or record.outcomes:
+            run_autofix(cfg, record, agent_override=agent_override)
 
 
 # Admission skip reason for a create whose period control had already
@@ -5099,7 +5116,7 @@ def _refresh_forced_status_from_control(cfg: Config, task: DueTask) -> None:
 
 def _print_table(scan: DueScan, *, force: bool = False) -> None:
     """Print a one-line-per-template scan summary."""
-    if not scan.tasks and not scan.errors and not scan.admission_skips:
+    if not (scan.tasks or scan.errors or scan.admission_skips or scan.inactivity_skips):
         return
 
     now = datetime.now()
@@ -5138,6 +5155,11 @@ def _print_table(scan: DueScan, *, force: bool = False) -> None:
         when = _firing_label(task.last_fire, now)
         skipped = typer.style(f"skip ({reason})", fg=typer.colors.BRIGHT_BLACK)
         typer.echo(f"  {task.template:<20} {when:<26} {skipped}")
+
+    for name, last_fire in scan.inactivity_skips:
+        when = _firing_label(last_fire, now)
+        skipped = typer.style(f"skip ({scan.inactivity_reason})", fg=typer.colors.BRIGHT_BLACK)
+        typer.echo(f"  {name:<20} {when:<26} {skipped}")
 
     for name, msg in scan.errors:
         bad = typer.style(f"skip (error: {msg})", fg=typer.colors.RED)

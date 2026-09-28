@@ -20,7 +20,7 @@ credentials. Use indirection ([coga/secrets](../secrets/SKILL.md)).
 
 `coga.toml` top level: `version` (must be `1`), `default_status`, `owner`,
 `agents`, `notification`, `git`, `launch`, `ticket`, `aliases`,
-`extensions`, `layout`, `autofix`, `telemetry`.
+`extensions`, `layout`, `autofix`, `telemetry`, `recurring`.
 
 `coga.local.toml` top level: `user`, `agents`, `notification`, `git`,
 `upstream`, `telemetry`, `authoring`.
@@ -32,6 +32,7 @@ credentials. Use indirection ([coga/secrets](../secrets/SKILL.md)).
 | `[notification.slack]` | `webhook`, `important_webhook`, `enabled`, `gifs`, `users` | both; local wins ([coga/notifications](../notifications/SKILL.md)) |
 | `[git]` | `enabled`, `remote`, `control_branch`, `worktrees_ticket_owned` | shared |
 | `[git]` | `enabled` only | local; overrides shared ([coga/sync](../sync/SKILL.md)) |
+| `[recurring]` | `idle_days` (non-negative integer, default `14`; `0` disables inactivity gating) | shared only |
 | `[launch]` | `idle_timeout`, `max_session` | shared |
 | `[ticket]` / `[ticket.fields.<name>]` | `fields` / `description`, `values`, `default`, `required` | shared ([coga/tickets](../tickets/SKILL.md)) |
 | `[layout]` | `contexts` | shared only ([coga/context-layout](../context-layout/SKILL.md)) |
@@ -99,3 +100,8 @@ validated even when overridden. No endpoint, key, cadence, or test bypass is
 configurable. Delivery, state and payload belong to
 [coga/telemetry](../telemetry/SKILL.md); git and notification switches remain
 independent.
+
+`[recurring].idle_days` is team policy and cannot be overridden locally.
+Booleans, negative values and non-integers raise `ConfigError`. The activity
+signal, calendar boundary and sweep overrides are owned by
+[recurring scheduling](../recurring/scheduling/SKILL.md).

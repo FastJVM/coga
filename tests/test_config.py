@@ -1865,3 +1865,30 @@ def test_telemetry_invalid_shared_not_hidden_by_local(repo):
     p.write_text(p.read_text()+'\n[telemetry]\nenabled = true\n')
     with pytest.raises(ConfigError, match="telemetry"):
         load_config(repo)
+
+
+@pytest.mark.parametrize("value", [0, 1, 14, 30])
+def test_recurring_idle_days(repo: Path, value: int) -> None:
+    assert load_config(repo).recurring_idle_days == 14
+    with (repo / "coga.toml").open("a") as stream:
+        stream.write(f"\n[recurring]\nidle_days = {value}\n")
+    assert load_config(repo).recurring_idle_days == value
+
+
+@pytest.mark.parametrize("value", ['true', '-1', '1.5', '"14"', '[]'])
+def test_recurring_idle_days_rejects_invalid(repo: Path, value: str) -> None:
+    with (repo / "coga.toml").open("a") as stream:
+        stream.write(f"\n[recurring]\nidle_days = {value}\n")
+    with pytest.raises(ConfigError, match="non-negative int"):
+        load_config(repo)
+
+
+@pytest.mark.parametrize("filename, table", [
+    ("coga.local.toml", "[recurring]\nidle_days = 7"),
+    ("coga.toml", "[recurring]\nidle_day = 7"),
+])
+def test_recurring_rejects_local_policy_and_unknown_keys(repo: Path, filename: str, table: str) -> None:
+    with (repo / filename).open("a") as stream:
+        stream.write(f"\n{table}\n")
+    with pytest.raises(ConfigError, match="recurring"):
+        load_config(repo)
