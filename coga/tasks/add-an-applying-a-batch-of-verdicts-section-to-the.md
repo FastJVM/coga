@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -99,3 +99,47 @@ branch: docs/v2-batch-verdicts
   `#deferred-work-cogatasksv2`. The file resolves but that old fragment does
   not; the newly added links all resolve. No follow-up identified; left
   unchanged for a focused correction.
+
+## Peer review
+
+- `codex review --base main` **returned** with one P2 finding: the new
+  ticket-prose exception conflicted with the composed implementation skill
+  and the state-publication topic's blanket prohibition. The reviewer
+  confirmed that the new procedure matches the runtime checks.
+- Fixed the finding in `e43251b3f6b377416382a280475541aa7120b610`:
+  `code/implement`, `code/address-pr-comments`, `coga/sync`, and
+  `coga/internals/state-publication` now qualify their state-only guidance
+  and point to the PR-publication owner. Updated each packaged twin.
+  No runtime change or design rethink was needed; no must-fix findings remain.
+- Rebased the feature branch onto fetched `main` at `5cea5127d` before
+  review; `git range-diff` confirmed the implementation commit was unchanged.
+  Pushed `e43251b3f6b377416382a280475541aa7120b610` with an explicit
+  `--force-with-lease` against the implementation handoff's remote OID.
+  Returned to clean `main` at `59c5d7ed7`. The intervening control commits
+  touch only two other tickets and their audit lines; no implementation,
+  test, or reviewed path drift remains.
+- Post-fix `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest`:
+  **3050 passed** in 183.74s. `git diff --check main...docs/v2-batch-verdicts`:
+  clean. Scoped task validation: **1 ok, no issues**.
+- Read the Markdown procedure against the CLI implementation; all **10**
+  added canonical links/anchors resolve, and all **7** changed context/skill
+  twins are byte-identical. Read-only `compose_prompt_report` checks using
+  in-memory copies of this ticket's existing frozen implement and review
+  steps include the corrected guidance and preserve the owner gate. The
+  on-disk ticket and workflow were unchanged by those checks. There is no
+  changed TTY, pager, or rendered notification surface to exercise.
+
+## PR
+
+Batch premise adjudication repeatedly had to rediscover where verdicts and
+ticket rewrites belong. Add an **Applying a batch of verdicts** section to the
+v2 parking README: lifecycle verdicts publish from `main`, other tickets'
+authored prose goes through review, and cancellation with delivery evidence
+remains the default, with activation required before optional Retro completion.
+
+Document that ticket-body-only PRs satisfy the PR gate once their URL is
+recorded. Align the publication and checkout topics plus the implementation
+and PR-review skills with that boundary, synchronize their packaged copies,
+and scope the existing Dream assertion to the default premise-verdict section.
+
+Test plan: `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest` (3050 passed); `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m coga.cli validate --task add-an-applying-a-batch-of-verdicts-section-to-the --json` (1 ok, no issues); `git diff --check main...docs/v2-batch-verdicts`; verified 10 links, 7 twins, and composition from existing frozen steps.
