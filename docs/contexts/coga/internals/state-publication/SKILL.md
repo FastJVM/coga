@@ -109,18 +109,38 @@ deliberately left retryable state dirty (stale recurring control, refused
   the recurring directory — nothing else. Contexts, skills, workflows, and
   config are review work and are never swept.
 
-One non-sweep path does publish hand-authored files: `coga ticket` guided
-authoring (`authoring.finalize_authored`) hashes the tasks, contexts, and
-skills roots before the interview (`authoring_sync_roots`, which follows a
-relocated `[layout] contexts` root) and publishes the authored task plus every
-context or skill file the session created, changed, or deleted.
+## Guided authoring and review work
 
-**Pre-review publication hazard.** Both paths run from whichever checkout the
-command ran in. A feature checkout's dirty ticket prose, log, or recurring
-template (including `ticket.py`) — and any context or skill a `coga ticket`
-interview touched — lands on control before review. Keep deliberate edits to
-those paths on the control branch, or expect them on `main` out of band;
-checkout practice is `dev/checkouts`.
+`coga ticket` guided authoring (`authoring.finalize_authored`) hashes the
+tasks, contexts, and skills roots before the interview (`authoring_sync_roots`
+follows a relocated `[layout] contexts` root). Finalization publishes only
+authored task paths. An existing target is validated even when unchanged, but
+is selected for publication only when its ticket or attachments changed.
+File-to-directory conversions include both paths; a deleted target is skipped.
+A reported context or skill path is never published with a task, even when a
+`[layout] contexts` root sits inside a directory-form task: that task directory
+is then published as its changed non-support paths, listed explicitly.
+Bootstrap interviews discover and validate changed or new tasks.
+
+Before validation or publication, a deterministic stderr notice lists every
+context or skill file the interview created, changed, or deleted, sorted by
+absolute path. It says Coga did not publish those changes and requires a branch
+and human-reviewed PR. Files remain as authored, including deletions. Unchanged
+support files produce no notice; support-only interviews do not call `publish`.
+Validation errors still propagate and publication failures retain the existing
+best-effort stderr report. Neither suppresses the earlier support notice.
+
+This boundary is identical with or without launch metadata, on control and
+feature checkouts. Ordinary manual knowledge edits also require normal Git
+branch and human-reviewed PR handling; Coga does not commit them for cleanliness.
+Local prompt composition still reads local edits. This is an automatic
+publication boundary, not a permission barrier against explicit Git commands.
+
+**Pre-review state publication hazard.** The sweep and authoring finalizer run
+from whichever checkout invoked them. A feature checkout's dirty ticket prose,
+log, or recurring template (including `ticket.py`) can land on control before
+review. Keep deliberate state edits on the control branch; checkout practice
+is `dev/checkouts`. This policy does not gate every behavior-affecting file.
 
 Never `git add` `coga/tasks/**` or `coga/log.md` into a PR; `coga open-pr`
 excludes that state from its cleanliness gate and refuses a branch whose only
