@@ -475,3 +475,32 @@ def test_finalize_authored_publishes_attachment_changes(repo, monkeypatch, chang
     monkeypatch.setattr("coga.authoring.git.publish", lambda cfg, paths, message: calls.append(paths))
     finalize_authored(cfg, before_snapshot=before, ref=ref)
     assert calls == [[ref.path]]
+
+
+def test_finalize_authored_excludes_contexts_nested_in_task_directory(repo, monkeypatch, capsys):
+    checkout = repo.parent
+    subprocess.run(
+        ["git", "init", "-b", "main", str(checkout)],
+        check=True, capture_output=True, text=True,
+    )
+    ref = _create_task(repo, "Nested contexts")
+    directory = ref.path.with_suffix("")
+    directory.mkdir()
+    ref.path.replace(directory / "ticket.md")
+    (directory / "knowledge" / "team").mkdir(parents=True)
+    context = directory / "knowledge" / "team" / "SKILL.md"
+    context.write_text("before\n")
+    rel = directory.relative_to(checkout).as_posix()
+    with (repo / "coga.toml").open("a") as f:
+        f.write(f'[layout]\ncontexts = "{rel}/knowledge"\n')
+    cfg = load_config(repo)
+    ref = resolve_task(cfg, ref.id_slug)
+    attachment = directory / "notes.txt"
+    before = snapshot_authoring_state(cfg)
+    context.write_text("after\n")
+    attachment.write_text("notes\n")
+    calls = []
+    monkeypatch.setattr("coga.authoring.git.publish", lambda cfg, paths, message: calls.append(paths))
+    finalize_authored(cfg, before_snapshot=before, ref=ref)
+    assert calls == [[attachment.resolve()]]
+    assert str(context.resolve()) in capsys.readouterr().err

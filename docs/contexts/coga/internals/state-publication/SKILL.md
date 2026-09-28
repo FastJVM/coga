@@ -117,6 +117,9 @@ follows a relocated `[layout] contexts` root). Finalization publishes only
 authored task paths. An existing target is validated even when unchanged, but
 is selected for publication only when its ticket or attachments changed.
 File-to-directory conversions include both paths; a deleted target is skipped.
+A reported context or skill path is never published with a task, even when a
+`[layout] contexts` root sits inside a directory-form task: that task directory
+is then published as its changed non-support paths, listed explicitly.
 Bootstrap interviews discover and validate changed or new tasks.
 
 Before validation or publication, a deterministic stderr notice lists every

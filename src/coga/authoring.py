@@ -184,6 +184,40 @@ def support_paths(cfg: Config, changed_paths: set[Path]) -> list[Path]:
     return sorted(support)
 
 
+def exclude_support_paths(
+    task_paths: list[Path],
+    changed_paths: set[Path],
+    support: list[Path],
+) -> list[Path]:
+    """Keep reported support paths out of task publication pathspecs.
+
+    Publication expands a directory pathspec recursively, so a context or
+    skill root nested inside a directory-form task would otherwise ride along
+    with the task. Such a task directory is replaced by its changed non-support
+    paths, listed explicitly.
+    """
+    excluded = {path.resolve(strict=False) for path in support}
+    if not excluded:
+        return task_paths
+    kept: list[Path] = []
+    for task_path in task_paths:
+        root = task_path.resolve(strict=False)
+        if root not in excluded and not any(
+            root in path.parents for path in excluded
+        ):
+            kept.append(task_path)
+            continue
+        kept.extend(
+            sorted(
+                path
+                for path in changed_paths
+                if (resolved := path.resolve(strict=False)) not in excluded
+                and (resolved == root or root in resolved.parents)
+            )
+        )
+    return kept
+
+
 def authoring_sync_message(authored_refs: list[TaskRef]) -> str:
     """Commit message for a guided authoring sync."""
     if len(authored_refs) == 1:
@@ -263,6 +297,8 @@ def finalize_authored(
             cfg, changed_paths, before_snapshot.tasks
         )
         task_sync_paths = [authored_ref.path for authored_ref in authored_refs]
+
+    task_sync_paths = exclude_support_paths(task_sync_paths, changed_paths, support)
 
     for authored_ref in authored_refs:
         validate_authored_task(cfg, authored_ref)
