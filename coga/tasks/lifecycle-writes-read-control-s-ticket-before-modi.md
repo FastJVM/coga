@@ -53,8 +53,10 @@ diagnostic predates the current provenance guard.
 Before modifying an existing ticket, fetch control, reconcile its ticket with
 local unpublished edits, and derive the requested transition from that result.
 Adopt a merely stale copy; merge independent edits; prefer demonstrably later
-lifecycle progress when both sides changed the same lifecycle fields; refuse
-genuine conflicts without discarding either version. After each supervised
+lifecycle progress when both sides changed the same lifecycle fields. An
+ambiguous status conflict creates a PR whose title starts with
+`Human Review needed`, preserving both versions for the human to resolve;
+other genuine conflicts retain the existing refusal. After each supervised
 agent session, retry publication outside the agent sandbox and remember
 confirmed publication in the invoking checkout, including an idempotent retry
 where another process already landed the same bytes. The cost is a fetch per
@@ -93,7 +95,25 @@ online lifecycle transaction and narrower automatic merging than a blind
   live ticket. Name the path and conflict, retain the existing take-control-
   and-redo remedy, and tell the operator to save/reconcile local edits first.
   Suppress the generic CLI sweep for this refusal with exit 75 so it cannot
-  publish the rejected local state. The ambiguous-status policy is Q1 below.
+  publish the rejected local state. Ambiguous status conflicts use the review
+  PR path below instead of choosing a winner.
+- [ ] When both sides changed status and the ordering cannot choose a winner
+  (`paused`/`blocked` against another status, or `done` versus `canceled`),
+  leave the requested lifecycle operation unapplied and create a PR titled
+  `Human Review needed: <ticket slug> — lifecycle merge conflict`. Its base
+  is configured control; its head preserves the local ticket on a branch
+  rooted at the proven provenance commit, exposing the unresolved conflict
+  with control. Include the base, local, and control versions and the
+  conflicting fields in the PR description. Do not resolve the conflict,
+  auto-merge, or put conflict markers into the live ticket.
+- [ ] Repeating the same status conflict reuses its open PR without
+  overwriting human edits. Report its URL, preserve both original ticket
+  versions, and exit 75 with the generic sweep suppressed. If GitHub/auth,
+  network, or Git writes are unavailable, retain the existing local refusal
+  and report that the review PR could not be created; never claim it exists.
+  Coga's automatic conflict-resolution and PR-comment sweeps must leave
+  `Human Review needed` PRs for the human. A reconciliation PR must not
+  replace the ticket's implementation `## Dev` PR or complete its workflow.
 - [ ] Validation uses the reconciled snapshot. A now-terminal control copy
   cannot be reopened by a stale `mark active`/pause/block; owner and PR/branch
   gates are rechecked. A supervised bump whose expected step differs from
@@ -134,7 +154,9 @@ online lifecycle transaction and narrower automatic merging than a blind
   checkout succeeds. Also prove recovery when no peer publishes first.
 - [ ] Update the owning state-publication and git-regressions topics and the
   sync overview, plus affected lifecycle, git-refresh, agent-spawn, launch,
-  and assist-publication statements and their packaged twins. The
+  and assist-publication statements and their packaged twins. Include the
+  narrowly scoped conflict-PR exception to ordinary state publication and the
+  human-review exclusion in both live and packaged PR-maintenance tickets. The
   implementation's regression suite and scoped validation pass with exact
   commands/counts recorded on this ticket.
 
@@ -185,9 +207,41 @@ online lifecycle transaction and narrower automatic merging than a blind
    frozen workflow, compare valid numeric step positions. Select a coherent
    lifecycle result, not independent maxima that combine a terminal status
    with a live step. The ordering does not decide arbitrary metadata,
-   different workflows, generation IDs, or tied terminal outcomes. Q1 covers
-   incomparable statuses. `ticket_regression_reason` still runs as an
+   different workflows, generation IDs, or tied terminal outcomes. The owner
+   resolved Q1 by requiring a human-review PR for incomparable status changes.
+   `ticket_regression_reason` still runs as an
    independent launch-claim check; it is not currently a lifecycle comparator.
+
+   **Human-review PR for an ambiguous status conflict.** Return the captured
+   path, proven base commit/blob, local bytes, pinned control commit/blob,
+   conflicting fields, and requested operation as a structured conflict to a
+   shared reporter used by the lifecycle command callers. Keep GitHub work
+   out of raw `publish` and its generic sweep. Build a dedicated branch from
+   the proven base commit with only this ticket's local bytes overlaid, using
+   an isolated temporary index or checkout. Push that branch to the configured
+   repository and use `gh pr create` with the exact title prefix above and a
+   file-backed PR body. The normal Git merge conflict and the description
+   expose both choices; never manufacture malformed ticket bytes to force
+   GitHub to label a semantic conflict as unmergeable.
+
+   Identify retries by ticket path and base/local/control ticket-blob
+   fingerprints, not the global control commit (unrelated log appends must
+   not create duplicate PRs). Reuse an open matching PR; never force-push over
+   a human's resolution. Print the PR URL and record the escalation through
+   the normal audit writer. Do not use `open_pr`'s implementation-PR path or
+   its `Closes ticket:` footer, and do not overwrite `## Dev` `branch:` or
+   `pr:`. After a human resolves and merges it, retry the original lifecycle
+   command against fresh control; creating or merging the reconciliation PR
+   is not itself a bump or task completion. No permission/configuration bypass
+   or hidden retry queue is added when PR creation fails.
+
+   Update `coga/bootstrap/resolve-conflicts/ticket.md` and
+   `coga/bootstrap/address-pr-comments/ticket.md` (and packaged twins) to read
+   the PR title and report `Human Review needed` PRs without editing them.
+   This keeps an automated rebase from deciding the status conflict the
+   owner explicitly reserved for human judgment. The state-publication and
+   git-regressions topics own this narrow exception: control remains
+   canonical, while the PR branch is a proposed reconciliation only.
 
 4. **Wire readers as well as writers.** In `src/coga/commands/bump.py` `bump`,
    reconcile before status, supervised-step, workflow, and `requires:` checks;
@@ -264,6 +318,13 @@ online lifecycle transaction and narrower automatic merging than a blind
    worktree provenance isolation and authoring/no-spawn exclusions. Verify
    the shared path is reached by megalaunch, while existing launch-claim,
    script, recurring, and autoclose suites retain their stricter guarantees.
+   Add real-Git fixtures for each ambiguous-status pair that verify the
+   preserved divergent history and ticket-only PR diff. Stub only the GitHub
+   API/CLI boundary to verify the title prefix, evidence, returned URL,
+   identical-conflict reuse, preservation of human branch edits, and auth/
+   network failure fallback. Verify no implementation PR linkage or lifecycle
+   transition is written, and cover the automatic-maintenance exclusions and
+   their packaged twins.
    Run focused suites first, then the full suite using an absolute source
    `PYTHONPATH`, `tests/test_packaging.py`, and scoped `coga validate`.
 
@@ -276,6 +337,9 @@ online lifecycle transaction and narrower automatic merging than a blind
 - Broadly changing raw `publish`, the sweep, guided ticket interviews,
   creation/deletion contracts, or arbitrary hand edits into read-before-edit
   transactions. Preserve their existing protections.
+- Generating review PRs for every publication refusal. The owner-requested
+  PR escalation is for ambiguous status conflicts; ordinary body/metadata
+  conflicts and launch-generation/lease refusals keep their specified handling.
 - Changing agent sandbox permissions, adding a daemon/queue, discovering
   writes in arbitrary external clones, or giving the supervisor a new
   cross-checkout ownership protocol. The recovery checkout is the one that
@@ -341,6 +405,14 @@ Load-bearing source relationships at design time:
 - `tests/conftest.py` `_stub_git` disables publication by default;
   `git_repo`/`real_git` opt out. The new fetch/preparation seam needs the same
   isolation so mocked agent subprocess tests do not accidentally use Git.
+- `src/coga/open_pr.py` `open_pr` checks an implementation branch and writes
+  its URL through `set_dev_pr`; `_pr_body` adds `Closes ticket:`. The new
+  reconciliation PR must not reuse those lifecycle effects.
+  `coga/bootstrap/resolve-conflicts/ticket.md` "Run order" currently selects
+  conflicting PRs and resolves them with agent judgment, so its title-based
+  human-review exclusion must ship with this behavior. The adjacent
+  `coga/bootstrap/address-pr-comments/ticket.md` "Run order" must honor the
+  same boundary even if Git considers the semantic conflict mergeable.
 
 This absorbs the failure described by
 `coga/tasks/ticket-sync-fails-with-read-only-git-inside-agent.md`; no sandbox
@@ -385,14 +457,24 @@ This prerequisite does not by itself resolve that ticket's admission policy.
   and code citations use symbols rather than line numbers. Source-pinned
   `compose_prompt_report` confirmed all three spec subsections and Q1 appear
   in the composed prompt. Runtime tests belong to implementation.
-- Q1 is deliberately unresolved, not an approved status precedence. The
-  evaluator should check its completeness; the owner must settle it before
-  implementation. The proposed compatibility choice is to keep refusing
-  statuses for which "further along" has no defined answer.
+- Q1 was resolved by the owner on 2026-09-28; the updated acceptance criteria
+  and proposed shape require a human-review PR instead of choosing precedence.
+  The independent evaluator still needs to assess the amended design.
+
+## Owner decision — 2026-09-28
+
+- For an ambiguous status conflict, create a PR containing the merge conflict
+  and prepend its title with the exact text `Human Review needed`.
+- Incorporated into the ticket's composing specification: preserve the
+  competing versions, leave the requested transition unapplied, isolate the
+  proposed reconciliation from canonical control, and reserve resolution for
+  the human. This is a narrowly scoped exception to the ordinary rule that
+  lifecycle state is published directly to control rather than through a PR.
+- This follow-up amends the design only. It stays at `evaluate-design`;
+  the author has not performed or bypassed the independent evaluator step.
 
 ## Open Questions
 
-- Q1 — Asked the attended owner: for simultaneous status changes with no clear
-  later value (paused/blocked, or done versus canceled), refuse for manual
-  reconciliation or prefer control? Recommendation: refuse only these genuine
-  conflicts; ordinary one-sided changes still merge. Awaiting an answer.
+- Q1 — Resolved: create the human-review PR specified above; no automatic
+  winner for incomparable status changes. No unanswered owner question is
+  currently recorded.
