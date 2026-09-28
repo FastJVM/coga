@@ -43,6 +43,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/910
 branch: attended-ticket-switch-recipe
 
 Placement (owner decision, 2026-09-28): the multiply path `coga/contexts/coga/recipes/SKILL.md` has no coga counterpart and coga PR #104 is an unrelated merged relay-era PR, so there is nothing to coordinate. The recipe goes under the Attended posture in `docs/contexts/coga/session-conduct` (+ packaged bootstrap twin) plus one bullet in the composed `src/coga/resources/prompt-attended.md`.
