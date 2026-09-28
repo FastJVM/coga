@@ -11,7 +11,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple
+from typing import Callable, NamedTuple
 
 import typer
 
@@ -349,8 +349,18 @@ def run_script_chain(
     assist_agent: str | None = None,
     assist_pr_url: str | None = None,
     failure_important: bool = False,
+    between_phases: Callable[
+        [Config, TargetRef], tuple[Config, TargetRef | None] | None
+    ] | None = None,
 ) -> ScriptChainResult:
-    """Run ``ticket.py`` once per consecutive step until agent work remains."""
+    """Run ``ticket.py`` once per consecutive step until agent work remains.
+
+    ``between_phases`` is launch's checkout boundary: called after every
+    phase that ran, it returns the checkout and hands back fresh config and
+    the exact target (``None`` when the target is gone), or ``None`` to stop
+    the chain after reporting a refusal. Routing and exit semantics are
+    otherwise unchanged.
+    """
 
     stateless = isinstance(ref, BootstrapRef)
     current = ticket
@@ -382,6 +392,30 @@ def run_script_chain(
                 stateless=stateless,
                 strict_assist=assist_branch is not None,
             )
+        if between_phases is not None:
+            settled = between_phases(cfg, ref)
+            if settled is None:
+                return ScriptChainResult(
+                    phase.exit_code,
+                    phase.ticket,
+                    False,
+                    f"{ref.id_slug}: checkout return did not complete; stopping",
+                    cfg,
+                    ref,
+                )
+            cfg, settled_ref = settled
+            if phase.exit_code == 0:
+                phase = ScriptPhaseResult(
+                    exit_code=0,
+                    ticket=(
+                        read_ticket(settled_ref)
+                        if settled_ref is not None
+                        else None
+                    ),
+                    cfg=cfg,
+                    ref=settled_ref or ref,
+                )
+            ref = settled_ref or ref
         if phase.exit_code != 0:
             return ScriptChainResult(
                 phase.exit_code,

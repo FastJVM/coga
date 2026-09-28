@@ -22,6 +22,7 @@ from textwrap import dedent
 import pytest
 
 from coga.repl_supervisor import (
+    CHECKOUT_RETURN_ENV,
     EXPECTED_STEP_ENV,
     EXPECTED_TASK_ENV,
     SENTINEL_ENV,
@@ -36,6 +37,7 @@ from coga.task_env import TASK_ENV_KEYS
 LAUNCH_OWNED_ENV = (
     SENTINEL_ENV,
     "COGA_SUPERVISED",
+    CHECKOUT_RETURN_ENV,
     EXPECTED_TASK_ENV,
     EXPECTED_STEP_ENV,
     *TASK_ENV_KEYS,
@@ -108,6 +110,20 @@ def _stub_init_identity_check(monkeypatch):
         lambda target: None,
         raising=False,
     )
+
+
+@pytest.fixture(autouse=True)
+def _scope_state_sweep_withholding():
+    """Give every test its own `git.state_sweep_withheld` scope.
+
+    `cli.main` scopes it per invocation; tests that call launch helpers or
+    `CliRunner` directly would otherwise leak a refusal into later tests.
+    """
+    from coga import git
+
+    token = git.state_sweep_withheld.set(False)
+    yield
+    git.state_sweep_withheld.reset(token)
 
 
 @pytest.fixture(autouse=True)
@@ -237,6 +253,17 @@ def _stub_git(monkeypatch, request):
     # Launch's end-of-run pull-back fetches; `status`'s staleness probe reads
     # local refs. Both shell out to git, so no-op them off the harness too.
     monkeypatch.setattr("coga.git.refresh", lambda *a, **k: True)
+    # Launch's checkout normalization and its recorded-checkout probe shell
+    # out too; off the harness a launch keeps its (non-git) checkout.
+    from coga.git import CheckoutPreparation
+
+    monkeypatch.setattr(
+        "coga.git.prepare_control_checkout",
+        lambda *a, **k: CheckoutPreparation("exempt", "git stubbed in tests"),
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch._checkout_exemption", lambda *a, **k: None
+    )
     monkeypatch.setattr("coga.git.stale_coga_task_rels", lambda *a, **k: [])
     # `views` binds the probe at import time, so patch its name too.
     monkeypatch.setattr("coga.views.stale_coga_task_rels", lambda *a, **k: [])
@@ -374,7 +401,8 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
         ).lstrip()
     )
     (coga_os / "coga.local.toml").write_text('user = "marc"\n')
-    (root / ".gitignore").write_text("coga/coga.local.toml\n")
+    # Mirror `coga init`'s ignores: the generated agent-skill view is local.
+    (root / ".gitignore").write_text("coga/coga.local.toml\ncoga/.agent-skills/\n")
     # Mirror the live repo's union-merge marking so `git check-attr merge`
     # resolves `log.md` as `merge=union` (the subtree sweep's union split
     # depends on it).

@@ -69,7 +69,9 @@ Confirm `gh auth status` succeeds. Then, in the launch checkout:
 2. `git switch <branch-name>` and verify `git status --short` is still clean.
    Do not absorb unrelated local changes or stage `coga/log.md` with a fix.
    From here until you return to `main`, edit code only: ticket and
-   blackboard edits made on the branch are not published.
+   blackboard edits made on the branch are not published. With
+   `COGA_LAUNCH_RETURNS_CHECKOUT=1`, launch already ran the start check in
+   step 1 for you; confirm it and return nothing yourself at the end.
 3. Read `[git].remote` from `coga.toml` (default `origin`) and use that configured
    remote to resolve the publication destination with
    `git remote get-url --push --all <configured-remote>`. Require exactly one
@@ -255,7 +257,9 @@ gh api graphql -F threadId=<thread-node-id> -f body='<reply>' -f query='<mutatio
 ```
 
 In a recorded legacy checkout, finish on the recorded branch and leave the
-launch-published Coga state as it is. Otherwise, finish by running the
+launch-published Coga state as it is. With `COGA_LAUNCH_RETURNS_CHECKOUT=1`,
+finish on the feature branch too: launch returns the checkout to `main`
+after the session (`dev/checkouts`). Otherwise, finish by running the
 `dev/checkouts` end-of-step return: discard dirty Coga state only after
 proving it already matches `origin/main`, `git switch main`, and
 `git merge --ff-only origin/main`. If anything dirty is unpublished or

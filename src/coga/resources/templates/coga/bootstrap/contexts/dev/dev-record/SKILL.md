@@ -40,9 +40,12 @@ to [dev/design-history](../design-history/SKILL.md).
   `code/open-pr`, `coga open-pr` writes it; in a hand-run flow write it as soon
   as `gh pr create` returns.
 
-Write every `## Dev` line on `main`, the checkout state you bump from: ticket
-edits made on a feature branch are not published before the end-of-step
-return and would be refused there. The implement step declares
+Write `## Dev` lines where you bump from. In a manual session that is
+`main`: ticket edits made on a feature branch are not published before the
+end-of-step return and would be refused there. In a launched session that
+returns the checkout, the handoff may be written on the branch after loading
+control's copy of the ticket ([dev/checkouts](../checkouts/SKILL.md)); `coga
+bump` publishes it. The implement step declares
 `requires: branch`, so `coga bump` refuses until that copy has `branch:`.
 
 Know the gate's limits. It checks presence, not freshness: on a retry the

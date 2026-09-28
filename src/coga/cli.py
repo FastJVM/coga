@@ -151,6 +151,14 @@ def _sweep_coga_state(cfg: Config | None) -> None:
     """
     if control_relay_started.get():
         return
+    if git.state_sweep_withheld.get():
+        typer.secho(
+            "[git] state sweep withheld: the launch checkout return was refused "
+            "and its remaining changes were preserved unpublished.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        return
     if cfg is None or not _should_sweep_coga_state(sys.argv):
         return
     if _is_recurring_all_child(sys.argv) and _checkout_is_off_control(cfg):
@@ -394,6 +402,7 @@ def main() -> None:
         sys.argv = [sys.argv[0]] + full
 
     relay_token = control_relay_started.set(False)
+    withheld_token = git.state_sweep_withheld.set(False)
     try:
         app()
     except SystemExit as exc:
@@ -416,6 +425,7 @@ def main() -> None:
         # file to publish.
         _sweep_coga_state(cfg)
     finally:
+        git.state_sweep_withheld.reset(withheld_token)
         control_relay_started.reset(relay_token)
 
 

@@ -377,6 +377,8 @@ def test_supervisor_respawns_next_step_after_bump_with_real_git(
     slug = _create_agent_task(git_chain_repo.coga_os, ["implement", "finish"])
     git_chain_repo.git("add", "-A")
     git_chain_repo.git("commit", "-m", "seed chain task")
+    # Launch refuses a local control with unpushed commits; publish the seed.
+    git_chain_repo.git("push", "origin", "main")
 
     fake = _FakeAgent(git_chain_repo.coga_os, actions=["bump", "bump"])
     _patch_launch_env(monkeypatch, fake)
@@ -428,7 +430,7 @@ def test_session_survives_concurrent_control_branch_advance(
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
-    assert fake.steps == ["1 (implement)", "2 (finish)"], fake.steps
+    assert fake.steps == ["1 (implement)", "2 (finish)"], result.output
 
     primary_ticket = Ticket.read(
         list_tasks(load_config(git_chain_repo.coga_os))[0].ticket_path

@@ -1,14 +1,18 @@
 ---
 name: code/implement
-description: Agent step for a code change. From a clean `main`, branch, implement, test, commit, push the branch, and return the checkout to `main`. Stops before the PR — that belongs to a later step.
+description: Agent step for a code change. From a clean `main`, branch, implement, test, commit, push the branch, and hand off; `coga launch` returns the checkout to `main` (a manual session returns it itself). Stops before the PR — that belongs to a later step.
 ---
 
 # Implement the change
 
 You are doing the actual code change, in the checkout this session was
 launched from. Start on a clean `main`, do the work on a feature branch,
-push it, and end back on a clean `main` (`dev/checkouts`). **Do not open a
-PR yet** — the later `code/open-pr` step does that, after review and fixes.
+push it, and end back on a clean `main` (`dev/checkouts`). When the session
+has `COGA_LAUNCH_RETURNS_CHECKOUT=1`, `coga launch` prepared `main` before
+the session and returns the checkout after it: hand off from the feature
+branch and bump last. Without it (manual or API sessions, megalaunch picks,
+exempt checkouts), you perform both moves. **Do not open a PR yet** — the
+later `code/open-pr` step does that, after review and fixes.
 
 ## Order of operations
 
@@ -34,7 +38,8 @@ PR yet** — the later `code/open-pr` step does that, after review and fixes.
    needed, escalate that ask per your launch mode instead (ask the
    attending human; `coga block` in a queue run).
 3. **Start check, then branch.** Follow `dev/checkouts` ("Start, work,
-   end"). From the launch checkout, `git fetch origin main`, then require
+   end"). Under the launch witness, confirm HEAD is a clean `main` at
+   `origin/main`. Otherwise, from the launch checkout, `git fetch origin main`, then require
    HEAD on `main`, `git status --porcelain --untracked-files=all` empty (Coga
    state included), and `git merge --ff-only origin/main` to succeed. If any
    of that fails — dirty files, another ticket's branch, a diverged `main` —
@@ -51,9 +56,10 @@ PR yet** — the later `code/open-pr` step does that, after review and fixes.
    any plan notes worth keeping. Publish these edits using `dev/checkouts`
    ("Publish pre-branch ticket edits") and require a clean tree; writing on
    `main` alone does not publish them. Then `git switch <branch-name>`. From here
-   until you return to `main`, edit code only: ticket and blackboard edits
-   made on the branch are not published, and the end-of-step return refuses
-   to discard them.
+   on, commit only code: stage paths by name and never commit Coga state on
+   the branch. Without the launch witness, also edit code only until you
+   return to `main`: ticket and blackboard edits made on the branch are not
+   published, and the end-of-step return refuses to discard them.
 
    **Read-only Git: the sandbox clone fallback.** A managed agent sandbox may allow source edits
    while mounting the checkout's `.git` metadata read-only. If creating the
@@ -105,8 +111,8 @@ PR yet** — the later `code/open-pr` step does that, after review and fixes.
 4. **Implement on the feature branch.** Match existing code style. Keep changes scoped to the
    ticket — no opportunistic refactors. If you find a real adjacent bug,
    note its symptom, affected code, evidence or reproduction, and any
-   existing follow-up ticket reference for the blackboard (write it after
-   returning to `main`); don't fix it here.
+   existing follow-up ticket reference for the blackboard (write it with the
+   handoff in step 10); don't fix it here.
    State what remains unresolved. `retro/done-ticket` owns carrying that
    finding into a durable context before deleting this ticket, so the
    blackboard is a handoff, not the bug's final home.
@@ -134,17 +140,23 @@ PR yet** — the later `code/open-pr` step does that, after review and fixes.
    branch missing material commits from `origin/main`, and as a script it
    has no judgment to rebase with — freshness lands in the agent steps,
    while judgment is available.
-9. **Push and return to `main`.** `git push -u origin <branch-name>` (add
+9. **Push, then return to `main` only without the launch witness.**
+   `git push -u origin <branch-name>` (add
    `--force-with-lease` when a rebase rewrote an already-pushed branch).
-   Then run the `dev/checkouts` end-of-step return: discard dirty Coga
+   Under the launch witness, stay on the branch; launch returns the
+   checkout after the session. Otherwise run the `dev/checkouts` end-of-step return: discard dirty Coga
    state only after proving it already matches `origin/main`, `git switch
    main`, and `git merge --ff-only origin/main`. If a dirty Coga-state path
    is not already on `origin/main`, or any other path is dirty, stop and
    escalate — never discard unpublished state. In the
    sandbox clone layout, push from the clone; the launch checkout never left
    `main`.
-10. **Hand off and bump — this is what ends the step.** On `main`, write
-   the blackboard handoff: what changed, decisions, and anything the next
+10. **Hand off and bump — this is what ends the step.** Under the launch
+   witness, write the handoff on the feature branch after loading control's
+   copy of the ticket (`git fetch origin main && git restore
+   --source=origin/main --worktree -- <task path>`, never staged;
+   `dev/checkouts`, "In a launched session"). Otherwise write it on `main`.
+   The blackboard handoff records what changed, decisions, and anything the next
    step needs. Confirm `## Dev` records this attempt's `branch:`. Then run
    `coga bump <slug>`. It publishes the ticket and advances the workflow to
    the next step; it is the *only* thing that does so — there is no
@@ -164,7 +176,9 @@ PR yet** — the later `code/open-pr` step does that, after review and fixes.
   `worktree:` for a sandbox clone), contains the latest `origin/main`, and
   is pushed.
 - Tests pass locally.
-- The launch checkout is back on `main`, fast-forwarded and clean.
+- Under the launch witness, `coga bump` ran last from the feature branch
+  and published the handoff (launch returns the checkout). Otherwise the
+  launch checkout is back on `main`, fast-forwarded and clean.
 - No PR yet.
 - Blackboard reflects what changed and any decisions made.
 - `coga bump <slug>` has been run — the step is not done until it has.
