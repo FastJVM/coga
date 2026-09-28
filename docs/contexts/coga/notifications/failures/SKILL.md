@@ -20,11 +20,12 @@ that decides whether either aborts the caller:
   `webhook_for`; it is **never rerouted** to flow, because a human-action
   alert in the wrong channel reported as success is worse than a crash.
 - **Delivery miss** — any transport failure, revoked webhook, or non-2xx
-  response. A transport failure is anything `requests.post` raises in the
-  `RequestException`, `OSError`, or `ValueError` families, including the
-  plain `OSError` for an invalid CA bundle path. `fail()` writes a redacted category to stderr, appends a `slack` line to
-  `coga/log.md` when a `task_path` was given, then raises
-  `NotificationDeliveryError`.
+  response. A transport failure is anything in
+  `slack_response.SLACK_TRANSPORT_ERRORS` (`OSError`, which includes
+  `RequestException`, and `ValueError`), such as the plain `OSError` for an
+  invalid CA bundle path. `fail()` writes a redacted category to stderr,
+  appends a `slack` line to `coga/log.md` when a `task_path` was given, then
+  raises `NotificationDeliveryError`.
 
 With the default `fatal=True` both exit the command with status 1: a rerun
 reproduces a configuration error identically, so the crash is the fix. With

@@ -84,7 +84,11 @@ from coga.paths import (
 )
 from coga.service_order import leading_number
 from coga.skill_manager import bundled_skills_root, skills_root
-from coga.slack_response import classify_slack_response, format_slack_request_error
+from coga.slack_response import (
+    SLACK_TRANSPORT_ERRORS,
+    classify_slack_response,
+    format_slack_request_error,
+)
 from coga.tasks import (
     DuplicateTaskSlugError,
     TaskNotFoundError,
@@ -1827,7 +1831,7 @@ def probe_slack(webhook_url: str) -> tuple[str, str]:
     """
     try:
         resp = requests.post(webhook_url, json={"text": ""}, timeout=5)
-    except requests.RequestException as exc:
+    except SLACK_TRANSPORT_ERRORS as exc:
         return "unreachable", format_slack_request_error(exc)
 
     return classify_slack_response(resp.status_code, resp.text)

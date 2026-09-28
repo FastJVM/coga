@@ -212,7 +212,6 @@ def test_recipe_disposes_of_a_closed_tickets_landed_checkout(
     assert not any("⚠️" in text for text in texts)
 
 
-
 def test_recipe_finishes_when_every_slack_post_raises_a_non_request_oserror(
     git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:

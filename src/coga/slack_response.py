@@ -28,6 +28,12 @@ def redact_slack_webhook_credentials(text: str) -> str:
     return _SLACK_WEBHOOK_PATH_RE.sub("[redacted Slack webhook]", text)
 
 
+# Every exception a webhook `requests.post` can raise for a transport fault.
+# `RequestException` is itself an `OSError`; the plain `OSError` covers an
+# invalid CA bundle path and `ValueError` some adapter and proxy-URL faults.
+SLACK_TRANSPORT_ERRORS: tuple[type[Exception], ...] = (OSError, ValueError)
+
+
 def format_slack_request_error(exc: Exception) -> str:
     """Return useful request-failure context without rendering request data.
 
@@ -78,6 +84,7 @@ def classify_slack_response(status_code: int, text: str) -> tuple[SlackResponseS
 
 
 __all__ = [
+    "SLACK_TRANSPORT_ERRORS",
     "SlackResponseStatus",
     "classify_slack_response",
     "format_slack_request_error",

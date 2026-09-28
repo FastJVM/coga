@@ -701,11 +701,25 @@ def test_enabled_but_no_webhook_crashes(
     assert "[notification.slack].webhook" in err
 
 
+_CA_BUNDLE_ERROR = OSError(
+    "Could not find a suitable TLS CA certificate bundle, invalid path: "
+    "/nonexistent/certifi/cacert.pem"
+)
+# `requests` raises a plain `OSError` for an invalid CA bundle path, outside
+# `RequestException`; every transport failure must still be a delivery miss.
+_TRANSPORT_FAILURES = [
+    requests.ConnectionError("no network"),
+    _CA_BUNDLE_ERROR,
+    ValueError("adapter refused the request"),
+]
+
+
+@pytest.mark.parametrize("failure", _TRANSPORT_FAILURES)
 def test_post_failure_crashes(
-    cfg_with_webhook, monkeypatch: pytest.MonkeyPatch, capsys
+    cfg_with_webhook, monkeypatch: pytest.MonkeyPatch, capsys, failure: Exception
 ) -> None:
     def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
-        raise requests.ConnectionError("no network")
+        raise failure
 
     monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
     with pytest.raises(typer.Exit) as exc:
@@ -714,11 +728,17 @@ def test_post_failure_crashes(
 
     err = capsys.readouterr().err
     assert "post failed" in err
+    assert type(failure).__name__ in err
     assert f"[{cfg_with_webhook.project_name}] lost message" in err
 
 
+@pytest.mark.parametrize("failure", _TRANSPORT_FAILURES)
 def test_post_failure_non_fatal_reports_and_returns(
-    cfg_with_webhook, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+    cfg_with_webhook,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys,
+    failure: Exception,
 ) -> None:
     """`fatal=False` reports the miss but lets the caller finish.
 
@@ -726,43 +746,6 @@ def test_post_failure_non_fatal_reports_and_returns(
     so an undeliverable broadcast must not abort the command (which, for a
     session-ending command, would skip `emit_done_marker` and strand the REPL).
     Nothing is hidden — the failure still lands on stderr and in `log.md`.
-    """
-    task_path = tmp_path / "tasks" / "001-x"
-    task_path.mkdir(parents=True)
-
-    def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
-        raise requests.ConnectionError("no network")
-
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
-    post(cfg_with_webhook, "lost message", task_path=task_path, fatal=False)
-
-    err = capsys.readouterr().err
-    assert "post failed" in err
-    assert "[001-x]" in (cfg_with_webhook.repo_root / "log.md").read_text()
-
-
-_CA_BUNDLE_ERROR = OSError(
-    "Could not find a suitable TLS CA certificate bundle, invalid path: "
-    "/nonexistent/certifi/cacert.pem"
-)
-
-
-@pytest.mark.parametrize(
-    "failure",
-    [_CA_BUNDLE_ERROR, ValueError("adapter refused the request")],
-)
-def test_post_non_request_exception_is_a_non_fatal_delivery_miss(
-    cfg_with_webhook,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys,
-    failure: Exception,
-) -> None:
-    """A transport error outside `RequestException` is still a delivery miss.
-
-    `requests` raises a plain `OSError` when its CA bundle path is invalid.
-    It must take the reported `fail(...)` path, so a `fatal=False` caller
-    announcing work already on disk carries on instead of crashing.
     """
     task_path = tmp_path / "tasks" / "001-x"
     task_path.mkdir(parents=True)
@@ -776,22 +759,7 @@ def test_post_non_request_exception_is_a_non_fatal_delivery_miss(
     err = capsys.readouterr().err
     assert "post failed" in err
     assert type(failure).__name__ in err
-    log_text = (cfg_with_webhook.repo_root / "log.md").read_text()
-    assert "[001-x]" in log_text
-    assert "post failed" in log_text
-
-
-def test_post_non_request_exception_still_crashes_when_fatal(
-    cfg_with_webhook, monkeypatch: pytest.MonkeyPatch, capsys
-) -> None:
-    def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
-        raise _CA_BUNDLE_ERROR
-
-    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
-    with pytest.raises(typer.Exit) as exc:
-        post(cfg_with_webhook, "lost message")
-    assert exc.value.exit_code == 1
-    assert "OSError: TLS/SSL failure" in capsys.readouterr().err
+    assert "[001-x]" in (cfg_with_webhook.repo_root / "log.md").read_text()
 
 
 def test_post_failure_can_skip_unleased_audit_append(
