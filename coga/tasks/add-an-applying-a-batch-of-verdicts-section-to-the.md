@@ -1,6 +1,6 @@
 ---
 title: Add an Applying-a-batch-of-verdicts section to the v2 parking README
-status: draft
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -23,6 +23,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
