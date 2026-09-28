@@ -6637,3 +6637,4 @@ fatal: Unable to add (null) to database
 2026-09-28 08:36 [recurring/usage-report] [system] deleted completed prior-period task before 2026-W40
 2026-09-28 08:36 [recurring/usage-report] [system] created recurring/usage-report for 2026-W40
 2026-09-28 08:36 [recurring/blocker-reminders] [system] started (active → in_progress) via coga launch
+2026-09-28 08:36 [recurring/blocker-reminders] [system] launched as a script (ticket.py)
