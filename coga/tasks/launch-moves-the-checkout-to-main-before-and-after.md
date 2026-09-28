@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 agent: claude
 ---
 
@@ -256,6 +256,83 @@ Verification: `coga validate --task launch-moves-the-checkout-to-main-before-and
 
 branch: launch-normalizes-checkout
 
+## Implementation handoff (2026-09-28)
+
+Commit `fbf5d7f67` on `launch-normalizes-checkout` (pushed; state-only drift
+from `origin/main`, which `coga open-pr` permits). No PR yet.
+
+What changed:
+- `src/coga/git.py` `prepare_control_checkout` → `CheckoutPreparation`
+  (prepared/exempt/refused/failed). Pins the fetched control commit; refuses
+  detached HEAD, in-progress operations, a missing, ahead, or diverged local
+  control, or control held by another worktree. Reads porcelain v2 with
+  `--no-renames`. Only tasks/recurring/log paths may be cleaned, by
+  exact existence, mode, and blob, or a union no-op for `merge=union`. Staged
+  copies must equal HEAD or the published blob. Refuses symlinks and
+  submodules, and ignored files the move would overwrite. The plan is
+  re-observed under `state_lock` before any write, then it restores or
+  removes, switches, and fast-forwards with `--ff-only`, and verifies.
+  Also adds `git.state_sweep_withheld` (a ContextVar reset per `cli.main`;
+  `_sweep_coga_state` honors it).
+- `src/coga/commands/launch.py` `_CheckoutBoundary` (`enter`/`admit`/`settle`/
+  `reload`), `_checkout_exemption`, `_checkout_refusal_message`. Entry sits
+  after resolution and before the delegate read. Resolution is retried
+  after `enter` when the spelling doesn't resolve and isn't `bootstrap/` or
+  `recurring/`. `settle` runs after each agent session (after the usage sync
+  and blocked-resume restore), inside `run_script_chain` after each phase
+  (new `between_phases` hook in `src/coga/launch_script.py`), and at
+  teardown in place of `_refresh_launch_checkout`; exempt launches keep the
+  refresh. `COGA_LAUNCH_RETURNS_CHECKOUT` (`repl_supervisor.CHECKOUT_RETURN_ENV`)
+  is set per step only when armed; `build_supervised_step_env` strips an
+  inherited copy.
+- Docs: `dev/checkouts` owns the policy (new "The launch boundary" and a
+  launched/manual split of "Start, work, end"). Also updated `coga/launch`,
+  internals `agent-spawn`/`git-refresh`/`state-publication`/`pr-publication`/
+  `human-assist`, `dev/code`, `dev/dev-record`, `coga/codebase`, and the
+  `code/{implement,self-qa,open-pr,address-pr-comments}` skills. Packaged
+  twins synced.
+
+Deviations and decisions made in implementation (the reviewer should check these):
+- **Every boundary publishes first, not only entry.** A `ticket.py` phase's
+  outputs (attachments, log lines) are unpublished until the sweep; without
+  publishing, every hybrid script→agent chain refused
+  (`test_control_worktree_parks_hybrid_before_its_agent_handoff`).
+  `settle` therefore runs `sync_coga_state` before preparing. This replaces
+  the "teardown never publishes" default below; only state whose publication
+  failed, or non-Coga dirt, blocks.
+- Exemption rule: the invoking checkout equals the recorded `worktree:` and
+  HEAD equals the recorded `branch:`. It reads the invoking bytes, then the
+  last-fetched control copy, and covers both the recorded assist and the
+  sandbox clone. It does not require branch ≠ control, because the assist
+  path owns the control-named-branch refusal. A ticket holding a released
+  megalaunch witness is also exempt, since its reconciliation owns that local
+  state (`test_launch_refuses_released_admission_changed_during_control_fetch`).
+- Handoff hazard: `git branch` runs before the pre-branch publish, so the
+  feature branch's ticket copy lacks `## Dev`. Publishing an edit of that
+  copy would overwrite control, because the publish guard accepts it via
+  `PUBLISHED_REF`. The docs and skills therefore require
+  `git restore --source=origin/main --worktree -- <task path>` before writing
+  a handoff on the branch.
+- Launching with unpushed local control commits now refuses (75).
+  `tests/test_launch_restart.py` gained a push. The test fixture now
+  gitignores `coga/.agent-skills/`, as `coga init` does.
+
+Verification (all on the branch):
+- `.venv/bin/python -m pytest -q` → 2977 passed.
+- Focused: `tests/test_git.py` 81 passed (19 new prepare tests),
+  `tests/test_launch.py -k "checkout or handoff or entry_refuses or teardown_refusal"`
+  13 passed (8 new), `tests/test_launch_script.py` 34 passed (1 new real-git
+  two-phase chain), `tests/test_cli.py` 22 passed (4 new), `tests/test_packaging.py` 23 passed.
+- `git diff --check` clean.
+
+Not covered by a dedicated new test: a recurring-period teardown refusal,
+a `failed` mid-mutation outcome, and the destination-changed reload refusal.
+Existing recurring suites pass unchanged.
+
+Session note: an untracked `recurring-unblock-launch` draft (the owner's)
+was in the checkout. The owner said to publish it, and it now is.
+This session ran under the pre-change launcher, so it used the manual return.
+
 ## Owner decisions (2026-09-27, implement session)
 
 Answers to the evaluator's must-resolve items; these override the ticket body
@@ -269,8 +346,8 @@ where they conflict.
 2. **Entry dirt: publish first.** Before admission, run the existing
    `sync_coga_state` once; refuse (75) only what it cannot land, or non-Coga
    dirt. "Rejected state" means state whose publication failed, not merely
-   unpublished state. Teardown stays warn-only and never publishes to make
-   dirt discardable; the next entry heals routine pending state.
+   unpublished state. (Superseded in implementation: every boundary publishes
+   routine state first; see the implementation handoff.)
 3. **Return signal: new env witness** minted only by `_launch`'s normalizing
    path (name chosen in implementation, e.g. `COGA_LAUNCH_RETURNS_CHECKOUT=1`).
    Code-step skills key on it. Megalaunch, bootstrap/chat, and manual/API
