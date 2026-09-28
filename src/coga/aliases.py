@@ -38,6 +38,12 @@ BUILTIN_COMMANDS: frozenset[str] = frozenset(
 )
 
 
+# Slug of the first-run onboarding ticket ``coga init`` seeds on an empty repo
+# and prunes on a filled one. Shared by the ``build`` alias below, init's
+# seed/prune step, and launch's missing-ticket explanation.
+ONBOARDING_TASK = "coga-build"
+
+
 # Aliases registered for every user, regardless of whether their ``coga.toml``
 # has an ``[aliases]`` section. User aliases override matching defaults. This
 # keeps ``coga chat`` discoverable and dispatchable in repos initialized before
@@ -57,7 +63,7 @@ BUILTIN_COMMANDS: frozenset[str] = frozenset(
 DEFAULT_ALIASES: dict[str, str] = {
     "chat": "launch bootstrap/orient",
     "dream": "recurring launch dream",
-    "build": "launch coga-build",
+    "build": f"launch {ONBOARDING_TASK}",
     "skill-update": "recurring launch skill-update",
     "autoclose": "recurring launch autoclose-merged",
     "pick": "megalaunch --pick",

@@ -1140,7 +1140,7 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
     and the next-steps coax points the user at `coga ticket` without seeding a
     browser-automation draft."""
     target = _make_git_repo(tmp_path / "existing-repo")
-    (target / "README.md").write_text("hi")
+    (target / "main.py").write_text("print(1)\n")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -1163,6 +1163,28 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
     assert (target / "coga" / "log.md").read_text() == ""
 
 
+def test_init_hosting_scaffold_repo_seeds_onboarding(
+    tmp_path: Path, fake_vendor
+) -> None:
+    """A repo holding only GitHub's "Initialize this repository with..."
+    scaffold (stub README, LICENSE, .gitattributes) is still empty: the
+    onboarding ticket is seeded, so the advertised `coga build` resolves."""
+    target = _make_git_repo(tmp_path / "thinkpick")
+    (target / "README.md").write_text("# thinkpick\n")
+    (target / "LICENSE").write_text("MIT License\n\n" + "Permission... " * 200)
+    (target / ".gitattributes").write_text("* text=auto\n")
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert (target / "coga" / "tasks" / "coga-build.md").is_file()
+    assert "[coga-build] [coga:init] created" in (
+        target / "coga" / "log.md"
+    ).read_text()
+    assert "Run `coga build`" in result.output
+    assert "Skipped the onboarding ticket" not in result.output
+
+
 @pytest.mark.parametrize("filled", [False, True], ids=["empty-repo", "filled-repo"])
 def test_init_tolerates_bare_slack_webhook_env_on_both_paths(
     tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch, filled: bool
@@ -1175,7 +1197,7 @@ def test_init_tolerates_bare_slack_webhook_env_on_both_paths(
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/xxx")
     target = _make_git_repo(tmp_path / "company")
     if filled:
-        (target / "README.md").write_text("hi")
+        (target / "main.py").write_text("print(1)\n")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
 
@@ -1251,7 +1273,30 @@ def test_repo_is_empty_true_for_missing_or_coga_managed(tmp_path: Path) -> None:
 def test_repo_is_empty_false_when_user_content_present(tmp_path: Path) -> None:
     target = tmp_path / "proj"
     target.mkdir()
-    (target / "README.md").write_text("hi")
+    (target / "main.py").write_text("print(1)\n")
+    assert init_cmd._repo_is_empty(target) is False
+
+
+def test_repo_is_empty_true_for_hosting_scaffold(tmp_path: Path) -> None:
+    target = tmp_path / "scaffolded"
+    target.mkdir()
+    (target / "README.md").write_text("# scaffolded\n\nA one-line description.\n")
+    (target / "LICENSE").write_text("x" * 5000)
+    (target / "COPYING.txt").write_text("x")
+    (target / ".gitattributes").write_text("* text=auto\n")
+    assert init_cmd._repo_is_empty(target) is True
+
+
+@pytest.mark.parametrize(
+    "readme",
+    ["# proj\n\nline one\nline two\nline three\n", "# proj\n" + "x" * 1024],
+    ids=["too-many-lines", "too-large"],
+)
+def test_repo_is_empty_false_for_real_readme(tmp_path: Path, readme: str) -> None:
+    """A README past stub size is a real project README, not scaffold."""
+    target = tmp_path / "proj"
+    target.mkdir()
+    (target / "README.md").write_text(readme)
     assert init_cmd._repo_is_empty(target) is False
 
 

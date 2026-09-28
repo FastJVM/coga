@@ -27,6 +27,7 @@ import tomlkit
 import typer
 
 from coga.agent_skills import refresh_agent_skill_view
+from coga.aliases import ONBOARDING_TASK
 from coga.commands.update import (
     _refresh_coga_gitignore,
     copy_fresh_templates,
@@ -135,10 +136,44 @@ def render_local_toml(name: str) -> str:
 # Files/dirs that don't count as pre-existing user content when deciding
 # whether a target dir is "empty" — `.git`/`.DS_Store` plus everything init
 # itself creates. Anything else present before init runs marks the repo as
-# already-filled (a real project), which suppresses onboarding-ticket seeding.
+# already-filled (a real project), which suppresses onboarding-ticket seeding,
+# except the hosting-provider scaffold `_is_hosting_scaffold` recognizes.
 _INIT_IGNORE: frozenset[str] = frozenset(
     {".git", ".DS_Store", "coga", "CLAUDE.md", "AGENTS.md", ".claude", ".codex", ".gitignore"}
 )
+
+# Stock files a hosting provider's "Initialize this repository with..." option
+# writes (GitHub: README, LICENSE, .gitignore, .gitattributes). License files
+# and `.gitattributes` are scaffold whatever they hold.
+_SCAFFOLD_PREFIXES: tuple[str, ...] = ("license", "licence", "copying")
+_SCAFFOLD_NAMES: frozenset[str] = frozenset({".gitattributes"})
+
+# A README counts as scaffold only while it is stub-sized: GitHub's is
+# `# <name>` plus an optional description line. Anything larger is a real
+# project README and marks the repo filled. The tradeoff is deliberate: a real
+# project whose only content is a tiny README gets the (deletable) onboarding
+# ticket, rather than a scaffolded repo losing it.
+_SCAFFOLD_README_MAX_LINES = 3
+_SCAFFOLD_README_MAX_BYTES = 1024
+
+
+def _is_hosting_scaffold(entry: Path) -> bool:
+    """True when `entry` is a stock hosting-provider scaffold file."""
+    if not entry.is_file():
+        return False
+    lower = entry.name.lower()
+    if lower in _SCAFFOLD_NAMES or lower.startswith(_SCAFFOLD_PREFIXES):
+        return True
+    if lower.startswith("readme"):
+        try:
+            data = entry.read_bytes()
+        except OSError:
+            return False
+        if len(data) >= _SCAFFOLD_README_MAX_BYTES:
+            return False
+        lines = [ln for ln in data.decode("utf-8", "replace").splitlines() if ln.strip()]
+        return len(lines) <= _SCAFFOLD_README_MAX_LINES
+    return False
 
 
 def _repo_is_empty(target: Path) -> bool:
@@ -146,11 +181,15 @@ def _repo_is_empty(target: Path) -> bool:
 
     Evaluated against the directory's pristine contents — call it before init
     writes any of its own files. A missing dir is empty; otherwise any entry
-    outside `_INIT_IGNORE` means the repo is already a real project.
+    outside `_INIT_IGNORE` that is not hosting scaffold means the repo is
+    already a real project.
     """
     if not target.exists():
         return True
-    return all(entry.name in _INIT_IGNORE for entry in target.iterdir())
+    return all(
+        entry.name in _INIT_IGNORE or _is_hosting_scaffold(entry)
+        for entry in target.iterdir()
+    )
 
 
 def _enclosing_coga_root(target: Path) -> Path | None:
@@ -215,7 +254,7 @@ def _host_ignores_path(path: Path) -> bool:
 
 # Delivered onboarding ticket, pruned from the copied tree on a filled repo
 # (a real project doesn't want the bootstrap interview seeded for it).
-_ONBOARDING_TICKET_DIRS: tuple[str, ...] = ("coga-build",)
+_ONBOARDING_TICKET_DIRS: tuple[str, ...] = (ONBOARDING_TASK,)
 
 
 def _prune_onboarding_tickets(coga_os: Path) -> list[str]:
@@ -1064,7 +1103,7 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             # its creation time is real rather than baked into every install.
             append_log(
                 _load_scaffolded_config(coga_os),
-                "coga-build",
+                ONBOARDING_TASK,
                 "coga:init",
                 "created (mode=interactive, status=active)",
             )
@@ -1111,8 +1150,9 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     )
     if pruned_onboarding:
         typer.echo(
-            "Skipped the onboarding ticket (this dir already has a project) — "
-            "create tasks with `coga ticket` when you're ready."
+            "Skipped the onboarding ticket (this dir already has a project), "
+            "so `coga build` is unavailable here — create tasks with "
+            "`coga ticket` when you're ready."
         )
     if wired_agents:
         names = ", ".join(wired_agents)
