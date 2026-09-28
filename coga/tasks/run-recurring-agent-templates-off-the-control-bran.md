@@ -282,3 +282,5 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Blocker reminders
 
 - 8cf614ca1bd7 last_reminded: 2026-09-11 10:00
+
+- a18bb9968178 last_reminded: 2026-09-28 08:36
