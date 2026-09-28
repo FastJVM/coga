@@ -6684,3 +6684,4 @@ fatal: Unable to add (null) to database
 2026-09-28 12:03 [lifecycle-writes-read-control-s-ticket-before-modi] [human:nicktoper] advanced to step 3 (review-design) → nicktoper
 2026-09-28 12:04 [record-the-attended-ticket-switch-recipe-launch-do] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-28 12:04 [record-the-attended-ticket-switch-recipe-launch-do] [human:nicktoper] started (active → in_progress) via coga launch
+2026-09-28 12:04 [record-the-attended-ticket-switch-recipe-launch-do] [human:nicktoper] launched (operator=claude, agent=claude)
