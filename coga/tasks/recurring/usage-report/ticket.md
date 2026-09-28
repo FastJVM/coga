@@ -1,11 +1,11 @@
 ---
 title: Agent usage report
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: 5f3061a4-f3cd-42ab-921a-5dfe010d65ca
+period_generation: d6eb1fbc-66fe-4bf3-ab01-8cc5e0e7bb66
 workflow:
   name: usage-report/post
   steps:
@@ -13,6 +13,7 @@ workflow:
     skills:
     - coga/usage-report/post
     assignee: agent
+step: 1 (post)
 ---
 
 ## Description
