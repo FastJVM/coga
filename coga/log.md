@@ -6617,3 +6617,22 @@ fatal: Unable to add (null) to database
 2026-09-27 19:19 [lifecycle-writes-read-control-s-ticket-before-modi] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-27 19:19 [lifecycle-writes-read-control-s-ticket-before-modi] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-27 19:19 [lifecycle-writes-read-control-s-ticket-before-modi] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
+2026-09-28 08:36 [recurring/address-pr-comments] [system] created (status=active)
+2026-09-28 08:36 [recurring/address-pr-comments] [system] deleted completed prior-period task before 2026-09-28
+2026-09-28 08:36 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-09-28
+2026-09-28 08:36 [recurring/autoclose-merged] [system] created (status=active)
+2026-09-28 08:36 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-09-28
+2026-09-28 08:36 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-09-28
+2026-09-28 08:36 [recurring/blocker-reminders] [system] created (status=active)
+2026-09-28 08:36 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-09-27
+2026-09-28 08:36 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-09-27
+2026-09-28 08:36 [recurring/branch-sweep] [system] created (status=active)
+2026-09-28 08:36 [recurring/branch-sweep] [system] created recurring/branch-sweep for 2026-W40
+2026-09-28 08:36 [recurring/phone-home] [system] created (status=active)
+2026-09-28 08:36 [recurring/phone-home] [system] deleted completed prior-period task before 2026-W40
+2026-09-28 08:36 [recurring/phone-home] [system] created recurring/phone-home for 2026-W40
+2026-09-28 08:36 [recurring/resolve-conflicts] [system] created (status=active)
+2026-09-28 08:36 [recurring/resolve-conflicts] [system] created recurring/resolve-conflicts for 2026-W40
+2026-09-28 08:36 [recurring/usage-report] [system] created (status=active)
+2026-09-28 08:36 [recurring/usage-report] [system] deleted completed prior-period task before 2026-W40
+2026-09-28 08:36 [recurring/usage-report] [system] created recurring/usage-report for 2026-W40
