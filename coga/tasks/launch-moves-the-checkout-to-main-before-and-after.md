@@ -252,6 +252,49 @@ work remains successful without silently publishing preserved dirt.
 
 Verification: `coga validate --task launch-moves-the-checkout-to-main-before-and-after --json` reported `ok_count: 1`, no issues; `git diff --check` passed. Validation emitted the existing installed/source version-skew warning. No implementation tests run for this ticket-only design.
 
+## Owner decisions (2026-09-27, implement session)
+
+Answers to the evaluator's must-resolve items; these override the ticket body
+where they conflict.
+
+1. **Union paths (`merge=union` in `.gitattributes`: `log.md`, `retires.md`)**
+   are proven published when every working line already exists in the pinned
+   control tree's version (union-merging onto the pinned tree is a no-op).
+   All other candidates keep exact content/mode/existence equality. Test:
+   control gains a log line after the branch point.
+2. **Entry dirt: publish first.** Before admission, run the existing
+   `sync_coga_state` once; refuse (75) only what it cannot land, or non-Coga
+   dirt. "Rejected state" means state whose publication failed, not merely
+   unpublished state. Teardown stays warn-only and never publishes to make
+   dirt discardable; the next entry heals routine pending state.
+3. **Return signal: new env witness** minted only by `_launch`'s normalizing
+   path (name chosen in implementation, e.g. `COGA_LAUNCH_RETURNS_CHECKOUT=1`).
+   Code-step skills key on it. Megalaunch, bootstrap/chat, and manual/API
+   sessions keep the manual return-to-main procedure.
+4. **Resolution: retry after normalize.** If local resolution fails and the
+   spelling is not a bootstrap ref, normalize, then resolve once (mirrors
+   direct recurring). Test: ticket created on control after the branch point.
+
+Implementer defaults for items 5–10 (owner may redirect):
+
+5. Recurring: the boundary runs in whatever checkout the runner selected
+   (including its temp/sibling control worktree, where it is a no-op switch
+   plus fast-forward); it never moves to another checkout. A between-step or
+   teardown refusal ends that period's chain as a returned outcome; later
+   periods in the sweep continue.
+6. Teardown sweep suppression is a ContextVar reset per `cli.main` beside
+   `control_relay_started`, invocation-scoped. Other recurring periods' state
+   withheld that invocation is published by the next entry (decision 2).
+7. Sandbox-clone exemption: invoking toplevel is the same checkout as the
+   target's recorded `worktree:` (`same_git_checkout`) and differs from the
+   repo's primary checkout.
+8. Recorded-assist classification falls back to the pinned control tree's
+   ticket bytes when the invoking copy lacks `branch:`/`pr:`.
+9. "Publish through the existing lifecycle command" means `coga bump`
+   (`sync_task_state`); the agent does not run `sync_coga_state` manually.
+10. Also update `coga/internals/state-publication`, and check
+    `coga/internals/human-assist`, `coga/internals/pr-publication`, `coga/cli`.
+
 ## Open Questions
 
 None awaiting owner input for this draft. The evaluator should specifically
