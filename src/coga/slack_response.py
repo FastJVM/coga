@@ -28,7 +28,7 @@ def redact_slack_webhook_credentials(text: str) -> str:
     return _SLACK_WEBHOOK_PATH_RE.sub("[redacted Slack webhook]", text)
 
 
-def format_slack_request_error(exc: requests.RequestException) -> str:
+def format_slack_request_error(exc: Exception) -> str:
     """Return useful request-failure context without rendering request data.
 
     Requests and urllib3 may include the full requested URL in an exception's

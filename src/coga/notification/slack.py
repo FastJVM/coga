@@ -142,7 +142,13 @@ class SlackChannel:
                 json=payload,
                 timeout=5,
             )
-        except requests.RequestException as exc:
+        except (requests.RequestException, OSError, ValueError) as exc:
+            # Every transport failure is a delivery miss, not only the
+            # `RequestException` family: `requests` raises a plain `OSError`
+            # for an invalid CA bundle path and `ValueError` for some adapter
+            # and URL faults. Letting either escape would skip `fail(...)` and
+            # bypass `post(fatal=False)`, so one broken alert sink could abort
+            # work already on disk.
             detail = format_slack_request_error(exc)
             fail(
                 f"network error: {detail}",
