@@ -153,6 +153,52 @@ existing recurring templates migrate and whether automatic execution requires
 separate standing consent; YAML sketches and the historical `mode: auto`
 spelling do not finalize that policy here.
 
+### Premise review — 2026-09-28
+
+Kept by `adjudicate-the-eight-premise-dead-v2-drafts` (owner-approved table).
+The subject survives: no schedule/idle trigger unification exists. Recurring
+schedules are still served by `recurring.scan_due` and
+`recurring_runner.run_recurring_scan`; source and contexts have no
+`autotrigger` or `idle-eligible` implementation, and the only token-budget
+match in config rejects removed megalaunch settings. `mark.mark_in_progress`
+still owns the start transition. The concept-only scope, the two axes, OR
+semantics and the open questions above stand unchanged.
+
+Current recurring facts any future design starts from (see `coga/recurring`):
+a recurring run has stable `recurring/<name>` identity per period, the
+scheduler records serviced periods in its log-backed ledger, and
+`run_recurring_scan` resumes an orphaned in-progress run instead of creating
+a second one.
+
+**Recovered background, replacing the "live cluster to read instead" list
+above.** Six of the seven slugs this draft cites are gone; only
+`v2/enforce-a-prompt-token-budget-in-compose` remains. The two `(not
+created)` names stay hypothetical. The four recurring-hazard tickets were
+deleted under `relay-os/tasks/`; their bodies are recoverable with
+`git show <commit>^:relay-os/tasks/<slug>/ticket.md`. They are historical
+hazards a trigger design must account for, not four build requirements:
+
+- `detect-recurring-runs-that-mark-done-without-advan` (`d7086ecd`): a run
+  can finish nominally while its domain cursor stays stale, so the next run
+  repeats output. The serviced-period ledger does not enforce arbitrary
+  domain-cursor advancement.
+- `recover-recurring-runs-orphaned-when-the-superviso` (`078dd705`): resume
+  stranded in-progress work at its existing step, skip done or paused work,
+  and tell sequential retry apart from concurrent ownership. Its
+  no-concurrency assumption was historical, not a current guarantee.
+- `fix-recurring-templates-not-instantiated` (`2584de1d`): one malformed
+  schedule must fail by itself without stopping healthy templates; the source
+  recorded that fix verified on 2026-06-17.
+- `enforce-mode-auto-for-recurring-templates` (`c008c23b`): unattended work
+  must not wait for input nobody can give. Its `mode: auto` enforcement is
+  obsolete; conduct and `ticket.py` dispatch now live in `coga/session-conduct`
+  and `coga/script-tickets`.
+
+The `relay launch` / `src/relay/...` spellings and the restock/mode prose
+above are historical. This review does not decide trigger syntax, consent or
+migration. The owner synthesized the blackboard on 2026-09-27 (`0884fdee`);
+activation still goes through this draft's own design.
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

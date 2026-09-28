@@ -97,6 +97,32 @@ Open design questions for the interview:
   single stable API — decide whether to depend on one.
 - **Output shape**: human table vs. `--json` for the import pass to consume.
 
+### Premise review — 2026-09-28
+
+Kept by `adjudicate-the-eight-premise-dead-v2-drafts` (owner-approved table).
+The subject is unbuilt: `coga skill --help` lists install, install-local,
+install-url, update, remove and status, with no search. Current equivalents
+of the surfaces named above:
+
+- `src/coga/commands/skill.py` (`app`, `install_url`) replaces
+  `src/relay/commands/skill.py`.
+- `src/coga/skill_manager.py` (`install_url_skill`) replaces
+  `src/relay/skill_manager.py`. Provenance is `.coga-source.json` with schema
+  `coga.skill-source.v1` (`SOURCE_METADATA`, `SOURCE_SCHEMA`).
+- The import rubric is now on disk, packaged at
+  `src/coga/resources/templates/coga/bootstrap/skills/bootstrap/import/SKILL.md`.
+  Its `Finding a candidate` section still describes manual discovery, not a
+  query-and-rank command. The rubric inlined above stays authoritative for
+  this draft; the sibling import ticket is provenance only.
+
+The rubric, ranked `import` / `adapt` / `skip` output and no-auto-install
+requirement stand. `detect-missing-skills` is historical: it closed without a
+build (`docs/archive/superseded-decisions.md`) and will not trigger this
+command. The instruction to add a Typer subcommand in core is an unapproved
+placement proposal under today's microkernel rule (`coga/extension-model`).
+The eval engine, sources, output shape and implementation home remain for
+this feature's own design.
+
 ## Out of scope
 
 - Auto-installation / auto-wiring into the `bootstrap/import` pass — this
