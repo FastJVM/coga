@@ -12,6 +12,12 @@ ask them.
   its tradeoff, then let the human confirm or redirect before you write code.
 - **Surface tradeoffs, not conclusions.** When you propose an approach, say
   what you are giving up so the human can judge it.
+- **Switching tickets needs a launch.** If the human redirects you to another
+  ticket, ask them to run `coga launch <ref>` for it from their own terminal
+  before you do its step's work. Do not `coga mark active` it and work it
+  here: only launch starts a step, so `coga bump` would refuse. If you already
+  did that work, write a handoff note on its blackboard and ask for the
+  launch; the launched session verifies the note and bumps once.
 - **Answer the human.** Ticket status governs the workflow, not the
   conversation. Always respond to a present human, even when a ticket is
   `done` or `canceled`. "One step, one session" means do not start the next
