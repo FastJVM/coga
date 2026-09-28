@@ -24,7 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (self-qa)
+step: 3 (pr)
 ---
 
 ## Description
@@ -96,5 +96,18 @@ Plan: widen `SlackChannel.send`'s transport catch to `(requests.RequestException
 - Decisions, with what they give up:
   - Did not add a catch-all `except Exception` in `notification.post`: it would also hide real programming bugs in channels. The widened catch covers the whole `requests` transport surface, since `RequestException` is itself an `OSError`.
   - No TLS preflight in `preflight_post`: catching a broken CA bundle up front would need a network probe or reaching into certifi internals. That is the wrong layer for a configuration gate, and the delivery miss is now non-fatal anyway.
-- Adjacent, not fixed here: `src/coga/validate.py` `probe_slack` has the same `except requests.RequestException` shape, so `coga validate` with a broken CA bundle would crash instead of reporting `slack-unreachable`. Candidate follow-up ticket.
+- ~~Adjacent, not fixed here~~ Fixed in self-qa (see below): `src/coga/validate.py` `probe_slack` had the same `except requests.RequestException` shape, so `coga validate` with a broken CA bundle would crash instead of reporting `slack-unreachable`.
 - Operator action (machine, not code): `uv tool install --reinstall coga` to restore `certifi/cacert.pem`.
+
+## Self-QA
+
+- Review form: `/code-review` (forked skill, default effort) against `main...slack-oserror-delivery-miss`: **returned**. Plus `/simplify` with 4 parallel agents (reuse, simplification, efficiency, altitude): **all returned**. Nothing is still in flight.
+- `/code-review`: one finding. `validate.probe_slack` still caught only `RequestException`, but the failures topic says it shares the same contract (a bad CA bundle would crash `coga validate`). Fixed.
+- `/simplify`: altitude found the same drift (the error family was defined inline at one of two call sites). Reuse found that the new notification tests duplicated existing ones. Simplification found that `RequestException` in the tuple was redundant (it is already an `OSError`), plus an unwrapped docs line, a long comment and an extra blank line. Efficiency found nothing.
+- Applied in commit `6da89af04`:
+  - Added `slack_response.SLACK_TRANSPORT_ERRORS = (OSError, ValueError)`, caught in both `SlackChannel.send` and `probe_slack`.
+  - Parametrized the existing `test_post_failure_crashes`, `test_post_failure_non_fatal_reports_and_returns` and `test_probe_slack_unreachable` over ConnectionError / CA-bundle OSError / ValueError, replacing the duplicates. The new `probe_slack` cases fail without the fix.
+  - Rewrapped the failures topic in both twins and pointed it at the constant; trimmed the comment.
+- Skipped: the optional `_raise(exc)` test helper (nit).
+- No manual-only surfaces were touched: stderr/log only.
+- Tests: `.venv/bin/python -m pytest` gives 3057 passed. The system `python` lacks `tomlkit`, which is an environment issue, not a finding.
