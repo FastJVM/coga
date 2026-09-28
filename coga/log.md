@@ -6688,3 +6688,4 @@ fatal: Unable to add (null) to database
 2026-09-28 12:05 [add-an-applying-a-batch-of-verdicts-section-to-the] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-28 12:05 [add-an-applying-a-batch-of-verdicts-section-to-the] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-28 12:05 [add-an-applying-a-batch-of-verdicts-section-to-the] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
+2026-09-28 12:10 [record-the-attended-ticket-switch-recipe-launch-do] [agent:claude] advanced to step 2 (peer-review) → codex

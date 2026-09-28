@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -46,3 +46,14 @@ The blackboard is a notepad to be written to often as the human and agent works 
 branch: attended-ticket-switch-recipe
 
 Placement (owner decision, 2026-09-28): the multiply path `coga/contexts/coga/recipes/SKILL.md` has no coga counterpart and coga PR #104 is an unrelated merged relay-era PR, so there is nothing to coordinate. The recipe goes under the Attended posture in `docs/contexts/coga/session-conduct` (+ packaged bootstrap twin) plus one bullet in the composed `src/coga/resources/prompt-attended.md`.
+
+## Implement handoff (2026-09-28)
+
+Commit `4dae8a53d` on `attended-ticket-switch-recipe` (pushed, rebased on origin/main `60ca77915`):
+- `docs/contexts/coga/session-conduct/SKILL.md` + packaged twin `src/coga/resources/templates/coga/bootstrap/contexts/coga/session-conduct/SKILL.md`: new *Switching to another ticket* paragraph under the Attended posture — ask the human to `coga launch <ref>`; don't `mark active` and author (bump refuses `Task is 'active'. Cannot advance.`; block/unblock doesn't fix it); if work was already done under `active`, leave a handoff note on that ticket's blackboard and ask for the launch; the launched session verifies against disk and bumps once. Links `coga/lifecycle` for the start transition.
+- `src/coga/resources/prompt-attended.md`: one bullet, "Switching tickets needs a launch", so the rule is in every attended prompt (the two failing sessions never read a topic). No canonical twin exists for this resource.
+- No example-fixture change: no task layout or workflow semantics changed; composition only gains prose.
+
+Verification: `.venv/bin/python -m pytest -q` → 2945 passed (pre-rebase); after rebase, `tests/test_packaging.py tests/test_compose.py tests/test_launch.py` → 254 passed.
+
+Reviewer note: the multiply path named in the Description (`coga/contexts/coga/recipes/SKILL.md`) and "Dream PR #104" don't apply in this repo (coga #104 is an unrelated merged relay-era PR).
