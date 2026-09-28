@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -478,3 +478,124 @@ This prerequisite does not by itself resolve that ticket's admission policy.
 - Q1 — Resolved: create the human-review PR specified above; no automatic
   winner for incomparable status changes. No unanswered owner question is
   currently recorded.
+
+## Evaluator review
+
+2026-09-28 — **Needs revision before implementation.** The owner explicitly
+requested this evaluation from the design's author. This is a same-agent
+review, not independent approval; the ticket body was reread before its
+blackboard explanation. The owner gate decides the revisions below.
+
+### Must fix
+
+1. **P1 — Select the merge base before declaring the local copy unchanged.**
+   Proposed shape 2 says that local bytes matching a proven shared snapshot
+   can simply adopt control, before selecting the newest shared baseline.
+   This loses an intentional edit back to an older snapshot. For example,
+   feature HEAD holds step 1; this checkout publishes step 2, recording it in
+   `PUBLISHED_REF`; a person then restores the local ticket to step 1 while a
+   peer adds an independent note to control's step 2. The local ticket
+   matches an old shared snapshot but differs from its latest published base.
+   Adopting control discards that deliberate rewind, contradicting the
+   one-sided-edit acceptance criterion.
+
+   Evidence: `src/coga/git.py` `_record_published` retains the later blob
+   without moving feature HEAD, and `_provenance` includes both blobs. A
+   real-Git probe reproduced this state. Require equality with the selected
+   authoritative baseline, rather than any historical candidate, to infer
+   that there are no unpublished edits; refuse when the baseline cannot be
+   proved. Add this older-HEAD/newer-publication case to the acceptance tests.
+
+2. **P1 — Carry publication expectations through retries, or prevent retries
+   from publishing a refused candidate.** Proposed shape 5 pins the initial
+   write to the exact prepared control bytes, but shape 6 retries through
+   ordinary `sync_task_state`; the generic sweep also remains unpinned.
+   Their provenance guard is weaker than the prepared expectation. A feature
+   checkout can have published B, prepare against later control C, then race
+   with a peer restoring B. Publishing the candidate with `expect=C` refuses;
+   retrying those same bytes without `expect` accepts B from `PUBLISHED_REF`
+   and overwrites the peer's change. A real-Git probe reproduced both outcomes
+   in sequence.
+
+   Evidence: `src/coga/git.py` `_guard` uses the exact expected blob when
+   supplied, otherwise the broader `_provenance` set; `sync_task_state`
+   defaults to swallowing a refusal, and `sync_coga_state` calls `publish`
+   without an expectation. `src/coga/cli.py` `main` suppresses a sweep only
+   for that command process's exit 75. `src/coga/commands/launch.py`
+   `spawn_agent_session` observes the agent process's outcome, not each
+   nested lifecycle command's exit status. A child's exit 75 therefore does
+   not authorize the proposed unconditional parent retry.
+
+   Specify how the immediate CLI sweep and supervisor retry distinguish a
+   retryable sandbox/transport failure from a rejected transaction, preserving
+   the original expectation or refusing to republish its retained bytes. Add
+   a real-Git race test covering both retry paths and continued log-only
+   publication. The reported sandbox-recovery sequence must still succeed.
+
+3. **P2 — Define the return path after the human merges a conflict PR.**
+   Proposed shape 3 says to retry the original command after resolution, but
+   describes only finding an *open* PR and leaves the originating checkout's
+   bytes and provenance unchanged. If base status is active, local is paused,
+   and control is in_progress, a human can resolve the PR by retaining control.
+   After that merge, base/local/control blob fingerprints can all be identical
+   to the original conflict. Retrying under the stated candidate-base rules
+   can recreate the same conflict and another PR instead of accepting the
+   human's decision.
+
+   Evidence: `src/coga/git.py` `_provenance` reads HEAD, their merge base, and
+   `PUBLISHED_REF`; `_record_published` is checkout-local and is not updated
+   by someone merging a PR. A real-Git conflicting-branch merge that kept
+   control advanced remote history while leaving all three conflict
+   fingerprints and the originating checkout's provenance unchanged. Define
+   an explicit resolution/adoption handshake or documented operator handoff,
+   including how a merged decision is distinguished from a closed, unmerged
+   PR and how edits made locally after PR creation are preserved. Test retry
+   after the human chooses control, local, and an edited resolution.
+
+4. **P2 — Make the fresh-control result explicit when the remote branch is
+   missing.** Proposed shape 1 relies on `fetch_control` to return a freshly
+   read revision, but it can return an old tracking ref after the configured
+   branch disappears. This violates the requirement not to call a cached
+   ref fresh and can run eligibility checks against nonexistent control.
+
+   Evidence: `src/coga/git.py` `_fetch_control` swallows "couldn't find remote
+   ref"; `fetch_control` then calls `_control_base`, which prefers an existing
+   remote-tracking ref. A real-Git probe deleted main in a disposable bare
+   remote and observed `fetch_control` return the old commit without error.
+   Specify a preparation result that distinguishes a confirmed remote tip,
+   missing remote control, and fetch failure, while preserving the documented
+   no-control/offline behavior and genuinely remote-less local control.
+   Add the missing-remote-branch-with-cached-ref regression.
+
+### Scope and recommendations
+
+The shared preparation boundary, preserved strict generation/lease checks,
+per-worktree publication witness, and canonical/packaged documentation updates
+fit the repository's architecture. The human-review title exclusion covers
+both automatic PR-maintenance paths. No additional feature scope is proposed;
+the four findings clarify correctness and recovery within the existing scope.
+Q1 remains resolved as recorded in the owner decision.
+
+### Verification
+
+- Read the composing specification, owning publication/refusal/sync contracts,
+  lifecycle and spawn contracts, and the cited implementation paths.
+- Ran four disposable real-Git probes using `tests/conftest.py`
+  `init_git_repo` and `tests/test_git.py` `_seed_ticket`/`_ticket_text`:
+  older-snapshot ambiguity, exact-expectation refusal followed by an unpinned
+  retry, missing remote control with a cached ref, and a human conflict merge
+  retaining control. Each confirmed the premises above. These exercise
+  existing primitives and Git histories, not an implementation of this spec.
+- `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q
+  tests/test_git.py -k 'expect_pins_the_exact_control_copy or
+  guard_refusal_lands_nothing_and_leaves_the_write_dirty or
+  a_feature_checkout_keeps_publishing_its_own_ticket or
+  stale_coga_task_rels_names_only_provably_newer_remote_copies'`:
+  4 passed, 58 deselected.
+- `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m coga.cli
+  validate --task lifecycle-writes-read-control-s-ticket-before-modi --json`:
+  1 valid task, 0 issues, 0 fixes. `git diff --check`: clean. A structural
+  check confirmed the ticket body/frontmatter are unchanged, with exactly
+  one blackboard fence and one evaluator-review section.
+- Evaluation changes are confined to this blackboard. The specification is
+  unchanged; no product code, task branch, or PR was produced.
