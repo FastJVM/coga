@@ -1,6 +1,6 @@
 ---
 title: Recurring sweep wedges on the ticket.py it copies, then reports a clean run
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -36,7 +36,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 6 (review)
 ---
 
 ## Description
