@@ -23,9 +23,10 @@ this step just makes sure the diff they see is already clean.
    the clone) and confirm it is clean — the previous `code/implement` step
    committed and pushed. If the branch is missing without already-satisfied
    evidence, escalate per your launch mode — ask the attending human, or
-   `coga block` in a queue run — because something is off. From here until
-   you return to `main`, edit code only; keep review notes for the
-   blackboard until then.
+   `coga block` in a queue run — because something is off. Commit only code
+   on the branch. Without `COGA_LAUNCH_RETURNS_CHECKOUT=1`, also edit code
+   only until you return to `main`, and keep review notes for the blackboard
+   until then.
 2. **Run `/code-review`.** Invoke the `/code-review` slash command at
    default effort against the branch's diff vs `main`. Note the findings;
    you'll address them in step 4. Do not use `/code-review ultra` here —
@@ -79,7 +80,7 @@ this step just makes sure the diff they see is already clean.
    already committed on its own, leave its commits as-is and add one more
    for the residual `/code-review` fixes (if any). Push the branch
    (`--force-with-lease` if you rebased it).
-7. **Wait for the review to return, return to `main`, then bump.** A
+7. **Wait for the review to return, then hand off and bump.** A
    review that has been *started* is not a review that has returned. If `/code-review` or `codex review --base main` is still running,
    wait for its findings and apply them (steps 4-6) before you bump. This is
    the step that owns that wait: the `pr` step which follows is mechanical, and
@@ -89,15 +90,19 @@ this step just makes sure the diff they see is already clean.
    it — `code/open-pr` carries the matching refusal, but only this step can
    actually wait.
 
-   Then record the outcome (on `main`, below) in the `## Self-QA` note as
+   Then record the outcome (below) in the `## Self-QA` note as
    durable evidence: which
    review form ran, that it **returned**, and what it found. A fresh session
    cannot otherwise tell a returned review from one still in flight, and the
    note is the only thing that crosses the session boundary. If you cannot wait,
    escalate per your launch mode — ask the attending human, or `coga block` in a
-   queue run — rather than bumping. Finally, run the `dev/checkouts`
-   end-of-step return to `main`, write the `## Self-QA` note there, and run
-   `coga bump <slug>` from `main` to advance to `pr`.
+   queue run — rather than bumping. Finally, with
+   `COGA_LAUNCH_RETURNS_CHECKOUT=1`, stay on the branch: load control's copy
+   of the ticket (`dev/checkouts`, "In a launched session"), write the
+   `## Self-QA` note, and run `coga bump <slug>` last; launch returns the
+   checkout. Without it, run the `dev/checkouts` end-of-step return to
+   `main`, write the note there, and run `coga bump <slug>` from `main` to
+   advance to `pr`.
 
 ## Acceptance for this step
 
