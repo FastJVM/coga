@@ -446,6 +446,7 @@ tests were inspected; no tests or feature changes were made in this review.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/913
 branch: v2-premise-adjudication
 
 Implement 2026-09-28: owner confirmed the table unchanged ("ok 1") in the
