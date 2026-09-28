@@ -1,6 +1,6 @@
 ---
 title: 'Gigantic refactor: move recurring recipes out of core'
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -31,6 +31,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (design)
+agent: claude
 ---
 
 ## Description
