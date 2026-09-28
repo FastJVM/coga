@@ -41,7 +41,9 @@ this step just makes sure the diff they see is already clean.
    the human reviewer knows what they are inheriting. `codex review --base
    main` is the equivalent native command where available, but it fails inside
    a restricted sandbox (see `coga/testing`), so rerun it unsandboxed rather
-   than reporting it as clean.
+   than reporting it as clean. Its own test attempt is expected to fail
+   collection (missing `tomlkit`); that is not a finding, and `coga/testing`
+   says which suite run to record instead.
 
    A green suite is not this step. Two recent tickets shipped a full-green
    `python -m pytest` and the review still found must-fix bugs, because the
