@@ -113,6 +113,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/908
 branch: retire-worklist-owner
 
 Plan (2026-09-27, primary checkout `/home/n/Code/coga`, now clean on `main`,
