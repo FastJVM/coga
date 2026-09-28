@@ -1,6 +1,6 @@
 ---
 title: 'Record the attended ticket-switch recipe: launch, do not mark active'
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
