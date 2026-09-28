@@ -31,7 +31,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 ---
 
 ## Description
@@ -454,3 +454,31 @@ with the exact table reason (log 2026-09-28 15:22, commit `ea14d559`).
 Drift since design: autotrigger synthesized by owner (`0884fdee`, adds
 `### Design-review caveats`), contexts moved to `docs/contexts/` (#875);
 `coga validate --json` now 0 errors; `coga status v2 --all` 80 tasks.
+
+## Implement handoff — 2026-09-28
+
+- Lifecycle: only `v2/skill-update-aborts-on-uncommitted-log-file` changed,
+  draft → canceled via `coga mark canceled` with the table reason verbatim
+  (dirty-file preflight residue named in the reason; no follow-up ticket, per
+  owner). The other seven verdicts were preserved; no transitions replayed,
+  and the dev-loop ticket was not recreated.
+- Branch `v2-premise-adjudication` (one prose commit, pushed, rebased on
+  `origin/main`): adds `### Premise review — 2026-09-28` under Context in
+  - autotrigger: recovered hazard background with commits; sits alongside
+    the owner's 2026-09-27 caveats and does not repeat them
+  - repository design: Description narrowed to the undecided remainder,
+    onboarding pieces named as delivered, and the init-creates-repos claim
+    corrected
+  - skill search: Coga-era surfaces; `detect-missing-skills` labeled
+    historical per the evaluator's suggestion, citing
+    `docs/archive/superseded-decisions.md`, where #875 moved that decision
+  Frontmatter and blackboards were untouched. Autotrigger stays draft, skill
+  search stays draft, and repository design stays paused with owner `zach`.
+- Verification (on the branch): `git diff --check` clean. `coga validate
+  --task <ref> --json` exit 0 for this ticket, skill-update, repository
+  design, skill search and autotrigger. Autotrigger no longer errors because
+  the owner synthesized it in `0884fdee`. `coga validate --json` exit 0:
+  271 OK, 47 warnings, 0 errors. The design's three-error baseline was
+  cleared by intervening sibling/owner work, not by this ticket. No tests
+  were added and the suite was not run: prose-only change using existing CLI
+  commands.
