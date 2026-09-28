@@ -254,6 +254,7 @@ Verification: `coga validate --task launch-moves-the-checkout-to-main-before-and
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/909
 branch: launch-normalizes-checkout
 
 ## Implementation handoff (2026-09-28)
