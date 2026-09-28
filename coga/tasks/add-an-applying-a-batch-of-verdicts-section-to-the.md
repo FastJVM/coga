@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -42,34 +42,60 @@ Three independent adjudication tickets each worked out, from scratch, how to act
 ## Dev
 branch: docs/v2-batch-verdicts
 
-## Implementation plan
+## Implementation handoff
 
-- Start check passed on clean `main`, fetched and fast-forwarded to
-  `origin/main`. PR #845 merged as `cdbc0244c3ff2939a76fe3bfa42c7532aff39d44`
-  and is an ancestor of this checkout.
-- Add the short batch-application recipe beside the README's premise-check
-  section. Lifecycle verdicts publish on `main`; deliberate authored changes
-  to the other tickets are reviewable implementation. Keep this adjudication
-  ticket's own state on `main` throughout.
-- Link command semantics to `coga/lifecycle`, publication semantics to
-  `coga/internals/pr-publication`, and checkout sequencing to `dev/checkouts`.
-  Add the requested workflow gate note and clarify the other-ticket prose
-  exception in the owning publication/checkout topics, syncing packaged twins.
-- Current-source check: `src/coga/open_pr.py` `open_pr` accepts a committed
-  prose-only branch subject to its ordinary freshness checks; the historical
-  `_publishable_changes` helper cited in the ticket no longer exists.
-  `src/coga/commands/mark.py` `_DONE_FROM` rejects `draft`, while
-  `src/coga/mark.py` `prepare_active` requires a workflow and synthesized
-  authoring notes. The optional Retro route must retain these prerequisites.
-- Verify documentation links, twin identity, and the required full pytest
-  suite; commit, freshen, push, return to `main`, and hand off with one bump.
+- Pushed commit `3f3c40d1a38a1ee75b410887e1fc9aa8ac702ebb` on the branch above.
+  It contains `origin/main` at `909759c79`, including prerequisite PR #845
+  (`cdbc0244c3ff2939a76fe3bfa42c7532aff39d44`). Returned to a clean, current
+  `main` before writing this handoff. No PR opened.
+- Added **Applying a batch of verdicts** beside the README's premise-check
+  section: CLI lifecycle verdicts publish from `main` before prose work;
+  cancellation with delivery evidence remains the default; an author opting
+  for Retro activates before marking done, with activation prerequisites
+  intact. Other tickets' authored bodies can be reviewed on a feature branch;
+  this adjudication ticket's own state stays on `main`.
+- Added the workflow PR-gate note, put the prose-only publication boundary in
+  `coga/internals/pr-publication`, and clarified the matching exception in
+  `dev/checkouts`. All three packaged twins match. The README links these
+  owners and warns that mutating commands sweep uncommitted ticket prose
+  directly to control.
+- Updated the existing Dream README assertion to apply to the default premise
+  verdict section, preserving the prohibition on direct draft-to-done there
+  while allowing the new optional activation-then-completion recipe.
+- No runtime code, frozen workflow, config, or example-fixture changes.
+  The historical `src/coga/open_pr.py` `_publishable_changes` cited in the
+  ticket is gone; current `open_pr` accepts committed prose subject to its
+  normal checks. `src/coga/commands/mark.py` `_DONE_FROM` and
+  `src/coga/mark.py` `prepare_active` substantiate the documented draft path.
 
-## Adjacent finding
+## Verification
 
-`docs/contexts/coga/workflows/SKILL.md` (and its packaged twin), under
-`Step completion gates`, still says `branch` requires both `branch:` and
-`worktree:`. `src/coga/step_gate.py` `_has_branch_linkage` requires only a
-usable branch, consistent with `dev/checkouts` and `dev/dev-record`; `worktree:`
-is now only for a sandbox clone. This stale sentence is outside the requested
-batch-verdict note and will not be changed here. No follow-up reference has
-been identified yet.
+- `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest`:
+  **3039 passed** in 187.18s. Use the checkout `.venv`; ambient `python`
+  lacks declared test/runtime dependencies.
+- The final rebase picked up only another ticket's lifecycle update and its
+  audit line. A tree comparison confirmed every other file, including all
+  implementation and test files, unchanged. Post-rebase
+  `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q tests/test_dream_worker_templates.py tests/test_packaging.py`:
+  **44 passed** in 2.55s.
+- `git diff --check`: clean. All seven new relative links/anchors resolve;
+  all three edited context twins are byte-identical. Remote feature ref
+  matched the commit above, and `origin/main` was its ancestor at handoff.
+- `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m coga.cli validate --task add-an-applying-a-batch-of-verdicts-section-to-the --json`:
+  **1 ok, no issues**.
+
+## Adjacent findings
+
+- `docs/contexts/coga/workflows/SKILL.md` and its packaged twin, under
+  `Step completion gates`, still say `branch` requires both `branch:` and
+  `worktree:`. `src/coga/step_gate.py` `_has_branch_linkage` requires only a
+  usable branch, consistent with `dev/checkouts` and `dev/dev-record`;
+  `worktree:` is only for a sandbox clone. The completed
+  `stop-using-worktrees` ticket records the layout change; no open follow-up
+  for this stale sentence was identified. Left outside this change's scope.
+- The README's pre-existing roadmap link ends in `#deferred-work`, but
+  `docs/contexts/coga/roadmap/SKILL.md` names the heading
+  `Deferred work (coga/tasks/v2/)`, whose generated fragment is
+  `#deferred-work-cogatasksv2`. The file resolves but that old fragment does
+  not; the newly added links all resolve. No follow-up identified; left
+  unchanged for a focused correction.
