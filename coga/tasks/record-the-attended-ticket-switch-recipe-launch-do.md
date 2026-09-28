@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -57,3 +57,41 @@ Commit `4dae8a53d` on `attended-ticket-switch-recipe` (pushed, rebased on origin
 Verification: `.venv/bin/python -m pytest -q` → 2945 passed (pre-rebase); after rebase, `tests/test_packaging.py tests/test_compose.py tests/test_launch.py` → 254 passed.
 
 Reviewer note: the multiply path named in the Description (`coga/contexts/coga/recipes/SKILL.md`) and "Dream PR #104" don't apply in this repo (coga #104 is an unrelated merged relay-era PR).
+
+## Peer review
+
+2026-09-28: `codex review --base main` **returned** with exit 0 and no findings.
+No fixes were needed. The reviewer also ran
+`PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_compose.py tests/test_packaging.py`
+— 80 passed.
+
+Fetched `origin/main` and ran `git rebase FETCH_HEAD` without conflicts. Final
+commit: `d225a2ff1`, based on `8e4347d3e`. `git range-diff` confirmed the
+rebased patch is identical to the reviewed patch. Pushed with
+`git push --force-with-lease origin attended-ticket-switch-recipe`; the local
+and remote feature branches match and are one commit ahead of `main`.
+
+Verification:
+
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest` — **3039 passed** after rebase.
+- `git diff --check origin/main...HEAD` — clean.
+- `cmp docs/contexts/coga/session-conduct/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/session-conduct/SKILL.md` — byte-identical.
+- Inspected `compose_prompt_report` output for this ticket: the new launch
+  instruction appears in the attended conduct layer only; megalaunch and
+  recurring select their existing queue layers. Both context lifecycle links
+  resolve. This change adds prose only, with no terminal, pager, or Slack UI
+  requiring an interactive exercise.
+- `coga validate --task record-the-attended-ticket-switch-recipe-launch-do --json`
+  on `main` — one valid task, no issues.
+
+Returned to clean `main` at `8e4347d3e` before writing this handoff and the PR
+body. The review is complete; no review process remains in flight.
+
+## PR
+
+Attended ticket switches could leave completed work on an `active` ticket,
+where `coga bump` refuses to advance. Document the launch-first recipe and
+recovery handoff in the session-conduct context and its packaged twin, and
+include the instruction in every attended prompt.
+
+Test plan: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest` — 3039 passed; inspected composed conduct for all three launch contexts and verified context twin identity.
