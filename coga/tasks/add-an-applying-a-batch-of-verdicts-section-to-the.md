@@ -40,6 +40,7 @@ Three independent adjudication tickets each worked out, from scratch, how to act
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/912
 branch: docs/v2-batch-verdicts
 
 ## Implementation handoff
