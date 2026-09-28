@@ -57,7 +57,38 @@ G13 previously carried a launch gate on PR #16. That gate is released: PR #16
 merged 2026-08-25, and `coga/workflows/cleanup/verify-then-retire.md` now
 requires the `retired/<branch>` tag. G13 makes `branch-sweep` — the second
 deletion path — state the same rule.
+
+Current Coga source map (2026-09-28): these templates execute registered
+recipes through their `ticket.py` siblings, so prose changes alone cannot
+correct their behavior. `src/coga/blocker_reminders.py` plus
+`scan_blocker_reminders` owns reminder eligibility; `src/coga/branchsweep.py`
+plus `sweep_branches` owns the sweep's protection and deletion gates;
+`src/coga/skill_manager.py` plus `SKILL_UPDATE_BRANCH` names the shared updater
+branch. The historical cleanup workflow above belongs to the source repo and
+does not exist in this checkout. Cite `dev/checkout-cleanup`
+(`docs/contexts/dev/checkout-cleanup/SKILL.md`) for the current cleanup proofs,
+and `coga/notifications/producers`
+(`docs/contexts/coga/notifications/producers/SKILL.md`), “Blocker reminders,”
+for reminder delivery and deduplication. Update those owners with the fixes.
 <!-- coga:blackboard -->
+
+## Dev
+
+branch: fix-recurring-git-hygiene
+
+## Implementation plan
+
+Owner approved the current-recipe scope in the attended session on 2026-09-28.
+Remind once for unresolved asks on paused recurring tasks without changing
+their status; direct the owner to launch and answer in the resumed session.
+Explicitly protect the shared skill-update branch. Publish a safe
+`retired/<branch>` tag before sweep deletion, preserving branches when the
+archive cannot be established. Keep the owning topics, skills, templates,
+workflows and packaged twins aligned; add behavioral regressions first.
+
+Baseline: `.venv/bin/python -m pytest tests/test_blocker_reminders.py
+tests/test_branchsweep.py -q` — 61 passed. Launch checkout started clean on
+`main` and fast-forwarded to `origin/main` before branching.
 
 ## Production notes
 
