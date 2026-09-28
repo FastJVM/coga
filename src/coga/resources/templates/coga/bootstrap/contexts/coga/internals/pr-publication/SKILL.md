@@ -50,6 +50,18 @@ can never be updated.
    byte splice under the state lock. A replaced stale link is noted on
    stderr.
 
+## Ticket-body-only changes
+
+Deliberate edits to other tickets' authored bodies are valid PR work, even
+when they are the branch's only changes. The ordinary checks above still
+apply; a prose edit alone does not satisfy `requires: pr` until the PR exists
+and its URL is recorded under `## Dev`. Lifecycle frontmatter, audit entries,
+and the PR's own task body and blackboard belong on control;
+they are not implementation changes to carry through that PR. Follow
+[dev/checkouts](../../../dev/checkouts/SKILL.md) to publish state before
+preparing the reviewed prose, and keep the other tickets' lifecycle fields
+and blackboards unchanged on the branch.
+
 ## Where the record lands
 
 The `pr:` write lands in the control checkout's live ticket, and the CLI exit

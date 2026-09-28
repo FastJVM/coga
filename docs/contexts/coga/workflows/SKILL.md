@@ -104,7 +104,8 @@ agent owns the step. Unknown tokens fail. Human rewinds are never gated.
   in its own checkout, and a stale `## Dev` from an earlier attempt passes
   while stranding the current one.
 - `pr`: a PR URL under `## Dev`, written by `coga open-pr <ref>`; a skipped
-  command cannot be papered over with a bump.
+  command cannot be papered over with a bump. Ticket-body-only PRs count too;
+  see [the publication boundary](../internals/pr-publication/SKILL.md#ticket-body-only-changes).
 
 Tokens own their predicate and remediation; bump hardcodes no skill name, and
 gate transitions publish only to control. Branch and PR mechanics are

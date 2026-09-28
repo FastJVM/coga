@@ -128,6 +128,36 @@ reports a draft an open ticket already adjudicates as "already ticketed". A
 draft that sits here is therefore re-validated weekly, and a verdict is due
 the first time a run names it.
 
+## Applying a batch of verdicts
+
+After the author settles the verdicts, record each ticket's outcome and
+evidence on the adjudication ticket's blackboard. Apply lifecycle verdicts
+with `coga mark canceled/active/done` or `coga unblock --answer "…"` from the
+launch checkout on `main` (the configured control branch), following
+[the lifecycle rules](../../../docs/contexts/coga/lifecycle/SKILL.md).
+These commands publish state immediately; the later prose PR does not apply
+or undo those transitions. Never hand-edit lifecycle frontmatter or the log.
+Finish and publish this state before switching to the prose branch, using
+[the checkout procedure](../../../docs/contexts/dev/checkouts/SKILL.md).
+
+For an already-delivered draft, cancellation with delivery evidence remains
+the default from question 4 above. If the author instead wants a `done`
+ticket for Retro retirement, run `coga mark active v2/<slug>`, then
+`coga mark done v2/<slug> --message "already delivered by <PR, commit, or path>"`.
+`mark done` refuses `draft`; activation still requires a workflow and
+synthesized authoring notes under the linked lifecycle rules. A workflow-less
+draft can be canceled directly; the optional Retro route does not waive
+activation requirements.
+
+Put deliberate rewrites or narrowing of the **other tickets' authored bodies**
+on the feature branch for review, preserving their lifecycle fields and
+blackboards. Keep the adjudication ticket's own `## Dev` and handoff on `main`.
+[Ticket-body-only PRs are supported](../../../docs/contexts/coga/internals/pr-publication/SKILL.md#ticket-body-only-changes):
+they can satisfy a `code/with-review` PR gate once `coga open-pr` records the
+actual PR URL. While those prose edits are uncommitted, avoid mutating Coga
+commands: [their exit sweep](../../../docs/contexts/coga/sync/SKILL.md#control-versus-feature-checkouts)
+publishes dirty ticket files directly to control, outside the PR.
+
 ## Where future Dream `gap` findings go
 
 Follow [Dream's Phase 6 filing and gap rules](../../recurring/dream/ticket.md#phase-6--disposition--run-summary):

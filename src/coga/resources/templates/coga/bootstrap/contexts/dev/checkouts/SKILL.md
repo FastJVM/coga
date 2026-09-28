@@ -30,8 +30,12 @@ The one alternative checkout is the sandbox clone fallback below.
 2. **Work.** Write any ticket state you need while still on `main` (plan,
    blackboard notes), publish it as described below, then create or switch to
    the feature branch and change code there. On the branch, edit code only:
-   ticket and blackboard edits made on a feature branch are not published
-   until the next sweep, so the end procedure would find them unpublished.
+   this ticket's body and blackboard stay on `main`. Deliberate authored-body
+   edits to **other** tickets may be the implementation under
+   [the PR publication contract](../../coga/internals/pr-publication/SKILL.md#ticket-body-only-changes).
+   Commit that reviewed prose before returning; uncommitted ticket edits on
+   a feature branch remain unpublished until the next sweep, so the end
+   procedure would refuse them.
 3. **End.** Commit, push the branch (`git push -u origin <branch>`, or
    `--force-with-lease` after a rebase), then return:
    - `git fetch origin main`;
@@ -142,7 +146,9 @@ links are ignored, non-regenerable state, so they make it preserve the checkout.
   (`sync_coga_state`) publishes every dirty path under `coga/tasks/`,
   `coga/log.md`, and `coga/recurring/` to control, even after a config
   failure; contexts, skills, workflows, and config are never swept. Write
-  deliberate ticket prose on `main`, not on a feature branch. Which
+  this ticket's state on `main`; when other tickets' authored prose is the
+  reviewed implementation above, avoid mutating Coga commands while it is
+  dirty or the sweep will publish it outside the PR. Which
   invocations sweep is owned by
   [coga/sync](../../coga/sync/SKILL.md).
 - **`coga launch <target> --prompt-report` writes.** It sweeps like any launch

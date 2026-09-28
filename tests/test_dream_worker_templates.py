@@ -331,10 +331,15 @@ def test_dream_re_validates_parked_drafts_every_run() -> None:
     assert "### Who runs the check while a draft sits" in readme_text
     assert "The standing owner is Dream" in readme_norm
 
-    # A delivered duplicate can be canceled directly from draft, even without
-    # a workflow. The CLI refuses `mark done` from draft.
-    assert 'coga mark canceled v2/<slug> --message "already delivered by' in readme_norm
-    assert "coga mark done v2/<slug>" not in readme_norm
+    # The default premise verdict cancels a delivered duplicate directly from
+    # draft, even without a workflow. The separate batch-application section
+    # may describe activation followed by done when the author wants Retro.
+    premise_text = readme_text.split(
+        "## Before pulling anything forward, check the premise", 1
+    )[1].split("\n## ", 1)[0]
+    premise_norm = " ".join(premise_text.replace("**", "").split())
+    assert 'coga mark canceled v2/<slug> --message "already delivered by' in premise_norm
+    assert "coga mark done v2/<slug>" not in premise_norm
 
     # The shard runs the check and records a `premise` finding, never a verdict.
     assert "## Parked drafts: the standing premise pass" in scan_text
