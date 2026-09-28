@@ -616,7 +616,8 @@ control.
 This page is the only record of this draft; the owner decision of
 2026-09-21 in [positioning](../contexts/marketing/positioning/SKILL.md) supersedes it.
 The owner also positively received this revised explanation on September 13.
-It remains the leading working explanation for the writing ticket. It
+As of September 13 it was the leading working explanation for the writing
+ticket; that status ended with the 2026-09-21 decision. It
 describes editable work direction, not complete ownership of every underlying
 provider prompt or a universal enforcement boundary.
 

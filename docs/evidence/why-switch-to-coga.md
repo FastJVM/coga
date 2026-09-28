@@ -86,8 +86,11 @@ one task using an existing agent. The person need not replace an editor or
 migrate all work to evaluate that experience. This is the most plausible
 entry route; reusable methods and Dream can become reasons to keep using
 it. No measured setup, review-time or outcome advantage is claimed, and
-human review is not assumed to be an extra cost unique to Coga. Keep the
-endorsed pitch and explanation while developing this concrete reason to try.
+human review is not assumed to be an extra cost unique to Coga. The
+September 13 recommendation was to keep the then-endorsed pitch and
+explanation while developing this concrete reason to try; the 2026-09-21
+owner decision in [positioning](../contexts/marketing/positioning/SKILL.md)
+supersedes that pitch.
 
 ## Worked comparison: asynchronous delegation — 2026-09-13
 
