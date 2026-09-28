@@ -311,13 +311,8 @@ def test_a_checkout_a_human_disposes_of_by_hand_stays_worktree_debt(
 
 
 def test_parse_and_render_round_trip_an_owner_and_keep_ownerless_lines() -> None:
-    owned = _entry("cross", worktree="/w/other wt")
-    owned = rw.RetireFollowUp(
-        slug=owned.slug,
-        branch=owned.branch,
-        worktree=owned.worktree,
-        recorded=owned.recorded,
-        owner="/code/other clone",
+    owned = replace(
+        _entry("cross", worktree="/w/other wt"), owner="/code/other clone"
     )
     rendered = rw.render_worklist(rw.RETIRE_WORKLIST_HEADER, [owned, _entry("plain")])
 
@@ -385,6 +380,24 @@ def test_an_owner_in_this_repository_is_judged_against_root(tmp_path: Path) -> N
     assert rw.branch_owner(owner, entry.owner) == owner
     assert not rw.is_discharged(entry, root=owner, branches=frozenset({"feature"}))
     assert rw.is_discharged(entry, root=owner, branches=frozenset({"main"}))
+
+
+def test_a_bare_owner_is_read_like_any_other_repository(tmp_path: Path) -> None:
+    # A bare repository has no working tree, yet its branch list decides.
+    root = _git_repo_with_branch(tmp_path / "repo", "unrelated")
+    source = _git_repo_with_branch(tmp_path / "source", "feature")
+    bare = tmp_path / "project.git"
+    _git(tmp_path, "clone", "-q", "--bare", str(source), str(bare))
+    worktree = tmp_path / "bare-feature"
+    _git(bare, "worktree", "add", "-q", str(worktree), "feature")
+    owner = rw.worktree_owner(root, str(worktree))
+    entry = rw.RetireFollowUp("cross", "feature", str(worktree), "2026-09-21", owner=owner)
+
+    assert rw.branch_owner(root, owner) == Path(owner)
+    _git(bare, "worktree", "remove", str(worktree))
+    assert not rw.is_discharged(entry, root=root, branches=frozenset())
+    _git(bare, "branch", "-D", "feature")
+    assert rw.is_discharged(entry, root=root, branches=frozenset())
 
 
 def test_only_another_repositorys_linked_worktree_records_an_owner(
@@ -510,6 +523,23 @@ def test_reconcile_records_the_owner_while_the_worktree_still_exists(
     _git(owner, "branch", "-D", "feature")
     change = rw.reconcile_worklist(cfg, path, root=root)
     assert change.dropped == [owned] and change.open == []
+
+
+def test_reconcile_counts_a_backfilled_and_moved_entry_as_one_refresh(
+    repo: Path, tmp_path: Path
+) -> None:
+    cfg = load_config(repo)
+    path = rw.template_worklist_path(cfg, "autoclose-merged")
+    root, owner, worktree = _cross_clone(tmp_path)
+    recorded = _entry("cross", branch="feature", worktree=str(worktree))
+    rw.reconcile_worklist(cfg, path, root=root, pending=[recorded])
+    path.write_text(path.read_text().replace(f", owner `{owner.resolve()}`", ""))
+
+    # The same run backfills the owner and takes a new branch for the slug.
+    moved = replace(recorded, branch="feature-2")
+    change = rw.reconcile_worklist(cfg, path, root=root, pending=[moved])
+
+    assert change.refreshed == [replace(moved, owner=str(owner.resolve()))]
 
 
 def test_reconcile_drops_discharged_entries_and_keeps_live_debt(

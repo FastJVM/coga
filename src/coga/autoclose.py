@@ -79,9 +79,8 @@ from coga.retire_worklist import (
     RetireWorklistError,
     WorklistChange,
     all_worklists,
-    branch_owner,
     is_primary_checkout,
-    local_branches,
+    owner_branch_remains,
     parse_worklist,
     reconcile_worklist,
     worklist_for_period_task,
@@ -1093,38 +1092,31 @@ def _owner_held_branch(
     not this repository (`retire_worklist.branch_owner`): the proofs here would
     find no local branch and call it disposed while the owning clone still
     holds it. The outcome is preserved while the owner still lists the branch
-    or cannot be read — the same verdict `retire_worklist.is_discharged` gives
-    the entry — and names the by-hand delete in the owning clone. `None`
+    or cannot be read (`retire_worklist.owner_branch_remains`, the verdict
+    `is_discharged` gives the entry too) and names the by-hand delete in the
+    owning clone. `None`
     leaves the entry to the ordinary proofs.
     """
     # Lazy for the same `autoclose -> branchcleanup -> autoclose` cycle.
     from coga.branchcleanup import resolve_worktree_path
     from coga.checkout_disposal import CheckoutDisposal
 
-    if branch is None or not entry.owner:
+    if branch is None:
         return None
     if worktree is not None and resolve_worktree_path(root, worktree).is_dir():
         return None
-    home = branch_owner(root, entry.owner)
-    if home == root:
+    remains = owner_branch_remains(root, entry)
+    if remains is None:
         return None
     owner = Path(entry.owner)
     disposal = CheckoutDisposal(branch=branch, worktree=None)
-    if home is None:
-        disposal.local_branch_remains = True
-        message = (
-            f"Branch cleanup: owning clone {owner} cannot be read — branch "
-            f"{branch!r} stays listed until it can be judged there."
-        )
-    else:
-        branches = local_branches(home)
-        disposal.local_branch_remains = branches is None or branch in branches
-        message = (
-            f"Branch cleanup: {branch!r} lives in the owning clone {owner}, "
-            "not this repository — left in place."
-            if disposal.local_branch_remains
-            else f"Branch cleanup: {branch!r} already gone from the owning clone {owner}."
-        )
+    disposal.local_branch_remains = remains
+    message = (
+        f"Branch cleanup: {branch!r} lives in the owning clone {owner}, "
+        "not this repository (or that clone cannot be read) — left in place."
+        if remains
+        else f"Branch cleanup: {branch!r} already gone from the owning clone {owner}."
+    )
     disposal.notes.append(message)
     echo(message)
     return CheckoutOutcome(

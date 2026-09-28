@@ -71,9 +71,8 @@ from __future__ import annotations
 
 import re
 import subprocess
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
-from functools import cache
 from pathlib import Path
 from urllib.parse import quote, unquote
 
@@ -287,6 +286,24 @@ def local_branches(root: Path) -> frozenset[str] | None:
     return frozenset(ref.removeprefix("refs/heads/") for ref in result.stdout.split())
 
 
+def _recorded_relation(
+    root: Path | None, recorded: str | None
+) -> git.CheckoutRelation | None:
+    """`git.classify_checkout` on a recorded `worktree:`, or `None` when unknown.
+
+    A relative value resolves against `root`; no git root, an empty value, or
+    a path that is not a directory has no verdict.
+    """
+    if root is None or not recorded:
+        return None
+    path = Path(recorded).expanduser()
+    if not path.is_absolute():
+        path = root / path
+    if not path.is_dir():
+        return None
+    return git.classify_checkout(root, path)
+
+
 def is_primary_checkout(root: Path | None, recorded: str | None) -> bool:
     """Whether a recorded `worktree:` is provably this repository's primary checkout.
 
@@ -297,14 +314,7 @@ def is_primary_checkout(root: Path | None, recorded: str | None) -> bool:
     so a caller that drops the worktree half on True only ever drops it on
     proof.
     """
-    if root is None or not recorded:
-        return False
-    path = Path(recorded).expanduser()
-    if not path.is_absolute():
-        path = root / path
-    if not path.is_dir():
-        return False
-    relation = git.classify_checkout(root, path)
+    relation = _recorded_relation(root, recorded)
     return relation is not None and relation.kind == "primary"
 
 
@@ -317,47 +327,64 @@ def worktree_owner(root: Path | None, recorded: str) -> str:
     linked worktree" is ever recorded as an owner. A relative value resolves
     against `root`.
     """
-    if root is None or not recorded:
-        return ""
-    path = Path(recorded).expanduser()
-    if not path.is_absolute():
-        path = root / path
-    if not path.is_dir():
-        return ""
-    relation = git.classify_checkout(root, path)
+    relation = _recorded_relation(root, recorded)
     if relation is None or relation.kind != "foreign-linked" or relation.owner is None:
         return ""
     return str(relation.owner)
 
 
-def branch_owner(root: Path | None, owner: str) -> Path | None:
-    """The checkout whose local branches decide a recorded `owner`'s `branch:`.
+def _common_dir(path: Path) -> Path | None:
+    try:
+        common = git.run_git(
+            path, "rev-parse", "--path-format=absolute", "--git-common-dir"
+        )
+    except git.GitError:
+        return None
+    return Path(common.strip()).resolve()
 
-    `root` itself when the owner is a checkout of `root`'s repository — the
-    sweep firing from the owning clone judges it like any other entry — the
-    owner's path when it is another repository, and `None` when that cannot
-    be answered: no git root, a path that is no longer a directory, or one git
-    cannot read as a checkout root. `None` keeps the entry.
+
+def branch_owner(root: Path | None, owner: str) -> Path | None:
+    """The repository whose local branches decide a recorded `owner`'s `branch:`.
+
+    `root` itself when the owner shares `root`'s repository — the sweep firing
+    from the owning clone judges it like any other entry — the owner's path
+    when it is another repository (a bare one included: its branch list is
+    read the same way), and `None` when that cannot be answered: no git root,
+    a path that is no longer a directory, or one git cannot read. `None` keeps
+    the entry. Repositories are compared by common dir, never by path.
     """
     if root is None or not owner:
         return None
     path = Path(owner).expanduser()
     if not path.is_dir():
         return None
-    relation = git.classify_checkout(root, path)
-    if relation is None:
+    theirs = _common_dir(path)
+    if theirs is None:
         return None
-    if relation.kind in ("primary", "linked"):
-        return root
-    return path
+    return root if theirs == _common_dir(root) else path
+
+
+def owner_branch_remains(root: Path | None, entry: RetireFollowUp) -> bool | None:
+    """Whether an entry's `branch:` is still held by its recorded `owner`.
+
+    `None` when the entry has no owner, no branch, or an owner that is
+    `root`'s own repository: the branch is judged here like any other. `True`
+    also covers an owner or branch list that cannot be read, because an
+    unknown keeps the entry.
+    """
+    if not entry.branch or not entry.owner:
+        return None
+    home = branch_owner(root, entry.owner)
+    if home is None:
+        return True
+    if home == root:
+        return None
+    branches = local_branches(home)
+    return branches is None or entry.branch in branches
 
 
 def is_discharged(
-    entry: RetireFollowUp,
-    *,
-    root: Path | None,
-    branches: frozenset[str] | None,
-    probe: Callable[[Path], frozenset[str] | None] = local_branches,
+    entry: RetireFollowUp, *, root: Path | None, branches: frozenset[str] | None
 ) -> bool:
     """Whether `coga retire <slug>` has nothing left to dispose of.
 
@@ -370,9 +397,9 @@ def is_discharged(
     is None`), or a branch list that could not be read (`branches is None`).
 
     `branches` is `root`'s branch list. An entry with a recorded `owner` is
-    judged against that owner's branches instead (`branch_owner`, listed by
-    `probe`), because its branch was never this repository's to lose; an owner
-    that cannot be read keeps the entry.
+    judged against that owner's branches instead (`owner_branch_remains`),
+    because its branch was never this repository's to lose; an owner that
+    cannot be read keeps the entry.
     """
     if entry.worktree and not is_primary_checkout(root, entry.worktree):
         path = Path(entry.worktree).expanduser()
@@ -382,15 +409,11 @@ def is_discharged(
             path = root / path
         if path.is_dir():
             return False
-    if entry.branch:
-        if entry.owner:
-            home = branch_owner(root, entry.owner)
-            if home is None:
-                return False
-            if home != root:
-                branches = probe(home)
-        if branches is None or entry.branch in branches:
-            return False
+    held = owner_branch_remains(root, entry)
+    if held is not None:
+        return not held
+    if entry.branch and (branches is None or entry.branch in branches):
+        return False
     return True
 
 
@@ -415,7 +438,6 @@ def reconcile_worklist(
     can later judge its branch where it lives.
     """
     change = WorklistChange(path=path)
-    probe = cache(local_branches)
     with git.state_lock(cfg):
         raw = path.read_bytes() if path.exists() else None
         header, entries = (
@@ -425,15 +447,13 @@ def reconcile_worklist(
         )
         if branches is None and entries and root is not None:
             branches = local_branches(root)
-        by_slug: dict[str, RetireFollowUp] = {}
+        kept: dict[str, RetireFollowUp] = {}
         for entry in entries:
-            if is_discharged(entry, root=root, branches=branches, probe=probe):
+            if is_discharged(entry, root=root, branches=branches):
                 change.dropped.append(entry)
-                continue
-            owned = _with_owner(entry, root)
-            if owned != entry:
-                change.refreshed.append(owned)
-            by_slug[entry.slug] = owned
+            else:
+                kept[entry.slug] = entry
+        by_slug = {slug: _with_owner(entry, root) for slug, entry in kept.items()}
         for item in pending:
             item = _with_owner(item, root)
             existing = by_slug.get(item.slug)
@@ -444,9 +464,14 @@ def reconcile_worklist(
             merged = replace(item, recorded=existing.recorded)
             if not merged.owner and merged.worktree == existing.worktree:
                 merged = replace(merged, owner=existing.owner)
-            if merged != existing:
-                change.refreshed.append(merged)
             by_slug[item.slug] = merged
+        # One refresh per slug, however many of the backfill and the pending
+        # merge changed it.
+        change.refreshed = [
+            entry
+            for slug, entry in by_slug.items()
+            if slug in kept and entry != kept[slug]
+        ]
         change.open = sorted(by_slug.values(), key=lambda e: e.slug)
         rendered = render_worklist(header, change.open)
         if raw is not None and rendered.encode("utf-8") == raw:
@@ -506,6 +531,7 @@ __all__ = [
     "is_discharged",
     "is_primary_checkout",
     "local_branches",
+    "owner_branch_remains",
     "parse_worklist",
     "reconcile_worklist",
     "render_worklist",
