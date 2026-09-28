@@ -104,3 +104,12 @@ Task: `record-the-attended-ticket-switch-recipe-launch-do`
 Recorded: 2026-09-28T20:01:48+00:00
 
     Branch 'attended-ticket-switch-recipe' is not safe to publish. refs/heads/attended-ticket-switch-recipe does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Reconcile it and relaunch, or `coga block --task record-the-attended-ticket-switch-recipe-launch-do`.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `record-the-attended-ticket-switch-recipe-launch-do`
+Recorded: 2026-09-28T20:01:58+00:00
+
+    Branch 'attended-ticket-switch-recipe' is not safe to publish. refs/heads/attended-ticket-switch-recipe does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Reconcile it and relaunch, or `coga block --task record-the-attended-ticket-switch-recipe-launch-do`.
