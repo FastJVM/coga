@@ -1,6 +1,6 @@
 ---
 title: 'Record the attended ticket-switch recipe: launch, do not mark active'
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -23,6 +23,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
