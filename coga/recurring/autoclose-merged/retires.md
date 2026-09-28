@@ -25,13 +25,11 @@ For the line format and field encoding, see the `coga/autoclose/sweep` skill.
 ## Follow-ups (open)
 
 - `add-an-agent-picker-for-recurring` — branch `authoring-agent-picker`, worktree `/home/n/Code/coga`, recorded `2026-09-24`
-- `adjudicate-parked-and-active-tickets-whose-premise` — branch `adjudicate-moved-premises`, worktree `/home/n/Code/claude/coga-adjudicate-moved-premises`, recorded `2026-09-18`
-- `autoclose-should-name-unanswered-review-threads-on` — branch `autoclose-unanswered-threads`, worktree `/home/n/Code/claude/coga-autoclose-unanswered-threads`, recorded `2026-09-24`
 - `cleanup/quiet-the-first-run-noise-from-recurring-jobs-and` — branch `quiet-first-run`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-22`
+- `document-how-to-recover-a-retired-ticket-s-body-fr` — branch `retired-ticket-recovery`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-28`
 - `document-the-remedy-for-a-bloated-blackboard-sibli` — branch `bloated-blackboard-remedy`, worktree `/home/n/Code/claude/coga-bloated-blackboard-remedy`, recorded `2026-09-22`
 - `installer-managed-skills-the-local-adaptation-guar` — branch `gh-backed-readonly-context`, worktree `/home/n/Code/coga`, recorded `2026-09-22`
-- `persist-autoclose-retire-follow-ups` — branch `autoclose-retire-worklist`, worktree `/home/n/Code/claude/coga-autoclose-retire-worklist`, recorded `2026-09-18`
+- `make-dream-run-correctly-under-codex` — branch `dream-under-codex`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-28`
 - `record-or-clear-the-standing-repo-wide-coga-valida` — branch `validate-baseline`, worktree `/home/n/Code/claude/coga-validate-baseline`, recorded `2026-09-18`
 - `reuse-the-existing-control-worktree-for-recurring` — branch `recurring-control-worktree`, worktree `/home/n/Code/codex/coga-recurring-control-worktree`, recorded `2026-09-22`
-- `the-period-task-context-never-covers-the-determini` — branch `period-task-recipe-firing`, worktree `/home/n/Code/claude/coga-period-task-recipe-firing`, recorded `2026-09-18`
-- `ticket-relationships-and-ownership-have-no-mechani` — branch `ticket-relationships`, worktree `/home/n/Code/claude/coga-ticket-relationships`, recorded `2026-09-25`
+- `run-the-landed-branch-sweep-daily-from-autoclose` — branch `daily-autoclose-branches`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-28`
