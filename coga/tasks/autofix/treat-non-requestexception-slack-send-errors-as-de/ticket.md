@@ -24,7 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (self-qa)
 ---
 
 ## Description
@@ -86,3 +86,15 @@ The blackboard is a notepad to be written to often as the human and agent works 
 branch: slack-oserror-delivery-miss
 
 Plan: widen `SlackChannel.send`'s transport catch to `(requests.RequestException, OSError, ValueError)` so every transport failure goes through `fail(...)`, and add regression tests for `post(fatal=False)` and the autoclose sweep.
+
+## Implement handoff
+
+- Confirmed diagnosis against code: `notification/slack.py` `SlackChannel.send` caught only `requests.RequestException`; the plain `OSError` from `requests`' CA-bundle check escaped `fail(...)` and `notification.post`'s `NotificationDeliveryError` handling.
+- Fix: `send` now catches `(requests.RequestException, OSError, ValueError)` → same `fail(...)` path (stderr, `log.md`, `NotificationDeliveryError`). `slack_response.format_slack_request_error` annotation widened to `Exception` (it only uses the type and message hints, so redaction is unchanged; an `OSError` whose message mentions the certificate falls in the "TLS/SSL failure" category).
+- Tests: `tests/test_notification.py` `test_post_non_request_exception_is_a_non_fatal_delivery_miss` (OSError + ValueError) and `..._still_crashes_when_fatal`; `tests/test_autoclose_dispose.py` `test_recipe_finishes_when_every_slack_post_raises_a_non_request_oserror` (rc 0, ticket done, worktree and branch disposed). All 4 failed before the fix and pass after it. Full suite: 3054 passed.
+- Docs: `coga/notifications/failures` topic (canonical + packaged twin) now defines a delivery miss as any transport failure.
+- Decisions, with what they give up:
+  - Did not add a catch-all `except Exception` in `notification.post`: it would also hide real programming bugs in channels. The widened catch covers the whole `requests` transport surface, since `RequestException` is itself an `OSError`.
+  - No TLS preflight in `preflight_post`: catching a broken CA bundle up front would need a network probe or reaching into certifi internals. That is the wrong layer for a configuration gate, and the delivery miss is now non-fatal anyway.
+- Adjacent, not fixed here: `src/coga/validate.py` `probe_slack` has the same `except requests.RequestException` shape, so `coga validate` with a broken CA bundle would crash instead of reporting `slack-unreachable`. Candidate follow-up ticket.
+- Operator action (machine, not code): `uv tool install --reinstall coga` to restore `certifi/cacert.pem`.
