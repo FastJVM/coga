@@ -29,6 +29,7 @@ DREAM_PROMPT = RECURRING_TEMPLATES / "dream" / "ticket.md"
 # Single-file format: the recurring template's blackboard is the region of
 # `ticket.md` below the `<!-- coga:blackboard -->` fence (no separate file).
 DREAM_BLACKBOARD = DREAM_PROMPT
+RETRO_SKILL = DREAM.parents[1] / "retro" / "done-ticket" / "SKILL.md"
 
 
 def test_dream_ships_as_a_recurring_template() -> None:
@@ -600,9 +601,7 @@ def test_dream_keeps_coga_owned_files_out_of_a_client_repo_scan() -> None:
     assert "Pass `## Findings` to Retro as it stands, `owner: coga` lines included" in dream
     assert "must not write that fact into a local context or skill" in dream
     assert "contributes the local one and still gets deleted" in dream
-    retro = " ".join(
-        (DREAM.parents[1] / "retro" / "done-ticket" / "SKILL.md").read_text().split()
-    )
+    retro = " ".join(RETRO_SKILL.read_text().split())
     assert "### Coga-owned findings are not local knowledge" in retro
     assert "Do not write that fact into a local context or skill" in retro
     assert "contributes the local fact and is deleted like any other" in retro
@@ -744,9 +743,7 @@ def test_testing_topic_owns_the_codex_sandbox_grant() -> None:
 
 
 def test_retro_checks_a_done_tickets_scope_reached_the_control_branch() -> None:
-    retro = " ".join(
-        (DREAM.parents[1] / "retro" / "done-ticket" / "SKILL.md").read_text().split()
-    )
+    retro = " ".join(RETRO_SKILL.read_text().split())
     assert "### Done is a status, not a receipt" in retro
     assert "against the current files of the isolated checkout" in retro
     assert "do not extract its claimed fix, and do not cite it as delivered" in retro
@@ -761,3 +758,33 @@ def test_retro_checks_a_done_tickets_scope_reached_the_control_branch() -> None:
         .split()
     )
     assert "`retro/done-ticket` checks the scope against the tip" in lifecycle
+
+
+def test_dream_blocks_instead_of_done_when_retro_work_is_stranded() -> None:
+    """A preserved Retro checkout ends the run blocked, never `done`."""
+    norm = " ".join(DREAM_PROMPT.read_text().split())
+
+    assert "Dream posts each FYI from its own checkout" in norm
+    assert "the isolated checkout holds nothing unlanded, by the check the `retro/done-ticket` skill's **Isolation boundary** defines" in norm
+    assert "`### Stranded Retro work`" in norm
+    assert "This run then ends blocked, never `done`" in norm
+    assert "coga block --task <this-dream-task> --reason \"Retro work stranded on" in norm
+    assert "Otherwise, run `coga mark done <this-dream-task>`" in norm
+
+
+def test_retro_defines_nothing_unlanded_for_the_caller() -> None:
+    """Unpushed commits are unlanded; a landed direct delete's deletion is not."""
+    retro = " ".join(RETRO_SKILL.read_text().split())
+
+    assert "`git log <remote>/<control-branch>..HEAD` prints nothing" in retro
+    assert "`git diff --name-only <remote>/<control-branch> -- <every listed path>` prints nothing" in retro
+    assert "that is landed, not dirty" in retro
+    assert "Leave the isolated checkout clean" not in retro
+
+
+def test_retro_hands_pr_fyis_to_the_caller() -> None:
+    """Retro never runs `coga slack` in its isolated checkout."""
+    retro = " ".join(RETRO_SKILL.read_text().split())
+
+    assert "**Hand PR FYIs to the caller.** Do not run `coga slack` here" in retro
+    assert "hand each PR's one-line Slack FYI to the caller (step 12)" in retro

@@ -801,6 +801,17 @@ def test_a_blocked_script_phase_names_the_script(cfg_repo) -> None:
     assert "`ticket.py` phase recorded a blocker" in outcome.detail
 
 
+def test_a_blocked_agent_run_counts_as_a_problem(cfg_repo) -> None:
+    """Dream ending blocked on stranded Retro work must not read `problems: 0`."""
+    from coga.recurring_runner import _task_outcome
+
+    ref = _ref_with_status(cfg_repo, "blocked")
+    outcome = _task_outcome(cfg_repo, "dream", ref, kind="done")
+    assert outcome.result == "unfinished"
+    assert outcome.is_problem
+    assert "the agent blocked on a human answer" in outcome.detail
+
+
 def test_the_outcome_carries_the_run_blackboard(cfg_repo) -> None:
     from coga.recurring_runner import _task_outcome
 

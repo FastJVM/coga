@@ -82,7 +82,10 @@ The run summary uses: `no-op`, `reported`, `partial`, `proposed`,
 `direct-fixed`, `pr-opened`, `human-needed`, `upstream-captured`. The last is
 the client-repo route: a finding owned by the Coga package (`owner: coga`) is
 appended to that repo's `coga/upstream-coga.md`; the Coga source repo's
-`recurring/upstream-coga` job sweeps those into tickets. Destructive changes
+`recurring/upstream-coga` job sweeps those into tickets. A Retro checkout that
+still holds unlanded work (or a `partial` Phase 4) is preserved, recorded under
+`### Stranded Retro work`, and ends the run `blocked`, never `done`, so the
+sweep counts it as a problem. Destructive changes
 (deleting tasks or refs, lifecycle changes, secrets) are never implicit: a skill
 may declare one only when it is deterministic, narrow and named in
 `May change`; otherwise it proposes or opens a PR.

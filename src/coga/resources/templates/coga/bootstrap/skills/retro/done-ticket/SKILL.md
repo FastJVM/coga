@@ -115,8 +115,8 @@ Do:
   and no mutation of the operator's checkout;
 - open one PR per coherent knowledge theme, containing that theme's
   knowledge-base changes and the deletion of its contributing source tasks;
-- post a one-line Slack FYI with the PR title and link when Slack is
-  available. The title should carry the new finding.
+- hand each PR's one-line Slack FYI to the caller (step 12).
+  The title should carry the new finding.
 
 Do not:
 
@@ -260,9 +260,18 @@ evidence snapshot, stage it, or commit it. Stop if the caller has no valid
 machine-local config or the copy fails.
 
 The caller owns teardown because a mutating Claude subagent may retain its
-worktree and Codex has no native worktree lifecycle. Leave the checkout clean
-and report its kind, path, temporary branch, PR URLs, and direct-delete
-verification. After checking every result is durable, remove the copied
+worktree and Codex has no native worktree lifecycle. Leave nothing unlanded
+in the checkout and report its kind, path, temporary branch, PR URLs, and
+direct-delete verification. The caller verifies "nothing unlanded" against
+the freshly fetched `<remote>/<control-branch>`:
+`git log <remote>/<control-branch>..HEAD` prints nothing, and every path
+`git status --porcelain` lists (none may be untracked) already matches that
+tip, checked in one call:
+`git diff --name-only <remote>/<control-branch> -- <every listed path>` prints
+nothing. A landed direct delete still lists as a working-tree deletion,
+because `--keep-control-checkout` does not advance the temporary branch (see
+`dev/checkout-cleanup`); that is landed, not dirty. After checking every
+result is durable, remove the copied
 `coga.local.toml`. For a linked checkout, run `git worktree remove <path>` from
 outside it and delete the caller-created temporary branch with
 `git branch -D <temporary-branch>`. For an independent clone, delete only the
@@ -500,8 +509,9 @@ marker for the same source task.
    clone run ordinary `coga delete <slug>`. Both forms commit
    `Ticket: <slug> — deleted` straight to the remote control branch without
    mutating the operator's checkout — no PR, no marker, no `## Pruned` section.
-   Do not run direct deletes from detached HEAD. Leave the isolated checkout
-   clean so the caller can verify and remove it. After deletion git history is
+   Do not run direct deletes from detached HEAD. Leave nothing unlanded in the
+   isolated checkout (see **Isolation boundary**) so the caller can verify and
+   remove it. After deletion git history is
    the audit trail, and recovery is via `git restore`.
 
 10. **Self-review the diff.**
@@ -529,10 +539,13 @@ marker for the same source task.
    temporary branch using the checkout-appropriate `coga delete` form from step
    9. Never branch-switch or refresh the caller's checkout.
 
-12. **Post Slack FYI for PRs.**
-   If Slack is configured, post one short message per PR that is useful without
-   opening GitHub:
-   `<PR title>. PR: <url>`.
+12. **Hand PR FYIs to the caller.**
+   Do not run `coga slack` here: it appends to `coga/log.md` in this isolated
+   checkout, where the line lands only if the temporary branch is pushed, and
+   the caller's verification then finds the checkout dirty. Each `pr` receipt
+   in `progress.md` is the handoff. If Slack is configured, the caller posts
+   one short message per PR from its own checkout, useful without opening
+   GitHub: `<PR title>. PR: <url>`.
 
 ## PR Body
 
