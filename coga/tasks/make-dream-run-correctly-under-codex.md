@@ -1,6 +1,6 @@
 ---
 title: make dream run correctly under codex
-status: in_progress
+status: done
 owner: nicktoper
 contexts:
 - dev/code
@@ -32,7 +32,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 6 (review)
 agent: claude
 ---
 
