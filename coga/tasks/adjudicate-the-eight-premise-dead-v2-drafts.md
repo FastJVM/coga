@@ -443,3 +443,14 @@ and skill search pass; autotrigger alone reports the expected
 214 OK, 49 warnings and the same three synthesis errors. `coga status v2 --all`
 still reports 81 tasks. Existing lifecycle, validation and skill-preflight
 tests were inspected; no tests or feature changes were made in this review.
+
+## Dev
+
+branch: v2-premise-adjudication
+
+Implement 2026-09-28: owner confirmed the table unchanged ("ok 1") in the
+attended session. Skill-update canceled from `main` via `coga mark canceled`
+with the exact table reason (log 2026-09-28 15:22, commit `ea14d559`).
+Drift since design: autotrigger synthesized by owner (`0884fdee`, adds
+`### Design-review caveats`), contexts moved to `docs/contexts/` (#875);
+`coga validate --json` now 0 errors; `coga status v2 --all` 80 tasks.
