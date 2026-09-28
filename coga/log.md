@@ -6616,3 +6616,4 @@ fatal: Unable to add (null) to database
 2026-09-27 17:10 [launch-moves-the-checkout-to-main-before-and-after] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-09-27 19:19 [lifecycle-writes-read-control-s-ticket-before-modi] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-27 19:19 [lifecycle-writes-read-control-s-ticket-before-modi] [human:nicktoper] started (active → in_progress) via coga launch
+2026-09-27 19:19 [lifecycle-writes-read-control-s-ticket-before-modi] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
