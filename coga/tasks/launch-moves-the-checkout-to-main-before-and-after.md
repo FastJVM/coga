@@ -515,3 +515,12 @@ paths.
   happens after normalization, so it never appears as dirt.
 
 No ticket-body edits, branch, code, or PR were produced by this review.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `launch-moves-the-checkout-to-main-before-and-after`
+Recorded: 2026-09-28T18:54:20+00:00
+
+    Branch 'launch-normalizes-checkout' is not safe to publish. refs/heads/launch-normalizes-checkout does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Reconcile it and relaunch, or `coga block --task launch-moves-the-checkout-to-main-before-and-after`.
