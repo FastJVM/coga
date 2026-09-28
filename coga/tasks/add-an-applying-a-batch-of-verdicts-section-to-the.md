@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
 ---
 
@@ -129,6 +129,19 @@ branch: docs/v2-batch-verdicts
   steps include the corrected guidance and preserve the owner gate. The
   on-disk ticket and workflow were unchanged by those checks. There is no
   changed TTY, pager, or rendered notification surface to exercise.
+
+## PR publication
+
+- The start check passed on clean, current `main`. The recorded branch still
+  points to reviewed commit `e43251b3f6b377416382a280475541aa7120b610`;
+  the peer review returned and its finding is fixed as recorded above.
+- `coga open-pr add-an-applying-a-batch-of-verdicts-section-to-the` opened
+  [PR #912](https://github.com/FastJVM/coga/pull/912) and recorded its URL under
+  `## Dev`. Publication accepted only non-overlapping generated task/log drift.
+  GitHub confirms the PR is open, ready for review, targets `main`, has the
+  reviewed head above, and is mergeable. The curated PR body was preserved.
+- `git diff --check main...docs/v2-batch-verdicts` passed. The checkout remains
+  on `main`; the completed review's 3,050-test result is the validation handoff.
 
 ## PR
 
