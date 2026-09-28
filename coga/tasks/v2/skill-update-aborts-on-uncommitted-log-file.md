@@ -1,6 +1,6 @@
 ---
 title: skill-update aborts on uncommitted log file
-status: draft
+status: canceled
 owner: nicktoper
 agent: claude
 workflow:
@@ -21,7 +21,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
