@@ -1,6 +1,6 @@
 ---
 title: Treat non-RequestException Slack send errors as delivery misses
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
