@@ -25,8 +25,9 @@ Workflows remains a candidate for scheduled knowledge proposals. Useful
 behavior and comparative benefit should decide a migration.
 
 The marketing question is different: what distinctive way of working should
-Coga stand for? The [pitch candidate](../contexts/marketing/positioning/SKILL.md)
-centers on editable work definitions that agents execute and reviewed
+Coga stand for? The September 2026 pitch candidate, since superseded by the
+2026-09-21 [positioning](../contexts/marketing/positioning/SKILL.md),
+centered on editable work definitions that agents execute and reviewed
 lessons can improve. Recreating parts of that model constrains technical
 exclusivity; it does not establish that the product design lacks value.
 

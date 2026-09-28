@@ -110,5 +110,6 @@ The value of Coga's method, defaults and maintained runtime still depends
 on the experience they give users. No loss of usefulness or reason to switch
 was demonstrated. The full review-and-reuse result will determine how far
 this particular replacement attempt gets; even completion would not by
-itself establish a preferable product. The [positioning context](../contexts/marketing/positioning/SKILL.md)
-owns the resulting pitch candidate.
+itself establish a preferable product. The resulting pitch candidate is
+superseded by the owner decision of 2026-09-21 in the
+[positioning context](../contexts/marketing/positioning/SKILL.md).
