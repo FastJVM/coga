@@ -6733,3 +6733,4 @@ fatal: Unable to add (null) to database
 2026-09-28 15:40 [fix-recurring-sweep-git-hygiene-blocked-task-escap] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-28 15:40 [fix-recurring-sweep-git-hygiene-blocked-task-escap] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-28 15:40 [fix-recurring-sweep-git-hygiene-blocked-task-escap] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
+2026-09-28 15:26 [marketing/fix-installer] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
