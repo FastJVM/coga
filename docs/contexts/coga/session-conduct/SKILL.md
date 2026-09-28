@@ -37,6 +37,17 @@ explicitly asks to park the ticket. Always answer a present human, even on a
 `done` or `canceled` ticket; "one step, one session" means not starting the
 next step, not ignoring messages.
 
+*Switching to another ticket.* When the human redirects an attended session to
+a different ticket (a prerequisite, say), ask them to run `coga launch <ref>`
+for it from their own terminal before doing that step's work. Do not
+`coga mark active` it and author the step in the current session: only launch
+performs the `active → in_progress` start transition
+([coga/lifecycle](../lifecycle/SKILL.md)), so `coga bump` then refuses with
+`Task is 'active'. Cannot advance.`, and a block/unblock cycle does not fix
+it. If work was already done under `active`, record a handoff note on that
+ticket's blackboard naming what was done and what remains, and ask for the
+launch; the launched session verifies the note against disk and bumps once.
+
 **Queues (megalaunch and recurring).** The TTY is transport for live
 streaming and interruption, not evidence of an attending human, and input the
 agent lacks is unavailable. State a plan and continue; never wait for
