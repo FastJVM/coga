@@ -1,6 +1,6 @@
 ---
 title: Lifecycle writes read control's ticket before modifying it
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -31,6 +31,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (design)
+agent: claude
 ---
 
 ## Description
