@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 5 (open-pr)
+step: 6 (review)
 agent: claude
 ---
 
@@ -333,6 +333,15 @@ Existing recurring suites pass unchanged.
 Session note: an untracked `recurring-unblock-launch` draft (the owner's)
 was in the checkout. The owner said to publish it, and it now is.
 This session ran under the pre-change launcher, so it used the manual return.
+
+## Open-PR (2026-09-28)
+
+The first `coga open-pr` refused as stale. `origin/main` had moved only
+through Coga state, but that included `coga/recurring/**`, which
+`github_preflight.is_coga_state_path` does not count as state (it counts
+only `tasks/**` and `log.md`). No paths overlapped. I rebased onto `origin/main` as
+`75c9b1f21` and re-ran `.venv/bin/python -m pytest -q -x` → 2977 passed. I
+force-with-lease pushed it and returned to `main`. The re-run opened PR #909.
 
 ## Owner decisions (2026-09-27, implement session)
 
