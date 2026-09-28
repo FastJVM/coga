@@ -83,6 +83,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/911
 branch: slack-oserror-delivery-miss
 
 Plan: widen `SlackChannel.send`'s transport catch to `(requests.RequestException, OSError, ValueError)` so every transport failure goes through `fail(...)`, and add regression tests for `post(fatal=False)` and the autoclose sweep.
