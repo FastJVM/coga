@@ -2336,14 +2336,14 @@ def test_direct_recurring_delegate_rejects_period_ticket_script(
 def test_launch_missing_onboarding_ticket_explains_filled_init(
     active_task: Path,
 ) -> None:
-    """`coga build` → `launch coga-build` on a repo init classified as filled
-    names why the onboarding ticket is absent and what to do instead, rather
-    than the bare resolver miss."""
+    """`coga build` → `launch coga-build` with no onboarding ticket explains
+    that init skips it on a filled repo (or it was removed) and what to do
+    instead, rather than the bare resolver miss."""
     result = CliRunner().invoke(app, ["launch", "coga-build"])
 
     assert result.exit_code == 2
     assert "No task matches 'coga-build'" in result.output
-    assert "initialized as an existing project" in result.output
+    assert "skipped at init or removed since" in result.output
     assert 'coga ticket "<title>"' in result.output
 
 

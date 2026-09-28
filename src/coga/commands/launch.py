@@ -32,7 +32,7 @@ from uuid import uuid4
 import typer
 
 from coga import usage as usage_tracking
-from coga.aliases import ONBOARDING_TASK, onboarding_missing_message
+from coga.aliases import ONBOARDING_TASK
 from coga.agent_skills import refresh_agent_skill_view
 from coga.autoclose import parse_branch_name, parse_pr_url, parse_worktree_path
 from coga.bump import (
@@ -128,6 +128,17 @@ _T = TypeVar("_T")
 
 class _RecomposeAfterLaunchPublication(RuntimeError):
     """A caller-owned start publication completed; rebuild before spawning."""
+
+
+def _onboarding_missing_message() -> str:
+    """Explain a `coga build` miss without claiming why the ticket is gone."""
+    return (
+        f"The {ONBOARDING_TASK!r} onboarding ticket is not in this repo, so "
+        "`coga build` has nothing to launch. `coga init` seeds it only on an "
+        "empty repo (no project content beyond a stock README, LICENSE, "
+        "or .gitattributes), so it was either skipped at init or removed "
+        'since. Author tasks with `coga ticket "<title>"` instead.'
+    )
 
 
 def launch(
@@ -728,13 +739,13 @@ def _launch(
     try:
         ref = resolve_target(cfg, task)
     except TaskNotFoundError as exc:
-        # `coga build` rewrites to `launch coga-build`; on a repo init
-        # classified as filled the ticket was never seeded, and the bare
-        # resolver miss gives no hint why.
+        # `coga build` rewrites to `launch coga-build`; the ticket is absent
+        # when init classified the repo as filled, or when it was removed
+        # later, and the bare resolver miss gives no hint why.
         if task == ONBOARDING_TASK and not any(
             t.id_slug.startswith(task) for t in list_tasks(cfg)
         ):
-            _bail(f"{exc}\n{onboarding_missing_message()}")
+            _bail(f"{exc}\n{_onboarding_missing_message()}")
         _bail(str(exc))
 
     if (

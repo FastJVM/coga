@@ -50,8 +50,9 @@ Then init:
    larger README is a real project README. The size gate trades a stray
    onboarding ticket for a README-only project against losing onboarding on
    a freshly scaffolded repo. A filled repo has the ticket pruned, and init
-   says `coga build` is unavailable. There, `coga build` exits 2 explaining
-   that onboarding was skipped and pointing at `coga ticket`. `owner:
+   says `coga build` is unavailable. Whenever the ticket is absent, `coga
+   build` exits 2 explaining that init seeds it only on an empty repo, so it
+   was skipped or removed since, and pointing at `coga ticket`. `owner:
    new-user` placeholders are stamped with your name.
 4. Writes `coga/coga.local.toml` (gitignored) with `user = "<name>"`.
 5. Pins `[git] control_branch` when the default `main` is absent and Git
