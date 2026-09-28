@@ -24,7 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (self-qa)
+step: 3 (pr)
 ---
 
 ## Description
@@ -165,3 +165,29 @@ Not done here (outside this repo / Coga state):
   `owner` backfilled by hand. Entries whose worktree still exists
   (`2-startup-upgrade-probe`, `3-manual-hook-updates`) get it automatically
   on the next sweep after this ships.
+
+## Self-QA — 2026-09-27
+
+Review form: `/code-review` (default effort, forked skill run) against
+`main...retire-worklist-owner` — **returned**, 2 findings; plus my own read of
+the diff. `/simplify` ran (reuse / simplification / efficiency / altitude
+agents, all returned). No review is still in flight.
+
+Applied in `c6f776c86` (branch rebased on `origin/main`, force-pushed):
+- must-fix: a bare owning repo (bare + worktrees layout) was unreadable to
+  `classify_checkout`, so its entry was kept forever and alerted every run.
+  `branch_owner` now compares git common dirs; test added.
+- `change.refreshed` could list one slug twice (owner backfill + pending
+  merge); now computed once per slug; test added.
+- `owner_branch_remains` shared by `is_discharged` and autoclose
+  `_owner_held_branch` (one keep-on-unknown rule); `_recorded_relation`
+  helper replaces duplicated path resolution; `probe` param + cache dropped.
+  The unreadable/listed messages merged into one "left in place" line.
+
+Skipped (nit / outside diff): per-run caching of `classify_checkout` root
+probe and a run-scoped branch cache (a few extra git calls per owned entry);
+folding `CheckoutOutcome.branch_owner` into `home`; sharing the
+foreign-worktree test fixture across test files.
+
+No TTY/terminal surface touched. `.venv/bin/python -m pytest`: 2954 passed
+(system `python` is 3.9 — use the venv).
