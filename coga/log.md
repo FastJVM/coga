@@ -6674,3 +6674,4 @@ fatal: Unable to add (null) to database
 2026-09-28 08:54 [recurring/resolve-conflicts] [system] completed (delegated bootstrap/resolve-conflicts run finished) via coga recurring
 2026-09-28 08:54 [recurring/usage-report] [system] started (active → in_progress) via coga launch
 2026-09-28 08:54 [recurring/usage-report] [system] launched as a script (ticket.py)
+2026-09-28 08:54 [recurring/usage-report] [system] task done
