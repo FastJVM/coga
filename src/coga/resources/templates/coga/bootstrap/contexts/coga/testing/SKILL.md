@@ -30,10 +30,13 @@ variable for the one command; do not edit the fixture's config to satisfy it.
 ## Which code you are actually testing
 
 - **Run the suite with an absolute `PYTHONPATH` whenever you are not in the
-  primary checkout.** A healthy editable install's `.pth` names one checkout's
-  `src`, so pytest from a feature worktree collects that worktree's tests
-  against the primary checkout's unchanged package, and the suite is green
-  against code you did not edit. Use
+  primary checkout.** In-process imports are safe: `pyproject.toml` sets
+  `[tool.pytest.ini_options] pythonpath = ["src"]`, so tests import the
+  checkout's own `coga`. Subprocess children (`sys.executable -m coga.cli`,
+  `coga`, `ticket.py`) inherit the environment instead, and a healthy editable
+  install's `.pth` names one checkout's `src`, so without an exported absolute
+  `PYTHONPATH` they run the primary checkout's package: a mixed run where
+  in-process assertions exercise your branch and CLI-driven ones do not. Use
   `PYTHONPATH=$PWD/src python3.12 -m pytest`. The same spelling recovers when
   the `.pth` points at a deleted worktree.
 - `PYTHONPATH` must be absolute (some subprocess tests change cwd). Name a
@@ -107,14 +110,11 @@ and counts, for example `PYTHONPATH=$PWD/src python3.12 -m pytest` ->
   `git log -S'<exact token>' -- <test file>` and the absolute-`PYTHONPATH`
   run, and record a partial fix as half-applied, not absent.
 - **Scope validation with `coga validate --task <slug>`.** The repo-wide run
-  has a known red baseline. As of 2026-09-16 it exits 1 on exactly four
-  `unsynthesized-draft-blackboard` errors, all `v2/` drafts:
-  `v2/autotrigger-ticket-type`,
-  `v2/measure-relay-prompt-scope-and-agent-precision`,
-  `v2/split-context-to-doc-user-accessible-and-editable`,
-  `v2/use-worktree-when-starting-a-dev-task`. Report a matching set as known
-  baseline and move on; never synthesize, cancel, or touch those drafts to
-  turn the gate green. Any extra or missing error is a real change. A PR that
+  has a known red baseline. As of 2026-09-26 it exits 1 on exactly one
+  `unsynthesized-draft-blackboard` error, on `v2/autotrigger-ticket-type`
+  (tag line `validate-drift: unsynthesized-draft-blackboard`). Report a
+  matching set as known baseline and move on; never synthesize, cancel, or
+  touch that draft to turn the gate green. Any extra or missing error is a real change. A PR that
   clears one updates this date, count, and list; delete the item when none
   remain.
 
