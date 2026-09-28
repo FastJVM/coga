@@ -919,13 +919,26 @@ def delete_local_branch(
     Retire runs on the control checkout and uses the default `HEAD`; branch
     sweep passes the configured control branch explicitly.
 
-    `expected_tip` is the tip the caller actually authorized. The forced-delete
-    path re-reads the ref and preserves the branch when it no longer matches, so
+    `expected_tip` is the tip the caller actually authorized. Both delete paths
+    re-read the ref and preserve the branch when it no longer matches, so
     a branch another local process advanced after authorization is not deleted
     on the strength of a stale check.
     """
     if not _local_branch_exists(root, branch):
         _note(result, echo, f"Branch cleanup: local {branch!r} not present.")
+        return
+
+    # The authorized tip may also be the one the sweep just archived. Even
+    # newer landed work must not lose its ref under that older authorization.
+    tip = _rev_parse(root, f"refs/heads/{branch}")
+    if expected_tip is not None and tip != expected_tip:
+        _note(
+            result,
+            echo,
+            f"Branch cleanup: local {branch!r} moved from the authorized tip "
+            f"{expected_tip[:12]} to {tip[:12] if tip else 'nothing'} since it "
+            "was checked — left in place.",
+        )
         return
 
     # Ancestry into the checked-out control branch is the positive "did the work

@@ -17,7 +17,7 @@ from coga.blocker_reminders import (
 from coga.config import load_config
 from coga.create import create_task
 from coga.taskfile import read_blackboard, replace_blackboard
-from coga.tasks import resolve_task
+from coga.tasks import read_ticket, resolve_task
 
 
 FLOW_WEBHOOK = "https://example.test/flow-webhook"
@@ -140,6 +140,52 @@ def test_scan_blocker_reminders_ignores_nonblocked_tasks(repo: Path) -> None:
     _task_with_blocker(repo, status="in_progress")
 
     assert scan_blocker_reminders(load_config(repo)) == []
+
+
+def test_paused_recurring_blocker_is_reminded_once_without_reactivation(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug = _task_with_blocker(repo, status="paused", slug="recurring/resolve-conflicts")
+    cfg = load_config(repo)
+    posts = _capture_posts(monkeypatch)
+
+    reminders = scan_blocker_reminders(cfg)
+
+    assert len(reminders) == 1
+    assert reminders[0].status == "paused"
+    assert reminders[0].next_command == f"coga launch {slug}"
+    assert remind_blocked_tasks(cfg, now=datetime(2026, 6, 30, 10, 0)) == 1
+    assert "is paused" in posts[0]
+    assert "retry ceiling unspecified" in posts[0]
+    assert f"`coga launch {slug}`" in posts[0]
+    assert read_ticket(resolve_task(cfg, slug)).status == "paused"
+    assert remind_blocked_tasks(cfg, now=datetime(2026, 6, 30, 11, 0)) == 0
+    assert len(posts) == 1
+
+
+@pytest.mark.parametrize(
+    ("slug", "status", "resolved"),
+    [
+        ("ordinary", "paused", False),
+        ("recurring/parked", "paused", True),
+        ("recurring/finished", "done", False),
+        ("recurring/canceled", "canceled", False),
+    ],
+)
+def test_reminders_exclude_ordinary_pauses_and_resolved_or_terminal_periods(
+    repo: Path, slug: str, status: str, resolved: bool
+) -> None:
+    _task_with_blocker(repo, slug=slug, status=status, resolved=resolved)
+
+    assert scan_blocker_reminders(load_config(repo)) == []
+
+
+def test_paused_recurring_task_without_blockers_is_not_reminded(repo: Path) -> None:
+    slug = _task_with_blocker(repo, status="paused", slug="recurring/parked")
+    cfg = load_config(repo)
+    replace_blackboard(resolve_task(cfg, slug).ticket_path, "\nParked by the owner.\n")
+
+    assert scan_blocker_reminders(cfg) == []
 
 
 def test_remind_blocked_tasks_posts_once_and_records_watermark(

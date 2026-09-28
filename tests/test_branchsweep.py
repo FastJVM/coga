@@ -10,6 +10,7 @@ import pytest
 
 from coga import branchsweep as bs
 from coga.config import load_config
+from coga.skill_manager import SKILL_UPDATE_BRANCH
 
 
 def _git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -197,6 +198,186 @@ def test_merged_branch_deleted_local_and_remote(repo: Path, monkeypatch) -> None
     assert result.remote_deleted == ["feat"]
     assert not _branch_exists_local(repo, "feat")
     assert not _branch_exists_remote(repo, "feat")
+
+
+def test_shared_skill_update_branch_survives_without_a_ticket_or_open_pr(
+    repo: Path, monkeypatch
+) -> None:
+    _git(repo, "branch", SKILL_UPDATE_BRANCH)
+    _git(repo, "push", "origin", SKILL_UPDATE_BRANCH)
+    monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == result.remote_deleted == []
+    assert _branch_exists_local(repo, SKILL_UPDATE_BRANCH)
+    assert _branch_exists_remote(repo, SKILL_UPDATE_BRANCH)
+    assert any("shared skill-update branch" in note for note in result.notes)
+
+
+def test_retirement_tag_is_pushed_before_any_ref_is_deleted(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    tip = _tip(repo, "feat")
+    _merged_at_tip(monkeypatch, repo, "feat")
+    real_delete = bs.delete_local_branch
+
+    def delete_after_archive(*args, **kwargs):
+        assert _tip(repo, "refs/tags/retired/feat") == tip
+        assert _git(repo, "ls-remote", "--tags", "origin", "refs/tags/retired/feat").stdout.split()[0] == tip
+        assert _branch_exists_remote(repo, "feat")
+        return real_delete(*args, **kwargs)
+
+    monkeypatch.setattr(bs, "delete_local_branch", delete_after_archive)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == result.remote_deleted == ["feat"]
+    assert result.failure is None
+
+
+@pytest.mark.parametrize("with_worktree", [False, True])
+def test_failed_tag_push_preserves_both_refs_and_reports_failure(
+    repo: Path, monkeypatch, capsys, with_worktree: bool
+) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    linked = repo.parent / "linked"
+    if with_worktree:
+        _git(repo, "worktree", "add", str(linked), "feat")
+        _own_worktrees(repo)
+    _merged_at_tip(monkeypatch, repo, "feat")
+    real_git = bs._git
+
+    def fail_tag_push(root: Path, *args: str, input: str | None = None):
+        if args[0] == "push" and any("refs/tags/retired/feat" in arg for arg in args):
+            return subprocess.CompletedProcess(args, 1, stdout="", stderr="tag push rejected")
+        return real_git(root, *args, input=input)
+
+    monkeypatch.setattr(bs, "_git", fail_tag_push)
+
+    assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 2
+
+    output = capsys.readouterr()
+    assert "tag push rejected" in output.out
+    assert "retired/feat" in output.err
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+    if with_worktree:
+        assert linked.is_dir()
+
+
+@pytest.mark.parametrize("where", ["local", "remote"])
+def test_conflicting_retirement_tag_is_never_overwritten(
+    repo: Path, monkeypatch, where: str
+) -> None:
+    original = _tip(repo, "main")
+    _git(repo, "tag", "retired/feat", original)
+    if where == "remote":
+        _git(repo, "push", "origin", "refs/tags/retired/feat")
+        _git(repo, "tag", "-d", "retired/feat")
+    _push_branch(repo, "feat", land_in_main=True)
+    _merged_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.failure is not None
+    assert result.local_deleted == result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+    if where == "local":
+        assert _tip(repo, "refs/tags/retired/feat") == original
+    else:
+        assert _git(repo, "ls-remote", "--tags", "origin", "refs/tags/retired/feat").stdout.split()[0] == original
+
+
+def test_existing_retirement_tag_allows_retry(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    _git(repo, "tag", "retired/feat", "feat")
+    _git(repo, "push", "origin", "refs/tags/retired/feat")
+    _merged_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.failure is None
+    assert result.local_deleted == result.remote_deleted == ["feat"]
+
+
+def test_retirement_tag_named_like_another_branch_does_not_hide_it(
+    repo: Path, monkeypatch
+) -> None:
+    _git(repo, "branch", "retired/feat")
+    _push_branch(repo, "feat", land_in_main=True)
+    _git(repo, "tag", "retired/feat", "refs/heads/feat")
+    _merged_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == ["feat", "retired/feat"]
+    assert result.remote_deleted == ["feat"]
+    assert not _branch_exists_local(repo, "retired/feat")
+
+
+def test_local_ref_moved_after_archive_is_kept(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    _merged_at_tip(monkeypatch, repo, "feat")
+    archived_tip = _tip(repo, "feat")
+    real_delete = bs.delete_local_branch
+
+    def move_before_delete(*args, **kwargs):
+        _commit(repo, "later.txt", "later", "later landed work")
+        _git(repo, "update-ref", "refs/heads/feat", _tip(repo, "main"))
+        return real_delete(*args, **kwargs)
+
+    monkeypatch.setattr(bs, "delete_local_branch", move_before_delete)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+    assert _tip(repo, "refs/tags/retired/feat") == archived_tip
+    assert any("moved from the authorized tip" in note for note in result.notes)
+
+
+def test_branch_that_lands_after_sweep_check_waits_for_archival_next_pass(
+    repo: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat")
+    _fake_gh(monkeypatch)
+
+    def control_advances_after_check(*args):
+        _git(repo, "merge", "--ff-only", "feat")
+        return False
+
+    monkeypatch.setattr(bs, "local_branch_landed", control_advances_after_check)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+
+
+def test_divergent_landed_tips_are_preserved_when_one_tag_cannot_cover_both(
+    repo: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat")
+    merged_head = _tip(repo, "feat")
+    _state_commit(repo, "feat", "local-state")
+    _git(repo, "checkout", "-b", "other", merged_head)
+    _state_commit(repo, "other", "remote-state")
+    remote_tip = _tip(repo, "other")
+    _git(repo, "push", "origin", "other:feat")
+    _git(repo, "checkout", "main")
+    _git(repo, "branch", "-D", "other")
+    _fake_gh(monkeypatch, {"feat": remote_tip})
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == result.remote_deleted == []
+    assert result.failure is not None
+    assert "divergent" in result.failure
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
 
 
 def test_open_pr_branch_skipped(repo: Path, monkeypatch) -> None:
@@ -801,6 +982,8 @@ def test_remote_only_branch_deleted_from_live_remote_listing(
 
     assert result.remote_deleted == ["remote-only"]
     assert not _branch_exists_remote(repo, "remote-only")
+    archived = _git(repo, "ls-remote", "--tags", "origin", "refs/tags/retired/remote-only")
+    assert archived.stdout.split()[0] == _tip(other, "remote-only")
 
 
 def _verdict(repo: Path, tip: str, merged_head: str) -> bs.MergedPrVerdict:
@@ -870,6 +1053,7 @@ def test_tip_moved_by_sync_commits_is_deleted(repo: Path, monkeypatch) -> None:
     assert _tip(repo, "feat") != merged_head
     assert _git(repo, "merge-base", "--is-ancestor", "feat", "main", check=False).returncode != 0
     _fake_gh(monkeypatch, {"feat": merged_head})
+    tip = _tip(repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -878,6 +1062,7 @@ def test_tip_moved_by_sync_commits_is_deleted(repo: Path, monkeypatch) -> None:
     assert result.skipped == []
     assert not _branch_exists_local(repo, "feat")
     assert not _branch_exists_remote(repo, "feat")
+    assert _tip(repo, "refs/tags/retired/feat") == tip
 
 
 def test_remote_ref_that_moved_past_merged_head_is_kept(

@@ -32,7 +32,8 @@ A recorded worktree is removed only when:
 - no PR for that head is open;
 - the branch has landed on control or still equals the recorded merged PR head.
 
-Local cleanup precedes remote deletion; remote deletion re-verifies the exact
+Local cleanup precedes remote deletion; local deletion re-checks the authorized
+tip on both the ancestry and merged-PR paths. Remote deletion re-verifies the exact
 head and uses force-with-lease, so a reused branch is never deleted on stale
 PR state.
 
@@ -68,6 +69,35 @@ records `## Retro`, edits knowledge if warranted, and deletes the source task
 in the same PR. Retire launches the task unless `--no-launch`, which prints the
 `coga launch` command instead. Branches with no live ticket are the
 `branch-sweep` job's.
+
+## Branch-sweep protection and archive
+
+`branchsweep.sweep_branches` preserves the shared `coga/skill-update` branch
+(`skill_manager.SKILL_UPDATE_BRANCH`) before any PR lookup or deletion. It
+does so even between update runs with no live ticket or open PR. This is an
+exact-name exemption, not an exemption for every `coga/` branch.
+
+After the existing landing and claim gates, the sweep must publish
+`retired/<branch>` to the configured Git remote before removing any associated
+worktree or deleting either branch ref. `_publish_retirement_tag` archives the
+actual authorized tip, fetching missing remote objects first. If both local
+and remote refs will be deleted, one of those tips must contain the other;
+the tag points to that descendant. Divergent tips preserve both refs and need
+human reconciliation. This keeps later Coga bookkeeping and lagging local
+refs recoverable without inventing a merge.
+
+An existing local tag must resolve to the selected commit. The push uses an
+explicit tag refspec without force; an identical remote tag allows a retry,
+while a conflicting tag is never overwritten. A failed object fetch, tag
+creation, or tag push preserves the branch and worktree, records the reason
+in `## Branch Sweep`, and makes the recipe exit 2 after checking other
+branches. A failed push may leave a local tag for the next retry. Restore
+archived work with `git fetch <remote> tag retired/<branch>` and
+`git switch -c <new-branch> retired/<branch>`.
+
+The daily autoclose branch pass and standalone weekly sweep share this gate.
+It does not change ticket-scoped retire/autoclose disposal into an archival
+operation.
 
 ## `coga delete <slug>`
 

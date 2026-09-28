@@ -13,7 +13,8 @@ steps:
 Script-backed recurring task. `coga launch` runs the period task's reserved
 `ticket.py`, which calls `coga skill update --all --pr --json`: every clean
 GitHub- or URL-backed update lands in one draft PR on the dedicated
-`coga/skill-update` branch, and the emitted result — updated, follow-up, and
+`coga/skill-update` branch (protected from branch sweep under
+[dev/checkout-cleanup](context:dev/checkout-cleanup)), and the emitted result — updated, follow-up, and
 skipped statuses bucketed raw — is appended to the task blackboard under
 `## Skill Update`. Local-backed and hand-vendored skills are unmanaged by this
 run and currently emit no row. When no remotely managed skill changed, no PR

@@ -34,6 +34,11 @@ period tasks are the one exception: their blackboards are generated reports
 that name branches (this sweep's own, autoclose's retire follow-ups), so they
 pin only a recorded `## Dev` `branch:`.
 
+The shared skill-update branch is always protected. Before deleting any other
+authorized refs or their worktree, publish `retired/<branch>` without force.
+That tag must preserve all tips this pass deletes; an archive failure keeps
+the branch and is reported as a failed sweep.
+
 Before enumerating branches, the sweep prunes registrations for worktrees whose
 directories are gone. A landed branch that remains checked out in a live
 worktree is, by default, preserved deliberately and reported as
@@ -82,6 +87,7 @@ from coga.config import Config, local_config_path
 from coga import git
 from coga.github_preflight import coga_root_prefix, is_coga_state_path
 from coga.lifecycle import TERMINAL_STATUSES
+from coga.skill_manager import SKILL_UPDATE_BRANCH
 from coga.task_env import blackboard_from_env
 from coga.taskfile import TaskFileError, read_blackboard
 from coga.tasks import list_tasks, read_ticket
@@ -105,6 +111,7 @@ class BranchSweepResult:
     remote_unavailable: str | None = None
     worktree_unavailable: str | None = None
     state_root_unavailable: str | None = None
+    retirement_failures: list[str] = field(default_factory=list)
 
     @property
     def failure(self) -> str | None:
@@ -114,6 +121,7 @@ class BranchSweepResult:
             or self.worktree_unavailable
             or self.state_root_unavailable
             or self.gh_unavailable
+            or next(iter(self.retirement_failures), None)
         )
 
 
@@ -142,7 +150,8 @@ def sweep_branches(
 
     `root` is the git working-tree root. Prunes registrations for missing
     worktrees first. Never touches `cfg.git_control_branch`, the currently
-    checked-out branch, or a branch recorded on a non-terminal ticket. A merged
+    checked-out branch, the shared skill-update branch, or a branch recorded
+    on a non-terminal ticket. Publish the retirement tag before deletion. A merged
     branch still checked out in a live worktree is left alone unless
     `cfg.git_worktrees_ticket_owned` admits removing that worktree first (see
     the module docstring). If worktree state or `gh` is unavailable, the rest
@@ -188,6 +197,12 @@ def sweep_branches(
             continue
         if branch == current:
             _note(result, echo, f"Branch sweep: {branch!r} is the checked-out branch — left in place.")
+            continue
+        if branch == SKILL_UPDATE_BRANCH:
+            _note(
+                result, echo,
+                f"Branch sweep: {branch!r} is the shared skill-update branch — left in place.",
+            )
             continue
         if branch in live_branches:
             _note(result, echo, f"Branch sweep: {branch!r} is recorded on a live ticket — left in place.")
@@ -239,6 +254,7 @@ def sweep_branches(
             local_tip is not None
             and local_branch_landed(root, branch, cfg.git_control_branch)
         )
+        remove_worktree = False
         if branch in worktree_branches and (
             remote_merged
             or local_merged
@@ -264,6 +280,24 @@ def sweep_branches(
                     f"{worktree_branches[branch]!r} and both refs left in place.",
                 )
                 continue
+            remove_worktree = True
+
+        # Archive every tip this pass could delete before touching a checkout
+        # or ref. A single tag must preserve both halves of a split branch.
+        retirement_tips: list[str] = []
+        if local_tip is not None and (local_merged or local_landed):
+            retirement_tips.append(local_tip)
+        if remote_tip is not None and remote_merged and (
+            local_tip is None or retirement_tips
+        ):
+            retirement_tips.append(remote_tip)
+        if retirement_tips and not _publish_retirement_tag(
+            cfg, root, branch, retirement_tips, result, echo
+        ):
+            result.skipped.append(branch)
+            continue
+
+        if remove_worktree:
             cleanup = _remove_pinning_worktree(
                 cfg, root, branch, worktree_branches[branch], result, echo
             )
@@ -282,15 +316,24 @@ def sweep_branches(
                 # below; when a PR exists and still did not authorize, the
                 # verdict's reason is the actionable part of the run record.
                 _note(result, echo, f"Branch sweep: {branch!r} {local_verdict.reason}.")
-            delete_local_branch(
-                root,
-                branch,
-                local_merged,
-                echo,
-                cleanup,
-                landed_ref=cfg.git_control_branch,
-                expected_tip=local_tip,
-            )
+            if local_merged or local_landed:
+                delete_local_branch(
+                    root,
+                    branch,
+                    local_merged,
+                    echo,
+                    cleanup,
+                    landed_ref=cfg.git_control_branch,
+                    expected_tip=local_tip,
+                )
+            else:
+                # Control could advance after this pass's landing check.
+                # Never let the helper authorize an unarchived tip anew.
+                _note(
+                    result, echo,
+                    f"Branch cleanup: local {branch!r} has unmerged work and no merged "
+                    "PR vouching for it — left in place.",
+                )
 
         # During rebase/bisect Git can report a worktree as detached while
         # still reserving its original branch. Let Git's own deletion gate
@@ -322,6 +365,76 @@ def sweep_branches(
             result.skipped.append(branch)
 
     return result
+
+
+def _publish_retirement_tag(
+    cfg: Config,
+    root: Path,
+    branch: str,
+    tips: list[str],
+    result: BranchSweepResult,
+    echo: Callable[[str], None],
+) -> bool:
+    """Push an immutable archive covering every tip authorized for deletion."""
+    tag = f"retired/{branch}"
+    tag_ref = f"refs/tags/{tag}"
+
+    def refuse(reason: str) -> bool:
+        message = f"Branch sweep: {branch!r} could not publish {tag!r}: {reason} — left in place."
+        result.retirement_failures.append(message)
+        _note(result, echo, message)
+        return False
+
+    for tip in dict.fromkeys(tips):
+        if _object_present(root, tip):
+            continue
+        fetched = _git(
+            root, "fetch", "--quiet", "--no-tags", "--no-write-fetch-head",
+            cfg.git_remote, tip,
+        )
+        if fetched.returncode != 0 or not _object_present(root, tip):
+            return refuse(
+                f"cannot fetch tip {tip}: {(fetched.stderr + fetched.stdout).strip()}"
+            )
+
+    # Local refs may lag a merged remote head or carry later bookkeeping.
+    # Choose the actual tip that contains all the others; never synthesize a
+    # merge or drop one side of divergent history to make retirement work.
+    target = next(
+        (
+            candidate for candidate in tips
+            if all(
+                tip == candidate
+                or _git(root, "merge-base", "--is-ancestor", tip, candidate).returncode == 0
+                for tip in tips
+            )
+        ),
+        None,
+    )
+    if target is None:
+        return refuse("divergent tips cannot be preserved by one retirement tag")
+
+    existing = _git(root, "rev-parse", "--verify", "--quiet", tag_ref)
+    if existing.returncode == 0:
+        if _rev_parse(root, f"{tag_ref}^{{commit}}") != target:
+            return refuse("the existing local tag points elsewhere; never overwrite it")
+    elif existing.returncode == 1:
+        created = _git(root, "tag", "--", tag, target)
+        if created.returncode != 0:
+            return refuse((created.stderr + created.stdout).strip())
+    else:
+        return refuse((existing.stderr + existing.stdout).strip())
+
+    # An explicit refspec publishes only this tag. No force: Git rejects a
+    # conflicting remote tag, and an identical existing tag makes retries safe.
+    pushed = _git(root, "push", cfg.git_remote, f"{tag_ref}:{tag_ref}")
+    if pushed.returncode != 0:
+        return refuse((pushed.stderr + pushed.stdout).strip())
+    _note(
+        result, echo,
+        f"Branch sweep: archived {branch!r} at {target} as {tag!r} on {cfg.git_remote}.",
+    )
+    return True
 
 
 def _remove_pinning_worktree(
@@ -745,12 +858,13 @@ def _worktree_branches(
 
 
 def _local_branches(root: Path) -> dict[str, str]:
-    proc = _git(root, "for-each-ref", "--format=%(refname:short)", "refs/heads/")
+    # `:short` adds a `heads/` prefix when an archive tag shares the name.
+    proc = _git(root, "for-each-ref", "--format=%(refname:strip=2)", "refs/heads/")
     branches: dict[str, str] = {}
     for line in proc.stdout.splitlines():
         if not line:
             continue
-        tip = _rev_parse(root, line)
+        tip = _rev_parse(root, f"refs/heads/{line}")
         if tip:
             branches[line] = tip
     return branches
