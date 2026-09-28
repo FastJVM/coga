@@ -1,7 +1,7 @@
 ---
 title: 'Fix recurring sweep git hygiene: blocked-task escape, shared branch deletion,
   missing retirement tag'
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
