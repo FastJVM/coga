@@ -39,4 +39,37 @@ Three independent adjudication tickets each worked out, from scratch, how to act
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: docs/v2-batch-verdicts
+
+## Implementation plan
+
+- Start check passed on clean `main`, fetched and fast-forwarded to
+  `origin/main`. PR #845 merged as `cdbc0244c3ff2939a76fe3bfa42c7532aff39d44`
+  and is an ancestor of this checkout.
+- Add the short batch-application recipe beside the README's premise-check
+  section. Lifecycle verdicts publish on `main`; deliberate authored changes
+  to the other tickets are reviewable implementation. Keep this adjudication
+  ticket's own state on `main` throughout.
+- Link command semantics to `coga/lifecycle`, publication semantics to
+  `coga/internals/pr-publication`, and checkout sequencing to `dev/checkouts`.
+  Add the requested workflow gate note and clarify the other-ticket prose
+  exception in the owning publication/checkout topics, syncing packaged twins.
+- Current-source check: `src/coga/open_pr.py` `open_pr` accepts a committed
+  prose-only branch subject to its ordinary freshness checks; the historical
+  `_publishable_changes` helper cited in the ticket no longer exists.
+  `src/coga/commands/mark.py` `_DONE_FROM` rejects `draft`, while
+  `src/coga/mark.py` `prepare_active` requires a workflow and synthesized
+  authoring notes. The optional Retro route must retain these prerequisites.
+- Verify documentation links, twin identity, and the required full pytest
+  suite; commit, freshen, push, return to `main`, and hand off with one bump.
+
+## Adjacent finding
+
+`docs/contexts/coga/workflows/SKILL.md` (and its packaged twin), under
+`Step completion gates`, still says `branch` requires both `branch:` and
+`worktree:`. `src/coga/step_gate.py` `_has_branch_linkage` requires only a
+usable branch, consistent with `dev/checkouts` and `dev/dev-record`; `worktree:`
+is now only for a sandbox clone. This stale sentence is outside the requested
+batch-verdict note and will not be changed here. No follow-up reference has
+been identified yet.
