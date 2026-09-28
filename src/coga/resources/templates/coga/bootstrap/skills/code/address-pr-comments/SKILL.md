@@ -68,8 +68,10 @@ Confirm `gh auth status` succeeds. Then, in the launch checkout:
    switch past another ticket's work.
 2. `git switch <branch-name>` and verify `git status --short` is still clean.
    Do not absorb unrelated local changes or stage `coga/log.md` with a fix.
-   From here until you return to `main`, edit code only: ticket and
-   blackboard edits made on the branch are not published.
+   From here until you return to `main`, keep this ticket's body and
+   blackboard on `main`. Reviewed edits to other tickets' authored bodies
+   follow `dev/checkouts` and `coga/internals/pr-publication`
+   ("Ticket-body-only changes").
 3. Read `[git].remote` from `coga.toml` (default `origin`) and use that configured
    remote to resolve the publication destination with
    `git remote get-url --push --all <configured-remote>`. Require exactly one

@@ -26,8 +26,10 @@ transition.
 - A **control checkout** (HEAD is the control branch) stays clean and level:
   each publish fast-forwards it.
 - A **feature or detached checkout** publishes the same way but keeps its
-  published ticket and log dirty by design. Do not `git add` Coga state into
-  a PR. `coga status` warns when control is ahead of the local copy.
+  published ticket and log dirty by design. Keep that published state out of
+  the PR; [reviewed ticket prose](../internals/pr-publication/SKILL.md#ticket-body-only-changes)
+  follows the PR publication contract. `coga status` warns when control is
+  ahead of the local copy.
 - The end-of-command sweep publishes every dirty task, log, and recurring
   path from **whichever checkout you ran the command in** — including a hand
   edit to ticket prose or a recurring template on a feature branch. Contexts,

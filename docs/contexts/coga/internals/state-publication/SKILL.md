@@ -139,9 +139,8 @@ publication boundary, not a permission barrier against explicit Git commands.
 **Pre-review state publication hazard.** The sweep and authoring finalizer run
 from whichever checkout invoked them. A feature checkout's dirty ticket prose,
 log, or recurring template (including `ticket.py`) can land on control before
-review. Keep deliberate state edits on the control branch; checkout practice
-is `dev/checkouts`. This policy does not gate every behavior-affecting file.
-
-Never `git add` `coga/tasks/**` or `coga/log.md` into a PR; `coga open-pr`
-excludes that state from its cleanliness gate and refuses a branch whose only
-commits are Coga state.
+review. Lifecycle and audit state stay on control;
+[PR publication](../pr-publication/SKILL.md#ticket-body-only-changes) owns the
+boundary for reviewed ticket prose, and
+[dev/checkouts](../../../dev/checkouts/SKILL.md) owns checkout practice. This
+policy does not gate every behavior-affecting file.

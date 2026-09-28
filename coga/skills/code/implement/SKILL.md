@@ -51,9 +51,11 @@ PR yet** — the later `code/open-pr` step does that, after review and fixes.
    any plan notes worth keeping. Publish these edits using `dev/checkouts`
    ("Publish pre-branch ticket edits") and require a clean tree; writing on
    `main` alone does not publish them. Then `git switch <branch-name>`. From here
-   until you return to `main`, edit code only: ticket and blackboard edits
-   made on the branch are not published, and the end-of-step return refuses
-   to discard them.
+   until you return to `main`, edit only the reviewed implementation. Keep
+   this ticket's body and blackboard on `main`; the end-of-step return
+   refuses unpublished ticket state. If the implementation rewrites other
+   tickets' authored bodies, follow `dev/checkouts` and
+   `coga/internals/pr-publication` ("Ticket-body-only changes").
 
    **Read-only Git: the sandbox clone fallback.** A managed agent sandbox may allow source edits
    while mounting the checkout's `.git` metadata read-only. If creating the
