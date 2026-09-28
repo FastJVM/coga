@@ -5,16 +5,12 @@ reference the other tickets in the line (`add-recurring-launch-aliases`,
 `move-command-logic-to-tickets`, `design-external-script-service-mechanism`)
 consume — so its classification has to be right, not assumed.
 
-**Home: `docs/` (evidence), paired with a context (contract).** This doc is the
-verb-by-verb *evidence* — design/audit rationale for the cli-extension-model work,
-not a rule an agent follows at launch. The durable *rule* it produced — the
-three-homes extension model — lives as the `coga/extension-model` context
-(`coga/contexts/coga/extension-model/SKILL.md`), authored project-local
-(sibling to `coga/architecture`/`coga/codebase`), so no bundled-battery
-dual-copy sync is incurred. The split mirrors `docs/vision.md` (rationale) vs
-`coga/principles` (contract). The operator command reference stays where it is,
-the `coga/cli` *context*. Read this for the worked classification; read
-`coga/extension-model` for the rule.
+**Home: `docs/design/` (audit rationale), paired with a context (contract).**
+This document records implementation mechanisms and the evidence behind the
+extension-model work. The rule and current placement status belong to
+[`coga/extension-model`](../contexts/coga/extension-model/SKILL.md), with its
+packaged bootstrap twin. The operator command index is
+[`coga/cli`](../contexts/coga/cli/SKILL.md).
 
 ## The three extension mechanisms
 
@@ -69,15 +65,22 @@ remaining argv passes through unchanged.
 
 ### CLI verbs (built-in commands)
 
+“Built-in” below means registered in `src/coga/cli.py`'s `app`, not a
+ratified kernel home. “No” under aliasability establishes only that an argv
+rewrite cannot express the implementation. Logic and side effects alone
+provide no package-placement proof. The owning context records the
+[open command placements](../contexts/coga/extension-model/SKILL.md#open-command-placements)
+and their deferred reviews; this mechanism inventory does not close them.
+
 | Verb | Mechanism | Alias-able? | Why |
 |------|-----------|-------------|-----|
 | `init` | built-in | No | Scaffolds `coga/` from packaged templates and commits it. Installs no software. |
-| `uninstall` | built-in | No | Symmetric inverse of `init`: removes the repo-local footprint plus the machine-global shim, with a confirmation prompt. Heavy side effects. |
+| `uninstall` | built-in | No | Removes the managed footprint with a confirmation prompt; removal side effects do not establish a bootstrap or co-versioning exception. |
 | `create` | built-in | No | Scaffolds a raw `draft`-status ticket and validates it; raw creation is intentionally Slack-silent. (There is no `draft` verb or alias.) |
 | `ticket` | thin built-in head + `coga.authoring` finalize; package home provisional | Not as a fixed alias | Drafts-on-fly, launches the authoring interview, then calls extracted validate/git-sync finalization; TTY guard. Those hooks require coordinating logic, but no co-versioning invariant has yet been ratified. |
 | `launch` | built-in | No | Prompt composition, supervisor loop, status flip. |
 | `megalaunch` | built-in | No | Sweep / `--pick` / `--relaunch` over one engine: launchability filtering, a TTY picker, staged prepare→check→per-ticket activation and launch, fixed-point dependency drain. The `pick` default alias is sugar for `megalaunch --pick`, not a replacement. |
-| `status` | built-in | No | Reads tree + renders tables. Logic, not a passthrough to another command. |
+| `status` | built-in | No | Reads tree + renders tables; this explains the implementation, not a permanent package home. |
 | `show` | built-in | No | Reads + Rich-renders ticket/blackboard/log. |
 | `bump` | built-in | No | Advances `step:`, appends `log.md`, post-write validate. |
 | `automerge` | ~~built-in~~ retired | — | Removed; merged-ticket auto-close is now solely the `autoclose-merged` recurring sweep (its `ticket.py` → `coga.autoclose.sweep_merged`). (See gotcha.) |
@@ -85,7 +88,7 @@ remaining argv passes through unchanged.
 | `retire` | built-in | No | Scaffolds a one-shot `retire-<slug>` task straight to `active` + launches it. |
 | `block` / `unblock` | built-in | No | Records/resolves concrete blocker asks, owns blocked-state transitions, syncs state, and notifies. |
 | `slack` | built-in | No | Posts FYI to Slack. |
-| `usage` | built-in | No | Reads token-usage records from the repo-global log and rolls them up by task/model/agent/step. Logic, not a passthrough. |
+| `usage` | built-in | No | Reads token-usage records from the repo-global log and rolls them up by task/model/agent/step; the read/report head still needs placement review. |
 | `validate` | built-in | No | Static repo/config diagnostic, `--fix` creates missing files. |
 | `run` | thin built-in + fixed `coga.runner.RECIPES` table | No | Forwards ordinary trailing argv to one of ten explicit importable core recipes (`autoclose`, `blocker-reminders`, `branch-sweep`, `validate-drift`, `cleanup-orphan-markers`, `recurring-scan`, `autofix-analyze`, `skill-update`, `open-pr`, `delete-task`); no env translation, entry-point discovery, or skill plugins. |
 | `skill` (group) | built-in | No | `gh skill` wrapper: install/update/remove/status, provenance, digests. |
@@ -223,11 +226,12 @@ work materializes inputs into task files. Stateless command tickets accept
 trailing launch arguments without creating run state; the agent receives a
 JSON argument block in the composed prompt.
 
-**Trust boundaries straddle kernel and external** — acquire outside, verify
-inside. `gh skill` and `op`/`env` acquire; compose-verify and launch-inject are
-the kernel hooks. So `skill install`/`secret get` are external/command; only the
-verify/inject hooks are kernel. Secret *values* never flow through the legible
-ticket/prompt/git machinery.
+**Trust boundaries straddle kernel and external** — acquisition and
+inspection differ from enforcement at launch. `gh skill` and `op`/`env` acquire;
+launch injects secrets, while verify-at-compose remains unbuilt. This supports
+reviewing acquisition heads separately from enforcement hooks; it does not
+ratify the current `skill *` or `secret get` package residence. Secret *values*
+never flow through the legible ticket/prompt/git machinery.
 
 **Guardrails:** (1) *No worse Typer* — aliases stay fixed argv rewrites and
 command tickets own argument interpretation; conditionals or computed args in
