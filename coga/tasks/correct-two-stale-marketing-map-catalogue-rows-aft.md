@@ -1,6 +1,6 @@
 ---
 title: Correct two stale marketing map catalogue rows after PR 841 lands
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
