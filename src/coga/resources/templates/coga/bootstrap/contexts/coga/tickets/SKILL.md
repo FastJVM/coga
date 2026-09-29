@@ -31,6 +31,15 @@ step movement are [coga/lifecycle](../lifecycle/SKILL.md).
   the parked tree; it is then an ordinary ticket and must pass validation.
 - Other directories are plain folders managed with `mkdir`/`mv`/`rm`; Coga
   has no command for them.
+- **The directory is the group.** Related tickets sit side by side in a plain
+  folder whose `README.md` holds shared material; the folder has no workflow,
+  status, owner, or completion. There is no parent or umbrella ticket: when
+  splitting work, give every deliverable to a real sibling ticket, then remove
+  the original with `coga delete` rather than keeping it as a parent
+  (`coga retire` accepts only a `done` ticket). Pick a group path other than
+  the original's own path: `coga create` refuses to nest a ticket inside a
+  directory-form task. Do not put `ticket.md` at a group root; that makes it a
+  task, and discovery stops there.
 
 A task's identity is its **path under `tasks/`**: the bare leaf at top level,
 otherwise the relative path (`marketing/social/relaunch`). `resolve_task`
