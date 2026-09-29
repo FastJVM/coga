@@ -14,8 +14,8 @@ the pinned SHA above. Preserve upstream's standards-valid leaf metadata
 (`name: skill-creator`); Coga derives the namespaced ref
 `anthropic/skill-creator` from the directory path rather than from `name:`.
 
-This skill is deliberately unmanaged: it is not in
-`src/coga/resources/managed-skills.toml`, carries no `.coga-source.json`, and
+This skill is deliberately unmanaged: it carries no `metadata.github-repo`
+key and no `.coga-source.json`, and
 sits outside every updater path, so the weekly `coga/recurring/skill-update`
 run leaves it alone and this file is its attribution home (decision recorded
 by ticket `vendored-skills-carry-no-coga-source-json-so-coga`). Refresh is the
