@@ -6933,3 +6933,4 @@ fatal: Unable to add (null) to database
 2026-09-29 14:40 [apply-three-dream-w40-skill-and-context-correction] [human:nicktoper] unblocked (asks resolved, still in_progress): PR #909 merged on 2026-09-29 at 21:27:50 UTC. Owner chose the documentation route: require Python 3.11+ to start seed_local_config.py, preserving the existing helper code and updating both code/implement and dev/checkouts with their packaged twins.
 2026-09-29 14:43 [coga] [git] sync failed: push to origin/main failed: fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com; control could not be re-read: `git fetch --quiet origin +refs/heads/main:refs/remotes/origin/main` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com
 2026-09-29 15:33 [fix-the-commit-git-journal] [human:nicktoper] created (status=draft)
+2026-09-29 15:33 [marketing/1st-users] [human:nicktoper] created (status=draft)
