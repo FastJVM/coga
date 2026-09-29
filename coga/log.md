@@ -6739,3 +6739,4 @@ fatal: Unable to add (null) to database
 2026-09-28 20:27 [marketing/fix-installer/linux-clean-install-harness] [human:nicktoper] created (status=draft)
 2026-09-28 20:27 [marketing/fix-installer/macos-clean-install-harness-on-aws] [human:nicktoper] created (status=draft)
 2026-09-28 20:27 [marketing/fix-installer/run-clean-installs-and-file-issues] [human:nicktoper] created (status=draft)
+2026-09-28 20:27 [v2/windows-native-clean-install] [human:nicktoper] created (status=draft)
