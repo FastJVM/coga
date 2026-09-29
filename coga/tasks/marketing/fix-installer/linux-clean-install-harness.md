@@ -75,6 +75,7 @@ editable tree.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/930
 branch: linux-clean-install-harness
 
 ## Implementation handoff — 2026-09-29
