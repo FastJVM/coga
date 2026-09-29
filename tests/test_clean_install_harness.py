@@ -165,6 +165,7 @@ def test_clean_install_main_builds_fetched_commit_not_working_tree(
         cp "$6/package.txt" "$5/coga-1.0-py3-none-any.whl"
     """)
     monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ["PATH"])
+    monkeypatch.delenv("COGA_CLEAN_INSTALL_IMAGE", raising=False)
     monkeypatch.setenv("COGA_CLEAN_INSTALL_NETWORK", "host")
     result = subprocess.run(
         ["bash", str(script), "main", "clean-main"],
