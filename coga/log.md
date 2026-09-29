@@ -6735,3 +6735,4 @@ fatal: Unable to add (null) to database
 2026-09-28 15:40 [fix-recurring-sweep-git-hygiene-blocked-task-escap] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
 2026-09-28 15:26 [marketing/fix-installer] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
 2026-09-28 15:43 [coga] [git] sync failed: push to origin/main failed: fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com; control could not be re-read: `git fetch --quiet origin +refs/heads/main:refs/remotes/origin/main` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com
+2026-09-28 20:25 [fix-recurring-sweep-git-hygiene-blocked-task-escap] [human:nicktoper] advanced to step 2 (peer-review) → codex

@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -76,23 +76,56 @@ for reminder delivery and deduplication. Update those owners with the fixes.
 
 branch: fix-recurring-git-hygiene
 
-## Implementation plan
+## Implementation handoff — 2026-09-28
 
 Owner approved the current-recipe scope in the attended session on 2026-09-28.
-Remind once for unresolved asks on paused recurring tasks without changing
-their status; direct the owner to launch and answer in the resumed session.
-Explicitly protect the shared skill-update branch. Publish a safe
-`retired/<branch>` tag before sweep deletion, preserving branches when the
-archive cannot be established. Keep the owning topics, skills, templates,
-workflows and packaged twins aligned; add behavioral regressions first.
+Commit: `0f25a179a` — Fix recurring sweep git hygiene. Pushed to
+`origin/fix-recurring-git-hygiene`; refreshed against `origin/main` with no
+rebase needed. Returned the launch checkout to clean, current `main` before
+writing this handoff. No PR opened; review and publication remain later steps.
 
-Baseline: `.venv/bin/python -m pytest tests/test_blocker_reminders.py
-tests/test_branchsweep.py -q` — 61 passed. Launch checkout started clean on
-`main` and fast-forwarded to `origin/main` before branching.
+- G11: `blocker_reminders.scan_blocker_reminders` now includes paused recurring
+  periods with unresolved asks. A human-paused period with an open ask also
+  qualifies, but ordinary paused tasks and terminal/resolved tasks do not.
+  Reminder watermarks remain one attempt per blocker and never reactivate the
+  task. Paused reminders direct the owner to launch and answer in the resumed
+  session, since direct unblock rejects paused status.
+- G12: `branchsweep.sweep_branches` explicitly protects
+  `skill_manager.SKILL_UPDATE_BRANCH`, independent of ticket and PR state.
+- G13: the sweep publishes `retired/<branch>` before any eligible worktree or
+  ref deletion. One actual tip must contain all tips being deleted. Conflicting
+  tags, divergent tips, or failed publication preserve work and return a
+  recorded failure; existing tags are never forced. This applies to the daily
+  autoclose branch pass and standalone sweep. Ticket-scoped retire/autoclose
+  disposal is outside this archive gate.
+- The deletion call now requires the sweep's original archived authorization;
+  `branchcleanup.delete_local_branch` also checks the authorized tip on its
+  ancestry path. This prevents control advancing or a ref moving during tag
+  publication from deleting unarchived work. Branch enumeration uses full refs
+  so an archive tag cannot obscure a same-named branch.
+- Updated all three recurring templates and workflows, their skills, owning
+  topics, and packaged twins. Contracts live in `dev/checkout-cleanup` and
+  `coga/notifications/producers`; scheduling and skill-management link to them.
+
+Verification:
+
+- Baseline focused suite: 61 passed. Added regressions first and observed the
+  expected failures for all three findings; separately reproduced the
+  authorization-race and branch/tag-name cases before fixing them.
+- `.venv/bin/python -m pytest tests/test_branchsweep.py tests/test_branchcleanup.py tests/test_blocker_reminders.py -q`
+  — 115 passed on the final implementation.
+- `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest`
+  — 3,067 passed in 180.77s on commit `0f25a179a`, including packaging twins.
+- From `example/coga`:
+  `env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m coga.cli validate --json`
+  — 4 OK, no issues.
+- `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m coga.cli validate --task fix-recurring-sweep-git-hygiene-blocked-task-escap --json`
+  — 1 OK, no issues. `git diff --check` passed.
+
+No unresolved implementation blockers or adjacent findings. Recovery tradeoff:
+a conflicting retirement tag or divergent pair of tips requires human
+reconciliation rather than overwriting an archive or dropping history.
 
 ## Production notes
 
 Moved from FastJVM/multiply on 2026-09-24: filed there by Dream/autofix against coga itself (status there was `draft`; canceled in multiply as moved). Reset to `draft` for re-triage here. Paths, branches, worktrees and ticket slugs in the notes below refer to the multiply repo unless they say otherwise.
-
-
-The blackboard is a notepad to be written to often as the human and agent works through a task.
