@@ -41,6 +41,7 @@ record directly.
 - **PR description shape**: owned by the workflow step's skill.
 - **Changing the stored ticket format**: a branch that rewrites committed
   `coga/tasks/**` with the code that reads them follows the stored-ticket
-  schema conversion rules in [coga/sync](../../coga/sync/SKILL.md).
+  schema conversion rules in
+  [coga/internals/git-regressions](../../coga/internals/git-regressions/SKILL.md#shipping-a-stored-ticket-schema-conversion).
 - **Working on Coga's own source**: see
   [coga/codebase](../../coga/codebase/SKILL.md).

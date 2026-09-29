@@ -194,9 +194,10 @@ A fresh sandbox clone has nothing Git ignores:
   Resolve the attachment from the primary checkout's local skills, else the
   package (`python -c 'from coga.paths import packaged_template_path;
   print(packaged_template_path("bootstrap", "skills", "code", "implement"))'`
-  under an interpreter that imports `coga`). Any `python` may run it; it
-  re-execs under the `coga` script's interpreter when needed. The source
-  config must parse with a nonempty `user`; an absent destination is copied
+  under an interpreter that imports `coga`). Start the helper with Python
+  3.11+; it imports `tomllib` before reaching the re-exec fallback. If `coga`
+  cannot be imported, it re-execs under the `coga` script's interpreter. The
+  source config must parse with a nonempty `user`; an absent destination is copied
   byte-for-byte with mode `0600`; an existing one must have the same actor and
   is tightened to `0600`. It verifies the file is ignored and untracked; never
   symlink, print, stage, or commit it. Remove it on teardown only for
