@@ -6880,3 +6880,4 @@ fatal: Unable to add (null) to database
 2026-09-29 09:40 [uninstall-has-no-removal-path-for-the-preferred-uv] [human:nicktoper] created (status=draft)
 2026-09-29 09:40 [branch-sweep-never-clears-rebased-copy-branches] [human:nicktoper] created (status=draft)
 2026-09-29 09:40 [url-skill-digest-counts-git-ignored-agent-tooling] [human:nicktoper] created (status=draft)
+2026-09-29 09:40 [autoclose-re-posts-another-clone-s-primary-checkou] [human:nicktoper] created (status=draft)
