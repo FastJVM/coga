@@ -1,17 +1,18 @@
 ---
 title: Upstream Coga findings
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: 12fb7535-dfc6-4e98-9a90-16807e118acc
+period_generation: 29bac5a2-3fbe-4636-9e78-5e4647a99f10
 workflow:
   name: upstream-coga/run
   steps:
   - name: sweep
     skills: []
     assignee: agent
+step: 1 (sweep)
 ---
 
 ## Description
