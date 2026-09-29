@@ -1,6 +1,6 @@
 ---
 title: Apply three Dream W40 skill and context corrections after PR 909 lands
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
