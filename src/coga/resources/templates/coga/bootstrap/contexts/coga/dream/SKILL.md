@@ -72,9 +72,10 @@ deleting it. A ticket that contributed knowledge is deleted inside its theme's
 **direct-deleted** (`coga delete`, no PR, no marker). Recurring period tickets
 are usually nothing-durable, but read the blackboard (`## Gotchas`) before
 deleting — never decide by class alone. An unresolved adjacent bug or unshipped
-scope on a done ticket's blackboard is durable knowledge, never grounds for a
-direct delete: it leaves only in a knowledge PR (the `retro/done-ticket` skill
-owns the rule). Checkout-bearing done tickets are
+scope on a done ticket's blackboard that the context/skill corpus does not
+already preserve is durable knowledge, never grounds for a direct delete: it
+leaves only in a knowledge PR (the `retro/done-ticket` skill owns the rule and
+its deduplication exception). Checkout-bearing done tickets are
 **deferred retirement debt**: Dream lists them and never runs `coga retire`
 (see [dev/checkouts](../../dev/checkouts/SKILL.md)). Dream never deletes its own
 predecessor; the scanner removes it before creating the next Dream period.
