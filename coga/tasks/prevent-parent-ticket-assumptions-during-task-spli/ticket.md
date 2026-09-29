@@ -1,6 +1,6 @@
 ---
 title: Prevent parent-ticket assumptions during task splits
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
