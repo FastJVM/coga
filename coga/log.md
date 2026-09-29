@@ -6928,3 +6928,4 @@ fatal: Unable to add (null) to database
 2026-09-29 14:40 [apply-three-dream-w40-skill-and-context-correction] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-29 14:40 [apply-three-dream-w40-skill-and-context-correction] [megalaunch] launched via coga megalaunch
 2026-09-29 14:40 [adjudicate-the-eight-premise-dead-v2-drafts] [human:nicktoper] canceled (in_progress → canceled): Superseded by #931: v2 is now a parked wish list in coga/tasks/_v2/; drafts may be stale or contradictory and no premise verdicts are owed.
+2026-09-29 14:40 [premise-check-2026-w39-25-parked-drafts-need-a-ver] [human:nicktoper] canceled (draft → canceled): Superseded by #931: v2 is now a parked wish list in coga/tasks/_v2/; drafts may be stale or contradictory and no premise verdicts are owed.
