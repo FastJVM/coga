@@ -22,9 +22,9 @@ already have is unavailable.
   `coga unblock <slug> --answer "<resolution>"` and continue if resolved, or
   terminally `coga block` again if unresolved. This exception is only for the
   existing asks; new unavailable input still follows the queue rule above.
-- If a code step cannot create a linked worktree because the sandbox mounts
-  the primary checkout's `.git` read-only, follow the independent `/tmp` clone
-  fallback in the `code/implement` skill before treating it as a blocker.
+- If a code step cannot create the feature branch because the sandbox mounts
+  `.git` read-only, follow the independent `/tmp` clone fallback in the
+  `code/implement` skill before treating it as a blocker.
 - Finish the workflow step with `coga bump`, `coga mark done`, or `coga block`.
   An authorized `coga mark canceled` transition also releases the queue; use it
   only when intentional abandonment is the task decision.
