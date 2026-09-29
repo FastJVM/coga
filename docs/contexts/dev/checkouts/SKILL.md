@@ -66,7 +66,9 @@ chat targets, including delegated bootstrap sessions; `--prompt-report`; a
 launch from the ticket's recorded `worktree:` on its recorded `branch:` (the
 recorded human assist and the sandbox clone); a ticket holding a released
 megalaunch admission; and megalaunch picks. Recurring periods keep their own
-entry gates, which already require control, and get the return half; a
+entry gates, which already require control, and get the return half,
+including a period that delegates to a bootstrap target: the delegated
+session itself is exempt, but its period settles once that session ends. A
 refusal there exits 75 so the recurring sweep stops launching templates.
 
 ## Start, work, end

@@ -45,8 +45,9 @@ session receives `COGA_LAUNCH_RETURNS_CHECKOUT=1`. Entry refusal exits 75
 with no work started. A later refusal warns, preserves the remaining work and
 the session's exit, stops chaining, and withholds the end-of-command sweep.
 Recurring periods keep their own entry gates and get only the return half,
-in the checkout the runner selected; a refused return there exits 75 so
-the sweep stops instead of pausing the period and launching the next.
+in the checkout the runner selected, delegated periods included; a refused
+return there exits 75 so the sweep stops instead of pausing the period and
+launching the next.
 The procedure, proof rules, and exemptions (bootstrap targets,
 `--prompt-report`, Git-disabled, non-Git, or
 remote-less workspaces, the recorded assist or sandbox-clone checkout, a
