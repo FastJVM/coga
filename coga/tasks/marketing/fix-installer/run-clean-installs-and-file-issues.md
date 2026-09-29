@@ -1,6 +1,6 @@
 ---
 title: Run clean installs and file issues
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: direct/body
@@ -71,4 +71,19 @@ beyond the approved AWS test resources is authorized.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Precondition check (2026-09-28)
+
+Ticket says launch after both harness tickets merge. Neither has:
+- `linux-clean-install-harness`: `in_progress` at implement; no local or
+  remote branch, no PR. `scripts/clean-install/` does not exist on `main`.
+- `macos-clean-install-harness-on-aws`: `draft`, never started.
+Only the pinned-release gate `scripts/verify-clean-install-container.sh` exists.
+Asked the owner how to proceed.
+Owner chose to stop and park: relaunch after both harness tickets have merged.
+No runs were started, no issues filed, and no AWS resources were created.
+
+---
+
+## Blockers
+
+- [ ] [2026-09-29 08:42] [agent:claude] id=20260929T084212 Waiting on marketing/fix-installer/linux-clean-install-harness and macos-clean-install-harness-on-aws to merge (neither has a branch/PR yet); unblock and relaunch after both land.

@@ -6817,3 +6817,4 @@ fatal: Unable to add (null) to database
 2026-09-28 23:17 [marketing/fix-installer/run-clean-installs-and-file-issues] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-28 23:17 [marketing/fix-installer/run-clean-installs-and-file-issues] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-28 23:17 [marketing/fix-installer/run-clean-installs-and-file-issues] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-29 08:42 [marketing/fix-installer/run-clean-installs-and-file-issues] [agent:claude] blocked: Waiting on marketing/fix-installer/linux-clean-install-harness and macos-clean-install-harness-on-aws to merge (neither has a branch/PR yet); unblock and relaunch after both land.
