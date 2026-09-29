@@ -222,3 +222,53 @@ def test_control_relay_suppresses_parent_sweep_and_resets_after_failure(
     monkeypatch.setattr("coga.cli.app", lambda: None)
     main()
     assert len(sweeps) == 1
+
+
+@pytest.mark.parametrize("child_exit", [None, SystemExit(0), SystemExit(3)])
+def test_withheld_launch_return_skips_the_sweep_and_keeps_the_exit(
+    clone: Path, monkeypatch: pytest.MonkeyPatch, child_exit: SystemExit | None
+) -> None:
+    from coga import git
+
+    monkeypatch.setattr("sys.argv", ["coga", "launch", "x"])
+    sweeps: list[object] = []
+    monkeypatch.setattr("coga.git.sync_coga_state", sweeps.append)
+
+    def launch_with_refused_return() -> None:
+        git.state_sweep_withheld.set(True)
+        if child_exit is not None:
+            raise child_exit
+
+    monkeypatch.setattr("coga.cli.app", launch_with_refused_return)
+    if child_exit is None:
+        main()
+    else:
+        with pytest.raises(SystemExit) as excinfo:
+            main()
+        assert excinfo.value.code == child_exit.code
+    assert sweeps == []
+    assert git.state_sweep_withheld.get() is False
+
+    # The next invocation in the same process sweeps again.
+    monkeypatch.setattr("coga.cli.app", lambda: None)
+    main()
+    assert len(sweeps) == 1
+
+
+def test_launch_entry_refusal_through_main_skips_the_sweep(
+    clone: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from coga import git
+
+    monkeypatch.setattr("sys.argv", ["coga", "launch", "x"])
+    sweeps: list[object] = []
+    monkeypatch.setattr("coga.git.sync_coga_state", sweeps.append)
+
+    def refused() -> None:
+        raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
+
+    monkeypatch.setattr("coga.cli.app", refused)
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+    assert excinfo.value.code == git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert sweeps == []

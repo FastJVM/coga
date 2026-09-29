@@ -1728,6 +1728,51 @@ def test_direct_recurring_launch_uses_local_control_without_a_remote(
     assert launched == ["recurring/local-delegate-check"]
 
 
+@pytest.mark.parametrize("kind", [None, "timeout", "script"])
+def test_internal_recurring_launch_stops_the_sweep_after_a_checkout_return_refusal(
+    monkeypatch: pytest.MonkeyPatch, kind: str | None
+) -> None:
+    """A refused return exits 75 so the runner stops instead of pausing on."""
+
+    def refusing_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        coga_git.state_sweep_withheld.set(True)
+        return kind
+
+    monkeypatch.setattr(
+        launch_module,
+        "_refresh_recurring_period_before_launch",
+        lambda task, expected_period_lease, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_exact_recurring_period_for_launch",
+        lambda *args, **kwargs: (SimpleNamespace(), SimpleNamespace()),
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(launch_module, "_launch", refusing_launch)
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch_recurring_period(
+            "recurring/refused-return",
+            expected_period_lease=PeriodLease(b"admitted ticket", "generation-1"),
+            control_remote_expected=True,
+            agent_override=None,
+            prompt_report=False,
+            idle_timeout=900.0,
+            max_session=None,
+            return_timeout=True,
+            script_failure_important=True,
+            launch_context="recurring",
+        )
+
+    assert excinfo.value.code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert recurring_cmd._sweep_stopping_exit(excinfo.value.code) is not None
+
+
 def test_internal_recurring_launch_seam_leases_a_deterministic_child_generation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -6437,3 +6482,265 @@ def test_missing_launch_file_message_survives_a_filename_less_error() -> None:
     message = missing_launch_file_message(FileNotFoundError("prompt dir gone"))
     assert "a file it needed" in message
     assert "not the agent CLI" in message
+
+
+# --- checkout normalization (dev/checkouts) -------------------------------------
+
+
+class _CheckoutSession:
+    """Fake agent session that records its checkout and then acts like an agent.
+
+    `actions[i]` runs inside session `i` from the primary `coga/` directory
+    before the session's final `coga bump` (skipped when it returns False).
+    """
+
+    def __init__(self, git_repo, actions=(), exit_codes=()) -> None:  # type: ignore[no-untyped-def]
+        self.git_repo = git_repo
+        self.actions = list(actions)
+        self.exit_codes = list(exit_codes)
+        self.seen: list[tuple[str, str | None, str | None]] = []
+
+    def __call__(self, cfg, ref, ticket, agent, *args, **kwargs):  # type: ignore[no-untyped-def]
+        env = kwargs.get("env") or {}
+        index = len(self.seen)
+        self.seen.append(
+            (
+                self.git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip(),
+                env.get(launch_module.CHECKOUT_RETURN_ENV),
+                ticket.step,
+            )
+        )
+        action = self.actions[index] if index < len(self.actions) else None
+        bump = True if action is None else action(ref) is not False
+        if bump:
+            prev = os.getcwd()
+            os.chdir(self.git_repo.coga_os)
+            try:
+                result = CliRunner().invoke(app, ["bump", ref.id_slug])
+            finally:
+                os.chdir(prev)
+            assert result.exit_code == 0, result.output
+        code = self.exit_codes[index] if index < len(self.exit_codes) else 0
+        return launch_module.AgentSessionResult(code, "done" if code == 0 else "crash")
+
+
+def _checkout_launch_env(monkeypatch: pytest.MonkeyPatch, session) -> None:  # type: ignore[no-untyped-def]
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    monkeypatch.setattr("coga.commands.launch._preflight_push_auth", lambda *a, **k: None)
+    monkeypatch.setattr("coga.commands.launch.spawn_agent_session", session)
+
+
+def _published_checkout_task(git_repo, title: str = "Checkout normalization") -> TaskRef:  # type: ignore[no-untyped-def]
+    cfg = load_config(git_repo.coga_os)
+    created = create_task(
+        cfg=cfg,
+        title=title,
+        workflow_name="code",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    coga_git.sync_task_state(cfg, Path(created["path"]), message="Seed checkout task")
+    return next(ref for ref in list_tasks(cfg) if ref.id_slug == created["slug"])
+
+
+def _branch_and_tip(git_repo) -> tuple[str, str]:  # type: ignore[no-untyped-def]
+    return (
+        git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip(),
+        git_repo.git("rev-parse", "HEAD").strip(),
+    )
+
+
+def _origin_main(git_repo) -> str:  # type: ignore[no-untyped-def]
+    return git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+
+
+def _assert_clean_control(git_repo) -> None:  # type: ignore[no-untyped-def]
+    assert _branch_and_tip(git_repo) == ("main", _origin_main(git_repo))
+    assert git_repo.git("status", "--porcelain", "--untracked-files=all") == ""
+
+
+def _work_on_feature_branch(git_repo, *, handoff: str, leave: str | None = None):  # type: ignore[no-untyped-def]
+    """An implement-style session: branch, commit code, write the handoff."""
+
+    def act(ref: TaskRef) -> None:
+        git_repo.git("switch", "-c", "feature/work")
+        (git_repo.root / "feature.py").write_text("print('work')\n")
+        git_repo.git("add", "feature.py")
+        git_repo.git("commit", "-m", "Implement feature")
+        # The ticket copy on the branch predates control; load control's copy
+        # before writing the handoff (dev/checkouts).
+        rel = str(ref.ticket_path.relative_to(git_repo.root))
+        git_repo.git("restore", "--source=origin/main", "--worktree", "--", rel)
+        replace_blackboard(
+            ref.ticket_path,
+            read_blackboard(ref.ticket_path) + f"\n## Handoff\n\n{handoff}\n",
+        )
+        if leave is not None:
+            (git_repo.root / leave).write_text("unpublished work\n")
+
+    return act
+
+
+def test_launch_prepares_a_feature_checkout_and_resolves_a_ticket_created_on_control(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    git_repo.checkout_branch("feature/old")
+    ref = _published_checkout_task(git_repo)
+    # Created and published on control after this branch point: absent here.
+    ref.ticket_path.unlink()
+    session = _CheckoutSession(git_repo)
+    _checkout_launch_env(monkeypatch, session)
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 0, result.output
+    assert [seen[:2] for seen in session.seen] == [("main", "1")] * 3
+    _assert_clean_control(git_repo)
+    assert Ticket.read(ref.ticket_path).status == "done"
+
+
+def test_launch_returns_a_feature_branch_handoff_before_the_next_step(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = _published_checkout_task(git_repo)
+    session = _CheckoutSession(
+        git_repo, actions=[_work_on_feature_branch(git_repo, handoff="implemented")]
+    )
+    _checkout_launch_env(monkeypatch, session)
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 0, result.output
+    assert [seen[0] for seen in session.seen] == ["main", "main", "main"]
+    assert session.seen[1][2] == "2 (review)"
+    _assert_clean_control(git_repo)
+    assert "implemented" in ref.ticket_path.read_text()
+    # Feature code stayed on its branch and never reached control.
+    assert not (git_repo.root / "feature.py").exists()
+    assert git_repo.git("branch", "--list", "feature/work").strip()
+
+
+def test_launch_entry_refuses_unsafe_dirt_with_the_retry_exit(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = _published_checkout_task(git_repo)
+    git_repo.checkout_branch("feature/x")
+    (git_repo.root / "wip.py").write_text("unsaved\n")
+    before = _branch_and_tip(git_repo)
+    session = _CheckoutSession(git_repo)
+    _checkout_launch_env(monkeypatch, session)
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.output
+    assert "wip.py (not Coga state)" in result.output
+    assert "No work was started." in result.output
+    assert session.seen == []
+    assert _branch_and_tip(git_repo) == before
+    assert (git_repo.root / "wip.py").read_text() == "unsaved\n"
+
+
+def test_launch_teardown_refusal_preserves_work_result_and_stops_chaining(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = _published_checkout_task(git_repo)
+    session = _CheckoutSession(
+        git_repo,
+        actions=[_work_on_feature_branch(git_repo, handoff="done", leave="notes.txt")],
+    )
+    _checkout_launch_env(monkeypatch, session)
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 0, result.output
+    assert len(session.seen) == 1
+    assert "Checkout return after" in result.output
+    assert "notes.txt (not Coga state)" in result.output
+    assert coga_git.state_sweep_withheld.get() is True
+    assert _branch_and_tip(git_repo)[0] == "feature/work"
+    assert (git_repo.root / "notes.txt").read_text() == "unpublished work\n"
+    # The completed step stands: bump already published it.
+    control = git_repo.git(
+        "show", f"main:{ref.ticket_path.relative_to(git_repo.root)}", cwd=git_repo.origin
+    )
+    assert "step: 2 (review)" in control
+
+
+def test_launch_returns_the_checkout_after_a_failed_session(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = _published_checkout_task(git_repo)
+
+    def crash_on_branch(_ref: TaskRef) -> bool:
+        git_repo.git("switch", "-c", "feature/crash")
+        return False
+
+    session = _CheckoutSession(git_repo, actions=[crash_on_branch], exit_codes=[3])
+    _checkout_launch_env(monkeypatch, session)
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 3, result.output
+    assert len(session.seen) == 1
+    _assert_clean_control(git_repo)
+
+
+def test_launch_keeps_the_recorded_checkout_on_its_recorded_branch(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = _published_checkout_task(git_repo)
+    replace_blackboard(
+        ref.ticket_path,
+        f"\n## Dev\n\nbranch: feature/clone\nworktree: {git_repo.root}\n",
+    )
+    cfg = load_config(git_repo.coga_os)
+    coga_git.sync_task_state(cfg, ref.path, message="Record clone")
+    git_repo.checkout_branch("feature/clone")
+    session = _CheckoutSession(git_repo)
+    _checkout_launch_env(monkeypatch, session)
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 0, result.output
+    assert "keeping this checkout" in result.output
+    assert [seen[:2] for seen in session.seen][0] == ("feature/clone", None)
+    assert _branch_and_tip(git_repo)[0] == "feature/clone"
+
+
+def test_launch_prompt_report_and_bootstrap_keep_the_checkout(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = _published_checkout_task(git_repo)
+    git_repo.checkout_branch("feature/x")
+    session = _CheckoutSession(git_repo, actions=[lambda _ref: False])
+    _checkout_launch_env(monkeypatch, session)
+    before = _branch_and_tip(git_repo)
+
+    report = CliRunner().invoke(app, ["launch", ref.id_slug, "--prompt-report"])
+    orient = CliRunner().invoke(app, ["launch", "bootstrap/orient"])
+
+    assert report.exit_code == 0, report.output
+    assert orient.exit_code == 0, orient.output
+    assert [seen[:2] for seen in session.seen] == [("feature/x", None)]
+    assert _branch_and_tip(git_repo) == before
+
+
+def test_launch_without_a_remote_keeps_its_checkout(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = _published_checkout_task(git_repo)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("remote", "remove", "origin")
+    session = _CheckoutSession(git_repo, actions=[lambda _ref: False])
+    _checkout_launch_env(monkeypatch, session)
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 0, result.output
+    assert session.seen[0][:2] == ("feature/x", None)
+    assert _branch_and_tip(git_repo)[0] == "feature/x"

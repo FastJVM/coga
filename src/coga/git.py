@@ -47,12 +47,14 @@ import fcntl
 import hashlib
 import os
 import re
+import stat
 import subprocess
 import sys
 import tempfile
 import threading
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -80,6 +82,13 @@ MAX_PUBLISH_ATTEMPTS = 5
 # EX_TEMPFAIL ("temporary failure, retry later").
 RETRY_WITHOUT_SWEEP_EXIT_CODE = 75
 STALE_CONTROL_EXIT_CODE = RETRY_WITHOUT_SWEEP_EXIT_CODE
+
+# Set when a launch's checkout return refused or stopped mid-way: the
+# preserved dirt is exactly what the end-of-command sweep must not publish.
+# `cli.main` scopes it to one invocation, so an in-process `coga recurring`
+# run withholds its final sweep too; the next command's entry publication
+# picks the routine state back up. The command's exit status is unaffected.
+state_sweep_withheld: ContextVar[bool] = ContextVar("state_sweep_withheld", default=False)
 
 # Per-worktree ref (git keeps `refs/worktree/*` private to each checkout)
 # holding a tree of the blobs this checkout itself published. It is what lets
@@ -756,6 +765,439 @@ def refresh(cfg: Config) -> bool:
         return False
 
 
+# --- checkout preparation -----------------------------------------------------
+
+CheckoutPreparationKind = Literal["prepared", "exempt", "refused", "failed"]
+
+# Git's own markers for an operation that owns the index until it finishes.
+_IN_PROGRESS_MARKERS = (
+    ("MERGE_HEAD", "a merge"),
+    ("CHERRY_PICK_HEAD", "a cherry-pick"),
+    ("REVERT_HEAD", "a revert"),
+    ("rebase-merge", "a rebase"),
+    ("rebase-apply", "a rebase or `git am`"),
+    ("BISECT_LOG", "a bisect"),
+)
+_REGULAR_MODES = frozenset({"100644", "100755"})
+_ABSENT_MODE = "000000"
+
+
+@dataclass(frozen=True)
+class CheckoutPreparation:
+    """`prepare_control_checkout`'s verdict on the invoking checkout.
+
+    - `"prepared"` — HEAD is the control branch at `commit`, the fetched
+      remote control tip, and the tree is clean.
+    - `"exempt"` — Git sync disabled, not a checkout, no remote, or the remote
+      has no control branch yet: nothing was examined or moved, and no
+      freshness is claimed.
+    - `"refused"` — a safety check failed before anything changed HEAD, the
+      index, working files, or local branches (the fetch may still have
+      updated the remote-tracking ref). `blocking` names the paths or branch
+      and `reason` the remedy.
+    - `"failed"` — an unexpected Git or I/O error after mutation began;
+      `reason` says exactly where the routine stopped. Nothing is rolled back.
+    """
+
+    kind: CheckoutPreparationKind
+    reason: str = ""
+    commit: str | None = None
+    blocking: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class _PreparationPlan:
+    branch: str
+    local_control: str
+    restore: tuple[str, ...]
+    remove: tuple[str, ...]
+    evidence: tuple[object, ...]
+
+
+def prepare_control_checkout(
+    cfg: Config, *, require_remote_control: bool = False
+) -> CheckoutPreparation:
+    """Bring the invoking checkout to a clean control branch at the fetched tip.
+
+    Confined to this one checkout: a sibling worktree is never switched,
+    fast-forwarded, or cleaned. The fetched `<remote>/<control>` commit is
+    pinned once. Local control must exist and be equal to or behind it; a
+    detached HEAD, an in-progress Git operation, or control checked out in
+    another worktree refuses. Every staged, tracked, and untracked change in
+    the checkout is examined: only files under the tasks directory, the
+    recurring directory, and the log may be cleaned, and only when their
+    existence, mode, and content already match the pinned tree (a
+    `merge=union` file when union-merging it onto that tree changes nothing),
+    with any staged copy equal to HEAD's or the published one. Ignored files
+    are never candidates, and one the move would overwrite refuses. The whole
+    plan is validated and then re-observed before the first mutation; changed
+    evidence refuses. Only then are proven paths restored to HEAD or removed,
+    HEAD switched to control, and control fast-forwarded. Never stashes,
+    resets, force-switches, deletes a branch, or publishes anything.
+
+    `require_remote_control` is for a boundary after a prepared entry: a
+    remote or control ref that disappeared mid-run is refused rather than
+    newly exempted.
+    """
+    if not cfg.git_enabled:
+        return CheckoutPreparation("exempt", "Git sync is disabled")
+    remote, control = cfg.git_remote, cfg.git_control_branch
+    try:
+        root = toplevel(cfg.repo_root)
+        if root is None:
+            return CheckoutPreparation("exempt", "not a Git checkout")
+        if not remote_configured(root, remote):
+            if require_remote_control:
+                return CheckoutPreparation(
+                    "refused", f"remote {remote!r} is no longer configured"
+                )
+            return CheckoutPreparation("exempt", f"no {remote!r} remote configured")
+        _fetch_control(root, remote, control)
+        remote_ref = f"refs/remotes/{remote}/{control}"
+        if not _ref_present(root, remote_ref):
+            if require_remote_control:
+                return CheckoutPreparation(
+                    "refused", f"{remote}/{control} no longer exists"
+                )
+            return CheckoutPreparation("exempt", f"{remote}/{control} does not exist")
+        pinned = run_git(root, "rev-parse", remote_ref).strip()
+        with state_lock(cfg):
+            plan = _plan_preparation(cfg, root, pinned)
+            if isinstance(plan, CheckoutPreparation):
+                return plan
+            # Re-observe immediately before mutating: a concurrent edit,
+            # stage, or branch move between the checks and the first write
+            # refuses instead of being discarded on stale evidence.
+            again = _plan_preparation(cfg, root, pinned)
+            if isinstance(again, CheckoutPreparation):
+                return again
+            if again.evidence != plan.evidence:
+                return CheckoutPreparation(
+                    "refused",
+                    "the checkout changed while it was being examined; retry",
+                )
+            return _apply_preparation(cfg, root, pinned, plan)
+    except GitError as exc:
+        return CheckoutPreparation("refused", f"could not inspect the checkout: {exc}")
+
+
+def _plan_preparation(
+    cfg: Config, root: Path, pinned: str
+) -> _PreparationPlan | CheckoutPreparation:
+    """Every check `prepare_control_checkout` makes before its first write."""
+    remote, control = cfg.git_remote, cfg.git_control_branch
+    branch = symbolic_head(root)
+    if branch is None:
+        head = run_git(root, "rev-parse", "--short", "HEAD").strip()
+        return CheckoutPreparation(
+            "refused",
+            f"HEAD is detached at {head}; switch to a branch "
+            f"(`git switch {control}`) and retry",
+            blocking=("HEAD",),
+        )
+    git_dir = Path(run_git(root, "rev-parse", "--path-format=absolute", "--git-dir").strip())
+    for marker, what in _IN_PROGRESS_MARKERS:
+        if (git_dir / marker).exists():
+            return CheckoutPreparation(
+                "refused",
+                f"{what} is in progress on {branch!r}; finish or abort it and retry",
+                blocking=(branch,),
+            )
+    control_ref = f"refs/heads/{control}"
+    if not _ref_present(root, control_ref):
+        return CheckoutPreparation(
+            "refused",
+            f"local branch {control!r} does not exist; create it with "
+            f"`git branch {control} {remote}/{control}` and retry",
+            blocking=(control,),
+        )
+    local = run_git(root, "rev-parse", control_ref).strip()
+    if local != pinned and not _is_ancestor(root, local, pinned):
+        return CheckoutPreparation(
+            "refused",
+            f"local {control!r} has commits not on {remote}/{control}; reconcile "
+            f"them (`git pull --rebase {remote} {control}` and push) and retry",
+            blocking=(control,),
+        )
+    holder = worktree_holding_branch(root, control)
+    if holder is not None and holder.resolve() != root.resolve():
+        return CheckoutPreparation(
+            "refused",
+            f"{control!r} is checked out in another worktree ({holder}); switch "
+            f"it off {control!r} or `git worktree remove {holder}` and retry",
+            blocking=(str(holder),),
+        )
+
+    status = run_git(
+        root,
+        "status", "--porcelain=v2", "-z", "--untracked-files=all",
+        "--no-renames", "--ignore-submodules=none",
+    )
+    areas = _state_areas(cfg, root)
+    union = set()
+    restore: list[str] = []
+    remove: list[str] = []
+    blocking: list[str] = []
+    candidate_bytes: dict[str, bytes | None] = {}
+    entries = _status_v2_entries(status)
+    paths = [rel for _kind, _fields, rel in entries]
+    if paths:
+        union = union_merge_paths(root, paths)
+    for kind, fields, rel in entries:
+        if kind == "u" or kind == "2":
+            blocking.append(f"{rel} (unmerged or renamed index entry)")
+            continue
+        if not _in_state_area(rel, areas):
+            blocking.append(f"{rel} (not Coga state)")
+            continue
+        working = _regular_working_file(root, rel)
+        published = _tree_entry(root, pinned, rel)
+        if kind == "?":
+            if working is False:
+                blocking.append(f"{rel} (not a regular file)")
+                continue
+            proof = _published_proof(
+                root, rel, working, published, head_entry=None, union=rel in union
+            )
+            if proof:
+                blocking.append(f"{rel} ({proof})")
+                continue
+            remove.append(rel)
+            candidate_bytes[rel] = working[1] if working else None
+            continue
+        # kind == "1": XY sub mH mI mW hH hI
+        sub, mode_head, mode_index, mode_work, oid_head, oid_index = fields[2:8]
+        if sub != "N...":
+            blocking.append(f"{rel} (submodule)")
+            continue
+        modes = {mode_head, mode_index, mode_work} - {_ABSENT_MODE}
+        if not modes <= _REGULAR_MODES or working is False:
+            blocking.append(f"{rel} (symlink, submodule, or non-regular file)")
+            continue
+        head_entry = None if mode_head == _ABSENT_MODE else (mode_head, oid_head)
+        index_entry = None if mode_index == _ABSENT_MODE else (mode_index, oid_index)
+        if index_entry != head_entry and index_entry != published:
+            blocking.append(f"{rel} (staged content is not the published version)")
+            continue
+        proof = _published_proof(
+            root, rel, working, published, head_entry=head_entry, union=rel in union
+        )
+        if proof:
+            blocking.append(f"{rel} ({proof})")
+            continue
+        (restore if head_entry is not None else remove).append(rel)
+        candidate_bytes[rel] = working[1] if working else None
+    if blocking:
+        return CheckoutPreparation(
+            "refused",
+            "uncommitted changes would be lost by moving to "
+            f"{control!r}; commit, publish, or remove them and retry",
+            blocking=tuple(blocking),
+        )
+
+    collisions = _ignored_collisions(root, ["HEAD", local, pinned])
+    if collisions:
+        return CheckoutPreparation(
+            "refused",
+            f"ignored files would be overwritten by moving to {remote}/{control}; "
+            "move them aside and retry",
+            blocking=tuple(collisions),
+        )
+    head_oid = run_git(root, "rev-parse", "HEAD").strip()
+    evidence = (
+        branch,
+        head_oid,
+        local,
+        status,
+        tuple(sorted((rel, _digest(data)) for rel, data in candidate_bytes.items())),
+    )
+    return _PreparationPlan(branch, local, tuple(restore), tuple(remove), evidence)
+
+
+def _apply_preparation(
+    cfg: Config, root: Path, pinned: str, plan: _PreparationPlan
+) -> CheckoutPreparation:
+    """Mutate in order; on an unexpected failure, say where it stopped."""
+    control = cfg.git_control_branch
+    literal = {"GIT_LITERAL_PATHSPECS": "1"}
+    stage = "restoring published Coga state to HEAD"
+    try:
+        if plan.restore:
+            run_git(
+                root, "restore", "--source=HEAD", "--staged", "--worktree",
+                "--", *plan.restore, env=literal,
+            )
+        stage = "removing published untracked Coga state"
+        areas = _state_areas(cfg, root)
+        for rel in plan.remove:
+            run_git(
+                root, "rm", "--cached", "--quiet", "--ignore-unmatch", "--", rel,
+                env=literal,
+            )
+            (root / rel).unlink(missing_ok=True)
+            _prune_empty_parents(root, rel, areas)
+        if plan.branch != control:
+            stage = f"switching from {plan.branch!r} to {control!r}"
+            run_git(root, "switch", "--quiet", control)
+        if plan.local_control != pinned:
+            stage = f"fast-forwarding {control!r} to {pinned[:12]}"
+            run_git(root, "merge", "--ff-only", "--quiet", pinned)
+        stage = "verifying the prepared checkout"
+        head = run_git(root, "rev-parse", "HEAD").strip()
+        dirty = run_git(root, "status", "--porcelain", "--untracked-files=all").strip()
+        if symbolic_head(root) != control or head != pinned or dirty:
+            return CheckoutPreparation(
+                "failed",
+                f"stopped while {stage}: expected a clean {control!r} at "
+                f"{pinned[:12]}, found {symbolic_head(root) or 'detached HEAD'} "
+                f"at {head[:12]}" + (f" with changes:\n{dirty}" if dirty else ""),
+                blocking=tuple(line[3:] for line in dirty.splitlines()),
+            )
+    except (GitError, OSError) as exc:
+        return CheckoutPreparation("failed", f"stopped while {stage}: {exc}")
+    return CheckoutPreparation("prepared", commit=pinned)
+
+
+def _status_v2_entries(out: str) -> list[tuple[str, list[str], str]]:
+    """`(kind, fields, path)` per `git status --porcelain=v2 -z --no-renames` record."""
+    entries: list[tuple[str, list[str], str]] = []
+    records = out.split("\x00")
+    i = 0
+    while i < len(records):
+        record = records[i]
+        i += 1
+        if not record or record.startswith("#"):
+            continue
+        kind = record[0]
+        if kind in "?!":
+            entries.append((kind, [], record[2:]))
+        elif kind == "1":
+            fields = record.split(" ", 8)
+            entries.append((kind, fields, fields[8]))
+        elif kind == "2":
+            fields = record.split(" ", 9)
+            entries.append((kind, fields, fields[9]))
+            i += 1  # the rename source
+        elif kind == "u":
+            fields = record.split(" ", 10)
+            entries.append((kind, fields, fields[10]))
+    return entries
+
+
+def _state_areas(cfg: Config, root: Path) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """(directory prefixes, exact files) Coga state may occupy in this checkout."""
+    dirs = tuple(
+        relative_to_root(root, path).rstrip("/") + "/"
+        for path in (tasks_dir(cfg), recurring_dir(cfg))
+    )
+    return dirs, (relative_to_root(root, log_path(cfg)),)
+
+
+def _in_state_area(rel: str, areas: tuple[tuple[str, ...], tuple[str, ...]]) -> bool:
+    dirs, files = areas
+    return rel in files or any(rel.startswith(prefix) for prefix in dirs)
+
+
+def _regular_working_file(root: Path, rel: str) -> tuple[str, bytes] | None | Literal[False]:
+    """`(mode, bytes)` of a regular working file, `None` when absent, `False` otherwise."""
+    path = root / rel
+    try:
+        info = os.lstat(path)
+    except FileNotFoundError:
+        return None
+    except NotADirectoryError:
+        return None
+    if not stat.S_ISREG(info.st_mode):
+        return False
+    mode = "100755" if info.st_mode & 0o111 else "100644"
+    return mode, path.read_bytes()
+
+
+def _tree_entry(root: Path, rev: str, rel: str) -> tuple[str, str] | None:
+    """`(mode, oid)` of `rel` in `rev`, or `None` when absent."""
+    out = run_git(root, "ls-tree", "-z", rev, "--", rel, env={"GIT_LITERAL_PATHSPECS": "1"})
+    for record in out.split("\x00"):
+        if not record:
+            continue
+        meta, _, name = record.partition("\t")
+        mode, _type, oid = meta.split()
+        if name == rel:
+            return mode, oid
+    return None
+
+
+def _published_proof(
+    root: Path,
+    rel: str,
+    working: tuple[str, bytes] | None,
+    published: tuple[str, str] | None,
+    *,
+    head_entry: tuple[str, str] | None,
+    union: bool,
+) -> str | None:
+    """`None` when the working copy of `rel` is already on control, else why not."""
+    if working is None:
+        return None if published is None else "deleted here but present on control"
+    if published is None:
+        return "not on control"
+    mode, data = working
+    if mode != published[0]:
+        return "file mode differs from control"
+    if not union:
+        return None if _hash_blob(root, data) == published[1] else "content differs from control"
+    control_bytes = _blob_bytes(root, published[1])
+    base = _blob_bytes(root, head_entry[1]) if head_entry is not None else b""
+    merged = _merge_union_bytes(current=control_bytes, base=base, other=data)
+    return None if merged == control_bytes else "lines not yet on control"
+
+
+def _blob_bytes(root: Path, oid: str) -> bytes:
+    result = _run(["git", "-C", str(root), "cat-file", "blob", oid])
+    if result.returncode != 0:
+        raise GitError(f"`git cat-file blob {oid}` failed: {result.stderr.decode(errors='replace').strip()}")
+    return result.stdout
+
+
+def _ignored_collisions(root: Path, revs: list[str]) -> list[str]:
+    """Ignored working files at paths the move across `revs` would write."""
+    touched: list[str] = []
+    for old, new in zip(revs, revs[1:]):
+        if old == new:
+            continue
+        out = run_git(root, "diff", "-z", "--name-only", "--no-renames", old, new)
+        touched.extend(rel for rel in out.split("\x00") if rel and rel not in touched)
+    collisions: list[str] = []
+    for start in range(0, len(touched), _CHECK_ATTR_BATCH):
+        out = run_git(
+            root, "ls-files", "-z", "--others", "--ignored", "--exclude-standard",
+            "--", *touched[start:start + _CHECK_ATTR_BATCH],
+            env={"GIT_LITERAL_PATHSPECS": "1"},
+        )
+        collisions.extend(rel for rel in out.split("\x00") if rel)
+    return collisions
+
+
+def _digest(data: bytes | None) -> str | None:
+    return None if data is None else hashlib.sha256(data).hexdigest()
+
+
+def _prune_empty_parents(
+    root: Path, rel: str, areas: tuple[tuple[str, ...], tuple[str, ...]]
+) -> None:
+    """Remove directories a deleted state file left empty, never an area root."""
+    prefix = next((p for p in areas[0] if rel.startswith(p)), None)
+    if prefix is None:
+        return
+    stop = (root / prefix.rstrip("/")).resolve()
+    parent = (root / rel).parent
+    while parent.resolve() != stop:
+        try:
+            parent.rmdir()
+        except OSError:
+            return
+        parent = parent.parent
+
+
 # --- read-only probes ---------------------------------------------------------
 
 
@@ -1235,6 +1677,7 @@ def worktree_holding_branch(root: Path, branch: str) -> Path | None:
 
 __all__ = [
     "CheckoutKind",
+    "CheckoutPreparation",
     "CheckoutRelation",
     "GitError",
     "MAX_PUBLISH_ATTEMPTS",
@@ -1251,6 +1694,7 @@ __all__ = [
     "fetch_control",
     "is_linked_worktree",
     "last_commit_times",
+    "prepare_control_checkout",
     "publish",
     "refresh",
     "relative_to_root",
@@ -1259,6 +1703,7 @@ __all__ = [
     "run_git",
     "stale_coga_task_rels",
     "state_lock",
+    "state_sweep_withheld",
     "summarize_git_failure",
     "symbolic_head",
     "sync_coga_state",

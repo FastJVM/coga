@@ -1,6 +1,6 @@
 ---
 name: coga/launch
-description: What `coga launch <target>` accepts, how status and routing decide what runs, the preflight order before any lifecycle write, the step-chaining supervisor's stop rules, and the `--agent`, `--prompt-report`, and liveness options.
+description: What `coga launch <target>` accepts, the checkout boundary around each ticket launch, how status and routing decide what runs, the preflight order before any lifecycle write, the step-chaining supervisor's stop rules, and the `--agent`, `--prompt-report`, and liveness options.
 ---
 
 # Coga launch
@@ -23,6 +23,36 @@ the attended path: a human typed it. Queue draining is `coga megalaunch`
 
 Trailing positional arguments reach an agent prompt as an ordered JSON
 `## Launch arguments` block; `ticket.py` receives no operands.
+
+## Checkout boundary
+
+An ordinary task launch runs from a clean, current control checkout. Target
+resolution and the recorded-checkout test only classify; then launch
+publishes routine Coga state and prepares the invoking checkout
+(`git.prepare_control_checkout`) before the delegation read, recorded-assist
+alignment, script discovery, activation, the agent-skill view, or prompt
+composition. It then reloads config (a changed Git destination refuses
+with 75) and re-resolves the same canonical ref. It never selects a
+different prefix match. A spelling that does not resolve locally, and is not
+`bootstrap/` or `recurring/`, is resolved again after preparation, so a
+ticket created on control after the checkout's branch point launches.
+
+The same publish-then-prepare runs after every started agent session and
+every `ticket.py` phase (inside `run_script_chain`), before the next chain
+decision, and on every exit path. Routing, secrets, script paths, and prompts
+come from the refreshed files; a target gone from control ends the chain. The
+session receives `COGA_LAUNCH_RETURNS_CHECKOUT=1`. Entry refusal exits 75
+with no work started. A later refusal warns, preserves the remaining work and
+the session's exit, stops chaining, and withholds the end-of-command sweep.
+Recurring periods keep their own entry gates and get only the return half,
+in the checkout the runner selected; a refused return there exits 75 so
+the sweep stops instead of pausing the period and launching the next.
+The procedure, proof rules, and exemptions (bootstrap targets,
+`--prompt-report`, Git-disabled, non-Git, or
+remote-less workspaces, the recorded assist or sandbox-clone checkout, a
+released megalaunch witness) are owned by
+[dev/checkouts](../../dev/checkouts/SKILL.md). Exempt launches keep the
+teardown refresh below.
 
 ## Status is the signal
 
@@ -94,7 +124,8 @@ terminal, paused, or blocked status, a workflow-less ticket, no progress,
 an unresolvable operator, a missing CLI, a deleted task directory, a timeout,
 or a non-zero exit. A bootstrap target never chains. Sessions not run under a
 live `coga launch` do not chain: after `coga bump`, stop and relaunch.
-Every exit path refreshes a control checkout from control (`git.refresh`).
+Every exit path of an exempt launch refreshes a control checkout from control
+(`git.refresh`); a prepared launch returns its checkout instead.
 
 ## Options and exits
 
@@ -105,4 +136,7 @@ Every exit path refreshes a control checkout from control (`git.refresh`).
   as sweeping, so the end-of-command state sweep still runs after a report.
 - `--idle-timeout` / `--max-session` (off by default) tear down a stalled or
   runaway REPL; the launch then exits 124 and does not chain.
-- Refusals exit 2; a non-zero agent or `ticket.py` exit propagates.
+- Refusals exit 2; a checkout-boundary entry refusal, a stale recurring
+  gate, and an unreconciled released megalaunch admission exit 75, which
+  skips the end-of-command sweep; a non-zero agent or `ticket.py` exit
+  propagates.

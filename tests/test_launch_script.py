@@ -1555,3 +1555,49 @@ def test_bootstrap_script_is_stateless_and_keeps_stdout_machine_readable(
     assert "Launch: task bootstrap/deterministic" in result.stderr
     assert "bootstrap/deterministic: script ran successfully" in result.stderr
     assert not (script_repo / "log.md").exists()
+
+
+def test_script_chain_returns_the_checkout_between_real_git_phases(
+    git_repo, monkeypatch: pytest.MonkeyPatch, capfd: pytest.CaptureFixture[str]
+) -> None:
+    """Each chained ticket.py phase starts from a clean, fresh control checkout."""
+    monkeypatch.chdir(git_repo.coga_os)
+    (git_repo.coga_os / "coga.local.toml").write_text(
+        'user = "marc"\n[notification.slack]\nenabled = false\n'
+    )
+    ref = _create_two_step_script_task(
+        git_repo.coga_os,
+        """
+        import os
+        import subprocess
+        import sys
+
+        def git(*args):
+            return subprocess.run(
+                ["git", *args], capture_output=True, text=True, check=True
+            ).stdout.strip()
+
+        step = os.environ["COGA_TASK_STEP"]
+        sys.stderr.write(f"PHASE {step} ON {git('rev-parse', '--abbrev-ref', 'HEAD')}\\n")
+        if step.startswith("1"):
+            git("switch", "-c", "feature/script")
+        raise SystemExit(subprocess.run([
+            sys.executable, "-m", "coga.cli", "bump", os.environ["COGA_TASK_SLUG"],
+        ]).returncode)
+        """,
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "Seed two-step script task")
+    git_repo.git("push", "origin", "main")
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug])
+
+    assert result.exit_code == 0, result.output
+    phases = [line for line in capfd.readouterr().err.splitlines() if line.startswith("PHASE")]
+    assert phases == ["PHASE 1 (prepare) ON main", "PHASE 2 (finish) ON main"]
+    assert Ticket.read(ref.ticket_path).status == "done"
+    assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "main"
+    assert git_repo.git("status", "--porcelain", "--untracked-files=all") == ""
+    assert git_repo.git("rev-parse", "HEAD").strip() == git_repo.git(
+        "rev-parse", "main", cwd=git_repo.origin
+    ).strip()

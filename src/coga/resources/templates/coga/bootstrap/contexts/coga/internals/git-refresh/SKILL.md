@@ -41,12 +41,30 @@ fast-forwards when HEAD is the control branch.
   diverged, or blocked by a dirty file control changed), or a git failure,
   which is also appended to `coga/log.md` as `refresh failed`.
 
-Callers: `coga launch` teardown and its between-children recheck in recurring
+`refresh` is not a readiness proof: a feature or detached checkout returns
+`True` without moving. The launch checkout boundary uses the separate
+`prepare_control_checkout` below.
+
+Callers: exempt `coga launch` teardown and its between-children recheck in recurring
 runs (bails when a refresh after a preceding child fails or the admitted
 remote has vanished), and the recurring scan's pre-scan catch-up
 (`recurring_runner`), whose stale-control path exits
 `STALE_CONTROL_EXIT_CODE` (75) so the CLI sweep does not publish the state it
 left dirty. Admission details are `coga/internals/recurring-admission`.
+
+## `prepare_control_checkout(cfg, *, require_remote_control=False)`
+
+Confined to the invoking checkout, and never implemented with
+`fast_forward_control`, which may move another holder: it fetches and pins
+the remote control commit, proves every change is already published Coga
+state, then restores or removes those paths, switches HEAD to the control
+branch, and fast-forwards it with `merge --ff-only`. The result is
+`CheckoutPreparation`: `prepared`, `exempt` (Git disabled, not a checkout,
+no remote, or no remote control branch unless `require_remote_control`),
+`refused` (nothing but the remote-tracking ref changed), or `failed` (where
+it stopped after mutation began). Its only caller is the launch checkout
+boundary. The rules it enforces are owned by
+[dev/checkouts](../../../dev/checkouts/SKILL.md).
 
 `fetch_control(cfg, root)` fetches and returns the commit to read control from
 (the tracking ref, or local control with no remote); megalaunch and the
