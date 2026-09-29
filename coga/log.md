@@ -6759,3 +6759,4 @@ fatal: Unable to add (null) to database
 2026-09-28 20:54 [correct-two-stale-marketing-map-catalogue-rows-aft] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-28 20:55 [correct-two-stale-marketing-map-catalogue-rows-aft] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-28 20:55 [correct-two-stale-marketing-map-catalogue-rows-aft] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-28 20:55 [correct-two-stale-marketing-map-catalogue-rows-aft] [agent:claude] task done

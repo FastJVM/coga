@@ -1,6 +1,6 @@
 ---
 title: Correct two stale marketing map catalogue rows after PR 841 lands
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -22,7 +22,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
 agent: claude
 ---
 
@@ -49,3 +48,23 @@ _Merged duplicate from ks-01 ("marketing/map links clarity README, PRODUCT and s
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Already satisfied
+
+Checked 2026-09-28 against `origin/main` 6960d3547. PR #841 merged 2026-09-21.
+
+- **F30 (clarity README/PRODUCT/samples row).** `docs/contexts/marketing/map/SKILL.md`
+  has no link to `skills/clarity/README.md`, `PRODUCT.md` or `samples/README.md`,
+  and no "no missing files or broken local links" / "Coverage checked" claim.
+  Its only Clarity link is `coga/skills/clarity/SKILL.md`, which exists
+  (`coga/skills/clarity/` = `LICENSE`, `SKILL.md`, `references/`, `scripts/`).
+- **F31 (telemetry called an empty concept).** The map has no
+  `add-telemetry` / "Empty concept draft" row; its measurement row points to
+  `coga/telemetry`. `docs/contexts/marketing/distribution/SKILL.md`
+  "Measurement and interpretation" no longer says "no user instrumentation is
+  authorized" or "no developed brief or policy decision"; it names
+  `coga/principles` §5 as the policy owner and `coga/telemetry` (plus
+  `coga/telemetry/operations`) as the payload/sweep contract.
+  `coga/tasks/marketing/add-telemetry.md` is `status: done`.
+
+No branch or PR needed.
