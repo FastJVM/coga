@@ -6746,3 +6746,4 @@ fatal: Unable to add (null) to database
 2026-09-28 20:30 [fix-recurring-sweep-git-hygiene-blocked-task-escap] [human:nicktoper] launched (operator=codex, agent=codex)
 2026-09-28 20:34 [preserve-owner-decisions-not-to-act-beyond-the-tic] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-28 20:34 [preserve-owner-decisions-not-to-act-beyond-the-tic] [human:nicktoper] started (active → in_progress) via coga launch
+2026-09-28 20:34 [preserve-owner-decisions-not-to-act-beyond-the-tic] [human:nicktoper] launched (operator=claude, agent=claude)
