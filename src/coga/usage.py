@@ -462,7 +462,9 @@ def _parse_claude_session(
             usage = message.get("usage") or obj.get("usage") or {}
             if isinstance(usage, dict):
                 matched = True
-                model = _first_str(message.get("model"), obj.get("model")) or model
+                line_model = _first_str(message.get("model"), obj.get("model"))
+                if line_model and (model is None or line_model != "<synthetic>"):
+                    model = line_model
                 input_tokens += _int_value(usage.get("input_tokens"))
                 cache_creation_input_tokens += _int_value(
                     usage.get("cache_creation_input_tokens")

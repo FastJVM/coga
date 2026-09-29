@@ -72,6 +72,67 @@ def test_parse_claude_transcript_sums_assistant_usage(
     assert parsed.output_tokens == 12
 
 
+@pytest.mark.parametrize(
+    ("models", "expected_model"),
+    [
+        (("claude-sonnet-4", "<synthetic>"), "claude-sonnet-4"),
+        (("<synthetic>", "<synthetic>"), "<synthetic>"),
+        (("<synthetic>", "claude-sonnet-4"), "claude-sonnet-4"),
+        (
+            ("claude-sonnet-4", "<synthetic>", "claude-opus-4", "<synthetic>"),
+            "claude-opus-4",
+        ),
+    ],
+    ids=["trailing-synthetic", "synthetic-only", "leading-synthetic", "real-model-switch"],
+)
+def test_parse_claude_transcript_prefers_real_model(
+    tmp_path: Path, monkeypatch, models: tuple[str, ...], expected_model: str
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    session_id = "session-synthetic"
+    transcript = _claude_transcript(cwd, tmp_path, session_id)
+    _write(
+        transcript,
+        "\n".join(
+            json.dumps(
+                {
+                    "type": "assistant",
+                    "timestamp": "2026-06-23T12:02:00Z",
+                    "message": {
+                        "model": model,
+                        "usage": {
+                            "input_tokens": 10,
+                            "cache_creation_input_tokens": 2,
+                            "cache_read_input_tokens": 3,
+                            "output_tokens": 4,
+                        },
+                    },
+                }
+            )
+            for model in models
+        ),
+    )
+    start, end = _window()
+
+    parsed = parse_session(
+        "claude",
+        cwd=cwd,
+        session_id=session_id,
+        pre_existing=None,
+        window_start=start,
+        window_end=end,
+    )
+
+    assert parsed.usage_status == "ok"
+    assert parsed.model == expected_model
+    assert parsed.input_tokens == 10 * len(models)
+    assert parsed.cache_creation_input_tokens == 2 * len(models)
+    assert parsed.cache_read_input_tokens == 3 * len(models)
+    assert parsed.output_tokens == 4 * len(models)
+
+
 def test_parse_claude_activity_excludes_injected_text_and_redacts(
     tmp_path: Path, monkeypatch
 ) -> None:
