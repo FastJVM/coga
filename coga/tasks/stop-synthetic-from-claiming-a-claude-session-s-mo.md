@@ -1,6 +1,6 @@
 ---
 title: Stop <synthetic> from claiming a Claude session's model
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
