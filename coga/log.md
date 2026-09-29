@@ -6867,3 +6867,5 @@ fatal: Unable to add (null) to database
 2026-09-29 09:06 [recurring/upstream-coga] [system] started (active → in_progress) via coga launch
 2026-09-29 09:06 [recurring/upstream-coga] [system] launched as a script (ticket.py)
 2026-09-29 09:06 [recurring/upstream-coga] [system] task done
+2026-09-29 09:06 [recurring/upstream-coga] [system] script exited with code 0
+2026-09-29 09:06 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
