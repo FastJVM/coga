@@ -1,10 +1,8 @@
 ---
 title: Preserve owner decisions not to act beyond the ticket that recorded them
-status: draft
+status: active
 owner: nicktoper
 agent: claude
-contexts: []
-skills: []
 workflow:
   name: code/with-review
   steps:
@@ -24,7 +22,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-secrets: null
 step: 1 (implement)
 ---
 
