@@ -6917,3 +6917,4 @@ fatal: Unable to add (null) to database
 2026-09-29 12:30 [apply-three-dream-w40-skill-and-context-correction] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-29 12:30 [apply-three-dream-w40-skill-and-context-correction] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-29 12:30 [apply-three-dream-w40-skill-and-context-correction] [megalaunch] launched via coga megalaunch
+2026-09-29 12:32 [apply-three-dream-w40-skill-and-context-correction] [agent:claude] blocked: Depends on launch-moves-the-checkout-to-main-before-and-after (PR #909 is still open): merge or close #909 before applying these corrections. Owner must also choose the seed_local_config.py route: defer the tomllib import until after the re-exec decision, or narrow the documentation to Python 3.11+.
