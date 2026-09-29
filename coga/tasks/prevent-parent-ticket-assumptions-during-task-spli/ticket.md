@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -116,3 +116,13 @@ Plan (owner-approved 2026-09-28, small version): 2–3 sentences in `coga/ticket
 (canonical + packaged twin) saying the directory is the group and no parent/umbrella
 ticket; one line in the `bootstrap/ticket` skill's scope check. No base-prompt change,
 no long splitting procedure, no code/tests.
+
+## Implement handoff (2026-09-28)
+
+Owner scoped this down in the attended session ("grouping is the directory, why is it needed?"): the directory mechanism already exists, so only a short guardrail was added, and there are no code, test, or base-prompt changes.
+
+- `coga/tickets` (canonical `docs/contexts/` and packaged twin, byte-identical): new bullet "The directory is the group". A plain folder plus README holds shared material. The folder has no workflow, status, owner, or completion, and there is no parent/umbrella ticket. When splitting, each deliverable goes to a real sibling ticket and the original is retired. `ticket.md` at a group root makes it a task, and discovery stops there.
+- `bootstrap/ticket` evaluator scope check: split into sibling tickets in a plain directory (`coga create "<group>/<title>"`), never a parent ticket (`coga/tickets`).
+- Regression: a cold subagent given the updater scenario proposed `updater/README.md` with three sibling tickets, the original retired, no root `ticket.md`, and nothing waiting on the directory. Caveats noted: retire mechanics and slug prefixes are not covered here and are left to existing guidance.
+- Verification: `.venv/bin/python -m pytest -q` → 3050 passed. (System `python` lacks `tomlkit`; use the repo venv.)
+- Deliberately dropped from the original acceptance list: the base-prompt sentence, the long splitting procedure, and the provenance section.

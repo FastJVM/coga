@@ -6768,3 +6768,4 @@ fatal: Unable to add (null) to database
 2026-09-28 20:59 [stop-synthetic-from-claiming-a-claude-session-s-mo] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-28 20:59 [stop-synthetic-from-claiming-a-claude-session-s-mo] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-28 20:59 [stop-synthetic-from-claiming-a-claude-session-s-mo] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
+2026-09-28 21:03 [prevent-parent-ticket-assumptions-during-task-spli] [agent:claude] advanced to step 2 (peer-review) → codex
