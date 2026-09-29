@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -126,3 +126,36 @@ Owner scoped this down in the attended session ("grouping is the directory, why 
 - Regression: a cold subagent given the updater scenario proposed `updater/README.md` with three sibling tickets, the original retired, no root `ticket.md`, and nothing waiting on the directory. Caveats noted: retire mechanics and slug prefixes are not covered here and are left to existing guidance.
 - Verification: `.venv/bin/python -m pytest -q` → 3050 passed. (System `python` lacks `tomlkit`; use the repo venv.)
 - Deliberately dropped from the original acceptance list: the base-prompt sentence, the long splitting procedure, and the provenance section.
+
+## Peer review
+
+2026-09-28: `codex review --base origin/main` **returned** successfully with
+no findings. Reviewed against the owner-approved small scope; no fixes needed.
+
+- Rebased with `git fetch origin main` then `git rebase FETCH_HEAD` onto
+  `197f9a155`, without conflicts. Pushed `c259480e1` on
+  `no-parent-ticket-guidance` with `--force-with-lease`; the branch is one
+  commit ahead of current main. Returned to clean, up-to-date `main` before
+  writing this handoff.
+- Full verification after rebase:
+  `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q` →
+  **3050 passed** in 193.27s.
+- `git diff --check origin/main...HEAD` and `cmp` of the canonical and
+  packaged `coga/tickets` contexts passed on the feature branch.
+- Read the final guidance in context and confirmed it matches `list_tasks`
+  and `_normalize_create_dir`. Existing tests cover README exclusion, plain
+  directory recursion, and refusal to nest tasks. Orientation's architecture
+  and CLI topics link to `coga/tickets`; the authoring skill carries the scope
+  guardrail directly. No terminal, pager, or notification surface changed.
+- The cold updater-split regression is recorded in the implementation
+  handoff above; no additional behavior or tests were introduced in review.
+
+## PR
+
+Prevent ticket splits from retaining an umbrella ticket by documenting that a
+plain directory groups sibling tickets and its README holds shared material.
+Clarify that deliverables belong to real tickets and `ticket.md` at the group
+root stops discovery, synchronize the packaged context, and reinforce the rule
+in the bootstrap ticket-authoring scope check.
+
+Test plan: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q` → 3050 passed; context twin `cmp` and `git diff --check origin/main...HEAD` passed; cold updater-split authoring review recorded in the implementation handoff.
