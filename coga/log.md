@@ -6883,3 +6883,4 @@ fatal: Unable to add (null) to database
 2026-09-29 09:40 [autoclose-re-posts-another-clone-s-primary-checkou] [human:nicktoper] created (status=draft)
 2026-09-29 09:40 [premise-check-2026-w40-8-parked-drafts-need-a-verd] [human:nicktoper] created (status=draft)
 2026-09-29 09:42 [recurring/dream] [agent:claude] slack: Dream W40: validate-drift 43 warn (all already ticketed), 92 findings, 10 PRs (#920-#929: 1 Retro knowledge + 9 proposals), 9 period tickets direct-deleted, 11 draft tickets (5 PR-overlap, 2 decisions, 2 gaps, 1 Retro bug, 1 premise check of 8 v2 drafts); 118 done tickets await coga retire.
+2026-09-29 09:42 [recurring/dream] [agent:claude] task done — Dream 2026-W40: 10 PRs, 11 drafts, 9 direct deletes, 92 findings routed
