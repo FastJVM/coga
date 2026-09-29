@@ -1,6 +1,6 @@
 ---
 title: Linux clean-install harness
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
