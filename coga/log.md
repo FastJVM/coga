@@ -6738,3 +6738,4 @@ fatal: Unable to add (null) to database
 2026-09-28 20:25 [fix-recurring-sweep-git-hygiene-blocked-task-escap] [human:nicktoper] advanced to step 2 (peer-review) → codex
 2026-09-28 20:27 [marketing/fix-installer/linux-clean-install-harness] [human:nicktoper] created (status=draft)
 2026-09-28 20:27 [marketing/fix-installer/macos-clean-install-harness-on-aws] [human:nicktoper] created (status=draft)
+2026-09-28 20:27 [marketing/fix-installer/run-clean-installs-and-file-issues] [human:nicktoper] created (status=draft)
