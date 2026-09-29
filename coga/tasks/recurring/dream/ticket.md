@@ -785,3 +785,131 @@ Result: 43 issue(s): 0 direct fix, 1 PR proposal, 42 human-needed.
   Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
 - `where-have-code-review-disappeared`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
   Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
+
+## Run log (2026-W40)
+
+- Preflight: git-common-dir ok, remote ok, gh ok. repo-identity: coga-source (no Rule A exclusion).
+- Phase 1 validate-drift: reported — 43 issues (0 direct-fix, 1 pr-proposal, 42 human-needed).
+- Phase 2 knowledge scan dir: /tmp/tmp.2WO6zW2aK2 (36 shards). Phase 3 contract audit dir: /tmp/tmp.fDawIchohQ (7 shards).
+  Excluded: this Dream task's own ticket; `google-agents-cli-*` (github-repo managed).
+- Phase 2 knowledge scan: reported — 36/36 shards complete, 94 raw findings.
+- Phase 3 contract audit: reported — 7/7 shards complete, 10 raw drift findings (copy-divergence shard: pytest tests/test_packaging.py green, 0 divergent pairs).
+
+## Findings
+
+Merged 92 findings (Phase 2: 94 raw from 36 shards; Phase 3: 10 raw from 7 shards; 12 duplicates folded). Full text preserved in the Dream scratch copies until Phase 6 routes each.
+
+### extract (24)
+
+- `simplify-ticket-format` — Record that an ephemeral --agent override does not move other-agent's peer resolution (source: done+checkout; area: coga/agents) [ks-32]
+- `exclude-superseded-designs-from-launch-prompts` — Blocker parsing is not archive- or fence-aware (historical checkbox examples gate launch) (source: done+checkout; area: coga/blackboard) [ks-13]
+- `validate-that-committed-skill-scripts-with-a-sheba` — `non-executable-script` validate check is undocumented in any context since the #875 docs restructure (source: done+checkout; area: coga/cli) [ks-07]
+- `add-an-agent-picker-for-recurring` — Record the typer optional-value flag gotcha from the agent-picker ticket (source: done+checkout; area: coga/codebase) [ks-24]
+- `persist-autoclose-retire-follow-ups` — Tag-shadowed branch names also bite `for-each-ref %(refname:short)` (source: done+checkout; area: coga/codebase/gotchas) [ks-23]
+- `nothing-exercises-python-3-11-the-declared-floor` — Record the Python 3.11 resource-package gotcha and what a 3.12-only green run proves (source: canceled; area: coga/codebase/gotchas) [ks-18]
+- `the-v2-parking-area-premise-check-has-four-holes` — coga/dream topic omits Dream's standing premise pass over parked v2 drafts (source: done+checkout; area: coga/dream) [ks-03]
+- `make-dream-run-correctly-under-codex` — Codex subagent mechanics and the owner-search budget pressure observed in real Dream runs (source: done+checkout; area: coga/dream) [ks-04]
+- `attribute-headless-recurring-completions-to-system` — Carry the unresolved strict-assist audit-publication observation out of attribute-headless-recurring-completions-to-system (source: done+checkout; area: coga/internals/assist-publication) [ks-22]
+- `phase-0-audit-is-complete-per-the-plan-but-still-i` — Contexts that link a live ticket by path break when Retro reaps it (source: canceled; area: coga/knowledge) [ks-17]
+- `make-dream-run-correctly-under-codex` — Launch-time `--agent` override is lost in completion attribution (unresolved adjacent bug) (source: done+checkout; area: coga/launch) [ks-04]
+- `cleanup/handle-a-bare-slack-webhook-url-during-empty-repo` — Init's bare SLACK_WEBHOOK_URL tolerance was dropped from the notifications contract (source: done+checkout; area: coga/notifications) [ks-19]
+- `redo-documentation-dir-and-merge-it-with-context-b` — Link-topology rule for bundled topics is unowned (source: done+checkout; area: coga/packaging) [ks-08]
+- `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r` — coga.resources must stay a regular package; 3.11 regressions are invisible on 3.12 dev envs (source: done+checkout; area: coga/packaging (with a line in coga/testing)) [ks-29]
+- `digest-can-clobber-recurring-last-serviced-period` — Parent-blackboard state writers must preserve lines they do not own (source: canceled; area: coga/period-task) [ks-24]
+- `make-sure-repo-clietn-don-t-edit-coga` — A `##` line inside a code fence in `## Description` truncates the composed section (source: done+checkout; area: coga/prompt-composition) [ks-17]
+- `recurring-task-to-manage-all-open-pr-and-address-c` — Shipped recurring templates must leave owner/agent empty so installs inherit repo routing (source: done+checkout; area: coga/recurring/templates) [ks-21]
+- `agent-usage-report` — Document how a copied ticket.py reaches its template's other siblings (source: done+checkout; area: coga/recurring/templates) [ks-24]
+- `v2/skill-update-aborts-on-uncommitted-log-file` — Canceled skill-update abort ticket leaves a verified dirty-tree gotcha recorded nowhere durable (source: canceled; area: coga/skill-management) [ks-34]
+- `simplify-git-sync` — Record why state publication never commits locally, stashes, or rebases (source: done+checkout; area: coga/sync (internals/state-publication, internals/git-refresh)) [ks-06]
+- `four-parked-tickets-carry-premises-that-have-since` — Verdict-application mechanics for batch premise adjudication (four-parked-tickets) (source: done+checkout; area: coga/tasks/v2 README (verdict application) / coga/workflows requires-pr gate) [ks-05]
+- `reuse-the-existing-control-worktree-for-recurring` — Testing gotcha: every coga module shares one `subprocess`, so patching `run` wholesale swallows git probes (source: done+checkout; area: coga/testing) [ks-20]
+- `define-the-api-equivalent-cost-proxy-and-price-tab` — Record the measured pricing facts a future price table would need (source: canceled; area: coga/usage) [ks-18]
+- `agent-usage-report` — Record that usage.rollup's until bound is inclusive, and the weekly usage-report consumer (source: done+checkout; area: coga/usage) [ks-24]
+
+### stale (26)
+
+- `coga/skills/anthropic/skill-creator/ATTRIBUTION.md` — skill-creator ATTRIBUTION cites the removed managed-skills.toml registry (area: skills) [ks-04,ks-21]
+- `coga/skills/code/self-qa/SKILL.md` — code/self-qa gotcha overstates the state sweep ("every uncommitted coga/ file") (area: coga/sync (code skills)) [ks-09]
+- `docs/contexts/coga/dream/SKILL.md` — Retro's adjacent-bug preservation rule was dropped from the contexts by the docs restructure (area: coga/dream) [ks-04]
+- `coga/skills/code/implement/SKILL.md` — code/implement claims "any python works" for seed_local_config.py, but it imports tomllib at module top (area: code/implement) [ks-07]
+- `docs/contexts/coga/testing/SKILL.md` — coga/testing "known red baseline" bullet is stale — repo-wide validate is now green (area: coga/testing) [ks-09,ks-33,ks-28]
+- `coga/tasks/v2/README.md` — v2 README's title-only expiry rule and "batch precedent" contradict the 2026-09-20 park-v2 direction (area: coga/roadmap (deferred work / v2 parking)) [ks-05]
+- `docs/contexts/dev/checkouts/SKILL.md` — dev/checkouts End procedure cannot prove a merge=union log.md was published (area: dev/checkouts) [ks-11]
+- `docs/contexts/coga/notifications/producers/SKILL.md` — Producer inventory omits the recurring period-contradiction important alert (area: coga/notifications) [ks-19]
+- `docs/contexts/marketing/map/SKILL.md, docs/contexts/marketing/plan/SKILL.md` — marketing/map and marketing/plan link the deleted fix-installer parent ticket (area: marketing) [ks-15,ca-03]
+- `docs/contexts/coga/telemetry/operations/SKILL.md` — telemetry/operations still addresses the live wheel proof to PR #880's review (area: coga/telemetry) [ks-16]
+- `docs/contexts/coga/workflows/SKILL.md` — coga/workflows says the `branch` gate needs `worktree:`, but the gate only checks the branch (area: coga/workflows) [ks-18,ca-03]
+- `coga/recurring/usage-report/ticket.md` — usage-report schedule_comment still names the removed 9am digest (area: coga/recurring) [ks-24,ca-06]
+- `docs/contexts/coga/skill-management/SKILL.md` — skill-management spells the per-skill gh argv without the load-bearing `--all` (area: coga/skill-management) [ks-22,ks-29]
+- `coga/skills/coga/autoclose/sweep/SKILL.md` — autoclose sweep skill cites a dev/code section that no longer exists (area: coga/autoclose) [ks-21,ca-04]
+- `docs/contexts/coga/notifications/failures/SKILL.md` — Failures context says no caller passes record_failure=False, but phone-home does (area: coga/notifications) [ks-19]
+- `docs/contexts/coga/important/SKILL.md` — This repo's usage-report routes a weekly FYI to coga-important against the context's bar (area: coga/notifications) [ks-19]
+- `src/coga/resources/prompt-queue.md, src/coga/resources/prompt-megalaunch.md` — Queue conduct prompts still trigger the /tmp fallback on "cannot create a linked worktree" (area: coga/session-conduct) [ks-14]
+- `coga/skills/coga/blockers/remind/SKILL.md` — Blocker-reminders skill says no ticket owns the paused-period blind spot; an open PR now does (area: coga/blockers) [ks-23]
+- `docs/contexts/coga/cli/SKILL.md` — coga/cli lists `claude`/`codex` as default aliases, but they are commented-out opt-ins (area: coga/cli) [ks-31,ca-01]
+- `docs/contexts/coga/recurring/autofix/SKILL.md` — Autofix context implies named recurring launches record failed create syncs; they do not (area: coga/recurring) [ks-27]
+- `docs/contexts/coga/workflows/SKILL.md` — coga/workflows misstates which workflows the package ships and init seeds (area: coga/workflows) [ks-32,ca-03]
+- `docs/contexts/coga/uninstall/SKILL.md` — coga/uninstall has no removal path for the preferred `uv tool install coga` (area: coga/install, coga/uninstall) [ks-29]
+- `docs/contexts/coga/internals/recurring-temp-worktrees/SKILL.md` — Temp control worktree context gives a removed detached-HEAD refusal as its rationale (area: coga/internals) [ks-27]
+- `docs/contexts/coga/current-direction/SKILL.md` — current-direction still calls PostHog telemetry unshipped after it landed (area: coga/current-direction) [ks-32]
+- `docs/contexts/coga/roadmap/SKILL.md` — coga/roadmap names a done ticket among "the open tickets" the v2-parking follow-up must re-scope (area: coga/roadmap) [ks-31,ks-34,ca-02]
+- `coga/tasks/premise-check-2026-w39-25-parked-drafts-need-a-ver.md` — Open adjudication draft's F49 verdict for `support-commands-boundary` rests on an extension-model section that no longer exists (area: coga/extension-model) [ks-36]
+
+### drift (3)
+
+- `coga/skills/coga/recurring/verify/SKILL.md` — recurring/verify quotes an error message Coga never emits (area: skills/coga/recurring) [ca-05]
+- `README.md` — README Getting Started launches a nonexistent `init` target (area: docs) [ca-06]
+- `docs/contexts/dev/code/SKILL.md` — dev/code points schema-conversion rules at coga/sync instead of their owner (area: dev/code) [ca-03]
+
+### gap (4)
+
+- `src/coga/branchsweep.py (merged_pr_verdict) / coga/skills/coga/branch-sweep/sweep/SKILL.md` — Rebased-copy branches accumulate every sweep with no owner for the fix or the manual clearance (area: coga/branch-sweep) [ks-23]
+- `docs/contexts/coga/sync/SKILL.md` — Sandboxed agents' state publication fails on read-only .git; no topic says so (area: coga/sync; owner: ticket-sync-fails-with-read-only-git-inside-agent) [ks-14]
+- `docs/contexts/coga/skill-management/SKILL.md (URL-backed provenance rules) / src/coga/skill_manager.py::hash_skill_tree` — Git-ignored agent-tooling files inside a URL skill read as local adaptation (clarity false follow-up) (area: coga/skill-management) [ks-23]
+- `docs/contexts/coga/lifecycle/SKILL.md` — Canceling or superseding a ticket never repairs the tickets that point at it (area: coga/lifecycle; owner: repair-ticket-referents-when-a-referent-is-renamed) [ks-30]
+
+### premise (35)
+
+- `v2/add-relay-skill-search-with-candidate-eval` — Skill-search draft still names relay-era surfaces on main (area: coga/skill-management; owner: adjudicate-the-eight-premise-dead-v2-drafts; question: surfaces) [ks-35]
+- `v2/acceptance-criteria` — Parked `v2/acceptance-criteria` is already delivered by its own named successor, which is `done` (area: coga/tickets (ticket interview); question: delivered) [ks-36]
+- `v2/issue-inbox-slack` — `v2/issue-inbox-slack` still names the replaced `relay panic` surface; blocker-reason half already shipped (area: coga/notifications; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-36]
+- `v2/relay-design-repositories` — `v2/relay-design-repositories` is partly delivered by the onboarding workflow and still names `relay design`/`relay init` (area: coga/init (onboarding); owner: adjudicate-the-eight-premise-dead-v2-drafts; question: delivered) [ks-36]
+- `v2/measure-relay-prompt-scope-and-agent-precision` — Parked prompt-scope/precision draft: half of its remaining part-2 criterion is delivered by `coga usage` (area: coga/usage; question: delivered) [ks-34]
+- `v2/split-context-to-doc-user-accessible-and-editable` — split-context draft's pull-forward guard names a gate that has since closed (area: coga/prompt-composition; owner: adjudicate-the-eight-premise-dead-v2-drafts; question: surfaces) [ks-35]
+- `v2/implement-accepted-ticket-interview-improvements` — Parked interview-improvements draft still delegates its prompt wording to a retired ticket's git history (area: bootstrap/ticket; question: citations) [ks-34]
+- `v2/capture-report-series-google-drive-folder-ids-in-a` — `v2/capture-report-series-google-drive-folder-ids-in-a` outlived the report series it was written for (area: docs (Google Drive); owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: subject) [ks-36]
+- `v2/op-service-account-auth-to-skip-op-read-prompt` — `v2/op-service-account-auth-to-skip-op-read-prompt` is already answered by the `coga/secrets` context (area: coga/secrets; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: delivered) [ks-36]
+- `v2/compose-strips-skill-md-and-context-frontmatter-be` — `v2/compose-strips-skill-md-and-context-frontmatter-be` names the removed rules layer, `src/relay/` paths, and stale line numbers (area: coga/prompt-composition; question: surfaces) [ks-36]
+- `v2/absorb-compound-engineering-leaf-skills-as-a-coga` — Parked CE-absorption study rests on the managed-skill manifest that PR #852 deleted (area: coga/skill-management; question: surfaces) [ks-34]
+- `v2/rename-workflow-primitive-to-playbook` — Playbook-rename draft's blast-radius plan still names dead pre-rename surfaces (area: coga/workflows; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-34]
+- `v2/launch-tasks-in-container-or-vm` — Container/VM launch draft still preserves dead `feed`/`panic`/lockfile primitives (area: coga/launch; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-35]
+- `v2/cleanup-core-commands/lifecycle-verbs-to-ticket-operations` — Lifecycle-verbs cleanup draft's design question is settled by extension-model with the opposite verdict (area: coga/extension-model; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: delivered) [ks-35]
+- `v2/validate-tickets-on-hand-edit-gap-outside-relay-co` — Hand-edit validation draft is written against relay-era surfaces, and launch already fails loud on a malformed ticket (area: coga/lifecycle; question: surfaces) [ks-35]
+- `v2/add-a-first-class-relay-config-directory-for-machi` — `v2/add-a-first-class-relay-config-directory-for-machi` builds on the removed `mode: script` env-var set and predates the 1Password secrets model (area: coga/secrets, coga/configuration; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-36]
+- `v2/use-slack-as-a-sync-channel-for-tickets` — Slack-as-sync draft's premise ("no multi-machine story") and its blocking dependency are both gone (area: coga/sync; question: surfaces) [ks-34]
+- `v2/fix-windows-cli-import-crash` — `v2/fix-windows-cli-import-crash`: tier-1 surface list is incomplete — `coga.git` has a top-level `import fcntl` (area: coga/codebase (platform support); owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-36]
+- `v2/validate-skill-md-frontmatter-conformance-not-just` — SKILL.md conformance draft still names relay-era paths and the removed skill `script:` field (area: coga/skill-management; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-35]
+- `v2/add-dev-testing-setup-skill` — `v2/add-dev-testing-setup-skill` names a deleted consumer skill and a vanished checkout; its "no CI" discovery note is false (area: dev (testing contract); owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-36]
+- `v2/cleanup-core-commands/work-orchestration-commands-to-tickets` — Work-orchestration cleanup draft still scopes the removed `coga digest` (area: coga/extension-model; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-34]
+- `v2/cleanup-core-commands/residual-command-surfaces` — Residual-command-surfaces draft: alias/init/delete/recurring classification delivered; `ticket` and `skill *` still open per extension-model (area: coga/extension-model; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: delivered) [ks-34]
+- `v2/autotrigger-ticket-type` — `v2/autotrigger-ticket-type` models recurring as "a fresh task instance per fire", contradicting the stable `recurring/<name>` period-task model (area: coga/recurring; owner: adjudicate-the-eight-premise-dead-v2-drafts; question: surfaces) [ks-36]
+- `v2/op-secret-dependency-init-enforcement` — `op`-at-init draft's baseline (init hard-requires `gh`) is gone (area: coga/secrets; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-34]
+- `v2/reintroduce-per-launch-worktree-isolation` — Per-launch worktree draft's motivating hazard is now serialized by `git.state_lock`, and the `coga/sync` limitation it cites no longer exists (area: coga/launch-internals; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: delivered) [ks-34]
+- `v2/document-contexts-as-prompt-payload-not-tags-princ` — Contexts-as-payload draft is delivered by coga/knowledge "Attach or cite" and has sat in_progress since July (area: coga/knowledge; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: delivered) [ks-35]
+- `v2/log-timestamps-need-seconds-and-timezone-for-unamb` — Log-timestamp draft: core ask live, reconcile half already delivered, all paths relay-era (area: coga/lifecycle; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-35]
+- `v2/minimal-ci-run-pytest-on-prs-and-tags` — Minimal-CI draft's opening premise ("no `.github/workflows/`") is false and its citations are relay-era (area: coga/testing; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-35]
+- `v2/onboarding-v2-first-run-experience-after-removing` — Onboarding-v2 draft assumes `coga build` is removed, but it was restored and is live (area: coga/first-task; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: subject) [ks-35]
+- `v2/clean-uncommitted-work` — clean-uncommitted-work is delivered for `coga/` state by the sync exit sweep (area: coga/sync; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: delivered) [ks-35]
+- `v2/use-worktree-when-starting-a-dev-task` — `v2/use-worktree-when-starting-a-dev-task` is now premise-dead: `dev/checkouts` abolished linked worktrees for ticket work (area: dev/checkouts; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: subject) [ks-36]
+- `v2/cleanup-core-commands/launch-decomposition` — Parked launch-decomposition draft names moved and deleted surfaces (area: coga/launch, coga/extension-model; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-36]
+- `v2/identify-blocking-issues` — `identify-blocking-issues` is framed on the deleted `project` command, and its dependency-field ask was ruled against (area: coga/lifecycle; question: subject) [ks-34]
+- `v2/coga-recurring-ack` — `coga recurring ack` draft: the reminder harness has now landed and deliberately ships no ack writer (area: coga/recurring; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-34]
+- `v2/register-a-real-domain-for-relay` — Domain draft pairs itself with Wave 1 launch-gate tickets that no longer exist (area: marketing/plan; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-34]
+
+
+## Phase 4 — Retro (result: pr-opened)
+
+11 eligible done tickets (118 other done tickets carry a real `## Dev` checkout = retirement debt, left for `coga retire`).
+- Knowledge PR https://github.com/FastJVM/coga/pull/920 "New context: another clone's primary checkout never leaves the autoclose worklist" — deletes `clean-up-all-the-working-trees`, `recurring/autoclose-merged`; edits dev/checkout-cleanup (+twin). Carries an unresolved adjacent bug (standalone-clone worklist entries re-post forever) → needs a follow-up ticket (Phase 6).
+- Direct-deleted (verified gone on origin/main): correct-two-stale-marketing-map-catalogue-rows-aft, recurring/{address-pr-comments,blocker-reminders,branch-sweep,phone-home,resolve-conflicts,skill-update,upstream-coga,usage-report}.
+- Verified: PR branch pushed, deletes landed, checkout had nothing unlanded; worktree, temp branch, local-config copy and run dir removed.
