@@ -74,6 +74,7 @@ for reminder delivery and deduplication. Update those owners with the fixes.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/914
 branch: fix-recurring-git-hygiene
 
 ## Implementation handoff — 2026-09-28
