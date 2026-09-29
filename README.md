@@ -1,18 +1,26 @@
 # Coga
 Coga is a tool built to amplify your thinking and learning.
 
-It is a work system for humans and AI agents. It helps you focus on the parts of a problem that are still unclear, while agents automate the known parts. 
+It is a work system for humans and AI agents. It helps you focus on the parts of a problem that are still unclear, while agents automate the known parts.
 
-As you learn, you update the work. Coga carries those changes into the next agent sessions.
+As you learn, you update the work. Coga carries those changes into future agent sessions.
 
-There are hundreds of tools for working with agents. I built Coga because I couldn't find one built for work where the answer isn't known yet. Coga helps you create knowledge as you work, capture what you learn, and feed it back into the work so each new agent starts from a better place.
+A big part of my work is inventing new things — making judgment calls, figuring things out, and learning what works along the way. I needed a system where what we learn along the way becomes part of how the work gets done. I tried a lot of agent tools and couldn't find one built around that idea, so I built Coga.
+
+For humans and agents to create, inspect, and change knowledge together, it has to exist as something they can both work on. In Coga, it lives in Markdown, is versioned in Git, and can be reviewed in a pull request. The knowledge belongs to the team, not to an agent or a hidden memory system. Humans can inspect it, change it, reject it, or remove it, and different agents can use it over time.
+
+Automated memory is useful, but today it still gets things wrong, misses important context, and preserves conclusions that no longer hold. When that memory shapes future work, those errors compound. Coga keeps that learning loop visible so humans can correct it.
+
+This creates a learning loop between humans and AI: humans work on what is still unknown and make the judgments that matter; agents automate what has become known; the work captures what both learn; and that knowledge improves the next round of work.
+
+Coga is built for collaboration, not human replacement. The goal is not just to make agents more autonomous. It is to make humans and agents together learn faster over time.
 
 ## Getting Started
 
 ```sh
 coga build
-coga ticket my_first_ticket
-coga launch init
+coga ticket my-first-ticket
+coga launch my-first-ticket
 ```
 
 `coga build` is a guided discussion about your project and your goals. It turns that discussion into tickets, contexts and workflows.
@@ -26,10 +34,6 @@ coga launch <ticket> works through the ticket by launching an agent. It assemble
 When the work teaches you something worth keeping, you decide what should change. Edit it yourself, ask an agent to propagate that new understanding through the project, or let Coga surface and carry it forward through its recurring work.
 
 ## Install
-
-## Getting Started
-
-## Concepts
 
 Coga needs Python 3.11+, Git, and an authenticated
 [Claude Code](https://claude.com/claude-code) or

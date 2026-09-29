@@ -1,6 +1,6 @@
 ---
 title: Keep cross-clone retire follow-ups from being discharged silently
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -24,7 +24,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description

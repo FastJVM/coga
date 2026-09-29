@@ -1,7 +1,7 @@
 ---
 title: Apply 12 context and skill corrections blocked by open PRs (codebase, sync,
   current-direction, open-pr)
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 

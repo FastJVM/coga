@@ -29,9 +29,8 @@ verification a launch gate that marketing simplification does not waive, and
 `marketing/build-the-launch-plan` needs its evidence before Show HN.
 
 Build the wheel from `main` at a recorded commit (PR #880 is merged, so there
-is no separate review checkout). Record the evidence on this ticket's blackboard.
-The procedure says "in the PR", but that PR is already merged. Done means the
-blackboard records all of the following:
+is no separate review checkout). Record the evidence on this ticket's blackboard,
+as the procedure directs. Done means the blackboard records all of the following:
 
 - The commit, the wheel version and the wheel hash (`sha256sum`).
 - The UTC run windows, the prepared payload values from the Slack receipt, the
@@ -55,7 +54,7 @@ agent checks the pasted evidence against the procedure. It runs no
 ## Context
 
 The procedure is the attached `coga/telemetry/operations` topic, section
-"Clean installed-wheel proof (owner at review)". Follow it exactly, including
+"Clean installed-wheel proof". Follow it exactly, including
 its project-check and credential rules. Its disable, deletion and rotation
 sections are not part of this task. Two topics are cited rather than attached:
 

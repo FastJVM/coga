@@ -219,13 +219,8 @@ Phase 4 so done-ticket evidence is still available.
 
 Merge the shards' findings into this task's blackboard under `## Findings`;
 Phase 4 reads that section when batching knowledge PRs. Keep each `extract`
-finding's `source:` line, each `gap` finding's `owner:` line, and each
-`premise` finding's `target:`, `question:`, and `owner:` lines, and every
-`owner: coga` line on any class, through the merge — Phase 6 routes on them. The `premise` class is this scan's standing
-re-validation of the parking area, where `coga/tasks/v2/README.md` exists:
-the skill asks that contract's four premise questions of every parked draft
-it owns, so a draft that sits there is re-checked every run instead of only
-when a human pulls it forward.
+finding's `source:` line, each `gap` finding's `owner:` line, and every
+`owner: coga` line on any class, through the merge — Phase 6 routes on them.
 
 ### Phase 3 — contract audit
 
@@ -424,9 +419,9 @@ record is this blackboard was lost, not reported.
 **Filing rules for every draft ticket Dream creates.** File at the top level:
 `coga create "<title>" ...` with no `/` in the title; put paths in the
 description. Dream never files
-under `coga/tasks/v2/` — that directory is the human's parking decision, made
-after reading a draft, and a Dream draft parked there by construction decays
-unread. The `--description` names the Dream run (period, phase, shard) and the
+into a parked (`_`-prefixed) directory such as `coga/tasks/_v2/` — parking is
+the human's decision, made after reading a draft, and a Dream draft parked
+there by construction decays unread. The `--description` names the Dream run (period, phase, shard) and the
 target path or validator `kind`, so a later run can find the owner by grep.
 Before any `coga create`, search for an existing owner (the per-class rules say
 what to search for): an open ticket — any status but `done` or `canceled` —
@@ -608,27 +603,6 @@ Route each remaining Phase 2 and Phase 3 finding by class:
   whether and how to add the context, skill, or workflow; a draft ticket is
   where that judgment happens, and unlike a blackboard note it survives this
   task's retirement.
-- `premise` — a parked draft under `coga/tasks/v2/` failed one of the
-  README's premise questions. The verdict is the author's, never Dream's:
-  Dream does not cancel, close, narrow, or edit the draft, and it does not
-  file under `v2/`. Reconcile first, as for `gap`: the shard wrote
-  `owner: <slug>` when an open ticket already adjudicates the draft, and Phase
-  6 repeats that search with the whole corpus in view — grep `coga/tasks/`
-  for the draft's exact slug and read each open hit's title and description,
-  including an adjudication draft an earlier run filed. For an owned draft,
-  create nothing and report "already ticketed as `<slug>`". Collect every
-  remaining `premise` finding of this run into **one** adjudication draft —
-  never one ticket per draft —
-  `coga create "Premise check <period>: <N> parked drafts need a verdict"
-  --workflow brief-for-human --description "<...>"` under the filing rules
-  above, whose description lists each draft by path-qualified slug with the
-  question it failed and the shard's evidence, names the README's verdict
-  vocabulary (cancel with evidence, including already-delivered work; narrow;
-  rewrite), and repeats the README's guard that a green `coga validate` is never a reason
-  to rule a draft dead. `brief-for-human` is the workflow because every
-  verdict is the human's. A draft ruled on in that ticket stops appearing
-  when its verdict lands; a draft the human leaves open is owned by that
-  ticket until it closes, and reported as already ticketed meanwhile.
 
 Then append one top-level `## Dream Run Summary` section to this task's
 blackboard: the generation time, a phase result table using the vocabulary
@@ -636,8 +610,7 @@ blackboard: the generation time, a phase result table using the vocabulary
 `human-needed`, `upstream-captured`, the finding counts with one-line
 summaries, the number of entries appended to `coga/upstream-coga.md` (zero in
 the Coga source repo), links to every PR
-opened and draft ticket created (the run's premise adjudication draft
-included, with its member count), every `already ticketed as` line, the
+opened and draft ticket created, every `already ticketed as` line, the
 already-decided classes with their context citations, reused proposal PRs,
 the retirement-debt list with the `extract` findings each retirement unlocks, the
 machine-local validator issues, and any `human-needed` decisions or review

@@ -64,6 +64,11 @@ the same project directory with a per-line `timestamp` in the window and
 adopts the match's stem as `session_id`. Two or more in-window candidates
 (concurrent sessions in one cwd) → usage unknown.
 
+Claude model attribution takes the last non-`<synthetic>` model, falling back
+to `<synthetic>` when that is the only model present. Synthetic assistant
+lines still contribute all token counts; sessions that switch real models
+remain attributed to the last real model.
+
 **Codex** (cumulative counts, **last event**). With no session-id flag,
 capture snapshots `~/.codex/sessions/**/rollout-*.jsonl` before spawn and
 claims the one new file whose `session_meta.payload.cwd` equals the session

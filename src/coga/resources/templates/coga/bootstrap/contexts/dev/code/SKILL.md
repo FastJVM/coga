@@ -15,8 +15,10 @@ record directly.
 ## The rules in brief
 
 - **Work in the launch checkout; start and end on `main`.** No linked
-  worktrees. Each code step starts on a clean, current `main`, switches to the
-  feature branch only to change code, pushes, and returns to `main` before its
+  worktrees. Each code step starts on a clean, current `main` and switches to
+  the feature branch only to change code, then pushes. Under `coga launch`
+  the launcher prepares and returns the checkout, so the step hands off and
+  bumps from the branch; a manual session returns to `main` before its
   handoff. An occupied checkout means stop and ask (or block). The sandbox
   clone is the one fallback. See [dev/checkouts](../checkouts/SKILL.md).
 - **Record `## Dev` early and on `main`.** `branch:` when the branch exists,

@@ -135,7 +135,8 @@ def list_tasks(cfg: Config) -> list[TaskRef]:
     `TaskRef.directory` is the relative parent path, or None at the top level.
     Plain sub-directories (those without a `ticket.md`) are recursed into. A
     task directory is never recursed into (no task inside a task). Names that
-    start with `_` are treated as templates and skipped at every level, and a
+    start with `_` (the `_template/` shape, parked trees such as `_v2/`) are
+    skipped at every level, and a
     `README.md` is documentation for its directory rather than a file-form
     task (see `_NON_TASK_FILES`).
 
@@ -215,7 +216,8 @@ def list_task_dirs(cfg: Config) -> list[str]:
     `tasks/` that isn't itself a task (no `ticket.md`), returned as a path
     relative to `tasks/` (`marketing`, `marketing/social`). A directory exists
     because you made it (`mkdir`), so an empty one with no tasks yet is still
-    listed. `_`-prefixed template dirs are skipped, matching discovery.
+    listed. `_`-prefixed dirs (the `_template/` ticket shape, parked
+    trees such as `_v2/`) are skipped, matching discovery.
     """
     tasks_root = tasks_dir(cfg)
     if not tasks_root.is_dir():

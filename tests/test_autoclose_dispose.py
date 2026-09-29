@@ -212,6 +212,37 @@ def test_recipe_disposes_of_a_closed_tickets_landed_checkout(
     assert not any("⚠️" in text for text in texts)
 
 
+def test_recipe_finishes_when_every_slack_post_raises_a_non_request_oserror(
+    git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    # A broken CA bundle makes `requests` raise a plain `OSError`, not a
+    # `RequestException`. The done announcement and the follow-up report are
+    # both non-fatal, so the sweep must still close, dispose, and exit 0.
+    worktree = _landed_checkout(git_repo, tmp_path)
+    slug, ticket = _final_step_ticket(git_repo, branch="feature-x", worktree=worktree)
+    _stub_gh(monkeypatch, git_repo)
+    attempts: list[str] = []
+
+    def broken_tls(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        attempts.append(json["text"])
+        raise OSError(
+            "Could not find a suitable TLS CA certificate bundle, invalid path: "
+            "/nonexistent/certifi/cacert.pem"
+        )
+
+    monkeypatch.setattr("coga.notification.slack.requests.post", broken_tls)
+
+    assert am.run_autoclose_recipe(
+        load_config(git_repo.coga_os), [], result=am.AutocloseResult()
+    ) == 0
+
+    assert attempts
+    assert Ticket.read(ticket).status == "done"
+    assert not worktree.exists()
+    assert not _local_branch_exists(git_repo.root, "feature-x")
+    assert "post failed" in capsys.readouterr().err
+
+
 def test_recipe_preserves_a_dirty_checkout_alerts_important_and_records_it(
     git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
@@ -597,7 +628,10 @@ def test_independent_clone_is_named_for_removal_by_hand(
     [preserved] = result.preserved
     assert preserved.manual_command == (
         f"`{clone.resolve()}` is an independent checkout with its own "
-        "repository, which no proof removes — inspect and remove it by hand"
+        "repository, which no proof removes — inspect and remove it by hand, "
+        "unless it is another clone's primary checkout in active use: then "
+        "never remove it; verify the branch is gone in that clone and delete "
+        "this `retires.md` line by hand (see `dev/checkout-cleanup`)"
     )
 
 

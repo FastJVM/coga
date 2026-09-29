@@ -186,7 +186,11 @@ independent fallback clone and another repository's linked worktree they
 preserve by design, and a human removes those by hand. They stay on the
 worklist until the directory goes, because this file is their only durable
 trace once the ticket is deleted — the ticket's own `## Dev` dies with it, and
-another repository's sweeps never see a ticket here.
+another repository's sweeps never see a ticket here. One exception: when
+the recorded path is another clone's *primary* checkout in active use, never
+remove it. Follow the workaround in `dev/checkout-cleanup` (*Known failure
+mode (unresolved): another clone's primary checkout never discharges*)
+instead.
 
 ### A branch in another clone
 
@@ -240,7 +244,9 @@ the remedy names where it can be removed:
 - **An independent clone, or a path git cannot read**: says so, and to
   inspect and remove the directory by hand; a local branch still here is
   named separately (`coga retire <slug>` for it while the ticket exists,
-  otherwise `git branch -d`).
+  otherwise `git branch -d`). If that independent clone is another
+  clone's primary checkout in active use, do not remove it; apply the
+  exception above.
 - **A worktree already gone from disk**: says so, and names branch-only
   cleanup.
 
@@ -248,7 +254,7 @@ the remedy names where it can be removed:
 
 The `review` step is an owner gate: the owner merges from the GitHub UI, where
 an unresolved thread does not block, and nothing else looks at the PR's
-threads again (the `dev/code` context, "Review threads that merge unanswered",
+threads again (the `dev/dev-record` context, "Review step",
 has the measurement and the decision). The sweep is the one place that already
 touches every merged PR, so when it closes a ticket it fetches that PR's
 `reviewThreads` once — `coga.autoclose.unanswered_review_threads`, one

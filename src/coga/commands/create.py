@@ -8,7 +8,8 @@ The positional reads like the task ref it becomes: a `/` separates an optional
 sub-directory path from the title leaf, so `coga create "v2/Build the flow"`
 lands the ticket at `tasks/v2/build-the-flow` (referenced as
 `v2/build-the-flow`), and `marketing/social/relaunch` nests deeper. No slash
-means a top-level create.
+means a top-level create. A `_`-prefixed directory such as `_v2/` is parked:
+discovery skips it, so a ticket created there is kept but never listed.
 
 `--workflow` is optional: a workflow-less draft is a valid authoring
 intermediate, it just can't be activated. `coga mark active` refuses a
@@ -49,7 +50,9 @@ def create(
         help=(
             "Title for the new ticket. Prefix with a sub-directory path to "
             "place it there: 'v2/Build the flow' lands at tasks/v2/, "
-            "'marketing/social/relaunch' nests deeper. No slash = top level."
+            "'marketing/social/relaunch' nests deeper. No slash = top level. "
+            "A '_'-prefixed directory ('_v2/Some wish') is parked: the ticket "
+            "is kept and synced but never listed, launched, or validated."
         ),
     ),
     workflow: str | None = typer.Option(
@@ -67,9 +70,9 @@ def create(
         help=(
             "Short text for the new ticket's '## Description' section. May "
             "not contain a '## ' heading line or the blackboard fence line. "
-            "Omit it only for a bare capture under 'v2/'; 'coga validate' "
-            "reports a live ticket with an empty description as "
-            "'empty-description'."
+            "Omit it only for a bare capture in a parked '_'-prefixed "
+            "directory such as '_v2/'; 'coga validate' reports a live ticket "
+            "with an empty description as 'empty-description'."
         ),
     ),
     owner: str | None = typer.Option(

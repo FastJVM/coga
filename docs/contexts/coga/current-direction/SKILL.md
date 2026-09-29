@@ -5,7 +5,7 @@ description: Short, dated product decisions currently in force for Coga, with li
 
 # Coga — current direction
 
-Last updated: 2026-09-25.
+Last updated: 2026-09-29.
 
 Each entry is a decision with its date and the topic that owns the resulting
 contract. Enduring rules live in those topics, not here. Live execution state
@@ -25,16 +25,15 @@ is `coga status` and the ticket bodies; sequencing is
 - **V1 marketing is one idea piece, then Show HN (2026-09-21).** See
   [`marketing/plan`](../../marketing/plan/SKILL.md) and
   [`marketing/positioning`](../../marketing/positioning/SKILL.md).
-- **PostHog adoption/activity measurement is approved work (2026-09-20,
-  confirmed 2026-09-21), not shipped.** It reverses the earlier
-  instrumentation ban; the ticket
-  [`marketing/add-telemetry`](../../../../coga/tasks/marketing/add-telemetry.md)
-  owns scope and must update [`coga/principles`](../principles/SKILL.md) §5
-  when it lands. Until then the principle stands.
-- **`coga/tasks/v2/` is to be parked out of `coga status` (2026-09-20).**
-  The parking follow-up is not yet a ticket; see
-  [`coga/roadmap`](../roadmap/SKILL.md) for the inventory and accepted
-  validation baseline.
+- **PostHog adoption/activity measurement shipped (decided 2026-09-20,
+  landed 2026-09-22).** Default-on, opt-out weekly aggregate snapshots; no
+  per-command or agent/session/token instrumentation. It reverses the earlier
+  instrumentation ban. Contract: [`coga/telemetry`](../telemetry/SKILL.md);
+  the reversal is recorded in [`coga/principles`](../principles/SKILL.md) §5.
+- **v2 is a parked wish list (2026-09-20, landed 2026-09-29).** It lives in
+  `coga/tasks/_v2/`, outside `coga status`, validation, and Dream; its
+  drafts may be stale or contradictory and owe no verdict. See
+  [`coga/roadmap`](../roadmap/SKILL.md) "Deferred work".
 - **Recurring runs are ordinary tickets with a stable identity (by
   2026-09-02).** One `recurring/<name>` task per template, the serviced
   period recorded in `coga/log.md`, completed runs cleaned up by Dream,

@@ -23,8 +23,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
-secrets:
-  - AWS_PROFILE: env:AWS_PROFILE
 ---
 
 ## Description
@@ -41,7 +39,9 @@ are filed.
 ## Context
 
 Deferred from the V1 `marketing/fix-installer/` set. Reuse its harness scripts
-and the `AWS_PROFILE` SSO profile, and ask the owner before any spend. Cited
+and the owner's AWS SSO profile (currently `multiply-telemetry`; owner runs
+`aws sso login --profile <profile>` before launch, agent passes `--profile`),
+and ask the owner before any spend. Cited
 topics: `coga/install`, `coga/init`, `coga/first-task`.
 
 <!-- coga:blackboard -->

@@ -22,6 +22,11 @@ copies drift independently. Pick the topic whose subject already covers the
 neighbouring facts; when two fit, the more narrowly attached one wins, because
 the fact then costs tokens only where it is needed.
 
+An owner decision *not* to act ("we looked at X and chose not to do it") is
+product intent, so its owner is the topic that owns X, never the ticket that
+recorded it: the lifecycle retires tickets, and a decision left in one gets
+re-raised. State what was declined, why, and what would reopen it.
+
 ## Narrative links, never restates
 
 An index, README, overview, or neighbouring topic may summarize and link to

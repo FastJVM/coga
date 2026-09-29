@@ -119,7 +119,8 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md),
   [research-work comparison](evidence/research-work-comparison.md),
   [research replacement trial](evidence/research-replacement-trial.md),
   [adoption trial](evidence/adoption-trial.md),
-  [upkeep audit](evidence/upkeep-audit.md).
+  [upkeep audit](evidence/upkeep-audit.md),
+  [Claude cache TTL survey](evidence/claude-cache-ttl-survey.md).
 
 ## Proposals and history
 

@@ -27,6 +27,11 @@ the config-load guard rejects a bare exported `SLACK_WEBHOOK_URL` with no
 `webhook` key ([coga/notifications](../notifications/SKILL.md)). Unset the
 variable for the one command; do not edit the fixture's config to satisfy it.
 
+For artifact-level reproduction, use the
+[Linux clean-install harness](clean-install/SKILL.md). It covers current PyPI
+and a wheel from `main` in a fresh Python 3.11 container, with an attended
+continuation for agent login and the first ticket.
+
 ## Which code you are actually testing
 
 - **Run the suite with an absolute `PYTHONPATH` whenever you are not in the
@@ -97,7 +102,7 @@ Its `twine check` inspects metadata, not behavior. Nothing runs `pytest` or
 `coga validate` on any branch, PR, push, or tag, so the local suite plus
 validation are the release gate, and the pristine-tree wheel collision is
 caught only at release or by hand. The parked
-`coga/tasks/v2/minimal-ci-run-pytest-on-prs-and-tags.md` would change this;
+`coga/tasks/_v2/minimal-ci-run-pytest-on-prs-and-tags.md` would change this;
 update this section when it lands.
 
 Therefore every verifier (self-QA, review, release) states the exact commands
@@ -110,13 +115,9 @@ and counts, for example `PYTHONPATH=$PWD/src python3.12 -m pytest` ->
   `git log -S'<exact token>' -- <test file>` and the absolute-`PYTHONPATH`
   run, and record a partial fix as half-applied, not absent.
 - **Scope validation with `coga validate --task <slug>`.** The repo-wide run
-  has a known red baseline. As of 2026-09-26 it exits 1 on exactly one
-  `unsynthesized-draft-blackboard` error, on `v2/autotrigger-ticket-type`
-  (tag line `validate-drift: unsynthesized-draft-blackboard`). Report a
-  matching set as known baseline and move on; never synthesize, cancel, or
-  touch that draft to turn the gate green. Any extra or missing error is a real change. A PR that
-  clears one updates this date, count, and list; delete the item when none
-  remain.
+  has no known error baseline: its last standing error sat on a draft now
+  parked under `_v2/`, which validation never reads. Any repo-wide error is a
+  real change, not drift to report and move on from.
 
 ## Restricted sandboxes
 

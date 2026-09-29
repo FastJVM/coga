@@ -191,4 +191,12 @@ created ticket then changed under that failed sync, the scan prints
 `--force` keeps the ordinary admission skip. A period adopted from control
 stays `skip (already handled on control)` even when publishing its log line
 fails; that failure is still named in `problems:`.
+All of this is the sweep path. A named `coga recurring launch <name>` (hence
+`coga dream`, `coga autoclose`, `coga skill-update`) is a known gap:
+`run_recurring_named` calls `_sync_recurring_create` with no `sync_failures`
+sink, so a failed create sync there is only the `[git] sync failed` stderr
+line and a global-log note — it never reaches the run record or the exit code,
+and if the created ticket then changed, the launch prints the "changed on the
+control branch during recurring admission; not launching" line and exits 0
+rather than `error (…)`. No ticket owns wiring the sink in yet.
 The [autofix](../autofix/SKILL.md) loop runs afterwards without changing the code.

@@ -1,6 +1,6 @@
 ---
 name: coga/codebase/gotchas
-description: Module seams and code-level hazards to respect when editing Coga's own Python (operator resolution, activation seam, blackboard writers, create guards, Typer calls, branch probes, prompt resources).
+description: Module seams and code-level hazards to respect when editing Coga's own Python (operator resolution, activation seam, blackboard writers, create guards, Typer calls, branch probes, resource packages, prompt resources).
 ---
 
 # Editing gotchas in Coga's source
@@ -83,5 +83,13 @@ pitfalls live in [coga/testing](../../testing/SKILL.md); checkout hazards in
   When a guard spans two resources, pin both halves in
   `tests/test_compose.py` and grep the other resources before calling a
   sentence redundant.
+- **Every `files("coga.<pkg>")` anchor must be a regular package.** On a
+  directory without `__init__.py`, `importlib.resources.files` returns a
+  `MultiplexedPath`; before 3.12 its `joinpath` takes one segment and it has
+  no `__fspath__`, so a multi-segment lookup raises `TypeError`. That crashed
+  `coga init` on every 3.11 interpreter until `src/coga/resources/__init__.py`
+  landed (#831); `test_coga_resources_is_a_regular_package` pins it. A green
+  3.12 run says nothing about the declared 3.11 floor: run resource-lookup or
+  version-sensitive stdlib changes on a real 3.11 too.
 - **A recorded "rebases clean" expires.** Re-measure drift at implement time;
   never let an inherited note stand in for running the rebase.

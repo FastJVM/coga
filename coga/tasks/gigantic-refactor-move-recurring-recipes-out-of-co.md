@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -415,3 +415,99 @@ Verification before handoff:
   the audit and Open Questions reach the prompt. Measured candidate context
   payloads on an in-memory copy and kept targeted owner-section citations;
   no frontmatter or disk changes from composition.
+
+## Evaluator review
+
+Cold review, 2026-09-29. **One must-fix design gap before implementation.**
+The ownership split and ten-entry consumer audit match the current source;
+the implementation also remains conditional on the named upgrade prerequisite
+landing. This review does not approve the design on the owner's behalf.
+
+### Must resolve before implementation
+
+1. **Preserve the publication boundary when replacing `coga run` with Python
+   entrypoints.** The proposed wrappers specify failure reporting and scheduled
+   completion, but do not account for publication supplied by the CLI itself.
+   `src/coga/cli.py`, `main`, calls `_sweep_coga_state` on ordinary success,
+   nonzero exit, and escaping exceptions; `_SWEEPING_COMMANDS` includes `run`.
+   In contrast, `src/coga/runner.py`, `run_reported`/`_record_failure`, and
+   `src/coga/blackboard.py`, `append_blackboard_report`, only run the worker
+   and append locally under the barrier. They do not publish those bytes.
+
+   This matters for both explicitly invoked Dream attachments and manual
+   worker runs, which intentionally will not bump. For example,
+   `src/coga/dream_validate_drift.py`, `run_validate_drift_recipe`, appends
+   its report after `run_validate_json` invokes `python -m coga.validate`;
+   that validator subprocess has no CLI exit sweep either. Replacing the
+   outer `coga run validate-drift` with the specified Python attachment
+   leaves its report and default safe repairs unpublished until some later
+   Coga command. The same gap affects the generic failure section after a
+   failed attachment. A later Dream bump is not the existing per-command
+   boundary, and a standalone invocation may have no later command at all.
+
+   Evidence: `docs/contexts/coga/internals/state-publication/SKILL.md`,
+   “Invariants” and “The end-of-command sweep”, defines control as the durable
+   home and specifies the exit sweep; `tests/test_git.py`,
+   `test_ordinary_run_still_sweeps_off_control`, explicitly tests
+   `coga run autoclose`. An in-memory probe through actual `cli.main` and
+   `run_reported`, stubbing the worker and Git transport, observed
+   `worker → publish sweep` for CLI exits 0 and 2, versus only `worker` for
+   direct `run_reported` at both exits.
+
+   **Requested resolution:** name how the replacement entrypoints preserve
+   that publication boundary using shared infrastructure, including failure
+   and manual execution, without advancing Dream or an inherited task. Add
+   entrypoint-level verification that the resulting reports/repairs reach
+   control and publication failure preserves the original worker result.
+   Alternatively, the owner must explicitly accept deferred publication and
+   revise the preservation criteria, the publication exclusion, and the
+   owning contract. The current “preserve operational behavior” requirement
+   and “publication rules” exclusion do not authorize that change implicitly.
+
+### Optional recommendations
+
+- Make the prerequisite's upgrade fixture explicitly include **old Dream
+  instructions**, as well as old Python shims. The existing-template/period
+  criterion is broad enough to cover this, but the prerequisite paragraph
+  names code and copied shims specifically. `commands/update.py`,
+  `copy_fresh_templates`, seeds `recurring/dream/ticket.md`, and
+  `recurring.py`, `_create_at_slug`, freezes `template.body` into the period.
+  Its Phase 1/5 instructions still name the two recipes being removed.
+  Delivering new attachments alone does not update those commands. Exercise
+  a previously initialized template and a materialized period with those
+  bodies under the prerequisite's approved customization/running-period
+  policy before accepting the registry contraction.
+
+### Verified constraints and scope
+
+- Confirmed the five jobs' production callers, the retained autoclose
+  parsers/GitHub dependencies, the two branch-sweep invocations, recurring
+  relay dispatch, independent autofix replay, open-pr's gate-producing write,
+  and delete-task's separately controlled publication timing. Tests, aliases,
+  and packaged twins were not counted as independent job consumers.
+- `launch_script.run_script_phase` supplies `COGA_SCRIPT_TASK` and no argv;
+  `task_env.is_script_task` checks target identity. The design correctly
+  requires more than an inherited slug for completion. Dream's attachments
+  must remain outside the reserved filename classifier.
+- The reporting resolver proposal matches today's parser/root policies and
+  preserves phone-home's existing four-argument `run_reported` call. Current
+  tests cover the stated root, diagnostic, failure, and launch seams; the
+  refactor must move that coverage onto the packaged edge entrypoints.
+- `coga/tasks/ship-edge-ticket-py-code-upgrades-with-the-wheel.md` is still
+  `draft`, step `design`, with unresolved delivery/local-edit questions.
+  That is the ticket's already-declared implementation prerequisite, not a
+  reason to block this evaluator handoff. The frozen workflow correctly
+  advances from `evaluate-design` to the owner-held `review-design` gate.
+
+### Review verification
+
+- `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_runner.py tests/test_recurring_shims.py tests/test_launch_script.py tests/test_dream_skill_scripts.py tests/test_dream_validate_drift.py tests/test_dream_worker_templates.py -q`
+  — **147 passed**.
+- `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_cli.py tests/test_git.py::test_ordinary_run_still_sweeps_off_control -q`
+  — **19 passed**.
+- `PYTHONPATH=$PWD/src coga validate --task gigantic-refactor-move-recurring-recipes-out-of-co --json`
+  — **1 task OK, no issues**.
+- `git diff --check` and `cmp AGENTS.md CLAUDE.md` — clean/matching.
+- Review changes are confined to this blackboard. No ticket-body edits,
+  implementation, branch, commit, or PR were produced; the CLI owns the
+  ensuing workflow transition and audit publication.

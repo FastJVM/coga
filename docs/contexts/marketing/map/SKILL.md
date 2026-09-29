@@ -18,7 +18,7 @@ helps find support; reviewing it is not a separate execution step.
 | Launch readiness, Show HN and response triage | [Launch execution](../../../../coga/tasks/marketing/build-the-launch-plan.md) |
 | One argument with concrete proof | [Idea piece](../../../../coga/tasks/marketing/idea-piece.md) |
 | README opening and reader path | [README ticket](../../../../coga/tasks/marketing/readme-top.md) |
-| Installation through one useful task | [Installer/onboarding](../../../../coga/tasks/marketing/fix-installer.md) |
+| Installation through one useful task | [Installer/onboarding](../../../../coga/tasks/marketing/fix-installer/) |
 | Adoption/activity measurement | [Weekly snapshot contract](../../coga/telemetry/SKILL.md) |
 
 Live ticket status is in `coga status marketing`, not here.
@@ -62,7 +62,7 @@ All of these are history, not instructions:
 - [Source inspection receipt](../../../archive/launch-programs/phase-0-audit/source-inspection-results.json)
   and [adoption trial receipt](../../../archive/launch-programs/phase-0-audit/adoption-trial-results.json):
   retained evidence cited by docs, not current product certification.
-- [Older domain idea](../../../../coga/tasks/v2/register-a-real-domain-for-relay.md):
+- [Older domain idea](../../../../coga/tasks/_v2/register-a-real-domain-for-relay.md):
   parked, not a V1 prerequisite or authorization to purchase anything.
 
 The three essay tickets, separate story/pitch drafts and Discord ticket were
