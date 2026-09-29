@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 8dd51850-5fc0-43ed-a945-a3e54cc940d5
 ---
 
 ## Description
@@ -45,28 +44,39 @@ Verification: `python -m pytest tests/test_packaging.py` plus the helper under a
 
 branch: dream-w40-doc-corrections
 
-## Implementation plan (2026-09-29)
+## Implementation handoff (2026-09-29)
 
 - Blocker resolved with `coga unblock`: [PR #909](https://github.com/FastJVM/coga/pull/909)
   merged at 21:27:50 UTC; the owner chose to document Python 3.11+ for
-  starting `seed_local_config.py`. Keep the helper code unchanged.
+  starting `seed_local_config.py`. The helper code is unchanged.
 - [PR #912](https://github.com/FastJVM/coga/pull/912) closed without merging
-  at 21:28:05 UTC. The current files still need all three corrections.
-- Start check passed: `git fetch origin main`, clean `main`, then
-  `git merge --ff-only origin/main`. No launch return witness is set;
-  return to clean `main` before writing the handoff and bumping.
-- Narrow the self-QA gotcha to recurring templates and `ticket.py`, linking
-  the publication hazard owner. `src/coga/git.py` plus `sync_coga_state`
-  confirms the sweep selects only task, log, and recurring paths.
-- Link stored-ticket conversions in `dev/code` to `coga/internals/git-regressions`
-  ("Shipping a stored-ticket schema conversion").
-- Require Python 3.11+ in `code/implement` and `dev/checkouts`; keep all four
-  live/packaged pairs byte-identical. The helper's top-level `tomllib` import
-  runs before `_reexec_under_coga_interpreter` can handle a missing Coga import.
-- Run packaging and full-suite checks with the existing `.venv/bin/python`
-  (Python 3.12.12, test extras available). No Python 3.9/3.10 helper run is
-  needed for the selected documentation route. Push the branch; no PR in
-  this step.
+  at 21:28:05 UTC, so there was no pending overlap to preserve.
+- Pushed commit `846685a7a` on `dream-w40-doc-corrections`, rebased onto
+  `origin/main` at `7d7607bfd`. The eight-file diff changes only the four
+  documents below and their byte-identical packaged twins.
+- `code/self-qa`: narrowed the gotcha to recurring templates and `ticket.py`
+  under `coga/recurring/`, linking the publication owner's "Pre-review state
+  publication hazard" instead of repeating it. `src/coga/git.py` plus
+  `sync_coga_state` confirms the task/log/recurring sweep boundary.
+- `dev/code`: linked stored-ticket conversions directly to
+  `coga/internals/git-regressions`, "Shipping a stored-ticket schema conversion".
+- `code/implement` and `dev/checkouts`: require Python 3.11+ to start the
+  helper, preserving the documented re-exec when Coga cannot be imported.
+  `dev/checkouts` explains that `tomllib` imports before the fallback.
+- Verification (Python 3.12.12):
+  - `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_packaging.py`
+    — 23 passed, including a final run on commit `846685a7a`.
+  - `PYTHONPATH=$PWD/src .venv/bin/python -m pytest` — 3,110 passed after
+    rebasing onto `1afee0a21` (earlier runs also passed all 3,107 tests).
+  - Further upstream merges changed docs and an autoclose message/test;
+    `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_packaging.py tests/test_autoclose.py tests/test_autoclose_dispose.py tests/test_autoclose_sweep.py tests/test_retro_skill_template.py tests/test_seed_local_config.py tests/test_code_implement_skill.py tests/test_usage_report.py`
+    — 197 passed after rebasing onto `cebb81456`. The last rebase added
+    only task/log state; packaging passed again as recorded above.
+  - `git diff --check origin/main...HEAD` passed. No validation behavior,
+    task layout, or workflow semantics changed; no fixture update was needed.
+- Returned the launch checkout to clean `main` at `origin/main` before this
+  handoff. Ready for peer review; no PR opened. The Python 3.9/3.10 helper
+  check is inapplicable to the owner's documentation-only choice.
 
 ---
 

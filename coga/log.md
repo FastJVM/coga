@@ -6936,3 +6936,4 @@ fatal: Unable to add (null) to database
 2026-09-29 15:33 [marketing/1st-users] [human:nicktoper] created (status=draft)
 2026-09-29 15:33 [marketing/1st-users] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
 2026-09-29 15:39 [marketing/recruit-first-users] [human:nicktoper] created (status=draft)
+2026-09-29 15:42 [apply-three-dream-w40-skill-and-context-correction] [human:nicktoper] advanced to step 2 (peer-review) → codex
