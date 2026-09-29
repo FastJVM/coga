@@ -1,7 +1,7 @@
 # ADK Workflow API Cheatsheet
 
 > Requires `google-adk >= 2.0.0`. This page documents the Python graph API; ADK Go has its own — see `references/adk-go-workflows.md`.
-> Requires **Python >= 3.11**. The `Workflow` class itself does not support Live Streaming (`Runner.run_live`) — the graph engine needs strict control over event emission. Use a plain `Agent` for live/bidi flows. ADK 2.0 itself still ships `Runner.run_live` and `LiveRequestQueue`.
+> Requires **Python >= 3.11**. A `Workflow` can also run as a Live (voice) agent with no structural change — give the stage agents a Live model; see `references/adk-python-live.md`.
 
 **Official docs:** [Workflows overview](https://adk.dev/workflows/index.md) ·
 [Graph routes](https://adk.dev/graphs/routes/index.md) ·

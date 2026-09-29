@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-adk-code
-    github-ref: refs/tags/v1.6.1
+    github-ref: refs/tags/v1.7.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: cc35b572be45cca8905a1aa7ba3427053ac49d95
+    github-tree-sha: b186a848857c83a47a765c10b456e3ef8263d78e
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.6.1
+    version: 1.7.0
 name: google-agents-cli-adk-code
 ---
 # ADK Code Reference
@@ -53,6 +53,7 @@ installed package.
 | `references/samples.md` | Python | **Topic-indexed catalog of ADK reference recipes.** Read in workflow Phase 1 — before scaffolding and before writing code — maps a capability to the recipe that implements it. |
 | `references/adk-python.md` | Python | Core ADK API: `Agent`, tools, callbacks, plugins, state, artifacts, multi-agent systems, `SequentialAgent` / `ParallelAgent` / `LoopAgent`, custom `BaseAgent`, `ManagedAgent` (server-hosted first-party agents), A2A protocol, A2UI. Default for most agents. |
 | `references/adk-python-workflows.md` | Python | Graph-based Workflow API (ADK Python 2.0): nodes, edges, fan-out/fan-in, HITL, parallel processing. Use when you need explicit graph topology. |
+| `references/adk-python-live.md` | Python | Live and voice agents: `Runner.run_live`, `LiveRequestQueue`, model and regional availability, voice/`speech_config`, VAD, session limits, `/run_live` serving. Use for real-time voice or video agents. |
 | `references/adk-go.md` | Go | Core ADK Go API: `llmagent`, tools, callbacks, plugins, state, artifacts, multi-agent systems, sequential/parallel/loop agents, custom agents, the runner, serving over HTTP, A2A protocol, and ambient triggers. Default for most agents. |
 | `references/adk-go-workflows.md` | Go | Graph-based Workflow API: nodes, edges, fan-out/fan-in, HITL, parallel processing. Use when you need explicit graph topology. |
 | [`examples/`](https://github.com/google/adk-go/tree/main/examples) | Go | Runnable upstream programs — the closest thing to a recipe catalog for Go. |

@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-deploy
-    github-ref: refs/tags/v1.6.1
+    github-ref: refs/tags/v1.7.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 2696cf289b4b490a18a80eda0f349bd5e871412a
+    github-tree-sha: 61512af1672aff3d8007bfb75ba7675d86d48e64
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.6.1
+    version: 1.7.0
 name: google-agents-cli-deploy
 ---
 # Deployment Guide
@@ -60,6 +60,8 @@ All three targets are container-based, so any language works.
 > **Ambient / scheduled / event-driven agents (ADK projects):** ADK's `trigger_sources` registers `/apps/{app}/trigger/*` endpoints on the same FastAPI app for **all** targets. On **Cloud Run** / **GKE** these are public HTTP routes you point a Pub/Sub push subscription or Eventarc trigger at; on **Agent Runtime** the same routes are reachable through the Agent Engine `/api` passthrough (e.g. `.../reasoningEngines/v1/{resource}/api/apps/{app}/trigger/pubsub`). Cloud Run remains the simplest target for unauthenticated trigger sources. See `/google-agents-cli-adk-code` (`references/adk-python.md`, section "12. Event-Driven / Ambient Agents") for the `trigger_sources` pattern.
 
 > **OAuth / user consent agents:** Use **Agent Runtime** with Gemini Enterprise for agents that need OAuth 2.0 user consent (e.g., accessing Google Drive, Calendar, or other user-scoped APIs). Cloud Run does not currently support managed OAuth flows. For a worked ADK example, look up OAuth user consent in the topic index in `/google-agents-cli-adk-code` → `references/samples.md`.
+
+> **Live and voice agents:** pass **`--timeout 3600`** on Cloud Run so a session outlives the 300s default, and **`--min-instances 1`** on Cloud Run or Agent Runtime so the first caller after idle does not hear a cold start. GKE sizes pods in Terraform. URL shapes and session caps: `/google-agents-cli-adk-code` (`references/adk-python-live.md`).
 
 ---
 
@@ -114,9 +116,11 @@ agents-cli infra single-project
 | `--min-instances` | Minimum number of instances (default: `0`, i.e. scale to zero; the generated Terraform uses `1`) | Agent Runtime, Cloud Run |
 | `--max-instances` | Maximum number of instances (default: `10`) | Agent Runtime, Cloud Run |
 | `--concurrency` | Concurrent requests per container (default: `8`; see [Sizing a deployment](#sizing-a-deployment)) | Agent Runtime, Cloud Run |
+| `--timeout` | Request timeout in seconds, up to `3600` (Cloud Run default: `300`). Applied on create and update; unset leaves the service's current value | Cloud Run |
 | `--port` | Container port | Cloud Run, Agent Runtime |
 | `--build-args` | Comma-separated `KEY=VALUE` Docker build args | Agent Runtime |
 | `--labels` | Comma-separated `KEY=VALUE` resource labels. Additive: adds/updates the labels you name; labels you don't name are preserved. | Agent Runtime, Cloud Run |
+| `--framework` | Framework the deployed container implements (defaults to `framework:` in `agents-cli-manifest.yaml`, which the template sets; `google-adk` when absent). Sets `agent_framework` on the deployment, which picks the Google Cloud console playground and the runtime contract the deployment declares. The API owns the accepted values ([reference](https://docs.cloud.google.com/gemini-enterprise-agent-platform/reference/rest/v1/projects.locations.reasoningEngines#ReasoningEngineSpec)) | Agent Runtime |
 | `--iap` | Enable Identity-Aware Proxy | Cloud Run |
 | `--image` | Container image URI (skips source build; not supported for Agent Runtime) | Cloud Run, GKE |
 | `--no-wait` | Start deployment and return immediately | Agent Runtime, Cloud Run |

@@ -925,6 +925,27 @@ async for event in runner.run_async(
         print(event.content.parts[0].text)
 ```
 
+### Running a Live (Voice) Agent
+
+> Live agents use `run_live` + `LiveRequestQueue`, not `run_async`. For models,
+> voice config, transcription, and serving see `references/adk-python-live.md`.
+
+```python
+from google.adk.agents.live_request_queue import LiveRequestQueue
+from google.adk.agents.run_config import RunConfig
+from google.genai import types
+
+queue = LiveRequestQueue()  # the session must already exist
+queue.send_content(types.Content(parts=[types.Part(text="Hello!")]))
+
+async for event in runner.run_live(
+    user_id="user", session_id="s1", live_request_queue=queue,
+    run_config=RunConfig(response_modalities=["AUDIO"]),
+):
+    if event.turn_complete:
+        break
+queue.close()
+```
 
 ### ADK Built-in Tool Imports (Precision Required)
 

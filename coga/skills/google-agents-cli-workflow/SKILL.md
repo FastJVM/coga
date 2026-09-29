@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-workflow
-    github-ref: refs/tags/v1.6.1
+    github-ref: refs/tags/v1.7.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: d3c52221b23ff02ce2da19c8c7679abb616d8334
+    github-tree-sha: c781eb8d1d007c1ffe471690d68ef6fd8782c14b
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.6.1
+    version: 1.7.0
 name: google-agents-cli-workflow
 ---
 # Agent Development Workflow & Guidelines
@@ -22,8 +22,8 @@ name: google-agents-cli-workflow
 > **Before writing agent code, make sure a scaffolded project exists (see Phase 2).** Skipping scaffolding loses eval boilerplate, CI/CD config, and project conventions.
 
 
-> Requires: google-agents-cli ~= 1.6.1
-> If version is behind, run: uv tool install "google-agents-cli~=1.6.1"
+> Requires: google-agents-cli ~= 1.7.0
+> If version is behind, run: uv tool install "google-agents-cli~=1.7.0"
 
 > Check version: agents-cli info
 > [Install uv](https://docs.astral.sh/uv/getting-started/installation/index.md) first if needed.
@@ -82,6 +82,7 @@ Do NOT proceed to planning, scaffolding, or coding until the user approves the s
 **Ask based on context:**
 
 - If the agent needs a **capability the scaffold doesn't ship** — retrieval over your data, sandboxed code execution, memory across sessions, OAuth consent, safety guardrails, event-driven triggers — that capability comes from a **clone-and-study recipe**, not a scaffold flag. Look the need up in the topic index in `/google-agents-cli-adk-code` → `references/samples.md` and study the matching recipe in Phase 1.
+- If the agent is a **live or voice agent** (Live API, spoken conversation, barge-in, telephony) → load `/google-agents-cli-adk-code` (`references/adk-python-live.md`) **before writing the spec**. Live rules out A2A, Gemini Enterprise, and the default model.
 - If agent should be **available to other agents** → **A2A protocol** is built into every Python agent scaffolded by agents-cli; no separate choice needed — just scaffold normally.
 - If **full deployment** chosen → **CI/CD runner?** GitHub Actions (default) or Google Cloud Build?
 - If agent should **remember user preferences or facts across sessions** → long-term memory across conversations. Load `/google-agents-cli-adk-code` — it has both the recipe (in `references/samples.md`) and the ADK memory API details.
@@ -251,16 +252,16 @@ Before finalizing any code replacement, verify the following:
 
 - **Model Selection — CRITICAL:**
   - **NEVER change the model unless explicitly asked.**
-  - When creating NEW agents (not modifying existing), use the latest Gemini model. List available models to pick the newest one:
+  - When creating NEW agents (not modifying existing), use the latest Gemini model. List what is available in the location your agent actually uses (`GOOGLE_CLOUD_LOCATION`; `global` by default) — not every model is served from every location:
     ```bash
-    # Use 'global' or any supported region (e.g. 'us-east1')
     uv run --with google-genai python -c "
     from google import genai
+    # Use your GOOGLE_CLOUD_LOCATION ('global', or a region such as 'us-east1')
     client = genai.Client(vertexai=True, location='global')
     for m in client.models.list(): print(m.name)
     "
     ```
-  - Do NOT use older models unless explicitly requested. For model docs, fetch `https://adk.dev/agents/models/google-gemini/index.md`. See also [stable model versions](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions).
+  - Do NOT use older models unless explicitly requested. For model docs, fetch `https://adk.dev/agents/models/google-gemini/index.md`. See also [stable model versions](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions) and [model endpoint locations](https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/locations#google-models).
 
 - **Running Python Commands:**
   - Always use `uv` to execute Python commands (e.g., `uv run python script.py`)
