@@ -10,8 +10,6 @@ workflow:
     - direct/body
     assignee: agent
 step: 1 (execute)
-secrets:
-  - AWS_PROFILE: env:AWS_PROFILE
 ---
 
 ## Description
@@ -52,7 +50,10 @@ tracks. It depends on the harness tickets `linux-clean-install-harness` and
 `macos-clean-install-harness-on-aws` having merged, so launch it after both.
 Windows is `v2/windows-native-clean-install`.
 
-**AWS.** Uses the macOS harness and the `AWS_PROFILE` SSO profile. Ask the
+**AWS.** Uses the macOS harness and the owner's AWS SSO profile
+(currently `multiply-telemetry`). The owner runs `aws sso login --profile
+<profile>` before launch; pass `--profile` (or export `AWS_PROFILE`) in
+every `aws` call yourself, since the ticket declares no secret. Ask the
 owner before provisioning (the 24-hour `mac2` host minimum) and tear down per
 that harness's runbook, recording resource IDs here.
 

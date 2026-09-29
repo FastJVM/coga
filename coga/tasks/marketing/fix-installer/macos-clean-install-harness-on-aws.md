@@ -23,8 +23,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
-secrets:
-  - AWS_PROFILE: env:AWS_PROFILE
 ---
 
 ## Description
@@ -47,9 +45,10 @@ Part of the `marketing/fix-installer/` set (V1). Siblings:
 `linux-clean-install-harness` (reuse its install/walk script so both OSes run
 the same steps) and `run-clean-installs-and-file-issues`.
 
-**AWS.** Credentials come from an SSO profile named by `AWS_PROFILE`
-(declared in `secrets:`); the owner runs `aws sso login --profile <p>` before
-launch. Ask the owner before creating any instance or dedicated host, because
+**AWS.** Credentials come from the owner's AWS SSO profile (currently
+`multiply-telemetry`); the owner runs `aws sso login --profile <profile>`
+before launch. The profile name is not a secret, so the ticket declares no
+`secrets:`; pass `--profile` (or export `AWS_PROFILE`) in every `aws` call. Ask the owner before creating any instance or dedicated host, because
 it costs money: a `mac2.metal` host has a 24-hour minimum allocation (roughly
 $25–30) and can only be released after 24 hours. Check the dedicated-host
 quota and pick the region with the owner, since `mac2` capacity varies by
