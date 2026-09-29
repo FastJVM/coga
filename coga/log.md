@@ -6783,3 +6783,4 @@ fatal: Unable to add (null) to database
 2026-09-28 21:28 [record-that-preserved-tmp-worktrees-do-not-survive] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-28 21:28 [record-that-preserved-tmp-worktrees-do-not-survive] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-28 21:28 [record-that-preserved-tmp-worktrees-do-not-survive] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-28 21:33 [record-that-preserved-tmp-worktrees-do-not-survive] [agent:claude] advanced to step 2 (peer-review) → codex

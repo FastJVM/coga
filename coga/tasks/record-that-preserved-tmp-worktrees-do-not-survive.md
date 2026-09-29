@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -46,3 +46,10 @@ The blackboard is a notepad to be written to often as the human and agent works 
 branch: doc-tmp-checkouts-ephemeral
 
 Plan: the ticket's target `coga/contexts/coga/recipes/SKILL.md` is a multiply path; no such topic exists here, and PR #104 here is an unrelated merged relay-era PR. Human chose `dev/checkout-cleanup` (plus its packaged bootstrap twin) as the owner. Add one short section: /tmp checkouts are ephemeral; push or land preserved work before the run ends; a gone checkout leaves a prunable registration and a branch holding the commits; recovery recipe.
+
+## Handoff (implement)
+
+- Commit 098109b34 on `doc-tmp-checkouts-ephemeral` (pushed, rebased on origin/main): new section "`/tmp` checkouts do not survive; the branch does" in `docs/contexts/dev/checkout-cleanup/SKILL.md`, copied byte-identically to the packaged twin `src/coga/resources/templates/coga/bootstrap/contexts/dev/checkout-cleanup/SKILL.md`.
+- Covers the ticket's four points: /tmp checkouts are ephemeral; push or land preserved work before the run ends (a `worktree:` line is not preservation); a gone worktree leaves a `git worktree prune`-able registration plus a branch holding the commits; recovery = `git log main..<branch>`, cherry-pick/push from the primary checkout, then `git branch -D`.
+- Not done (out of scope here): the multiply-side evidence (dream/retro-2026-W36 branch, stale `worktree:` lines, autoclose list) lives in the multiply repo and was not touched.
+- Tests: `.venv/bin/python -m pytest` — 3050 passed (system `python` lacks `tomlkit`; use the repo `.venv`).
