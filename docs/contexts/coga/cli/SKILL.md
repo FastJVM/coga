@@ -55,9 +55,9 @@ command's behavior. Attach that topic when a task depends on it.
 
 Default aliases are argv rewrites, not commands with logic; each alias row
 above shows its expansion (`aliases.DEFAULT_ALIASES`). A repo adds or
-overrides them in `[aliases]`; the seeded `coga.toml` ships
+overrides them in `[aliases]`; the seeded `coga.toml` ships both
 `claude = "launch bootstrap/orient --agent claude"` and the matching
-`codex` line commented out as optional examples. `coga run` accepts only
+`codex` line commented out, as optional examples to enable. `coga run` accepts only
 the fixed names in `runner.RECIPES` — the recurring jobs, `open-pr` and `delete-task`. Both
 mechanisms, and why a new command usually belongs at the edge, are in
 [coga/extension-model](../extension-model/SKILL.md).
