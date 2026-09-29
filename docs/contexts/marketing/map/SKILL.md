@@ -62,7 +62,7 @@ All of these are history, not instructions:
 - [Source inspection receipt](../../../archive/launch-programs/phase-0-audit/source-inspection-results.json)
   and [adoption trial receipt](../../../archive/launch-programs/phase-0-audit/adoption-trial-results.json):
   retained evidence cited by docs, not current product certification.
-- [Older domain idea](../../../../coga/tasks/v2/register-a-real-domain-for-relay.md):
+- [Older domain idea](../../../../coga/tasks/_v2/register-a-real-domain-for-relay.md):
   parked, not a V1 prerequisite or authorization to purchase anything.
 
 The three essay tickets, separate story/pitch drafts and Discord ticket were

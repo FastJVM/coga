@@ -265,7 +265,7 @@ Each finding is one block:
 ### <short title>
 
 - shard: <shard-id>
-- class: <extract | stale | gap | premise | drift>
+- class: <extract | stale | gap | drift>
 - target: <file path, or ticket slug for `extract`>
 - area: <context/skill area>
 - owner: <local | coga>
@@ -274,15 +274,13 @@ Each finding is one block:
 ```
 
 `area:` is required for `extract` findings — Phase 4 batches coherent PRs by it —
-and optional otherwise. A `premise` finding's `target:` is the parked draft's
-path-qualified slug (`v2/<slug>`), and the knowledge-scan skill names the
-extra lines it carries. When the finding proposes a new file, append the draft
+and optional otherwise. When the finding proposes a new file, append the draft
 content under the paragraph in a fenced block.
 
 `owner:` is optional and defaults to `local`. Write `owner: coga` when the
 finding's source of truth is Coga's implementation rather than this repo
 ("Rule B" above); `coga` is a reserved value, so a ticket slug never means it.
-The knowledge-scan skill also uses `owner: <slug>` on a `gap` or `premise`
+The knowledge-scan skill also uses `owner: <slug>` on a `gap`
 finding to name an open ticket that already covers it. One finding carries one
 `owner:` line: a Coga-owned finding is routed upstream and never searched for a
 local ticket owner, so the two uses never meet on the same block.

@@ -1,6 +1,6 @@
 ---
 title: 'Premise check 2026-W39: 25 parked drafts need a verdict'
-status: draft
+status: canceled
 owner: nicktoper
 workflow:
   name: brief-for-human
@@ -14,7 +14,6 @@ workflow:
   - name: verify-read-only
     skills: []
     assignee: agent
-step: 1 (brief-and-hand-off)
 ---
 
 ## Description

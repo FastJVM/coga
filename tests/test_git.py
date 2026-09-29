@@ -17,6 +17,8 @@ stub.
 from __future__ import annotations
 
 import shutil
+import subprocess
+from dataclasses import replace
 from pathlib import Path
 from textwrap import dedent
 
@@ -1229,3 +1231,317 @@ def test_worktree_holding_branch_raises_when_the_listing_fails(tmp_path):
     """Unlike the ref-update variant, it does not fold failure into a sentinel."""
     with pytest.raises(git.GitError):
         git.worktree_holding_branch(tmp_path, "main")
+
+
+# --- prepare_control_checkout -----------------------------------------------------
+
+
+def _head(git_repo) -> tuple[str, str]:
+    """(current branch, HEAD commit) of the main test checkout."""
+    return (
+        git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip(),
+        git_repo.git("rev-parse", "HEAD").strip(),
+    )
+
+
+def _origin_tip(git_repo) -> str:
+    return git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+
+
+def _assert_prepared(git_repo, outcome) -> None:
+    assert outcome.kind == "prepared", outcome
+    assert outcome.commit == _origin_tip(git_repo)
+    assert _head(git_repo) == ("main", _origin_tip(git_repo))
+    assert _dirty(git_repo) == set()
+
+
+def _feature_with_published_ticket(git_repo, cfg: Config) -> Path:
+    """A feature checkout whose ticket edit is published to control but still dirty here."""
+    ticket = _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    ticket.write_text(_ticket_text(blackboard="handoff\n"))
+    assert git.publish(cfg, [ticket], "Ticket: demo — handoff") is True
+    assert _dirty(git_repo) == {"coga/tasks/demo.md"}
+    return ticket
+
+
+def test_prepare_moves_a_clean_feature_checkout_to_a_fresh_control(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    git_repo.push_competing_commit("coga/tasks/demo.md", _ticket_text(step="2 (review)"))
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    _assert_prepared(git_repo, outcome)
+    assert "step: 2 (review)" in ticket.read_text()
+    # The feature branch is kept, never deleted.
+    assert git_repo.git("branch", "--list", "feature/x").strip()
+
+
+def test_prepare_fast_forwards_a_behind_control_checkout(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.push_competing_commit("other.txt", "remote\n")
+
+    _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
+    assert (git_repo.root / "other.txt").read_text() == "remote\n"
+
+
+@pytest.mark.parametrize("shape", ["ahead", "diverged"])
+def test_prepare_refuses_an_ahead_or_diverged_control_and_changes_nothing(git_repo, shape):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    (git_repo.root / "local.txt").write_text("human commit\n")
+    git_repo.git("add", "local.txt")
+    git_repo.git("commit", "-m", "local unpushed")
+    if shape == "diverged":
+        git_repo.push_competing_commit("other.txt", "remote\n")
+    git_repo.checkout_branch("feature/x")
+    before = _head(git_repo)
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert outcome.blocking == ("main",)
+    assert "git pull --rebase origin main" in outcome.reason
+    assert _head(git_repo) == before
+
+
+def test_prepare_refuses_a_detached_head(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.git("checkout", "--detach", "HEAD")
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert "detached" in outcome.reason
+    assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "HEAD"
+
+
+def test_prepare_refuses_an_in_progress_merge(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    (git_repo.root / "a.txt").write_text("feature\n")
+    git_repo.git("add", "a.txt")
+    git_repo.git("commit", "-m", "feature a")
+    git_repo.git("checkout", "main")
+    (git_repo.root / "a.txt").write_text("main\n")
+    git_repo.git("add", "a.txt")
+    git_repo.git("commit", "-m", "main a")
+    git_repo.git("push", "origin", "main")
+    git_repo.git("checkout", "feature/x")
+    subprocess.run(
+        ["git", "-C", str(git_repo.root), "merge", "main"], capture_output=True, check=False
+    )
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert "merge is in progress" in outcome.reason
+    assert _head(git_repo)[0] == "feature/x"
+
+
+def test_prepare_refuses_when_control_is_held_by_another_worktree(git_repo, tmp_path):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    linked = tmp_path / "held"
+    git_repo.git("worktree", "add", str(linked), "main")
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert f"git worktree remove {linked}" in outcome.reason
+    assert _head(git_repo)[0] == "feature/x"
+
+
+def test_prepare_cleans_a_published_ticket_edit_from_a_feature_checkout(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    ticket = _feature_with_published_ticket(git_repo, cfg)
+
+    _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
+    assert "handoff" in ticket.read_text()
+
+
+def test_prepare_cleans_published_untracked_and_deleted_state(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    gone = _seed_ticket(git_repo, slug="gone")
+    git_repo.checkout_branch("feature/x")
+    fresh = git_repo.coga_os / "tasks" / "fresh" / "ticket.md"
+    fresh.parent.mkdir(parents=True)
+    fresh.write_text(_ticket_text())
+    gone.unlink()
+    assert git.publish(cfg, [fresh.parent, gone], "Ticket: create and delete") is True
+
+    _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
+    assert fresh.read_text() == _ticket_text()
+    assert not gone.exists()
+
+
+def test_prepare_proves_a_union_log_published_after_control_moved(git_repo):
+    """Control gained log lines after the branch point: byte equality can
+    never hold on the feature branch, but every local line is on control."""
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    git_repo.push_competing_commit("coga/log.md", "peer line\n")
+    append_log(cfg, "demo", "agent:claude", "my line")
+    assert git.publish(cfg, [git.log_path(cfg)], "Log: demo") is True
+    assert (git_repo.coga_os / "log.md").read_bytes() != _control(
+        git_repo, "coga/log.md"
+    ).encode()
+
+    _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
+    log = (git_repo.coga_os / "log.md").read_text()
+    assert "peer line" in log and "my line" in log
+
+
+def test_prepare_refuses_an_unpublished_log_line(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    append_log(cfg, "demo", "agent:claude", "published")
+    assert git.publish(cfg, [git.log_path(cfg)], "Log: demo") is True
+    git_repo.checkout_branch("feature/x")
+    append_log(cfg, "demo", "agent:claude", "not published")
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert outcome.blocking == ("coga/log.md (lines not yet on control)",)
+    assert "not published" in (git_repo.coga_os / "log.md").read_text()
+
+
+def test_prepare_refuses_mixed_state_without_partial_cleanup(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    ticket = _feature_with_published_ticket(git_repo, cfg)
+    (git_repo.root / "src.py").write_text("feature work\n")
+    edited = ticket.read_text()
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert outcome.blocking == ("src.py (not Coga state)",)
+    assert ticket.read_text() == edited
+    assert _dirty(git_repo) == {"coga/tasks/demo.md", "src.py"}
+    assert _head(git_repo)[0] == "feature/x"
+
+
+def test_prepare_refuses_staged_content_that_is_not_published(git_repo):
+    """The working copy matches control, but the index holds a third version."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _feature_with_published_ticket(git_repo, cfg)
+    published = ticket.read_text()
+    ticket.write_text(_ticket_text(blackboard="staged draft\n"))
+    git_repo.git("add", "coga/tasks/demo.md")
+    ticket.write_text(published)
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert "staged content" in outcome.blocking[0]
+    assert "staged draft" in git_repo.git("show", ":coga/tasks/demo.md")
+
+
+def test_prepare_refuses_a_mode_change_with_equal_bytes(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    ticket = _feature_with_published_ticket(git_repo, cfg)
+    ticket.chmod(0o755)
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert "file mode" in outcome.blocking[0]
+
+
+def test_prepare_refuses_a_symlinked_state_file(git_repo, tmp_path):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    target = tmp_path / "elsewhere.md"
+    target.write_text(_ticket_text())
+    (git_repo.coga_os / "tasks" / "linked.md").symlink_to(target)
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert outcome.blocking == ("coga/tasks/linked.md (not a regular file)",)
+    assert (git_repo.coga_os / "tasks" / "linked.md").is_symlink()
+
+
+def test_prepare_refuses_an_ignored_file_the_move_would_overwrite(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    (git_repo.root / ".gitignore").write_text(
+        "coga/coga.local.toml\ncoga/.agent-skills/\nbuild/\n"
+    )
+    git_repo.git("add", ".gitignore")
+    git_repo.git("commit", "-m", "ignore build")
+    git_repo.git("checkout", "main")
+    git_repo.push_competing_commit("build/out.txt", "published\n")
+    git_repo.git("checkout", "feature/x")
+    (git_repo.root / "build").mkdir()
+    (git_repo.root / "build" / "out.txt").write_text("local only\n")
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert outcome.blocking == ("build/out.txt",)
+    assert (git_repo.root / "build" / "out.txt").read_text() == "local only\n"
+
+
+def test_prepare_refuses_when_evidence_changes_before_mutation(git_repo, monkeypatch):
+    cfg = load_config(git_repo.coga_os)
+    ticket = _feature_with_published_ticket(git_repo, cfg)
+    real = git._plan_preparation
+    calls = []
+
+    def plan_then_edit(*args, **kwargs):
+        plan = real(*args, **kwargs)
+        if not calls:
+            ticket.write_text(_ticket_text(blackboard="concurrent edit\n"))
+        calls.append(plan)
+        return plan
+
+    monkeypatch.setattr(git, "_plan_preparation", plan_then_edit)
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert "concurrent edit" in ticket.read_text()
+    assert _head(git_repo)[0] == "feature/x"
+
+
+def test_prepare_is_exempt_without_git_or_a_remote(git_repo, tmp_path, monkeypatch):
+    cfg = load_config(git_repo.coga_os)
+    assert git.prepare_control_checkout(replace(cfg, git_enabled=False)).kind == "exempt"
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("remote", "remove", "origin")
+
+    assert git.prepare_control_checkout(cfg).kind == "exempt"
+    missing = git.prepare_control_checkout(cfg, require_remote_control=True)
+    assert missing.kind == "refused"
+    assert _head(git_repo)[0] == "feature/x"
+
+
+def test_prepare_uses_the_configured_remote_and_control_names(git_repo):
+    toml = git_repo.coga_os / "coga.toml"
+    toml.write_text(toml.read_text() + '\n[git]\nremote = "upstream"\ncontrol_branch = "trunk"\n')
+    git_repo.git("add", "coga/coga.toml")
+    git_repo.git("commit", "-m", "custom git names")
+    git_repo.git("branch", "-m", "main", "trunk")
+    git_repo.git("remote", "rename", "origin", "upstream")
+    git_repo.git("push", "upstream", "trunk")
+    git_repo.checkout_branch("feature/x")
+    cfg = load_config(git_repo.coga_os)
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "prepared", outcome
+    assert _head(git_repo) == (
+        "trunk",
+        git_repo.git("rev-parse", "trunk", cwd=git_repo.origin).strip(),
+    )

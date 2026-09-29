@@ -1,6 +1,6 @@
 ---
 title: Adjudicate the eight premise-dead v2 drafts
-status: in_progress
+status: canceled
 owner: nicktoper
 agent: claude
 workflow:
@@ -31,7 +31,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 6 (review)
 ---
 
 ## Description

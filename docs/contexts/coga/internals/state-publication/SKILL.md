@@ -91,13 +91,21 @@ sessions editing one working tree remain an unserialized hazard.
 `cli.main` calls `_sweep_coga_state` after a command returns or raises, except
 on exit code `RETRY_WITHOUT_SWEEP_EXIT_CODE` (75), which a command uses when it
 deliberately left retryable state dirty (stale recurring control, refused
-`bump` rewind). The sweep:
+`bump` rewind, a launch checkout-boundary entry refusal). The launch checkout
+boundary also calls `sync_coga_state` itself, at entry and before each
+checkout return, so routine state lands before the checkout moves
+([dev/checkouts](../../../dev/checkouts/SKILL.md)). The sweep:
 
 - runs only when `cli._should_sweep_coga_state(argv)` is true: never for a
   bare `coga`, an option, `--help`/`-h`, `_NON_SWEEPING_COMMANDS` (`status`,
   `show`, `validate`, `usage`, `init`, `uninstall`), `secret`, `recurring
   --all`, `bump --backward`/`--to`, or `skill`/`mark`/`recurring` subcommands
   outside their sweeping sets;
+- is skipped when a launch's checkout return refused or stopped part-way
+  (`git.state_sweep_withheld`, reset per `cli.main` invocation, so it also
+  covers an in-process `coga recurring` run): the preserved dirt is what the
+  sweep must not publish, the command's exit status is unchanged, and the
+  next launch entry publishes routine state again;
 - is skipped in a process that relayed a recurring run into the worktree
   holding the control branch (the relayed child sweeps there), and for the
   off-control `run recurring-scan --require-fresh-control` child, whose

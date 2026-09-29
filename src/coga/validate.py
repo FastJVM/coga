@@ -84,7 +84,11 @@ from coga.paths import (
 )
 from coga.service_order import leading_number
 from coga.skill_manager import bundled_skills_root, skills_root
-from coga.slack_response import classify_slack_response, format_slack_request_error
+from coga.slack_response import (
+    SLACK_TRANSPORT_ERRORS,
+    classify_slack_response,
+    format_slack_request_error,
+)
 from coga.tasks import (
     DuplicateTaskSlugError,
     TaskNotFoundError,
@@ -462,12 +466,11 @@ def _check_one_task(
             ))
 
     # A title-only ticket: the body says nothing, so the intent lives only
-    # with its author and nothing downstream (launch, premise check, Dream)
-    # can act on it. Terminal tickets are history, not capture debt, so they
+    # with its author and nothing downstream (launch, Dream) can act on it. Terminal tickets are history, not capture debt, so they
     # are exempt. A warning, not an error: `coga create` without
     # `--description` legitimately produces this shape, and `assert_task_valid`
-    # runs on every mutating command. The convention for where a stub may
-    # live and when it expires is `coga/tasks/v2/README.md`.
+    # runs on every mutating command. A bare capture belongs in a parked
+    # (`_`-prefixed) directory, which discovery never reaches (`coga/tickets`).
     if fences == 1 and ticket.status not in TERMINAL_STATUSES:
         above, _ = split_body(ticket.body, blackboard_required=False)
         if not _extract_section(above, "Description"):
@@ -1827,7 +1830,7 @@ def probe_slack(webhook_url: str) -> tuple[str, str]:
     """
     try:
         resp = requests.post(webhook_url, json={"text": ""}, timeout=5)
-    except requests.RequestException as exc:
+    except SLACK_TRANSPORT_ERRORS as exc:
         return "unreachable", format_slack_request_error(exc)
 
     return classify_slack_response(resp.status_code, resp.text)

@@ -53,6 +53,13 @@ SENTINEL_ENV = "COGA_DONE_SENTINEL"
 EXPECTED_TASK_ENV = "COGA_EXPECTED_TASK"
 EXPECTED_STEP_ENV = "COGA_EXPECTED_STEP"
 
+# Minted only by `coga launch` for a step whose invoking checkout it prepared
+# on entry and will return to a clean control branch when the session ends
+# (`dev/checkouts`). A code step may then publish its handoff and bump from
+# the feature branch. `build_supervised_step_env` never sets it: megalaunch,
+# bootstrap targets, and exempt checkouts keep the manual return.
+CHECKOUT_RETURN_ENV = "COGA_LAUNCH_RETURNS_CHECKOUT"
+
 
 def build_supervised_step_env(
     env: Mapping[str, str],
@@ -68,6 +75,9 @@ def build_supervised_step_env(
     outer session's task/step pair untouched.
     """
     step_env = dict(env)
+    # Only launch's normalizing path may grant the return witness; never let
+    # an inherited copy reach megalaunch or an exempt session.
+    step_env.pop(CHECKOUT_RETURN_ENV, None)
     step_env["COGA_SUPERVISED"] = "1"
     step_env[EXPECTED_TASK_ENV] = str(task_path.resolve())
     step_env[EXPECTED_STEP_ENV] = step or ""

@@ -1784,14 +1784,22 @@ def test_probe_slack_revoked_by_status(monkeypatch: pytest.MonkeyPatch) -> None:
     assert status == "revoked"
 
 
-def test_probe_slack_unreachable(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "coga.validate.requests.post",
-        _fake_post_factory(requests.ConnectionError("dns fail")),
-    )
+@pytest.mark.parametrize(
+    "failure",
+    [
+        requests.ConnectionError("dns fail"),
+        # `requests` raises a plain `OSError` for an invalid CA bundle path.
+        OSError("Could not find a suitable TLS CA certificate bundle"),
+        ValueError("adapter refused the request"),
+    ],
+)
+def test_probe_slack_unreachable(
+    monkeypatch: pytest.MonkeyPatch, failure: Exception
+) -> None:
+    monkeypatch.setattr("coga.validate.requests.post", _fake_post_factory(failure))
     status, detail = probe_slack("https://hooks.slack.com/services/x")
     assert status == "unreachable"
-    assert "ConnectionError" in detail
+    assert type(failure).__name__ in detail
 
 
 @pytest.mark.parametrize("argv", [["--check-slack"], ["--check-slack", "--json"]])

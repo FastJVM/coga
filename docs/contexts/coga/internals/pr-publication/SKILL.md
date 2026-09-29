@@ -16,10 +16,11 @@ argument is accepted.
 ## Checkout gate (`_checkout_mode`)
 
 open-pr runs from the launch checkout on the control branch, where the live
-ticket is, and refuses any other branch. Every code step returns the checkout
-to control before its handoff ([dev/checkouts](../../../dev/checkouts/SKILL.md)),
-so there is no feature-branch mode, and a sandbox clone's stale ticket copy
-can never be updated.
+ticket is, and refuses any other branch. The launch checkout boundary puts a
+launched step on control before it starts, and a manual session returns
+itself ([dev/checkouts](../../../dev/checkouts/SKILL.md)), so there is no
+feature-branch mode, and a sandbox clone's stale ticket copy can never be
+updated.
 
 ## Checks, in order
 

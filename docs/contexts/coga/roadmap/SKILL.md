@@ -36,61 +36,26 @@ Reliability bugs that block installation, launch, state sync or review take
 precedence over new convenience surfaces. Marketing and documentation work may
 proceed independently when it does not change the core task model.
 
-## Deferred work (`coga/tasks/v2/`)
+## Deferred work (`coga/tasks/_v2/`)
 
-`coga/tasks/v2/` is the parking area for work not on the current execution
-path; `coga status v2` is the authoritative list. Pull an item forward only
-through an explicit ticket decision, then update its location/status rather
-than duplicating it here.
+`coga/tasks/_v2/` is a wish list, not a backlog. It is a parked directory
+(defined in [`coga/tickets`](../tickets/SKILL.md)): nothing lists, launches,
+validates, or scans it, so what sits there may be stale, may contradict other
+wishes or `main`, and nobody reconciles it or owes a verdict on it. Capture a
+wish with `coga create "_v2/<title>"`; a bare title is enough. Everywhere
+else a ticket carries its description from creation (`coga create
+--description` or `coga ticket`), and `coga validate` reports live
+title-only tickets as `empty-description`.
 
-Pulling forward starts with a premise check. A parked draft is a dated record;
-its only standing re-validation is Dream's weekly premise pass, which files
-findings for a human verdict. Its subject may be gone, its surfaces may no
-longer resolve, its cited tickets may be retired, or something may already
-have delivered it. Much of the directory predates the `relay` → `coga` rename,
-which was not a find-and-replace. Read
-[`coga/tasks/v2/README.md`](../../../../coga/tasks/v2/README.md) first; it holds
-the premise check and the known-stale surface table. Cancelling a premise-dead
-draft with a recorded reason is a normal outcome.
+Pull a wish forward only through an explicit decision: run the premise check
+in [`coga/tasks/_v2/README.md`](../../../../coga/tasks/_v2/README.md), then
+`git mv` it out of the parked tree (or `coga create` a fresh ticket that
+cites it). Much of the directory predates the `relay` → `coga` rename, which
+was not a find-and-replace; the README's known-stale surface table covers it.
 
-A bare thought — a title with nothing yet under `## Description` — is captured
-only as `coga create "v2/<title>"`. Everywhere else a ticket carries its
-description from creation (`coga create --description` or `coga ticket`);
-`coga validate` reports live title-only tickets as `empty-description`. The
-v2 README says how such a stub is read and when its describe-or-cancel verdict
-is due.
-
-### Direction change, 2026-09-20: park v2 out of reach
-
-The owner ruled, on the canceled ticket
-`interview-the-owner-on-the-17-title-only-v2-stubs` at `review-design`, that
-"it's a v2 but we're far from v2 at this point": `coga/tasks/v2/` should be
-parked where `coga status` does not reach, so adjudicating its title-only
-stubs one by one is wasted motion (that interview would have produced 17
-cancels and 0 describes). A stub that comes back is recaptured with
-`coga create "v2/<title>"`.
-
-The parking follow-up is not yet a ticket. When it is written, start its
-`## Context` from what assumes the directory is live:
-
-- `tasks.list_tasks` skips `_`-prefixed directories, so
-  `git mv coga/tasks/v2 coga/tasks/_v2` would hide every draft in one commit;
-- but this section, `coga/tasks/v2/README.md`, the `coga create "v2/<title>"`
-  bare-capture spelling (`src/coga/create.py`, `src/coga/commands/create.py`,
-  `src/coga/commands/ticket.py`, `src/coga/validate.py`), Dream's weekly premise pass, `coga/architecture`,
-  `coga/codebase`, `coga/current-direction`, and `test_create`,
-  `test_validate`, `test_megalaunch`, `test_ticket` all assume it is reachable;
-- the open tickets `adjudicate-the-eight-premise-dead-v2-drafts` and
-  `premise-check-2026-w39-25-parked-drafts-need-a-ver` (Dream's W39
-  adjudication draft) would need canceling or re-scoping;
-- counting gotcha: `coga status v2 --all` recurses into subdirectories such as
-  `cleanup-core-commands/` and excludes `README.md` indexes, so its count
-  differs from `ls coga/tasks/v2/*.md`.
-
-Until parking lands, `empty-description` warnings on title-only drafts under
-`coga/tasks/v2/` are the accepted baseline (tag line
-`validate-drift: empty-description`). A title-only ticket anywhere else still
-needs its author's verdict.
+The owner parked `coga/tasks/v2/` here on 2026-09-29, after ruling on
+2026-09-20 ("it's a v2 but we're far from v2 at this point") that
+adjudicating its drafts one by one is wasted motion.
 
 ## Sources of truth
 

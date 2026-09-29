@@ -1,6 +1,6 @@
 ---
 title: Dream
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - direct/body
     assignee: agent
-step: 1 (execute)
 ---
 
 ## Description
@@ -920,3 +919,54 @@ Generated: 2026-09-29T16:37:08+00:00
 Task: `recurring/dream`
 
 Result: no-op. No cleanup-eligible processed done tickets still have task directories.
+
+## Dream Run Summary
+
+Generated: 2026-09-29T16:42:31Z — period 2026-W40, repo-identity coga-source. Preflight: git-common-dir ok, remote ok, gh ok.
+
+| Phase | Result | Detail |
+| --- | --- | --- |
+| 1 validate-drift | reported | 43 issues: 0 direct-fix, 1 pr-proposal, 42 human-needed |
+| 2 knowledge scan | reported | 36/36 shards; 94 raw → merged with Phase 3 into 92 findings |
+| 3 contract audit | reported | 7/7 shards; 10 raw drift (9 dup of Phase 2); packaging twins green |
+| 4 retro/done-ticket | pr-opened | 11 eligible: 1 knowledge PR (#920, 2 tickets), 9 direct deletes |
+| 5 cleanup-orphan-markers | no-op | no orphaned processed markers |
+| 6 disposition | proposed | 9 proposal PRs, 11 draft tickets, 0 upstream-captured |
+
+**Findings (92):** 24 extract (19 done+checkout → retirement debt, 5 canceled → PRs/drafts), 26 stale + 3 unique drift, 4 gap, 35 premise.
+
+**Proposal PRs (pr-required, not merged):**
+- #920 New context: another clone's primary checkout never leaves the autoclose worklist (Phase 4 Retro)
+- #921 Restore Retro's adjacent-bug rule in coga/dream — ks-04
+- #922 Repoint contexts and skills at references that moved or were deleted — marketing map/plan, autoclose sweep citation, skill-creator ATTRIBUTION (ks-15/ks-21/ks-04, ca-03/ca-04)
+- #923 Drop the cleared repo-wide validate baseline from coga/testing — ks-09/28/33
+- #924 Record the usage-record facts a future price table needs — canceled `define-the-api-equivalent-cost-proxy-and-price-tab`
+- #925 Record two verified gotchas from canceled tickets — `nothing-exercises-python-3-11-the-declared-floor`, `digest-can-clobber-recurring-last-serviced-period`
+- #926 Refresh direction topics (current-direction, roadmap, telemetry/operations) — ks-32/31/34/16, ca-02
+- #927 Correct the CLI index's default aliases and the README first-run command — ks-31, ca-01, ca-06
+- #928 Correct three stale recurring-job claims (usage-report schedule_comment, autofix scope, temp-worktree rationale) — ks-24/27, ca-06
+- #929 Fix a stale sandbox-fallback trigger and a phantom error quote in agent instructions — ks-14, ca-05
+
+**Draft tickets created:**
+- Overlap with open PRs (finding not carried by that PR): `apply-three-dream-w40-skill-and-context-correction` (#909: self-qa, dev/code link, implement python), `apply-three-dream-w40-workflow-and-v2-readme-corre` (#912: workflows ×2, v2 README expiry), `apply-three-dream-w40-notification-and-skill-manag` (#914: producers, skill-management --all, canceled `v2/skill-update-aborts-on-uncommitted-log-file` extract), `name-phone-home-as-the-record-failure-false-caller` (#911), `record-that-contexts-linking-tickets-by-path-break` (#918; canceled `phase-0-audit-is-complete-per-the-plan-but-still-i` extract)
+- Human choice: `decide-whether-the-weekly-usage-report-belongs-on` (coga/important vs usage-report), `uninstall-has-no-removal-path-for-the-preferred-uv`
+- Gaps: `branch-sweep-never-clears-rebased-copy-branches`, `url-skill-digest-counts-git-ignored-agent-tooling`
+- Retro adjacent bug (PR #920): `autoclose-re-posts-another-clone-s-primary-checkou`
+- Premise adjudication: `premise-check-2026-w40-8-parked-drafts-need-a-verd` (8 drafts + correction to W39 F49 for `support-commands-boundary`)
+
+**Already ticketed / covered:**
+- validate-drift: empty-description → `validate-drift-empty-description-23-title-only-tic` (24 members now; 17 v2 stubs are an already-decided class per `coga/roadmap` "park v2", tag `validate-drift: empty-description`; new non-v2 since filing: autoclose-should-be-script-only, autofix/name-cross-repo-retire-follow-ups-with-the-repo-th, autofix/treat-non-requestexception-slack-send-errors-as-de, improve-pr-check, recurring-unblock-launch, stop-with-all-the-worktreees-its-super-noisy-and-u)
+- validate-drift: unfrozen-workflow → `validate-drift-unfrozen-workflow-11-hand-authored` (15 members; new: dream-should-be-able-to-use-codex-instead-of-claud, implement-the-include-allowlist-that-url-skill-upd, make-every-code-workflow-review-with-the-other-age, marketing/idea-piece, marketing/readme-top, ticket-sync-fails-with-read-only-git-inside-agent, where-have-code-review-disappeared)
+- validate-drift: stuck-in-progress → `validate-drift-stuck-in-progress-11-in-progress-ti` (3 members, none new)
+- dev/checkouts union-log End procedure → PR #909; blockers/remind "no ticket owns" → PR #914
+- read-only .git state publication gap → `ticket-sync-fails-with-read-only-git-inside-agent`; cancel/supersede referent repair gap → `repair-ticket-referents-when-a-referent-is-renamed` (its target should be retargeted at coga-side surfaces)
+- 27 premise findings → `premise-check-2026-w39-25-parked-drafts-need-a-ver` / `adjudicate-the-eight-premise-dead-v2-drafts`
+
+**Phase 1 pr-proposal:** `large-blackboard` on `reconcile-recurring-wrapper-tty-admission-guidance` (54 KiB) — a done ticket with a real `## Dev` checkout; its retirement (`coga retire`) removes it and clears the warning, so no restructuring PR was opened.
+
+**Machine-local validator issues:** none.
+
+**Retirement debt (118 done tickets with a real `## Dev` checkout; `coga retire <slug>` is the consumer).** Extracts each retirement unlocks: `the-v2-parking-area-premise-check-has-four-holes` (coga/dream premise pass), `make-dream-run-correctly-under-codex` (codex subagent mechanics; --agent override lost in completion attribution — adjacent bug), `four-parked-tickets-carry-premises-that-have-since` (verdict-application mechanics), `redo-documentation-dir-and-merge-it-with-context-b` (bundled-topic link topology), `validate-that-committed-skill-scripts-with-a-sheba` (non-executable-script check undocumented), `simplify-git-sync` (why publication never commits locally/stashes/rebases), `persist-autoclose-retire-follow-ups` (tag-shadowed for-each-ref names), `recurring-task-to-manage-all-open-pr-and-address-c` (shipped templates leave owner/agent empty), `add-an-agent-picker-for-recurring` (typer optional-value flag), `attribute-headless-recurring-completions-to-system` (strict-assist audit publication), `exclude-superseded-designs-from-launch-prompts` (blocker parsing not fence-aware), `reuse-the-existing-control-worktree-for-recurring` (shared subprocess patching gotcha), `agent-usage-report` (ticket.py sibling access; usage.rollup until inclusive), `cleanup/handle-a-bare-slack-webhook-url-during-empty-repo` (init bare SLACK_WEBHOOK_URL tolerance), `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r` (coga.resources regular package), `make-sure-repo-clietn-don-t-edit-coga` (`##` inside a fence truncates Description), `simplify-ticket-format` (--agent override vs peer resolution).
+Full list: `a-slack-repo-without-important-webhook-can-abort-t`, `activation-does-not-resolve-step-1-s-assignee-role`, `add-an-agent-picker-for-recurring`, `adjudicate-parked-and-active-tickets-whose-premise`, `agent-usage-report`, `allow-description-and-owner-on-create`, `apply-12-context-and-skill-corrections-blocked-by`, `attribute-headless-recurring-completions-to-system`, `autoclose-preserved-checkout-remedies`, `autoclose-should-name-the-retire-follow-up`, `autoclose-should-name-unanswered-review-threads-on`, `autofix/keep-cross-clone-retire-follow-ups-from-being-disc`, `autofix/make-dream-block-instead-of-done-when-its-retro-ch`, `autofix/report-per-skill-outcomes-from-gh-skill-update-in`, `autofix/stop-one-failing-ticket-py-from-starving-the-rest`, `automerge/fix-let-a-lot-of-open-craps`, `branch-sweep-strands-squash-merged-branches-whose`, `bumppy-requires-exactly-two-agents`, `carry-adjacent-bugs-out-of-a-blackboard-before-ret`, `cleanup/add-a-debug-mode-to-init-for-vendoring-from-source`, `cleanup/add-contributing-docs-issue-templates-and-a-repo-d`, `cleanup/detect-the-current-git-branch-instead-of-hard-codi`, `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r`, `cleanup/handle-a-bare-slack-webhook-url-during-empty-repo`, `cleanup/quiet-the-first-run-noise-from-recurring-jobs-and`, `cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f`, `cloning-a-coga-repo-has-no-setup-path`, `coga-build-fails-after-init-on-a-github-scaffolded`, `correct-the-v2-known-stale-surfaces-table-and-rout`, `define-the-recipe-reporting-contract-report-durabi`, `detect-stranded-ticket-writes-across-checkouts`, `document-how-packaged-contexts-reach-a-repo-and-se`, `document-how-to-recover-a-retired-ticket-s-body-fr`, `document-the-remedy-for-a-bloated-blackboard-sibli`, `document-the-ticket-blackboard-writer-s-contract`, `document-when-to-attach-a-large-context-versus-cit`, `dream-2026-w36-extract-backlog-18-findings-phase-4`, `dream-2026-w38-extract-backlog-4-findings-phase-4`, `dream-findings-have-three-routing-holes-that-lose`, `dream-phases-2-3-cannot-complete-scan-subagents-re`, `dream-reconciliation-must-count-distinct-shard-ids`, `exclude-superseded-designs-from-launch-prompts`, `fix-the-autofix-analyst`, `four-docs-cite-positioning-context-sections-that-w`, `four-parked-tickets-carry-premises-that-have-since`, `give-a-ticket-s-superseded-design-one-documented-h`, `give-the-three-kinds-of-work-taxonomy-an-owning-do`, `installer-managed-skills-the-local-adaptation-guar`, `isolated-checkouts-nothing-says-what-a-fresh-workt`, `keep-agent-edits-to-contexts-and-skills-off-the-co`, `launch-activates-before-preflight`, `launch-ignores-the-recorded-worktree-stranding-bla`, `live-and-packaged-twin-pairs-are-edited-together-b`, `make-dream-run-correctly-under-codex`, `make-sure-repo-clietn-don-t-edit-coga`, `marketing/add-telemetry`, `megalaunch-activates-picks-before-preflight`, `megalaunch-only-shows-one-page`, `migrate-recurring-templates-to-ticket-py-shims-and`, `move-cogacontext-to-roodoc-so-its-easier-for-human`, `narrative-candidates-md-publishes-log-text-the-own`, `no-comms-writing-skill-the-process-is-smeared-thro`, `no-context-records-the-ci-posture-publish-only-rel`, `no-rule-says-ticket-context-must-cite-symbols-not`, `no-skill-exists-for-the-cold-evaluator-review-of-a`, `packaged-code-workflows-never-name-coga-retire-as`, `packaged-repos-ship-recurring-templates-without-th`, `persist-autoclose-retire-follow-ups`, `preserve-edits-during-released-claim-recovery`, `put-build-back`, `read-the-recurring-serviced-period-from-the-log-dr`, `reconcile-recurring-wrapper-tty-admission-guidance`, `record-dochub-s-why-not-the-api-answer-that-browse`, `record-four-repeated-dev-loop-verification-gotchas`, `record-or-clear-the-standing-repo-wide-coga-valida`, `recurring-context-never-mentions-the-packaged-twin`, `recurring-last-serviced-period-compares-as-a-strin`, `recurring-recipe-question`, `recurring-sweep-aborts-and-orphans-a-deleted-done`, `recurring-sweep-wedges-on-the-ticket-py-it-copies`, `recurring-task-to-manage-all-open-pr-and-address-c`, `redo-documentation-dir-and-merge-it-with-context-b`, `refresh-recurring-ledger-before-first-create-sync`, `refuse-recurring-runs-from-a-non-control-branch`, `reject-context-artifacts-that-escape-the-checkout`, `remov-digest-in-recurring`, `remove-coga-build-and-project`, `remove-legacy-config-compatibility-shims`, `retire-never-removes-a-worktree-that-ran-the-tests`, `reuse-the-existing-control-worktree-for-recurring`, `review-slack-channels`, `rewrite-coga-base-prompt-and-agent-mode-block`, `run-the-landed-branch-sweep-daily-from-autoclose`, `select-session-conduct-instead-of-appending-a-cont`, `service-recurring-from-a-temp-control-worktree-ins`, `settle-whether-megalaunch-is-the-only-unclassified`, `simplify-git-sync`, `simplify-ticket-format`, `state-which-branch-is-canonical-for-machine-genera`, `stop-recurring-on-inactive-repo`, `stop-syncing-task-state-onto-the-feature-branch`, `stop-using-worktrees`, `sync-context-omits-preflight-post-from-the-notific`, `the-autofix-analyst-ticket-closed-without-shipping`, `the-human-doc-vs-agent-context-boundary-is-decided`, `the-period-task-context-never-covers-the-determini`, `the-retro-done-ticket-skill-should-verify-a-done-t`, `the-ticket-interview-never-asks-what-done-means`, `the-v2-parking-area-premise-check-has-four-holes`, `ticket-relationships-and-ownership-have-no-mechani`, `ticket-specs-should-cite-symbols-not-line-numbers`, `title-only-tickets-have-no-convention-and-no-valid`, `unblock-rewind`, `v2/propagate-local-coga-config-into-worktrees`, `v2/ship-a-shared-recurring-reminder-engine-battery`, `validate-drift-classifier-misses-17-emitted-kinds`, `validate-that-committed-skill-scripts-with-a-sheba`, `vendored-skills-carry-no-coga-source-json-so-coga`.
+
+**Human-needed / review gates:** review and merge PRs #920–#929; triage the 11 new drafts; owner verdicts in the W40 and W39 premise drafts.
