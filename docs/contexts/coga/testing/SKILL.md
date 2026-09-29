@@ -27,6 +27,11 @@ the config-load guard rejects a bare exported `SLACK_WEBHOOK_URL` with no
 `webhook` key ([coga/notifications](../notifications/SKILL.md)). Unset the
 variable for the one command; do not edit the fixture's config to satisfy it.
 
+For artifact-level reproduction, use the
+[Linux clean-install harness](clean-install/SKILL.md). It covers current PyPI
+and a wheel from `main` in a fresh Python 3.11 container, with an attended
+continuation for agent login and the first ticket.
+
 ## Which code you are actually testing
 
 - **Run the suite with an absolute `PYTHONPATH` whenever you are not in the
