@@ -6878,3 +6878,4 @@ fatal: Unable to add (null) to database
 2026-09-29 09:40 [record-that-contexts-linking-tickets-by-path-break] [human:nicktoper] created (status=draft)
 2026-09-29 09:40 [decide-whether-the-weekly-usage-report-belongs-on] [human:nicktoper] created (status=draft)
 2026-09-29 09:40 [uninstall-has-no-removal-path-for-the-preferred-uv] [human:nicktoper] created (status=draft)
+2026-09-29 09:40 [branch-sweep-never-clears-rebased-copy-branches] [human:nicktoper] created (status=draft)
