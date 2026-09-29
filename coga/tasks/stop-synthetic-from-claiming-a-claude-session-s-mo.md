@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -91,8 +91,44 @@ branch: fix/claude-synthetic-model
   → 45 passed on the final commit.
 - `git diff --check` passed; the activity-capture twin `cmp` passed.
 
+## Peer review
+
+- 2026-09-28: `codex review --base main` **returned** with exit code 0 on
+  commit `3e6fe2524`, with no findings. No review fixes were needed.
+- Refreshed the feature branch with
+  `git fetch origin main && git rebase FETCH_HEAD`; no conflicts. The
+  reviewed and tested commit includes `origin/main` through `f67475f67`.
+- Full suite on that commit:
+  `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest`
+  → 3054 passed in 216.11 seconds.
+- The reviewer also ran
+  `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_usage.py tests/test_usage_report.py tests/test_packaging.py -q`
+  → 60 passed. The regression cases cover trailing, leading, and
+  synthetic-only messages plus real-model switches, including all four
+  token totals.
+- `git diff --check main...HEAD` and the activity-capture twin `cmp`
+  passed. This parser-only change has no terminal or rendered UI surface
+  requiring manual interaction.
+- Pushed `3e6fe2524` with
+  `git push --force-with-lease -u origin fix/claude-synthetic-model`.
+  Returned to clean `main`, fast-forwarded to `75098e436`, before writing
+  this handoff. The only subsequent upstream change was another ticket's
+  blackboard; code, tests, and contracts have not drifted.
+
+## PR
+
+A trailing Claude Code `<synthetic>` assistant message could replace a
+session's real model in usage reports. Preserve the last real Claude model,
+using `<synthetic>` when it is the only model present. All assistant lines
+continue contributing to the token totals.
+
+Add regression coverage for trailing and leading synthetic messages,
+synthetic-only sessions, and real-model switches. Update the attribution
+contract and its packaged twin.
+
+Test plan: `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest` — 3054 passed.
+
 ## Handoff
 
-Ready for peer review; no blockers or adjacent bugs found. No PR opened.
-Historical log records and per-model token splitting remain outside this
-ticket's scope.
+Peer review complete; committed and pushed branch is ready for `open-pr`.
+No blockers, adjacent bugs, or PR opened in this step.
