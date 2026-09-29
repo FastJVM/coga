@@ -23,7 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -125,6 +125,73 @@ Verification:
 No unresolved implementation blockers or adjacent findings. Recovery tradeoff:
 a conflicting retirement tag or divergent pair of tips requires human
 reconciliation rather than overwriting an archive or dropping history.
+
+## Peer review
+
+2026-09-28: `codex review --base main` **returned**, exit 0, with three
+P2 findings. Its own full-suite run passed 3,067 tests. Findings and disposition:
+
+- Fixed premature retirement tags on dirty or claimed worktrees. The owner
+  approved the ordering correction in this session. Claim and local-state
+  proofs now precede archival and run again before removal. Regressions cover
+  finishing previously dirty work and ignored state appearing during the push.
+- Fixed `push.followTags=true` publishing unrelated annotated tags despite the
+  explicit refspec. Retirement pushes now pass `--no-follow-tags`.
+- The owner explicitly chose **keep the exact-tip requirement** over reusing
+  a covering descendant archive after partial cleanup. This review suggestion
+  is declined intentionally: if local deletion succeeds but remote deletion
+  fails, a later retry can need human reconciliation. The owning
+  `dev/checkout-cleanup` topic and packaged twin now state that limitation;
+  a regression preserves the decision. Tags are never moved to make it pass.
+
+The new worktree and follow-tags assertions first reproduced three expected
+failures. Final verification after `git fetch origin main` and
+`git rebase FETCH_HEAD` onto `6ed3a2922`:
+
+- `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest tests/test_branchsweep.py tests/test_branchcleanup.py tests/test_blocker_reminders.py -q`
+  — 118 passed in 15.45s.
+- `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest`
+  — 3,070 passed in 192.38s, including packaging twins.
+- From `example/coga`:
+  `env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m coga.cli validate --json`
+  — 4 OK, no issues.
+- `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m coga.cli validate --task fix-recurring-sweep-git-hygiene-blocked-task-escap --json`
+  — 1 OK, no issues. `git diff --check` and the changed context/twin `cmp` passed.
+
+Manual surface check: ran the actual `coga run blocker-reminders` and
+`coga run branch-sweep` CLI paths in a disposable Git repository and bare
+remote through a real TTY at 80x24 and 120x40. The driver was
+`PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python /tmp/coga-recurring-peer-review-smoke.py`.
+Inspected the complete message text through Slack's built-in disabled-delivery
+preview, not a live Slack client: paused reminders named launch then unblock;
+blocked reminders named unblock; reruns emitted no duplicate reminder and
+paused status remained unchanged. Sweep output reported dirty worktrees and
+tag conflicts with actionable reasons, preserved the shared updater, and
+showed archival before successful deletion. Ref checks confirmed no premature
+archive for dirty worktrees and no unrelated release-tag publication with
+`push.followTags=true`. Both terminal sizes showed the full linear output.
+
+Published `2b05e9705` — `peer-review: guard retirement publication` — with
+`git push --force-with-lease -u origin fix-recurring-git-hygiene`. The branch
+has two code commits ahead of `main` (rebased implementation `aab52ee3a` and
+the review fix). Returned to clean `main`, fast-forwarded to `24842bd0a`,
+before this handoff; changes to main since the rebase were Coga state only.
+No unresolved review decisions. No PR opened in this step.
+
+## PR
+
+Paused recurring tasks with unresolved blockers now receive one reminder
+without being reactivated, and branch sweep preserves the shared skill-update
+branch. Every sweep deletion first publishes the required retirement tag;
+worktree eligibility is checked before archival and again before removal,
+and the push cannot include unrelated tags through `push.followTags`.
+Recurring templates, workflows, owning topics, and packaged twins are aligned.
+
+Exact-tip archive matching remains intentional: partial local/remote cleanup
+can require human reconciliation even when an existing archive contains the
+remaining tip. Conflicting tags are never overwritten.
+
+Test plan: `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest` (3,070 passed); `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m coga.cli validate --task fix-recurring-sweep-git-hygiene-blocked-task-escap --json` (1 OK); from `example/coga`, `env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m coga.cli validate --json` (4 OK); `git diff --check`; disposable-repo CLI smoke in 80x24 and 120x40 TTYs.
 
 ## Production notes
 
