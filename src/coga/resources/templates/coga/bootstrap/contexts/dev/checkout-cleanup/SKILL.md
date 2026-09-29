@@ -66,20 +66,13 @@ which no proof removes — inspect and remove it by hand") asks a human to
 delete a clone that is in active use. `worktree_owner` records no `owner` for
 a standalone clone, on the assumption that its branch dies with its
 directory, so the branch half is judged against this repository, where the
-branch may never have existed. The worktree half never clears. Observed on
-the 2026-09-29 `recurring/autoclose-merged` run from `/home/n/Code/claude/coga`:
-six entries named `/home/n/Code/coga` (for example
-`installer-managed-skills-the-local-adaptation-guar`) or
-`/home/n/Code/codex/coga` (for example `make-dream-run-correctly-under-codex`),
-each with its branch absent locally and on `origin`. A machine-wide worktree
-inventory on 2026-09-23 confirmed that both paths are primary checkouts of
-separate FastJVM/coga clones with their own linked worktrees, and that
-`/home/n/Code/coga` had live sessions. The owner decided on 2026-09-22 to keep
-independent clones on the worklist as their only durable trace. That decision
-was made with disposable fallback clones in mind and did not address this
-case. No fix or follow-up ticket exists yet. Until one does, do not act on
-that remedy. Check that the branch is gone in the named clone, then remove
-the line from `retires.md` by hand.
+branch may never have existed. The worktree half never clears. The rule that
+keeps independent clones on the worklist as their only durable trace was
+written for disposable fallback clones and does not cover this case. Until a
+fix lands, do not act on that remedy for a clone in active use: check that
+the branch is gone in the named clone, then remove the line from `retires.md`
+by hand. The observed instance is recorded in
+`docs/evidence/independent-clone-worklist-2026-09.md`.
 
 ## `coga retire <slug> [--agent <type>] [--no-launch]`
 
