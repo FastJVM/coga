@@ -6856,3 +6856,4 @@ fatal: Unable to add (null) to database
 2026-09-29 09:03 [apply-12-context-and-skill-corrections-blocked-by] [human:nicktoper] auto-bumped on merge of PR #903 → done
 2026-09-29 09:04 [autofix/keep-cross-clone-retire-follow-ups-from-being-disc] [human:nicktoper] auto-bumped on merge of PR #908 → done
 2026-09-29 09:04 [autofix/make-dream-block-instead-of-done-when-its-retro-ch] [human:nicktoper] auto-bumped on merge of PR #907 → done
+2026-09-29 09:04 [coga-build-fails-after-init-on-a-github-scaffolded] [human:nicktoper] auto-bumped on merge of PR #902 → done
