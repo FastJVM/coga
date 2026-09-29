@@ -76,6 +76,7 @@ def test_clean_install_reaches_init_from_selected_artifact(
     steps = (evidence / "steps.txt").read_text()
     assert "PASS\tcoga init --user first-user" in steps
     assert "PASS\tcoga --version" in steps
+    assert steps.splitlines()[-1] == "PASS\tcoga validate --json "
     assert ("uv tool install coga " in steps) == (mode == "pypi")
     if mode == "wheel":
         assert "coga-1.0-py3-none-any.whl" in steps
@@ -84,7 +85,7 @@ def test_clean_install_reaches_init_from_selected_artifact(
     assert not (evidence / "ticket.txt").exists()
 
 
-@pytest.mark.parametrize("failed_command", ["install", "--version", "init"])
+@pytest.mark.parametrize("failed_command", ["install", "--version", "init", "validate"])
 def test_clean_install_preserves_failure_and_stops(
     install_env: dict[str, str], failed_command: str,
 ) -> None:
@@ -160,6 +161,7 @@ def test_clean_install_main_builds_fetched_commit_not_working_tree(
     wheel = evidence / "wheels/coga-1.0-py3-none-any.whl"
     assert wheel.read_text() == "committed main\n"
     assert source.read_text() == "uncommitted feature\n"
+    assert "docker build --pull --network host -t coga-clean-install:py311" in result.stdout
     assert "docker create --network host --name clean-main" in result.stdout
     assert "network=host" in (evidence / "result.txt").read_text()
     assert git_repo.git("branch", "--show-current").strip() == "feature"
