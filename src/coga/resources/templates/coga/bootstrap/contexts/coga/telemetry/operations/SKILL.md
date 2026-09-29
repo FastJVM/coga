@@ -54,14 +54,19 @@ requires a new constant and Coga release, not a config option. Follow-up in the
 Multiply repo: its expected event catalog should mention `coga_weekly_snapshot`.
 Do not edit that separate repo as part of this implementation.
 
-## Clean installed-wheel proof (owner at review)
+## Clean installed-wheel proof
 
 Automated tests use fake transport and preserve pytest/CI suppression. The live
 proof below is owner-run from an ordinary shell with no test/CI environment,
 outside all Coga source trees. Do not unset test gates inside automation to make
 it deliver. Do not use an editable installation or target `example/`.
 
-Build the reviewed checkout, then install its wheel in a fresh external venv:
+Record the evidence in the ticket or PR that carries the proof; for the
+shipped weekly snapshot that is the blackboard of
+`marketing/verify-posthog-telemetry-with-the-live-clean-wheel`.
+
+Build the wheel from `main` at a recorded commit, then install it in a fresh
+external venv:
 
 ```sh
 python -m pip wheel --no-deps --no-build-isolation . -w /tmp/coga-telemetry-wheel
@@ -82,15 +87,15 @@ cd coga
 For the live proof, enable the existing Slack notification channel in this
 scratch repo before its first sweep, following `coga/notifications`.
 The receipt contains the exact prepared keyless envelope for comparison; retain
-it in the PR along with the queried rows. Fresh init defaults to no notification
+it with the evidence along with the queried rows. Fresh init defaults to no notification
 channels, so configure this explicitly. A failed receipt is not an ingestion
-proof; obtain a successful receipt and matching row for the review evidence.
+proof; obtain a successful receipt and matching row for the evidence.
 
 Use fresh unused paths (and exactly one candidate wheel). This named sweep
 runs the newly due battery; ordinary operator sweeps also reach it. Coga installs
 no scheduler. Read `repo_id` from the new parent
 `recurring/phone-home/ticket.md` blackboard. Record wheel version/hash, prepared
-payload values, period report, and UTC run window in the PR. The initial row
+payload values, period report, and UTC run window with the evidence. The initial row
 must exist, use that UUID, and have movement zero. A capture HTTP success alone
 is not acceptance.
 
@@ -125,7 +130,7 @@ posthog-cli api call --json execute-sql '{"query":"SELECT count() FROM events WH
 
 Absent rows alone do not prove absent requests: pair this with automated
 no-worker/no-HTTP checks. Paste exact query text/results, wheel version and
-all three observations in the PR at review. Use snapshots for each repo's
+all three observations with the evidence. Use snapshots for each repo's
 current inventory; summing historical inventory double-counts it. No dashboard
 build is needed (at most one saved insight per agreed quantity).
 

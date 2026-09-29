@@ -5,7 +5,7 @@ description: Dated sequencing and deferral guidance for Coga work; live task sta
 
 # Coga roadmap
 
-Last updated: 2026-09-22 (sequence unchanged since 2026-09-02; v2 parking
+Last updated: 2026-09-29 (sequence unchanged since 2026-09-02; v2 parking
 decision 2026-09-20).
 
 This is sequencing guidance, not a cached board. Run `coga status` for the
@@ -80,11 +80,9 @@ The parking follow-up is not yet a ticket. When it is written, start its
   `src/coga/commands/ticket.py`, `src/coga/validate.py`), Dream's weekly premise pass, `coga/architecture`,
   `coga/codebase`, `coga/current-direction`, and `test_create`,
   `test_validate`, `test_megalaunch`, `test_ticket` all assume it is reachable;
-- the open tickets
-  [`adjudicate-the-eight-premise-dead-v2-drafts`](../../../../coga/tasks/adjudicate-the-eight-premise-dead-v2-drafts.md)
-  and
-  [`correct-the-v2-known-stale-surfaces-table-and-rout`](../../../../coga/tasks/correct-the-v2-known-stale-surfaces-table-and-rout.md)
-  would need canceling or re-scoping;
+- the open tickets `adjudicate-the-eight-premise-dead-v2-drafts` and
+  `premise-check-2026-w39-25-parked-drafts-need-a-ver` (Dream's W39
+  adjudication draft) would need canceling or re-scoping;
 - counting gotcha: `coga status v2 --all` recurses into subdirectories such as
   `cleanup-core-commands/` and excludes `README.md` indexes, so its count
   differs from `ls coga/tasks/v2/*.md`.
