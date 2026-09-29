@@ -107,3 +107,12 @@ Moved from FastJVM/multiply on 2026-09-24: filed there by Dream/autofix against 
 
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: no-parent-ticket-guidance
+
+Plan (owner-approved 2026-09-28, small version): 2–3 sentences in `coga/tickets`
+(canonical + packaged twin) saying the directory is the group and no parent/umbrella
+ticket; one line in the `bootstrap/ticket` skill's scope check. No base-prompt change,
+no long splitting procedure, no code/tests.
