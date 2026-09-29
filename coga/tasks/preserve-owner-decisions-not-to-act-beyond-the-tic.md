@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -72,3 +72,20 @@ verified behavior, measured limit"). So:
 Rejected: a separate decision-register topic (second owner, drifts);
 Retro reading canceled tickets (duplicates the existing scan path).
 
+
+## Implement handoff (2026-09-28)
+
+Pushed `preserve-no-action-decisions` (one commit, rebased on origin/main):
+- `coga/knowledge` (+ bootstrap twin): new paragraph naming the owning topic of
+  the subject as the owner of a no-action decision (what declined, why, what
+  reopens it); the ticket is never its home.
+- `coga/lifecycle` (+ twin): cancellation bullet: a no-action cancel lands the
+  decision in that topic before/with the cancel; reason points there; Dream
+  knowledge scan is the backstop.
+- `bootstrap/dream/scan/knowledge-scan/SKILL.md`: `source: canceled` qualifier
+  now also admits an unlanded no-action decision. Dream Phase 6 `canceled`
+  route needed no change (it already opens a proposal PR for "the durable fact").
+- `tests/test_dream_worker_templates.py`: one assertion for the new qualifier.
+Verification: `.venv/bin/python -m pytest` -> 3050 passed; twins byte-identical.
+Not done here: the google-agents-cli decision itself lives in multiply, not this
+repo; landing it is that repo's work.

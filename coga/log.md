@@ -6747,3 +6747,4 @@ fatal: Unable to add (null) to database
 2026-09-28 20:34 [preserve-owner-decisions-not-to-act-beyond-the-tic] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-28 20:34 [preserve-owner-decisions-not-to-act-beyond-the-tic] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-28 20:34 [preserve-owner-decisions-not-to-act-beyond-the-tic] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-28 20:40 [preserve-owner-decisions-not-to-act-beyond-the-tic] [agent:claude] advanced to step 2 (peer-review) → codex
