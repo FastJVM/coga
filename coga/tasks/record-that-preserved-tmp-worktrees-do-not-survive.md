@@ -1,6 +1,6 @@
 ---
 title: Record that preserved tmp worktrees do not survive; only the branch does
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
