@@ -20,8 +20,8 @@ The repo has two halves with different review bars:
   `tasks.py` / `taskfile.py` / `blackboard.py` (ticket IO),
   `workflow.py` / `bump.py` / `step_gate.py` / `mark.py` (steps, gates,
   status), `validate.py` (`coga validate`).
-- `git.py`: the whole Git sync layer (`publish`, `refresh`, `state_lock`,
-  public plumbing). Contract in [coga/sync](../sync/SKILL.md).
+- `git.py`: the whole Git sync layer (`publish`, `refresh`,
+  `prepare_control_checkout`, `state_lock`, public plumbing). Contract in [coga/sync](../sync/SKILL.md).
 - `runner.py`: the fixed `coga run` registry; recipes live in focused modules
   (`open_pr.py`, `delete_task.py`, `autoclose.py`, `branchsweep.py`, ...).
 - `launch_script.py` (reserved `ticket.py` phase), `task_env.py`

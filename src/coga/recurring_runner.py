@@ -24,7 +24,7 @@ import typer
 
 from coga import git
 from coga.aliases import DEFAULT_ALIASES, validate_aliases
-from coga.commands.launch import _interactive_stdio_has_tty
+from coga.commands.launch import _interactive_stdio_has_tty, settle_delegated_period
 from coga.compose import LaunchContext
 from coga.config import (
     LOCAL_CONFIG_ENV,
@@ -2267,6 +2267,10 @@ def _launch_due_tasks(
                         f"{task.ref.id_slug} changed after sweep admission; skipped"
                     )
                     continue
+                # The period's return half (`dev/checkouts`): the delegated
+                # bootstrap session is exempt from normalization, the period
+                # that dispatched it is not. A refusal stops the sweep here.
+                settled = settle_delegated_period(cfg, task.ref)
                 # Main's sweep records every run it performed; `run_autofix` fires
                 # only when `record.outcomes` is non-empty, so a delegated run that
                 # returned without recording would be invisible to the analyst.
@@ -2296,6 +2300,8 @@ def _launch_due_tasks(
                     )
                     typer.secho(detail, fg=typer.colors.RED, err=True)
                     record.note(detail)
+                if not settled:
+                    raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
                 continue
             # Sequential by design: each launch blocks until the session exits
             # before the next begins. `scan_due` filters periods with no executable
@@ -3595,6 +3601,7 @@ def _launch_created(
                     f"{ref.id_slug} changed after recurring admission; skipped"
                 )
             return 0
+        settled = settle_delegated_period(cfg, ref)
         if record is not None:
             _record_outcome(
                 record,
@@ -3614,6 +3621,8 @@ def _launch_created(
                     ),
                 )
             )
+        if not settled:
+            return git.RETRY_WITHOUT_SWEEP_EXIT_CODE
         return delegated.exit_code
 
     from coga.commands.launch import launch_recurring_period as launch_cmd

@@ -4501,6 +4501,50 @@ def test_named_recurring_delegate_timeout_fails_and_remains_retryable(
     assert Ticket.read(ticket_path).status == "done"
 
 
+
+@pytest.mark.parametrize(
+    "argv",
+    [["recurring"], ["recurring", "launch", "delegate-check"]],
+    ids=["sweep", "named"],
+)
+def test_delegated_period_checkout_refusal_stops_with_retained_state_exit(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, argv: list[str]
+) -> None:
+    """Both runner paths that call `_run_delegated_task` directly settle the
+    period's checkout afterwards, and a refused return exits 75.
+    """
+    shutil.rmtree(repo / "recurring" / "weekly-check")
+    _write_delegating_template(repo, "delegate-check")
+    monkeypatch.chdir(repo)
+    _allow_interactive_recurring(monkeypatch)
+    events: list[str] = []
+
+    def fake_launch(task: str, **kwargs) -> str:  # type: ignore[no-untyped-def]
+        kwargs["before_spawn"]()
+        kwargs["revalidate_before_spawn"]()
+        events.append(f"delegated:{task}")
+        return "done"
+
+    def refusing_settle(cfg, ref) -> bool:  # type: ignore[no-untyped-def]
+        events.append(f"settle:{ref.id_slug}")
+        coga_git.state_sweep_withheld.set(True)
+        return False
+
+    monkeypatch.setattr("coga.commands.launch.launch_with_before_spawn", fake_launch)
+    monkeypatch.setattr(recurring_cmd, "settle_delegated_period", refusing_settle)
+    monkeypatch.setattr(
+        "coga.notification.slack.requests.post",
+        lambda *a, **k: SimpleNamespace(status_code=200, text="ok"),
+    )
+
+    result = CliRunner().invoke(app, argv)
+
+    assert result.exit_code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE, result.output
+    assert events == [
+        "delegated:bootstrap/resolve-conflicts",
+        "settle:recurring/delegate-check",
+    ]
+
 def test_scan_due_explains_removed_megalaunch_skill(repo: Path) -> None:
     _write(
         repo / "workflows" / "megalaunch.md",

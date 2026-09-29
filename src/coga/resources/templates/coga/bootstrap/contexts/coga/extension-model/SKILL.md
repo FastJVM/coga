@@ -56,8 +56,8 @@ effects, or calling shared infrastructure does not settle their placement.
 | `secret get`, `uninstall` | Placement of acquisition/inspection and removal tooling, separately from launch-time secret injection | `support-commands-boundary` |
 | `skill *` | Explicit tooling classification; excluded from the current migration push, without a ratified permanent package-home proof | `residual-command-surfaces` |
 
-These reviews live under `coga/tasks/v2/cleanup-core-commands/`, off the
-execution path per `coga/tasks/v2/README.md`. Commands stay where they are
+These reviews live under the parked `coga/tasks/_v2/cleanup-core-commands/`,
+off the execution path (parked directories: `coga/tickets`). Commands stay where they are
 until a reviewed change settles their placement. The parked drafts are dated
 proposals, not authority to migrate them or to replace the current kernel
 boundary below. Shared helpers and launch-time trust hooks retain their own

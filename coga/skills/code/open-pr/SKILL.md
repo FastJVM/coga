@@ -23,7 +23,8 @@ gate, not your say-so.
 ## Order of operations
 
 1. **Confirm the handoff state.** Run the `dev/checkouts` start check: the
-   launch checkout is on `main`, clean, and fast-forwarded to `origin/main`.
+   launch checkout is on `main`, clean, and fast-forwarded to `origin/main`
+   (under `COGA_LAUNCH_RETURNS_CHECKOUT=1`, launch already brought it there).
    If it is not, stop and ask the attending human, or `coga block` in a queue
    run; do not switch or stash your way past it. Then read the
    machine-readable `branch:` field (and `worktree:`, present only for a
