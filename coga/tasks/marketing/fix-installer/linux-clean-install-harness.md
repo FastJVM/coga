@@ -140,6 +140,34 @@ not run.** The runbook gives that continuation; the PyPI container first needs
 the recorded init prerequisite addressed. This ticket records the failure;
 issue filing and installer fixes belong to the sibling ticket.
 
+## Follow-up commit `2dbc34bbf` — 2026-09-29 (claude, attended)
+
+A parallel Claude implement session produced a second harness; the owner
+chose to merge the two. The branch was rebased onto `origin/main` and
+force-pushed with a lease pinned to `caa7b187d`: `09f97edb4` is the
+harness above, unchanged apart from the rebase, and `2dbc34bbf` adds:
+
+- `run.sh` builds the image itself (`docker build --pull`, passing
+  `--network` only for a non-`bridge` network), so one command reaches init.
+  `COGA_CLEAN_INSTALL_IMAGE` skips the build and reuses that image.
+- `container.sh` runs `coga validate --json` after `coga init`.
+- Tests cover validate success and failure and the build call; the
+  runbook and its twin are updated to match.
+
+Reviewers: review `2dbc34bbf`, not `caa7b187d`. For the PR description,
+prefer these runs of the merged harness (image
+`sha256:51832fd6f697fa1e8e3a75c0fd7292028c4acdabf5272dd65b3472692844b252`):
+
+| Exact run command | Outcome |
+| --- | --- |
+| `env COGA_CLEAN_INSTALL_NETWORK=host ./scripts/clean-install/run.sh main clean-main alice` | Wheel 0.3.2 from main `8ce7d8b10038ef557cc94e34ea5b0b7294c5b34c` (sha256 `1585bb8c…7986`); every step passed through `coga init --user alice` and `coga validate --json`; exit 0. |
+| `env COGA_CLEAN_INSTALL_NETWORK=host ./scripts/clean-install/run.sh pypi clean-pypi alice` | `uv tool install coga` installed 0.2.0; `coga init --user alice` exited 2 because `gh` is not on PATH (same finding as above). |
+
+`PYTHONPATH=$PWD/src .venv/bin/python -m pytest` on the merged branch:
+**3059 passed**. Receipts are in `.coga/clean-install/clean-{pypi,main}/`
+in `/home/n/Code/coga` (ignored). Agent login and the attended first-ticket
+interview were still not run.
+
 ## Adjacent findings
 
 The existing `scripts/verify-clean-install-container.sh` release gate imports
