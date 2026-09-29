@@ -5,7 +5,7 @@ description: Dated sequencing and deferral guidance for Coga work; live task sta
 
 # Coga roadmap
 
-Last updated: 2026-09-22 (sequence unchanged since 2026-09-02; v2 parking
+Last updated: 2026-09-29 (sequence unchanged since 2026-09-02; v2 parking
 decision 2026-09-20).
 
 This is sequencing guidance, not a cached board. Run `coga status` for the
