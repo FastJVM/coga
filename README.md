@@ -19,8 +19,8 @@ Coga is built for collaboration, not human replacement. The goal is not just to 
 
 ```sh
 coga build
-coga ticket my_first_ticket
-coga launch init
+coga ticket my-first-ticket
+coga launch my-first-ticket
 ```
 
 `coga build` is a guided discussion about your project and your goals. It turns that discussion into tickets, contexts and workflows.
@@ -34,10 +34,6 @@ coga launch <ticket> works through the ticket by launching an agent. It assemble
 When the work teaches you something worth keeping, you decide what should change. Edit it yourself, ask an agent to propagate that new understanding through the project, or let Coga surface and carry it forward through its recurring work.
 
 ## Install
-
-## Getting Started
-
-## Concepts
 
 Coga needs Python 3.11+, Git, and an authenticated
 [Claude Code](https://claude.com/claude-code) or

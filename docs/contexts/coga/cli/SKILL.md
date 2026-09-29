@@ -35,7 +35,7 @@ command's behavior. Attach that topic when a task depends on it.
 | Command | Owner |
 | --- | --- |
 | `launch` | [coga/launch](../launch/SKILL.md); script phase: [coga/script-tickets](../script-tickets/SKILL.md) |
-| `chat`, `claude`, `codex` → `launch bootstrap/orient` | [coga/launch](../launch/SKILL.md) |
+| `chat` → `launch bootstrap/orient` | [coga/launch](../launch/SKILL.md) |
 | `megalaunch`, `pick` → `megalaunch --pick` | [coga/megalaunch](../megalaunch/SKILL.md) |
 | `recurring` (`--force`, `--all`, `launch`, `promote`, `list`) | [coga/recurring](../recurring/SKILL.md) and its children |
 | `dream` → `recurring launch dream` | [coga/dream](../dream/SKILL.md) |
@@ -55,8 +55,10 @@ command's behavior. Attach that topic when a task depends on it.
 
 Default aliases are argv rewrites, not commands with logic; each alias row
 above shows its expansion (`aliases.DEFAULT_ALIASES`). A repo adds or
-overrides them in `[aliases]`. `coga run` accepts only the fixed names in
-`runner.RECIPES` — the recurring jobs, `open-pr` and `delete-task`. Both
+overrides them in `[aliases]`; the seeded `coga.toml` ships both
+`claude = "launch bootstrap/orient --agent claude"` and the matching
+`codex` line commented out, as optional examples to enable. `coga run` accepts only
+the fixed names in `runner.RECIPES` — the recurring jobs, `open-pr` and `delete-task`. Both
 mechanisms, and why a new command usually belongs at the edge, are in
 [coga/extension-model](../extension-model/SKILL.md).
 
