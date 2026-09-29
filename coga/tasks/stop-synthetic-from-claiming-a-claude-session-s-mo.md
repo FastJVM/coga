@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
 ---
 
@@ -131,5 +131,7 @@ Test plan: `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest` â
 
 ## Handoff
 
-Peer review complete; committed and pushed branch is ready for `open-pr`.
-No blockers, adjacent bugs, or PR opened in this step.
+Opened https://github.com/FastJVM/coga/pull/916 with `coga open-pr` and
+confirmed its `pr:` record under `## Dev`. The PR is open for review, targets
+`main`, and publishes reviewed commit `3e6fe2524` with the recorded PR body.
+Ready for the owner's review; no blockers or adjacent bugs found.
