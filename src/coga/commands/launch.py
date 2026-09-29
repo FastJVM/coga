@@ -347,6 +347,11 @@ def launch_recurring_period(
         recurring_authorized=True,
         agent_spawn_refusal=agent_spawn_refusal,
     )
+    if git.state_sweep_withheld.get():
+        # The checkout return refused (already reported) and preserved dirt
+        # the sweep must not publish or disturb: stop it through the
+        # retained-state exit instead of pausing this period and moving on.
+        raise SystemExit(git.RETRY_WITHOUT_SWEEP_EXIT_CODE)
     return RecurringPeriodLaunchResult(
         kind,
         launched_period_lease,

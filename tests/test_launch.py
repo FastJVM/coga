@@ -1728,6 +1728,51 @@ def test_direct_recurring_launch_uses_local_control_without_a_remote(
     assert launched == ["recurring/local-delegate-check"]
 
 
+@pytest.mark.parametrize("kind", [None, "timeout", "script"])
+def test_internal_recurring_launch_stops_the_sweep_after_a_checkout_return_refusal(
+    monkeypatch: pytest.MonkeyPatch, kind: str | None
+) -> None:
+    """A refused return exits 75 so the runner stops instead of pausing on."""
+
+    def refusing_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        coga_git.state_sweep_withheld.set(True)
+        return kind
+
+    monkeypatch.setattr(
+        launch_module,
+        "_refresh_recurring_period_before_launch",
+        lambda task, expected_period_lease, **kwargs: True,
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_exact_recurring_period_for_launch",
+        lambda *args, **kwargs: (SimpleNamespace(), SimpleNamespace()),
+    )
+    monkeypatch.setattr(
+        launch_module,
+        "_preflight_push_auth",
+        lambda *args, **kwargs: True,
+    )
+    monkeypatch.setattr(launch_module, "_launch", refusing_launch)
+
+    with pytest.raises(SystemExit) as excinfo:
+        launch_module.launch_recurring_period(
+            "recurring/refused-return",
+            expected_period_lease=PeriodLease(b"admitted ticket", "generation-1"),
+            control_remote_expected=True,
+            agent_override=None,
+            prompt_report=False,
+            idle_timeout=900.0,
+            max_session=None,
+            return_timeout=True,
+            script_failure_important=True,
+            launch_context="recurring",
+        )
+
+    assert excinfo.value.code == coga_git.RETRY_WITHOUT_SWEEP_EXIT_CODE
+    assert recurring_cmd._sweep_stopping_exit(excinfo.value.code) is not None
+
+
 def test_internal_recurring_launch_seam_leases_a_deterministic_child_generation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
