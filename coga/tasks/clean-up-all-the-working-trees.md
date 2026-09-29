@@ -291,3 +291,10 @@ Every RETAINED entry in the inventory is untouched. The standalone clones, test 
 
 ### Owner decision on O1 — 2026-09-23
 nicktoper asked for a separate investigation ticket. I created the draft `decide-the-fate-of-the-multiply-probe-harness-work`. It covers O1 and the three retained probe-evidence worktrees, about 9G. O1 stays in place and is **out of this ticket's scope**. The owner accepted this as the recorded partial completion. The cleanup is therefore complete: 42 removed, 4 prunes done, O1 deferred.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: another clone's primary checkout never leaves the autoclose worklist

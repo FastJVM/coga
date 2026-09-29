@@ -198,3 +198,10 @@ Result: 1 local and 0 remote branch(es) deleted, 0 worktree(s) removed, 0 skippe
 - Branch cleanup: local 'v2-premise-holes' has unmerged work and no merged PR vouching for it — left in place.
 - Branch cleanup: force-deleted local 'validate-baseline' (was 01ff2ce801eab97fc290942f9acd93bbf064252d) — PR merged; recover with `git checkout -b` from the reflog SHA.
 - Branch cleanup: skipping remote origin/wedge-ticket-admin-reproduction (no merged PR).
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: another clone's primary checkout never leaves the autoclose worklist
