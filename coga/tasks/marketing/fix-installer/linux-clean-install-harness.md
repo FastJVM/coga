@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -77,20 +77,68 @@ editable tree.
 
 branch: linux-clean-install-harness
 
-## Implementation plan
+## Implementation handoff — 2026-09-29
 
-Owner confirmed a separate harness under `scripts/clean-install/` in the
-attended session on 2026-09-28. Keep the release gate unchanged: it covers a
-pinned release and agent launch, while this harness covers a fresh non-root
-Python 3.11 install from current PyPI or a wheel built from fetched `main`.
-Save install/init command outcomes and artifact provenance, retain containers
-for inspection, and provide an attended agent-login / `coga ticket` continuation.
-Keep the runbook in the testing topic with its packaged twin; scripts remain
-repository tooling outside the package. Run both artifact modes and the suite,
-then push, return to clean `main`, record evidence for the later PR, and bump.
+Pushed commit `caa7b187d` on the recorded branch, rebased onto
+`origin/main` at `d619606dff7776ae7fe56281a3a01636af212ea0`. Returned the launch
+checkout to fast-forwarded, clean `main` before writing this handoff. No PR
+opened; review and PR publication remain later steps.
 
-Start check passed: clean `main`, fetched `origin/main`, fast-forward already
-current. Docker daemon is available with approved sandbox escalation.
+Owner confirmed a separate harness in the attended session on 2026-09-28.
+`scripts/clean-install/` now holds a Python 3.11 Dockerfile, a `pypi|main`
+host runner, and an in-container install/init script with a separate attended
+`ticket` continuation. The runbook is owned by
+`docs/contexts/coga/testing/clean-install/SKILL.md`, linked from the testing
+overview; both topics have byte-identical packaged twins, and the new topic
+is registered in `tests/test_packaging.py`.
+
+The main mode exports the freshly fetched commit and builds a wheel with
+`uv build --wheel --no-sources`, so local edits cannot leak into the artifact.
+The install container has a fresh non-root home and receives only the wheel,
+not a source mount or credentials. Runs retain containers and copy receipts
+to `.coga/clean-install/<container>/`. First-failure exit codes survive logging.
+The attended `coga ticket` phase preserves terminal stdin/stdout and records
+only its command and exit code. Existing release gate and installer behavior
+were not changed.
+
+## Verification
+
+- `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest`
+  after the final rebase: **3058 passed in 252.37s**.
+- `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest tests/test_packaging.py tests/test_clean_install_harness.py -q`:
+  **31 passed** after the network-option and legacy-Docker compatibility changes.
+- `bash -n scripts/clean-install/run.sh scripts/clean-install/container.sh`:
+  passed. `git diff --check origin/main...HEAD`: passed.
+- Harness coverage proves artifact selection, exact error/exit preservation,
+  refusal to reuse an installed environment, terminal preservation, and use of
+  fetched main despite dirty feature-branch source.
+
+## PR evidence — include both artifact outcomes
+
+Build command:
+`docker build --network host --pull -t coga-clean-install:py311 scripts/clean-install`
+
+Image ID: `sha256:9cffb930e30a22c56d780e085a5fbe1af6e8c3a4124b05f0fae17e09c0bd00a9`.
+Both runs used UID/GID 1000 (`coga`), Python **3.11.16**, Git **2.39.5**, uv
+**0.12.20**, and a fresh container. Host Docker's bridge timed out on Debian
+HTTP downloads and HTTPS handshakes; host networking worked. The runbook
+documents this explicit opt-in, and each receipt records `network=host`.
+The Dockerfile also works with the host's legacy builder (no BuildKit required).
+
+| Artifact / exact run command | Outcome |
+| --- | --- |
+| `env COGA_CLEAN_INSTALL_NETWORK=host ./scripts/clean-install/run.sh pypi clean-pypi-20260929 installer` | `uv tool install coga` installed **0.2.0**; `coga --version` passed; reached `coga init --user installer`, which exited **2** because `gh` was absent. Exact message: `coga needs these external command-line tools, but they are not on PATH: ... gh: install from https://cli.github.com`. |
+| `env COGA_CLEAN_INSTALL_NETWORK=host ./scripts/clean-install/run.sh main clean-main-20260929 installer` | Built and installed **0.3.2** from main SHA `d619606dff7776ae7fe56281a3a01636af212ea0`; version check and `coga init --user installer` passed; wrapper exited **0**. Init committed the scratch repo as `6fde3f9ccc4c`. |
+
+Wheel: `coga-0.3.2-py3-none-any.whl`, SHA-256
+`1585bb8c57da64fd0159eecfeb9b88c9ce1bb43a705689fb738a690fd8bc7986`.
+Host receipts: `.coga/clean-install/clean-pypi-20260929/` and
+`.coga/clean-install/clean-main-20260929/` (ignored, not committed).
+Both named containers remain running for inspection with `docker exec -it
+<container> bash`. **Agent login and the attended first-ticket interview were
+not run.** The runbook gives that continuation; the PyPI container first needs
+the recorded init prerequisite addressed. This ticket records the failure;
+issue filing and installer fixes belong to the sibling ticket.
 
 ## Adjacent findings
 
