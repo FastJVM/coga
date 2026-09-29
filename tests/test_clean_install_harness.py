@@ -19,12 +19,26 @@ def _executable(path: Path, text: str) -> None:
     path.chmod(0o755)
 
 
+def _checksum_stub(bin_dir: Path) -> None:
+    # The harness runs on Linux; its tests must not need host GNU coreutils.
+    _executable(bin_dir / "sha256sum", f"""
+        #!{sys.executable}
+        import hashlib
+        from pathlib import Path
+        import sys
+
+        filename = sys.argv[1]
+        print(hashlib.sha256(Path(filename).read_bytes()).hexdigest(), "", filename)
+    """)
+
+
 @pytest.fixture
 def install_env(tmp_path: Path, monkeypatch) -> dict[str, str]:
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
+    _checksum_stub(bin_dir)
     # Keep the host's installed coga out of PATH; only installation exposes it.
-    for name in ("bash", "git", "mkdir", "tee", "sha256sum"):
+    for name in ("bash", "git", "mkdir", "tee"):
         (bin_dir / name).symlink_to(shutil.which(name))
     (bin_dir / "python").symlink_to(sys.executable)
     _executable(bin_dir / "id", "#!/bin/sh\nprintf '1000\\n'\n")
@@ -138,6 +152,7 @@ def test_clean_install_main_builds_fetched_commit_not_working_tree(
     source.write_text("uncommitted feature\n")
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
+    _checksum_stub(bin_dir)
     _executable(bin_dir / "docker", """
         #!/bin/sh
         [ "$1 $2" != 'container inspect' ] || exit 1
