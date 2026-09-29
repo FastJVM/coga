@@ -913,3 +913,10 @@ Merged 92 findings (Phase 2: 94 raw from 36 shards; Phase 3: 10 raw from 7 shard
 - Knowledge PR https://github.com/FastJVM/coga/pull/920 "New context: another clone's primary checkout never leaves the autoclose worklist" — deletes `clean-up-all-the-working-trees`, `recurring/autoclose-merged`; edits dev/checkout-cleanup (+twin). Carries an unresolved adjacent bug (standalone-clone worklist entries re-post forever) → needs a follow-up ticket (Phase 6).
 - Direct-deleted (verified gone on origin/main): correct-two-stale-marketing-map-catalogue-rows-aft, recurring/{address-pr-comments,blocker-reminders,branch-sweep,phone-home,resolve-conflicts,skill-update,upstream-coga,usage-report}.
 - Verified: PR branch pushed, deletes landed, checkout had nothing unlanded; worktree, temp branch, local-config copy and run dir removed.
+
+## Dream Skill: cleanup-orphan-markers
+
+Generated: 2026-09-29T16:37:08+00:00
+Task: `recurring/dream`
+
+Result: no-op. No cleanup-eligible processed done tickets still have task directories.
