@@ -54,6 +54,25 @@ worktree); the checkout running `coga retire`; a stale path now on another
 branch; a checkout shared with another live ticket or an open PR; a locked or
 dirty worktree; and a recorded path already gone (reported, not pruned).
 
+## `/tmp` checkouts do not survive; the branch does
+
+Treat any checkout under the system temp dir (a sandbox clone, a Dream or
+Retro run checkout, an ad-hoc review worktree) as ephemeral: it is routinely
+gone by the time anyone acts on it. Leaving work "preserved" in one, or
+recording its path in `worktree:` or a blackboard note, preserves nothing.
+Before the run ends, push the branch or land its commits on `main`.
+
+When a linked `/tmp` worktree vanishes, Git keeps two things: a stale
+registration (`git worktree prune` clears it; the branch sweep runs it) and
+the local branch, which may now be the only copy of unlanded commits. A stale
+`worktree:` line pointing at a gone path is therefore not evidence the work
+landed. Recover from the primary checkout:
+
+1. `git log main..<branch>` lists what never landed.
+2. Land what is still wanted: cherry-pick onto `main` through the normal
+   publication path, or `git push origin <branch>` and open a PR.
+3. Only then `git branch -D <branch>`.
+
 ## `coga retire <slug> [--agent <type>] [--no-launch]`
 
 Refuses unless the ticket is `status: done`. It first disposes of the
