@@ -73,4 +73,30 @@ editable tree.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: linux-clean-install-harness
+
+## Implementation plan
+
+Owner confirmed a separate harness under `scripts/clean-install/` in the
+attended session on 2026-09-28. Keep the release gate unchanged: it covers a
+pinned release and agent launch, while this harness covers a fresh non-root
+Python 3.11 install from current PyPI or a wheel built from fetched `main`.
+Save install/init command outcomes and artifact provenance, retain containers
+for inspection, and provide an attended agent-login / `coga ticket` continuation.
+Keep the runbook in the testing topic with its packaged twin; scripts remain
+repository tooling outside the package. Run both artifact modes and the suite,
+then push, return to clean `main`, record evidence for the later PR, and bump.
+
+Start check passed: clean `main`, fetched `origin/main`, fast-forward already
+current. Docker daemon is available with approved sandbox escalation.
+
+## Adjacent findings
+
+The existing `scripts/verify-clean-install-container.sh` release gate imports
+`coga.resources` using the base Python after a uv tool install and later reads
+unset `local_version` under `set -u`. These are inspection findings, not
+reproduced installer failures. Leave them for
+`marketing/fix-installer/run-clean-installs-and-file-issues`; do not repair the
+release gate in this ticket.
