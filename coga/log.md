@@ -6838,3 +6838,4 @@ fatal: Unable to add (null) to database
 2026-09-29 08:48 [recurring/upstream-coga] [system] deleted completed prior-period task before 2026-W40
 2026-09-29 08:48 [recurring/upstream-coga] [system] created recurring/upstream-coga for 2026-W40
 2026-09-29 08:49 [recurring/skill-update] [system] started (active → in_progress) via coga launch
+2026-09-29 08:49 [recurring/skill-update] [system] launched as a script (ticket.py)
