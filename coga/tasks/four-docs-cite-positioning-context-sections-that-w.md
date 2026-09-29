@@ -1,6 +1,6 @@
 ---
 title: Four docs cite positioning-context sections that were never committed
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -22,7 +22,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 
