@@ -312,7 +312,8 @@ def sweep_branches(
             # Publication crosses a network boundary. Repeat the claim and
             # local-state proofs before removing the previously clean checkout.
             cleanup = _remove_pinning_worktree(
-                cfg, root, branch, worktree_branches[branch], result, echo
+                cfg, root, branch, worktree_branches[branch], result, echo,
+                expected_tip=local_tip,
             )
             if not (cleanup.removed or cleanup.already_gone):
                 result.worktree_pinned.append(branch)
@@ -460,12 +461,30 @@ def _remove_pinning_worktree(
     worktree: str,
     result: BranchSweepResult,
     echo: Callable[[str], None],
+    *,
+    expected_tip: str | None,
 ) -> WorktreeCleanupResult:
-    """Recheck and remove the live worktree holding archived, landed `branch`."""
+    """Recheck and remove the live worktree holding archived, landed `branch`.
+
+    `expected_tip` is the local tip the sweep archived and authorized. A clean
+    commit made in the checkout during publication moves HEAD without
+    dirtying it, so the removal also requires HEAD to still be that tip.
+    """
     cleanup, local_state = _inspect_pinning_worktree(
         cfg, root, branch, worktree, result, echo
     )
     if local_state is None:
+        return cleanup
+    head = _git(Path(worktree), "rev-parse", "--verify", "HEAD")
+    current = head.stdout.strip() if head.returncode == 0 else None
+    if expected_tip is None or current != expected_tip:
+        moved = current[:12] if current else "an unreadable HEAD"
+        archived = expected_tip[:12] if expected_tip else "no archived tip"
+        _note(
+            result, echo,
+            f"Branch sweep: {branch!r} worktree {worktree!r} moved from "
+            f"{archived} to {moved} since it was authorized — both refs left in place.",
+        )
         return cleanup
     return remove_inspected_worktree(
         root, Path(worktree), local_state, result=cleanup, echo=echo

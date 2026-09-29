@@ -863,6 +863,33 @@ def test_worktree_that_becomes_dirty_during_archive_is_preserved(
     assert (linked / ".env").read_text() == "new local state"
 
 
+def test_worktree_that_gains_a_clean_commit_during_archive_is_preserved(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    linked = tmp_path / "linked"
+    _git(repo, "worktree", "add", str(linked), "feat")
+    _own_worktrees(repo)
+    _merged_at_tip(monkeypatch, repo, "feat")
+    archived_tip = _tip(repo, "feat")
+    publish = bs._publish_retirement_tag
+
+    def publish_then_commit(*args, **kwargs):
+        archived = publish(*args, **kwargs)
+        _commit(linked, "late.txt", "unlanded work", "Late commit")
+        return archived
+
+    monkeypatch.setattr(bs, "_publish_retirement_tag", publish_then_commit)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.worktree_pinned == ["feat"]
+    assert result.worktree_removed == []
+    assert result.local_deleted == result.remote_deleted == []
+    assert (linked / "late.txt").read_text() == "unlanded work"
+    assert _tip(repo, "feat") != archived_tip
+
+
 def test_claimed_pinning_worktree_is_reported_not_removed(
     repo: Path, tmp_path: Path, monkeypatch
 ) -> None:

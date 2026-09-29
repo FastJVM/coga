@@ -80,8 +80,9 @@ exact-name exemption, not an exemption for every `coga/` branch.
 After the existing landing and claim gates, the sweep must publish
 `retired/<branch>` to the configured Git remote before removing any associated
 worktree or deleting either branch ref. Worktree claim and cleanliness proofs
-run before publication and again before removal; an initial refusal leaves
-the archive untouched. `_publish_retirement_tag` archives the
+run before publication and again before removal, and the second pass also
+requires the worktree's HEAD to still be the archived local tip; an initial
+refusal leaves the archive untouched. `_publish_retirement_tag` archives the
 actual authorized tip, fetching missing remote objects first. If both local
 and remote refs will be deleted, one of those tips must contain the other;
 the tag points to that descendant. Divergent tips preserve both refs and need
