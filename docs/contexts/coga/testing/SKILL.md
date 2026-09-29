@@ -97,7 +97,7 @@ Its `twine check` inspects metadata, not behavior. Nothing runs `pytest` or
 `coga validate` on any branch, PR, push, or tag, so the local suite plus
 validation are the release gate, and the pristine-tree wheel collision is
 caught only at release or by hand. The parked
-`coga/tasks/v2/minimal-ci-run-pytest-on-prs-and-tags.md` would change this;
+`coga/tasks/_v2/minimal-ci-run-pytest-on-prs-and-tags.md` would change this;
 update this section when it lands.
 
 Therefore every verifier (self-QA, review, release) states the exact commands
