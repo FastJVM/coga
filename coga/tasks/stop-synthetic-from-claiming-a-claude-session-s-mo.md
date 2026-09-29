@@ -53,6 +53,7 @@ In `usage._parse_claude_session`, model attribution is last-model-wins (`model =
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/916
 branch: fix/claude-synthetic-model
 
 ## Implementation — 2026-09-28
