@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -89,3 +89,43 @@ Pushed `preserve-no-action-decisions` (one commit, rebased on origin/main):
 Verification: `.venv/bin/python -m pytest` -> 3050 passed; twins byte-identical.
 Not done here: the google-agents-cli decision itself lives in multiply, not this
 repo; landing it is that repo's work.
+
+## Peer review
+
+2026-09-28: `codex review --base main` **returned** successfully (exit 0)
+with no findings. No review fixes were needed. Reviewed rebased feature head
+`02433eb11` against `main` at `24842bd0a`.
+
+Manual review traced an unlanded owner no-action decision through
+`source: canceled` to Dream Phase 6's existing proposal PR route, including
+its ownership/deduplication check and human merge gate. The scan excludes a
+decision already present in the owning topic and still rejects abandoned
+design alone. This is an instruction change; preservation depends on following
+the cancellation guidance and running Dream. No terminal or rendered-message
+surface changed, so terminal-size testing is not applicable.
+
+Verification:
+
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest` -> 3050 passed.
+- Reviewer also ran `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_dream_worker_templates.py tests/test_packaging.py -q` -> 44 passed.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task preserve-owner-decisions-not-to-act-beyond-the-tic --json` -> 1 valid task, no issues.
+- `git diff --check main...HEAD` -> clean; `cmp` confirmed byte identity for
+  both changed canonical/packaged topic pairs after rebase.
+
+Ran `git fetch origin main` and `git rebase FETCH_HEAD` unconditionally before
+review and testing; no conflicts. Pushed with
+`git push --force-with-lease -u origin preserve-no-action-decisions`.
+The final fetch confirmed the branch is one commit ahead of current main;
+returned to a clean, up-to-date `main` before writing this handoff.
+
+## PR
+
+Owner decisions not to act could remain only in canceled tickets because
+Dream's knowledge scan did not count them as durable knowledge. Define the
+subject's owning topic as the home for what was declined, why, and what would
+reopen it, and direct cancellation reasons to that topic. Extend the scan to
+propose unlanded decisions through its existing canceled-ticket PR route.
+Update the canonical knowledge/lifecycle topics, their packaged twins, and the
+scan contract assertion.
+
+Test plan: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest` -> 3050 passed; `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task preserve-owner-decisions-not-to-act-beyond-the-tic --json` -> no issues; `git diff --check main...HEAD` and both changed topic-pair comparisons passed.
