@@ -28,8 +28,9 @@ from coga.workflow import Workflow
 # Shape of one `tasks/` sub-directory path component: slug-like, the kind of
 # name you'd `mkdir`. Anything else — spaces, parentheses, other punctuation —
 # is almost certainly a title containing a literal '/' that the `coga create`
-# positional split misread as a directory prefix.
-_DIR_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+# positional split misread as a directory prefix. One leading `_` marks a
+# parked directory.
+_DIR_SEGMENT_RE = re.compile(r"^_?[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
 def create_task(
@@ -119,8 +120,17 @@ def create_task(
     # given (the `<dir>/<leaf>` positional path). Slug uniqueness is
     # per-directory — a task in a different sub-directory (or the top level)
     # may reuse the leaf, so only clear slugs already living in the SAME
-    # directory.
-    existing_slugs = {t.slug for t in list_tasks(cfg) if t.directory == directory}
+    # directory. A parked (`_`-prefixed) directory is invisible to
+    # `list_tasks`, so its leaves are read off disk instead.
+    if is_parked_dir(directory):
+        parked = tasks_dir(cfg) / directory
+        existing_slugs = (
+            {p.stem if p.is_file() else p.name for p in parked.iterdir()}
+            if parked.is_dir()
+            else set()
+        )
+    else:
+        existing_slugs = {t.slug for t in list_tasks(cfg) if t.directory == directory}
     slug = base_slug
     n = 2
     while slug in existing_slugs:
@@ -238,15 +248,28 @@ def create_task(
     return {"slug": created_ref.id_slug, "path": result_path}
 
 
+def is_parked_dir(directory: str | None) -> bool:
+    """Whether a `tasks/`-relative sub-directory is parked.
+
+    A parked directory has a `_`-prefixed component. Task discovery skips it
+    at every level, so a ticket created there is kept on disk and published
+    but never listed, launched, or validated (contract: `coga/tickets`).
+    """
+    return directory is not None and any(
+        part.startswith("_") for part in directory.split("/")
+    )
+
+
 def _normalize_create_dir(cfg: Config, directory: str | None) -> str | None:
     """Validate a sub-directory target into a clean relative path under `tasks/`.
 
     Returns None for the top level (no sub-directory), or a slash-joined
     relative path (`v2`, `marketing/social`). Fails loud (principle 6) on a
-    path that would escape `tasks/`, name a discovery-skipped (`_`-prefixed)
-    segment, or nest the new task inside an existing task directory — discovery
-    never recurses into a task dir, so a task placed there would be
-    undiscoverable.
+    path that would escape `tasks/` or nest the new task inside an existing
+    task directory — discovery never recurses into a task dir, so a task placed
+    there would be undiscoverable. A `_`-prefixed segment is allowed: it makes
+    the directory *parked* (see `is_parked_dir`), which is the point of naming
+    it that way.
     """
     if directory is None:
         return None
@@ -259,11 +282,6 @@ def _normalize_create_dir(cfg: Config, directory: str | None) -> str | None:
             raise ValueError(
                 f"Invalid sub-directory {directory!r}: path components cannot be "
                 f"empty, '.', or '..' — the directory must stay under tasks/."
-            )
-        if part.startswith("_"):
-            raise ValueError(
-                f"Invalid sub-directory {directory!r}: component '{part}' starts "
-                f"with '_', which task discovery treats as a template and skips."
             )
         if not _DIR_SEGMENT_RE.match(part):
             # A prose component ("Populate the base repo context stub (coga")

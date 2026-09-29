@@ -15,7 +15,8 @@ from coga.authoring import (
     resolve_authoring_agent,
     snapshot_authoring_state,
 )
-from coga.commands.create import create_draft
+from coga.commands.create import _split_create_path, create_draft
+from coga.create import is_parked_dir
 from coga.commands.launch import (
     _interactive_stdio_has_tty,
     missing_launch_file_message,
@@ -225,6 +226,15 @@ def _resolve_or_create_target(
             _bail(
                 f"Ambiguous task ref {target!r}: matches {slugs}. "
                 "Re-run with the qualified `<dir>/<slug>` to disambiguate."
+            )
+        directory, _ = _split_create_path(target)
+        if is_parked_dir(directory):
+            # Discovery skips parked directories, so the draft could not be
+            # resolved back for the interview. Capture with `coga create`.
+            _bail(
+                f"{directory!r} is a parked directory: guided authoring works "
+                f"on live tickets only. Capture there with `coga create "
+                f"{target!r}`, or author the ticket outside the parked tree."
             )
         result = create_draft(title=target)
         # Re-resolve through discovery so the TaskRef carries the correct shape

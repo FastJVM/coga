@@ -20,7 +20,14 @@ step movement are [coga/lifecycle](../lifecycle/SKILL.md).
   siblings. Promote with `mkdir <slug>/ && mv <slug>.md <slug>/ticket.md`.
 - `<slug>.md` and `<slug>/` must not both exist (`DuplicateTaskSlugError`).
 - `README.md` is never a task; it documents its directory. Names starting
-  with `_` are skipped at every level.
+  with `_` are skipped at every level: `_template/` holds the canonical
+  ticket shape, and any other `_`-prefixed directory is **parked**.
+- A **parked** directory (such as `_v2/`) keeps files Coga never lists,
+  launches, validates, or scans for Dream, while state sync still publishes
+  them. It holds captures and wishes that need not be current or consistent.
+  `coga create "_v2/<title>"` writes there, title-only is fine, and `coga
+  ticket` refuses a parked target. Pull an item forward with `git mv` out of
+  the parked tree; it is then an ordinary ticket and must pass validation.
 - Other directories are plain folders managed with `mkdir`/`mv`/`rm`; Coga
   has no command for them.
 
@@ -118,13 +125,13 @@ the blackboard.
 - `coga create "<dir/>Title"` writes a raw `draft` (no Slack, no launch). A
   `/` separates an optional sub-directory prefix (created if missing) from
   the title leaf, which is slugified for the ref and kept verbatim as the
-  title. It fails on `..`, a `_`-prefixed segment, nesting inside an existing
-  task, or a non-slug-like prefix component (a literal slash in a title).
+  title. It fails on `..`, nesting inside an existing task, or a non-slug-like
+  prefix component (a literal slash in a title); a `_`-prefixed segment makes
+  the target parked.
   `--workflow` is optional in draft ([coga/workflows](../workflows/SKILL.md)).
   `--description` fills `## Description` and rejects a `##` line or an
-  own-line fence; blank capture is intended only under `v2/`
-  (convention owned by `coga/roadmap` and `coga/tasks/v2/README.md`), and `coga validate` warns
-  `empty-description` on non-terminal tickets. `--owner` overrides the local
+  own-line fence; blank capture is intended only in a parked directory, and
+  `coga validate` warns `empty-description` on non-terminal tickets. `--owner` overrides the local
   `user`; empty fails.
 - `coga ticket [title|ref]` runs the guided `bootstrap/ticket` interview on a
   new draft or an existing ticket at any status. It chooses workflow, contexts
