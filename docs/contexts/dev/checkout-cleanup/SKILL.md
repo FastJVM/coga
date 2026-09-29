@@ -62,8 +62,9 @@ long-lived clone of the same project records that clone's primary as its
 `worktree:`. The sweeping clone classifies it `standalone`, so autoclose keeps
 the `retires.md` entry and re-posts it to coga-important on every run. Its
 remedy (`autoclose.py`: "an independent checkout with its own repository,
-which no proof removes — inspect and remove it by hand") asks a human to
-delete a clone that is in active use. `worktree_owner` records no `owner` for
+which no proof removes — inspect and remove it by hand") cannot tell that
+clone from a disposable one, so it now carries this exception: never remove
+another clone's primary checkout in active use. `worktree_owner` records no `owner` for
 a standalone clone, on the assumption that its branch dies with its
 directory, so the branch half is judged against this repository, where the
 branch may never have existed. The worktree half never clears. The rule that

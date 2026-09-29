@@ -279,8 +279,16 @@ class CheckoutOutcome:
                     "can refuse it. Keep the worktree until that plan is verified."
                 )
             if home is not None and home.kind == "standalone":
-                what = "an independent checkout with its own repository"
-            elif home is not None and home.kind == "primary":
+                return (
+                    f"`{self.worktree_path}` is an independent checkout with "
+                    "its own repository, which no proof removes — inspect and "
+                    "remove it by hand, unless it is another clone's primary "
+                    "checkout in active use: then never remove it; verify the "
+                    "branch is gone in that clone and delete this `retires.md` "
+                    "line by hand (see `dev/checkout-cleanup`)"
+                    f"{self._branch_only(branch_left)}"
+                )
+            if home is not None and home.kind == "primary":
                 what = "this repository's primary checkout"
             else:
                 what = "not a git worktree git can read"
