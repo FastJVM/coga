@@ -376,7 +376,9 @@ Hand the evaluator the path to the ticket and ask it to assess:
   attached after all because any planned step depends on rules spread across
   it, and does any cite quote a size or token count as its justification?
 - Is the scope reasonable, or does it bundle multiple tickets' worth of
-  work?
+  work? If so, split it into sibling tickets in a plain directory
+  (`coga create "<group>/<title>"`), never a parent ticket
+  (`coga/tickets`).
 - Any assumptions that should be questioned before launch?
 
 Also hand the evaluator the composed prompt's size breakdown, which the
