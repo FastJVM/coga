@@ -1,7 +1,7 @@
 ---
 title: Apply three Dream W40 notification and skill-management corrections after PR
   914 lands
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,7 +25,6 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
-launch_generation: e35c6e39-ef85-42b6-a5b2-037bf65af7d6
 ---
 
 ## Description
@@ -42,4 +41,27 @@ Verification: `python -m pytest tests/test_packaging.py`.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dependency check — 2026-09-29
+
+- `gh pr view 914 --json number,state,mergedAt,headRefName,title,url` confirms
+  [PR #914](https://github.com/FastJVM/coga/pull/914) is still `OPEN` on
+  `fix-recurring-git-hygiene`. Its owning task is
+  `fix-recurring-sweep-git-hygiene-blocked-task-escap`, currently at the
+  owner-controlled review step. This ticket explicitly requires #914 to merge
+  or close before these corrections are applied.
+- The same check for [PR #911](https://github.com/FastJVM/coga/pull/911)
+  confirms it merged at `2026-09-29T18:51:15Z`; that overlap is cleared.
+- Start check passed: clean `main`, fresh `git fetch origin main`, and
+  `git merge --ff-only origin/main` reported already up to date. No feature
+  branch or implementation changes were made, and tests were not run while
+  the prerequisite remains open.
+- Resume after #914 merges or closes, refresh `main`, and recheck all three
+  corrections against the landed topics. Plan: document the dirty-tracked-file
+  failure rather than change the preflight, preserve the canceled source
+  ticket, and keep every edited topic byte-identical to its packaged twin.
+
+---
+
+## Blockers
+
+- [ ] [2026-09-29 12:11] [agent:claude] id=20260929T121100 Depends on fix-recurring-sweep-git-hygiene-blocked-task-escap: merge or close PR #914 (https://github.com/FastJVM/coga/pull/914) before applying these three corrections, as this ticket requires. PR #914 is still OPEN as of 2026-09-29; overlapping PR #911 has merged.
