@@ -6872,3 +6872,4 @@ fatal: Unable to add (null) to database
 2026-09-29 09:06 [recurring/dream] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-09-29 09:37 [recurring/dream] [agent:claude] slack: New context: another clone's primary checkout never leaves the autoclose worklist. PR: https://github.com/FastJVM/coga/pull/920
 2026-09-29 09:40 [apply-three-dream-w40-skill-and-context-correction] [human:nicktoper] created (status=draft)
+2026-09-29 09:40 [apply-three-dream-w40-workflow-and-v2-readme-corre] [human:nicktoper] created (status=draft)
