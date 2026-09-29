@@ -1,7 +1,7 @@
 ---
 title: Apply three Dream W40 notification and skill-management corrections after PR
   914 lands
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
