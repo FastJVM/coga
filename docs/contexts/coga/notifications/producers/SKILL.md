@@ -72,11 +72,25 @@ inventory in step with `coga/recurring` when templates change.
 
 ## Blocker reminders: one attempt per blocker
 
+`scan_blocker_reminders` includes `status: blocked` tasks and `status: paused`
+period tasks under `tasks/recurring/` that still have unresolved `## Blockers`
+asks. The latter covers an agent period whose block was followed by the
+recurring runner's unfinished-run pause. Ordinary paused tickets, paused
+periods without open asks, and terminal tasks are excluded. A human-paused
+period with an open ask also qualifies: the ask remains visible, while the
+reminder leaves status and scheduling untouched.
+
+Blocked-task reminders point to `coga unblock <slug> --answer "..."`. Paused
+period reminders name the paused status and point to `coga launch <slug>` to
+review the ask, then `coga unblock <slug> --answer "..."` inside the resumed
+session to record its answer. Direct unblock requires a blocked or
+in-progress ticket ([lifecycle](../../lifecycle/SKILL.md)).
+
 `remind_blocked_tasks` posts one reminder per unresolved blocker, then
 `record_reminder` appends a `- <fingerprint> last_reminded: <stamp>` line
 under `## Blocker reminders` on the task's blackboard. The fingerprint is a
 **permanent dedup key, not a cooldown**: a watermarked blocker is never
-reminded again, however long it stays blocked.
+reminded again, including after a blocked-to-paused transition.
 
 The post uses the default `fatal=True`, so the watermark is written only after
 `post` returns:
@@ -88,6 +102,6 @@ The post uses the default `fatal=True`, so the watermark is written only after
   watermark, so that blocker is retried on the next sweep.
 
 A sweep printing `no unresolved blockers to remind` may mean every open ask is
-already watermarked; read the blocked tasks, not the exit line. Re-reminding
+already watermarked; read the eligible tasks, not the exit line. Re-reminding
 on an interval, or watermarking only confirmed deliveries, would be a behavior
 change.

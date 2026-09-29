@@ -40,7 +40,8 @@ and its `ticket.py` runs
    what `gh` actually did — `updated`, `unchanged`, `fetch-failed`, or
    `skipped-pinned` — rather than one hardcoded hand-off row,
 3. commits the clean updates onto the dedicated `coga/skill-update` branch
-   and opens (or updates) one draft PR, and
+   and opens (or updates) one draft PR. This shared branch survives branch
+   sweep under [dev/checkout-cleanup](context:dev/checkout-cleanup), and
 4. appends a `## Skill Update` report to this period task's blackboard with
    one row per installed managed skill, bucketed by its emitted status.
    Bundled refs this repo never installed are not its skills and get no row.

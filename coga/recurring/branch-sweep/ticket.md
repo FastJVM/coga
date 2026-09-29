@@ -28,7 +28,8 @@ which:
 1. prunes registrations for worktrees whose directories are gone, then
    enumerates the branches held by the remaining live worktrees,
 2. enumerates every local branch and every branch on the configured git remote,
-3. skips the configured control branch, the checked-out branch, and any
+3. skips the configured control branch, the checked-out branch, the shared
+   skill-update branch, and any
    branch a non-terminal ticket names anywhere in its task files — the
    ticket body, its blackboard, or an attachment — not only under a `## Dev`
    `branch:` line; a mere mention pins, because a false positive only defers
@@ -54,10 +55,15 @@ which:
    repository belongs to a Coga ticket. With no open PR, a landed worktree linked
    to the clone this sweep runs from, checked out on that branch, locally
    pristine (no tracked or untracked files; ignored regenerable caches are
-   fine), and recorded by no non-terminal ticket is removed first, reported
-   under `removed worktree`, and its refs continue to step 6; a worktree that
+   fine), and recorded by no non-terminal ticket qualifies for removal in
+   step 6; a worktree that
    fails any of those proofs stays `skipped-worktree-pinned` with the reason,
-6. deletes the remote ref and/or local branch per the same policy
+6. publishes the retirement tag before removing the worktree or deleting
+   either ref, under the archive gate in
+   [dev/checkout-cleanup](context:dev/checkout-cleanup). Failed archival
+   preserves the refs and worktree and records a failing sweep outcome.
+   Then it removes the eligible worktree, reported under `removed worktree`,
+   and deletes the local branch and/or remote ref per the same landing policy
    `coga retire` uses (plain `git branch -d` when the tip is reachable from
    the control branch; log the tip SHA and force with `-D` for the
    squash-merge case a merged PR vouches for; skip and report anything

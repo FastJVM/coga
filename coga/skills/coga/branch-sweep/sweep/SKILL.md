@@ -18,7 +18,9 @@ a ticket is deleted without going through retire or a session dies mid-flight.
    worktree prune`), then enumerate the branches held by the remaining live
    worktrees,
 2. enumerate every local branch and every branch on `[git].remote`,
-3. skip `[git].control_branch`, the checked-out branch, and any branch a
+3. skip `[git].control_branch`, the checked-out branch, the shared skill-update
+   branch protected by [dev/checkout-cleanup](context:dev/checkout-cleanup),
+   and any branch a
    non-terminal ticket names anywhere in its task files
    (`_live_ticket_branches`): the whole ticket above and below the fence plus
    every attachment of a directory-form task, matched as a whole branch name.
@@ -84,8 +86,8 @@ a ticket is deleted without going through retire or a session dies mid-flight.
    that every linked worktree of its git repository belongs to a Coga ticket
    (the assumption is stated in the `dev/checkout-cleanup` context, *Unrecorded
    worktrees*),
-   so a landed one nobody claims is finished work: GC the worktree first, then
-   fall through to step 6 for its refs. The worktree proofs are retire's,
+   so a landed one nobody claims is finished work: qualify the worktree for
+   removal after archival in step 6. The worktree proofs are retire's,
    shared through `branchcleanup.inspect_worktree_for_removal` and
    `checkout_disposal.live_checkout_claim`: no non-terminal ticket in any
    Coga workspace of the repository records that worktree path (the
@@ -95,16 +97,18 @@ a ticket is deleted without going through retire or a session dies mid-flight.
    own worktrees; it is not the checkout running the sweep; it holds that
    branch; and it carries no tracked or untracked local state (ignored
    regenerable caches — `__pycache__/`, `.pytest_cache/`, `.ruff_cache/`,
-   `.mypy_cache/` — go with it; any other ignored file preserves it). Then
-   `git worktree remove`, unforced, reported under `removed worktree`. A
+   `.mypy_cache/` — go with it; any other ignored file preserves it). A
    worktree that fails any proof keeps both refs `skipped-worktree-pinned`,
    with the reason in the run record,
-6. delete the remote ref (`git push <configured-remote> --delete`) when a
-   merged PR covers its tip, and the local branch following the same policy
-   retire uses: plain `git branch -d` on the ancestry path, or a logged `-D`
-   — after re-reading the ref and preserving the branch if it moved off the
-   authorized tip — for the squash-merge case, where the merged PR is the only
-   thing vouching for the work,
+6. publish the retirement tag under
+   [dev/checkout-cleanup](context:dev/checkout-cleanup) before any worktree
+   removal or ref deletion. An archive failure preserves the refs and
+   worktree, records the reason, and makes the recipe fail after checking the
+   other branches. Remove an eligible worktree with unforced `git worktree
+   remove`, reported under `removed worktree`. Delete the local branch using
+   retire's landing policy (`-d` for ancestry, a logged `-D` for a merged PR),
+   re-reading the authorized tip first on both paths. Then delete the remote
+   ref with a lease on its authorized tip when a merged PR covers it,
 7. write a `## Branch Sweep` report (`render_sweep_report`) — the outcome
    counts and lists, then every per-branch decision — to the period task's
    blackboard named by `COGA_TASK_BLACKBOARD`, or to stdout when the recipe

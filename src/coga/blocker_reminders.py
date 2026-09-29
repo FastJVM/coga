@@ -48,6 +48,8 @@ class BlockerReminder:
 
     @property
     def next_command(self) -> str:
+        if self.status == "paused":
+            return f"coga launch {self.slug}"
         return f'coga unblock {self.slug} --answer "..."'
 
 
@@ -56,14 +58,16 @@ def scan_blocker_reminders(
     *,
     refs: Iterable[TaskRef] | None = None,
 ) -> list[BlockerReminder]:
-    """Scan `status: blocked` tasks for unresolved blockers."""
+    """Scan blocked tasks and paused recurring periods for unresolved asks."""
     out: list[BlockerReminder] = []
     for ref in refs if refs is not None else list_tasks(cfg):
         try:
             ticket = read_ticket(ref)
         except TicketError:
             continue
-        if ticket.status != "blocked":
+        if ticket.status != "blocked" and not (
+            ticket.status == "paused" and ref.id_slug.startswith("recurring/")
+        ):
             continue
 
         try:
@@ -143,12 +147,18 @@ def remind_blocked_tasks(cfg: Config, *, now: datetime | None = None) -> int:
         if reminder.reminded:
             continue
         owner = reminder.owner or cfg.current_user
+        action = (
+            "to review the ask, then record the answer in the resumed session "
+            f'with `coga unblock {reminder.slug} --answer "..."`.'
+            if reminder.status == "paused"
+            else "to record the answer and resume."
+        )
         post(
             cfg,
             (
                 f"Blocker reminder: *{reminder.slug}* \"{reminder.title}\" "
-                f"is blocked: {reminder.blocker.reason}. Run "
-                f"`{reminder.next_command}` to record the answer and resume."
+                f"is {reminder.status}: {reminder.blocker.reason}. Run "
+                f"`{reminder.next_command}` {action}"
             ),
             task_path=reminder.task_path,
             owner=owner,

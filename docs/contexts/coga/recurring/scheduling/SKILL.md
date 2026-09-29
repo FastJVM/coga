@@ -166,8 +166,10 @@ and is the shape for unattended schedulers.
 
 A scheduled agent run must reach `done` in one launch. When an agent launch
 returns unfinished — including a human/unassigned handoff or a `coga block` —
-the sweep pauses it before continuing. Paused periods are not reminded by
-`blocker-reminders`, so keep human gates and expected blockers out of scheduled
+the sweep pauses it before continuing. The blocker-reminder job keeps open
+asks on paused periods visible under its
+[eligibility and deduplication contract](../../notifications/producers/SKILL.md#blocker-reminders-one-attempt-per-blocker);
+it does not resume them. Keep human gates and expected blockers out of scheduled
 workflows. A **watchdog** pause (latest pause audit actor `system:watchdog`, not
 superseded by a later human pause or creation) stays an unresolved failure:
 every sweep that admits the template through the inactivity gate shows `needs attention (watchdog timeout)` with the resume command,
