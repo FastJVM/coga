@@ -26,7 +26,8 @@ step movement are [coga/lifecycle](../lifecycle/SKILL.md).
   launches, validates, or scans for Dream, while state sync still publishes
   them. It holds captures and wishes that need not be current or consistent.
   `coga create "_v2/<title>"` writes there, title-only is fine, and `coga
-  ticket` refuses a parked target. Pull an item forward with `git mv` out of
+  ticket` refuses a parked target. `_template` is reserved at every level:
+  `coga/.gitignore` ignores it, so `coga create` refuses it as a component. Pull an item forward with `git mv` out of
   the parked tree; it is then an ordinary ticket and must pass validation.
 - Other directories are plain folders managed with `mkdir`/`mv`/`rm`; Coga
   has no command for them.

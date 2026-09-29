@@ -530,13 +530,26 @@ def test_create_parked_collision_suffixes_from_disk(repo: Path) -> None:
 
 def test_create_refuses_inside_the_ticket_template(repo: Path) -> None:
     """`tasks/_template/` holds the canonical ticket shape; it is a task
-    directory, so the nesting guard keeps creates out of it."""
+    directory, and `_template` is reserved, so creates stay out of it."""
     cfg = load_config(repo)
     tmpl = repo / "tasks" / "_template"
     tmpl.mkdir(parents=True, exist_ok=True)
     (tmpl / "ticket.md").write_text("---\ntitle: t\n---\n")
-    with pytest.raises(ValueError, match="can't live inside another task"):
+    with pytest.raises(ValueError, match="'_template' is reserved"):
         create_task(title="Child", **_dir_kwargs(cfg, directory="_template"))
+
+
+@pytest.mark.parametrize("directory", ["_template", "_v2/_template"])
+def test_create_refuses_template_component_without_anchor(
+    repo: Path, directory: str
+) -> None:
+    """`_template` is git-ignored scaffolding (`**/_template/`), so it is
+    reserved even where no `ticket.md` anchors it: a ticket written there
+    would never reach git or state sync."""
+    cfg = load_config(repo)
+    with pytest.raises(ValueError, match="'_template' is reserved"):
+        create_task(title="Wish", **_dir_kwargs(cfg, directory=directory))
+    assert not (repo / "tasks" / "_v2" / "_template").exists()
 
 
 def test_create_dir_rejects_prose_component(repo: Path) -> None:

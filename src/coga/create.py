@@ -283,6 +283,16 @@ def _normalize_create_dir(cfg: Config, directory: str | None) -> str | None:
                 f"Invalid sub-directory {directory!r}: path components cannot be "
                 f"empty, '.', or '..' — the directory must stay under tasks/."
             )
+        if part == "_template":
+            # `_template/` is the scaffolding name `coga/.gitignore` ignores
+            # (`**/_template/`): a ticket written there is invisible to git
+            # and state sync, so it is reserved at every level, anchor file
+            # present or not.
+            raise ValueError(
+                f"Invalid sub-directory {directory!r}: '_template' is reserved "
+                "for ticket-shape scaffolding and is git-ignored; a task there "
+                "would never be committed or synced. Pick another name."
+            )
         if not _DIR_SEGMENT_RE.match(part):
             # A prose component ("Populate the base repo context stub (coga")
             # almost always means the *title* contained a literal '/', which
