@@ -73,6 +73,7 @@ run git init -b main
 run git config --local user.name "Coga install harness"
 run git config --local user.email "install-harness@example.invalid"
 run coga init --user "$operator"
+run coga validate --json
 printf 'coga init passed; attended coga ticket has not run\n' | tee "$evidence/init-passed.txt"
 echo 'Install and authenticate an agent in this container, then run:'
 echo '  coga-clean-install ticket "Write a hello-world script" --agent claude'

@@ -23,7 +23,6 @@ editable install, or tool cache is mounted into an install run.
 On a Linux host with Bash, Git and Docker available, from the Coga checkout:
 
 ```sh
-docker build --pull -t coga-clean-install:py311 scripts/clean-install
 ./scripts/clean-install/run.sh pypi clean-pypi alice
 ./scripts/clean-install/run.sh main clean-main alice
 ```
@@ -33,24 +32,26 @@ commit, runs `uv build --wheel --no-sources`, and copies only the resulting
 wheel into the container. It does not switch branches or build the working
 tree. `pypi` runs the unpinned `uv tool install coga`; `main` uses the wheel
 path with the same tool installer. Both then check the CLI version, initialize
-a scratch Git repo with a local test identity, and run `coga init --user alice`.
+a scratch Git repo with a local test identity, run `coga init --user alice`,
+and run `coga validate --json`.
 The optional third argument is the Coga user name (default `installer`).
 
-Each invocation requires a new container name and evidence directory. The
-container stays running after success or failure. Use
-`COGA_CLEAN_INSTALL_IMAGE=<tag-or-id>` to reuse a specific built image. Builds
+Each invocation first rebuilds `coga-clean-install:py311` with `--pull`, then
+requires a new container name and evidence directory. The container stays
+running after success or failure. Set `COGA_CLEAN_INSTALL_IMAGE=<tag-or-id>`
+to skip the build and reuse a specific built image. Builds
 follow the current Python 3.11 patch and uv release; the image ID, tool versions,
 resolved Coga version, and main SHA/wheel checksum are recorded for comparison.
 
-If this host's Docker bridge cannot reach the package indexes, build with
-`docker build --network host --pull -t coga-clean-install:py311 scripts/clean-install`
-and prefix each run with `COGA_CLEAN_INSTALL_NETWORK=host`. This explicitly
-shares the host network; the default is `bridge`. The chosen network is saved
+If this host's Docker bridge cannot reach the package indexes (for example,
+`apt-get update` times out on large index files), prefix each run with
+`COGA_CLEAN_INSTALL_NETWORK=host`; the build and the container then share the
+host network. The default is `bridge`. The chosen network is saved
 in `result.txt` and the container-creation command in `host.txt`.
 
 ## Inspect and continue interactively
 
-Both modes stop after init; a zero exit proves only that phase. Enter either
+Both modes stop after init and validate; a zero exit proves only that phase. Enter either
 retained container, including after a failure, with:
 
 ```sh

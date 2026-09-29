@@ -57,6 +57,12 @@ run() {
     "$@"
 }
 
+if [[ -z ${COGA_CLEAN_INSTALL_IMAGE:-} ]]; then
+    # BuildKit accepts only default|host|none, so pass only a non-default network.
+    build_network=()
+    [[ $network == bridge ]] || build_network=(--network "$network")
+    run docker build --pull "${build_network[@]}" -t "$image" "$script_dir"
+fi
 run docker image inspect --format '{{.Id}}' "$image"
 docker image inspect --format '{{.Id}}' "$image" > "$evidence/image.txt"
 if [[ $artifact == main ]]; then
