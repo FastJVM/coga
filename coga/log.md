@@ -6934,3 +6934,5 @@ fatal: Unable to add (null) to database
 2026-09-29 14:43 [coga] [git] sync failed: push to origin/main failed: fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com; control could not be re-read: `git fetch --quiet origin +refs/heads/main:refs/remotes/origin/main` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com
 2026-09-29 15:33 [fix-the-commit-git-journal] [human:nicktoper] created (status=draft)
 2026-09-29 15:33 [marketing/1st-users] [human:nicktoper] created (status=draft)
+2026-09-29 15:33 [marketing/1st-users] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
+2026-09-29 15:39 [marketing/recruit-first-users] [human:nicktoper] created (status=draft)
