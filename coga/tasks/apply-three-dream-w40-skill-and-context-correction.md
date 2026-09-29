@@ -77,4 +77,5 @@ code route). Do not advance `implement` while these prerequisites remain open.
 
 ## Blockers
 
-- [ ] [2026-09-29 12:32] [agent:claude] id=20260929T123206 Depends on launch-moves-the-checkout-to-main-before-and-after (PR #909 is still open): merge or close #909 before applying these corrections. Owner must also choose the seed_local_config.py route: defer the tomllib import until after the re-exec decision, or narrow the documentation to Python 3.11+.
+- [x] [2026-09-29 12:32] [agent:claude] id=20260929T123206 Depends on launch-moves-the-checkout-to-main-before-and-after (PR #909 is still open): merge or close #909 before applying these corrections. Owner must also choose the seed_local_config.py route: defer the tomllib import until after the re-exec decision, or narrow the documentation to Python 3.11+.
+  resolved: [2026-09-29 14:40] [human:nicktoper] PR #909 merged on 2026-09-29 at 21:27:50 UTC. Owner chose the documentation route: require Python 3.11+ to start seed_local_config.py, preserving the existing helper code and updating both code/implement and dev/checkouts with their packaged twins.
