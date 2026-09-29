@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -176,3 +176,101 @@ unset `local_version` under `set -u`. These are inspection findings, not
 reproduced installer failures. Leave them for
 `marketing/fix-installer/run-clean-installs-and-file-issues`; do not repair the
 release gate in this ticket.
+
+## Peer review
+
+Completed 2026-09-29. Both native Codex reviews **returned**, exit 0:
+
+- `codex review --base main` found one P2: the test fixtures required the
+  host's GNU `sha256sum`, which stock macOS lacks. Reproduced with a restricted
+  PATH: seven setup errors and one failure. The owner approved a portable
+  Python checksum stand-in; commit `6583f0e4e` supplies it to both fixtures.
+- After incorporating the owner's concurrent `2dbc34bbf` follow-up,
+  `codex review --base origin/main` found one P2: an inherited
+  `COGA_CLEAN_INSTALL_IMAGE` makes the default-build test skip its expected
+  build. Commit `3b95fa74d` clears that override in the test. No installer or
+  harness behavior needed a review fix. Both findings are addressed.
+
+The initial sandboxed review could not initialize its app-server; both
+completed reviews ran with the required filesystem access. Review logs are
+`/tmp/coga-linux-clean-install-peer-review-20260929.log` and
+`/tmp/coga-linux-clean-install-peer-review-final-20260929.log`.
+
+Final verification on the pushed branch:
+
+- `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest`:
+  **3059 passed in 189.86s**, after the final fix and rebase.
+- `COGA_CLEAN_INSTALL_IMAGE=coga-clean-install:py311 PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest tests/test_clean_install_harness.py -q`:
+  **9 passed**, reproducing the second reviewer's environment after its fix.
+- `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest tests/test_clean_install_harness.py -q --tb=short`
+  with PATH restricted to temporary links for `bash`, `git`, `mkdir`, `tee`,
+  `dirname`, `basename`, `mktemp`, `tar`, `cp`, and `rm` (no host checksum
+  utility): **9 passed**. This is a Linux simulation of the missing utility,
+  not a run on macOS.
+- `bash -n scripts/clean-install/run.sh scripts/clean-install/container.sh`
+  and `git diff --check origin/main...HEAD`: passed. Both changed context
+  pairs were also checked with `cmp`; they are byte-identical.
+
+Manual terminal gate: opened `docker exec -it clean-main-20260929 bash
+--noprofile --norc`, set `stty rows 24 cols 80`, then ran
+`coga-clean-install ticket --pick-agent` and selected `1`. Repeated at
+`stty rows 40 cols 120`, entered `invalid`, saw the retry prompt, then selected
+`codex`. Prompts and input remained visible; both runs reached the expected
+missing-agent-CLI error and recorded `ticket_exit_code=2`. The ticket
+continuation is unchanged by `2dbc34bbf`. Receipts were copied back to
+`.coga/clean-install/clean-main-20260929/container/ticket.txt`. Agent login and
+a completed first-ticket interview were not exercised.
+
+Independently inspected the newer merged-harness receipts in
+`/home/n/Code/coga/.coga/clean-install/clean-{pypi,main}/`; their outcomes and
+provenance are the PR evidence below.
+
+Final branch head: `3b95fa74d`. Preserved remote commit `2dbc34bbf` and used
+the owner's requested `git pull --rebase origin linux-clean-install-harness`
+and normal `git push origin linux-clean-install-harness`. The required
+fetch/rebase of main also ran; main's only newer change was this ticket's
+state, and its replay was omitted from the feature branch. No task or log
+paths are in the implementation diff. Returned to clean, fast-forwarded
+`main` at `71cc796e5` before writing this handoff. No PR opened in this step.
+
+## PR
+
+Make Linux installer failures reproducible with a fresh non-root Python 3.11
+Docker environment. The runner builds the image and installs either current
+PyPI Coga or a wheel exported from freshly fetched `origin/main`, then checks
+the version, initializes a scratch Git repo, runs `coga init`, and validates
+the result. It preserves command receipts and the first failure, retains the
+container for inspection, and provides an attended first-ticket continuation.
+
+The runbook lives in `docs/contexts/coga/testing/clean-install/SKILL.md`, with
+a matching packaged twin and a link from the testing overview. Tests cover
+artifact selection, failure propagation, clean-environment refusal, fetched
+source provenance, and terminal preservation; review also fixed checksum
+portability and isolation from an exported image override in the fixtures.
+
+Test plan: `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest` — **3059 passed**; the nine harness tests also pass with a host PATH lacking `sha256sum` and with `COGA_CLEAN_INSTALL_IMAGE` exported. Shell syntax, diff whitespace, and context-twin checks pass.
+
+### Artifact verification — 2026-09-29
+
+Both commands below built image
+`sha256:51832fd6f697fa1e8e3a75c0fd7292028c4acdabf5272dd65b3472692844b252`
+and used a fresh container: UID/GID 1000, Python **3.11.16**, Git **2.39.5**,
+uv **0.12.20**. Host networking was explicitly selected because the host's
+Docker bridge timed out during downloads; receipts record `network=host`.
+
+| Exact command | Installed artifact and outcome |
+| --- | --- |
+| `env COGA_CLEAN_INSTALL_NETWORK=host ./scripts/clean-install/run.sh pypi clean-pypi alice` | Installed **Coga 0.2.0**; version check passed. `coga init --user alice` exited **2** because `gh` was not on PATH. Validation was not reached. |
+| `env COGA_CLEAN_INSTALL_NETWORK=host ./scripts/clean-install/run.sh main clean-main alice` | Installed **Coga 0.3.2** from main `8ce7d8b10038ef557cc94e34ea5b0b7294c5b34c`. `coga init --user alice` and `coga validate --json` passed; validation reported no issues and the wrapper exited **0**. |
+
+Wheel: `coga-0.3.2-py3-none-any.whl`, SHA-256
+`1585bb8c57da64fd0159eecfeb9b88c9ce1bb43a705689fb738a690fd8bc7986`.
+Receipts are retained under
+`/home/n/Code/coga/.coga/clean-install/clean-{pypi,main}/` (gitignored).
+
+The attended wrapper's agent picker was driven in a real Docker terminal at
+80x24 and 120x40, including an invalid selection and retry. It accepted input
+and preserved the missing-agent exit code. **Agent login and a completed
+first-ticket interview were not run.** The PyPI failure is recorded for the
+installer-issues sibling ticket; no installer repair or issue filing is
+included here.
