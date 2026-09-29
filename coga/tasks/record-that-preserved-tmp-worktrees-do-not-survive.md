@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -53,3 +53,16 @@ Plan: the ticket's target `coga/contexts/coga/recipes/SKILL.md` is a multiply pa
 - Covers the ticket's four points: /tmp checkouts are ephemeral; push or land preserved work before the run ends (a `worktree:` line is not preservation); a gone worktree leaves a `git worktree prune`-able registration plus a branch holding the commits; recovery = `git log main..<branch>`, cherry-pick/push from the primary checkout, then `git branch -D`.
 - Not done (out of scope here): the multiply-side evidence (dream/retro-2026-W36 branch, stale `worktree:` lines, autoclose list) lives in the multiply repo and was not touched.
 - Tests: `.venv/bin/python -m pytest` — 3050 passed (system `python` lacks `tomlkit`; use the repo `.venv`).
+
+## Peer review
+
+- `codex review --base main` **returned** (exit 0) with one P2 finding: `git log main..<branch>` lists ancestry differences, including changes already landed by squash merge, so it cannot alone identify work to replay. The review reproduced this with identical trees and two branch commits still in the log.
+- Resolved in published commit `ecaa9f2c7`: refresh `main`, treat the log as candidate commits, and check merged-PR history or patch equivalence before recovering only missing, wanted work. Both topic copies match. A concurrent review pushed this equivalent fix while this session ran; preserved that version and dropped the redundant local fix after the push lease refused the stale head. No must-fix findings remain.
+- Final verification on `ecaa9f2c7`: `.venv/bin/python -m pytest` — **3050 passed** (179.13s); `git diff --check main...doc-tmp-checkouts-ephemeral` — clean; `cmp docs/contexts/dev/checkout-cleanup/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/dev/checkout-cleanup/SKILL.md` — identical. Only markdown changed; no terminal or rendered UI surface requires an interactive check.
+- Refreshed with `git fetch origin main` and `git rebase FETCH_HEAD`; final branch commits are `e8c2887f2` and `ecaa9f2c7` atop `abbeb6538`. `git push --force-with-lease -u origin doc-tmp-checkouts-ephemeral` succeeded. Returned to clean `main` before writing this handoff; the ticket was still on `peer-review`.
+
+## PR
+
+Temporary checkouts can disappear while their linked-worktree branches retain unlanded commits. Document the preservation and recovery rules in `dev/checkout-cleanup`, including checking whether changes already landed before replaying them, and keep the packaged bootstrap twin identical.
+
+Test plan: `.venv/bin/python -m pytest` — 3050 passed; `git diff --check main...doc-tmp-checkouts-ephemeral`; `cmp docs/contexts/dev/checkout-cleanup/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/dev/checkout-cleanup/SKILL.md`.
