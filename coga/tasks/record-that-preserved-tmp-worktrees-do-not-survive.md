@@ -40,3 +40,9 @@ Moved from FastJVM/multiply on 2026-09-24: filed there by Dream/autofix against 
 
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: doc-tmp-checkouts-ephemeral
+
+Plan: the ticket's target `coga/contexts/coga/recipes/SKILL.md` is a multiply path; no such topic exists here, and PR #104 here is an unrelated merged relay-era PR. Human chose `dev/checkout-cleanup` (plus its packaged bootstrap twin) as the owner. Add one short section: /tmp checkouts are ephemeral; push or land preserved work before the run ends; a gone checkout leaves a prunable registration and a branch holding the commits; recovery recipe.
