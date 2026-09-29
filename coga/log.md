@@ -6816,3 +6816,4 @@ fatal: Unable to add (null) to database
 2026-09-28 23:15 [marketing/fix-installer/run-clean-installs-and-file-issues] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
 2026-09-28 23:17 [marketing/fix-installer/run-clean-installs-and-file-issues] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-28 23:17 [marketing/fix-installer/run-clean-installs-and-file-issues] [human:nicktoper] started (active → in_progress) via coga launch
+2026-09-28 23:17 [marketing/fix-installer/run-clean-installs-and-file-issues] [human:nicktoper] launched (operator=claude, agent=claude)
