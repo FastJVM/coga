@@ -32,9 +32,14 @@ In `usage._parse_claude_session`, model attribution is last-model-wins (`model =
 
 ## Context
 
-- Code: `usage._parse_claude_session`, in the `kind == "assistant"` branch where
-  `model` is reassigned per line. Keep the token sums as they are; only the
-  model choice changes. Codex (`usage._parse_codex_rollout`) is unaffected.
+- Code: `src/coga/usage.py` plus `usage._parse_claude_session`, in the
+  `kind == "assistant"` branch where `model` is reassigned per line. Keep the
+  token sums as they are; only the model choice changes. Codex parsing in the
+  same module (`usage._parse_codex_rollout`) is unaffected.
+- Cited rather than attached: `coga/internals/activity-capture`
+  (`docs/contexts/coga/internals/activity-capture/SKILL.md`), "Provider matching
+  — never by file mtime", owns Claude transcript attribution. Update this
+  contract and its packaged twin with the fix.
 - `<synthetic>` is Claude Code's placeholder model on synthetic assistant
   messages; it appears only on Claude transcripts.
 - Out of scope: re-attributing existing `<synthetic>` records already in
@@ -46,4 +51,16 @@ In `usage._parse_claude_session`, model attribution is last-model-wins (`model =
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: fix/claude-synthetic-model
+
+## Plan
+
+- Human confirmed the focused approach on 2026-09-28: keep the last real
+  Claude model, retaining `<synthetic>` only when no real model appears.
+- Add a failing transcript regression first, including synthetic-only and
+  multiple-real-model cases; keep all four token sums unchanged.
+- Update the activity-capture contract and its packaged twin, run the full
+  pytest suite, push the branch, return to clean `main`, then hand off with
+  `coga bump`. PR creation belongs to a later step.
