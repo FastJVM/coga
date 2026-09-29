@@ -170,6 +170,23 @@ def test_ticket_path_title_drafts_in_subdirectory(
     assert "Coga task — v2/build-the-flow" in prompts[0]
 
 
+def test_ticket_refuses_a_parked_directory(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Discovery skips `_`-prefixed directories, so guided authoring cannot
+    resolve a draft there; it refuses before writing and names `coga create`."""
+    prompts: list[str] = []
+    _allow_ticket_launch(monkeypatch, prompts)
+
+    result = CliRunner().invoke(app, ["ticket", "_v2/Some wish"])
+    assert result.exit_code != 0
+    assert "parked directory" in result.output + (result.stderr or "")
+    assert "coga create" in result.output + (result.stderr or "")
+    assert not (repo / "tasks" / "_v2").exists()
+    assert prompts == []
+
+
 def test_ticket_authoring_does_not_inject_coga_secrets(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
