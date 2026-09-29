@@ -47,6 +47,10 @@ performs the `active → in_progress` start transition
 it. If work was already done under `active`, record a handoff note on that
 ticket's blackboard naming what was done and what remains, and ask for the
 launch; the launched session verifies the note against disk and bumps once.
+This recipe is for an agent-held step. On an owner-held step plain
+`coga launch <ref>` refuses before starting anything
+([coga/launch](../launch/SKILL.md)): the step is the human's to work, alone
+or with an assist they open with `coga launch <ref> --agent <type>`.
 
 **Queues (megalaunch and recurring).** The TTY is transport for live
 streaming and interruption, not evidence of an attending human, and input the
