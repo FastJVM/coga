@@ -2449,6 +2449,19 @@ def _refresh_launch_checkout(cfg: Config) -> bool:
     return git.refresh(cfg)
 
 
+def settle_delegated_period(cfg: Config, ref: TaskRef) -> bool:
+    """Return the checkout after a recurring runner's direct delegated run.
+
+    The sweep and the named recurring path call `_run_delegated_task`
+    themselves rather than through `_launch`, so they arm and settle the
+    period's return half here. False means the return refused: the sweep is
+    withheld and the caller must stop with the retained-state exit.
+    """
+    boundary = _CheckoutBoundary()
+    boundary.admit(cfg)
+    return boundary.settle(cfg, subject=f"{ref.id_slug}'s delegated run")
+
+
 class _CheckoutBoundary:
     """One ordinary launch's checkout normalization (`dev/checkouts`).
 
