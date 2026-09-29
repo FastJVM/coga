@@ -91,7 +91,7 @@ and marketing contexts own the V1 plan. Existing human step is preserved.
   `marketing/verify-posthog-telemetry-with-the-live-clean-wheel` (draft).
   It is a launch gate.
 - README (`marketing/readme-top`), installer/onboarding
-  (`marketing/fix-installer`) and the idea piece (`marketing/idea-piece`) are
+  (the `marketing/fix-installer/` tickets) and the idea piece (`marketing/idea-piece`) are
   still drafts and have not been launched.
 
 ## Authoring handoff
