@@ -1,6 +1,6 @@
 ---
 title: Apply three Dream W40 skill and context corrections after PR 909 lands
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:8dd51850-5fc0-43ed-a945-a3e54cc940d5
 ---
 
 ## Description
