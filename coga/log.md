@@ -6820,3 +6820,20 @@ fatal: Unable to add (null) to database
 2026-09-29 08:42 [marketing/fix-installer/run-clean-installs-and-file-issues] [agent:claude] blocked: Waiting on marketing/fix-installer/linux-clean-install-harness and macos-clean-install-harness-on-aws to merge (neither has a branch/PR yet); unblock and relaunch after both land.
 2026-09-29 08:42 [marketing/fix-installer/run-clean-installs-and-file-issues] [system] {"agent":"claude","agent_turns":0,"cache_creation_input_tokens":70897,"cache_read_input_tokens":421634,"cli":"claude","content_status":"ok","elapsed_seconds":33859.986862,"ended_at":"2026-09-29T15:42:15.779029Z","human_turns":0,"input_tokens":20,"model":"claude-opus-5-5","outcome":null,"outcome_status":"completed","output_tokens":3074,"provider":"anthropic","request":null,"schema":2,"session_id":"06e860b8-ae93-4091-aa0c-5cdbf3f29921","slug":"marketing/fix-installer/run-clean-installs-and-file-issues","started_at":"2026-09-29T06:17:55.792167Z","step":"execute","title":"Run clean installs and file issues","ts":"2026-09-29T15:42:15.779029Z","usage_status":"ok"}
 2026-09-29 08:46 [marketing/fix-installer/linux-clean-install-harness] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-29 08:48 [recurring/address-pr-comments] [system] created (status=active)
+2026-09-29 08:48 [recurring/address-pr-comments] [system] deleted completed prior-period task before 2026-09-29
+2026-09-29 08:48 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-09-29
+2026-09-29 08:48 [recurring/autoclose-merged] [system] created (status=active)
+2026-09-29 08:48 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-09-29
+2026-09-29 08:48 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-09-29
+2026-09-29 08:48 [recurring/blocker-reminders] [system] created (status=active)
+2026-09-29 08:48 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-09-28
+2026-09-29 08:48 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-09-28
+2026-09-29 08:48 [recurring/dream] [system] created (status=active)
+2026-09-29 08:48 [recurring/dream] [system] deleted completed prior-period task before 2026-W40
+2026-09-29 08:48 [recurring/dream] [system] created recurring/dream for 2026-W40
+2026-09-29 08:48 [recurring/skill-update] [system] created (status=active)
+2026-09-29 08:48 [recurring/skill-update] [system] created recurring/skill-update for 2026-W40
+2026-09-29 08:48 [recurring/upstream-coga] [system] created (status=active)
+2026-09-29 08:48 [recurring/upstream-coga] [system] deleted completed prior-period task before 2026-W40
+2026-09-29 08:48 [recurring/upstream-coga] [system] created recurring/upstream-coga for 2026-W40
