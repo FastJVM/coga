@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -55,12 +55,44 @@ In `usage._parse_claude_session`, model attribution is last-model-wins (`model =
 
 branch: fix/claude-synthetic-model
 
-## Plan
+## Implementation — 2026-09-28
 
-- Human confirmed the focused approach on 2026-09-28: keep the last real
-  Claude model, retaining `<synthetic>` only when no real model appears.
-- Add a failing transcript regression first, including synthetic-only and
-  multiple-real-model cases; keep all four token sums unchanged.
-- Update the activity-capture contract and its packaged twin, run the full
-  pytest suite, push the branch, return to clean `main`, then hand off with
-  `coga bump`. PR creation belongs to a later step.
+- Human approved the focused approach. Pushed commit `81f4fe80d` on the branch
+  above, containing `origin/main` through `f7490d1bf`; returned the launch
+  checkout to clean, fast-forwarded `main` before writing this handoff.
+- `src/coga/usage.py` plus `usage._parse_claude_session` now uses
+  `<synthetic>` only until a real model is seen. Later real models still win;
+  all four token sums and Codex parsing retain their existing behavior.
+- `tests/test_usage.py` plus
+  `test_parse_claude_transcript_prefers_real_model` covers trailing synthetic,
+  synthetic-only, leading synthetic, and real-model-switch transcripts, with
+  token-total assertions that include every assistant line.
+- Updated `coga/internals/activity-capture` and its byte-identical packaged
+  twin. No task-layout, prompt, workflow, or validation behavior changed, so
+  the example fixture needed no update.
+
+## Verification
+
+- Before the fix:
+  `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest tests/test_usage.py -k prefers_real_model`
+  → 2 failed, 2 passed, 18 deselected. Both failures reproduced a trailing
+  `<synthetic>` overwriting a real model.
+- After the fix:
+  `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest tests/test_usage.py`
+  → 22 passed.
+- Full suite:
+  `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest`
+  → 3054 passed, both before and after the initial rebase (final full run:
+  189.65 seconds, commit `1621cdac4`).
+- Subsequent rebases incorporated only another ticket's lifecycle records.
+  `git diff --exit-code 1621cdac4 HEAD -- src tests docs` confirmed the final
+  code, tests, and documentation match the full-suite-tested commit.
+  `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest tests/test_usage.py tests/test_packaging.py`
+  → 45 passed on the final commit.
+- `git diff --check` passed; the activity-capture twin `cmp` passed.
+
+## Handoff
+
+Ready for peer review; no blockers or adjacent bugs found. No PR opened.
+Historical log records and per-model token splitting remain outside this
+ticket's scope.
