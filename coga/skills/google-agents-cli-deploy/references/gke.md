@@ -83,6 +83,9 @@ curl -X POST "http://127.0.0.1:8080/run_sse" \
     "session_id": "SESSION_ID",
     "new_message": {"role": "user", "parts": [{"text": "Hello!"}]}
   }'
+
+# Live agents: same forward, WebSocket surface
+agents-cli run "Hello!" --mode adk_live --url http://127.0.0.1:8080
 ```
 
 ## Network & Ingress

@@ -18,8 +18,12 @@ Each template builds the served application its own way:
   launcher sub-commands (`web`, `api`, `a2a`, `appinfo`). Agent Runtime is supported natively,
   so there is no adapter layer.
 
-`agents-cli deploy` always labels the deployment `agent_framework = "google-adk"` (see
-`service.tf`); that label picks the Console playground, it does not constrain the container.
+`agents-cli deploy` labels the deployment with the `framework` recorded in
+`agents-cli-manifest.yaml`, and `--framework` overrides it. Terraform has its own copy, the
+`agent_framework` default in `deployment/terraform/*/variables.tf`, so editing the manifest
+alone leaves the tfvar stale and the next `terraform apply` puts the old label back. Edit
+both. The label picks the Console playground and decides whether ADK class methods are
+declared; it does not constrain the container.
 
 > **ADK Python projects.** `fast_api_app.py` builds the FastAPI `app` via
 > `get_fast_api_app(web=True, lifespan=...)`. The lifespan builds one `Runner`

@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-eval
-    github-ref: refs/tags/v1.6.1
+    github-ref: refs/tags/v1.7.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 22bc3ed62b538deb93339dd7c4f6a9869a8c7205
+    github-tree-sha: cd195fa0827351834af4a906e87a0e024a1b748d
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.6.1
+    version: 1.7.0
 name: google-agents-cli-eval
 ---
 # Agent Evaluation Guide
@@ -32,6 +32,7 @@ name: google-agents-cli-eval
 | `references/builtin-tools-eval.md` | google_search and model-internal tools — trajectory behavior, metric compatibility |
 | `references/advanced-commands.md` | Opt-in commands: `eval analyze`, `eval optimize`, `eval submit` / `eval results` |
 | `references/multimodal-eval.md` | Multimodal inputs — eval dataset schema, built-in metric limitations, custom evaluator pattern |
+| `references/live-eval.md` | Live and voice agents — `--mode adk_live`, what gets graded, user-only turn authoring, the Live-model and region traps |
 
 ---
 
@@ -157,7 +158,14 @@ agents-cli eval generate --dataset tests/eval/datasets/custom.json -o ./custom_t
 
 # Against a deployed agent (or one you started manually)
 agents-cli eval generate --url https://my-agent.run.app --app-name app
+
+# Live agent — stream each case over ADK's /run_live WebSocket
+agents-cli eval generate --mode adk_live
 ```
+
+#### Evaluating Live agents
+
+Live agents run over a WebSocket, not `/run_sse`: add `--mode adk_live` to `generate` or `run`. The dataset, the traces, and grading are unchanged, and the audio reply is transcribed so the transcript is what gets graded. Two things must already be true or the socket connects and *then* fails mid-session: the agent uses a Live model (the scaffold default is not one), and on Vertex its region is pinned on the model rather than left to `GOOGLE_CLOUD_LOCATION`. Both, plus dataset authoring rules: `references/live-eval.md`.
 
 ### `eval grade`
 
@@ -206,7 +214,7 @@ Generates user scenarios from your agent's tools and instructions, plays each ag
 
 An `EvaluationDataset` is a JSON file with an `eval_cases` array. Cases come in two shapes depending on how they're used:
 
-- **Inference input** (what you give to `eval generate`) — a user prompt or a partial conversation ending in a user prompt. The agent runs and produces traces.
+- **Inference input** (what you give to `eval generate`) — a single user prompt, or a multi-turn set of **user turns** (for live) / a continuation ending in a user turn (for SSE). The agent runs and produces traces. Don't pre-author agent replies for live inference.
 - **Grading input** (what you give to `eval grade`) — a complete trace including the agent's responses and tool calls. Normally produced by `eval generate` or `eval dataset synthesize`; you don't write these by hand.
 
 See `references/dataset_schema.md` for the full canonical schema, all field types, and common mistakes.
@@ -231,7 +239,12 @@ Two shapes are supported.
 }
 ```
 
-**(b) Multi-turn continuation via `agent_data`** — a partial conversation whose last turn ends with a user message; the agent's next response is evaluated. See `references/dataset_schema.md` (*Multi-Turn / Multi-Agent Dataset*) for the JSON shape.
+**(b) Multi-turn via `agent_data`** — the shape depends on the transport:
+
+- **Live (`--mode adk_live`):** author **user-only** turns; the agent generates every reply over one live session (authored agent turns are ignored, with a warning).
+- **SSE:** continuation form — prior turns are seeded as history and only the trailing user turn is answered.
+
+See `references/dataset_schema.md` (*Multi-Turn / Multi-Agent Dataset*) for the JSON shapes.
 
 ### Grading input format (traces)
 
@@ -317,7 +330,7 @@ app = App(root_agent=root_agent, name="flight_booking_assistant")
 400 FAILED_PRECONDITION: Unsupported region for Vertex Evaluation Service: <region>
 ```
 
-`eval generate` (without the `--url` flag) and `eval dataset synthesize` run your agent locally, so they honor the agent's own `.env` — notably `GOOGLE_CLOUD_LOCATION`, which selects the model endpoint **when the agent uses Vertex AI** (`GOOGLE_GENAI_USE_VERTEXAI=true`); it's unused with a `GEMINI_API_KEY` (AI Studio). They take **no** `--region` and never override your `.env` with the manifest `region`; change the model region by editing `.env`. One caveat for `synthesize`: its scenario-generation step is a **server-side** eval call at `GOOGLE_CLOUD_LOCATION`, so keep that an eval-supported region (`global` by default) even though the agent itself could run elsewhere.
+`eval generate` (without the `--url` flag) and `eval dataset synthesize` run your agent locally, so they honor the agent's own `.env` — notably `GOOGLE_CLOUD_LOCATION`, which selects the model endpoint **when the agent uses Vertex AI** (`GOOGLE_GENAI_USE_VERTEXAI=true`); it's unused with a `GEMINI_API_KEY` (AI Studio). They take **no** `--region` and never override your `.env` with the manifest `region`; change the model region by editing `.env` — or, better for a single agent, pin it in code with `Gemini(model=…, client_kwargs={"location": …})`, which beats the env var and leaves it free for everything else. One caveat for `synthesize`: its scenario-generation step is a **server-side** eval call at `GOOGLE_CLOUD_LOCATION`, so keep that an eval-supported region (`global` by default) even though the agent itself could run elsewhere.
 
 **No eval region fits your data-residency rules?** Fall back to **local custom metrics** — a `custom_metrics` entry with a `custom_function` (`execution: local`, the default) grades in-process with no GCP region required. You lose the managed built-in metrics, but your `custom_function` can still call an LLM judge in a compliant region itself — so LLM-as-judge grading stays available anywhere.
 
