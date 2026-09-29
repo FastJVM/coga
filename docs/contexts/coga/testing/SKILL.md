@@ -1,6 +1,6 @@
 ---
 name: coga/testing
-description: How to run and trust Coga's test suite and validation from a checkout, the environment and fixture pitfalls, the no-CI test posture, and the exact verification receipts reviewers expect.
+description: How to run and trust Coga's test suite and validation from a checkout, the environment and fixture pitfalls, the no-CI test posture, the Linux clean-install harness, and the exact verification receipts reviewers expect.
 ---
 
 # Testing Coga
@@ -117,6 +117,49 @@ and counts, for example `PYTHONPATH=$PWD/src python3.12 -m pytest` ->
   touch that draft to turn the gate green. Any extra or missing error is a real change. A PR that
   clears one updates this date, count, and list; delete the item when none
   remain.
+
+## Clean-install harness
+
+`scripts/clean-install/` reproduces a first install on a fresh Linux machine,
+so an installer problem can be shown from nothing and its fix proven by the
+same run. It is repository tooling, not package code. It complements the
+release gate in [coga/releasing](../releasing/SKILL.md), which pins a version
+and launches an agent. The harness tests the installed artifact, never an
+editable tree, and walks the documented path in
+[coga/install](../install/SKILL.md) and [coga/init](../init/SKILL.md).
+
+- `Dockerfile`: `python:3.11-slim` (the declared floor) plus git and uv, with
+  a non-root `tester` user. It has no Coga, agent CLI, `gh`, or `op`.
+- `walk.sh`, installed in the image as `coga-walk`: `uv tool install`,
+  `coga --version`, `git init ~/scratch`, a Git identity, `coga init --user
+  tester`, and `coga validate --json`. It stops at the first failing step.
+- `run.sh pypi|main`: builds the image and installs either the current PyPI
+  release or a wheel that `uv build` makes from a `git archive` of fetched
+  `origin/main` (never the working tree). It runs the walk and keeps the
+  container.
+
+```sh
+scripts/clean-install/run.sh pypi
+scripts/clean-install/run.sh main
+```
+
+Evidence lands in `${TMPDIR:-/tmp}/coga-clean-install/<mode>-<stamp>/`
+(override with `COGA_CLEAN_INSTALL_EVIDENCE`). It contains `provenance.txt`
+(mode, image id, harness commit, main commit and wheel sha256, installed
+version, walk exit), `steps.tsv` (step, exit, command; the last line is where
+the walk stopped), and `transcript.txt`. If the engine's bridge network drops
+large downloads (`apt-get update` timing out), set
+`COGA_CLEAN_INSTALL_NETWORK=host`.
+
+The agent login and first ticket are attended, because `coga ticket` needs a
+TTY and an authenticated agent:
+
+```sh
+docker exec -it <container> bash               # printed by run.sh
+curl -fsSL https://claude.ai/install.sh | bash # or install codex; then log in
+coga-walk ticket "Add a health-check endpoint"
+docker rm -f <container>                       # when finished
+```
 
 ## Restricted sandboxes
 
