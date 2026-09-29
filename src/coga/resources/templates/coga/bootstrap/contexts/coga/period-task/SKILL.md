@@ -47,6 +47,14 @@ captured `expected_bytes` to detect concurrent change, preserve the region's
 leading newline, and if the file ends at the fence with no newline, start your
 text with one (those helpers do not add it).
 
+Own only your keys. A writer replaces just the lines or section it owns,
+bounded explicitly, and keeps every other line wherever it sits. A digest
+writer once treated its `### State` heading as running to EOF and swallowed
+the scheduler's `last_serviced_period` appended after it; the two writers
+then alternated, and every sweep re-fired the same period while the scan
+table showed an ordinary `ready` / `→ launch`. Test both orderings and
+repeated alternating writes.
+
 If the template declares `state_keys:`, completion (`coga mark done` or the
 final `coga bump`, by agent or script) flags any key still equal to its value
 at period start — a local warning, an important alert and a `coga validate`
