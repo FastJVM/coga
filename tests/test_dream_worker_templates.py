@@ -284,6 +284,7 @@ def test_dream_routes_every_finding_class_to_a_durable_home() -> None:
     assert "Open a proposal PR that edits the target context or skill" in norm
     assert "a done or canceled ticket holds durable knowledge" in scan_norm
     assert "abandoned design is not durable knowledge" in scan_norm
+    assert "So does an owner decision *not* to act that the ticket recorded" in scan_norm
 
     # Hole 3: both halves — the shard searches for an owner before emitting a
     # gap, and Phase 6 reconciles again with the whole corpus in view.

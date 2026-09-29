@@ -49,6 +49,11 @@ Tickets without a workflow move through statuses only via `coga mark`.
   validator output. "Clears a validate error" is not a cancellation reason:
   cancelling parked drafts is the cheapest route to a green gate and trades
   the record of intent for an exit code.
+- A cancellation that records an owner decision *not* to act is a verdict
+  worth keeping, and the ticket is not where it lives: land it in the topic
+  [coga/knowledge](../knowledge/SKILL.md) names, before or with the cancel,
+  and let the cancellation reason point there. Dream's knowledge scan is the
+  backstop for one that did not land.
 
 ## Blocking and resume
 

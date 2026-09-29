@@ -196,6 +196,9 @@ inside the subagent. Classify each finding as exactly one of:
     so Phase 6 opens the knowledge PR itself. A canceled ticket's abandoned
     design is not durable knowledge; only a reusable fact it discovered along
     the way — a gotcha, a verified behavior, a measured limit — qualifies.
+    So does an owner decision *not* to act that the ticket recorded (what was
+    declined, why, and what would reopen it) when the topic owning that
+    subject does not already state it; `coga/knowledge` owns where it lands.
 
   Read `status:` and `## Dev` from the ticket itself; the index entry alone is
   not evidence. A ticket in any other status holds working state, not
