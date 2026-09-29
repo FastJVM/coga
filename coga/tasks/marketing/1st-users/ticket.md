@@ -30,7 +30,10 @@ The audit checks the draft on four points:
    now, e.g. multiple agents on one repo (`claude`/`codex` agent types),
    corrections turning into contexts/skills, recurring maintenance
    workflows. Mark each signal as supported, partial, or aspirational,
-   citing the owning `coga/*` topic.
+   citing the owning `coga/*` topic: `coga/agents` for multiple agents,
+   `coga/recurring` for recurring maintenance, and `coga/dream` /
+   `coga/skill-management` for corrections becoming contexts and skills.
+   Read these topics; they are cited here, not attached.
 3. **Testability.** Can someone decide in one short conversation whether a
    team fits the beachhead ("2–5 engineers, technically novel product,
    several hours a day with agents, repeatedly correcting agent work")?
@@ -44,7 +47,8 @@ every audit finding has been either applied or explicitly overruled by the
 owner (record which). The context contains the beachhead, fit signals,
 qualifying questions and anti-targets, and links to `product/vision` for the
 broad audience instead of repeating it. The same change registers the new
-topic in `marketing/map` and adds `"marketing/first-users"` to
+topic in `marketing/map`, indexes it in `docs/README.md` beside the other
+marketing topics, and adds `"marketing/first-users"` to
 `LOCAL_ONLY_CONTEXT_REFS` in `tests/test_packaging.py` with the reason
 "This project's own marketing material." (otherwise the packaging test
 fails). `python -m pytest tests/test_packaging.py` and `coga validate --json`
@@ -58,8 +62,10 @@ Workflow `draft-for-human`:
   with a suggested resolution for each, plus the draft context file.
 - **human-owns-and-finishes:** the owner decides each finding and edits the
   context.
-- **report-to-coga:** record the decisions and where the context landed
-  (commit/PR).
+- **report-to-coga:** the agent makes the mechanical edits (map row,
+  README index, packaging-test entry), runs the pytest/validate checks,
+  opens the commit/PR, and records the decisions and where the context
+  landed. The owner never does these by hand.
 
 Scope boundaries:
 
@@ -84,6 +90,14 @@ Sequencing (owner-agreed 2026-09-29):
 Knowledge placement follows `coga/knowledge` (one owner per fact): the ICP is
 marketing targeting, so it lives under `marketing/`, and the vision keeps
 the broad audience.
+
+Review notes (2026-09-29): the vision audience already covers much of the
+draft ("small technical teams… Claude Code or Codex… Git"), so the new
+context may end up thin. That is acceptable; keep only what narrows the
+vision. `product/vision` stays attached because the audit checks the bet and
+limits too, not only *Intended audience*. The dependency from
+`marketing/recruit-first-users` exists only in prose; launch order does not
+enforce it.
 
 <!-- coga:blackboard -->
 
