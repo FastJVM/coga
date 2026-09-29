@@ -1,6 +1,6 @@
 ---
 schedule: "0 8 * * 1"
-schedule_comment: "Every Monday at 8am - post last week's agent token usage, after the 7am branch sweep and before the 9am digest"
+schedule_comment: "Every Monday at 8am - post last week's agent token usage, after the 7am branch sweep"
 title: "Agent usage report"
 # The reserved `ticket.py` sibling is this task's deterministic half: `coga
 # launch` runs it directly, with no agent and no composed prompt. The one-step

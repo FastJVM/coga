@@ -29,9 +29,11 @@ Why this shape:
   local write is the gitignored run transcript copied back. Stash-and-switch
   would hold work hostage, conflict with the scan's writes, and strand work on a
   cron timeout.
-- **A real checkout, not a detached HEAD.** `git.sync_log` and
-  `_sync_recurring_create_paths` refuse to publish from detached HEAD; without
-  that the period task would land without its ledger line.
+- **A real checkout, not a detached HEAD.** A detached worktree at the remote
+  tip would still publish (through the per-worktree `git.PUBLISHED_REF`), but
+  the inner scan's catch-up (`git.refresh`) only fast-forwards a checked-out
+  control branch, so a detached worktree could never be proven level with
+  control before scanning.
 - **`git worktree add` is the lock.** Git will not check a branch out twice, so
   a second sweep or any other holder loses there and gets the loud refusal
   naming the holder and the `git -C <root> checkout <control>` remedy.
