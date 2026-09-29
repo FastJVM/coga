@@ -66,11 +66,13 @@ When a linked `/tmp` worktree vanishes, Git keeps two things: a stale
 registration (`git worktree prune` clears it; the branch sweep runs it) and
 the local branch, which may now be the only copy of unlanded commits. A stale
 `worktree:` line pointing at a gone path is therefore not evidence the work
-landed. Recover from the primary checkout:
+landed. Recover from the primary checkout after refreshing `main` from `origin`:
 
-1. `git log main..<branch>` lists what never landed.
-2. Land what is still wanted: cherry-pick onto `main` through the normal
-   publication path, or `git push origin <branch>` and open a PR.
+1. Inspect `git log main..<branch>` for candidate commits. Squash merges and
+   cherry-picks may already have landed their changes; check merged-PR
+   history or patch equivalence before selecting commits to recover.
+2. Recover only work still missing and wanted: cherry-pick onto `main` through
+   the normal publication path, or `git push origin <branch>` and open a PR.
 3. Only then `git branch -D <branch>`.
 
 ## `coga retire <slug> [--agent <type>] [--no-launch]`
