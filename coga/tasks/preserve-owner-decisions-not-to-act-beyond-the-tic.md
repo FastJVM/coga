@@ -53,3 +53,22 @@ Moved from FastJVM/multiply on 2026-09-24: filed there by Dream/autofix against 
 
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: preserve-no-action-decisions
+
+## Plan (agreed with owner 2026-09-28)
+
+Landing = owning topic + scan backstop. Finding: Dream's knowledge scan already
+routes `extract` with `source: canceled` to a Phase 6 proposal PR, but its
+qualifier excludes decisions ("abandoned design is not durable; only a gotcha,
+verified behavior, measured limit"). So:
+- coga/lifecycle: a no-action cancel lands the decision (what, why, revisit
+  trigger) in the subject's owning topic; the ticket body is not its home.
+- coga/knowledge: owner table/row for no-action decisions -> subject's topic.
+- knowledge-scan + Dream Phase 6: an unlanded no-action decision on a canceled
+  ticket qualifies as `source: canceled` extract.
+Rejected: a separate decision-register topic (second owner, drifts);
+Retro reading canceled tickets (duplicates the existing scan path).
+
