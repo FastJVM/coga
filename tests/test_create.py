@@ -508,10 +508,48 @@ def test_create_dir_rejects_parent_traversal(repo: Path) -> None:
     assert not (repo / "tasks" / "escape.md").exists()
 
 
-def test_create_dir_rejects_underscore_component(repo: Path) -> None:
+def test_create_into_parked_directory_is_hidden_from_discovery(repo: Path) -> None:
+    """A `_`-prefixed directory is parked: `coga create` writes there, even a
+    title-only capture, but discovery never lists the result."""
     cfg = load_config(repo)
-    with pytest.raises(ValueError, match="template"):
-        create_task(title="Hidden", **_dir_kwargs(cfg, directory="_drafts"))
+    ref = create_task(title="Some wish", **_dir_kwargs(cfg, directory="_v2"))
+    assert ref["slug"] == "_v2/some-wish"
+    assert ref["path"] == repo / "tasks" / "_v2" / "some-wish.md"
+    assert "## Description\n\n\n" in ref["path"].read_text()
+    assert all(not r.id_slug.startswith("_v2") for r in list_tasks(cfg))
+
+
+def test_create_parked_collision_suffixes_from_disk(repo: Path) -> None:
+    """Parked leaves are invisible to `list_tasks`, so uniqueness reads disk."""
+    cfg = load_config(repo)
+    a = create_task(title="Same", **_dir_kwargs(cfg, directory="_v2"))
+    b = create_task(title="Same", **_dir_kwargs(cfg, directory="_v2"))
+    assert a["slug"] == "_v2/same"
+    assert b["slug"] == "_v2/same-2"
+
+
+def test_create_refuses_inside_the_ticket_template(repo: Path) -> None:
+    """`tasks/_template/` holds the canonical ticket shape; it is a task
+    directory, and `_template` is reserved, so creates stay out of it."""
+    cfg = load_config(repo)
+    tmpl = repo / "tasks" / "_template"
+    tmpl.mkdir(parents=True, exist_ok=True)
+    (tmpl / "ticket.md").write_text("---\ntitle: t\n---\n")
+    with pytest.raises(ValueError, match="'_template' is reserved"):
+        create_task(title="Child", **_dir_kwargs(cfg, directory="_template"))
+
+
+@pytest.mark.parametrize("directory", ["_template", "_v2/_template"])
+def test_create_refuses_template_component_without_anchor(
+    repo: Path, directory: str
+) -> None:
+    """`_template` is git-ignored scaffolding (`**/_template/`), so it is
+    reserved even where no `ticket.md` anchors it: a ticket written there
+    would never reach git or state sync."""
+    cfg = load_config(repo)
+    with pytest.raises(ValueError, match="'_template' is reserved"):
+        create_task(title="Wish", **_dir_kwargs(cfg, directory=directory))
+    assert not (repo / "tasks" / "_v2" / "_template").exists()
 
 
 def test_create_dir_rejects_prose_component(repo: Path) -> None:
@@ -1097,6 +1135,25 @@ def test_create_draft_path_syntax_places_in_subdir(
     assert result["path"] == repo / "tasks" / "v2" / "build-the-flow.md"
     t = Ticket.read(result["path"])
     assert t.title == "Build the flow"
+
+
+def test_create_draft_parked_capture_is_kept_but_not_listed(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`coga create "_v2/<title>"` with no description: the parked capture."""
+    from coga.commands.create import create_draft
+
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "coga.notification.slack.requests.post",
+        lambda *a, **kw: type("R", (), {"status_code": 200, "text": "ok"})(),
+    )
+    result = create_draft(title="_v2/Some wish")
+    assert result["slug"] == "_v2/some-wish"
+    assert result["path"] == repo / "tasks" / "_v2" / "some-wish.md"
+    assert Ticket.read(result["path"]).title == "Some wish"
+    cfg = load_config(repo)
+    assert all(not r.id_slug.startswith("_v2") for r in list_tasks(cfg))
 
 
 # --- ticket frontmatter extensions ------------------------------------------
