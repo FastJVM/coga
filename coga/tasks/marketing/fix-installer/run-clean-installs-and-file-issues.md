@@ -10,13 +10,62 @@ workflow:
     - direct/body
     assignee: agent
 step: 1 (execute)
+secrets:
+  - AWS_PROFILE: env:AWS_PROFILE
 ---
 
 ## Description
 
-tmp
+In an attended session with the owner present, use the Linux and macOS
+clean-install harnesses to walk the documented new-user path end to end, and
+file one draft ticket per root cause found. Do not fix anything here.
+
+For each OS (Linux, macOS) × artifact (current PyPI release, wheel from
+`main`), on Python 3.11, walk these steps: prerequisites, `uv tool install
+coga` (and note where the documented alternatives differ), `coga --version`,
+`git init` of a scratch repo, `coga init --user <name>`, `coga ticket "<first
+task>"`, the owner's agent login, then `coga launch` of that first task
+through to its workflow's `done`. What "done" requires depends on the first
+task's workflow. A PR workflow needs a throwaway GitHub repo and an
+authenticated `gh` on the machine. Record which workflow was used.
+
+File each issue with `coga create "marketing/fix-installer/<title>" --workflow
+code/with-review --description "<repro + expected>"`. Each repro states the
+OS, Python version, artifact and version, exact command, observed vs expected
+output, and a suggested fix location. Before filing, grep `coga/tasks/` for an
+existing owner and link it instead of duplicating. Record whether the issue
+reproduces on PyPI, on main, or both, so bugs already fixed on main are not
+filed as live. Known findings to file: the Xcode CLT prompt on fresh macOS,
+and `README.md`'s two conflicting "Getting Started" blocks (link to
+`marketing/readme-top`, which owns the README).
+
+Done means every OS × artifact run is complete (or its blocking step is
+recorded), each distinct issue has a filed draft, a findings matrix (run →
+step reached → child slugs) is on this blackboard, no AWS resource is left
+running, and the owner has reviewed the list. Finish with `coga mark done`.
 
 ## Context
+
+Part of the `marketing/fix-installer/` set (V1), which replaced the single
+`marketing/fix-installer` ticket that `marketing/build-the-launch-plan`
+tracks. It depends on the harness tickets `linux-clean-install-harness` and
+`macos-clean-install-harness-on-aws` having merged, so launch it after both.
+Windows is `v2/windows-native-clean-install`.
+
+**AWS.** Uses the macOS harness and the `AWS_PROFILE` SSO profile. Ask the
+owner before provisioning (the 24-hour `mac2` host minimum) and tear down per
+that harness's runbook, recording resource IDs here.
+
+The expected behavior is cited, not attached: `README.md` and the
+`coga/install`, `coga/init`, `coga/first-task` and `coga/releasing` topics
+(`docs/contexts/coga/<ref>/SKILL.md`). A mismatch with them is a finding. If
+something blocks the walk entirely, work around it on the test machine,
+record the workaround, and file it. Coordinate commands with
+`marketing/readme-top`. `marketing/verify-posthog-telemetry-with-the-live-clean-wheel`
+also runs a clean wheel, so reuse its setup if it helps. The parked
+`v2/onboarding-v2-first-run-experience-after-removing` assumes `coga build`
+was removed, which is obsolete. No product release or personal-account action
+beyond the approved AWS test resources is authorized.
 
 <!-- coga:blackboard -->
 

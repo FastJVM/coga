@@ -23,13 +23,26 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+secrets:
+  - AWS_PROFILE: env:AWS_PROFILE
 ---
 
 ## Description
 
-tmp
+Extend the clean-install work to **native Windows** (not WSL), deferred from
+V1. The docs say nothing about Windows today, so first write a documented
+Windows baseline in `coga/install` (Python, uv, PATH after `uv tool install`,
+git and line endings, PowerShell as the shell, agent CLI support). Then add an
+AWS EC2 Windows harness alongside the V1 Linux and macOS ones, walk the same
+path on both artifacts (PyPI release and main wheel), and file one ticket per
+issue. Done means the baseline and harness are merged and the run's findings
+are filed.
 
 ## Context
+
+Deferred from the V1 `marketing/fix-installer/` set. Reuse its harness scripts
+and the `AWS_PROFILE` SSO profile, and ask the owner before any spend. Cited
+topics: `coga/install`, `coga/init`, `coga/first-task`.
 
 <!-- coga:blackboard -->
 

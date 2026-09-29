@@ -28,7 +28,7 @@ opening and the links needed for its reader path, not a documentation rewrite.
 
 Use megalaunch and one correction that changes later work as the concrete
 proof. Distinguish a blocked task from the queue moving on to other tasks.
-Coordinate exact commands with `marketing/fix-installer`; do not invent a
+Coordinate exact commands with the `marketing/fix-installer/` tickets; do not invent a
 second onboarding procedure or require an unpublished essay to understand
 Coga. Claim support follows marketing/positioning. The launch ticket owns
 publication timing, and PostHog implementation stays in its own ticket.
