@@ -299,8 +299,8 @@ For a script-backed job:
   whose remote is a local path.
 - **Commit hand edits before any mutating `coga` command** — state sync sweeps
   a dirty tree into its own commit.
-- **Checkouts are LF.** If Coga reports "exact control ticket changed before
-  guarded publication" or drops a task at admission, check
+- **Checkouts are LF.** If Coga reports "control ticket changed before
+  released launch-admission reconciliation" or drops a task at admission, check
   `git ls-files --eol` for `w/crlf`.
 - The real post-merge firing is a genuine post. Expect the duplicate post that
   re-running an already-serviced period produces.
