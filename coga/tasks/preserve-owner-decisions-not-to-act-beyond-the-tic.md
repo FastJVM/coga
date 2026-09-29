@@ -1,6 +1,6 @@
 ---
 title: Preserve owner decisions not to act beyond the ticket that recorded them
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
