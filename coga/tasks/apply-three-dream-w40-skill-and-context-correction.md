@@ -41,37 +41,32 @@ Verification: `python -m pytest tests/test_packaging.py` plus the helper under a
 
 <!-- coga:blackboard -->
 
-## Implementation preflight (2026-09-29)
+## Dev
 
-- Start check passed: `git fetch origin main`, clean `main`, and
-  `git merge --ff-only origin/main` (already up to date). No feature branch
-  or implementation changes were made; tests have not run.
-- GitHub confirms [PR #909](https://github.com/FastJVM/coga/pull/909) is
-  still **OPEN**, with no merge or close timestamp. Its owning task is
-  `launch-moves-the-checkout-to-main-before-and-after`
-  (`coga/tasks/launch-moves-the-checkout-to-main-before-and-after.md`). The
-  description explicitly requires waiting for that PR to merge or close.
-- [PR #912](https://github.com/FastJVM/coga/pull/912) is also **OPEN**.
-  Recheck its overlap with `code/implement` when resuming; it is not an
-  additional prerequisite stated by this ticket.
-- The three findings remain present on `main`: `code/self-qa` still claims
-  every uncommitted `coga/` file is swept; `dev/code` still links stored-ticket
-  conversions to `coga/sync`; and `code/implement` still says any `python`
-  works. `src/coga/git.py` plus `sync_coga_state` selects only the configured
-  task, log, and recurring paths, confirming the first correction's scope.
-- `coga/skills/code/implement/seed_local_config.py` imports `tomllib` before
-  the guarded `coga.config` import that calls `_reexec_under_coga_interpreter`.
-  The referenced done ticket records this as unfixed; no human choice between
-  deferring that import and documenting Python 3.11+ is recorded here.
-- Related wording to keep consistent after that choice: `dev/checkouts`
-  ("What a fresh checkout lacks") also says any `python` may run the helper.
-  Update it and its packaged twin if the documentation route is selected.
+branch: dream-w40-doc-corrections
 
-Resume after #909 merges or closes and the owner chooses the helper route.
-Refresh the overlapping files, apply the three corrections with their twins
-under `src/coga/resources/templates/coga/bootstrap/`, and run the prescribed
-packaging/full-suite checks (plus a real Python 3.9/3.10 helper check for the
-code route). Do not advance `implement` while these prerequisites remain open.
+## Implementation plan (2026-09-29)
+
+- Blocker resolved with `coga unblock`: [PR #909](https://github.com/FastJVM/coga/pull/909)
+  merged at 21:27:50 UTC; the owner chose to document Python 3.11+ for
+  starting `seed_local_config.py`. Keep the helper code unchanged.
+- [PR #912](https://github.com/FastJVM/coga/pull/912) closed without merging
+  at 21:28:05 UTC. The current files still need all three corrections.
+- Start check passed: `git fetch origin main`, clean `main`, then
+  `git merge --ff-only origin/main`. No launch return witness is set;
+  return to clean `main` before writing the handoff and bumping.
+- Narrow the self-QA gotcha to recurring templates and `ticket.py`, linking
+  the publication hazard owner. `src/coga/git.py` plus `sync_coga_state`
+  confirms the sweep selects only task, log, and recurring paths.
+- Link stored-ticket conversions in `dev/code` to `coga/internals/git-regressions`
+  ("Shipping a stored-ticket schema conversion").
+- Require Python 3.11+ in `code/implement` and `dev/checkouts`; keep all four
+  live/packaged pairs byte-identical. The helper's top-level `tomllib` import
+  runs before `_reexec_under_coga_interpreter` can handle a missing Coga import.
+- Run packaging and full-suite checks with the existing `.venv/bin/python`
+  (Python 3.12.12, test extras available). No Python 3.9/3.10 helper run is
+  needed for the selected documentation route. Push the branch; no PR in
+  this step.
 
 ---
 
