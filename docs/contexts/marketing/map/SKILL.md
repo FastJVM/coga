@@ -18,7 +18,7 @@ helps find support; reviewing it is not a separate execution step.
 | Launch readiness, Show HN and response triage | [Launch execution](../../../../coga/tasks/marketing/build-the-launch-plan.md) |
 | One argument with concrete proof | [Idea piece](../../../../coga/tasks/marketing/idea-piece.md) |
 | README opening and reader path | [README ticket](../../../../coga/tasks/marketing/readme-top.md) |
-| Installation through one useful task | [Installer/onboarding](../../../../coga/tasks/marketing/fix-installer.md) |
+| Installation through one useful task | [Installer/onboarding](../../../../coga/tasks/marketing/fix-installer/) |
 | Adoption/activity measurement | [Weekly snapshot contract](../../coga/telemetry/SKILL.md) |
 
 Live ticket status is in `coga status marketing`, not here.

@@ -254,7 +254,7 @@ the remedy names where it can be removed:
 
 The `review` step is an owner gate: the owner merges from the GitHub UI, where
 an unresolved thread does not block, and nothing else looks at the PR's
-threads again (the `dev/code` context, "Review threads that merge unanswered",
+threads again (the `dev/dev-record` context, "Review step",
 has the measurement and the decision). The sweep is the one place that already
 touches every merged PR, so when it closes a ticket it fetches that PR's
 `reviewThreads` once — `coga.autoclose.unanswered_review_threads`, one

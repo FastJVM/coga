@@ -15,7 +15,7 @@ superseded. Historical material is indexed in [the catalogue](../map/SKILL.md).
 
 - [README](../../../../coga/tasks/marketing/readme-top.md): explain the instrument
   through concrete behavior and provide a clear next action.
-- [Installer and one-task onboarding](../../../../coga/tasks/marketing/fix-installer.md):
+- [Installer and one-task onboarding](../../../../coga/tasks/marketing/fix-installer/):
   a clean installation reaches one useful completed task with human direction
   and review. Prove the actual installed-package path.
 - [PostHog](../../../../coga/tasks/marketing/add-telemetry.md): adoption/activity
@@ -47,8 +47,8 @@ channel and measurement policy. Publication remains an owner action.
 
 ## Scope
 
-Five marketing tickets remain: launch execution, idea piece, README,
-installer/onboarding and PostHog. There is no separate audience/story/pitch
+The remaining marketing work is launch execution, the idea piece, the README,
+the `fix-installer/` ticket group and the PostHog live-wheel verification. There is no separate audience/story/pitch
 pipeline, three-essay commitment, Discord/community prerequisite, domain
 purchase or additional channel campaign for V1. The writing ticket settles
 editorial details directly with the owner. The old numeric scorecard,
