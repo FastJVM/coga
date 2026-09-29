@@ -1728,6 +1728,50 @@ def test_direct_recurring_launch_uses_local_control_without_a_remote(
     assert launched == ["recurring/local-delegate-check"]
 
 
+def test_delegated_recurring_launch_settles_the_period_checkout(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A delegating period returns its checkout after the bootstrap session."""
+    created = create_task(
+        cfg=load_config(git_repo.coga_os),
+        title="Delegated settling period",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+        slug_override="recurring/delegate-settle-check",
+        force_directory=True,
+        delegate="bootstrap/resolve-conflicts",
+    )
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed delegating recurring period")
+    git_repo.git("push", "origin", "main")
+    events: list[str] = []
+
+    def fake_delegated(task_cfg, ref, **kwargs):  # type: ignore[no-untyped-def]
+        events.append(f"delegated:{ref.id_slug}")
+        return recurring_cmd.DelegatedRunResult(0, "done")
+
+    def refusing_settle(self, cfg, *, subject):  # type: ignore[no-untyped-def]
+        events.append(f"settle:{subject}")
+        self.stopped = True
+        coga_git.state_sweep_withheld.set(True)
+        return False
+
+    monkeypatch.setattr(recurring_cmd, "_run_delegated_task", fake_delegated)
+    monkeypatch.setattr(launch_module._CheckoutBoundary, "settle", refusing_settle)
+
+    result = CliRunner().invoke(app, ["launch", created["slug"]])
+
+    assert result.exit_code == 0, result.output
+    assert events == [
+        "delegated:recurring/delegate-settle-check",
+        "settle:recurring/delegate-settle-check's delegated run",
+    ]
+    assert coga_git.state_sweep_withheld.get()
+
+
 @pytest.mark.parametrize("kind", [None, "timeout", "script"])
 def test_internal_recurring_launch_stops_the_sweep_after_a_checkout_return_refusal(
     monkeypatch: pytest.MonkeyPatch, kind: str | None

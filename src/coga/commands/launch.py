@@ -912,6 +912,12 @@ def _launch(
                 continue_after_timeout=False,
                 activate_if_needed=True,
             )
+            # The period's own return half (armed by `admit` above): the
+            # delegated bootstrap session is exempt from normalization, but
+            # the recurring period that dispatched it is not. A refusal sets
+            # the withheld flag, which `launch_recurring_period` turns into
+            # the retained-state exit.
+            boundary.settle(cfg, subject=f"{ref.id_slug}'s delegated run")
             if return_timeout:
                 return delegated.kind
             if delegated.exit_code:
