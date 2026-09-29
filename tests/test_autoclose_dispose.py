@@ -628,7 +628,10 @@ def test_independent_clone_is_named_for_removal_by_hand(
     [preserved] = result.preserved
     assert preserved.manual_command == (
         f"`{clone.resolve()}` is an independent checkout with its own "
-        "repository, which no proof removes — inspect and remove it by hand"
+        "repository, which no proof removes — inspect and remove it by hand, "
+        "unless it is another clone's primary checkout in active use: then "
+        "never remove it; verify the branch is gone in that clone and delete "
+        "this `retires.md` line by hand (see `dev/checkout-cleanup`)"
     )
 
 

@@ -54,6 +54,27 @@ worktree); the checkout running `coga retire`; a stale path now on another
 branch; a checkout shared with another live ticket or an open PR; a locked or
 dirty worktree; and a recorded path already gone (reported, not pruned).
 
+**Known failure mode (unresolved): another clone's primary checkout never
+discharges.** The "primary checkout is not debt" rule
+(`retire_worklist.is_primary_checkout`) exempts only *this* repository's
+primary. A ticket worked in the single-checkout layout of a second,
+long-lived clone of the same project records that clone's primary as its
+`worktree:`. The sweeping clone classifies it `standalone`, so autoclose keeps
+the `retires.md` entry and re-posts it to coga-important on every run. Its
+remedy (`autoclose.py`: "an independent checkout with its own repository,
+which no proof removes — inspect and remove it by hand") cannot tell that
+clone from a disposable one, so it now carries this exception: never remove
+another clone's primary checkout in active use. `worktree_owner` records no `owner` for
+a standalone clone, on the assumption that its branch dies with its
+directory, so the branch half is judged against this repository, where the
+branch may never have existed. The worktree half never clears. The rule that
+keeps independent clones on the worklist as their only durable trace was
+written for disposable fallback clones and does not cover this case. Until a
+fix lands, do not act on that remedy for a clone in active use: check that
+the branch is gone in the named clone, then remove the line from `retires.md`
+by hand. The observed instance is recorded in
+`docs/evidence/independent-clone-worklist-2026-09.md`.
+
 ## `coga retire <slug> [--agent <type>] [--no-launch]`
 
 Refuses unless the ticket is `status: done`. It first disposes of the
