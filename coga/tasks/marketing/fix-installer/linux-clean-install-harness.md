@@ -274,3 +274,12 @@ and preserved the missing-agent exit code. **Agent login and a completed
 first-ticket interview were not run.** The PyPI failure is recorded for the
 installer-issues sibling ticket; no installer repair or issue filing is
 included here.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `marketing/fix-installer/linux-clean-install-harness`
+Recorded: 2026-09-29T18:31:29+00:00
+
+    Branch 'linux-clean-install-harness' is not safe to publish. refs/heads/linux-clean-install-harness does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Reconcile it and relaunch, or `coga block --task marketing/fix-installer/linux-clean-install-harness`.
