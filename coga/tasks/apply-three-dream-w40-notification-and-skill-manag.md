@@ -1,7 +1,7 @@
 ---
 title: Apply three Dream W40 notification and skill-management corrections after PR
   914 lands
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,7 +25,6 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
-launch_generation: e42b9b20-f7ab-4e43-a23f-1f54623633ce
 ---
 
 ## Description
@@ -70,3 +69,5 @@ Verification: `python -m pytest tests/test_packaging.py`.
 - [ ] [2026-09-29 12:14] [agent:claude] id=20260929T121459 Depends on fix-recurring-sweep-git-hygiene-blocked-task-escap: merge or close PR #914 (https://github.com/FastJVM/coga/pull/914) before applying these three corrections. Verified PR #914 is still OPEN; the existing prerequisite remains unresolved.
 
 - [ ] [2026-09-29 14:26] [agent:claude] id=20260929T142650 Depends on fix-recurring-sweep-git-hygiene-blocked-task-escap: PR #914 (https://github.com/FastJVM/coga/pull/914) remains OPEN. Merge or close it before applying these three corrections, or explicitly waive that prerequisite. Both existing asks remain unresolved.
+
+- [ ] [2026-09-29 15:46] [agent:claude] id=20260929T154639 Depends on fix-recurring-sweep-git-hygiene-blocked-task-escap: PR #914 (https://github.com/FastJVM/coga/pull/914) is still OPEN with no mergedAt or closedAt. Merge or close PR #914, or explicitly waive this ticket prerequisite, before applying the three corrections. All three existing blocker asks remain unresolved.

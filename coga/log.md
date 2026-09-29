@@ -6941,3 +6941,4 @@ fatal: Unable to add (null) to database
 2026-09-29 15:46 [apply-three-dream-w40-notification-and-skill-manag] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-09-29 15:46 [apply-three-dream-w40-notification-and-skill-manag] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-29 15:46 [apply-three-dream-w40-notification-and-skill-manag] [megalaunch] launched via coga megalaunch
+2026-09-29 15:46 [apply-three-dream-w40-notification-and-skill-manag] [agent:claude] blocked: Depends on fix-recurring-sweep-git-hygiene-blocked-task-escap: PR #914 (https://github.com/FastJVM/coga/pull/914) is still OPEN with no mergedAt or closedAt. Merge or close PR #914, or explicitly waive this ticket prerequisite, before applying the three corrections. All three existing blocker asks remain unresolved.
