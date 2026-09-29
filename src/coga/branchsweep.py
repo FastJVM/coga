@@ -69,7 +69,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 from coga.autoclose import GhError, parse_branch_name, prs_for_head
 from coga.blackboard import append_blackboard_report
@@ -92,6 +92,9 @@ from coga.task_env import blackboard_from_env
 from coga.taskfile import TaskFileError, read_blackboard
 from coga.tasks import list_tasks, read_ticket
 from coga.ticket import TicketError
+
+if TYPE_CHECKING:
+    from coga.branchcleanup import _WorktreeLocalState
 
 SWEEP_REPORT_HEADING = "## Branch Sweep"
 
@@ -282,6 +285,14 @@ def sweep_branches(
                 continue
             remove_worktree = True
 
+        if remove_worktree:
+            cleanup, local_state = _inspect_pinning_worktree(
+                cfg, root, branch, worktree_branches[branch], result, echo
+            )
+            if local_state is None and not cleanup.already_gone:
+                result.worktree_pinned.append(branch)
+                continue
+
         # Archive every tip this pass could delete before touching a checkout
         # or ref. A single tag must preserve both halves of a split branch.
         retirement_tips: list[str] = []
@@ -298,6 +309,8 @@ def sweep_branches(
             continue
 
         if remove_worktree:
+            # Publication crosses a network boundary. Repeat the claim and
+            # local-state proofs before removing the previously clean checkout.
             cleanup = _remove_pinning_worktree(
                 cfg, root, branch, worktree_branches[branch], result, echo
             )
@@ -425,9 +438,12 @@ def _publish_retirement_tag(
     else:
         return refuse((existing.stderr + existing.stdout).strip())
 
-    # An explicit refspec publishes only this tag. No force: Git rejects a
-    # conflicting remote tag, and an identical existing tag makes retries safe.
-    pushed = _git(root, "push", cfg.git_remote, f"{tag_ref}:{tag_ref}")
+    # Suppress push.followTags as well as naming the one ref: otherwise Git
+    # may also publish unrelated annotated tags reachable from this commit.
+    # No force: conflicting remote tags are rejected; identical tags retry.
+    pushed = _git(
+        root, "push", "--no-follow-tags", cfg.git_remote, f"{tag_ref}:{tag_ref}"
+    )
     if pushed.returncode != 0:
         return refuse((pushed.stderr + pushed.stdout).strip())
     _note(
@@ -445,9 +461,26 @@ def _remove_pinning_worktree(
     result: BranchSweepResult,
     echo: Callable[[str], None],
 ) -> WorktreeCleanupResult:
-    """GC the live worktree holding landed `branch`.
+    """Recheck and remove the live worktree holding archived, landed `branch`."""
+    cleanup, local_state = _inspect_pinning_worktree(
+        cfg, root, branch, worktree, result, echo
+    )
+    if local_state is None:
+        return cleanup
+    return remove_inspected_worktree(
+        root, Path(worktree), local_state, result=cleanup, echo=echo
+    )
 
-    The result's `removed` / `already_gone` say whether the branch is unpinned.
+
+def _inspect_pinning_worktree(
+    cfg: Config,
+    root: Path,
+    branch: str,
+    worktree: str,
+    result: BranchSweepResult,
+    echo: Callable[[str], None],
+) -> tuple[WorktreeCleanupResult, _WorktreeLocalState | None]:
+    """Prove a landed worktree is disposable without archiving or removing it.
 
     Only reached under `[git].worktrees_ticket_owned`, after the sweep has
     already established that the branch landed and no live ticket names it.
@@ -468,7 +501,7 @@ def _remove_pinning_worktree(
             f"Branch sweep: {branch!r} has a landed ref but its worktree "
             f"{worktree!r} could not be proven unclaimed ({exc}) — left in place.",
         )
-        return cleanup
+        return cleanup, None
     if claim is not None:
         _note(
             result,
@@ -476,7 +509,7 @@ def _remove_pinning_worktree(
             f"Branch sweep: {branch!r} has a landed ref but {claim} — worktree "
             f"{worktree!r} left in place.",
         )
-        return cleanup
+        return cleanup, None
     local_state = inspect_worktree_for_removal(
         root,
         path,
@@ -495,10 +528,7 @@ def _remove_pinning_worktree(
                 f"Branch sweep: {branch!r} has a landed ref but its worktree "
                 f"{worktree!r} was preserved — both refs left in place.",
             )
-        return cleanup
-    return remove_inspected_worktree(
-        root, path, local_state, result=cleanup, echo=echo
-    )
+    return cleanup, local_state
 
 
 def _merged_prs(branch: str) -> list[tuple[str, str]]:

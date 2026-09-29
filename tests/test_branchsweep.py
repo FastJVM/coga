@@ -235,6 +235,22 @@ def test_retirement_tag_is_pushed_before_any_ref_is_deleted(repo: Path, monkeypa
     assert result.failure is None
 
 
+def test_retirement_push_does_not_publish_unrelated_follow_tags(
+    repo: Path, monkeypatch
+) -> None:
+    _git(repo, "branch", "feat")
+    _git(repo, "tag", "-a", "unpublished-release", "-m", "Not ready to publish")
+    _git(repo, "config", "push.followTags", "true")
+    _fake_gh(monkeypatch)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == ["feat"]
+    tags = _git(repo, "ls-remote", "--tags", "origin").stdout
+    assert "refs/tags/retired/feat" in tags
+    assert "unpublished-release" not in tags
+
+
 @pytest.mark.parametrize("with_worktree", [False, True])
 def test_failed_tag_push_preserves_both_refs_and_reports_failure(
     repo: Path, monkeypatch, capsys, with_worktree: bool
@@ -299,6 +315,28 @@ def test_existing_retirement_tag_allows_retry(repo: Path, monkeypatch) -> None:
 
     assert result.failure is None
     assert result.local_deleted == result.remote_deleted == ["feat"]
+
+
+def test_partial_cleanup_keeps_exact_tip_requirement_on_retry(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat")
+    merged_head = _tip(repo, "feat")
+    _state_commit(repo, "feat", "later-bookkeeping")
+    archived_tip = _tip(repo, "feat")
+    _git(repo, "checkout", "main")
+    _fake_gh(monkeypatch, {"feat": merged_head})
+    with monkeypatch.context() as unavailable:
+        unavailable.setattr(bs, "delete_remote_branch", lambda *args, **kwargs: None)
+        first = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+    assert first.local_deleted == ["feat"]
+    assert first.remote_deleted == []
+
+    retry = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert retry.failure is not None
+    assert "existing local tag points elsewhere" in retry.failure
+    assert retry.remote_deleted == []
+    assert _branch_exists_remote(repo, "feat")
+    assert _tip(repo, "refs/tags/retired/feat") == archived_tip
 
 
 def test_retirement_tag_named_like_another_branch_does_not_hide_it(
@@ -780,6 +818,49 @@ def test_dirty_pinning_worktree_is_reported_not_removed(
         "worktree" in note and "was preserved — both refs left in place" in note
         for note in result.notes
     )
+    assert not _git(repo, "ls-remote", "--tags", "origin").stdout
+    assert not _git(repo, "tag", "--list", "retired/feat").stdout
+
+    # Finishing the preserved work must not conflict with a premature archive.
+    _commit(linked, "scratch.txt", "finished", "finish pending work")
+    _git(linked, "push", "origin", "feat")
+    _git(repo, "merge", "--ff-only", "feat")
+    final_tip = _tip(repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.failure is None
+    assert result.worktree_removed == [str(linked)]
+    assert result.local_deleted == ["feat"]
+    assert _tip(repo, "refs/tags/retired/feat") == final_tip
+
+
+def test_worktree_that_becomes_dirty_during_archive_is_preserved(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    linked = tmp_path / "linked"
+    _git(repo, "worktree", "add", str(linked), "feat")
+    _own_worktrees(repo)
+    _merged_at_tip(monkeypatch, repo, "feat")
+    publish = bs._publish_retirement_tag
+
+    def publish_then_dirty(*args, **kwargs):
+        archived = publish(*args, **kwargs)
+        (linked / ".env").write_text("new local state")
+        return archived
+
+    # Git's unforced removal permits ignored files, so the second inspection
+    # must catch newly created non-regenerable state after the network push.
+    _git(repo, "config", "core.excludesFile", str(tmp_path / "gitignore"))
+    (tmp_path / "gitignore").write_text(".env\n")
+    monkeypatch.setattr(bs, "_publish_retirement_tag", publish_then_dirty)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.worktree_pinned == ["feat"]
+    assert result.local_deleted == result.remote_deleted == []
+    assert (linked / ".env").read_text() == "new local state"
 
 
 def test_claimed_pinning_worktree_is_reported_not_removed(
@@ -814,6 +895,8 @@ def test_claimed_pinning_worktree_is_reported_not_removed(
         in note
         for note in result.notes
     )
+    assert not _git(repo, "ls-remote", "--tags", "origin").stdout
+    assert not _git(repo, "tag", "--list", "retired/feat").stdout
 
 
 def test_recipe_reports_removed_worktrees(repo: Path, monkeypatch, capsys) -> None:

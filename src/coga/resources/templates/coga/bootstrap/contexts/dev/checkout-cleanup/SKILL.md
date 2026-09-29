@@ -79,15 +79,21 @@ exact-name exemption, not an exemption for every `coga/` branch.
 
 After the existing landing and claim gates, the sweep must publish
 `retired/<branch>` to the configured Git remote before removing any associated
-worktree or deleting either branch ref. `_publish_retirement_tag` archives the
+worktree or deleting either branch ref. Worktree claim and cleanliness proofs
+run before publication and again before removal; an initial refusal leaves
+the archive untouched. `_publish_retirement_tag` archives the
 actual authorized tip, fetching missing remote objects first. If both local
 and remote refs will be deleted, one of those tips must contain the other;
 the tag points to that descendant. Divergent tips preserve both refs and need
 human reconciliation. This keeps later Coga bookkeeping and lagging local
 refs recoverable without inventing a merge.
 
-An existing local tag must resolve to the selected commit. The push uses an
-explicit tag refspec without force; an identical remote tag allows a retry,
+An existing local tag must resolve to the selected commit. A covering
+descendant is deliberately insufficient: if local deletion succeeds but remote
+deletion fails and leaves an older tip, later sweeps require human
+reconciliation of that partial cleanup. The archive is never moved to make
+the retry pass. The push uses an explicit tag refspec without force and
+disables `push.followTags`; an identical remote tag allows a retry,
 while a conflicting tag is never overwritten. A failed object fetch, tag
 creation, or tag push preserves the branch and worktree, records the reason
 in `## Branch Sweep`, and makes the recipe exit 2 after checking other
