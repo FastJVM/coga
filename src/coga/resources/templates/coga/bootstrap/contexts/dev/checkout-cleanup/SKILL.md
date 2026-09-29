@@ -75,6 +75,29 @@ the branch is gone in the named clone, then remove the line from `retires.md`
 by hand. The observed instance is recorded in
 `docs/evidence/independent-clone-worklist-2026-09.md`.
 
+## `/tmp` checkouts do not survive; the branch does
+
+Treat any checkout under the system temp dir (a sandbox clone, a Dream or
+Retro run checkout, an ad-hoc review worktree) as ephemeral: it is routinely
+gone by the time anyone acts on it. Leaving work "preserved" in one, or
+recording its path in `worktree:` or a blackboard note, preserves nothing.
+Before the run ends, push the branch or land its commits on `main`.
+
+When a linked `/tmp` worktree vanishes, Git keeps two things: a stale
+registration (`git worktree prune` clears it; the branch sweep runs it) and
+the local branch, which may now be the only copy of unlanded commits. A stale
+`worktree:` line pointing at a gone path is therefore not evidence the work
+landed. Recover from the primary checkout after refreshing `main` from `origin`
+(here, as in `dev/checkouts`, `origin` and `main` stand for the configured
+`[git].remote` and `[git].control_branch`):
+
+1. Inspect `git log main..<branch>` for candidate commits. Squash merges and
+   cherry-picks may already have landed their changes; check merged-PR
+   history or patch equivalence before selecting commits to recover.
+2. Recover only work still missing and wanted: cherry-pick onto `main` through
+   the normal publication path, or `git push origin <branch>` and open a PR.
+3. Only then `git branch -D <branch>`.
+
 ## `coga retire <slug> [--agent <type>] [--no-launch]`
 
 Refuses unless the ticket is `status: done`. It first disposes of the
