@@ -94,6 +94,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/937
 branch: branch-sweep-retired-tag-collision
 
 Plan: `_publish_retirement_tag` reads the remote tag first (`ls-remote`);
