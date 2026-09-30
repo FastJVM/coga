@@ -26,9 +26,5 @@ For the line format and field encoding, see the `coga/autoclose/sweep` skill.
 
 - `cleanup/quiet-the-first-run-noise-from-recurring-jobs-and` — branch `quiet-first-run`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-22`
 - `document-how-to-recover-a-retired-ticket-s-body-fr` — branch `retired-ticket-recovery`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-28`
-- `launch-moves-the-checkout-to-main-before-and-after` — branch `launch-normalizes-checkout`, worktree ``, recorded `2026-09-30`
 - `make-dream-run-correctly-under-codex` — branch `dream-under-codex`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-28`
-- `marketing/fix-installer/linux-clean-install-harness` — branch `linux-clean-install-harness`, worktree ``, recorded `2026-09-30`
-- `prevent-parent-ticket-assumptions-during-task-spli` — branch `no-parent-ticket-guidance`, worktree ``, recorded `2026-09-30`
-- `record-the-attended-ticket-switch-recipe-launch-do` — branch `attended-ticket-switch-recipe`, worktree ``, recorded `2026-09-30`
 - `run-the-landed-branch-sweep-daily-from-autoclose` — branch `daily-autoclose-branches`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-28`
