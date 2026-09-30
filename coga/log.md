@@ -7021,3 +7021,4 @@ fatal: Unable to add (null) to database
 2026-09-30 09:58 [recurring/blocker-reminders] [system] script exited with code 0
 2026-09-30 09:58 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-09-30 09:58 [recurring/address-pr-comments] [system] started (active → in_progress) via recurring delegation to bootstrap/address-pr-comments
+2026-09-30 09:58 [recurring/address-pr-comments] [system] launched delegated target bootstrap/address-pr-comments
