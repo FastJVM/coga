@@ -30,7 +30,9 @@ variable for the one command; do not edit the fixture's config to satisfy it.
 For artifact-level reproduction, use the
 [Linux clean-install harness](clean-install/SKILL.md). It covers current PyPI
 and a wheel from `main` in a fresh Python 3.11 container, with an attended
-continuation for agent login and the first ticket.
+continuation for agent login and the first ticket. The
+[macOS harness on AWS](clean-install/macos-aws/SKILL.md) runs the same walk on
+an EC2 Mac dedicated host.
 
 ## Which code you are actually testing
 
