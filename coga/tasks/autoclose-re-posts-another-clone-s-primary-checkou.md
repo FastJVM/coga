@@ -36,6 +36,7 @@ Filed by Dream 2026-W40, Phase 6, routing the unresolved adjacent bug that Dream
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/939
 branch: fix-autoclose-clone-primary
 
 ## Implementation handoff
