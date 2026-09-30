@@ -1,6 +1,6 @@
 ---
 title: Name phone-home as the record_failure=False caller after PR 911 lands
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -23,6 +23,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
