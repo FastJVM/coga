@@ -549,6 +549,7 @@ as an edge shipping location and not a second core.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/938
 branch: edge-wheel-upgrades
 
 ## Implementation clarifications (owner approved 2026-09-30)
@@ -639,3 +640,36 @@ Initial fixture-only failures (missing Git on restricted test PATH and a
 No production transport was contacted. No unresolved implementation blocker
 or adjacent bug remains from this step. Default upgrades start only after
 reviewed shim adoption; full forks and legacy full copies retain their code.
+
+## Open-PR authorization (2026-09-30)
+
+The attending owner explicitly approved publication ("ok for open pr") after
+being told the blackboard has no returned implementation-review note. Proceed
+with opening the PR under that approval; no implementation review is claimed.
+The owner-controlled review step remains the merge gate.
+
+## PR
+
+Existing repositories keep running copied phone-home code after wheel upgrades.
+Ship its default implementation in `coga_edge` in the same wheel and replace
+the live and packaged `ticket.py` copies with thin shims. After one reviewed
+migration, existing template and period shims use the upgraded implementation;
+full local forks retain their code.
+
+Document the migration, override, and core/edge import contracts in the owning
+topics and packaged twins. Preserve launch, telemetry, and attachment-copying
+behavior. Add installed-wheel A/B upgrade, fork, missing-module launch, and
+legacy migration fixtures with production delivery suppressed.
+
+Verification recorded by implementation:
+- `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q`
+  — 3148 passed after rebase, including wheel and twin coverage.
+- `.venv/bin/python -m pytest tests/test_edge_distribution.py -q` — 8 passed.
+- `.venv/bin/python -m coga.cli --help` — passed.
+- `.venv/bin/python -m coga.cli validate --json` — 203 valid, no errors;
+  existing unrelated warnings remain.
+- Pristine-clone `pip wheel --no-build-isolation --no-deps .` — passed.
+- `git diff --check` and `cmp AGENTS.md CLAUDE.md` — clean.
+
+The owner approved opening this PR without a returned implementation-review
+note; implementation review is not claimed here.
