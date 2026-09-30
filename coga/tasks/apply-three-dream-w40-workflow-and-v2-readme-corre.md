@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 3ea18fa6-019c-4fba-b89f-7db0812eee67
 ---
 
 ## Description
@@ -63,3 +62,19 @@ precedent are gone. The replacement explicitly says no verdict is due while
 wishes are parked, and pulling one forward makes it an ordinary validated
 ticket. `docs/contexts/coga/roadmap/SKILL.md`, Deferred work, records the same
 2026-09-29 parking decision. Preserve this newer policy; no README edit needed.
+
+## Implement handoff
+
+- Commit `5b0515379` on `docs/w40-workflow-corrections` (pushed), rebased on
+  `origin/main` `600bd5f73`.
+- Item 1: `coga/workflows` "Step completion gates" `branch` bullet now says only
+  a usable `branch:` is checked; `worktree:` is sandbox-clone bookkeeping
+  (matches `step_gate._has_branch_linkage`).
+- Item 2: opening paragraph no longer enumerates workflows; it points at
+  `templates/coga/bootstrap/workflows/` (fallback) and
+  `templates/coga/workflows/` (init-seeded, incl. `direct/body`).
+- Item 3: already satisfied (see above); no README edit.
+- Canonical topic and packaged bootstrap twin are byte-identical.
+- Verification: `.venv/bin/python -m pytest tests/test_packaging.py` (23 passed)
+  and full `.venv/bin/python -m pytest` (3135 passed). System `python` lacks
+  `tomlkit`, so use the venv interpreter.
