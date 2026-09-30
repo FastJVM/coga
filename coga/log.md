@@ -7145,3 +7145,4 @@ fatal: Unable to add (null) to database
 2026-09-30 15:17 [decide-whether-the-weekly-usage-report-belongs-on] [human:nicktoper] activated (blocked → active) — auto on launch
 2026-09-30 15:17 [decide-whether-the-weekly-usage-report-belongs-on] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-30 15:17 [decide-whether-the-weekly-usage-report-belongs-on] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
+2026-09-30 15:17 [decide-whether-the-weekly-usage-report-belongs-on] [human:nicktoper] unblocked (asks resolved, still in_progress): Owner chose to move the weekly usage report to flow and keep the notification producers inventory scoped to package and bundled producers; repo-local templates document their routing in their own ticket.md. The prior dirty-checkout observation will be rechecked before branching.
