@@ -1,6 +1,6 @@
 ---
 title: Autoclose re-posts another clone's primary checkout forever
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 3 (open-pr)
 agent: claude
+launch_generation: pending:30673bcf-2bcb-415c-a1ba-6f0c432ba890
 ---
 
 ## Description
