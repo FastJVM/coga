@@ -121,3 +121,12 @@ the final unrelated skill/state rebase); `PYTHONPATH=$PWD/src .venv/bin/python -
 
 - [x] [2026-09-29 12:32] [agent:claude] id=20260929T123206 Depends on launch-moves-the-checkout-to-main-before-and-after (PR #909 is still open): merge or close #909 before applying these corrections. Owner must also choose the seed_local_config.py route: defer the tomllib import until after the re-exec decision, or narrow the documentation to Python 3.11+.
   resolved: [2026-09-29 14:40] [human:nicktoper] PR #909 merged on 2026-09-29 at 21:27:50 UTC. Owner chose the documentation route: require Python 3.11+ to start seed_local_config.py, preserving the existing helper code and updating both code/implement and dev/checkouts with their packaged twins.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `apply-three-dream-w40-skill-and-context-correction`
+Recorded: 2026-09-30T03:54:16+00:00
+
+    Branch 'dream-w40-doc-corrections' is not safe to publish. refs/heads/dream-w40-doc-corrections does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Reconcile it and relaunch, or `coga block --task apply-three-dream-w40-skill-and-context-correction`.
