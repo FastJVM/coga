@@ -15,8 +15,10 @@ sessions consumed last week.
 
 Coga records every launched session's usage into `coga/log.md` and reads it
 back with `coga usage`, but nobody looks unless they ask. This task pushes the
-number weekly, to the **important** route, so consumption is visible on a
-cadence short enough to notice a change.
+number weekly, to the **flow** route, so consumption is visible on a
+cadence short enough to notice a change. This report is for awareness and
+asks for no human action, so it does not qualify for
+[`coga-important`](../../../docs/contexts/coga/important/SKILL.md).
 
 Once a week this recurring task's `ticket.py` runs `report.py` beside it,
 which:
@@ -28,7 +30,7 @@ which:
    per-model split in which `(unknown)` and `<synthetic>` are rows of their
    own, and the count of `usage_status: unknown` sessions stated as a floor,
 3. posts that text once through `coga.notification.post` with
-   `important=True, fatal=False` — a delivery miss is reported and the period
+   the default flow destination and `fatal=False` — a delivery miss is reported and the period
    still closes — and completes its own step with `coga bump`.
 
 The report is a pure function of `coga/log.md` and the window, so it keeps no

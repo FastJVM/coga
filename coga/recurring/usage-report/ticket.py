@@ -23,11 +23,11 @@ import report  # noqa: E402
 cfg = load_config()
 since, until = report.default_window(datetime.now(timezone.utc).date())
 text = report.render(report.build_report(report.load_records(cfg), since, until))
-# One post attempt per run, on the important route the owner chose for it.
+# One post attempt per run, on flow for operating awareness.
 # `fatal=False`: a delivery miss is already loud on stderr and in `log.md`, and
 # must not leave the period task `in_progress`; repost by hand with
 # `coga slack --task <slug> --message "$(python coga/recurring/usage-report/report.py --since … --until …)"`.
-post(cfg, text, important=True, fatal=False)
+post(cfg, text, fatal=False)
 # Complete the step through the CLI: calling a Typer command function
 # in-process would pass `OptionInfo` sentinels instead of real defaults.
 sys.exit(
