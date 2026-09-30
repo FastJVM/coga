@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: a6d02146-21f9-4eb7-ac97-d8b83952f881
 ---
 
 ## Description
@@ -99,6 +98,40 @@ branch: dream-w40-notification-skill-docs
   only this ticket and the log; tested code and topics were unchanged.
 - Returned to clean `main`, fast-forwarded to `origin/main`. No PR opened;
   the next workflow step is peer review. No remaining implementation blockers.
+
+## Peer review
+
+- `codex review --base main` returned successfully with no findings. The
+  first attempt could not initialize its app server in the read-only sandbox;
+  the rerun outside the sandbox completed. Review confirmed the documentation
+  matches the implementation and the canonical/package copies match.
+- Independently checked the notification flags, per-ref gh argv, checkout
+  preflight, and CLI exit-2 path against their implementations. No must-fix
+  findings. Documentation only: no terminal loop, prompt, pager, or Slack
+  rendering changed, so interactive surface verification was not applicable.
+- `.venv/bin/python -m pytest tests/test_packaging.py`: **23 passed**.
+  After `git fetch origin main && git rebase FETCH_HEAD`,
+  `PYTHONPATH=$PWD/src .venv/bin/python -m pytest`: **3135 passed** in 224.10s.
+  `git diff --check main...HEAD` passed. `git range-diff` confirmed the rebase
+  preserved the reviewed patch exactly.
+- Pushed rebased commit `40abd83a8` on `dream-w40-notification-skill-docs`
+  with `--force-with-lease`. Returned to clean `main`, fetched and
+  fast-forwarded before writing this handoff. The branch remains one commit
+  ahead of main. The canceled source ticket is untouched. No blockers.
+
+## PR
+
+Correct three documentation gaps identified by Dream W40 after PR #914 merged:
+record recurring period-contradiction alerts in the producer, failure, and
+important-routing topics; include `--all` in the per-skill gh update command
+and explain that it suppresses confirmation; and document the existing raw
+Git overwrite refusal (exit 2) when skill-update PR checkout encounters a
+conflicting dirty tracked file. Keep all four packaged topic twins identical.
+Runtime behavior is unchanged, and the canceled source ticket remains on disk.
+
+Test plan: `.venv/bin/python -m pytest tests/test_packaging.py` (23 passed);
+`PYTHONPATH=$PWD/src .venv/bin/python -m pytest` after rebase (3135 passed);
+`git diff --check main...HEAD` (passed). Codex review returned no findings.
 
 ## Blockers
 
