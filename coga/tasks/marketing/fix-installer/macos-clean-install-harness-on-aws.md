@@ -1,6 +1,6 @@
 ---
 title: macOS clean-install harness on AWS
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:6e96dec3-af18-4496-afb5-ac9ca836cb40
 ---
 
 ## Description
