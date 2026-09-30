@@ -312,6 +312,67 @@ def test_conflicting_retirement_tag_is_kept_and_tip_archived_under_its_sha(
     assert _tip(repo, f"refs/tags/retired/feat@{tip[:12]}") == tip
 
 
+@pytest.mark.parametrize("where", ["local", "remote"])
+@pytest.mark.parametrize("object_ref", ["main:base.txt", "main^{tree}"])
+@pytest.mark.parametrize("annotated", [False, True])
+def test_non_commit_retirement_tag_uses_sha_fallback(
+    repo: Path, monkeypatch, where: str, object_ref: str, annotated: bool
+) -> None:
+    tag_repo = repo if where == "local" else Path(_remote_url(repo))
+    tag_args = ["-a", "-m", "Non-commit archive"] if annotated else []
+    _git(
+        tag_repo, "-c", "user.name=Tester", "-c", "user.email=t@example.com",
+        "tag", *tag_args, "retired/feat", object_ref,
+    )
+    original = _tip(tag_repo, "refs/tags/retired/feat")
+    _push_branch(repo, "feat", land_in_main=True)
+    tip = _tip(repo, "feat")
+    _merged_at_tip(monkeypatch, repo, "feat")
+
+    assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 0
+
+    assert not _branch_exists_local(repo, "feat")
+    assert not _branch_exists_remote(repo, "feat")
+    assert _tip(tag_repo, "refs/tags/retired/feat") == original
+    if where == "local":
+        assert _remote_tag(repo, "retired/feat") == ""
+    else:
+        assert _git(
+            repo, "show-ref", "--verify", "refs/tags/retired/feat", check=False
+        ).returncode != 0
+    assert _remote_tag(repo, f"retired/feat@{tip[:12]}") == tip
+    assert _tip(repo, f"refs/tags/retired/feat@{tip[:12]}") == tip
+
+
+def test_unavailable_remote_tag_object_still_refuses_retirement(
+    repo: Path, monkeypatch
+) -> None:
+    remote = Path(_remote_url(repo))
+    _git(
+        remote, "-c", "user.name=Tester", "-c", "user.email=t@example.com",
+        "tag", "-a", "-m", "Remote-only tag", "retired/feat", "main:base.txt",
+    )
+    original = _tip(remote, "refs/tags/retired/feat")
+    _push_branch(repo, "feat", land_in_main=True)
+    tip = _tip(repo, "feat")
+    _merged_at_tip(monkeypatch, repo, "feat")
+    real_git = bs._git
+
+    def fail_archive_fetch(root: Path, *args: str, input: str | None = None):
+        if args[0] == "fetch" and args[-1] == original:
+            return subprocess.CompletedProcess(args, 1, stdout="", stderr="fetch failed")
+        return real_git(root, *args, input=input)
+
+    monkeypatch.setattr(bs, "_git", fail_archive_fetch)
+
+    assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 2
+
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+    assert _remote_tag(repo, "retired/feat") == original
+    assert _remote_tag(repo, f"retired/feat@{tip[:12]}") == ""
+
+
 def test_retirement_tag_containing_the_tip_counts_as_archived(
     repo: Path, monkeypatch
 ) -> None:
@@ -345,10 +406,11 @@ def test_retirement_tag_containing_the_tip_counts_as_archived(
     assert _tip(repo, "refs/tags/retired/feat") == merged_head
 
 
+@pytest.mark.parametrize("object_ref", ["main", "main:base.txt", "main^{tree}"])
 def test_both_retirement_names_taken_fails_without_overwriting(
-    repo: Path, monkeypatch
+    repo: Path, monkeypatch, object_ref: str
 ) -> None:
-    original = _tip(repo, "main")
+    original = _tip(repo, object_ref)
     _push_branch(repo, "feat", land_in_main=True)
     tip = _tip(repo, "feat")
     for name in ("retired/feat", f"retired/feat@{tip[:12]}"):
@@ -358,7 +420,7 @@ def test_both_retirement_names_taken_fails_without_overwriting(
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
     assert result.failure is not None
-    assert "already archive other commits" in result.failure
+    assert "already archive other objects" in result.failure
     assert result.local_deleted == result.remote_deleted == []
     assert _branch_exists_local(repo, "feat")
     assert _remote_tag(repo, f"retired/feat@{tip[:12]}") == original

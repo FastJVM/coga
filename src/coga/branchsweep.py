@@ -38,7 +38,8 @@ The shared skill-update branch is always protected. Before deleting any other
 authorized refs or their worktree, publish `retired/<branch>` without force.
 That tag must preserve all tips this pass deletes. A remote tag of that name
 that already contains the tip counts as the archive; one holding unrelated
-history is left alone and the tip goes to `retired/<branch>@<sha12>` instead.
+history or a non-commit object is left alone and the tip goes to
+`retired/<branch>@<sha12>` instead.
 An archive failure keeps the branch and is reported as a failed sweep.
 
 Before enumerating branches, the sweep prunes registrations for worktrees whose
@@ -453,12 +454,17 @@ def _publish_retirement_tag(
 
     for name in names:
         name_ref = f"refs/tags/{name}"
-        local_tag = _rev_parse(root, f"{name_ref}^{{commit}}") or None
+        # A blob/tree tag occupies the name even though it cannot archive a
+        # commit. Keep its OID so it is neither published over nor mirrored.
+        local_oid = _rev_parse(root, name_ref) or None
+        local_tag = _rev_parse(root, f"{name_ref}^{{commit}}") or local_oid
         remote_oid = remote_tags.get(name_ref)
         if remote_oid is not None:
-            remote_commit = _archived_commit(cfg, root, remote_oid)
+            remote_commit = _archived_object(cfg, root, remote_oid)
             if remote_commit is None:
                 return refuse(f"cannot fetch remote {name!r} at {remote_oid}")
+            if not _object_present(root, remote_commit):
+                continue
             if not (
                 remote_commit == target
                 or _git(root, "merge-base", "--is-ancestor", target, remote_commit).returncode == 0
@@ -491,18 +497,18 @@ def _publish_retirement_tag(
 
     return refuse(
         f"{' and '.join(repr(name) for name in names)} already archive other "
-        "commits; never overwrite them"
+        "objects; never overwrite them"
     )
 
 
-def _archived_commit(cfg: Config, root: Path, oid: str) -> str | None:
-    """Return the commit a remote retirement tag names, fetching it if needed."""
-    if not _object_present(root, oid):
+def _archived_object(cfg: Config, root: Path, oid: str) -> str | None:
+    """Return the peeled object, including blobs/trees, or None if unavailable."""
+    if _git(root, "cat-file", "-e", oid).returncode != 0:
         _git(
             root, "fetch", "--quiet", "--no-tags", "--no-write-fetch-head",
             cfg.git_remote, oid,
         )
-    return _rev_parse(root, f"{oid}^{{commit}}") or None
+    return _rev_parse(root, f"{oid}^{{}}") or None
 
 
 def _mirror_local_tag(root: Path, name: str, local: str | None, archived: str) -> None:

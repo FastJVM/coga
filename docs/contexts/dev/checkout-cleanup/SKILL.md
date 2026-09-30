@@ -138,17 +138,20 @@ before publishing. A remote `retired/<branch>` whose commit equals or contains
 the selected commit already preserves it — another clone may have archived a
 later tip of the same branch, or a partial cleanup left an older remote ref
 behind — so the sweep publishes nothing and proceeds to deletion. A remote tag
-holding unrelated history (the name was reused) is never moved or forced:
+holding unrelated history or a non-commit object (blob or tree, including
+through an annotated tag) is never moved or forced:
 the sweep publishes the selected commit under the deterministic
 `retired/<branch>@<sha12>` instead, which a retry then finds already archived.
 (`retired/<branch>/<sha>` is not possible: a ref cannot nest under an existing
 tag ref.) A local tag of either name that points at an unpublished, different
-commit makes that name unusable, so it is skipped rather than published over.
+commit or a non-commit object makes that name unusable, so it is skipped
+rather than published over. Object availability is checked separately from
+commit ancestry: an unreadable remote object still refuses retirement.
 The local tag is created only after the remote holds the archive, and
 advanced only when the archive contains its commit, so a failed pass never
 leaves a local tag that replays a conflict. The push names one explicit tag
 refspec without force and disables `push.followTags`. When both names are
-taken by other commits, or a remote read, object fetch, or tag push fails,
+taken by other objects, or a remote read, object fetch, or tag push fails,
 the sweep preserves the branch and worktree, records the reason in
 `## Branch Sweep`, and makes the recipe exit 2 after checking other branches.
 Restore archived work with `git fetch <remote> tag <tag>` and
