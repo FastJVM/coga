@@ -41,7 +41,8 @@ authority.
 **Sync rule.** A PR that changes an owner greps other surfaces for the fact
 and fixes or deletes any restatement in the same PR. No test enforces this
 across surfaces (only live/packaged twins are byte-checked); the authoring
-rule is the enforcement and Dream's knowledge scan is the backstop. A live
+rule is the enforcement, `code/implement` and `code/self-qa` carry it for
+`code/*` workflows, and Dream's knowledge scan is the backstop. A live
 topic and its packaged twin are one fact, not two surfaces. `CLAUDE.md` /
 `AGENTS.md` load in every agent session, so they carry pointers plus only the
 rules needed outside `coga launch`, never an owning statement.

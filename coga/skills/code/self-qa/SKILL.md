@@ -53,6 +53,14 @@ this step just makes sure the diff they see is already clean.
    validated only after its source ticket had already been deleted. Probe the
    reasons the change gives for itself, not just its assertions.
 
+   **Check that amendments reached their owners.** Read the `knowledge:`
+   line `code/implement` left under `## Dev`. If the diff changes behavior
+   or a recorded ruling and touches no owning topic, or `knowledge: none`
+   has no credible reason, that is a must-fix finding: apply the amendment
+   to the owning topic here. Then grep the contexts root for the old
+   ruling's terms; a sibling topic still stating it is a must-fix finding
+   too (`coga/knowledge`, sync rule). Tests never catch this drift.
+
    **Some surfaces no automated test can reach; sweep those by hand and record
    it, or block.** A raw-terminal `Live` loop, a pager, a TTY prompt, a Slack
    render — the suite exercises the pure view function and never the terminal,
@@ -109,6 +117,7 @@ this step just makes sure the diff they see is already clean.
 - `/code-review` and `/simplify` have both run against the branch.
 - Findings worth acting on are applied, committed, and tested.
 - Working tree is clean; tests pass.
+- No topic still states a ruling the diff amended.
 - Every review this step started has **returned** — none is still in
   flight at the bump.
 - Any surface automated tests cannot reach has been swept by hand, with the

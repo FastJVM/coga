@@ -112,7 +112,7 @@ later `code/open-pr` step does that, after review and fixes.
    ticket — no opportunistic refactors. If you find a real adjacent bug,
    note its symptom, affected code, evidence or reproduction, and any
    existing follow-up ticket reference for the blackboard (write it with the
-   handoff in step 10); don't fix it here.
+   handoff in step 11); don't fix it here.
    State what remains unresolved. `retro/done-ticket` owns carrying that
    finding into a durable context before deleting this ticket, so the
    blackboard is a handoff, not the bug's final home.
@@ -132,15 +132,34 @@ later `code/open-pr` step does that, after review and fixes.
      fixture or a plain call would do.
 6. **Update the example fixture** when behavior affects task layout,
    prompt composition, or workflow semantics (per CLAUDE.md).
-7. **Commit.** Conventional, present-tense summary line. Reference the
+7. **Apply knowledge amendments to their owners.** A ticket that changes
+   behavior, or amends a ruling a topic records (a contract, an owner
+   decision, a decision register), is not done when the code or the
+   ticket says the new thing: the topic that owns the fact must say it too,
+   on this branch. `coga/knowledge` names the owner and its sync rule; this
+   step is where that rule gets carried out.
+   - Edit the owning topic under the contexts root (and its packaged twin,
+     where one exists) to state the new ruling, replacing the old one in
+     place per the topic's own conventions.
+   - Grep the contexts root and skills for the old ruling's distinctive
+     terms and fix every sibling that restates it or builds on it. An
+     amendment recorded in one topic and never carried to the topics that
+     depend on it is the drift this step exists to prevent.
+   - An amendment that arrived in the ticket body or blackboard (an owner
+     answer, a reviewer's ruling) counts too: move it into its owner rather
+     than leaving it for `retro/done-ticket` to find after the fact.
+   - Record the result on the blackboard under `## Dev` as
+     `knowledge: <topic refs touched>` or `knowledge: none`, with a word on
+     why none when the ticket changes behavior. `code/self-qa` checks it.
+8. **Commit.** Conventional, present-tense summary line. Reference the
    ticket slug in the body. One commit per logical change is fine.
-8. **Freshen against `main`.** On the clean feature branch,
+9. **Freshen against `main`.** On the clean feature branch,
    `git fetch origin main && git rebase FETCH_HEAD`; if commits came in,
    re-run the tests and fix what broke. The later `coga open-pr` refuses a
    branch missing material commits from `origin/main`, and as a script it
    has no judgment to rebase with — freshness lands in the agent steps,
    while judgment is available.
-9. **Push, then return to `main` only without the launch witness.**
+10. **Push, then return to `main` only without the launch witness.**
    `git push -u origin <branch-name>` (add
    `--force-with-lease` when a rebase rewrote an already-pushed branch).
    Under the launch witness, stay on the branch; launch returns the
@@ -151,7 +170,7 @@ later `code/open-pr` step does that, after review and fixes.
    escalate — never discard unpublished state. In the
    sandbox clone layout, push from the clone; the launch checkout never left
    `main`.
-10. **Hand off and bump — this is what ends the step.** Under the launch
+11. **Hand off and bump — this is what ends the step.** Under the launch
    witness, write the handoff on the feature branch after loading control's
    copy of the ticket (`git fetch origin main && git restore
    --source=origin/main --worktree -- <task path>`, never staged;
@@ -176,6 +195,8 @@ later `code/open-pr` step does that, after review and fixes.
   `worktree:` for a sandbox clone), contains the latest `origin/main`, and
   is pushed.
 - Tests pass locally.
+- Every fact the change amends is updated in its owning topic and in the
+  siblings that restated it, and `## Dev` records `knowledge:`.
 - Under the launch witness, `coga bump` ran last from the feature branch
   and published the handoff (launch returns the checkout). Otherwise the
   launch checkout is back on `main`, fast-forwarded and clean.
