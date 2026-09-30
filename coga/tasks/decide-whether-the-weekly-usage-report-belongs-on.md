@@ -1,6 +1,6 @@
 ---
 title: Decide whether the weekly usage report belongs on coga-important
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:47cac454-51c3-4df2-87dd-e73a80f95810
 ---
 
 ## Description
