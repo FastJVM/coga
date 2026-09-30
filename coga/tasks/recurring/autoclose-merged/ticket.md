@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,8 +13,6 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
-step: 1 (sweep)
-launch_generation: 39f44909-a84a-426e-80a5-940aa867e26d
 ---
 
 ## Description
@@ -214,3 +212,16 @@ Result: 0 local and 0 remote branch(es) deleted, 0 worktree(s) removed, 0 skippe
 - Branch sweep: 'v2-premise-adjudication' is recorded on a live ticket — left in place.
 - Branch sweep: 'wedge-ticket-admin-reproduction' is recorded on a live ticket — left in place.
 - Branch cleanup: local 'wip/numbered-drain-order-stale-base' has unmerged work and no merged PR vouching for it — left in place.
+
+## Agent follow-up (2026-09-30)
+
+- Autoclose recipe succeeded (4 disposed, 4 preserved independent-clone entries
+  on `/home/n/Code/codex/coga` — worklist keeps them, per skill).
+- Branch-sweep exit 2 is a single branch, `codex/retro-independent-clone-worklist-knowledge`,
+  in `/home/n/Code/claude/coga`: its stale tip `2d1ee292a` is an ancestor of
+  PR #920's merged head `82461f50b`, which the remote `retired/` tag already
+  archives (pushed from another clone). No data at risk; the branch was left in place.
+  Every other branch was judged normally.
+- Code fix is tracked by `autofix/make-branch-sweep-retirement-survive-an-existing-r`
+  (diagnosis appended there). Not deleting by hand: the proofs refused it and
+  the fix owns that decision. Expect the same exit 2 daily until it lands.
