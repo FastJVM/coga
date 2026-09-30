@@ -28,12 +28,11 @@ baseline)
     ;;
 reset)
     # EC2 Mac AMIs ship Command Line Tools for their Homebrew. Remove them
-    # (Apple's uninstall, plus receipts) so the first git call on this machine
-    # behaves as it does on a new Mac: the /usr/bin shim asks to install them.
+    # (Apple's uninstall) so the first git call on this machine behaves as it
+    # does on a new Mac: the /usr/bin shim asks to install them. Their receipts
+    # sit under SIP in /Library/Apple/System/Library/Receipts and stay; they do
+    # not stop softwareupdate from offering the tools again.
     sudo rm -rf /Library/Developer/CommandLineTools
-    for pkg in $(pkgutil --pkgs | grep -i CLTools || true); do
-        sudo pkgutil --forget "$pkg" >/dev/null
-    done
     sudo xcode-select --reset
     if xcode-select -p >/dev/null 2>&1; then
         fail "A developer directory is still selected: $(xcode-select -p)"
@@ -51,8 +50,10 @@ walk)
     if id "$user" >/dev/null 2>&1; then
         fail "macOS user $user already exists; choose a new name for a fresh home"
     fi
-    sudo sysadminctl -addUser "$user" -fullName "Coga clean install" \
+    # sysadminctl exits 0 even when it refuses (full names must be unique).
+    sudo sysadminctl -addUser "$user" -fullName "Coga clean install $user" \
         -password "$password" -home "/Users/$user"
+    id "$user" >/dev/null 2>&1 || fail "sysadminctl did not create $user"
     sudo createhomedir -c -u "$user" >/dev/null
     # Fresh login shell as the new user: install uv as its docs say, then run
     # the same install/init walk the Linux container runs.
