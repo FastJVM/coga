@@ -1,6 +1,6 @@
 ---
 title: Name phone-home as the record_failure=False caller after PR 911 lands
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,7 +24,6 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
-launch_generation: 1edff53a-8471-4e8d-932e-ce5b6557b4d8
 ---
 
 ## Description
@@ -36,3 +35,9 @@ Filed by Dream 2026-W40, Phase 6 (proposal-ownership overlap). `docs/contexts/co
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+---
+
+## Blockers
+
+- [ ] [2026-09-30 11:09] [agent:claude] id=20260930T110945 Start check failed: /home/n/Code/coga is not a clean main. It has an unpublished, unstaged blackboard edit on another ticket (coga/tasks/autofix/make-branch-sweep-retirement-survive-an-existing-r/ticket.md, the 16-line 'Diagnosis (from recurring/autoclose-merged period agent, 2026-09-30)' section). Please publish (commit+push to main) or discard that edit, then unblock and relaunch. The precondition is met: PR #911 merged 2026-09-29, so the docs fix in coga/notifications/failures (live + packaged) is ready to implement.
