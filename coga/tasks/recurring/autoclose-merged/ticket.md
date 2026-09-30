@@ -177,3 +177,40 @@ Recorded: 2026-09-30T17:00:12+00:00
      ! [rejected]            retired/codex/retro-independent-clone-worklist-knowledge -> retired/codex/retro-independent-clone-worklist-knowledge (already exists)
     error: failed to push some refs to 'https://github.com/FastJVM/coga/'
     hint: Updates were rejected because the tag already exists in the remote. — left in place.
+
+## Branch Sweep
+
+Generated: 2026-09-30T17:49:32+00:00
+Task: `recurring/autoclose-merged`
+
+Result: 0 local and 0 remote branch(es) deleted, 0 worktree(s) removed, 0 skipped-worktree-pinned, 4 skipped.
+- skipped: clean-install-merge, pr849, pr870, wip/numbered-drain-order-stale-base
+
+### Decisions
+
+- Branch sweep: 'carry-knowledge-amendments' is recorded on a live ticket — left in place.
+- Branch cleanup: local 'clean-install-merge' has unmerged work and no merged PR vouching for it — left in place.
+- Branch sweep: 'codex/retro-recurring-branch-sweep-knowledge' is recorded on a live ticket — left in place.
+- Branch sweep: 'coga/skill-update' is the shared skill-update branch — left in place.
+- Branch sweep: 'doc-context-boundary' is recorded on a live ticket — left in place.
+- Branch sweep: 'docs/v2-batch-verdicts' is recorded on a live ticket — left in place.
+- Branch sweep: 'docs/w40-workflow-corrections' is recorded on a live ticket — left in place.
+- Branch sweep: 'dream-w40-doc-corrections' is recorded on a live ticket — left in place.
+- Branch sweep: 'dream-w40-testing-baseline' is recorded on a live ticket — left in place.
+- Branch sweep: 'fix-autoclose-clone-primary' is recorded on a live ticket — left in place.
+- Branch sweep: 'fix/retire-followup-owner' is recorded on a live ticket — left in place.
+- Branch sweep: 'launch-normalizes-checkout' is recorded on a live ticket — left in place.
+- Branch sweep: 'linux-clean-install-harness' is recorded on a live ticket — left in place.
+- Branch cleanup: local 'pr849' has unmerged work and no merged PR vouching for it — left in place.
+- Branch cleanup: local 'pr870' has unmerged work and no merged PR vouching for it — left in place.
+- Branch sweep: 'publish-off-control' is recorded on a live ticket — left in place.
+- Branch sweep: 'recurring-crlf-lease' is recorded on a live ticket — left in place.
+- Branch sweep: 'recurring-ledger-from-log' is recorded on a live ticket — left in place.
+- Branch sweep: 'retire-worklist-linked-only' is recorded on a live ticket — left in place.
+- Branch sweep: 'shebang-exec-check' is recorded on a live ticket — left in place.
+- Branch sweep: 'skill-update-per-skill' is recorded on a live ticket — left in place.
+- Branch sweep: 'slack-important-alert' is recorded on a live ticket — left in place.
+- Branch sweep: 'split-ticket-contract' is recorded on a live ticket — left in place.
+- Branch sweep: 'v2-premise-adjudication' is recorded on a live ticket — left in place.
+- Branch sweep: 'wedge-ticket-admin-reproduction' is recorded on a live ticket — left in place.
+- Branch cleanup: local 'wip/numbered-drain-order-stale-base' has unmerged work and no merged PR vouching for it — left in place.
