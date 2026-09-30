@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 6e96dec3-af18-4496-afb5-ac9ca836cb40
 ---
 
 ## Description
@@ -132,6 +131,46 @@ Next session (after unblock), from this checkout on the branch:
 Fix any script bug the live run finds on the branch before bumping.
 
 ---
+
+## Live run mac1 — 2026-09-30 (claude, megalaunch)
+
+Owner approved one mac2.metal host in us-east-1. Branch now has a second
+commit (`1935e3d48`) with fixes found live. Full suite 3137 passed before the
+fix; harness + packaging tests 34 passed after.
+
+Resources (all in `.coga/clean-install/mac1/resources.env`, account 758808001216):
+- Host `h-0833c01ac15e645ac` us-east-1a, allocated 2026-09-30T23:28:57Z —
+  **STILL ALLOCATED AND BILLING.** AWS refused release until
+  2026-10-01T23:28:57Z. Run `AWS_PROFILE=multiply-telemetry
+  scripts/clean-install/aws-mac.sh release mac1` after that (needs the
+  local `.coga/clean-install/mac1/` from this checkout, or
+  `aws ec2 release-hosts --host-ids h-0833c01ac15e645ac --region us-east-1`).
+- Instance `i-0c94f48cbd0210aa0` (3.235.126.9) terminated 23:50:28Z.
+- SG `sg-01259984f101c8d33` deleted; key pair `coga-clean-install-mac1` deleted.
+- AMI `ami-0531fecfb292182a3` (amzn-ec2-macos-27.0-20260918-030202-arm64).
+
+Walks:
+- walk1 (pypi): stopped at `git --version` — over SSH: "No developer tools were
+  found and no install could be requested (possibly because there is no active
+  GUI session)". Expected CLT finding. CLT then installed headlessly via
+  `softwareupdate -i "Command Line Tools for Xcode 27.0-27.0"` (not the GUI
+  dialog; VNC path not exercised).
+- walk2: harness bug — sysadminctl refused duplicate full name but exit 0.
+  Fixed (per-user full name + `id` check).
+- walk3 (pypi): `uv tool install coga` → PyPI `coga==0.0.1`, "No executables
+  are provided by package `coga`" (exit 2). **Installer finding for
+  run-clean-installs-and-file-issues** (PyPI name holds a stub, not Coga).
+- walk4 (main wheel `coga-0.3.2`, origin/main `375df29ab`, sha256
+  46387d98…aa9d2d): install, `coga init`, `coga validate` all PASS.
+
+Assumptions checked: AMI ships CLT + Homebrew (yes); sysadminctl works without
+secure-token prompts (yes); newest arm64 AMI boots on mac2.metal (yes, SSH in
+~5 min). New: CLT receipts sit under SIP in
+`/Library/Apple/System/Library/Receipts` and cannot be forgotten; they did
+not stop softwareupdate offering CLT. Runbook updated.
+
+Next (open-pr): put these IDs/outcomes in the PR description; note the host
+release is pending until 2026-10-01T23:29Z.
 
 ## Blockers
 
