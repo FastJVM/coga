@@ -45,6 +45,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/941
 branch: branch-sweep-cherry-pick
 
 Initial plan (agreed with human 2026-09-30; refined in peer review below): extend `branchsweep.merged_pr_verdict` so
