@@ -1,6 +1,6 @@
 ---
 title: Preserve owner decisions not to act beyond the ticket that recorded them
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -22,7 +22,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description
