@@ -1,6 +1,6 @@
 ---
 title: Carry the apply-the-register-amendment step in a workflow
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
