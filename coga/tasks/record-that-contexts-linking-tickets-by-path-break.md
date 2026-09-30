@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: a6590187-8c34-4913-925a-a4dc9a8862de
 ---
 
 ## Description
@@ -48,3 +47,22 @@ Add a short paragraph to `docs/contexts/coga/knowledge/SKILL.md` right after
 tickets" argument): durable surfaces cite the question's standing owner, not a
 ticket path; grep for inbound references to a slug before it retires. Mirror
 into the packaged bootstrap twin.
+
+## Handoff (implement)
+
+- Commit on `knowledge-ticket-links-at-retirement` (pushed): one new paragraph in
+  `docs/contexts/coga/knowledge/SKILL.md` under "Where knowledge lives",
+  directly after #918's no-action-decision paragraph, reusing its "lifecycle
+  retires tickets" argument. Packaged twin
+  `src/coga/resources/templates/coga/bootstrap/contexts/coga/knowledge/SKILL.md`
+  copied byte-identical.
+- Wording choice: "standing owner (a topic, or the role that decides it)" —
+  the ticket named no alternative owner kind; kept it to those two.
+- Did not repair the observed dangling links (`marketing/plan`,
+  `marketing/map`, fix-installer) — out of scope; the ticket asks only for the
+  rule.
+- Verified: `.venv/bin/python -m pytest tests/test_packaging.py` (23 passed)
+  and full `.venv/bin/python -m pytest` (3135 passed). Note: bare `python`
+  lacks `tomlkit`; use the repo `.venv`.
+- After this lands, the canceled source ticket
+  `phase-0-audit-is-complete-per-the-plan-but-still-i` can be reaped.
