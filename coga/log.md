@@ -7018,3 +7018,4 @@ fatal: Unable to add (null) to database
 2026-09-30 09:58 [recurring/blocker-reminders] [system] started (active → in_progress) via coga launch
 2026-09-30 09:58 [recurring/blocker-reminders] [system] launched as a script (ticket.py)
 2026-09-30 09:58 [recurring/blocker-reminders] [system] task done
+2026-09-30 09:58 [recurring/blocker-reminders] [system] script exited with code 0
