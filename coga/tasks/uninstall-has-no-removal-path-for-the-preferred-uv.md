@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 13a8e5b4-b739-4415-9f81-74ed4756475d
 ---
 
 ## Description
@@ -53,3 +52,19 @@ Commit `Uninstall a uv tool install through \`uv tool uninstall\`` pushed on `un
 - The topic `coga/uninstall` "The global package" section and its bootstrap twin are updated and byte-identical.
 - Verified: `.venv/bin/python -m pytest -q` → 3138 passed. The system `python` lacks `tomlkit`, so use `.venv`.
 - Nothing is left unresolved. No example fixture change is needed because uninstall does not touch the task layout or composition.
+
+## Peer review
+
+- `codex review --base main` returned successfully with no must-fix findings. It verified uv detection, installer-specific removal, and synchronized documentation; its targeted suite passed 156 tests. Review log: `/tmp/coga-uninstall-uv-review.log` (ephemeral).
+- Rebased unconditionally with `git fetch origin main && git rebase FETCH_HEAD`; no conflicts or code corrections were needed. Pushed commit `d17870f96` with `git push --force-with-lease -u origin uninstall-uv-tool`. Returned to clean `main`, equal to `origin/main`.
+- Full verification after rebase: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q` → **3138 passed in 245.65s**. `git diff --check main...HEAD` passed on the feature branch.
+- Drove `python -m coga.cli uninstall` in an 80×24 PTY against a disposable `/tmp/coga-uninstall-uv-terminal` footprint: answered the confirmation prompt, observed local removal and all three manual commands with `uv tool uninstall coga` first. Checked `uninstall --help` in a PTY as well. Actual global removal was covered by subprocess assertions, not performed against the operator's installed CLI.
+- No outstanding findings or design decisions. Ready for the mechanical open-pr step.
+
+## PR
+
+`coga uninstall --purge` now recognizes a uv tool environment by its `uv-receipt.toml` marker and runs `uv tool uninstall coga`, avoiding the pip invocation that fails in the preferred install's pip-less environment. Ordinary uninstall lists the uv removal command first, and missing or failing tool installers retain their own manual removal command (including the corrected pipx failure hint).
+
+Updates the uninstall contract and its packaged twin, with regression coverage for uv detection, purge dispatch, and missing-uv guidance.
+
+Test plan: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q` — 3138 passed; Codex review returned without findings; disposable PTY confirmation/removal and help smoke checks passed.
