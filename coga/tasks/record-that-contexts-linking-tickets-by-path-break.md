@@ -37,3 +37,14 @@ Filed by Dream 2026-W40, Phase 6 (proposal-ownership overlap). Extract from the 
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: knowledge-ticket-links-at-retirement
+
+Plan: PR #918 merged 2026-09-29 (commit 1ec281c9b), so the precondition holds.
+Add a short paragraph to `docs/contexts/coga/knowledge/SKILL.md` right after
+#918's no-action-decision paragraph (same voice, same "lifecycle retires
+tickets" argument): durable surfaces cite the question's standing owner, not a
+ticket path; grep for inbound references to a slug before it retires. Mirror
+into the packaged bootstrap twin.
