@@ -1,6 +1,6 @@
 ---
 title: Launch moves the checkout to main before and after a ticket session
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -30,7 +30,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 6 (review)
 agent: claude
 ---
 
