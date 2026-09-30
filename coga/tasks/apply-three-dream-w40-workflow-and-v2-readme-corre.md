@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -78,3 +78,37 @@ ticket. `docs/contexts/coga/roadmap/SKILL.md`, Deferred work, records the same
 - Verification: `.venv/bin/python -m pytest tests/test_packaging.py` (23 passed)
   and full `.venv/bin/python -m pytest` (3135 passed). System `python` lacks
   `tomlkit`, so use the venv interpreter.
+
+## Peer review
+
+- `codex review --base origin/main` returned successfully with no findings.
+  It confirmed the workflow paths and branch-gate description against the
+  implementation; its packaging tests passed (23), as did
+  `.venv/bin/python -m pytest tests/test_commands.py -k 'branch_gate' -q`
+  (5 passed, 127 deselected).
+- Rebased unconditionally onto fetched `origin/main` `5bdd9aaae`, without
+  conflicts. Reviewed and tested commit `d03bec7ca` was pushed with
+  `--force-with-lease`; no review fixes were needed.
+- Post-rebase verification: `.venv/bin/python -m pytest tests/test_packaging.py`
+  (23 passed); `.venv/bin/python -m pytest` (3135 passed in 205.17s).
+  `git diff --check` and direct `cmp` of the canonical and packaged topics
+  passed. The diff changes documentation only; no terminal or rendered
+  interaction requires manual exercise.
+- Independently confirmed PR #912 closed without merging and PR #931 merged
+  as `ef0debf9d`; the current `_v2/README.md` and roadmap satisfy item 3.
+- Returned to clean `main` at `285baf9e2` before writing this handoff.
+  Main's movement since the rebase affects only another ticket and the log.
+
+## PR
+
+Correct the workflow topic's branch completion gate to require only a usable
+`branch:`, matching the implementation, and replace the incomplete workflow
+inventory with pointers to the fallback and init-seeded template directories.
+Keep the canonical topic and packaged bootstrap copy byte-identical.
+
+PR #912 is closed. The requested v2 README correction was already superseded
+by merged PR #931, which parks wishes under `_v2/` with no verdict due; this
+change preserves that newer policy.
+
+Test plan: `.venv/bin/python -m pytest tests/test_packaging.py` (23 passed);
+`.venv/bin/python -m pytest` (3135 passed). Codex review returned no findings.
