@@ -7004,3 +7004,4 @@ fatal: Unable to add (null) to database
 2026-09-29 22:45 [autoclose-re-posts-another-clone-s-primary-checkou] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-29 22:45 [autoclose-re-posts-another-clone-s-primary-checkou] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-29 22:45 [autoclose-re-posts-another-clone-s-primary-checkou] [megalaunch] launched via coga megalaunch
+2026-09-29 22:49 [coga] [git] sync failed: push to origin/main failed: fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com; control could not be re-read: `git fetch --quiet origin +refs/heads/main:refs/remotes/origin/main` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com

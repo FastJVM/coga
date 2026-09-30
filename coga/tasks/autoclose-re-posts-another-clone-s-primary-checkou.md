@@ -35,4 +35,13 @@ Filed by Dream 2026-W40, Phase 6, routing the unresolved adjacent bug that Dream
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: fix-autoclose-clone-primary
+
+## Implementation plan
+
+Recognize independent Git primary checkouts as preserved repositories, retain
+branch ownership in their own clone, and discharge the worklist once that
+branch is gone. Do not infer disposability from a path or advise deleting a
+primary checkout. Cover legacy ownerless entries and newly closed tickets;
+update the cleanup contract and packaged twins.
