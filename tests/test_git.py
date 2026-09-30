@@ -1004,10 +1004,10 @@ def test_classify_checkout_other_repositories(git_repo, tmp_path):
         "foreign-linked", owner=other.root.resolve()
     )
     assert git.classify_checkout(git_repo.root, other.root) == git.CheckoutRelation(
-        "standalone"
+        "foreign-primary", owner=other.root.resolve()
     )
     assert git.classify_checkout(git_repo.root, clone) == git.CheckoutRelation(
-        "standalone"
+        "foreign-primary", owner=clone.resolve()
     )
 
 

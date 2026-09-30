@@ -31,10 +31,9 @@ runs the deterministic, narrow, named proofs itself (`_dispose_checkouts`)
 and names only what a proof refused, with the reason and a remedy a human can
 act on — see `_report_retire_followups` and `CheckoutOutcome.manual_command`.
 It only ever touches worktrees a ticket or a worklist entry recorded, and only
-from a checkout on the control branch. The one recorded `worktree:` it never
-counts is this repository's own primary checkout (the single-checkout layout),
-which no proof removes and nobody disposes of
-(`retire_worklist.is_primary_checkout`).
+from a checkout on the control branch. Primary checkouts are never directory
+debt (`retire_worklist.is_primary_checkout`); their foreign branches are
+reported against the owning clone, never disposed of in the sweeping repository.
 
 Under a recurring period task the refusals have to outlive the run: the period
 task is deleted at the next period boundary, so the sweep records each
@@ -63,7 +62,7 @@ import shlex
 import subprocess
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -85,6 +84,7 @@ from coga.retire_worklist import (
     parse_worklist,
     reconcile_worklist,
     worklist_for_period_task,
+    worktree_owner,
 )
 from coga.task_env import blackboard_from_env
 from coga.taskfile import (
@@ -142,10 +142,9 @@ class ClosedTicket:
     fetched once per closure. A thread answered or resolved after the sweep is
     a human catching up, not a reason to re-query.
 
-    `worktree` is the one field filtered rather than copied: this repository's
-    own primary checkout, recorded by a ticket worked in the single-checkout
-    layout, is dropped (`_recorded_worktree`), because no proof removes it and
-    naming it would hold a follow-up open forever.
+    Primary checkouts are dropped from `worktree` (`_recorded_worktree`);
+    `owner` captures foreign branch ownership before that filtering, so a
+    branch-only follow-up still judges the branch in the correct repository.
     """
 
     slug: str
@@ -156,6 +155,7 @@ class ClosedTicket:
     # merged head from it.
     pr: str | None = None
     unanswered_threads: tuple[ReviewThread, ...] = ()
+    owner: str = ""
 
     @property
     def retire_command(self) -> str:
@@ -278,20 +278,13 @@ class CheckoutOutcome:
                     "after exact merged-head verification; ordinary branch -d "
                     "can refuse it. Keep the worktree until that plan is verified."
                 )
-            if home is not None and home.kind == "standalone":
+            if home is not None and home.kind in {"primary", "foreign-primary"}:
                 return (
-                    f"`{self.worktree_path}` is an independent checkout with "
-                    "its own repository, which no proof removes — inspect and "
-                    "remove it by hand, unless it is another clone's primary "
-                    "checkout in active use: then never remove it; verify the "
-                    "branch is gone in that clone and delete this `retires.md` "
-                    "line by hand (see `dev/checkout-cleanup`)"
-                    f"{self._branch_only(branch_left)}"
+                    f"`{self.worktree_path}` is a primary checkout — preserve it; "
+                    "inspect the recorded branch in that repository "
+                    "(see `dev/checkout-cleanup`)"
                 )
-            if home is not None and home.kind == "primary":
-                what = "this repository's primary checkout"
-            else:
-                what = "not a git worktree git can read"
+            what = "not a git worktree git can read"
             return (
                 f"`{self.worktree_path}` is {what}, which no proof removes — "
                 f"inspect and remove it by hand{self._branch_only(branch_left)}"
@@ -763,12 +756,9 @@ def _candidate(ticket: Ticket) -> bool:
 def _recorded_worktree(cfg: Config, recorded: str | None) -> str | None:
     """The recorded `worktree:` as retire debt, or `None` when it is not debt.
 
-    Drops only this repository's own primary checkout, provably
-    (`retire_worklist.is_primary_checkout`): a ticket worked in the
-    single-checkout layout records it, the proofs refuse it forever, and
-    nobody disposes of it. Such a closure keeps a branch-only follow-up, or
-    none. Every other path is kept, including a checkout the proofs preserve
-    but a human removes by hand, and every unknown.
+    Drops proven primary checkouts (`retire_worklist.is_primary_checkout`).
+    Foreign ownership is captured separately on `ClosedTicket` before this
+    filter runs. Linked worktrees and every unknown remain directory debt.
     """
     if recorded and is_primary_checkout(_worklist_root(cfg), recorded):
         return None
@@ -826,11 +816,14 @@ def _try_bump_one(
     if not _candidate(ticket):
         return None
 
+    recorded_worktree = parse_worktree_path(blackboard)
+    owner = worktree_owner(_worklist_root(cfg), recorded_worktree or "")
     closed = ClosedTicket(
         slug=ref.id_slug,
         title=ticket.title,
         branch=parse_branch_name(blackboard),
-        worktree=_recorded_worktree(cfg, parse_worktree_path(blackboard)),
+        worktree=_recorded_worktree(cfg, recorded_worktree),
+        owner=owner,
         pr=url,
         unanswered_threads=threads,
     )
@@ -1027,6 +1020,21 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
     seen: set[str] = set()
     for closed in stranded:
         seen.add(closed.slug)
+        held = _owner_held_branch(
+            root,
+            RetireFollowUp(
+                closed.slug, closed.branch or "", closed.worktree or "", "",
+                owner=closed.owner,
+            ),
+            branch=closed.branch,
+            worktree=closed.worktree,
+            ticket_exists=True,
+            echo=_echo(closed.slug),
+        )
+        if held is not None:
+            held.title = closed.title
+            result.checkouts.append(held)
+            continue
         result.checkouts.append(
             CheckoutOutcome(
                 slug=closed.slug,
@@ -1113,7 +1121,8 @@ def _owner_held_branch(
 ) -> CheckoutOutcome | None:
     """Judge a backlog entry whose branch lives in another clone, without proofs.
 
-    Applies only once the recorded worktree is gone and the entry's `owner` is
+    Applies once the recorded worktree is gone or is a primary checkout,
+    and the entry's recorded or inferred `owner` is
     not this repository (`retire_worklist.branch_owner`): the proofs here would
     find no local branch and call it disposed while the owning clone still
     holds it. The outcome is preserved while the owner still lists the branch
@@ -1133,6 +1142,8 @@ def _owner_held_branch(
         return None
     if worktree is not None and resolve_worktree_path(root, worktree).is_dir():
         return None
+    if not entry.owner:
+        entry = replace(entry, owner=worktree_owner(root, entry.worktree))
     remains = owner_branch_remains(root, entry)
     if remains is None:
         return None
@@ -1396,6 +1407,7 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
                         branch=item.branch or "",
                         worktree=item.worktree or "",
                         recorded=now.date().isoformat(),
+                        owner=item.owner,
                     )
                     for item in pending
                 ]
