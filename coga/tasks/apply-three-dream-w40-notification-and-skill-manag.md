@@ -69,6 +69,7 @@ Verification: `python -m pytest tests/test_packaging.py`.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/935
 branch: dream-w40-notification-skill-docs
 
 - Start check: clean `main`, fetched `origin/main`, fast-forward already current.
