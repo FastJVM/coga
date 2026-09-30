@@ -545,3 +545,21 @@ changes, no updater, and no recipe moves. The `code/design-then-implement`
 workflow fits. Keeping `coga_edge` outside `src/coga/`, imported only by
 shims, respects the microkernel boundary, provided extension-model records it
 as an edge shipping location and not a second core.
+
+
+## Dev
+
+branch: edge-wheel-upgrades
+
+## Implementation clarifications (owner approved 2026-09-30)
+
+- Migration pytest fixtures execute the documented inventory/comparison/replacement
+  commands, assert exact candidates and review items, and preserve frontmatter,
+  blackboards, state, generation, workflow, unrelated attachments and body text.
+  Dream reconciliation is demonstrated only in fixtures; shipped Dream text and
+  recipes remain unchanged.
+- The forkable module imports only stdlib and shared `coga.*`, with no relative
+  or sibling edge imports, and retains normal and private worker dispatch.
+- A/B wheels install into the same `pip --target` directory (`--upgrade` for B).
+  Both template and existing period execute directly in fresh processes;
+  actual launch success/failure and completion are covered separately.
