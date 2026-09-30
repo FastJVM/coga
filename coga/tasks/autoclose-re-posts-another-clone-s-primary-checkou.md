@@ -1,6 +1,6 @@
 ---
 title: Autoclose re-posts another clone's primary checkout forever
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
