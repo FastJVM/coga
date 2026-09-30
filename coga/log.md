@@ -7066,3 +7066,4 @@ fatal: Unable to add (null) to database
 2026-09-30 11:15 [record-that-contexts-linking-tickets-by-path-break] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-09-30 11:15 [record-that-contexts-linking-tickets-by-path-break] [megalaunch] launched via coga megalaunch
 2026-09-30 11:16 [ship-edge-ticket-py-code-upgrades-with-the-wheel] [human:nicktoper] activated (draft → active) — auto on launch
+2026-09-30 11:16 [ship-edge-ticket-py-code-upgrades-with-the-wheel] [human:nicktoper] started (active → in_progress) via coga launch
