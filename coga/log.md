@@ -6977,3 +6977,4 @@ fatal: Unable to add (null) to database
 2026-09-29 21:24 [apply-three-dream-w40-notification-and-skill-manag] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-09-29 21:24 [apply-three-dream-w40-notification-and-skill-manag] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-29 21:24 [apply-three-dream-w40-notification-and-skill-manag] [megalaunch] launched via coga megalaunch
+2026-09-29 21:24 [apply-three-dream-w40-notification-and-skill-manag] [human:nicktoper] unblocked (asks resolved, still in_progress): PR #914 merged at 2026-09-29T22:54:15Z, verified with gh pr view 914. This satisfies the merge-or-close prerequisite in all four open blocker asks; PR #911 had already merged. Proceed with the three scoped documentation corrections.
