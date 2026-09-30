@@ -95,10 +95,11 @@ later `code/open-pr` step does that, after review and fixes.
    ```
 
    The first argument is the primary directory containing `coga.toml`; the
-   second is the clone's Git root. Any `python` works: when it cannot import
-   `coga` (a `uv tool install` or pipx install keeps the package in its own
-   environment) the helper re-runs itself under the interpreter named by the
-   `coga` console script's shebang, and fails loud if no `coga` is on PATH.
+   second is the clone's Git root. Start the helper with Python 3.11+. If that
+   interpreter cannot import `coga` (a `uv tool install` or pipx install keeps
+   the package in its own environment), the helper re-runs itself under the
+   interpreter named by the `coga` console script's shebang, and fails loud if
+   no `coga` is on PATH.
    Resolve this skill local-first, falling back to the installed bundled
    skill (see `dev/checkouts`, "What a fresh checkout lacks"). Stop on failure;
    never synthesize an actor.
