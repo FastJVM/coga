@@ -6948,3 +6948,4 @@ fatal: Unable to add (null) to database
 2026-09-29 15:56 [fix-coga-git-sync-failures-that-leave-main-diverge] [human:nicktoper] created (status=draft)
 2026-09-29 18:03 [apply-three-dream-w40-skill-and-context-correction] [human:nicktoper] advanced to step 3 (open-pr) → claude
 2026-09-29 18:03 [recurring/autoclose-merged] [system] created (status=active)
+2026-09-29 18:03 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
