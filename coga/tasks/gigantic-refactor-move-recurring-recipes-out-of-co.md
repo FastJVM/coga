@@ -96,12 +96,22 @@ the owner explicitly approved retaining `open-pr` as a named exception on
   operating root, including `--cwd`, `--cwd=...`, abbreviated options,
   invalid arguments, unknown roots, and orphan detection's environment-based
   root. The target root's publication barrier protects the append.
+- [ ] Preserve the per-command publication boundary for all moved entrypoints,
+  including manual runs and Dream attachments that never bump. After worker
+  reporting, use shared publication infrastructure to sweep the operating
+  root's task/log/recurring state on success, ordinary failure, and escaping
+  exceptions, subject to the existing sweep exclusions. Publication failures
+  warn and leave local evidence without replacing the worker's result. Unknown
+  targets never fall back to publishing the invoking repo. Verify that reports
+  and in-scope safe repairs reach control without a later lifecycle command.
 - [ ] After the upgrade prerequisite has landed, both fresh installs and
   previously initialized repos can run the moved code from the installed
   wheel's supported distribution path. Test existing template/period copies,
   named Dream attachments, and local adaptations according to that dependency's
-  upgrade policy. Removing registry names must not leave a runnable old period
-  shim silently referring to a deleted entry.
+  upgrade policy. Include old Dream Phase 1/5 instructions in initialized
+  templates and materialized periods, not just Python files. Removing registry
+  names must not leave a runnable old period shim or Dream instruction silently
+  referring to a deleted entry.
 - [ ] Update the owning contexts, invocation skills, recurring bodies, prompt,
   source map, live references and packaged twins in the same implementation
   PR. `AGENTS.md` and `CLAUDE.md` agree. None implies that registering a recipe,
@@ -127,8 +137,11 @@ record the chosen delivery mechanism on this blackboard.
 
 The prerequisite must support all code being moved: reserved `ticket.py`
 implementations, ordinary Dream attachments, and the transition from existing
-copied period shims. Follow its policy for an already-materialized or running
-period; do not overwrite executing code or customized copies opportunistically.
+copied period shims and old Dream Phase 1/5 commands frozen into template and
+period bodies. Delivering new attachments alone does not migrate those commands.
+Follow its policy for an already-materialized or running period; do not
+overwrite executing code, frozen instructions, or customized copies
+opportunistically.
 If its merged scope omits one of these cases, resolve that dependency before
 contracting the registry. The tradeoff is sequencing delay in exchange for
 avoiding more installations stranded on old edge code.
@@ -218,6 +231,46 @@ The richer worker reports stay as they are; do not infer that a prior report
 makes the generic failure section redundant. No subprocess fd-capture redesign
 or guaranteed reporting of failures before the wrapper starts is implied.
 
+#### Preserve the entrypoint publication boundary
+
+Extract the reusable publication boundary from `src/coga/cli.py`,
+`_sweep_coga_state`, into shared infrastructure consumed by both the CLI and
+the moved edge entrypoints. It reloads the selected root's config and calls
+`git.sync_coga_state`; keep the existing publisher, barrier, path scope and
+refusal handling. The CLI retains its command/relay admission policy. Shared
+execution must respect the withheld-sweep state, and edge entrypoints must
+preserve help and retry-without-sweep (exit 75) exclusions. Do not spoof CLI
+argv, add a registry entry, or run a lifecycle command merely to publish.
+
+Each edge `main` owns an outer completion boundary around its reported work.
+On success, ordinary nonzero return, or escaping exception, attempt the sweep
+after `run_reported` has finished its generic failure append. A scheduled
+autoclose run encloses both its own worker and the retained branch sweep, so
+either worker's failure is reported before publication; only successful work
+then reaches the existing single bump subprocess. Manual autoclose encloses
+only its own worker. Dream attachments and other manual runs publish at their
+own exit without bumping or advancing an inherited task. Keep `run_reported`
+itself reporting-only, preserving phone-home and existing registry callers.
+
+The edge owns target selection on both successful and failing exits. Reuse
+its parser/root policy described above, including `--cwd` forms and orphan
+detection's environment root; supply the established operating root to shared
+publication infrastructure. This is a separate publication resolution from
+the failure-only `failure_root` callback: do not change that callback's lazy
+contract. A missing/invalid target or resolver failure skips publication
+without falling back to the invoking config. Load the target's actual config
+so its layout and Git settings govern the sweep, including nested Coga roots.
+
+Publication is best effort: config, resolution and publication failures emit
+a warning and preserve the worker's original return code or escaping exception
+and the local writes. They do not turn a successful worker into a failure or
+replace a failed worker's evidence. A successful worker may still bump after
+a failed publication attempt, as under existing best-effort semantics; bump
+failure itself continues to propagate. Sweep only the existing task/log/
+recurring path scope, leaving repairs outside that scope for normal review.
+The tradeoff is a small shared-infrastructure extraction to keep the existing
+per-command durability attempt while moving job ownership out of core.
+
 #### Rewrite the rule and its callers
 
 `docs/contexts/coga/extension-model/SKILL.md` owns the revised rule and closed
@@ -233,7 +286,8 @@ Summarize and link that owner from `AGENTS.md`, `CLAUDE.md`,
 `coga/recurring/templates` for the reporting helper and delivery mechanism;
 `coga/script-tickets`, `coga/dream`, `coga/recurring/scheduling`,
 `coga/notifications/producers`, and `coga/notifications/failures` for moved
-symbols and invocation changes; and `coga/packaging` only where the shipped
+symbols and invocation changes; `coga/internals/state-publication` for the
+shared CLI/edge exit boundary; and `coga/packaging` only where the shipped
 resource facts changed. Update the three recurring bodies and skills plus
 Dream's body and its two bootstrap skills. Check the dated
 `docs/design/cli-extension-audit.md`: retain its historical framing and link
@@ -263,13 +317,28 @@ the standalone branch sweep. Exercise both Dream attachments from a configured
 nested Coga root; prove Dream remains agent-backed and that the attachments
 write only the inherited period blackboard and do not advance it.
 
+Add entrypoint-level publication checks against disposable Git repositories
+with a control ref (including an off-control checkout), inspecting the control
+tree after the Python entrypoint exits without a later Coga command. Cover
+successful reports and in-scope validation repairs, nonzero worker results,
+parser refusals and escaping exceptions with their generic failure sections.
+Verify target-root isolation, nested roots, absent blackboard metadata,
+unknown roots, help, exit 75 and withheld-sweep exclusions. Inject config,
+resolver and publication failures to prove the original result/exception and
+local evidence survive. Check reporting-before-sweep and sweep-before-bump
+ordering for scheduled scripts, both autoclose failure positions, and no
+advancement for manual/Dream execution. Keep the CLI publication regressions,
+including `tests/test_git.py`, when extracting its shared infrastructure.
+
 Run affected suites for autoclose, disposal, reminders, skill update, Dream,
 runner, script launch, aliases, branch cleanup, retire, PR publication,
 recurring/autofix, megalaunch and notifications, then the full suite:
 `PYTHONPATH=$PWD/src .venv/bin/python -m pytest` with a Coga-capable Python
 3.11+ interpreter. `tests/test_packaging.py` must prove twin identity and wheel
 inclusion; also run its pristine-tree wheel check and the prerequisite's
-upgrade/local-edit regression fixtures. Smoke `coga --help`, surviving recipe
+upgrade/local-edit regression fixtures, explicitly covering old Dream bodies
+in both initialized templates and materialized periods under the dependency's
+customization/running-period policy. Smoke `coga --help`, surviving recipe
 help/argument validation and rejection of removed names using disposable
 fixtures; never run destructive recipes against the live repo for verification.
 Run `coga validate --task gigantic-refactor-move-recurring-recipes-out-of-co
@@ -287,6 +356,8 @@ results on the blackboard/PR.
 - Changing recurring schedules, workflow steps, launch/claim/publication
   rules, safety proofs, reminder policy, skill-update policy, Dream phase
   order, validation fixes, autofix agent behavior, or orphan deletion policy.
+  Sharing the existing publication boundary with moved entrypoints as specified
+  above is in scope; deferring publication until a later command is not.
 - Reopening phone-home telemetry behavior or the completed report-durability
   design; preserve their shared helper and reporting guarantees.
 - Broad helper renames, optional abstractions, and unrelated cleanup discovered
@@ -369,6 +440,13 @@ read and update at the named sections, not specifications to duplicate here:
   fact and same-PR updates to references; `coga/project-stage`
   (`docs/contexts/coga/project-stage/SKILL.md`): bounded migration only,
   with no indefinite compatibility surfaces.
+- `coga/internals/state-publication`
+  (`docs/contexts/coga/internals/state-publication/SKILL.md`): “Invariants”,
+  “Best-effort versus strict” and “The end-of-command sweep”.
+  `src/coga/cli.py`, `_sweep_coga_state`/`main`, currently supplies the exit
+  publication missing from direct `runner.run_reported` calls; share that
+  infrastructure with the moved entrypoints while retaining its scope and
+  exclusions.
 
 Related task state at design time: the edge-upgrade prerequisite is `draft`;
 `autoclose-should-be-script-only` is an empty draft (the current scheduled
@@ -393,7 +471,9 @@ remain parked and do not override the current extension-model contract.
 
 No unanswered owner questions. Implementation depends on the edge-upgrade
 ticket's reviewed and merged distribution contract, including named attachments
-and pre-existing period shims; that design belongs to the prerequisite.
+and pre-existing period shims and Dream instructions; that design belongs to
+the prerequisite. The owner approved the evaluator-gap revisions on 2026-09-30
+as recorded below; advancing the review-design gate remains pending.
 
 ## Design handoff
 
@@ -422,6 +502,11 @@ Cold review, 2026-09-29. **One must-fix design gap before implementation.**
 The ownership split and ten-entry consumer audit match the current source;
 the implementation also remains conditional on the named upgrade prerequisite
 landing. This review does not approve the design on the owner's behalf.
+
+Disposition, 2026-09-30: the owner approved the revisions below. The must-fix
+and optional recommendation are addressed in the ticket design; the original
+findings remain here as review evidence. Implementation and its verification
+remain future work.
 
 ### Must resolve before implementation
 
@@ -511,3 +596,33 @@ landing. This review does not approve the design on the owner's behalf.
 - Review changes are confined to this blackboard. No ticket-body edits,
   implementation, branch, commit, or PR were produced; the CLI owns the
   ensuing workflow transition and audit publication.
+
+## Owner review revisions — 2026-09-30
+
+- Owner approved the proposed design revisions in the attended session.
+  Resolved evaluator must-fix 1 by specifying a shared CLI/edge publication
+  boundary after reporting, with target config reload, existing sweep scope
+  and exclusions, and best-effort failure semantics. `run_reported` remains
+  reporting-only. Scheduled completion still bumps only after successful
+  work; manual workers and Dream attachments never advance an inherited task.
+- Added entrypoint/control-tree verification for reports, safe repairs and
+  failures, publication fault injection, target isolation and completion
+  ordering. These checks belong to implementation, not this prose revision.
+- Accepted the optional recommendation: prerequisite coverage now explicitly
+  includes old Dream Phase 1/5 commands in initialized templates and frozen
+  periods under its approved customization/running-period policy. The
+  prerequisite is still draft; its delivery mechanism remains undecided here.
+- Only this ticket's body and blackboard changed. No production code, owning
+  topic contract, configuration, lifecycle frontmatter, or audit log was
+  edited. The owner approved revisions, not a workflow advance; remain at
+  review-design until explicitly asked to advance.
+
+Revision verification:
+
+- `PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --task gigantic-refactor-move-recurring-recipes-out-of-co --json`
+  — 1 task OK, no issues or fixes.
+- `git diff --check` — clean; `cmp AGENTS.md CLAUDE.md` — matching.
+- Read-only Python comparison against `git show HEAD:<task-path>` confirmed
+  unchanged lifecycle frontmatter and exactly one blackboard fence;
+  `git diff --name-only` confirmed only this ticket changed.
+- No behavioral tests run: this step revised the design only.
