@@ -38,6 +38,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/940
 branch: uninstall-uv-tool
 
 Plan: add a `"uv"` kind to `update.running_cli_location` (marker `uv-receipt.toml` in the venv root, same unresolved-venv rule as pipx); `uninstall._handle_package` runs/prints `uv tool uninstall coga` for it; no-purge hint lists uv first; update `coga/uninstall` topic + packaged twin.
