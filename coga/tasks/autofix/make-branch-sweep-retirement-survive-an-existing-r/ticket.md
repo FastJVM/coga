@@ -1,6 +1,6 @@
 ---
 title: Make branch-sweep retirement survive an existing remote retired/ tag
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -25,6 +25,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:f3e28530-b0ca-4f4c-aafa-8b92a264d36b
 ---
 
 ## Description
