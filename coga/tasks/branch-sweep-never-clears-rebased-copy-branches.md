@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -55,3 +55,36 @@ Update sweep skill step 4 + packaged twin. PR #914 already merged — no
 coordination needed. The 11 listed local refs are already gone here; the 4
 surviving remote refs sit at their exact merged heads and should clear on the
 next sweep.
+
+## Handoff (implement, 2026-09-30)
+
+Commit `621cae633` on `branch-sweep-cherry-pick` (pushed; up to date with main).
+
+What changed:
+- `branchsweep.merged_pr_verdict`: the "beyond" listing is now
+  `git rev-list --right-only --cherry-pick <head>...<tip> ^<landed>`, so
+  commits patch-equivalent to the merged head drop out. Leftovers still face
+  the state-only path check; merges have no patch-id and are never dropped.
+- `branchsweep._publish_retirement_tag` (new kw `pr_heads`, helper
+  `_containing_tip`): **decision by human** — when the tips diverge, a tip
+  that is a merged PR head is left to GitHub's `refs/pull/<n>/head` and the
+  tag archives the rest; a note names the PR ref. This was needed because a
+  rebased copy's remote sits at the merged head while the local ref keeps its
+  pre-rebase commits, so the verdict fix alone turned "skipped" into an
+  archive failure (recipe exit 2). Divergent tips that no PR ref covers
+  (e.g. both tips are merged heads) still refuse.
+- Docs: `dev/checkout-cleanup` retirement paragraph and sweep skill step 4
+  (the "refused by design" paragraph removed), plus packaged twins.
+- Tests (`tests/test_branchsweep.py`): `test_local_ref_rebased_elsewhere_then_merged_is_deleted`,
+  `test_local_ref_whose_rebase_changed_the_patch_is_kept`; the old divergent
+  refusal test now uses two merged heads
+  (`test_divergent_merged_heads_are_preserved_when_one_tag_cannot_cover_both`)
+  since its former shape is now archived by design.
+
+Verification: `.venv/bin/python -m pytest -q` → 3137 passed. (System
+`python` lacks `tomlkit`; use the repo `.venv`.)
+
+Notes for review: the four surviving remote refs (`codex/retro-recurring-branch-sweep-knowledge`,
+`doc-context-boundary`, `shebang-exec-check`, `skill-update-per-skill`) sit
+at their exact merged heads with no local copies, so the next sweep should
+delete them without this change.
