@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 59f09c6f-13fb-4e3d-b82b-66fffb318718
 ---
 
 ## Description
@@ -76,6 +75,29 @@ branch: dream-w40-notification-skill-docs
   update argv; document the existing dirty-tracked-file checkout failure in
   skill-management without changing runtime behavior. Keep all four packaged
   twins identical and leave the canceled source ticket untouched.
+
+## Implementation handoff — 2026-09-29
+
+- Pushed commit `728a1ec35` on `dream-w40-notification-skill-docs`.
+  Four canonical topics and their packaged twins changed; no runtime changes.
+- Added `recurring_runner._flag_period_contradiction` to the outcome producer
+  inventory, best-effort important alerts, and important routing inventory.
+- Corrected the per-ref gh update argv to include `--all`, explaining that it
+  suppresses confirmation while the explicit ref still selects one skill.
+- Documented the existing dirty-tracked-file failure in skill-management:
+  `skill_manager._assert_no_unmerged_paths` only checks unmerged paths, while
+  `_commit_skill_updates` / `_checkout` can surface Git's overwrite refusal
+  through `commands.skill._bail` (exit 2). Preflight behavior is unchanged.
+  `coga/tasks/_v2/skill-update-aborts-on-uncommitted-log-file.md` is untouched.
+- Verification: `.venv/bin/python -m pytest tests/test_packaging.py`:
+  **23 passed**; `PYTHONPATH=$PWD/src .venv/bin/python -m pytest`:
+  **3135 passed** in 209.89s; `git diff --check` passed. All four topic twins
+  were also compared byte-for-byte. No fixture or validation behavior changed.
+- Freshened onto latest `origin/main` before pushing. The sole incoming commit
+  was this attempt's pre-branch Coga state publication (`285baf9e2`), changing
+  only this ticket and the log; tested code and topics were unchanged.
+- Returned to clean `main`, fast-forwarded to `origin/main`. No PR opened;
+  the next workflow step is peer review. No remaining implementation blockers.
 
 ## Blockers
 
