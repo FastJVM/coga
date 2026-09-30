@@ -7140,3 +7140,4 @@ fatal: Unable to add (null) to database
 2026-09-30 15:12 [branch-sweep-never-clears-rebased-copy-branches] [human:nicktoper] activated (blocked → active) — auto on launch
 2026-09-30 15:12 [branch-sweep-never-clears-rebased-copy-branches] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-30 15:12 [branch-sweep-never-clears-rebased-copy-branches] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-09-30 15:16 [branch-sweep-never-clears-rebased-copy-branches] [human:nicktoper] unblocked (asks resolved, still in_progress): Stray edit to autofix/make-branch-sweep-retirement-survive-an-existing-r was published to main (Diagnosis section committed); checkout verified clean main at origin/main a9509a5dd.

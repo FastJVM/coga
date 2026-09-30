@@ -40,4 +40,5 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Blockers
 
-- [ ] [2026-09-30 11:08] [agent:claude] id=20260930T110837 Start check failed: /home/n/Code/coga has an unpublished blackboard edit on another ticket (coga/tasks/autofix/make-branch-sweep-retirement-survive-an-existing-r/ticket.md, a 16-line 'Diagnosis (from recurring/autoclose-merged period agent, 2026-09-30)' section, modified 10:50). Please publish (commit+push to main) or discard that edit so the checkout is a clean main, then unblock and relaunch.
+- [x] [2026-09-30 11:08] [agent:claude] id=20260930T110837 Start check failed: /home/n/Code/coga has an unpublished blackboard edit on another ticket (coga/tasks/autofix/make-branch-sweep-retirement-survive-an-existing-r/ticket.md, a 16-line 'Diagnosis (from recurring/autoclose-merged period agent, 2026-09-30)' section, modified 10:50). Please publish (commit+push to main) or discard that edit so the checkout is a clean main, then unblock and relaunch.
+  resolved: [2026-09-30 15:16] [human:nicktoper] Stray edit to autofix/make-branch-sweep-retirement-survive-an-existing-r was published to main (Diagnosis section committed); checkout verified clean main at origin/main a9509a5dd.
