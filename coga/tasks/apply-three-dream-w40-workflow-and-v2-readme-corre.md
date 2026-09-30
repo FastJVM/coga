@@ -42,6 +42,7 @@ Verification: `python -m pytest tests/test_packaging.py`.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/934
 branch: docs/w40-workflow-corrections
 
 ## Implementation plan
