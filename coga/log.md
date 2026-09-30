@@ -7028,3 +7028,4 @@ fatal: Unable to add (null) to database
 2026-09-30 09:59 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
 2026-09-30 09:59 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
 2026-09-30 10:00 [recurring/autoclose-merged] [system] script exited with code 2
+2026-09-30 10:00 [autofix/make-branch-sweep-retirement-survive-an-existing-r] [system] created (status=active)
