@@ -7116,3 +7116,4 @@ fatal: Unable to add (null) to database
 2026-09-30 14:24 [autoclose-re-posts-another-clone-s-primary-checkou] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-09-30 14:24 [autoclose-re-posts-another-clone-s-primary-checkou] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-30 14:24 [autoclose-re-posts-another-clone-s-primary-checkou] [megalaunch] launched via coga megalaunch
+2026-09-30 14:24 [autoclose-re-posts-another-clone-s-primary-checkou] [human:nicktoper] unblocked (asks resolved, still in_progress): The other ticket's Diagnosis note was published in ac37aa9a0 (autofix/make-branch-sweep-retirement-survive-an-existing-r). The launch checkout is clean on main and matches origin/main, so open-pr can proceed.
