@@ -1,7 +1,7 @@
 ---
 title: Apply three Dream W40 notification and skill-management corrections after PR
   914 lands
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,6 +25,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:59f09c6f-13fb-4e3d-b82b-66fffb318718
 ---
 
 ## Description
