@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -51,6 +51,35 @@ Start check: clean `main`; fetched `origin/main` and fast-forward check passed.
 The earlier unrelated dirty ticket is now clean. Its branch-sweep fix is
 already implemented in open PR #937 and its ticket is on owner-held review;
 remaining work there requires a separate owner-assist launch.
+
+## Implement handoff (2026-09-30)
+
+Pushed `usage-report-flow`, rebased onto current `origin/main`, and returned
+this checkout to clean `main` before writing this handoff. No PR opened.
+
+- `coga/recurring/usage-report/ticket.py`: its module-level
+  `coga.notification.post` call now uses default flow routing, preserving
+  `fatal=False` and the CLI bump. The weekly report asks for awareness, not
+  action, so the owner declined a periodic-report exception to important.
+- The template's `ticket.md` owns that routing decision and rationale;
+  its skill and workflow link there instead of repeating the old route.
+- `coga/notifications/producers` now explicitly covers package and bundled
+  producers, excluding repo-local templates whose own tickets own routing.
+  Canonical and packaged topics are byte-identical.
+- Updated the existing shim routing test before fixing the script and
+  observed its expected failure on the old `important=True` call.
+- Verification: `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q`
+  gave **3135 passed**. After rebase (incoming changes were another ticket's
+  notes only), `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q tests/test_usage_report.py tests/test_packaging.py`
+  gave **38 passed**. `git diff --check` and producer-topic `cmp` passed.
+  No config, task-model, or workflow semantics changed, so fixture validation
+  was not required.
+- The owner also asked about the earlier unrelated branch-sweep edits.
+  They are no longer dirty; the fix is already in open PR
+  https://github.com/FastJVM/coga/pull/937 on its owner review step. Its
+  post-merge recurring-sweep rerun remains. This session did not work that
+  separate ticket; resume with
+  `coga launch autofix/make-branch-sweep-retirement-survive-an-existing-r --agent codex`.
 
 ## Implement attempt 2026-09-30 (megalaunch) — blocked on owner decision
 
