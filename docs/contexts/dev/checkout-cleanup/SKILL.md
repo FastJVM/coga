@@ -129,9 +129,13 @@ requires the worktree's HEAD to still be the archived local tip; an initial
 refusal leaves the archive untouched. `_publish_retirement_tag` archives the
 actual authorized tip, fetching missing remote objects first. If both local
 and remote refs will be deleted, one of those tips must contain the other;
-the tag points to that descendant. Divergent tips preserve both refs and need
-human reconciliation. This keeps later Coga bookkeeping and lagging local
-refs recoverable without inventing a merge.
+the tag points to that descendant. When they diverge, a tip that is a merged
+PR's head is already preserved by GitHub at `refs/pull/<number>/head`, so the
+tag covers the remaining tips and the run record names the PR ref. This is
+the rebased-copy shape: the remote ref sits at the merged head while the
+local ref keeps its pre-rebase commits. Divergent tips that no PR ref covers
+preserve both refs and need human reconciliation. This keeps later Coga
+bookkeeping and lagging local refs recoverable without inventing a merge.
 
 An existing local tag must resolve to the selected commit. A covering
 descendant is deliberately insufficient: if local deletion succeeds but remote

@@ -395,7 +395,7 @@ def test_branch_that_lands_after_sweep_check_waits_for_archival_next_pass(
     assert _branch_exists_remote(repo, "feat")
 
 
-def test_divergent_landed_tips_are_preserved_when_one_tag_cannot_cover_both(
+def test_divergent_merged_heads_are_preserved_when_one_tag_cannot_cover_both(
     repo: Path, monkeypatch
 ) -> None:
     _push_branch(repo, "feat")
@@ -407,7 +407,18 @@ def test_divergent_landed_tips_are_preserved_when_one_tag_cannot_cover_both(
     _git(repo, "push", "origin", "other:feat")
     _git(repo, "checkout", "main")
     _git(repo, "branch", "-D", "other")
-    _fake_gh(monkeypatch, {"feat": remote_tip})
+    local_tip = _tip(repo, "feat")
+    # Each tip is a merged PR head, so neither can be left to its PR ref.
+    monkeypatch.setattr(
+        bs,
+        "prs_for_head",
+        lambda branch, state: [
+            {"number": 7, "headRefOid": local_tip},
+            {"number": 9, "headRefOid": remote_tip},
+        ]
+        if state == "merged" and branch == "feat"
+        else [],
+    )
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -1239,6 +1250,64 @@ def test_tip_moved_by_real_changes_is_skipped(repo: Path, monkeypatch) -> None:
         "PR #7" in note and "src/thing.py" in note for note in result.notes
     ), result.notes
     assert any("no merged PR vouching for it" in note for note in result.notes)
+
+
+def _merge_rebased_copy(repo: Path, branch: str, *, amend: str | None = None) -> str:
+    """Rebase `branch` onto a newer main elsewhere, push that copy, squash-merge it.
+
+    The local ref keeps its pre-rebase commits, the shape a review follow-up
+    pushed from a scratch clone leaves behind. `amend` changes the copied
+    patch the way a conflict resolution would. Returns the merged head.
+    """
+    _commit(repo, "later.txt", "main moved on", "main change")
+    _git(repo, "push", "origin", "main")
+    _git(repo, "checkout", "-b", "copy", "main")
+    _git(repo, "cherry-pick", branch)
+    if amend is not None:
+        (repo / f"{branch}.txt").write_text(amend)
+        _git(repo, "commit", "--amend", "--no-edit", "-a")
+    _git(repo, "push", "--force", "origin", f"copy:{branch}")
+    merged_head = _tip(repo, "copy")
+    _git(repo, "checkout", "main")
+    _git(repo, "branch", "-D", "copy")
+    _squash_merge(repo, f"origin/{branch}")
+    assert _git(repo, "merge-base", "--is-ancestor", branch, merged_head, check=False).returncode != 0
+    return merged_head
+
+
+def test_local_ref_rebased_elsewhere_then_merged_is_deleted(
+    repo: Path, monkeypatch
+) -> None:
+    # The local commits are patch-equivalent to the merged head's rebased
+    # copies, so the merged PR vouches for them even though no ancestry does.
+    _push_branch(repo, "feat")
+    tip = _tip(repo, "feat")
+    merged_head = _merge_rebased_copy(repo, "feat")
+    _fake_gh(monkeypatch, {"feat": merged_head})
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == ["feat"]
+    assert result.remote_deleted == ["feat"]
+    assert not _branch_exists_local(repo, "feat")
+    assert not _branch_exists_remote(repo, "feat")
+    assert _tip(repo, "refs/tags/retired/feat") == tip
+    assert any("refs/pull/7/head" in note for note in result.notes), result.notes
+
+
+def test_local_ref_whose_rebase_changed_the_patch_is_kept(
+    repo: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat")
+    merged_head = _merge_rebased_copy(repo, "feat", amend="resolved differently")
+    _fake_gh(monkeypatch, {"feat": merged_head})
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == []
+    assert result.skipped == ["feat"]
+    assert _branch_exists_local(repo, "feat")
+    assert any("PR #7" in note and "feat.txt" in note for note in result.notes), result.notes
 
 
 @pytest.mark.parametrize("unpushed_source", [False, True])
