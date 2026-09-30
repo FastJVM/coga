@@ -109,25 +109,3 @@ Findings from the ticket's cold review, to verify rather than trust:
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Evaluator review
-
-- **Clarity:** An agent with no prior context can start. The incident, the evidence source (Multiply's `coga/log.md`) and the four questions are concrete. One sentence in the description is biased, though: "mainly a read-only .git inside agent sandboxes" assumes the answer before the investigation.
-- **Done criteria:** Mostly checkable. Two gaps:
-  - "A launched Codex session and a launched Claude session can each finish a step" doesn't say where or how to prove it. It should name a repo, network conditions and the evidence to attach, such as a log excerpt.
-  - "Never leaves main diverged when origin already has the same content" needs a test: a regression test in `tests/` that simulates a failed publish followed by a later sync.
-- **Workflow:** `code/design-then-implement` fits. Investigation happens in design, cold review follows, then implementation on a branch. One mismatch: question 1 may end in a `coga.toml [agents.*]` change the agent can't make. The design step should put that proposal under Open Questions for review-design, and the done criteria should say whether an owner config change counts as "fixed."
-- **Contexts:**
-  - Keep `coga/internals/state-publication` attached. `publish` / `hash-object` (`src/coga/git.py:239`, `:1598`) is exactly where the current failures occur.
-  - Add `coga/internals/git-refresh`. `fast_forward_control` is the code path for question 3 ("notice local matches origin and fast-forward"). Its "ahead or diverged → left alone, prints `git pull --rebase`" behaviour is likely the divergence mechanism itself.
-  - `git-regressions` and `spool-merge`: cite by path rather than attach. They are relevant only if the fix touches the provenance check or union merge of `log.md`.
-  - `coga/sync` is fine to keep.
-  - Size: state-publication is ~36% of the prompt, under the 40% threshold. No layer needs trimming, though adding git-refresh (~820 words) will push the total up.
-- **Scope:** It bundles three separate problems: (a) sandbox or network environment; (b) divergence after a failed publish; (c) historical rebase conflicts. Recommendation: keep (b) as this ticket, since it is the real product bug. Make (a) a sibling that is mostly an owner decision on config or docs. Drop (c).
-- **Assumptions to question before launch:**
-  - **The failure classes line up with a code change, not an environment change.** Coga #848 "Simplify git sync" landed 2026-09-21 20:31. The last `Could not resolve host` failure is 09-21 21:14 and the first `hash-object` failure is 09-22 10:32. Once `publish` writes objects before fetching, the sandbox trips on `hash-object` first. This may be one cause (a sandboxed session) seen through two code paths.
-  - **Read-only `.git` isn't clearly Codex-specific.** Failing entries are bumps logged as `[agent:claude] advanced … → codex` (09-22 10:32) and `[human:nicktoper] advanced … → codex` (09-29 08:59) — possibly Claude Code's own sandbox, not a Codex session. Neither repo's `[agents.claude]` or `[agents.codex]` sets any sandbox flag, so the constraint comes from each CLI's defaults or user-level settings. Check both CLIs' sandbox defaults and the operator/agent fields around each failure.
-  - **Counts:** the `hash-object` row has 41 entries, not 40. `[coga]` appears on 90 failures, not 89. The total of 218 matches.
-  - **The rebase and autostash rows are probably obsolete.** `1678fe5` failed only on 2026-08-19, the untracked-file blocks only on 09-13, and "reapply" only on 09-17, all before #848. Current `git.py` has no rebase or autostash sync path; it only prints a `git pull --rebase` hint. Question 4 can likely be answered as "resolved by #848".
-  - **Paths and names still exist:** `sync_task_state`, the `[git] sync failed` sites (`git.py`, `mark.py`, `recurring_runner.py`, `authoring.py`), and docs `coga/sync` and `coga/internals/state-publication`. `~/Code/codex/multiply` shows up only in the 08-26 `index.lock` entries; not checked whether it still exists.
-  - **The incident is described as fixed by hand.** The ticket should say whether `backup/main-94da4bda` is still around as a repro artifact.
