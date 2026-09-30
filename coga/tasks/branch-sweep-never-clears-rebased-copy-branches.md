@@ -1,6 +1,6 @@
 ---
 title: Branch-sweep never clears rebased-copy branches
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,7 +24,6 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
-launch_generation: 1a95b92f-f923-452d-984a-a67a27900901
 ---
 
 ## Description
@@ -36,3 +35,9 @@ Filed by Dream 2026-W40, Phase 6 (shard ks-23, class gap; targets `src/coga/bran
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+---
+
+## Blockers
+
+- [ ] [2026-09-30 11:08] [agent:claude] id=20260930T110837 Start check failed: /home/n/Code/coga has an unpublished blackboard edit on another ticket (coga/tasks/autofix/make-branch-sweep-retirement-survive-an-existing-r/ticket.md, a 16-line 'Diagnosis (from recurring/autoclose-merged period agent, 2026-09-30)' section, modified 10:50). Please publish (commit+push to main) or discard that edit so the checkout is a clean main, then unblock and relaunch.

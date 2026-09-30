@@ -7046,3 +7046,4 @@ fatal: Unable to add (null) to database
 2026-09-30 11:08 [branch-sweep-never-clears-rebased-copy-branches] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-30 11:08 [branch-sweep-never-clears-rebased-copy-branches] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-30 11:08 [branch-sweep-never-clears-rebased-copy-branches] [megalaunch] launched via coga megalaunch
+2026-09-30 11:08 [branch-sweep-never-clears-rebased-copy-branches] [agent:claude] blocked: Start check failed: /home/n/Code/coga has an unpublished blackboard edit on another ticket (coga/tasks/autofix/make-branch-sweep-retirement-survive-an-existing-r/ticket.md, a 16-line 'Diagnosis (from recurring/autoclose-merged period agent, 2026-09-30)' section, modified 10:50). Please publish (commit+push to main) or discard that edit so the checkout is a clean main, then unblock and relaunch.
