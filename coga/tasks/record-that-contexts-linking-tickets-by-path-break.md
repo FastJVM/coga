@@ -1,7 +1,7 @@
 ---
 title: Record that contexts linking tickets by path break at retirement after PR 918
   lands
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,6 +25,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:a6590187-8c34-4913-925a-a4dc9a8862de
 ---
 
 ## Description
