@@ -8,9 +8,11 @@ description: Workflow definitions and the frozen snapshot — step format, resol
 A workflow is an ordered list of steps in a markdown file:
 `coga/workflows/<ref>.md` locally, else the package
 `bootstrap/workflows/<ref>.md` (`src/coga/paths.py`
-`resolve_workflow_path`; local wins). Packaged workflows are the `code/*`
-loop and `docs/*`; `direct/body` (run the ticket body's ordered phases) is
-seeded into the repo by `coga init`.
+`resolve_workflow_path`; local wins). The package's fallback workflows live
+under `src/coga/resources/templates/coga/bootstrap/workflows/`; the workflows
+`coga init` seeds into the repo (including `direct/body`, which runs the
+ticket body's ordered phases) live under
+`src/coga/resources/templates/coga/workflows/`.
 
 ## Definition format
 
@@ -99,8 +101,9 @@ that token's predicate on the blackboard (`src/coga/step_gate.py`
 `STEP_GATES`); a miss fails loud with the remediation, regardless of which
 agent owns the step. Unknown tokens fail. Human rewinds are never gated.
 
-- `branch`: usable `branch:` **and** `worktree:` under `## Dev`
-  (`(`-prefixed placeholders count as absent). Bump sees only the ticket copy
+- `branch`: a usable `branch:` under `## Dev` (`(`-prefixed placeholders
+  count as absent); `worktree:` is recorded only for the sandbox-clone
+  fallback and is not checked. Bump sees only the ticket copy
   in its own checkout, and a stale `## Dev` from an earlier attempt passes
   while stranding the current one.
 - `pr`: a PR URL under `## Dev`, written by `coga open-pr <ref>`; a skipped
