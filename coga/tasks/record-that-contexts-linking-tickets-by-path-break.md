@@ -40,6 +40,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/936
 branch: knowledge-ticket-links-at-retirement
 
 Plan: PR #918 merged 2026-09-29 (commit 1ec281c9b), so the precondition holds.
