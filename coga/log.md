@@ -7068,3 +7068,4 @@ fatal: Unable to add (null) to database
 2026-09-30 11:16 [ship-edge-ticket-py-code-upgrades-with-the-wheel] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-30 11:16 [ship-edge-ticket-py-code-upgrades-with-the-wheel] [human:nicktoper] started (active → in_progress) via coga launch
 2026-09-30 11:16 [ship-edge-ticket-py-code-upgrades-with-the-wheel] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
+2026-09-30 11:24 [record-that-contexts-linking-tickets-by-path-break] [human:nicktoper] advanced to step 3 (open-pr) → claude

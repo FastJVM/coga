@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 31818401-3f40-40b4-8469-b67a13003fd0
 ---
 
 ## Description
@@ -67,3 +66,29 @@ into the packaged bootstrap twin.
   lacks `tomlkit`; use the repo `.venv`.
 - After this lands, the canceled source ticket
   `phase-0-audit-is-complete-per-the-plan-but-still-i` can be reaped.
+
+## Peer review
+
+- `codex review --base main` returned successfully with no actionable defects.
+  Its ambient-interpreter packaging run failed on missing dependencies; its
+  retry with `.venv/bin/python -m pytest tests/test_packaging.py -q` passed
+  all 23 tests.
+- Rebased unconditionally with `git fetch origin main && git rebase FETCH_HEAD`;
+  no conflicts, and the reviewed two-file diff was unchanged. Rechecked twin
+  byte-identity with `cmp` and whitespace with `git diff --check origin/main...HEAD`.
+- Post-rebase verification: `.venv/bin/python -m pytest` — 3135 passed.
+  This change only adds Markdown prose; no interactive surface requires testing.
+- Pushed commit `af4e3b17a` on `knowledge-ticket-links-at-retirement` with
+  `--force-with-lease`. Returned to clean `main`, fast-forwarded to `origin/main`,
+  before writing this handoff. No review fixes were needed.
+
+## PR
+
+Ticket retirement leaves inbound path references dangling. Document that durable
+surfaces should point to an open question's standing owner and that inbound slug
+references should be checked before retirement. Add the rule after the no-action
+decision guidance from #918 in `coga/knowledge`, with its packaged twin kept
+byte-identical.
+
+Test plan: `.venv/bin/python -m pytest tests/test_packaging.py -q` (23 passed);
+post-rebase `.venv/bin/python -m pytest` (3135 passed).
