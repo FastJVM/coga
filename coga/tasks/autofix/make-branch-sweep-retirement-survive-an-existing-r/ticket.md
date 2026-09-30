@@ -24,8 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: f3e28530-b0ca-4f4c-aafa-8b92a264d36b
+step: 2 (self-qa)
 ---
 
 ## Description
@@ -100,3 +99,37 @@ Plan: `_publish_retirement_tag` reads the remote tag first (`ls-remote`);
 a remote archive that contains the target counts as published; a divergent
 one sends the archive to `retired/<branch>@<sha12>` (`/<sha>` would D/F-clash
 with the existing tag ref). Local tag is created only after publication.
+
+## Implement handoff (2026-09-30)
+
+Pushed `branch-sweep-retired-tag-collision` (1 commit, rebased on origin/main;
+full `pytest` 3138 passed).
+
+- `src/coga/branchsweep.py` `_publish_retirement_tag`: one `ls-remote --tags`
+  for `retired/<b>` and `retired/<b>@<sha12>`. For each name in order, a
+  remote tag equal to or containing target means already archived (no push).
+  Remote at unrelated history, or an unpublished local tag at a different
+  commit, means the name is taken, so try the next one. Otherwise push
+  `target:refs/tags/<name>` (no force, `--no-follow-tags`). New helpers
+  `_archived_commit` (fetches a missing remote tag object) and
+  `_mirror_local_tag` (local tag is created only after publication and
+  fast-forwarded only when the archive contains it). Both names taken means
+  refuse (exit 2).
+- Decision: `@<sha12>`, not `/<sha>`. A ref cannot nest under the existing
+  `refs/tags/retired/<b>` (D/F conflict).
+- Decision: an archive that contains the target now vouches. This reverses
+  the old "covering descendant is deliberately insufficient" rule in
+  `dev/checkout-cleanup`, as the ticket asks. The partial-cleanup retry test
+  was renamed to `test_partial_cleanup_retry_trusts_archive_containing_remote_tip`,
+  and it now expects the remote ref to be deleted.
+- Tests: the old conflicting-tag test was replaced by
+  `test_conflicting_retirement_tag_is_kept_and_tip_archived_under_its_sha`.
+  Added tests for the containing archive (the diagnosed lagging-clone shape;
+  asserts no tag push), for both names taken, and for a retry of the @-name.
+  The remote-listing-failure test now fakes only `ls-remote --heads`.
+- Docs: module docstring plus the `dev/checkout-cleanup` context, canonical
+  and packaged twin, which are byte-identical.
+- Still open (ticket item 5, after merge): rerun the recurring sweep in
+  `/home/n/Code/claude/coga`. The fix fast-forwards that clone's stale local
+  tag `retired/codex/retro-independent-clone-worklist-knowledge` to the remote
+  commit, so deleting the tag by hand is optional.
