@@ -168,7 +168,8 @@ def test_uninstall_without_purge_prints_pip_command(
     result = CliRunner().invoke(app, ["uninstall", "--yes"])
     assert result.exit_code == 0, result.output
     assert "left installed" in result.output
-    assert "uninstall coga" in result.output
+    assert "uv tool uninstall coga" in result.output
+    assert "pipx uninstall coga" in result.output
 
 
 def test_uninstall_purge_runs_pipx_for_pipx_install(
@@ -192,6 +193,52 @@ def test_uninstall_purge_runs_pipx_for_pipx_install(
     assert result.exit_code == 0, result.output
     assert calls == [["/usr/bin/pipx", "uninstall", "coga"]]
     assert "Uninstalled `coga` via pipx" in result.output
+
+
+def test_uninstall_purge_runs_uv_tool_for_uv_install(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `uv tool install coga` venv has no pip; --purge must go through uv."""
+    _seed_footprint(tmp_path, monkeypatch)
+
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, *args, **kwargs):
+        calls.append(cmd)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(uninstall_cmd.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(uninstall_cmd.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        uninstall_cmd, "running_cli_location", lambda: ("uv", Path("/x"))
+    )
+
+    result = CliRunner().invoke(app, ["uninstall", "--yes", "--purge"])
+    assert result.exit_code == 0, result.output
+    assert calls == [["/usr/bin/uv", "tool", "uninstall", "coga"]]
+    assert "Uninstalled `coga` via uv" in result.output
+    assert "-m pip" not in result.output
+
+
+def test_uninstall_purge_uv_install_without_uv_prints_uv_hint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_footprint(tmp_path, monkeypatch)
+
+    def fake_run(cmd, *args, **kwargs):
+        raise AssertionError(f"unexpected subprocess: {cmd}")
+
+    monkeypatch.setattr(uninstall_cmd.shutil, "which", lambda name: None)
+    monkeypatch.setattr(uninstall_cmd.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        uninstall_cmd, "running_cli_location", lambda: ("uv", Path("/x"))
+    )
+
+    result = CliRunner().invoke(app, ["uninstall", "--yes", "--purge"])
+    assert result.exit_code == 0, result.output
+    assert "Couldn't find uv on PATH" in result.output
+    assert "uv tool uninstall coga" in result.output
+    assert "pip uninstall" not in result.output
 
 
 def test_uninstall_purge_runs_pip_for_other_install(

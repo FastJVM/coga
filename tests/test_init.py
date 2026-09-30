@@ -2448,6 +2448,19 @@ def test_running_cli_location_detects_pipx(
     assert where == pipx_venv.absolute()
 
 
+def test_running_cli_location_detects_uv_tool(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    uv_venv = tmp_path / "home" / ".local" / "share" / "uv" / "tools" / "coga"
+    py = _stub_executable_in(uv_venv)
+    (uv_venv / "uv-receipt.toml").write_text("[tool]\n")
+    monkeypatch.setattr(update_cmd.sys, "executable", str(py))
+
+    kind, where = update_cmd.running_cli_location()
+    assert kind == "uv"
+    assert where == uv_venv.absolute()
+
+
 def test_running_cli_location_falls_through_to_other(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
