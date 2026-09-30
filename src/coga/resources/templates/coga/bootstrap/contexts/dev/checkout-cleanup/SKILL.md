@@ -120,9 +120,12 @@ For a local ref with a merged PR and no open PR for the same branch name,
 `branchsweep.merged_pr_verdict` inspects commits beyond the merged head and
 the locally available control refs. Non-merge commits with matching
 `git patch-id --verbatim` IDs on the merged head are excluded; remaining
-commits must touch only generated task/log state. Patch comparison preserves
+commits must touch only generated task/log state. Each merged patch matches
+at most one local commit, so a later reapplication needs its own match.
+Patch comparison preserves
 whitespace (including indentation and line endings), disables external diff
-and text conversion, and compares against the merged head's history without
+and text conversion, fixes submodule diffs to the short gitlink format, and
+compares against the merged head's history without
 excluding control. Thus both squash and normal merges can release a local
 pre-rebase copy. Different patch context can conservatively keep a ref;
 comparison failures keep it too. Merge commits always face the existing

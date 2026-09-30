@@ -68,6 +68,7 @@ import os
 import re
 import subprocess
 import sys
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -657,8 +658,15 @@ def merged_pr_verdict(
             if merged_patches is None or local_patches is None:
                 reason = f"{refused} its patches could not be compared"
                 continue
-            matching = set(merged_patches.values())
-            commits = [c for c in commits if local_patches.get(c) not in matching]
+            matching = Counter(merged_patches.values())
+            unmatched = []
+            for commit in commits:
+                patch_id = local_patches.get(commit)
+                if patch_id is not None and matching[patch_id]:
+                    matching[patch_id] -= 1
+                else:
+                    unmatched.append(commit)
+            commits = unmatched
         offending = _non_state_paths(root, commits, coga_prefix=coga_prefix)
         if offending is None:
             reason = f"{refused} the commits beyond it could not be inspected"
@@ -695,7 +703,7 @@ def _verbatim_patch_ids(
             "--no-merges", "--root", "--format=commit %H", "--patch", "--binary",
             "--full-index", "--no-color", "--no-ext-diff", "--no-textconv",
             "--no-renames", "--no-notes", "--no-relative", "--ignore-submodules=none",
-            "--src-prefix=a/", "--dst-prefix=b/", "--",
+            "--submodule=short", "--src-prefix=a/", "--dst-prefix=b/", "--",
         ],
         input=("\n".join(revisions) + "\n").encode("ascii"),
         capture_output=True,

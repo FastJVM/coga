@@ -1366,6 +1366,57 @@ def test_patch_comparison_failure_preserves_rebased_branch(repo: Path, monkeypat
     assert any("patches could not be compared" in note for note in result.notes)
 
 
+def test_reapplied_local_source_needs_another_merged_patch_match(repo: Path) -> None:
+    _git(repo, "checkout", "-b", "feat")
+    _commit(repo, "base.txt", "changed", "feature")
+    original = _tip(repo, "feat")
+    _git(repo, "checkout", "main")
+    _commit(repo, "later.txt", "main advanced", "main change")
+    _git(repo, "checkout", "-b", "copy")
+    _git(repo, "cherry-pick", original)
+    _git(repo, "revert", "--no-edit", "HEAD")
+    merged_head = _tip(repo, "copy")
+    _git(repo, "checkout", "main")
+    _git(repo, "merge", "--ff-only", "copy")
+    _git(repo, "checkout", "feat")
+    _git(repo, "revert", "--no-edit", "HEAD")
+    _commit(repo, "base.txt", "changed", "reapply local work")
+
+    verdict = _verdict(repo, _tip(repo, "feat"), merged_head)
+
+    assert verdict.landed is False
+    assert "base.txt" in verdict.reason
+
+
+@pytest.mark.parametrize("submodule_format", ["log", "diff"])
+def test_submodule_display_config_cannot_hide_a_changed_gitlink(
+    repo: Path, submodule_format: str,
+) -> None:
+    # Gitlink objects need not be checked out. Use distinct valid commit IDs.
+    first = _tip(repo, "main")
+    _commit(repo, "later.txt", "one", "next gitlink target")
+    second = _tip(repo, "main")
+    _commit(repo, "later.txt", "two", "another gitlink target")
+    third = _tip(repo, "main")
+    _git(repo, "update-index", "--add", "--cacheinfo", f"160000,{first},a-sub")
+    _git(repo, "commit", "-m", "add gitlink")
+    _git(repo, "checkout", "-b", "feat")
+    _git(repo, "update-index", "--cacheinfo", f"160000,{second},a-sub")
+    _commit(repo, "base.txt", "feature", "local source and gitlink")
+    tip = _tip(repo, "feat")
+    _git(repo, "checkout", "main")
+    _git(repo, "checkout", "-b", "copy")
+    _git(repo, "update-index", "--cacheinfo", f"160000,{third},a-sub")
+    _commit(repo, "base.txt", "feature", "different gitlink with same source")
+    merged_head = _tip(repo, "copy")
+    _git(repo, "config", "diff.submodule", submodule_format)
+
+    verdict = _verdict(repo, tip, merged_head)
+
+    assert verdict.landed is False
+    assert "a-sub" in verdict.reason
+
+
 @pytest.mark.parametrize("unpushed_source", [False, True])
 def test_daily_autoclose_sweeps_unclaimed_branches(
     repo: Path, monkeypatch, capsys, unpushed_source: bool,
