@@ -7015,3 +7015,4 @@ fatal: Unable to add (null) to database
 2026-09-30 09:57 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-09-30
 2026-09-30 09:57 [recurring/blocker-reminders] [system] created (status=active)
 2026-09-30 09:57 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-09-29
+2026-09-30 09:58 [recurring/blocker-reminders] [system] started (active → in_progress) via coga launch
