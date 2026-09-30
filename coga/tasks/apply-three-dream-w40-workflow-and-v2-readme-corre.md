@@ -1,6 +1,6 @@
 ---
 title: Apply three Dream W40 workflow and v2 README corrections after PR 912 lands
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -23,6 +23,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
