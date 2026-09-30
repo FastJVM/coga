@@ -40,7 +40,7 @@ US public capture endpoint and top-level identity fields.
 
 The write-only capture key is in
 `op://coga/multiply-posthog-project-key-production/password`. It is deliberately
-public in `recurring/phone-home/ticket.py::POSTHOG_CAPTURE_KEY` (live and packaged copies); it cannot query or delete,
+public in `src/coga_edge/phone_home.py::POSTHOG_CAPTURE_KEY`; it cannot query or delete,
 but publishing it enables spam injection into this shared project. Use a checked
 `op read` (successful and nonempty) directly into the constant through a local
 script; never echo it or pass its value as a shell argument. Do not read or
@@ -48,7 +48,10 @@ copy `~/.posthog/credentials.json`: that is the separate operator credential.
 If desktop authorization fails, the owner can set the constant locally.
 
 Rotation follows [Multiply's key procedure](https://github.com/FastJVM/multiply/blob/main/infra/posthog/README.md#rotation):
-update the vault source and Coga constant and release. Resetting the shared key
+update the vault source and the edge module constant and release. Adopted shims
+receive it on the next process after wheel upgrade; legacy copies and local
+forks need reviewed reconciliation. Source inspection and adoption commands
+are in [coga/packaging](../../packaging/SKILL.md). Resetting the shared key
 breaks already-shipped Multiply builds too. Moving Coga to a dedicated project
 requires a new constant and Coga release, not a config option. Follow-up in the
 Multiply repo: its expected event catalog should mention `coga_weekly_snapshot`.
@@ -116,7 +119,7 @@ by opaque repo UUID; do not switch to personless capture to simplify deletion.
 Perform a known forward advance/completion on a non-recurring work ticket using
 the normal CLI. Record the exact qualifying audit lines. For a later snapshot,
 run `/tmp/coga-telemetry-release/bin/python recurring/phone-home/ticket.py` from
-`coga/` (or wait for the next due sweep); it runs the same ticket code, reads the
+`coga/` (or wait for the next due sweep); the shim runs the installed edge implementation, reads the
 same parent and prints its report. Query again with
 the command above: expect another row, the same UUID, and the known movement
 count. Repeated direct runs are extra attempts, not a scheduler.

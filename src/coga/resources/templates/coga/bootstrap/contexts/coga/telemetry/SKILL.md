@@ -5,15 +5,15 @@ description: Weekly phone-home ticket contract — closed wire boundary, product
 
 # Weekly usage snapshots
 
-The snapshot is ticket-owned edge code, not a registered recipe: all of it
-lives in the shipped `recurring/phone-home/ticket.py`, which imports only
-shared core. It runs the snapshot under `runner.run_reported` (the
-`## Recipe Failure` floor) and then bumps through the CLI; `phone-home/run` has
-one agent-owned `send` step with no skills, so normal completion needs no agent.
-It accepts no operands. Run by hand outside a launch, it prints its report
-and leaves no step to close. The
-repo's copy comes from `coga init` and does not follow `pip install -U`; see
-`ship-edge-ticket-py-code-upgrades-with-the-wheel`. Schedule: `0 7 * * 1` (operator-local time).
+The snapshot is edge code, not a registered recipe. Its default implementation
+is `src/coga_edge/phone_home.py`, shipped in the Coga wheel and called by the
+repo-owned `recurring/phone-home/ticket.py` shim. It imports only shared core
+and runs under `runner.run_reported` (the `## Recipe Failure` floor), then
+bumps once through the CLI; bump failure propagates. `phone-home/run` has one
+agent-owned `send` step with no skills, so normal completion needs no agent.
+Run by hand outside a launch, it prints its report without advancing a task.
+Upgrades, full local forks and legacy adoption are owned by
+[coga/packaging](../packaging/SKILL.md). Schedule: `0 7 * * 1` (operator-local time).
 New templates are due on the first sweep, too. Coga installs no scheduler.
 Downloads, init, and ordinary commands send no events. Repos that never sweep
 never report: these are repos with active sweeps, **not install counts**.
@@ -29,7 +29,10 @@ retain their own switches.
 Production admission is checked before creating each worker and again inside
 it. Suppress for presence of `PYTEST_CURRENT_TEST`, active `CI` (anything other
 than empty/0/false/no/off, case-insensitive), source/editable imports under a
-Coga development tree, or a target or cwd inside such a tree. Resolve symlinks;
+Coga development tree, or a target or cwd inside such a tree. Both the installed `coga` dependency
+and the selected implementation file are checked; with a stock shim the latter
+is the wheel module, while repo/cwd checks still cover the launching repo.
+Resolve symlinks;
 a development ancestor has `project.name = "coga"` in `pyproject.toml`,
 `src/coga/runner.py`, and `tests/`. A wheel targeting `example/` or a linked
 source checkout is suppressed too. Editable installations intentionally do not
@@ -116,7 +119,7 @@ Snapshots supply current inventory; never sum historical inventories.
 One `coga_weekly_snapshot` attempt per eligible valid run, HTTPS POST to
 `https://us.i.posthog.com/i/v0/e/`, TLS verified, no redirects or SDK. Recipient:
 FastJVM US Cloud project `606347`, shared with Multiply. Its public write-only
-key is embedded only in the ticket script's `POSTHOG_CAPTURE_KEY`. Publishing it permits
+key is embedded only in the edge module's `POSTHOG_CAPTURE_KEY`. Publishing it permits
 spam injection; rotation affects old Multiply builds too. Operational key
 source, rotation and project settings are in the runbook.
 
@@ -144,8 +147,8 @@ service routing metadata, and block acceptance on unexpected enrichment.
 
 ## Transport and reports
 
-A private short-lived Python worker (the same `ticket.py` re-run with
-`--worker`) reads the prepared keyless event on stdin,
+A private short-lived Python worker (the selected implementation file re-run
+with `--worker`, including a complete local fork) reads the prepared keyless event on stdin,
 validates the closed schema, adds the constant key and does one POST. The parent
 enforces a three-second wall deadline including stalled DNS/connect/read,
 kills and reaps on expiry (plus teardown overhead). No response body is read.

@@ -654,6 +654,7 @@ def test_package_includes_coga_resources() -> None:
     # actually land in a built wheel.
     packages = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"]
     assert "src/coga" in packages
+    assert "src/coga_edge" in packages
     for wheel_name in EXPECTED_BOOTSTRAP_RESOURCES:
         source_name = wheel_name.removeprefix("coga/resources/")
         assert (repo_root / "src" / "coga" / "resources" / source_name).is_file()
@@ -893,6 +894,7 @@ def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
     with zipfile.ZipFile(wheel) as archive:
         names = set(archive.namelist())
 
+    assert {"coga_edge/__init__.py", "coga_edge/phone_home.py"} <= names
     for name in EXPECTED_BOOTSTRAP_RESOURCES:
         assert name in names
     for ref in REQUIRED_BOOTSTRAP_CONTEXT_REFS:
@@ -949,10 +951,8 @@ def forbidden(*args, **kwargs):
 with patch("coga.commands.init._check_external_dependencies"):
     result=CliRunner().invoke(app,["init",".","--user","tester"])
 assert result.exit_code == 0, result.output
-# The ticket code init copied into the repo, run against the installed package.
-spec=importlib.util.spec_from_file_location("phone_home_ticket",Path("coga/recurring/phone-home/ticket.py"))
-t=importlib.util.module_from_spec(spec)
-spec.loader.exec_module(t)
+import coga_edge.phone_home as t
+assert "installed" in t.__file__
 assert "installed" in str(t._PACKAGE_FILE)
 with patch.object(t,"_post_http",forbidden), patch.object(t,"_bounded_worker",forbidden):
     cfg=load_config(Path("coga"))

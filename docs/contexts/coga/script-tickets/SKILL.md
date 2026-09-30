@@ -12,6 +12,10 @@ stay prompt contracts. Registered `coga run` recipes remain the
 repository-independent command surface (`coga/extension-model`); a script may
 call them through `runner.run_recipe`.
 
+A repo script can be a thin import of a wheel-owned edge implementation or a
+full local fork; distribution and adoption are in
+[coga/packaging](../packaging/SKILL.md). Classification below is unchanged.
+
 ## Classifier
 
 `launch_script.script_entry_point` returns `<task_dir>/ticket.py` when it is

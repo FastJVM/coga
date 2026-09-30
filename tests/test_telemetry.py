@@ -10,7 +10,7 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
-from conftest import PHONE_HOME_SCRIPT, load_phone_home
+from conftest import load_phone_home
 
 from coga.config import load_config
 from coga.taskfile import read_blackboard, replace_blackboard
@@ -281,7 +281,7 @@ def test_suppressed_updates_marker_without_identity(repo):
 
 
 def test_real_worker_inherits_test_gate(repo):
-    result = subprocess.run([sys.executable, str(PHONE_HOME_SCRIPT), "--worker", "capture", str(repo)], input="{}", text=True, capture_output=True, timeout=5)
+    result = subprocess.run([sys.executable, str(Path(t.__file__)), "--worker", "capture", str(repo)], input="{}", text=True, capture_output=True, timeout=5)
     assert result.stdout.strip() == "suppressed"
 
 
@@ -447,3 +447,41 @@ def test_crlf_parent_preserves_header_and_unrelated_prose(repo):
     assert after.split(b"period_state:")[0] == raw.split(b"period_state:")[0]
     assert after.endswith(b"\r\n\r\nExtra prose\r\n")
     assert _state(repo)["run"] == 1
+
+
+@pytest.mark.parametrize("fork", [False, True])
+def test_worker_executes_selected_implementation(repo, tmp_path, monkeypatch, fork):
+    import importlib.util
+    module = t
+    if fork:
+        source = tmp_path / "fork/ticket.py"
+        source.parent.mkdir()
+        source.write_bytes(Path(t.__file__).read_bytes())
+        spec = importlib.util.spec_from_file_location("local_phone_home", source)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    calls = []
+    class Child:
+        returncode = 0
+        def communicate(self, data, timeout):
+            return b"suppressed\n", b""
+    def spawn(argv, **kwargs):
+        calls.append(argv)
+        return Child()
+    monkeypatch.setattr(module, "_admitted", lambda cfg: True)
+    monkeypatch.setattr(module.subprocess, "Popen", spawn)
+    assert module._bounded_worker(load_config(repo), "capture", {}) == "suppressed"
+    assert calls == [[sys.executable, str(Path(module.__file__).resolve()), "--worker", "capture", str(repo)]]
+
+
+@pytest.mark.parametrize("run_code,bump_code", [(0, 0), (0, 23), (17, 0)])
+def test_main_bumps_once_only_after_success_and_propagates_failure(repo, monkeypatch, run_code, bump_code):
+    calls = []
+    monkeypatch.setenv("COGA_TASK_SLUG", "recurring/phone-home")
+    monkeypatch.setattr(t, "run_reported", lambda *a: run_code)
+    def bump(argv, **kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, bump_code)
+    monkeypatch.setattr(t.subprocess, "run", bump)
+    assert t.main() == (run_code or bump_code)
+    assert calls == ([] if run_code else [[sys.executable, "-m", "coga.cli", "bump", "recurring/phone-home"]])

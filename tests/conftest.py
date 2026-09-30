@@ -9,7 +9,7 @@ the real env can override these with `monkeypatch.setenv` themselves.
 
 from __future__ import annotations
 
-import importlib.util
+import importlib
 import os
 import shutil
 import subprocess
@@ -498,25 +498,9 @@ def hold_by_agent(ticket: "Ticket", role: str = "agent") -> None:
     step["assignee"] = role
 
 
-PHONE_HOME_SCRIPT = (
-    Path(__file__).resolve().parents[1]
-    / "src/coga/resources/templates/coga/recurring/phone-home/ticket.py"
-)
-
-
 def load_phone_home() -> ModuleType:
-    """The packaged phone-home `ticket.py`, imported once as a module.
-
-    The code is ticket-owned, not part of `coga`, so tests load it by path.
-    """
-    module = sys.modules.get("phone_home_ticket")
-    if module is None:
-        spec = importlib.util.spec_from_file_location("phone_home_ticket", PHONE_HOME_SCRIPT)
-        assert spec and spec.loader
-        module = importlib.util.module_from_spec(spec)
-        sys.modules["phone_home_ticket"] = module
-        spec.loader.exec_module(module)
-    return module
+    """One canonical module object, shared with imports from repo shims."""
+    return importlib.import_module("coga_edge.phone_home")
 
 
 @pytest.fixture(autouse=True)

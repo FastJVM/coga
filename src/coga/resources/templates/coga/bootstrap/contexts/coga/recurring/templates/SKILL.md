@@ -135,6 +135,7 @@ stale tracking ref, as `src/coga/skill_manager.py` does.
 ## Weekly usage battery
 
 `phone-home` is ticket-owned code, not a registered recipe: its reserved
-`ticket.py` holds the whole snapshot, with a one-step `phone-home/run`
-workflow. Its changing parent marker, bounded delivery, production suppression
+`ticket.py` is a shim to the wheel-owned implementation, with a one-step
+`phone-home/run` workflow. Distribution, local forks and adopting the shim in
+existing copies are owned by [coga/packaging](../../packaging/SKILL.md). Its changing parent marker, bounded delivery, production suppression
 and opt-out contract belong to [coga/telemetry](../../telemetry/SKILL.md).
