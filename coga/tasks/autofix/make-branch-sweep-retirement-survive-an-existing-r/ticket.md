@@ -91,3 +91,12 @@ The blackboard is a notepad to be written to often as the human and agent works 
   refuse (and probably archive under a distinct name).
 - Current proofs would still refuse the branch delete (tip != merged head), so
   the fix should decide whether "ancestor of an archived merged head" vouches.
+
+## Dev
+
+branch: branch-sweep-retired-tag-collision
+
+Plan: `_publish_retirement_tag` reads the remote tag first (`ls-remote`);
+a remote archive that contains the target counts as published; a divergent
+one sends the archive to `retired/<branch>@<sha12>` (`/<sha>` would D/F-clash
+with the existing tag ref). Local tag is created only after publication.
