@@ -1,6 +1,6 @@
 ---
 title: Autoclose re-posts another clone's primary checkout forever
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,7 +24,6 @@ workflow:
     assignee: owner
 step: 3 (open-pr)
 agent: claude
-launch_generation: 9785aaf0-2f2d-427d-ad3e-bfd3af45657b
 ---
 
 ## Description
@@ -140,3 +139,9 @@ Autoclose re-posted other clones' primary checkouts (`/home/n/Code/coga`,
 Test plan: `python -m pytest` (3141 passed), including new regressions for
 fresh and legacy entries, repeated sweeps without reposting, same-named local
 branches, and wiped sandbox clones.
+
+---
+
+## Blockers
+
+- [ ] [2026-09-30 11:07] [agent:claude] id=20260930T110756 open-pr start check failed: /home/n/Code/coga main is at origin/main but dirty with unpublished blackboard edits to another ticket, coga/tasks/autofix/make-branch-sweep-retirement-survive-an-existing-r/ticket.md (a 16-line '## Diagnosis (from recurring/autoclose-merged period agent, 2026-09-30)' note written 10:50). Not mine to commit or discard. Please publish or drop that note, then unblock; this step only needs to run 'coga open-pr' (branch fix-autoclose-clone-primary is pushed, peer review returned and its finding is fixed).
