@@ -181,7 +181,10 @@ exists to be classified — on the run that records it, or, for an older line,
 the next run — and the discharge rule reads the owner's local branches
 instead (`retire_worklist.branch_owner`). An owner that is a checkout of the
 sweeping repository judges the entry like any other; an owner path that is
-gone or that git cannot read is an unknown and keeps the entry. Once the
+gone or that git cannot read is an unknown and keeps the entry — except an
+independent clone recorded as its own owner (the line keeps its primary path
+as `worktree:`), whose branch went with its directory, so the entry clears.
+Once the
 worktree is gone or is a primary checkout, the sweep does not run this repository's proofs on the
 branch — they would find no local branch and call it disposed — and reports
 the entry as preserved with the by-hand delete in the owning clone

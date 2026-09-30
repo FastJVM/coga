@@ -71,17 +71,20 @@ closure, and infers missing ownership on legacy worklist entries before any
 branch cleanup or discharge check for primary entries. For those entries it
 does not delete a same-named branch in the sweeping clone. A remaining foreign
 branch is reported for inspection and
-manual branch cleanup in its owning clone; a missing or unreadable owner or
-branch list keeps the entry pending. Once that owner's branch is gone, the
+manual branch cleanup in its owning clone; an unreadable owner or branch
+list keeps the entry pending, and so does a missing owner of a foreign linked
+worktree. An independent clone owns itself, so once its directory is gone its
+branch went with it and the entry clears. Once that owner's branch is gone, the
 primary-checkout entry discharges automatically, with no directory deletion or
 manual `retires.md` edit. Foreign linked worktrees still owe their directory
 cleanup as well.
 
 This replaces the repeated-posting failure and manual workaround documented in
 [the September incident](../../../evidence/independent-clone-worklist-2026-09.md).
-An independent fallback clone can still be removed deliberately by its operator,
-but the worklist tracks its branch rather than requiring removal of its primary
-directory. Publish ephemeral work before removing any such clone.
+An independent fallback clone can still be removed deliberately by its operator
+(or vanish with `/tmp`), which also discharges its entry; the worklist tracks its
+branch rather than requiring removal of its primary directory. Publish ephemeral
+work before removing any such clone.
 
 ## `/tmp` checkouts do not survive; the branch does
 

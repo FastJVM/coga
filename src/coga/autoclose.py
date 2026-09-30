@@ -1405,7 +1405,10 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
                     RetireFollowUp(
                         slug=item.slug,
                         branch=item.branch or "",
-                        worktree=item.worktree or "",
+                        # A filtered worktree with an owner was another
+                        # clone's primary: keep its path, so the line can
+                        # tell a wiped clone from an unreadable owner.
+                        worktree=item.worktree or item.owner,
                         recorded=now.date().isoformat(),
                         owner=item.owner,
                     )

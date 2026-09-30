@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 from dataclasses import replace
 from pathlib import Path
@@ -323,6 +324,24 @@ def test_another_clones_primary_tracks_its_own_branch(
     with monkeypatch.context() as patch:
         patch.setattr(rw, "local_branches", lambda _root: None)
         assert not rw.is_discharged(entry, root=root, branches=frozenset())
+
+
+def test_a_removed_independent_clone_takes_its_branch_with_it(
+    tmp_path: Path,
+) -> None:
+    root = _git_repo_with_branch(tmp_path / "repo", "feature")
+    clone = tmp_path / "clone"
+    _git(tmp_path, "clone", "-q", str(root), str(clone))
+    _git(clone, "branch", "feature")
+    entry = _entry("sandbox", branch="feature", worktree=str(clone))
+    entry = replace(entry, owner=rw.worktree_owner(root, str(clone)))
+    assert not rw.is_discharged(entry, root=root, branches=frozenset())
+
+    shutil.rmtree(clone)
+
+    # The recorded owner was the clone itself: gone, not unreadable.
+    assert rw.owner_branch_remains(root, entry) is False
+    assert rw.is_discharged(entry, root=root, branches=frozenset())
 
 
 def test_a_checkout_a_human_disposes_of_by_hand_stays_worktree_debt(

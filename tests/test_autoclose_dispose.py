@@ -677,6 +677,35 @@ def test_independent_clone_without_its_recorded_branch_is_not_debt(
     assert [item.slug for item in result.disposed] == [slug]
 
 
+def test_a_wiped_sandbox_clone_clears_its_entry_without_reposting(
+    git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clone = tmp_path / "fallback-clone"
+    _git(tmp_path, "clone", "-q", str(git_repo.root), str(clone))
+    _git(clone, "branch", "fallback")
+    _route_important(git_repo)
+    _, worklist = _period_task(git_repo, monkeypatch)
+    _final_step_ticket(git_repo, branch="fallback", worktree=clone)
+    _stub_gh(monkeypatch, git_repo)
+    posts = _capture_posts(monkeypatch)
+    cfg = load_config(git_repo.coga_os)
+
+    result = am.AutocloseResult()
+    assert am.run_autoclose_recipe(cfg, [], result=result) == 0
+    [kept] = result.preserved
+    assert kept.branch_owner == clone.resolve()
+
+    # `/tmp` is wiped: the branch went with the clone, so this is not an
+    # unreadable owner to locate forever.
+    shutil.rmtree(clone)
+    posts.clear()
+    result = am.AutocloseResult()
+    assert am.run_autoclose_recipe(cfg, [], result=result) == 0
+    assert not result.preserved
+    assert rw.parse_worklist(worklist.read_text())[1] == []
+    assert not any(url == IMPORTANT_WEBHOOK for url, _ in posts)
+
+
 def test_primary_checkout_recorded_as_worktree_is_not_retire_debt(
     git_repo: GitRepo, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:

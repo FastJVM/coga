@@ -36,9 +36,10 @@ unreadable directories stay listed until removed.
 A foreign checkout's branch belongs to its owning repository. Entries record
 that primary checkout as `owner` while it can still be classified; legacy
 ownerless entries infer ownership before judging discharge, then backfill it
-when retained. An unreadable owner or branch list keeps the entry. Once the
-recorded branch is gone there, a primary checkout entry clears without removing
-the directory. A legacy foreign linked worktree already gone cannot be
+when retained. An unreadable owner or branch list keeps the entry, except
+that an independent clone owns itself: once its directory is gone, so is its
+branch. Once the recorded branch is gone there, a primary checkout entry clears
+without removing the directory. A legacy foreign linked worktree already gone cannot be
 classified; its owner can be backfilled by hand.
 
 The file is plain markdown so a human can read, hand-edit, or backfill it.
@@ -373,14 +374,16 @@ def owner_branch_remains(root: Path | None, entry: RetireFollowUp) -> bool | Non
     when the entry has no provable owner, no branch, or an owner that is
     `root`'s own repository: the branch is judged here like any other. `True`
     also covers an owner or branch list that cannot be read, because an
-    unknown keeps the entry.
+    unknown keeps the entry. The one exception is an independent clone that
+    owns itself (`owner` is the recorded `worktree:`): once that directory is
+    gone its branch went with it, so `False`.
     """
     entry = _with_owner(entry, root)
     if not entry.branch or not entry.owner:
         return None
     home = branch_owner(root, entry.owner)
     if home is None:
-        return True
+        return not _removed_self_owned_clone(root, entry)
     if home == root:
         return None
     branches = local_branches(home)
@@ -490,6 +493,18 @@ def reconcile_worklist(
         atomic_write_text(path, rendered)
         change.written = True
     return change
+
+
+def _removed_self_owned_clone(root: Path | None, entry: RetireFollowUp) -> bool:
+    if not entry.worktree:
+        return False
+    worktree = Path(entry.worktree).expanduser()
+    if not worktree.is_absolute():
+        if root is None:
+            return False
+        worktree = root / worktree
+    owner = Path(entry.owner).expanduser()
+    return worktree.resolve() == owner.resolve() and not owner.exists()
 
 
 def _with_owner(entry: RetireFollowUp, root: Path | None) -> RetireFollowUp:
