@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
 ---
 
@@ -131,3 +131,13 @@ Task: `apply-three-dream-w40-skill-and-context-correction`
 Recorded: 2026-09-30T03:54:16+00:00
 
     Branch 'dream-w40-doc-corrections' is not safe to publish. refs/heads/dream-w40-doc-corrections does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Reconcile it and relaunch, or `coga block --task apply-three-dream-w40-skill-and-context-correction`.
+
+## Open PR (2026-09-29)
+
+- First `coga open-pr` refused: branch lacked latest `origin/main` (upstream
+  added only task/log/recurring state). Rebased in a temporary worktree to
+  `d6860337e`; `git range-diff` shows the reviewed patch unchanged,
+  `git diff --check` passed, `tests/test_packaging.py` 23 passed. Pushed with
+  `--force-with-lease` against `b6ce69362`.
+- Re-run opened [PR #933](https://github.com/FastJVM/coga/pull/933); launch
+  checkout stayed on clean `main` throughout.
