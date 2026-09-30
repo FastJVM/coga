@@ -1252,8 +1252,10 @@ def test_tip_moved_by_real_changes_is_skipped(repo: Path, monkeypatch) -> None:
     assert any("no merged PR vouching for it" in note for note in result.notes)
 
 
-def _merge_rebased_copy(repo: Path, branch: str, *, amend: str | None = None) -> str:
-    """Rebase `branch` onto a newer main elsewhere, push that copy, squash-merge it.
+def _merge_rebased_copy(
+    repo: Path, branch: str, *, amend: str | None = None, squash: bool = True,
+) -> str:
+    """Rebase `branch` onto a newer main elsewhere, push that copy, and merge it.
 
     The local ref keeps its pre-rebase commits, the shape a review follow-up
     pushed from a scratch clone leaves behind. `amend` changes the copied
@@ -1270,19 +1272,24 @@ def _merge_rebased_copy(repo: Path, branch: str, *, amend: str | None = None) ->
     merged_head = _tip(repo, "copy")
     _git(repo, "checkout", "main")
     _git(repo, "branch", "-D", "copy")
-    _squash_merge(repo, f"origin/{branch}")
+    if squash:
+        _squash_merge(repo, f"origin/{branch}")
+    else:
+        _git(repo, "merge", "--no-ff", "--no-edit", f"origin/{branch}")
+        _git(repo, "push", "origin", "main")
     assert _git(repo, "merge-base", "--is-ancestor", branch, merged_head, check=False).returncode != 0
     return merged_head
 
 
+@pytest.mark.parametrize("squash", [False, True])
 def test_local_ref_rebased_elsewhere_then_merged_is_deleted(
-    repo: Path, monkeypatch
+    repo: Path, monkeypatch, squash: bool,
 ) -> None:
     # The local commits are patch-equivalent to the merged head's rebased
     # copies, so the merged PR vouches for them even though no ancestry does.
     _push_branch(repo, "feat")
     tip = _tip(repo, "feat")
-    merged_head = _merge_rebased_copy(repo, "feat")
+    merged_head = _merge_rebased_copy(repo, "feat", squash=squash)
     _fake_gh(monkeypatch, {"feat": merged_head})
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
@@ -1308,6 +1315,55 @@ def test_local_ref_whose_rebase_changed_the_patch_is_kept(
     assert result.skipped == ["feat"]
     assert _branch_exists_local(repo, "feat")
     assert any("PR #7" in note and "feat.txt" in note for note in result.notes), result.notes
+
+
+@pytest.mark.parametrize("squash", [False, True])
+@pytest.mark.parametrize("change", ["indentation", "line-endings"])
+def test_local_ref_whose_rebase_changed_whitespace_is_kept(
+    repo: Path, monkeypatch, squash: bool, change: str,
+) -> None:
+    original = "def f(x):\n    if x:\n        print(x)\n    return 1\n"
+    changed = (
+        original.replace("    return", "        return")
+        if change == "indentation" else original.replace("\n", "\r\n")
+    )
+    _push_branch(repo, "feat")
+    _git(repo, "checkout", "feat")
+    (repo / "feat.txt").write_text(original)
+    _git(repo, "commit", "--amend", "--no-edit", "-a")
+    _git(repo, "checkout", "main")
+    merged_head = _merge_rebased_copy(repo, "feat", amend=changed, squash=squash)
+    _fake_gh(monkeypatch, {"feat": merged_head})
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == []
+    assert result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+    assert any("feat.txt" in note for note in result.notes), result.notes
+
+
+def test_patch_comparison_failure_preserves_rebased_branch(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat")
+    merged_head = _merge_rebased_copy(repo, "feat")
+    _fake_gh(monkeypatch, {"feat": merged_head})
+    run = subprocess.run
+
+    def fail_patch_id(argv, **kwargs):
+        if "patch-id" in argv:
+            return subprocess.CompletedProcess(argv, 1, b"", b"patch-id unavailable")
+        return run(argv, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", fail_patch_id)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == []
+    assert result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+    assert any("patches could not be compared" in note for note in result.notes)
 
 
 @pytest.mark.parametrize("unpushed_source", [False, True])

@@ -38,30 +38,15 @@ a ticket is deleted without going through retire or a session dies mid-flight.
    (`branchcleanup.local_branch_landed`) — a real merge-commit or
    fast-forward landing, which needs no PR at all — or a merged PR for that
    **head branch name** (`gh pr list --head <branch>` with `number,headRefOid`)
-   and no PR currently open for it, judged by `merged_pr_verdict`: the merged
-   PR vouches for the ref only when every commit in `git rev-list
-   --right-only --cherry-pick <merged head>...<tip> ^<control>
-   ^<remote>/<control>` (each control ref only when it exists locally)
-   touches only generated Coga state (`tasks/**`, `log.md` —
-   `github_preflight.is_coga_state_path`, the same carve-out
-   `validate --check-github` makes). `--cherry-pick` drops a ref commit whose
-   patch-id matches a commit on the merged head. `git diff-tree --cc` lists a
-   merge commit's paths only where the result differs from every parent, so
-   Coga's clean `Merge <control> state into <branch>` commits pass and an evil
-   merge does not. One rule therefore covers the exact merged tip, a local ref
-   that *lags* the merged head (its last commit was pushed from another
-   checkout), a ref that walked *past* the merged head through state-sync
-   commits, and a *rebased copy* — a ref whose commits another checkout
-   re-applied under new SHAs (a review follow-up rebased in a scratch clone,
-   a `resolve-conflicts` rebase) and merged from that copy. A rebase that
-   changed a patch, such as a conflict resolution, keeps that commit in the
-   list; a ref with real unmerged source commits is skipped with the
-   offending paths in the run record. Clear such a ref by hand only after
-   reading the difference (`git cherry -v <merged-head> <tip>` lists the
-   unmatched commits with `+`). When the merged head is not a local object it
-   is fetched from `refs/pull/<number>/head` without writing a ref. The
-   remote ref takes only a merged PR at its exact tip: its objects are usually
-   not local, and ancestry never authorizes deleting `<remote>/<branch>`,
+   and no PR currently open for it, judged by `merged_pr_verdict`. Its
+   local-ref proof accepts landed history, whitespace-sensitive patch
+   equivalence for rebased copies, and Coga state-only follow-ups; the
+   contract is in [dev/checkout-cleanup](../../../../../docs/contexts/dev/checkout-cleanup/SKILL.md#branch-sweep-protection-and-archive).
+   A changed patch or unmerged source work preserves the ref and reports the
+   offending paths. Inspect that difference before any manual clearance:
+   `git cherry -v <merged-head> <tip>` can locate candidates, but its patch
+   IDs ignore whitespace and are not sufficient deletion proof. Remote refs
+   require the exact merged head,
 5. for a branch whose **local tip** landed either way but is still held by
    a live worktree, require no open PR before removing the checkout. A merged
    remote tip alone never authorizes removing newer unmerged local work:

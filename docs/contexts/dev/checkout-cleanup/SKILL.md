@@ -116,6 +116,20 @@ in the same PR. Retire launches the task unless `--no-launch`, which prints the
 
 ## Branch-sweep protection and archive
 
+For a local ref with a merged PR and no open PR for the same branch name,
+`branchsweep.merged_pr_verdict` inspects commits beyond the merged head and
+the locally available control refs. Non-merge commits with matching
+`git patch-id --verbatim` IDs on the merged head are excluded; remaining
+commits must touch only generated task/log state. Patch comparison preserves
+whitespace (including indentation and line endings), disables external diff
+and text conversion, and compares against the merged head's history without
+excluding control. Thus both squash and normal merges can release a local
+pre-rebase copy. Different patch context can conservatively keep a ref;
+comparison failures keep it too. Merge commits always face the existing
+`git diff-tree --cc` state-only check. Remote refs still require an exact
+merged head, never patch equivalence. A missing merged-head object is fetched
+from `refs/pull/<number>/head` without writing a ref before comparison.
+
 `branchsweep.sweep_branches` preserves the shared `coga/skill-update` branch
 (`skill_manager.SKILL_UPDATE_BRANCH`) before any PR lookup or deletion. It
 does so even between update runs with no live ticket or open PR. This is an

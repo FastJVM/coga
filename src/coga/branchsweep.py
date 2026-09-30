@@ -603,13 +603,14 @@ def merged_pr_verdict(
     """Decide whether one of the `merged` PRs vouches for the local ref at `tip`.
 
     A merged PR authorizes the delete when the ref carries nothing the PR did
-    not land: every commit in `git rev-list --right-only --cherry-pick
-    <merged head>...<tip> ^<landed>...` touches only generated Coga state
-    (`is_coga_state_path`). `--cherry-pick` drops a ref commit whose patch-id
-    matches a commit on the merged head, so a ref whose commits were rebased
-    under new SHAs in another checkout and merged from that copy is released;
-    a rebase that changed a patch (a conflict resolution) keeps its commit in
-    the list and the branch, and merge commits have no patch-id to match.
+    not land: commits beyond the merged head and control must either have a
+    whitespace-sensitive patch match on the merged head or touch only
+    generated Coga state (`is_coga_state_path`). `git patch-id --verbatim`
+    preserves meaningful whitespace, including Python indentation. Compare
+    against the merged head's history without excluding control: a normal
+    merge puts the matching commits on control too. A rebase that changed a
+    patch keeps its commit in the list and the branch, and merge commits are
+    never excluded by patch matching.
     `landed_refs` are the control refs that exist locally — the control
     branch and its remote-tracking ref — because a branch that merged the
     remote-tracking control ref after its PR landed carries control's own
@@ -641,12 +642,7 @@ def merged_pr_verdict(
             reason = f"{refused} that head could not be fetched from {remote} to compare against"
             continue
         beyond = _git(
-            root,
-            "rev-list",
-            "--right-only",
-            "--cherry-pick",
-            f"{head}...{tip}",
-            *(f"^{ref}" for ref in landed_refs),
+            root, "rev-list", tip, f"^{head}", *(f"^{ref}" for ref in landed_refs)
         )
         if beyond.returncode != 0:
             reason = (
@@ -655,6 +651,14 @@ def merged_pr_verdict(
             )
             continue
         commits = [line for line in beyond.stdout.splitlines() if line]
+        if commits:
+            merged_patches = _verbatim_patch_ids(root, [head, f"^{tip}"])
+            local_patches = _verbatim_patch_ids(root, commits, no_walk=True)
+            if merged_patches is None or local_patches is None:
+                reason = f"{refused} its patches could not be compared"
+                continue
+            matching = set(merged_patches.values())
+            commits = [c for c in commits if local_patches.get(c) not in matching]
         offending = _non_state_paths(root, commits, coga_prefix=coga_prefix)
         if offending is None:
             reason = f"{refused} the commits beyond it could not be inspected"
@@ -664,13 +668,55 @@ def merged_pr_verdict(
                 f"; the {len(commits)} later commit(s) on this ref touch only "
                 "Coga task/log state"
                 if commits
-                else "; the ref is contained in the merged head"
+                else "; the ref is contained in or patch-equivalent to landed history"
             )
             return MergedPrVerdict(True, f"PR #{number} merged{beyond_note}")
         shown = ", ".join(sorted(offending)[:3])
         more = f" (+{len(offending) - 3} more)" if len(offending) > 3 else ""
         reason = f"{refused} the ref carries commits touching {shown}{more} — left in place"
     return MergedPrVerdict(False, reason)
+
+
+def _verbatim_patch_ids(
+    root: Path, revisions: list[str], *, no_walk: bool = False
+) -> dict[str, str] | None:
+    """Map non-merge commits to whitespace-sensitive patch IDs; fail closed.
+
+    Keep control exclusions out of the merged-side revisions so normal
+    merges retain the same comparison evidence as squash merges. A differing
+    context can conservatively prevent a match. Disable external diff and
+    text conversion so the proof describes the stored source bytes.
+    """
+    # Use bytes: text-mode subprocess IO would normalize CRLF in a patch.
+    git = ["git", "-C", str(root)]
+    patches = subprocess.run(
+        [
+            *git, "log", "--stdin", *(["--no-walk=unsorted"] if no_walk else []),
+            "--no-merges", "--root", "--format=commit %H", "--patch", "--binary",
+            "--full-index", "--no-color", "--no-ext-diff", "--no-textconv",
+            "--no-renames", "--no-notes", "--no-relative", "--ignore-submodules=none",
+            "--src-prefix=a/", "--dst-prefix=b/", "--",
+        ],
+        input=("\n".join(revisions) + "\n").encode("ascii"),
+        capture_output=True,
+        check=False,
+    )
+    if patches.returncode != 0:
+        return None
+    ids = subprocess.run(
+        [*git, "patch-id", "--verbatim"], input=patches.stdout,
+        capture_output=True, check=False,
+    )
+    if ids.returncode != 0:
+        return None
+    result: dict[str, str] = {}
+    for line in ids.stdout.decode("ascii").splitlines():
+        fields = line.split()
+        if len(fields) != 2:
+            return None
+        patch_id, commit = fields
+        result[commit] = patch_id
+    return result
 
 
 def _non_state_paths(
