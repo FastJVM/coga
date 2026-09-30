@@ -74,3 +74,19 @@ transient or already fixed.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Diagnosis (from recurring/autoclose-merged period agent, 2026-09-30)
+
+- Failing clone: `/home/n/Code/claude/coga` (recurring control clone). Local
+  branch `codex/retro-independent-clone-worklist-knowledge` = `2d1ee292a`,
+  local tag `retired/...` also `2d1ee292a`.
+- Remote tag `retired/codex/retro-independent-clone-worklist-knowledge` =
+  `82461f50b`, published by another clone (`/home/n/Code/coga` no longer has the
+  branch). `82461f50b` is PR #920's merged head (squash-merged, not on main).
+- `2d1ee292a` is an ancestor of `82461f50b`: this clone holds a stale earlier
+  tip, so nothing would be lost. Candidate rule: when the remote `retired/` tag
+  exists and the local tip is an ancestor of (or equal to) it, treat the archive
+  as already published instead of failing; a non-ancestor tip should still
+  refuse (and probably archive under a distinct name).
+- Current proofs would still refuse the branch delete (tip != merged head), so
+  the fix should decide whether "ancestor of an archived merged head" vouches.
