@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 99265e24-57cf-4d7b-8ff7-c0560ad85066
 ---
 
 ## Description
@@ -87,3 +86,56 @@ disposal ownership issue remains outside scope. No follow-up ticket identified.
 - Launch checkout returned to clean `main` before this handoff. No PR opened.
   No task-layout, prompt-composition, workflow, or validation behavior changed,
   so the example fixture did not need edits.
+
+## Peer review
+
+- Tool: Claude `/code-review` (default effort) on `origin/fix-autoclose-clone-primary`
+  vs `origin/main`. It **returned** with one finding, which I independently
+  reproduced before it came back.
+- Finding (must-fix, applied): a foreign-primary owner is the clone itself. Once
+  an independent clone (for example a `/tmp` sandbox clone) was wiped,
+  `branch_owner` → `None` read it as an "unreadable owner", so the entry was
+  kept and re-posted to coga-important forever. That is the same bug class this
+  ticket fixes; on `main` such an entry discharged.
+- Fix (`872bfe52f`): `retire_worklist.owner_branch_remains` treats a gone owner
+  that *is* the recorded `worktree:` as "branch gone". Autoclose now records the
+  primary's path as `worktree:` on the worklist line (`worktree or owner`) so
+  the two cases can be told apart. The docs (`dev/checkout-cleanup`,
+  autoclose sweep skill, plus their packaged twins) and the module docstring
+  are updated. A missing owner of a *foreign linked* worktree still keeps the
+  entry, as before.
+- New tests: `test_a_removed_independent_clone_takes_its_branch_with_it` and
+  `test_a_wiped_sandbox_clone_clears_its_entry_without_reposting`. Both
+  failed without the fix.
+- No TTY/Slack-rendering surface changed beyond the remedy text already covered
+  by tests.
+- Branch rebased onto fresh `origin/main` (31 new commits, no conflicts); the
+  full suite passed after the rebase: 3141 passed. `git diff --check` clean.
+  Pushed with `--force-with-lease`. The work was done in a scratch clone
+  because the launch checkout held another ticket's unpublished state. The
+  launch checkout stays on `main`.
+- The adjacent finding above (foreign-linked / manual `coga retire` branch
+  ownership in `checkout_disposal`) is still out of scope.
+
+## PR
+
+Autoclose re-posted other clones' primary checkouts (`/home/n/Code/coga`,
+`/home/n/Code/codex/coga`) to coga-important on every run and offered a
+"remove it by hand" remedy that would delete an active clone.
+
+- `git.classify_checkout` now calls another repository's primary checkout
+  `foreign-primary`, with that checkout as its `owner`.
+- `retire_worklist.is_primary_checkout` exempts every primary directory from
+  directory debt. The branch half is judged in the owning clone, and legacy
+  ownerless entries infer the owner first. Once the branch is gone there, the
+  entry discharges without touching the directory. A wiped independent clone
+  (for example a `/tmp` sandbox) also discharges, because its branch went
+  with it.
+- Autoclose never deletes a same-named branch in the sweeping clone for such a
+  ticket, and the remedy text no longer suggests removing a primary checkout.
+- Updated `dev/checkout-cleanup` (replacing the unresolved failure mode from
+  #920) and the autoclose sweep skill, including their packaged twins.
+
+Test plan: `python -m pytest` (3141 passed), including new regressions for
+fresh and legacy entries, repeated sweeps without reposting, same-named local
+branches, and wiped sandbox clones.
