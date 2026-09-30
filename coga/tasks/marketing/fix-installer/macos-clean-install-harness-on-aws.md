@@ -70,3 +70,17 @@ tooling outside `src/coga/` (`coga/extension-model`). No new installer tier.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: macos-clean-install-harness
+
+## Plan — 2026-09-30 (claude, megalaunch)
+
+- Host driver `scripts/clean-install/aws-mac.sh` (preflight / provision /
+  walk / vnc / teardown / release), Mac-side `scripts/clean-install/macos-walk.sh`
+  that resets CLT, creates a fresh macOS user, installs uv with its official
+  installer, then runs the shared walk script `container.sh` unchanged in steps.
+- Runbook as child topic `coga/testing/clean-install/macos-aws` (+ packaged twin).
+- Spending AWS money needs owner approval (region + host allocation); the AWS
+  SSO token for `multiply-telemetry` was expired at session start.
