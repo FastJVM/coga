@@ -237,11 +237,11 @@ def test_main_rejects_an_inverted_window(coga_os: Path) -> None:
     assert excinfo.value.code == 2
 
 
-def test_shim_posts_once_on_the_important_route_and_bumps_through_the_cli() -> None:
+def test_shim_posts_once_on_the_flow_route_and_bumps_through_the_cli() -> None:
     """The shim's contract, read structurally so reformatting cannot retire it.
 
     It reaches `report.py` through `COGA_COGA_OS_ROOT` (only `ticket.py` is
-    copied into the period task), posts exactly once with `important=True` and
+    copied into the period task), posts exactly once on the default flow route with
     `fatal=False`, and completes the step by subprocessing the CLI — calling
     the Typer command in-process would pass `OptionInfo` sentinels.
     """
@@ -272,7 +272,7 @@ def test_shim_posts_once_on_the_important_route_and_bumps_through_the_cli() -> N
     ]
     (call,) = posts
     keywords = {kw.arg: kw.value for kw in call.keywords}
-    assert isinstance(keywords["important"], ast.Constant) and keywords["important"].value is True
+    assert "important" not in keywords
     assert isinstance(keywords["fatal"], ast.Constant) and keywords["fatal"].value is False
 
     runs = [

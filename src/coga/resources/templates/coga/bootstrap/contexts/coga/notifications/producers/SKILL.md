@@ -65,9 +65,12 @@ tasks emit nothing while their bootstrap delegates post one roll-up through
 
 ## Accounting rule
 
+This inventory covers package and bundled producers. Repo-local templates
+are outside its scope and own their routing in their own `ticket.md`.
+
 This is an accounting of **event kinds, not templates**: one template may span
 surfaces (`autoclose-merged` posts live checkout and review-thread summaries and per-ticket
-outcomes). A new template or event kind that appears on none of the three
+outcomes). A new bundled template or package event kind that appears on none of the three
 surfaces is an unreviewed cadence decision, not a neutral default. Keep this
 inventory in step with `coga/recurring` when templates change.
 

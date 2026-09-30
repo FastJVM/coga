@@ -27,9 +27,9 @@ infra (`coga.config`, `coga.usage`, `coga.notification`).
    An empty window still renders and says so.
 3. **Post.** `ticket.py` finds `report.py` through `$COGA_COGA_OS_ROOT`
    (`coga launch` copies only `ticket.py` into the period task), renders the
-   default window, and calls `coga.notification.post(cfg, text,
-   important=True, fatal=False)` — one attempt, on the important route the
-   owner chose. `fatal=False` means a delivery miss is reported on stderr and
+   default window, and posts once as specified by the
+   [template's routing contract](../../../../recurring/usage-report/ticket.md).
+   `fatal=False` means a delivery miss is reported on stderr and
    in `log.md` but the shim still closes its step with `coga bump`, so the
    period never sticks `in_progress` over a webhook problem.
 4. **No cursor.** The template declares no `state_keys:`. Given the same
