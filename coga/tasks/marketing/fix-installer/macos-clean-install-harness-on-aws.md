@@ -135,4 +135,5 @@ Fix any script bug the live run finds on the branch before bumping.
 
 ## Blockers
 
-- [ ] [2026-09-30 14:24] [agent:claude] id=20260930T142425 Harness is pushed on branch macos-clean-install-harness; the required live provision→install→init→teardown cycle needs you to: (1) run 'aws sso login --profile multiply-telemetry' (token expired), and (2) approve allocating one mac2.metal dedicated host (24h minimum billing, release only after 24h) and name the region/AZ (suggest us-east-1; 'aws-mac.sh preflight <region>' shows quota and AZs). Then unblock and relaunch implement.
+- [x] [2026-09-30 14:24] [agent:claude] id=20260930T142425 Harness is pushed on branch macos-clean-install-harness; the required live provision→install→init→teardown cycle needs you to: (1) run 'aws sso login --profile multiply-telemetry' (token expired), and (2) approve allocating one mac2.metal dedicated host (24h minimum billing, release only after 24h) and name the region/AZ (suggest us-east-1; 'aws-mac.sh preflight <region>' shows quota and AZs). Then unblock and relaunch implement.
+  resolved: [2026-09-30 16:28] [human:nicktoper] Owner re-ran aws sso login for multiply-telemetry (sts identity verified 2026-09-30) and approved allocating one mac2.metal dedicated host in us-east-1 (24h minimum billing); AZ to be chosen from preflight output.

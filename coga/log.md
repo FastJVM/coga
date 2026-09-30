@@ -7163,3 +7163,4 @@ fatal: Unable to add (null) to database
 2026-09-30 16:23 [marketing/fix-installer/macos-clean-install-harness-on-aws] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-09-30 16:23 [marketing/fix-installer/macos-clean-install-harness-on-aws] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-09-30 16:23 [marketing/fix-installer/macos-clean-install-harness-on-aws] [megalaunch] launched via coga megalaunch
+2026-09-30 16:28 [marketing/fix-installer/macos-clean-install-harness-on-aws] [human:nicktoper] unblocked (asks resolved, still in_progress): Owner re-ran aws sso login for multiply-telemetry (sts identity verified 2026-09-30) and approved allocating one mac2.metal dedicated host in us-east-1 (24h minimum billing); AZ to be chosen from preflight output.
