@@ -27,6 +27,13 @@ product intent, so its owner is the topic that owns X, never the ticket that
 recorded it: the lifecycle retires tickets, and a decision left in one gets
 re-raised. State what was declined, why, and what would reopen it.
 
+The same retirement breaks links. Retro and `coga delete` remove a ticket
+without repairing inbound references, so a topic that names a ticket by path
+as the owner of an open question dangles once it retires. Point durable
+surfaces at the question's standing owner (a topic, or the role that decides
+it), not at the transient ticket working it, and grep for inbound references
+to a slug before it retires.
+
 ## Narrative links, never restates
 
 An index, README, overview, or neighbouring topic may summarize and link to
