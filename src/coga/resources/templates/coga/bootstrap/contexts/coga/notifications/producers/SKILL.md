@@ -43,6 +43,7 @@ transition already happened.
 | `coga mark done`, including manual completions with no PR and the `autoclose-merged` sweep's merged-PR closes | `mark.py` `mark_done` | flow |
 | `coga mark canceled`, with its required reason | `mark.py` `mark_canceled` | flow |
 | Template parse failures in a recurring scan | `recurring_runner._broadcast_scan` (`fatal=False`) | important |
+| Recurring period contradiction: failed create sync leaves another ticket copy in place, so the period cannot run as created | `recurring_runner._flag_period_contradiction` (`kind="recurring-error"`, `fatal=False`) | important |
 | Watchdog timeout pause | `mark.py` `mark_paused` when the watchdog supplies `slack_text` | important |
 | Re-escalation of each already-watchdog-paused task on every later sweep, until it completes | `recurring_runner.run_recurring_scan` (`fatal=False`) | important |
 

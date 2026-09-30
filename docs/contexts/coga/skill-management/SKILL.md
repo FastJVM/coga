@@ -56,7 +56,8 @@ Git delete), and `status [--check] [--json]`.
   external CLI, never a Python requirement.
 - `update --all` emits one row per installed skill with a managed source.
   GitHub-backed skills are updated one `gh skill update --dir coga/skills
-  <ref>` call at a time, so every outcome names that skill;
+  --all <ref>` call at a time, so every outcome names that skill. Here `--all`
+  only suppresses gh's confirmation; the explicit ref still selects one skill.
   `classify_gh_update_output` maps the output to `updated`, `unchanged`,
   `fetch-failed`, or `skipped-pinned`. `gh` is probed once before any write. A
   GitHub-backed skill nested below the root (`ns/<name>`) is `failed` without
@@ -70,6 +71,21 @@ Git delete), and `status [--check] [--json]`.
   [branch-sweep cleanup contract](../../dev/checkout-cleanup/SKILL.md#branch-sweep-protection-and-archive).
 - `status` reports bundled skills as `package-backed` and a same-ref local
   skill as `local-override`. `status --check` uses the update vocabulary.
+
+## Known PR checkout failure
+
+`coga skill update --all --pr` applies updates before
+`run_skill_update_pr_flow` carries them onto the shared branch with
+`git checkout -B coga/skill-update <control-branch>` (`_commit_skill_updates`
+and `_checkout` in `src/coga/skill_manager.py`). Its preflight,
+`_assert_no_unmerged_paths`, checks only `git diff --name-only --diff-filter=U`.
+Ordinary dirty tracked files pass that check. If the checkout would overwrite
+one (for example `coga/log.md`), Git refuses and Coga surfaces the raw
+"Your local changes ... would be overwritten by checkout" error, exiting 2.
+This is a known failure mode, not a friendly dirty-tree preflight; it does not
+mean every dirty file blocks checkout. Publish or otherwise preserve the
+conflicting changes before retrying, and inspect the already-applied skill
+updates left in the working tree.
 
 ## URL-backed provenance rules
 
