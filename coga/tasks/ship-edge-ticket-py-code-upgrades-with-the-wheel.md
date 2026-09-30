@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -405,3 +405,143 @@ No code, branch, or PR created. Only this ticket was edited during design.
   and frontmatter is byte-identical to HEAD. The first ambient-Python attempt
   could not import `coga.compose`; the source-path rerun passed.
 - No implementation tests run: this step changes only the design ticket.
+
+## Evaluator review
+
+Reviewer: claude (cold evaluate-design pass, 2026-09-30). No ticket-body,
+code, branch, or PR changes.
+
+**Verdict: the direction is sound and can be implemented. Resolve the three items
+below before implementation.** Each one is a place where an implementer would
+otherwise have to guess what "done" means.
+
+### Verified claims
+
+- `coga/recurring/phone-home/ticket.py` (373 lines) is byte-identical to its
+  packaged twin. It holds `run_phone_home`, `main`, `_worker_main`, and
+  `_bounded_worker`, and the last of these subprocesses `Path(__file__).resolve()`
+  with `--worker`. The `__main__` guard dispatches `--worker`. `_PACKAGE_FILE`
+  is `Path(coga.__file__)`, and `_admitted` checks `_PACKAGE_FILE`,
+  `Path(__file__)`, `repo_root`, and cwd against `_development_tree`.
+- The script imports only stdlib and `coga.*` (no sibling imports), so a
+  full-module fork copied from the wheel is feasible today.
+- `pyproject.toml` `packages = ["src/coga"]`. The dev `.venv` editable `.pth`
+  points to `src/`, so `src/coga_edge` becomes importable in editable mode
+  without a reinstall.
+- `docs/contexts/coga/script-tickets` "One deterministic phase" step 5: a
+  non-zero script exit posts `💥 script failed` and launch exits with that
+  code. A shim `ImportError` therefore already fails visibly with no agent
+  fallback, so AC4's missing-module clause can be tested as written.
+- `tests/conftest.py` `load_phone_home` path-loads the packaged script as
+  `phone_home_ticket`. `_reject_production_telemetry` patches that module
+  object. `tests/test_telemetry.py` spawns `PHONE_HOME_SCRIPT --worker` directly
+  (`test_real_worker_inherits_test_gate`) and fakes `__file__` in
+  `test_admission_all_gates_and_symlinks`.
+  `test_packaging.py::test_installed_wheel_init_and_phone_home_are_isolated`
+  uses `pip install --target` + `PYTHONPATH` rather than a venv, and it
+  path-loads the repo `ticket.py` to read `_PACKAGE_FILE`, which a shim will no
+  longer have.
+- The telemetry topic ("Weekly usage snapshots", "Transport and reports") and
+  `telemetry/operations` (`POSTHOG_CAPTURE_KEY` location, release-verification
+  invocation) name `ticket.py` as the implementation, so both need edits as
+  planned. Dream's template has literal `coga run` passages (`validate-drift`,
+  `cleanup-orphan-markers`, `delete-task`), so the AC7 fixture has real
+  material to model.
+
+### Must resolve before implementation
+
+1. **AC6 and AC7 require proof of a manual procedure without defining what the
+   proof observes.** "Demonstrate the procedure against an old full-code
+   fixture" and "a representative migration fixture proves those instructions
+   are inventoried and reconciled" can be read as a pytest test, a recorded
+   manual run, or a scripted runbook. Out of Scope forbids an updater command,
+   so a test can only run the runbook's literal commands. Specify the
+   assertions. Suggested:
+   (a) the runbook's documented inventory commands, run on the fixture, list
+   exactly the parent template, the outstanding and parked period copies, and
+   (for AC7) each old `coga run` passage in the template and period bodies;
+   (b) the byte comparison classifies a stock copy as replaceable and an edited
+   copy as a review item;
+   (c) after the documented replacement, frontmatter, blackboard,
+   `period_state`, generation, workflow, unrelated attachments, and non-target
+   body text are byte-identical, and the next script run uses the shim.
+   Also say whether AC7 reconciliation is asserted, or only the inventory is
+   asserted (this ticket rewrites no Dream text).
+2. **The fork contract depends on an unstated module constraint.** A "complete
+   self-contained module" copied over `ticket.py` works only if
+   `coga_edge/phone_home.py` imports only stdlib and shared `coga.*` (never a
+   sibling `coga_edge` module or a relative import), and if it carries its own
+   `__main__` dispatch for both the normal and `--worker` entries. Put both in
+   an acceptance criterion and in `coga/packaging`. Otherwise a later refactor
+   that factors helpers into `coga_edge/_common.py` silently breaks every
+   fork and the documented fork procedure.
+3. **AC3's invocation surface and install mechanics are ambiguous.**
+   - "Verify both the recurring-template invocation and the period
+     invocation" does not say whether each goes through `coga launch` (which
+     needs git and sync setup in the scratch repo) or through a direct
+     `python <path>/ticket.py`. The Proposed Shape says "launch fresh
+     subprocesses", and AC5 requires launch semantics.
+   - Templates are normally created, not launched, so the "template
+     invocation" is presumably a direct run.
+   - "Install B into that same environment" fits a venv. The existing test
+     uses `--target`, where replacing A means a `--upgrade` reinstall into the
+     target directory.
+
+   State one of: "template via direct script run, period via `coga launch` with
+   a local bare remote", or "both via direct script run, launch covered
+   separately". Also state the install mechanism.
+
+### Recommendations (optional, ordered by impact)
+
+- **Size the migration to the real legacy population.** The phone-home
+  `ticket.py` has one upstream revision (`ac14d63fc`, PR 880, 2026-09-23),
+  and it landed after the last version bump (`6e505d810`, 0.3.2 on
+  2026-09-09). No tagged release carries it, so every legacy full copy comes
+  from a main-branch install that still reports 0.3.2.
+  - For phone-home, the "known released artifact" baseline is effectively
+    the PR 880 blob.
+  - The claim that "reproducibility requires retaining the wheel version" is
+    weak while `coga_version` does not change between A and B.
+
+  The owner may want the runbook to name the Git blob as a baseline source,
+  and may want to note that a version string alone cannot identify an
+  unreleased implementation.
+- **Import the edge module by name in tests.** `load_phone_home` should use
+  `importlib.import_module("coga_edge.phone_home")`, not a path-load under
+  `phone_home_ticket`. Otherwise in-process tests that go through the shim's
+  `from coga_edge.phone_home import main` bypass the transport and key patches
+  applied to a second module object. Subprocess coverage is still protected
+  by the inherited `PYTEST_CURRENT_TEST`/`CI` gates.
+- **Enforce the one-way import rule with a test.** Add a static (AST or grep)
+  test asserting that no module under `src/coga/` imports or path-loads
+  `coga_edge`. AC1 states the rule, but nothing would keep it true.
+- **Test worker-follows-fork in-process.** With gates preserved, the child is
+  never spawned (`_bounded_worker` returns `suppressed` first). To prove that
+  the worker runs the selected implementation (AC5) without new hooks, patch
+  `_admitted` in-process on the fork module and capture the `Popen` argv, as
+  `test_parent_deadline_kills_and_reaps_sleeping_worker` already does, then
+  assert that argv[1] is the fork path. Pair this with a direct
+  `python <fork> --worker capture` gate test.
+- **Build wheels A and B once.** Build them in a module-scoped fixture (or
+  derive B by rewriting `coga_edge/phone_home.py` and `RECORD` in a copy of A)
+  and reuse them across the template, period, fork, missing-module, and
+  migration cases. Nine AC scenarios with repeated `pip wheel` runs would
+  noticeably slow the suite.
+- **Update the microkernel summaries.** "Everything else stays at the edge"
+  is summarized in `AGENTS.md`, `CLAUDE.md`, and `src/coga/resources/prompt.md`
+  as well as extension-model and its packaged twin. Per `coga/knowledge`, the
+  same PR should add a one-line summary or link for the `coga_edge` shipping
+  option so these don't read as "edge code is only a sibling file".
+- **Admission scope moves.** `Path(__file__)` will now be the wheel module,
+  not the repo's `ticket.py`. The shim's location is still covered by the
+  `repo_root` and cwd checks. The telemetry topic should say this explicitly
+  so it is not read as a dropped gate.
+
+### Coherence
+
+The scope is one PR, though a large one (nine ACs with wheel-matrix tests).
+Proposed Shape, ACs, and Out of Scope agree: no launch, recurring, or init
+changes, no updater, and no recipe moves. The `code/design-then-implement`
+workflow fits. Keeping `coga_edge` outside `src/coga/`, imported only by
+shims, respects the microkernel boundary, provided extension-model records it
+as an edge shipping location and not a second core.
