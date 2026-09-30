@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 9ee6d665-ee00-434c-8163-8fbdda421c83
 ---
 
 ## Description
@@ -80,6 +79,43 @@ branch: dream-w40-doc-corrections
   check is inapplicable to the owner's documentation-only choice.
 
 ---
+
+## Peer review
+
+- `codex review --base main` returned successfully with no actionable
+  regressions or must-fix findings. The first sandboxed attempt could not
+  initialize its app server; the unsandboxed retry completed. Its ambient
+  interpreter lacked `tomlkit`, so its packaging-test attempt failed; the
+  checkout venv verification below passed.
+- Checked the corrected guidance against `sync_coga_state`, the helper's
+  top-level `tomllib` import and re-exec path, and both linked owning topics.
+  All four canonical/packaged pairs are byte-identical. This is documentation
+  only; no terminal UI or rendered notification surface changed.
+- Rebased without conflicts and pushed `b6ce69362` on
+  `dream-w40-doc-corrections`, based on `origin/main` at `f8057ea93`.
+  `git range-diff` confirms the reviewed patch is unchanged across rebases.
+- Verification with Python 3.12.12:
+  - `PYTHONPATH=$PWD/src .venv/bin/python -m pytest` — 3,114 passed on
+    `1416cb7bf`; after upstream PR #914 landed, 3,135 passed on `0ff183a91`.
+  - The final rebase added only unrelated Google-agent skills and task/log
+    state; `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_packaging.py`
+    — 23 passed on final commit `b6ce69362`.
+  - `git diff --check origin/main...HEAD` passed on the final branch.
+- Returned to clean `main` at `f8057ea93` before writing this handoff.
+  No review fixes or design decisions remain. No PR opened in this step.
+
+## PR
+
+Correct three stale Dream W40 instructions: limit the self-QA publication
+warning to recurring templates and `ticket.py` and link its owning topic;
+point stored-ticket schema conversions to `coga/internals/git-regressions`;
+and require Python 3.11+ to start `seed_local_config.py` in both implementation
+and checkout guidance. The owner's documentation-only choice preserves the
+helper code and its existing re-exec fallback. All four packaged twins match.
+
+Test plan: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest` (3,135 passed before
+the final unrelated skill/state rebase); `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_packaging.py`
+(23 passed on final head); `git diff --check origin/main...HEAD` (passed).
 
 ## Blockers
 
