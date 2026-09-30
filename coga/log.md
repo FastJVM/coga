@@ -6995,3 +6995,4 @@ fatal: Unable to add (null) to database
 2026-09-29 22:42 [apply-three-dream-w40-notification-and-skill-manag] [human:nicktoper] advanced to step 3 (open-pr) → claude
 2026-09-29 22:44 [carry-the-apply-the-register-amendment-step-in-a-w] [human:nicktoper] activated (draft → active) — auto on launch
 2026-09-29 22:44 [carry-the-apply-the-register-amendment-step-in-a-w] [human:nicktoper] started (active → in_progress) via coga launch
+2026-09-29 22:44 [carry-the-apply-the-register-amendment-step-in-a-w] [human:nicktoper] launched (operator=claude, agent=claude)
