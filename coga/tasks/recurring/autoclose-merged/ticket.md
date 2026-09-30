@@ -14,7 +14,7 @@ workflow:
     - coga/autoclose/sweep
     assignee: agent
 step: 1 (sweep)
-launch_generation: pending:39f44909-a84a-426e-80a5-940aa867e26d
+launch_generation: 39f44909-a84a-426e-80a5-940aa867e26d
 ---
 
 ## Description
