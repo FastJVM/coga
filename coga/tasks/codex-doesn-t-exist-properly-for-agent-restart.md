@@ -1,6 +1,6 @@
 ---
 title: codex doesn't exist properly for agent restart
-status: draft
+status: canceled
 owner: nicktoper
 workflow: null
 ---
