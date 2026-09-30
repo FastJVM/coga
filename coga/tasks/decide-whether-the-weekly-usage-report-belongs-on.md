@@ -36,6 +36,22 @@ Filed by Dream 2026-W40, Phase 6 (shard ks-19, class stale, target `docs/context
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+
+branch: usage-report-flow
+
+## Resumed implementation (2026-09-30)
+
+Owner approved moving the weekly FYI to flow and excluding repo-local
+templates from the packaged producer inventory. Their own `ticket.md` owns
+routing. Keep the important action-needed bar unchanged; update the report,
+its live instructions, and the producer topic plus packaged twin.
+
+Start check: clean `main`; fetched `origin/main` and fast-forward check passed.
+The earlier unrelated dirty ticket is now clean. Its branch-sweep fix is
+already implemented in open PR #937 and its ticket is on owner-held review;
+remaining work there requires a separate owner-assist launch.
+
 ## Implement attempt 2026-09-30 (megalaunch) — blocked on owner decision
 
 Evidence:
