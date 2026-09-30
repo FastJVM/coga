@@ -1,6 +1,6 @@
 ---
 title: Ticket sync fails with read-only git inside agent sandboxes
-status: draft
+status: canceled
 owner: nicktoper
 workflow: code/with-review
 ---
@@ -36,6 +36,12 @@ published, for example by the supervisor after the session exits. The
 `coga/sync` topic must describe the chosen behavior.
 
 ## Context
+
+**Superseded by `lifecycle-writes-read-control-s-ticket-before-modi`
+(2026-09-30).** Owner-approved consolidation: the successor owns publication
+recovery and regression requirements and now retains this report's incident
+evidence and attribution caveats. The original report below is historical;
+its alternative fixes do not override the successor's design.
 
 **Cause, as far as known:** `git.sync_task_state` publishes without touching
 the working tree, by writing blobs with `git hash-object -w --stdin` (in
@@ -83,4 +89,10 @@ owning topic in the same PR.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Consolidation — 2026-09-30
+
+Owner approved consolidation into
+`lifecycle-writes-read-control-s-ticket-before-modi`. The successor preserves
+the required recovery outcome, historical evidence, and attribution caveats.
+Cancel as superseded; this does not claim the bug is fixed or approve the
+successor's pending design.

@@ -414,15 +414,61 @@ Load-bearing source relationships at design time:
   `coga/bootstrap/address-pr-comments/ticket.md` "Run order" must honor the
   same boundary even if Git considers the semantic conflict mergeable.
 
-This absorbs the failure described by
-`coga/tasks/ticket-sync-fails-with-read-only-git-inside-agent.md`; no sandbox
-policy change is needed. Land it before
+### Consolidated sandbox-publication report — 2026-09-30
+
+The owner consolidated `ticket-sync-fails-with-read-only-git-inside-agent`
+into this ticket. Its requirements and evidence are retained here so that
+retiring the source ticket does not lose them:
+
+- A state-changing command inside an agent sandbox can update the local
+  ticket and log while publication fails at `git hash-object -w --stdin`
+  with `unable to create temporary file: Read-only file system` and
+  `Unable to add (null) to database`. The desired outcome is publication to
+  control without a human push, while preserving the local write on failure.
+- The source reported 191 such failures since 2026-06-09. Of 35 following a
+  logged launch, 32 followed Codex launches and 3 followed Claude launches.
+  These are the source's historical counts, not a fresh measurement or the
+  same snapshot as this ticket's opening counts. Log `[agent:<name>]` tags
+  identify the configured ticket agent, not necessarily the executing CLI:
+  a 2026-09-25 10:49 `[agent:claude] advanced` entry followed a Codex launch.
+  Use the preceding launch record when attributing failures.
+- Read-only Git in the failing process is the failure condition; the source's
+  explanation of default sandbox settings was a hypothesis. Do not infer
+  host filesystem permissions or attribute the Claude cases without evidence.
+  Keep primary-checkout versus linked-worktree provenance isolation in the
+  regression coverage already specified above.
+- The existing supervisor retry and real-Git acceptance tests own recovery
+  both with and without a peer publishing first. Publication may complete
+  at session exit rather than at the child's bump. Update `coga/sync` and its
+  owning detailed contracts in the implementation PR. Keep the evaluator's
+  distinction between retryable publication failures and rejected
+  transactions; a retry must not bypass conflict or expectation guards.
+- The source considered granting broader sandbox permissions or merely
+  changing the failure message. Neither is the selected recovery mechanism:
+  this design retries outside the child sandbox and keeps sandbox policy
+  changes and real-model historical reproductions out of scope.
+
+`where-have-code-review-disappeared` separately owns step-chain failures;
+an unpublished bump is a possible interaction, not a confirmed shared cause.
+`fix-coga-git-sync-failures-that-leave-main-diverge` remains separate for its
+broader divergence and recovery cases; coordinate overlapping fixes with it.
+
+Land this ticket before
 `coga/tasks/launch-moves-the-checkout-to-main-before-and-after.md`: that
 ticket's evaluator finding 2 identifies unpublished state that can otherwise
 make launch entry refuse and suppress the very sweep needed to recover it.
 This prerequisite does not by itself resolve that ticket's admission policy.
 
 <!-- coga:blackboard -->
+
+## Consolidation — 2026-09-30
+
+- Owner authorized folding `ticket-sync-fails-with-read-only-git-inside-agent`
+  into this ticket and canceling that source as superseded. Its publication
+  outcome was already in the acceptance criteria; historical evidence,
+  attribution caveats, and the chosen recovery boundary now live in Context.
+- No workflow advance or design approval: remain at `review-design`, with
+  the evaluator's four must-fix findings below still unresolved.
 
 ## Design investigation — 2026-09-27
 

@@ -35,6 +35,21 @@ reproduction rather than assuming they have the same cause.
 
 ## Context
 
+**Consolidated `codex-doesn-t-exist-properly-for-agent-restart`
+(2026-09-30, owner approved).** That title-only stub carried no additional
+description, evidence, or acceptance criteria. This ticket owns its Codex
+session-exit/restart concern through the two observed failure shapes above:
+an exiting session that fails to hand off, and a window that stays open after
+the step completes. Confirm the mechanism for each; consolidation is not
+evidence that they share a root cause.
+
+Sandboxed publication recovery is owned by
+`lifecycle-writes-read-control-s-ticket-before-modi`, which absorbs
+`ticket-sync-fails-with-read-only-git-inside-agent`. Coordinate any stale-state
+chain finding with that ticket rather than implementing a second publication
+retry here. Workflow review coverage remains separately owned by
+`make-every-code-workflow-review-with-the-other-age`.
+
 **Expected contract** (from `coga/launch`, attached, section "The step
 chain"): after a clean exit, the supervisor rereads the ticket and continues
 when the task is still `in_progress`, the step advanced, and the next operator
@@ -112,4 +127,10 @@ chain still breaks.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Consolidation — 2026-09-30
+
+Owner authorized folding `codex-doesn-t-exist-properly-for-agent-restart`
+into this ticket and canceling that source as superseded. The source was an
+empty stub; the composing Context records its scope without inventing new
+evidence. Existing acceptance criteria cover the handoff. No implementation
+or workflow advance occurred.
