@@ -133,18 +133,27 @@ the tag points to that descendant. Divergent tips preserve both refs and need
 human reconciliation. This keeps later Coga bookkeeping and lagging local
 refs recoverable without inventing a merge.
 
-An existing local tag must resolve to the selected commit. A covering
-descendant is deliberately insufficient: if local deletion succeeds but remote
-deletion fails and leaves an older tip, later sweeps require human
-reconciliation of that partial cleanup. The archive is never moved to make
-the retry pass. The push uses an explicit tag refspec without force and
-disables `push.followTags`; an identical remote tag allows a retry,
-while a conflicting tag is never overwritten. A failed object fetch, tag
-creation, or tag push preserves the branch and worktree, records the reason
-in `## Branch Sweep`, and makes the recipe exit 2 after checking other
-branches. A failed push may leave a local tag for the next retry. Restore
-archived work with `git fetch <remote> tag retired/<branch>` and
-`git switch -c <new-branch> retired/<branch>`.
+The remote tag is the archive; the sweep reads it with `git ls-remote`
+before publishing. A remote `retired/<branch>` whose commit equals or contains
+the selected commit already preserves it — another clone may have archived a
+later tip of the same branch, or a partial cleanup left an older remote ref
+behind — so the sweep publishes nothing and proceeds to deletion. A remote tag
+holding unrelated history (the name was reused) is never moved or forced:
+the sweep publishes the selected commit under the deterministic
+`retired/<branch>@<sha12>` instead, which a retry then finds already archived.
+(`retired/<branch>/<sha>` is not possible: a ref cannot nest under an existing
+tag ref.) A local tag of either name that points at an unpublished, different
+commit makes that name unusable, so it is skipped rather than published over.
+The local tag is created only after the remote holds the archive, and
+advanced only when the archive contains its commit, so a failed pass never
+leaves a local tag that replays a conflict. The push names one explicit tag
+refspec without force and disables `push.followTags`. When both names are
+taken by other commits, or a remote read, object fetch, or tag push fails,
+the sweep preserves the branch and worktree, records the reason in
+`## Branch Sweep`, and makes the recipe exit 2 after checking other branches.
+Restore archived work with `git fetch <remote> tag <tag>` and
+`git switch -c <new-branch> <tag>`, where `<tag>` is `retired/<branch>` or
+the `@<sha12>` name the run record reports.
 
 The daily autoclose branch pass and standalone weekly sweep share this gate.
 It does not change ticket-scoped retire/autoclose disposal into an archival

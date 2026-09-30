@@ -281,8 +281,13 @@ def test_failed_tag_push_preserves_both_refs_and_reports_failure(
         assert linked.is_dir()
 
 
+def _remote_tag(repo: Path, name: str) -> str:
+    out = _git(repo, "ls-remote", "--tags", "origin", f"refs/tags/{name}").stdout
+    return out.split()[0] if out else ""
+
+
 @pytest.mark.parametrize("where", ["local", "remote"])
-def test_conflicting_retirement_tag_is_never_overwritten(
+def test_conflicting_retirement_tag_is_kept_and_tip_archived_under_its_sha(
     repo: Path, monkeypatch, where: str
 ) -> None:
     original = _tip(repo, "main")
@@ -291,18 +296,87 @@ def test_conflicting_retirement_tag_is_never_overwritten(
         _git(repo, "push", "origin", "refs/tags/retired/feat")
         _git(repo, "tag", "-d", "retired/feat")
     _push_branch(repo, "feat", land_in_main=True)
+    tip = _tip(repo, "feat")
+    _merged_at_tip(monkeypatch, repo, "feat")
+
+    assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 0
+
+    assert not _branch_exists_local(repo, "feat")
+    assert not _branch_exists_remote(repo, "feat")
+    if where == "local":
+        assert _tip(repo, "refs/tags/retired/feat") == original
+        assert _remote_tag(repo, "retired/feat") == ""
+    else:
+        assert _remote_tag(repo, "retired/feat") == original
+    assert _remote_tag(repo, f"retired/feat@{tip[:12]}") == tip
+    assert _tip(repo, f"refs/tags/retired/feat@{tip[:12]}") == tip
+
+
+def test_retirement_tag_containing_the_tip_counts_as_archived(
+    repo: Path, monkeypatch
+) -> None:
+    # Another clone archived the merged head; this clone still holds an
+    # earlier tip and the stale local tag an earlier failed pass left behind.
+    _push_branch(repo, "feat")
+    stale = _tip(repo, "feat")
+    _git(repo, "checkout", "feat")
+    _commit(repo, "more.txt", "more", "more work")
+    merged_head = _tip(repo, "feat")
+    _git(repo, "push", "origin", "feat")
+    _git(repo, "push", "origin", f"{merged_head}:refs/tags/retired/feat")
+    _git(repo, "push", "origin", "--delete", "feat")
+    _squash_merge(repo, "feat")
+    _git(repo, "branch", "-f", "feat", stale)
+    _git(repo, "update-ref", "-d", "refs/remotes/origin/feat")
+    _git(repo, "tag", "retired/feat", stale)
+    _fake_gh(monkeypatch, {"feat": merged_head})
+    real_git = bs._git
+
+    def no_tag_push(root: Path, *args: str, input: str | None = None):
+        assert not (args[0] == "push" and any("refs/tags/" in arg for arg in args))
+        return real_git(root, *args, input=input)
+
+    monkeypatch.setattr(bs, "_git", no_tag_push)
+
+    assert bs.run_branch_sweep_recipe(_cfg(repo), []) == 0
+
+    assert not _branch_exists_local(repo, "feat")
+    assert _remote_tag(repo, "retired/feat") == merged_head
+    assert _tip(repo, "refs/tags/retired/feat") == merged_head
+
+
+def test_both_retirement_names_taken_fails_without_overwriting(
+    repo: Path, monkeypatch
+) -> None:
+    original = _tip(repo, "main")
+    _push_branch(repo, "feat", land_in_main=True)
+    tip = _tip(repo, "feat")
+    for name in ("retired/feat", f"retired/feat@{tip[:12]}"):
+        _git(repo, "push", "origin", f"{original}:refs/tags/{name}")
     _merged_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
     assert result.failure is not None
+    assert "already archive other commits" in result.failure
     assert result.local_deleted == result.remote_deleted == []
     assert _branch_exists_local(repo, "feat")
-    assert _branch_exists_remote(repo, "feat")
-    if where == "local":
-        assert _tip(repo, "refs/tags/retired/feat") == original
-    else:
-        assert _git(repo, "ls-remote", "--tags", "origin", "refs/tags/retired/feat").stdout.split()[0] == original
+    assert _remote_tag(repo, f"retired/feat@{tip[:12]}") == original
+
+
+def test_sha_qualified_retirement_tag_allows_retry(repo: Path, monkeypatch) -> None:
+    original = _tip(repo, "main")
+    _git(repo, "push", "origin", f"{original}:refs/tags/retired/feat")
+    _push_branch(repo, "feat", land_in_main=True)
+    tip = _tip(repo, "feat")
+    _git(repo, "push", "origin", f"{tip}:refs/tags/retired/feat@{tip[:12]}")
+    _merged_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.failure is None
+    assert result.local_deleted == result.remote_deleted == ["feat"]
+    assert any("already archived" in note for note in result.notes)
 
 
 def test_existing_retirement_tag_allows_retry(repo: Path, monkeypatch) -> None:
@@ -317,7 +391,7 @@ def test_existing_retirement_tag_allows_retry(repo: Path, monkeypatch) -> None:
     assert result.local_deleted == result.remote_deleted == ["feat"]
 
 
-def test_partial_cleanup_keeps_exact_tip_requirement_on_retry(repo: Path, monkeypatch) -> None:
+def test_partial_cleanup_retry_trusts_archive_containing_remote_tip(repo: Path, monkeypatch) -> None:
     _push_branch(repo, "feat")
     merged_head = _tip(repo, "feat")
     _state_commit(repo, "feat", "later-bookkeeping")
@@ -332,10 +406,10 @@ def test_partial_cleanup_keeps_exact_tip_requirement_on_retry(repo: Path, monkey
 
     retry = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
-    assert retry.failure is not None
-    assert "existing local tag points elsewhere" in retry.failure
-    assert retry.remote_deleted == []
-    assert _branch_exists_remote(repo, "feat")
+    # The archive already contains the lagging remote tip; it is never moved.
+    assert retry.failure is None
+    assert retry.remote_deleted == ["feat"]
+    assert _remote_tag(repo, "retired/feat") == archived_tip
     assert _tip(repo, "refs/tags/retired/feat") == archived_tip
 
 
@@ -1474,7 +1548,7 @@ def test_recipe_reports_local_cleanup_when_remote_listing_fails(
     def fail_remote_listing(
         root: Path, *args: str, input: str | None = None
     ) -> subprocess.CompletedProcess[str]:
-        if args[:1] == ("ls-remote",):
+        if args[:2] == ("ls-remote", "--heads"):
             return subprocess.CompletedProcess(
                 args, 1, stdout="", stderr="simulated remote listing failure"
             )

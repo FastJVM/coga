@@ -36,8 +36,10 @@ pin only a recorded `## Dev` `branch:`.
 
 The shared skill-update branch is always protected. Before deleting any other
 authorized refs or their worktree, publish `retired/<branch>` without force.
-That tag must preserve all tips this pass deletes; an archive failure keeps
-the branch and is reported as a failed sweep.
+That tag must preserve all tips this pass deletes. A remote tag of that name
+that already contains the tip counts as the archive; one holding unrelated
+history is left alone and the tip goes to `retired/<branch>@<sha12>` instead.
+An archive failure keeps the branch and is reported as a failed sweep.
 
 Before enumerating branches, the sweep prunes registrations for worktrees whose
 directories are gone. A landed branch that remains checked out in a live
@@ -391,7 +393,6 @@ def _publish_retirement_tag(
 ) -> bool:
     """Push an immutable archive covering every tip authorized for deletion."""
     tag = f"retired/{branch}"
-    tag_ref = f"refs/tags/{tag}"
 
     def refuse(reason: str) -> bool:
         message = f"Branch sweep: {branch!r} could not publish {tag!r}: {reason} — left in place."
@@ -428,30 +429,94 @@ def _publish_retirement_tag(
     if target is None:
         return refuse("divergent tips cannot be preserved by one retirement tag")
 
-    existing = _git(root, "rev-parse", "--verify", "--quiet", tag_ref)
-    if existing.returncode == 0:
-        if _rev_parse(root, f"{tag_ref}^{{commit}}") != target:
-            return refuse("the existing local tag points elsewhere; never overwrite it")
-    elif existing.returncode == 1:
-        created = _git(root, "tag", "--", tag, target)
-        if created.returncode != 0:
-            return refuse((created.stderr + created.stdout).strip())
-    else:
-        return refuse((existing.stderr + existing.stdout).strip())
+    # The remote tag is the archive; a local tag is only a convenience copy.
+    # An earlier sweep (perhaps from another clone) may already hold the name
+    # at a descendant, which preserves this tip, or at unrelated history,
+    # which must never be moved. The second, tip-qualified name is
+    # deterministic, so a retry finds its own earlier publication. It cannot
+    # be `retired/<branch>/<sha>`: a ref cannot nest under an existing tag ref.
+    names = [tag, f"{tag}@{target[:12]}"]
+    listed = _git(
+        root, "ls-remote", "--tags", cfg.git_remote,
+        *(f"refs/tags/{name}" for name in names),
+    )
+    if listed.returncode != 0:
+        return refuse(
+            f"cannot read remote tags: {(listed.stderr + listed.stdout).strip()}"
+        )
+    remote_tags = {
+        ref: oid
+        for oid, _, ref in (
+            line.partition("\t") for line in listed.stdout.splitlines()
+        )
+    }
 
-    # Suppress push.followTags as well as naming the one ref: otherwise Git
-    # may also publish unrelated annotated tags reachable from this commit.
-    # No force: conflicting remote tags are rejected; identical tags retry.
-    pushed = _git(
-        root, "push", "--no-follow-tags", cfg.git_remote, f"{tag_ref}:{tag_ref}"
+    for name in names:
+        name_ref = f"refs/tags/{name}"
+        local_tag = _rev_parse(root, f"{name_ref}^{{commit}}") or None
+        remote_oid = remote_tags.get(name_ref)
+        if remote_oid is not None:
+            remote_commit = _archived_commit(cfg, root, remote_oid)
+            if remote_commit is None:
+                return refuse(f"cannot fetch remote {name!r} at {remote_oid}")
+            if not (
+                remote_commit == target
+                or _git(root, "merge-base", "--is-ancestor", target, remote_commit).returncode == 0
+            ):
+                continue
+            _mirror_local_tag(root, name, local_tag, remote_commit)
+            _note(
+                result, echo,
+                f"Branch sweep: {branch!r} at {target} is already archived by "
+                f"{name!r} on {cfg.git_remote}.",
+            )
+            return True
+        # An unpublished local tag elsewhere may be someone's only archive.
+        if local_tag is not None and local_tag != target:
+            continue
+        # Suppress push.followTags as well as naming the one ref: otherwise
+        # Git may also publish unrelated annotated tags reachable from this
+        # commit. No force: a tag published since the listing is rejected.
+        pushed = _git(
+            root, "push", "--no-follow-tags", cfg.git_remote, f"{target}:{name_ref}"
+        )
+        if pushed.returncode != 0:
+            return refuse((pushed.stderr + pushed.stdout).strip())
+        _mirror_local_tag(root, name, local_tag, target)
+        _note(
+            result, echo,
+            f"Branch sweep: archived {branch!r} at {target} as {name!r} on {cfg.git_remote}.",
+        )
+        return True
+
+    return refuse(
+        f"{' and '.join(repr(name) for name in names)} already archive other "
+        "commits; never overwrite them"
     )
-    if pushed.returncode != 0:
-        return refuse((pushed.stderr + pushed.stdout).strip())
-    _note(
-        result, echo,
-        f"Branch sweep: archived {branch!r} at {target} as {tag!r} on {cfg.git_remote}.",
-    )
-    return True
+
+
+def _archived_commit(cfg: Config, root: Path, oid: str) -> str | None:
+    """Return the commit a remote retirement tag names, fetching it if needed."""
+    if not _object_present(root, oid):
+        _git(
+            root, "fetch", "--quiet", "--no-tags", "--no-write-fetch-head",
+            cfg.git_remote, oid,
+        )
+    return _rev_parse(root, f"{oid}^{{commit}}") or None
+
+
+def _mirror_local_tag(root: Path, name: str, local: str | None, archived: str) -> None:
+    """Keep the local tag from disagreeing with the published archive.
+
+    Create it when missing; advance it only when the archive already contains
+    its commit, so no local-only history is dropped.
+    """
+    if local is None:
+        _git(root, "tag", "--", name, archived)
+    elif local != archived and (
+        _git(root, "merge-base", "--is-ancestor", local, archived).returncode == 0
+    ):
+        _git(root, "tag", "--force", "--", name, archived)
 
 
 def _remove_pinning_worktree(
