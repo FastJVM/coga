@@ -7095,3 +7095,4 @@ fatal: Unable to add (null) to database
 2026-09-30 11:46 [autofix/make-branch-sweep-retirement-survive-an-existing-r] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-09-30 11:46 [autofix/make-branch-sweep-retirement-survive-an-existing-r] [megalaunch] launched via coga megalaunch
 2026-09-30 11:50 [coga] [git] sync failed: push to origin/main failed: fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com; control could not be re-read: `git fetch --quiet origin +refs/heads/main:refs/remotes/origin/main` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com
+2026-09-30 11:51 [autofix/make-branch-sweep-retirement-survive-an-existing-r] [agent:claude] advanced to step 3 (pr)

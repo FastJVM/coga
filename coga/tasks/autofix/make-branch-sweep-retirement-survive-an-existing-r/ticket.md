@@ -24,8 +24,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (self-qa)
-launch_generation: 098aecb2-7a4d-40c8-9c8e-6e4349ec339b
+step: 3 (pr)
 ---
 
 ## Description
@@ -134,3 +133,26 @@ full `pytest` 3138 passed).
   `/home/n/Code/claude/coga`. The fix fast-forwards that clone's stale local
   tag `retired/codex/retro-independent-clone-worklist-knowledge` to the remote
   commit, so deleting the tag by hand is optional.
+
+## Self-QA (2026-09-30)
+
+- Review form: manual reader review of `git diff origin/main...branch-sweep-retired-tag-collision`.
+  A launched agent can't trigger the `/code-review` or `/simplify` slash commands,
+  so I ran both passes by hand. **The review has returned** and nothing is still running.
+- Findings: no must-fix or should-fix items, and there were no code changes to commit.
+  Checked the following:
+  - Peeled `^{}` lines from `ls-remote` are ignored by the exact-key lookup.
+  - Annotated remote tags are peeled through `^{commit}`.
+  - A tag fetch that fails falls back to a refusal.
+  - Nesting the name under `@` avoids the D/F conflict.
+  - A lagging tip is still authorized by the existing merged-head proof, which covers
+    the diagnosed clone.
+  - Twins are byte-identical, and no docs still describe the old "covering descendant"
+    rule.
+- Nit for the human reviewer: code written before this fix could leave a local
+  `retired/<b>` tag behind after a failed push, at an older commit that `target`
+  already contains. The new code sends that case to the `@<sha12>` name. Publishing
+  under `retired/<b>` would also have been safe. This is conservative, not wrong.
+- Tests: `.venv/bin/python -m pytest -q` gave 3138 passed. The system `python` fails
+  collection because `tomlkit` is missing, which is an environment issue, not a finding.
+- No surface outside automated reach (no TTY or Slack rendering).
