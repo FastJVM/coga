@@ -7008,3 +7008,10 @@ fatal: Unable to add (null) to database
 2026-09-30 09:55 [carry-the-apply-the-register-amendment-step-in-a-w] [agent:claude] advanced to step 2 (human-owns-and-finishes) → nicktoper
 2026-09-30 09:55 [carry-the-apply-the-register-amendment-step-in-a-w] [system] {"agent":"claude","agent_turns":7,"cache_creation_input_tokens":180927,"cache_read_input_tokens":2528783,"cli":"claude","content_status":"ok","elapsed_seconds":40242.177229,"ended_at":"2026-09-30T16:55:24.548161Z","human_turns":0,"input_tokens":84,"model":"claude-opus-5-5","outcome":"Twin tests pass. Committing locally on the branch (not pushed), then writing the handoff on `main` and bumping.","outcome_status":"completed","output_tokens":22473,"provider":"anthropic","request":null,"schema":2,"session_id":"d9ade934-5f5c-40bd-a3de-ac11f0446f9b","slug":"carry-the-apply-the-register-amendment-step-in-a-w","started_at":"2026-09-30T05:44:42.370932Z","step":"agent-produces","title":"Carry the apply-the-register-amendment step in a workflow","ts":"2026-09-30T16:55:24.548161Z","usage_status":"ok"}
 2026-09-30 09:57 [autoclose-re-posts-another-clone-s-primary-checkou] [human:nicktoper] advanced to step 2 (peer-review) → codex
+2026-09-30 09:57 [recurring/address-pr-comments] [system] created (status=active)
+2026-09-30 09:57 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-09-30
+2026-09-30 09:57 [recurring/autoclose-merged] [system] created (status=active)
+2026-09-30 09:57 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-09-30
+2026-09-30 09:57 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-09-30
+2026-09-30 09:57 [recurring/blocker-reminders] [system] created (status=active)
+2026-09-30 09:57 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-09-29
