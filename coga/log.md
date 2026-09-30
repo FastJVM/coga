@@ -7016,3 +7016,4 @@ fatal: Unable to add (null) to database
 2026-09-30 09:57 [recurring/blocker-reminders] [system] created (status=active)
 2026-09-30 09:57 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-09-29
 2026-09-30 09:58 [recurring/blocker-reminders] [system] started (active → in_progress) via coga launch
+2026-09-30 09:58 [recurring/blocker-reminders] [system] launched as a script (ticket.py)
