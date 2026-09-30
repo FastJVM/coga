@@ -41,4 +41,25 @@ Verification: `python -m pytest tests/test_packaging.py`.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: docs/w40-workflow-corrections
+
+## Implementation plan
+
+- PR #912 closed without merging on 2026-09-29; the dependency is cleared.
+- Correct the workflow topic's branch gate and replace its incomplete workflow
+  inventory with pointers to the fallback and init-seeded directories. Keep the
+  canonical topic and packaged twin byte-identical.
+- `src/coga/step_gate.py` `_has_branch_linkage` requires only a usable branch;
+  `worktree:` is optional sandbox-clone bookkeeping.
+
+## Already satisfied
+
+Item 3 was superseded by merged PR #931, commit `ef0debf9d` (Park v2 as a
+wish list outside discovery and Dream). `coga/tasks/v2/README.md` moved to
+`coga/tasks/_v2/README.md`; its stale title-only expiry and canceled-batch
+precedent are gone. The replacement explicitly says no verdict is due while
+wishes are parked, and pulling one forward makes it an ordinary validated
+ticket. `docs/contexts/coga/roadmap/SKILL.md`, Deferred work, records the same
+2026-09-29 parking decision. Preserve this newer policy; no README edit needed.
