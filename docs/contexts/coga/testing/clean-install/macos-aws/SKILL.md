@@ -66,10 +66,13 @@ minutes to become reachable.
 Then `provision` copies both scripts to `/tmp/coga-clean-install/` and saves a
 `baseline.txt`: the macOS version, the Command Line Tools (CLT) state, Homebrew
 and `/etc/paths`. After that it **removes the CLT that the AMI ships**, using
-Apple's uninstall (delete `/Library/Developer/CommandLineTools`) and forgetting
-the package receipts. It checks that a fresh login shell resolves `git` to the
-`/usr/bin` shim. It never preinstalls CLT. A new Mac user meets the CLT prompt
-at their first `git` call, and so does the harness.
+Apple's uninstall (delete `/Library/Developer/CommandLineTools`). It checks that
+a fresh login shell resolves `git` to the `/usr/bin` shim. It never preinstalls
+CLT. A new Mac user meets the CLT prompt at their first `git` call, and so does
+the harness. The AMI's CLT receipts stay: they live under SIP in
+`/Library/Apple/System/Library/Receipts`, which `pkgutil --forget` does not
+touch. On the 2026-09-30 run they did not stop `softwareupdate` from offering
+the CLT again.
 
 ## Walk
 
@@ -93,13 +96,23 @@ steps match the Linux container:
 `main` mode builds the wheel on your machine from the fetched `origin/main`,
 not from your working tree, and copies only that wheel to the Mac.
 
-**Expect the first walk to stop at `git --version`.** The shim prints
-`xcode-select: note: No developer tools were found, requesting install` and
-exits non-zero. It also shows the install dialog in the Mac's GUI session. That
-stop is the new-user finding. To continue, install the CLT as a new user would:
-connect over VNC (below), click **Install** in the dialog, or run
-`xcode-select --install` and accept it. Then run a walk with a **new** macOS
-user. The CLT install is machine-wide; homes are not shared.
+**Expect the first walk to stop at `git --version`.** The shim exits non-zero.
+Over SSH no GUI session owns the walk user, so it prints `xcode-select: error:
+No developer tools were found and no install could be requested (possibly
+because there is no active GUI session)`; a user at the Mac's screen gets the
+install dialog instead. That stop is the new-user finding. To continue, install
+the CLT: as a new user would, over VNC (below) by clicking **Install** in the
+dialog or accepting `xcode-select --install`; or headless over SSH:
+
+```sh
+touch /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+softwareupdate -l          # note the "Command Line Tools for Xcode" label
+sudo softwareupdate -i "<that label>"
+rm /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+```
+
+Then run a walk with a **new** macOS user. The CLT install is machine-wide;
+homes are not shared.
 
 Evidence for each walk is in `.coga/clean-install/<name>/walks/<user>/`:
 `result.txt`, the wheel and `source.txt` for `main`, and `mac/evidence/`, which
