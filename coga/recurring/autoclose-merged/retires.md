@@ -24,12 +24,11 @@ For the line format and field encoding, see the `coga/autoclose/sweep` skill.
 
 ## Follow-ups (open)
 
-- `add-an-agent-picker-for-recurring` — branch `authoring-agent-picker`, worktree `/home/n/Code/coga`, recorded `2026-09-24`
 - `cleanup/quiet-the-first-run-noise-from-recurring-jobs-and` — branch `quiet-first-run`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-22`
 - `document-how-to-recover-a-retired-ticket-s-body-fr` — branch `retired-ticket-recovery`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-28`
-- `document-the-remedy-for-a-bloated-blackboard-sibli` — branch `bloated-blackboard-remedy`, worktree `/home/n/Code/claude/coga-bloated-blackboard-remedy`, recorded `2026-09-22`
-- `installer-managed-skills-the-local-adaptation-guar` — branch `gh-backed-readonly-context`, worktree `/home/n/Code/coga`, recorded `2026-09-22`
+- `launch-moves-the-checkout-to-main-before-and-after` — branch `launch-normalizes-checkout`, worktree ``, recorded `2026-09-30`
 - `make-dream-run-correctly-under-codex` — branch `dream-under-codex`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-28`
-- `record-or-clear-the-standing-repo-wide-coga-valida` — branch `validate-baseline`, worktree `/home/n/Code/claude/coga-validate-baseline`, recorded `2026-09-18`
-- `reuse-the-existing-control-worktree-for-recurring` — branch `recurring-control-worktree`, worktree `/home/n/Code/codex/coga-recurring-control-worktree`, recorded `2026-09-22`
+- `marketing/fix-installer/linux-clean-install-harness` — branch `linux-clean-install-harness`, worktree ``, recorded `2026-09-30`
+- `prevent-parent-ticket-assumptions-during-task-spli` — branch `no-parent-ticket-guidance`, worktree ``, recorded `2026-09-30`
+- `record-the-attended-ticket-switch-recipe-launch-do` — branch `attended-ticket-switch-recipe`, worktree ``, recorded `2026-09-30`
 - `run-the-landed-branch-sweep-daily-from-autoclose` — branch `daily-autoclose-branches`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-28`
