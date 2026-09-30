@@ -88,3 +88,36 @@ Notes for review: the four surviving remote refs (`codex/retro-recurring-branch-
 `doc-context-boundary`, `shebang-exec-check`, `skill-update-per-skill`) sit
 at their exact merged heads with no local copies, so the next sweep should
 delete them without this change.
+
+## Peer review
+
+2026-09-30, Codex: `codex review --base main` **returned** with one must-fix
+finding (P2): `--cherry-pick` uses whitespace-insensitive patch IDs. A rebased
+copy that changes Python indentation can match the original patch despite
+different behavior, authorize deletion, and remove the local ref/worktree.
+The reviewer reproduced this false authorization. A separate scratch check
+confirmed `git patch-id --verbatim` distinguishes those patches.
+
+An additional real-Git reproduction found that a normal merge (rather than
+a squash merge) still strands a rebased local copy: `^main` excludes the
+merged head's commits before patch matching. Removing that exclusion from
+the comparison produces the expected empty unmatched list.
+
+Proposed fix, **awaiting the attending human's decision**: compute
+whitespace-sensitive patch matches independently of control-history
+exclusions, then apply the existing control/state-only gates. Add regressions
+for indentation-changing rebases and normal merges. Tradeoff: more Git work
+and conservative retention when patch context differs. No review fixes have
+been applied and no bump has run; the attended-session instruction requires
+confirmation before substantive code changes.
+
+Verification:
+- Reviewer: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_branchsweep.py tests/test_packaging.py -q` → 96 passed.
+- After rebase: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q` → 3137 passed in 202.59s.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task branch-sweep-never-clears-rebased-copy-branches --json` → one task OK, no issues.
+- `git diff --check` passed. No raw-terminal, pager, prompt, or rendered UI surface changes.
+
+Freshness: `git fetch origin main && git rebase FETCH_HEAD` completed without
+conflicts; `git push --force-with-lease origin branch-sweep-cherry-pick`
+published `33f8a215b` atop `4ca7c1ada`. Returned to `main` before writing this
+note. The final PR body remains to be authored after the review fixes.
