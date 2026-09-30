@@ -42,6 +42,7 @@ Verification: `python -m pytest tests/test_packaging.py` plus the helper under a
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/933
 branch: dream-w40-doc-corrections
 
 ## Implementation handoff (2026-09-29)
