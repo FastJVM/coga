@@ -1,6 +1,6 @@
 ---
 title: Decide whether the weekly usage report belongs on coga-important
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
