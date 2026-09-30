@@ -7104,3 +7104,4 @@ fatal: Unable to add (null) to database
 2026-09-30 14:13 [ship-edge-ticket-py-code-upgrades-with-the-wheel] [human:nicktoper] advanced to step 5 (open-pr)
 2026-09-30 14:13 [marketing/fix-installer/macos-clean-install-harness-on-aws] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-09-30 14:14 [marketing/fix-installer/macos-clean-install-harness-on-aws] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-09-30 14:14 [marketing/fix-installer/macos-clean-install-harness-on-aws] [megalaunch] launched via coga megalaunch
