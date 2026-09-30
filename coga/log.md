@@ -6950,3 +6950,4 @@ fatal: Unable to add (null) to database
 2026-09-29 18:03 [recurring/autoclose-merged] [system] created (status=active)
 2026-09-29 18:03 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
 2026-09-29 18:03 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
+2026-09-29 18:03 [autofix/treat-non-requestexception-slack-send-errors-as-de] [human:nicktoper] auto-bumped on merge of PR #911 → done
