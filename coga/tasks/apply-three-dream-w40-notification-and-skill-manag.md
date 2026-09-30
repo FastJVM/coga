@@ -44,6 +44,10 @@ Verification: `python -m pytest tests/test_packaging.py`.
 
 ## Dependency check — 2026-09-29
 
+- Resolved: PR #914 merged at `2026-09-29T22:54:15Z`, verified via
+  `gh pr view 914 --json number,state,mergedAt,closedAt,headRefName,title,url`.
+  All four prerequisite asks were resolved with `coga unblock`; the earlier
+  checks below are historical.
 - `gh pr view 914 --json number,state,mergedAt,headRefName,title,url` confirms
   [PR #914](https://github.com/FastJVM/coga/pull/914) is still `OPEN` on
   `fix-recurring-git-hygiene`. Its owning task is
@@ -62,6 +66,16 @@ Verification: `python -m pytest tests/test_packaging.py`.
   ticket, and keep every edited topic byte-identical to its packaged twin.
 
 ---
+
+## Dev
+
+branch: dream-w40-notification-skill-docs
+
+- Start check: clean `main`, fetched `origin/main`, fast-forward already current.
+- Plan: correct the notification inventory/routing/failure topics and per-skill
+  update argv; document the existing dirty-tracked-file checkout failure in
+  skill-management without changing runtime behavior. Keep all four packaged
+  twins identical and leave the canceled source ticket untouched.
 
 ## Blockers
 
