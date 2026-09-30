@@ -37,9 +37,9 @@ not rerouted.
 
 Posts that announce a committed transition pass `fatal=False`: `mark_blocked`,
 `advance_step` (bump FYIs), `mark_done`/`mark_canceled` outcomes, the
-watchdog and scan-error outcomes, the autoclose retire summary, and the
-recurring script-failure post. The markdown is the source of truth, so a
-failed announcement must not decide whether the session ends — crashing
+watchdog, scan-error, and period-contradiction outcomes, the autoclose retire
+summary, and the recurring script-failure post. The markdown is the source of
+truth, so a failed announcement must not decide whether the session ends — crashing
 between `coga bump`'s write and `emit_done_marker` would leave a supervised
 REPL waiting for its idle backstop. Git publication makes the same bargain.
 
@@ -71,7 +71,8 @@ unresolved webhook can still refuse a `fatal=False` producer. Callers:
   hook of `run_autoclose_recipe`.
 
 Ordinary `block` and launch paths, and the important script-failure,
-scan-error, and watchdog alerts, deliberately do not preflight and stay
+scan-error, period-contradiction (`recurring_runner._flag_period_contradiction`),
+and watchdog alerts, deliberately do not preflight and stay
 best-effort. No caller currently passes `important=True`; use it when the
 gated post routes to important. When adding a caller, preflight only if the
 transition's contract makes notification configuration an admission gate,

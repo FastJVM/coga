@@ -28,7 +28,9 @@ Unattended machine failures meet the same bar when the only ticket is a
 generated recurring period task that no human treats as their queue. Coga
 therefore routes these to important: a recurring period's `ticket.py`
 exiting non-zero, a completed period that did not advance its declared state,
-recurring template parse errors, and watchdog timeouts (plus their
+recurring template parse errors, period contradictions where failed create sync
+leaves another ticket copy in place and prevents the period from running as
+created, and watchdog timeouts (plus their
 re-escalations). Importance chooses where a delivered alert goes, never when:
 every one posts live. The producer inventory is
 [`coga/notifications/producers`](../notifications/producers/SKILL.md).
