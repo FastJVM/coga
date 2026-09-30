@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -47,7 +47,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: branch-sweep-cherry-pick
 
-Plan (agreed with human 2026-09-30): extend `branchsweep.merged_pr_verdict` so
+Initial plan (agreed with human 2026-09-30; refined in peer review below): extend `branchsweep.merged_pr_verdict` so
 commits patch-equivalent to the merged head drop out of the "beyond" listing
 (`git rev-list --right-only --cherry-pick <head>...<tip> ^<landed>`); remaining
 commits still face the state-only path check. Remote refs stay exact-tip only.
@@ -91,33 +91,62 @@ delete them without this change.
 
 ## Peer review
 
-2026-09-30, Codex: `codex review --base main` **returned** with one must-fix
-finding (P2): `--cherry-pick` uses whitespace-insensitive patch IDs. A rebased
-copy that changes Python indentation can match the original patch despite
-different behavior, authorize deletion, and remove the local ref/worktree.
-The reviewer reproduced this false authorization. A separate scratch check
-confirmed `git patch-id --verbatim` distinguishes those patches.
+2026-09-30, Codex: both reviews **returned** before handoff.
 
-An additional real-Git reproduction found that a normal merge (rather than
-a squash merge) still strands a rebased local copy: `^main` excludes the
-merged head's commits before patch matching. Removing that exclusion from
-the comparison produces the expected empty unmatched list.
+- `codex review --base main` returned one P2: ordinary patch IDs ignore
+  whitespace and can approve deletion after a rebase changes Python
+  indentation. A separate real-Git reproduction also showed that excluding
+  control before matching strands rebased copies after normal merges.
+- The human approved the revised fix: whitespace-sensitive comparison
+  independent of control exclusions, accepting more Git work and conservative
+  retention when patch context differs.
+- `codex review --base origin/main` returned two P1 findings on that fix:
+  set membership reused one merged patch for repeated local commits, allowing
+  reapplied source work after a revert; `diff.submodule=log` could hide a
+  changed gitlink from patch-ID parsing. This review's first invocation failed
+  to initialize in the read-only sandbox; the escalated invocation returned.
 
-Proposed fix, **awaiting the attending human's decision**: compute
-whitespace-sensitive patch matches independently of control-history
-exclusions, then apply the existing control/state-only gates. Add regressions
-for indentation-changing rebases and normal merges. Tradeoff: more Git work
-and conservative retention when patch context differs. No review fixes have
-been applied and no bump has run; the attended-session instruction requires
-confirmation before substantive code changes.
+All reported findings are addressed in `412fad124` and `9b3d50326`:
+- `git patch-id --verbatim`, with byte-preserving subprocess IO, retains
+  indentation and line-ending differences. Merged-side history stays available
+  even when normal merges put it on control.
+- Matches are consumed one-to-one. Submodule diffs use the explicit short
+  format; external diff and text conversion are disabled.
+- Real-Git regressions cover normal/squash merges, changed patches,
+  indentation/line endings, comparison failure, repeated/reapplied patches,
+  and submodule display configuration. Existing state-only and archive gates
+  remain covered. The final small follow-up was verified with these tests;
+  no third review was run.
+- The owning `dev/checkout-cleanup` topic documents the proof; sweep skill
+  step 4 summarizes and links to it. Both packaged twins match.
 
-Verification:
-- Reviewer: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_branchsweep.py tests/test_packaging.py -q` → 96 passed.
-- After rebase: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q` → 3137 passed in 202.59s.
+Final verification on `9b3d50326`:
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest tests/test_branchsweep.py tests/test_packaging.py -q` → 105 passed.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q` → 3146 passed in 202.21s.
 - `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task branch-sweep-never-clears-rebased-copy-branches --json` → one task OK, no issues.
-- `git diff --check` passed. No raw-terminal, pager, prompt, or rendered UI surface changes.
+- `git diff --check origin/main...HEAD` passed. No raw-terminal, pager,
+  prompt, or rendered UI surface changes require a separate interactive check.
 
 Freshness: `git fetch origin main && git rebase FETCH_HEAD` completed without
-conflicts; `git push --force-with-lease origin branch-sweep-cherry-pick`
-published `33f8a215b` atop `4ca7c1ada`. Returned to `main` before writing this
-note. The final PR body remains to be authored after the review fixes.
+conflicts before the final full suite. Branch tip `9b3d50326` has three code
+commits ahead of `818d45724` and is published with
+`git push --force-with-lease origin branch-sweep-cherry-pick`. Returned to a
+clean `main` at `origin/main` before writing this handoff.
+
+## PR
+
+Branch sweep now clears local pre-rebase copies after their rebased PR merges.
+It matches non-merge patches one-to-one with whitespace preserved, while
+retaining unmatched source changes and the existing state-only checks.
+Comparison works after both squash and normal merges and preserves branches
+on comparison failure. Remote deletion still requires the exact merged head.
+
+For divergent local and remote tips, the retirement tag preserves the local
+history while the merged head remains available through its GitHub PR ref.
+The cleanup contract, sweep instructions, and packaged twins document the
+behavior. Real-Git regressions cover successful cleanup and refusal for
+changed whitespace, reapplied work, changed gitlinks, and comparison failures.
+Different patch context can conservatively leave an equivalent branch for
+manual inspection.
+
+Test plan: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q` → 3146 passed; `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest tests/test_branchsweep.py tests/test_packaging.py -q` → 105 passed; `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task branch-sweep-never-clears-rebased-copy-branches --json` → no issues; `git diff --check origin/main...HEAD` passed on the feature branch.
