@@ -1,6 +1,6 @@
 ---
 title: macOS clean-install harness on AWS
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
