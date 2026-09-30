@@ -1,6 +1,6 @@
 ---
 title: macOS clean-install harness on AWS
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,7 +24,6 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
-launch_generation: 584a7386-2f13-4011-b565-43f0f9fdbafd
 ---
 
 ## Description
@@ -84,3 +83,55 @@ branch: macos-clean-install-harness
 - Runbook as child topic `coga/testing/clean-install/macos-aws` (+ packaged twin).
 - Spending AWS money needs owner approval (region + host allocation); the AWS
   SSO token for `multiply-telemetry` was expired at session start.
+
+## Implementation handoff — 2026-09-30 (claude, megalaunch)
+
+Pushed `macos-clean-install-harness` (one commit on top of `origin/main`
+`86ccdc662`). No AWS resources have been created. **The provision cycle has
+not been exercised yet**: it needs an owner-approved spend and a live SSO
+token (the `multiply-telemetry` token had expired this session). Blocked on that.
+
+What changed:
+- `scripts/clean-install/aws-mac.sh` (host driver): `preflight REGION`
+  (read-only: quota, mac2 AZs, existing hosts, newest AMI), `provision NAME
+  REGION AZ` (gated by `COGA_CLEAN_INSTALL_ALLOCATE=yes`; key pair, SG with SSH
+  from caller /32 only, host, instance, and each ID appended to
+  `.coga/clean-install/NAME/resources.env` as it is created), `walk NAME
+  pypi|main MAC_USER [OPERATOR]`, `ssh`, `vnc` (Screen Sharing via SSH
+  tunnel, 5900 never opened), `status`, `teardown` (terminate → SG → key →
+  release; idempotent), `release` (retry after 24h).
+- `scripts/clean-install/macos-walk.sh` (Mac side, Bash 3.2): `baseline`,
+  `reset` (removes AMI's CLT + receipts; asserts fresh login shell's git is
+  the `/usr/bin` shim, so the first git call prompts as for a new user),
+  `walk` (new macOS user, uv official installer, then shared `container.sh`),
+  `ticket`, `vnc`.
+- `container.sh`: `git --version` now runs before `python3 --version` (macOS
+  has no `python`; git is where CLT prompt should surface), and a
+  `shasum -a 256` fallback. Linux steps otherwise unchanged.
+- Runbook topic `coga/testing/clean-install/macos-aws` + packaged twin,
+  registered in `REQUIRED_BOOTSTRAP_CONTEXT_REFS`; linked from
+  `coga/testing` and `coga/testing/clean-install`.
+- Tests: `test_aws_mac_*` in `tests/test_clean_install_harness.py` (stub aws/ssh/scp).
+
+Verification: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q` →
+**3137 passed**; after rebase `tests/test_clean_install_harness.py
+tests/test_packaging.py` → 34 passed (only Coga state came in upstream).
+
+Unverified assumptions (the real run confirms them): EC2 Mac AMIs ship CLT
+and Homebrew; `sysadminctl -addUser` works without secure-token prompts;
+`amzn-ec2-macos-*` newest arm64 image boots on mac2.metal.
+
+Next session (after unblock), from this checkout on the branch:
+1. `export AWS_PROFILE=multiply-telemetry`; `aws-mac.sh preflight <region>`.
+2. `COGA_CLEAN_INSTALL_ALLOCATE=yes aws-mac.sh provision mac1 <region> <az>`.
+3. `walk mac1 pypi walk1` (expected stop at git/CLT), install CLT via VNC,
+   `walk mac1 pypi walk2`, `walk mac1 main walk3`.
+4. `teardown mac1`; host release only ≥24h after `HOST_ALLOCATED_AT` —
+   `aws-mac.sh release mac1` the next day. Record every ID here and in the PR.
+Fix any script bug the live run finds on the branch before bumping.
+
+---
+
+## Blockers
+
+- [ ] [2026-09-30 14:24] [agent:claude] id=20260930T142425 Harness is pushed on branch macos-clean-install-harness; the required live provision→install→init→teardown cycle needs you to: (1) run 'aws sso login --profile multiply-telemetry' (token expired), and (2) approve allocating one mac2.metal dedicated host (24h minimum billing, release only after 24h) and name the region/AZ (suggest us-east-1; 'aws-mac.sh preflight <region>' shows quota and AZs). Then unblock and relaunch implement.
