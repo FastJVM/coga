@@ -6958,3 +6958,4 @@ fatal: Unable to add (null) to database
 2026-09-29 18:03 [prevent-parent-ticket-assumptions-during-task-spli] [human:nicktoper] auto-bumped on merge of PR #915 → done
 2026-09-29 18:03 [record-that-preserved-tmp-worktrees-do-not-survive] [human:nicktoper] auto-bumped on merge of PR #917 → done
 2026-09-29 18:03 [record-the-attended-ticket-switch-recipe-launch-do] [human:nicktoper] auto-bumped on merge of PR #910 → done
+2026-09-29 18:03 [stop-synthetic-from-claiming-a-claude-session-s-mo] [human:nicktoper] auto-bumped on merge of PR #916 → done
