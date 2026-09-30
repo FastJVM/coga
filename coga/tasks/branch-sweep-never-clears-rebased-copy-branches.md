@@ -1,6 +1,6 @@
 ---
 title: Branch-sweep never clears rebased-copy branches
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:1a95b92f-f923-452d-984a-a67a27900901
 ---
 
 ## Description
