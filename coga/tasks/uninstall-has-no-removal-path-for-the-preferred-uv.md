@@ -1,6 +1,6 @@
 ---
 title: Uninstall has no removal path for the preferred uv tool install
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:aca875dd-615b-4bad-8fd6-661ab54b556b
 ---
 
 ## Description
