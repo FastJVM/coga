@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 agent: claude
 ---
 
@@ -66,33 +66,33 @@ their own contracts change.
 
 ### Acceptance criteria
 
-- [ ] The Coga wheel and editable install include `coga_edge`, with phone-home
+- [x] The Coga wheel and editable install include `coga_edge`, with phone-home
   implemented in `src/coga_edge/phone_home.py`. There is no second distribution,
   install step, dependency version, entry-point registry, or public CLI command.
   Production code under `src/coga/` does not import or path-load `coga_edge` or
   ticket implementations. Edge code imports only appropriate shared core
   infrastructure; moving a job into this package does not make it kernel code.
-- [ ] Both `coga/recurring/phone-home/ticket.py` and its packaged template twin
+- [x] Both `coga/recurring/phone-home/ticket.py` and its packaged template twin
   are byte-identical thin shims that invoke the wheel implementation's `main`
   and return its exit code. No job logic or duplicate completion lives in the
   shim. Fresh init installs that shim; recurring creation copies it unchanged.
   Existing period shims use the currently installed implementation even when
   the originating template has since changed or disappeared.
-- [ ] An installed-wheel A-to-B test reuses one initialized repo and one
+- [x] An installed-wheel A-to-B test reuses one initialized repo and one
   already-materialized period shim. After replacing A with B, the next script
   process demonstrably runs B's implementation without init, recreation,
   template sync, or repo source writes. Verify both the recurring-template
   invocation and the period invocation, with fake transport and admission
   suppression retained. Distinguish implementation behavior, not merely the
   distribution's reported version.
-- [ ] A local full implementation replacing a template's `ticket.py` runs as
+- [x] A local full implementation replacing a template's `ticket.py` runs as
   that repo's fork; new periods copy it. A fork placed in an existing period
   remains that period's implementation regardless of template or wheel changes.
   Wheel installation and normal launch never overwrite, merge, or bypass
   either copy. Test each case across A-to-B installation. A missing edge module
   fails visibly through normal script failure; it never falls back to an old
   bundled implementation or an agent with a success result.
-- [ ] Phone-home retains its existing closed payload, admission gates, opt-out,
+- [x] Phone-home retains its existing closed payload, admission gates, opt-out,
   parent state/cursor, locking/publication, deadlines, loss semantics, receipt,
   report, and failure behavior. Its private worker subprocess executes the
   same selected implementation as its parent, including a full local fork.
@@ -100,7 +100,7 @@ their own contracts change.
   completion remains one CLI bump after success, and bump failure propagates.
   Direct invocation outside a launch still prints its report without advancing
   a task. No new telemetry event, field, endpoint, configuration, or bypass.
-- [ ] The packaging topic documents an executable operator procedure for
+- [x] The packaging topic documents an executable operator procedure for
   adopting shims in existing repos, including baseline comparison, customized
   files, existing and parked period copies, running sessions, and rollback.
   Demonstrate the procedure against an old full-code fixture with parent
@@ -108,7 +108,7 @@ their own contracts change.
   blackboards, `period_state`, generation, workflow, and unrelated attachments.
   Unknown or edited source is preserved for review, never assumed upstream
   merely because its path is familiar or Git reports a clean tree.
-- [ ] The distribution contract covers explicit ordinary Python attachments
+- [x] The distribution contract covers explicit ordinary Python attachments
   as well as reserved `ticket.py`: each future edge worker gets a direct module
   entry point or a plain attachment shim as needed, with no generic dispatcher
   and no expansion of automatic copying or execution. The later recipe-removal
@@ -117,12 +117,12 @@ their own contracts change.
   their registry targets. A representative migration fixture proves those
   instructions are inventoried and reconciled; this ticket does not remove
   recipes or implement the future Dream workers.
-- [ ] Owning topics and packaged twins describe the settled placement, upgrade,
+- [x] Owning topics and packaged twins describe the settled placement, upgrade,
   override, and migration rules. Telemetry and its operations topic identify the
   new implementation/key location and retain the existing operational safeguards.
   No current surface claims all default telemetry logic remains in a copied
   `ticket.py`, or that an installer upgrades legacy copies automatically.
-- [ ] Relevant behavioral tests, installed-wheel upgrade/fork tests, twin tests,
+- [x] Relevant behavioral tests, installed-wheel upgrade/fork tests, twin tests,
   pristine-tree wheel build, CLI smoke, full pytest suite, and validation pass.
   Record exact commands and counts. Adapt existing telemetry transport guards
   to the moved module; do not turn off CI/pytest suppression or contact PostHog.
@@ -563,3 +563,79 @@ branch: edge-wheel-upgrades
 - A/B wheels install into the same `pip --target` directory (`--upgrade` for B).
   Both template and existing period execute directly in fresh processes;
   actual launch success/failure and completion are covered separately.
+
+
+## Implementation handoff (2026-09-30)
+
+Implemented and pushed `edge-wheel-upgrades`, commit `2dd35eaceb257eae25e6699e48616f3ce621842e`.
+Rebased onto `854b1875e` (`origin/main`); the intervening commits only changed
+Coga ticket/log state. Manual-session checkout returned to clean `main` before
+this handoff. No PR opened; the later workflow step owns that.
+
+- `src/coga_edge/phone_home.py`, `main`, `run_phone_home`, `_bounded_worker`
+  and `_worker_main`, now own the implementation in the existing distribution.
+  Its executable logic is byte-identical to PR 880; only the module docstring
+  differs. Both reserved scripts are byte-identical imports of `main` that
+  return its exit code. No production core module, launch/copying behavior,
+  recipe target, config, telemetry schema, endpoint or admission gate changed.
+- `tests/conftest.py`, `load_phone_home`, now imports the canonical module so
+  the autouse transport guard patches the object the shims use. Telemetry
+  tests retain behavior/transport coverage and add worker-file selection for
+  full forks, exactly-once bump after success and bump failure propagation.
+- `tests/test_edge_distribution.py`, `edge_wheels`, builds actual A/B artifacts
+  once with identical version metadata but distinct report behavior.
+  `test_installed_wheel_upgrade_preserves_shims_and_full_forks` reuses the same
+  initialized repo/install target/materialized period, checks all repo bytes
+  across installation, verifies template/period forks and real launch, and
+  runs the period after removing the template's script (parent state remains).
+  CI suppression and a subprocess HTTP rejection guard stay enabled.
+  `test_installed_shim_launch_completes_or_fails_without_agent` exercises actual
+  CLI launch without a TTY/agent for success and a missing edge module.
+- `tests/test_edge_distribution.py`,
+  `test_documented_legacy_adoption_preserves_state_and_reconciles_callers`,
+  executes labeled commands directly from the packaging runbook against the
+  archived PR 880 source. It checks stock/committed-edit/unknown-baseline
+  classification, outstanding/parked copies, exact state preservation,
+  fixture-only Dream Phase 1/5 caller reconciliation, and subsequent B output.
+  Historical full code is an explicitly archived test fixture, not a runtime
+  fallback or packaged implementation twin.
+- Packaging owns the distribution/override contract and its linked
+  `edge-code-upgrades.md` operator procedure. The executable procedure is a
+  topic attachment to keep the owning SKILL concise; no extra CLI/updater.
+  Extension-model, telemetry/operations, codebase, script-tickets, recurring
+  templates, agent-file summaries and packaged twins are updated.
+  Ordinary attachments remain explicitly invoked; future recipe removal must
+  reconcile old instruction callers before contraction. No Dream workers or
+  external-client migration were implemented.
+
+### Verification receipts
+
+- Before the move: `.venv/bin/python -m pytest tests/test_edge_distribution.py -q`
+  -> 1 failed (`ModuleNotFoundError: coga_edge`), 1 passed; regression established.
+- `.venv/bin/python -m pytest tests/test_edge_distribution.py -q`
+  -> 8 passed (upgrade/fork/launch/migration matrix).
+- `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q`
+  -> 3148 passed in 213.65s before rebase; 3148 passed in 217.49s after rebase.
+  Includes behavioral, installed-wheel, source-boundary and twin tests.
+- `.venv/bin/python -m coga.cli --help` -> exit 0.
+- From `example/coga`: `env -u SLACK_WEBHOOK_URL /home/n/Code/codex/coga/.venv/bin/python -m coga.cli validate --json`
+  -> 4 valid, no issues.
+- `.venv/bin/python -m coga.cli validate --json` -> 203 valid, no errors;
+  existing ticket warnings (empty descriptions, unfrozen workflows, idle tasks,
+  large blackboards), unrelated to this implementation.
+- `.venv/bin/python -m coga.cli validate --task ship-edge-ticket-py-code-upgrades-with-the-wheel --json`
+  -> 1 valid, no issues.
+- Editable import from `/tmp`:
+  `/home/n/Code/codex/coga/.venv/bin/python -c 'from pathlib import Path; import coga, coga_edge.phone_home as job; print(Path(coga.__file__).resolve()); print(Path(job.__file__).resolve())'`
+  -> both packages resolve to this checkout's `src/` tree.
+- Pristine build: `git clone --no-hardlinks --branch edge-wheel-upgrades /home/n/Code/codex/coga /tmp/coga-pristine-edge-1nr9i7xd/repo`,
+  then from that clone `/home/n/Code/codex/coga/.venv/bin/python -m pip wheel --no-build-isolation --no-deps . -w /tmp/coga-pristine-edge-1nr9i7xd/dist`
+  -> built `coga-0.3.2-py3-none-any.whl`; clone status empty before and after.
+  SHA-256: `63c3fd19af1dd38983958df15b5420a85dbeec2a7f99d371ba07008767816bd2`.
+- `git diff --check` and `cmp AGENTS.md CLAUDE.md` -> clean.
+
+Initial fixture-only failures (missing Git on restricted test PATH and a
+`Path.with_suffix` typo) were corrected before the passing full-suite runs.
+No production transport was contacted. No unresolved implementation blocker
+or adjacent bug remains from this step. Default upgrades start only after
+reviewed shim adoption; full forks and legacy full copies retain their code.
