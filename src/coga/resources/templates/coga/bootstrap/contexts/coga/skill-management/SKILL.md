@@ -103,6 +103,13 @@ updates left in the working tree.
   adaptation, and an upstream change confined to those paths is not detected.
   The set is fixed rather than read from `.gitignore`, so a digest depends
   only on the tree's bytes.
+- **Older digests remain verifiable.** When a current digest differs from
+  its record, the legacy hash (including machine-local directories) may
+  still prove the installed or upstream tree unchanged. Update migrates
+  verified provenance to the current digests; a metadata-only repair reports
+  a change for `--pr` without replacing skill files. Status uses the same
+  comparisons without writing. A legacy mismatch is still an adaptation or
+  upstream change, not permission to discard edits.
 - **`include` makes pruning reproducible.** Install and update prune the
   fetched tree to the listed repo-relative paths before landing it (no
   absolute paths or `..`; `SKILL.md` and `.coga-source.json` always kept).
