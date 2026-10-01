@@ -7233,3 +7233,4 @@ fatal: Unable to add (null) to database
 2026-10-01 10:47 [apply-three-dream-w40-skill-and-context-correction] [human:nicktoper] auto-bumped on merge of PR #933 → done
 2026-10-01 10:47 [apply-three-dream-w40-workflow-and-v2-readme-corre] [human:nicktoper] auto-bumped on merge of PR #934 → done
 2026-10-01 10:47 [autofix/make-branch-sweep-retirement-survive-an-existing-r] [human:nicktoper] auto-bumped on merge of PR #937 → done
+2026-10-01 10:47 [branch-sweep-never-clears-rebased-copy-branches] [human:nicktoper] auto-bumped on merge of PR #941 → done
