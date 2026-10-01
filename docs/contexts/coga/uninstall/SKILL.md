@@ -54,10 +54,12 @@ through the installer that owns the running CLI's venv, detected by
 unresolved `sys.executable` venv root:
 
 - `uv-receipt.toml` (the preferred `uv tool install coga`,
-  [coga/install](../install/SKILL.md)) → `uv tool uninstall coga`. A uv tool
-  venv normally has no pip, so pip is never tried there;
+  [coga/install](../install/SKILL.md)) → `uv tool uninstall coga` with
+  `UV_TOOL_DIR` set to the venv root's parent, so a nondefault tools
+  directory is targeted even when `$UV_TOOL_DIR` is now unset or different.
+  A uv tool venv normally has no pip, so pip is never tried there;
 - `pipx_metadata.json` → `pipx uninstall coga`;
 - anything else → `<python> -m pip uninstall -y coga`.
 
 If the installer is missing from `PATH` or the uninstall fails, it prints the
-same installer's manual command.
+same installer's manual command (for uv, prefixed with that `UV_TOOL_DIR=`).

@@ -15,6 +15,8 @@ uninstall matching the running install. Destructive, so it prints the plan and a
 
 from __future__ import annotations
 
+import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -287,12 +289,17 @@ def _handle_package(purge: bool, coga_os: Path) -> None:
         typer.echo("(or re-run `coga uninstall --purge` from another Coga repo).")
         return
 
-    kind, _ = running_cli_location()
+    kind, venv = running_cli_location()
     if kind == "pipx":
         _uninstall_via_tool("pipx", ["uninstall"])
         return
     if kind == "uv":
-        _uninstall_via_tool("uv", ["tool", "uninstall"])
+        # Pin uv to the tools dir that owns the running venv: with a
+        # nondefault $UV_TOOL_DIR that is unset or changed now, plain
+        # `uv tool uninstall` would search the wrong dir and miss it.
+        _uninstall_via_tool(
+            "uv", ["tool", "uninstall"], env={"UV_TOOL_DIR": str(venv.parent)}
+        )
         return
 
     typer.echo(
@@ -315,10 +322,24 @@ def _handle_package(purge: bool, coga_os: Path) -> None:
     )
 
 
-def _uninstall_via_tool(tool: str, subcommand: list[str]) -> None:
+def _uninstall_via_tool(
+    tool: str, subcommand: list[str], env: dict[str, str] | None = None
+) -> None:
     """Uninstall the global package through the installer that owns its venv
-    (pipx or `uv tool`); such a venv normally has no pip to fall back on."""
-    display = " ".join([tool, *subcommand, COGA_PIPX_PACKAGE])
+    (pipx or `uv tool`); such a venv normally has no pip to fall back on.
+
+    `env` overrides are passed to the subprocess and shown as `VAR=value`
+    prefixes in every printed command, so the manual fallback targets the
+    same install."""
+    env = env or {}
+    display = " ".join(
+        [
+            *(f"{k}={shlex.quote(v)}" for k, v in env.items()),
+            tool,
+            *subcommand,
+            COGA_PIPX_PACKAGE,
+        ]
+    )
     exe = shutil.which(tool)
     if exe is None:
         typer.secho(
@@ -333,6 +354,7 @@ def _uninstall_via_tool(tool: str, subcommand: list[str]) -> None:
         [exe, *subcommand, COGA_PIPX_PACKAGE],
         capture_output=True,
         text=True,
+        env={**os.environ, **env} if env else None,
     )
     if result.returncode == 0:
         typer.echo(f"Uninstalled `{COGA_PIPX_PACKAGE}` via {tool}.")
