@@ -7236,3 +7236,4 @@ fatal: Unable to add (null) to database
 2026-10-01 10:47 [branch-sweep-never-clears-rebased-copy-branches] [human:nicktoper] auto-bumped on merge of PR #941 → done
 2026-10-01 10:47 [record-that-contexts-linking-tickets-by-path-break] [human:nicktoper] auto-bumped on merge of PR #936 → done
 2026-10-01 10:48 [name-phone-home-as-the-record-failure-false-caller] [human:nicktoper] advanced to step 3 (open-pr) → claude
+2026-10-01 10:49 [recurring/autoclose-merged] [system] task done

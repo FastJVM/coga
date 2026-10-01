@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
-step: 1 (sweep)
 ---
 
 ## Description
@@ -80,3 +79,100 @@ proofs and worktree opt-in remain those in
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-10-01T17:48:19+00:00
+Task: `recurring/autoclose-merged`
+
+6 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
+
+- `apply-three-dream-w40-notification-and-skill-manag` "Apply three Dream W40 notification and skill-management corrections after PR 914 lands": branch `dream-w40-notification-skill-docs`
+- `apply-three-dream-w40-skill-and-context-correction` "Apply three Dream W40 skill and context corrections after PR 909 lands": branch `dream-w40-doc-corrections`
+- `apply-three-dream-w40-workflow-and-v2-readme-corre` "Apply three Dream W40 workflow and v2 README corrections after PR 912 lands": branch `docs/w40-workflow-corrections`
+- `autofix/make-branch-sweep-retirement-survive-an-existing-r` "Make branch-sweep retirement survive an existing remote retired/ tag": branch `branch-sweep-retired-tag-collision`
+- `branch-sweep-never-clears-rebased-copy-branches` "Branch-sweep never clears rebased-copy branches": branch `branch-sweep-cherry-pick`
+- `record-that-contexts-linking-tickets-by-path-break` "Record that contexts linking tickets by path break at retirement after PR 918 lands": branch `knowledge-ticket-links-at-retirement`
+
+4 checkout(s) preserved — a proof refused; each stays on the worklist until a human acts:
+
+- `cleanup/quiet-the-first-run-noise-from-recurring-jobs-and` (worklist backlog): worktree `/home/n/Code/codex/coga`, branch `quiet-first-run` — '/home/n/Code/codex/coga' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`/home/n/Code/codex/coga` is an independent checkout with its own repository, which no proof removes — inspect and remove it by hand, unless it is another clone's primary checkout in active use: then never remove it; verify the branch is gone in that clone and delete this `retires.md` line by hand (see `dev/checkout-cleanup`))
+  - Worktree cleanup: '/home/n/Code/codex/coga' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: local 'quiet-first-run' not present.
+  - Branch cleanup: remote origin/quiet-first-run already gone.
+- `document-how-to-recover-a-retired-ticket-s-body-fr` (worklist backlog): worktree `/home/n/Code/codex/coga`, branch `retired-ticket-recovery` — '/home/n/Code/codex/coga' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`/home/n/Code/codex/coga` is an independent checkout with its own repository, which no proof removes — inspect and remove it by hand, unless it is another clone's primary checkout in active use: then never remove it; verify the branch is gone in that clone and delete this `retires.md` line by hand (see `dev/checkout-cleanup`))
+  - Worktree cleanup: '/home/n/Code/codex/coga' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: local 'retired-ticket-recovery' not present.
+  - Branch cleanup: remote origin/retired-ticket-recovery already gone.
+- `make-dream-run-correctly-under-codex` (worklist backlog): worktree `/home/n/Code/codex/coga`, branch `dream-under-codex` — '/home/n/Code/codex/coga' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`/home/n/Code/codex/coga` is an independent checkout with its own repository, which no proof removes — inspect and remove it by hand, unless it is another clone's primary checkout in active use: then never remove it; verify the branch is gone in that clone and delete this `retires.md` line by hand (see `dev/checkout-cleanup`))
+  - Worktree cleanup: '/home/n/Code/codex/coga' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: local 'dream-under-codex' not present.
+  - Branch cleanup: remote origin/dream-under-codex already gone.
+- `run-the-landed-branch-sweep-daily-from-autoclose` (worklist backlog): worktree `/home/n/Code/codex/coga`, branch `daily-autoclose-branches` — '/home/n/Code/codex/coga' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`/home/n/Code/codex/coga` is an independent checkout with its own repository, which no proof removes — inspect and remove it by hand, unless it is another clone's primary checkout in active use: then never remove it; verify the branch is gone in that clone and delete this `retires.md` line by hand (see `dev/checkout-cleanup`))
+  - Worktree cleanup: '/home/n/Code/codex/coga' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
+  - Branch cleanup: local 'daily-autoclose-branches' not present.
+  - Branch cleanup: remote origin/daily-autoclose-branches already gone.
+
+## Branch Sweep
+
+Generated: 2026-10-01T17:49:17+00:00
+Task: `recurring/autoclose-merged`
+
+Result: 9 local and 2 remote branch(es) deleted, 0 worktree(s) removed, 0 skipped-worktree-pinned, 16 skipped.
+- deleted local: branch-sweep-landed, codex/retro-independent-clone-worklist-knowledge, doc-context-boundary, dream-w38-extract-backlog, recurring-missing-workflow, skill-update-per-skill, sweep-abandoned-record, title-only-validator, v2-premise-holes
+- deleted remote: doc-context-boundary, skill-update-per-skill
+- skipped: autoclose-retires-durable-home, bloated-blackboard-remedy, codex/retro-recurring-branch-sweep-knowledge, dream-w40-testing-baseline, guard-reauthor-in-progress, init-offers-dependency-installs, publish-off-control, recurring-crlf-lease, recurring-ledger-from-log, retire-worklist-linked-only, scrub-sa-token, shebang-exec-check, slack-important-alert, split-ticket-contract, v2-premise-adjudication, wedge-ticket-admin-reproduction
+
+### Decisions
+
+- Branch cleanup: local 'autoclose-retires-durable-home' has unmerged work and no merged PR vouching for it — left in place.
+- Branch sweep: 'bloated-blackboard-remedy' has merged PR #856 at 449bf55590e8, but the ref carries commits touching coga/contexts/coga/architecture/SKILL.md, coga/contexts/coga/blackboard/SKILL.md, src/coga/dream_validate_drift.py (+3 more) — left in place.
+- Branch cleanup: local 'bloated-blackboard-remedy' has unmerged work and no merged PR vouching for it — left in place.
+- Branch sweep: archived 'branch-sweep-landed' at ccbd35ee31eac7a88636794303e9631e9e6daff7 as 'retired/branch-sweep-landed' on origin.
+- Branch cleanup: force-deleted local 'branch-sweep-landed' (was ccbd35ee31eac7a88636794303e9631e9e6daff7) — PR merged; recover with `git checkout -b` from the reflog SHA.
+- Branch sweep: 'codex/retro-independent-clone-worklist-knowledge' at 2d1ee292a16f76376c7e6b555664d8c060f9f4a2 is already archived by 'retired/codex/retro-independent-clone-worklist-knowledge' on origin.
+- Branch cleanup: force-deleted local 'codex/retro-independent-clone-worklist-knowledge' (was 2d1ee292a16f76376c7e6b555664d8c060f9f4a2) — PR merged; recover with `git checkout -b` from the reflog SHA.
+- Branch sweep: 'codex/retro-recurring-branch-sweep-knowledge' has merged PR #859 at 9b9e80d36a05, but the ref carries commits touching coga/skills/coga/branch-sweep/sweep/SKILL.md, src/coga/resources/templates/coga/bootstrap/skills/coga/branch-sweep/sweep/SKILL.md — left in place.
+- Branch cleanup: local 'codex/retro-recurring-branch-sweep-knowledge' has unmerged work and no merged PR vouching for it — left in place.
+- Branch sweep: 'coga/skill-update' is the shared skill-update branch — left in place.
+- Branch sweep: 'doc-context-boundary' tips diverge; a9fce62cea59 at refs/pull/790/head stays on origin as the merged PR head.
+- Branch sweep: archived 'doc-context-boundary' at e90557b95f90371f412c364e1e844c6d849f3180 as 'retired/doc-context-boundary' on origin.
+- Branch cleanup: force-deleted local 'doc-context-boundary' (was e90557b95f90371f412c364e1e844c6d849f3180) — PR merged; recover with `git checkout -b` from the reflog SHA.
+- Branch cleanup: deleted remote origin/doc-context-boundary.
+- Branch sweep: 'docs/v2-batch-verdicts' is recorded on a live ticket — left in place.
+- Branch sweep: archived 'dream-w38-extract-backlog' at 1d23cb4cc2e214cb54252d9c220a4db459207e78 as 'retired/dream-w38-extract-backlog' on origin.
+- Branch cleanup: force-deleted local 'dream-w38-extract-backlog' (was 1d23cb4cc2e214cb54252d9c220a4db459207e78) — PR merged; recover with `git checkout -b` from the reflog SHA.
+- Branch cleanup: skipping remote origin/dream-w40-testing-baseline (no merged PR).
+- Branch sweep: 'edge-wheel-upgrades' is recorded on a live ticket — left in place.
+- Branch sweep: 'fix-autoclose-clone-primary' is recorded on a live ticket — left in place.
+- Branch sweep: 'fix/retire-followup-owner' is recorded on a live ticket — left in place.
+- Branch cleanup: local 'guard-reauthor-in-progress' has unmerged work and no merged PR vouching for it — left in place.
+- Branch cleanup: skipping remote origin/init-offers-dependency-installs (no merged PR).
+- Branch sweep: 'macos-clean-install-harness' is recorded on a live ticket — left in place.
+- Branch sweep: 'phone-home-record-failure-caller' is recorded on a live ticket — left in place.
+- Branch cleanup: skipping remote origin/publish-off-control (no merged PR).
+- Branch sweep: 'recurring-control-worktree' is recorded on a live ticket — left in place.
+- Branch cleanup: skipping remote origin/recurring-crlf-lease (no merged PR).
+- Branch cleanup: skipping remote origin/recurring-ledger-from-log (no merged PR).
+- Branch sweep: archived 'recurring-missing-workflow' at e62d818f2be5e4a81da8a11f15bfbb81d7804976 as 'retired/recurring-missing-workflow' on origin.
+- Branch cleanup: force-deleted local 'recurring-missing-workflow' (was e62d818f2be5e4a81da8a11f15bfbb81d7804976) — PR merged; recover with `git checkout -b` from the reflog SHA.
+- Branch cleanup: skipping remote origin/retire-worklist-linked-only (no merged PR).
+- Branch cleanup: local 'scrub-sa-token' has unmerged work and no merged PR vouching for it — left in place.
+- Branch sweep: 'shebang-exec-check' has merged PR #800 at a02e2930511f, but the ref carries commits touching coga/skills/anthropic/skill-creator/eval-viewer/generate_review.py, coga/skills/clarity/scripts/validate_package.py, src/coga/resources/templates/coga/bootstrap/skills/coga/gmail/gmail.py (+1 more) — left in place.
+- Branch cleanup: local 'shebang-exec-check' has unmerged work and no merged PR vouching for it — left in place.
+- Branch sweep: 'skill-update-per-skill' tips diverge; e925ff14626c at refs/pull/796/head stays on origin as the merged PR head.
+- Branch sweep: archived 'skill-update-per-skill' at b8bfb8bf4fd02b602aeaec6da21c53be02723499 as 'retired/skill-update-per-skill' on origin.
+- Branch cleanup: force-deleted local 'skill-update-per-skill' (was b8bfb8bf4fd02b602aeaec6da21c53be02723499) — PR merged; recover with `git checkout -b` from the reflog SHA.
+- Branch cleanup: deleted remote origin/skill-update-per-skill.
+- Branch cleanup: skipping remote origin/slack-important-alert (no merged PR).
+- Branch cleanup: local 'split-ticket-contract' has unmerged work and no merged PR vouching for it — left in place.
+- Branch sweep: archived 'sweep-abandoned-record' at bb2d017f0e5a04d91cfd25a580a0b5a5b03dc1ef as 'retired/sweep-abandoned-record' on origin.
+- Branch cleanup: force-deleted local 'sweep-abandoned-record' (was bb2d017f0e5a04d91cfd25a580a0b5a5b03dc1ef) — PR merged; recover with `git checkout -b` from the reflog SHA.
+- Branch sweep: archived 'title-only-validator' at d1a27208d932c5a2686d29c557e423e9229d143b as 'retired/title-only-validator' on origin.
+- Branch cleanup: force-deleted local 'title-only-validator' (was d1a27208d932c5a2686d29c557e423e9229d143b) — PR merged; recover with `git checkout -b` from the reflog SHA.
+- Branch sweep: 'uninstall-uv-tool' is recorded on a live ticket — left in place.
+- Branch sweep: 'usage-report-flow' is recorded on a live ticket — left in place.
+- Branch cleanup: skipping remote origin/v2-premise-adjudication (no merged PR).
+- Branch sweep: archived 'v2-premise-holes' at 59f3fb56374d32ae9960ed841a5013e880526e96 as 'retired/v2-premise-holes' on origin.
+- Branch cleanup: force-deleted local 'v2-premise-holes' (was 59f3fb56374d32ae9960ed841a5013e880526e96) — PR merged; recover with `git checkout -b` from the reflog SHA.
+- Branch cleanup: skipping remote origin/wedge-ticket-admin-reproduction (no merged PR).
