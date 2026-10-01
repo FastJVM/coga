@@ -33,12 +33,10 @@ workflow:
 step: 1 (design)
 contexts:
   - coga/launch
-  - coga/tickets
   - coga/internals/launch-claims
   - coga/internals/claim-recovery
   - coga/internals/state-publication
   - coga/internals/git-regressions
-  - coga/recurring/scheduling
 ---
 
 ## Description
@@ -51,13 +49,27 @@ Hold ownership across script and agent phases, workflow bumps and chained steps,
 
 Evaluate a daily recurring collector for stale claims; never clear a potentially live worker solely because the claim is old. Immediate restart recovery must not depend on a daily job. Define local-only behavior when Git sync is unavailable.
 
-Orthogonal sibling: launch-locks/checkout-exclusivity-lock protects a physical checkout, not ticket identity. This ticket must stand alone and permit different tickets in separate clones. Describe a shared acquisition order when both ship. Include concurrency/crash acceptance scenarios and update owning contracts and packaged twins in the eventual implementation PR. The design requires owner approval before code.
+Orthogonal sibling: launch-locks/checkout-exclusivity-lock protects a physical checkout, not ticket identity. This ticket must stand alone and permit different tickets in separate clones. When both ship, acquire the checkout lock first, then the ticket lock (the sibling already fixes this order); specify release order and how a refusal of either unwinds the other. Include concurrency/crash acceptance scenarios and update owning contracts and packaged twins in the eventual implementation PR. The design requires owner approval before code.
 
 ## Context
 
 Owner priority: design and ship ticket ownership locking before checkout exclusivity; checkout collisions are considered uncommon. Keep the two deliverables independent.
 
 The owner clarified "fast git sync" means immediate lock acquisition/release publication, not general state-sync performance work. Publish the claim immediately and confirm acquisition on control before work starts; publish removal immediately when the launch finishes. Do not depend on delayed sweeps. Failed or uncertain acquisition must not start work; failed release must remain visible for reconciliation. Fast publication alone is not mutual exclusion: simultaneous claims still require an atomic remote decision.
+
+Contract being revised: `coga/launch` (`docs/contexts/coga/launch/SKILL.md`, "Status is the signal") currently says there is no task-ownership mutex and that megalaunch's claim and `git.state_lock` are not ownership locks. The implementation PR rewrites that paragraph and the related lines in `coga/internals/launch-claims` and `coga/internals/claim-recovery`.
+
+Code anchors (cite by symbol; line numbers drift):
+
+- `git.publish` with `expect={path: bytes | None}` (`None` = must not exist on control) and `guard=` is the existing atomic compare-and-set against control; the lock's acquire and exact-claim release should build on it rather than invent a new remote primitive.
+- `git.ticket_regression_reason` holds the `pending:`/`released:` launch_generation seal rules; `launch._reconcile_released_launch_admission` is the existing released-witness recovery path. Define how the ownership lock composes with both.
+- `git.state_lock` is the short-lived, per-checkout, reentrant `flock`; keep it separate and do not lengthen it.
+- `git.fetch_control` and `git.sync_task_state` are the fetch and strict-publication helpers.
+- `tasks.list_tasks` / `tasks.resolve_task` own discovery (see placement facts below).
+
+Cited, not attached — `coga/tickets` (`docs/contexts/coga/tickets/SKILL.md`, "Where tasks live and how they are named"). Placement facts: `list_tasks` walks `coga/tasks/` at any depth; a directory holding `ticket.md` is a task and is never recursed into; a bare `<slug>.md` is a file-form task; `<slug>.md` and `<slug>/` must not both exist (`DuplicateTaskSlugError`); `README.md` is never a task and `_`-prefixed names are skipped at every level; attachments are never composed, and only the exact sibling `ticket.py` changes dispatch. Moving a task orphans its log history under the old ref.
+
+Cited, not attached — `coga/recurring/scheduling` (`docs/contexts/coga/recurring/scheduling/SKILL.md`), for evaluating the daily collector. Facts: templates live under `coga/recurring/` and materialize one stable task per template under `tasks/recurring/`; a `ticket.py` period runs headless and is the shape for unattended schedulers, while agent periods need TTYs; a scheduled agent run must reach `done` in one launch or the sweep pauses it; repo-inactivity skips templates unless `run_when_inactive: true`; the shipped daily `autoclose-merged` template chains registered `coga run` recipes from its `ticket.py`.
 
 <!-- coga:blackboard -->
 
