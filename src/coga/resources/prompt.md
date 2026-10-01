@@ -106,7 +106,8 @@ contains only:
    `coga run`.
 
 Everything else stays at the edge: process knowledge and reusable recipes in
-skills, ticket-owned deterministic work in its exact sibling `ticket.py`, and
+skills, ticket-owned deterministic work in its exact sibling `ticket.py`
+(which may call a wheel-owned edge module; see `coga/packaging`), and
 launch-target spellings as aliases. Backing a CLI spelling is not by itself a
 pass into core — a launch-target command is an argv rewrite in `[aliases]`,
 whereas a registered `coga run` name is a real package implementation with a

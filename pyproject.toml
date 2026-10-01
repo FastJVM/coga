@@ -55,7 +55,7 @@ Issues = "https://github.com/FastJVM/coga/issues"
 pythonpath = ["src"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/coga"]
+packages = ["src/coga", "src/coga_edge"]
 # Never ship local build artifacts that appear under the packaged template
 # tree when `coga init` is run inside the fixture: a vendored CLI/venv
 # (.coga, .venv) and bytecode caches. Without this, a wheel built from a

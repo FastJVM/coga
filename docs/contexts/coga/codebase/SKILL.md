@@ -5,14 +5,19 @@ description: Overview of the Coga source tree and contribution rules, with links
 
 # Coga codebase
 
-The repo has two halves with different review bars:
+The repo separates implementation from the OS it operates:
 
-- **`src/coga/`**: the Python package and CLI.
+- **`src/coga/`**: the kernel package and CLI.
+- **`src/coga_edge/`**: edge job implementations shipped in the same wheel;
+  placement is owned by [coga/extension-model](../extension-model/SKILL.md).
 - **`coga/`** plus the configured contexts root (`docs/contexts/` in this
   repo): the Coga OS this repo operates on. Layout is owned by
   [coga/context-layout](../context-layout/SKILL.md).
 
 ## Source map
+
+- `src/coga_edge/phone_home.py`: the default telemetry implementation behind
+  the repo shim; [coga/telemetry](../telemetry/SKILL.md) owns its contract.
 
 - `src/coga/commands/`: one thin Typer entrypoint per command. No business
   logic.

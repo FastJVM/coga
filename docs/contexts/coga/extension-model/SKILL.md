@@ -28,8 +28,12 @@ heads awaiting that decision are recorded under “Open command placements” be
    but do not by themselves prove a core home.
 
 Everything else stays at the edge. A single-consumer helper lives beside the
-ticket or skill that uses it and imports only shared core infra. Core never
-imports from a ticket or skill directory. Skills are invocation contracts and
+ticket or skill that uses it, or in the wheel-distributed `src/coga_edge/`
+package, and imports only appropriate shared core infra. Edge shipping does
+not confer kernel status. Production `src/coga/` never imports or path-loads
+`coga_edge` or ticket/skill implementations; repo shims choose their imports.
+Distribution, upgrades and overrides are owned by
+[coga/packaging](../packaging/SKILL.md). Skills are invocation contracts and
 never executable launch plugins.
 
 - **Count callers of one symbol, not copies of one body.** Three
