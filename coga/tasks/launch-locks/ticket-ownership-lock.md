@@ -1,6 +1,6 @@
 ---
 title: Ticket ownership lock
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -32,11 +32,12 @@ workflow:
     assignee: owner
 step: 1 (design)
 contexts:
-  - coga/launch
-  - coga/internals/launch-claims
-  - coga/internals/claim-recovery
-  - coga/internals/state-publication
-  - coga/internals/git-regressions
+- coga/launch
+- coga/internals/launch-claims
+- coga/internals/claim-recovery
+- coga/internals/state-publication
+- coga/internals/git-regressions
+agent: claude
 ---
 
 ## Description
