@@ -90,6 +90,7 @@ owning topic says that usage is counted once per message.
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/947
 branch: fix/claude-usage-dedupe
 
 ## Implementation plan
