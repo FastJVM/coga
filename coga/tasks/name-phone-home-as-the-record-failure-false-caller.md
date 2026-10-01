@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: eab49694-a524-4af3-a400-3ec342c343e2
 ---
 
 ## Description
@@ -54,3 +53,14 @@ it" with phone-home's weekly receipt (`recurring/phone-home/ticket.py`
 `_receipt`) and why: best-effort telemetry receipt from a bounded worker whose
 failure must not affect capture or completion, so a miss must not dirty
 `coga/log.md`.
+
+## Implement handoff (2026-09-30)
+
+- Commit 0103033f8 on `phone-home-record-failure-caller` (pushed, rebased on
+  origin/main 86ae9ca7f, which was only a Coga state sync).
+- Changed `coga/notifications/failures` "What reaches `coga/log.md`" in
+  `docs/contexts/` and the packaged bootstrap twin (byte-identical): replaced
+  "no current caller passes it" with the phone-home weekly receipt
+  (`ticket.py` `_receipt`) and its reason, linking `coga/telemetry`.
+- Verified: `pytest tests/test_packaging.py` 23 passed; full suite 3135 passed.
+- No code or fixture change; `coga/notifications/producers` already named it.
