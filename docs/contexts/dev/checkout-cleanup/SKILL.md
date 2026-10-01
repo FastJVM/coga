@@ -116,6 +116,23 @@ in the same PR. Retire launches the task unless `--no-launch`, which prints the
 
 ## Branch-sweep protection and archive
 
+For a local ref with a merged PR and no open PR for the same branch name,
+`branchsweep.merged_pr_verdict` inspects commits beyond the merged head and
+the locally available control refs. Non-merge commits with matching
+`git patch-id --verbatim` IDs on the merged head are excluded; remaining
+commits must touch only generated task/log state. Each merged patch matches
+at most one local commit, so a later reapplication needs its own match.
+Patch comparison preserves
+whitespace (including indentation and line endings), disables external diff
+and text conversion, fixes submodule diffs to the short gitlink format, and
+compares against the merged head's history without
+excluding control. Thus both squash and normal merges can release a local
+pre-rebase copy. Different patch context can conservatively keep a ref;
+comparison failures keep it too. Merge commits always face the existing
+`git diff-tree --cc` state-only check. Remote refs still require an exact
+merged head, never patch equivalence. A missing merged-head object is fetched
+from `refs/pull/<number>/head` without writing a ref before comparison.
+
 `branchsweep.sweep_branches` preserves the shared `coga/skill-update` branch
 (`skill_manager.SKILL_UPDATE_BRANCH`) before any PR lookup or deletion. It
 does so even between update runs with no live ticket or open PR. This is an
@@ -129,9 +146,13 @@ requires the worktree's HEAD to still be the archived local tip; an initial
 refusal leaves the archive untouched. `_publish_retirement_tag` archives the
 actual authorized tip, fetching missing remote objects first. If both local
 and remote refs will be deleted, one of those tips must contain the other;
-the tag points to that descendant. Divergent tips preserve both refs and need
-human reconciliation. This keeps later Coga bookkeeping and lagging local
-refs recoverable without inventing a merge.
+the tag points to that descendant. When they diverge, a tip that is a merged
+PR's head is already preserved by GitHub at `refs/pull/<number>/head`, so the
+tag covers the remaining tips and the run record names the PR ref. This is
+the rebased-copy shape: the remote ref sits at the merged head while the
+local ref keeps its pre-rebase commits. Divergent tips that no PR ref covers
+preserve both refs and need human reconciliation. This keeps later Coga
+bookkeeping and lagging local refs recoverable without inventing a merge.
 
 The remote tag is the archive; the sweep reads it with `git ls-remote`
 before publishing. A remote `retired/<branch>` whose commit equals or contains

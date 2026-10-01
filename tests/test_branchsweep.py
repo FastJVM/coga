@@ -531,7 +531,7 @@ def test_branch_that_lands_after_sweep_check_waits_for_archival_next_pass(
     assert _branch_exists_remote(repo, "feat")
 
 
-def test_divergent_landed_tips_are_preserved_when_one_tag_cannot_cover_both(
+def test_divergent_merged_heads_are_preserved_when_one_tag_cannot_cover_both(
     repo: Path, monkeypatch
 ) -> None:
     _push_branch(repo, "feat")
@@ -543,7 +543,18 @@ def test_divergent_landed_tips_are_preserved_when_one_tag_cannot_cover_both(
     _git(repo, "push", "origin", "other:feat")
     _git(repo, "checkout", "main")
     _git(repo, "branch", "-D", "other")
-    _fake_gh(monkeypatch, {"feat": remote_tip})
+    local_tip = _tip(repo, "feat")
+    # Each tip is a merged PR head, so neither can be left to its PR ref.
+    monkeypatch.setattr(
+        bs,
+        "prs_for_head",
+        lambda branch, state: [
+            {"number": 7, "headRefOid": local_tip},
+            {"number": 9, "headRefOid": remote_tip},
+        ]
+        if state == "merged" and branch == "feat"
+        else [],
+    )
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -1375,6 +1386,171 @@ def test_tip_moved_by_real_changes_is_skipped(repo: Path, monkeypatch) -> None:
         "PR #7" in note and "src/thing.py" in note for note in result.notes
     ), result.notes
     assert any("no merged PR vouching for it" in note for note in result.notes)
+
+
+def _merge_rebased_copy(
+    repo: Path, branch: str, *, amend: str | None = None, squash: bool = True,
+) -> str:
+    """Rebase `branch` onto a newer main elsewhere, push that copy, and merge it.
+
+    The local ref keeps its pre-rebase commits, the shape a review follow-up
+    pushed from a scratch clone leaves behind. `amend` changes the copied
+    patch the way a conflict resolution would. Returns the merged head.
+    """
+    _commit(repo, "later.txt", "main moved on", "main change")
+    _git(repo, "push", "origin", "main")
+    _git(repo, "checkout", "-b", "copy", "main")
+    _git(repo, "cherry-pick", branch)
+    if amend is not None:
+        (repo / f"{branch}.txt").write_text(amend)
+        _git(repo, "commit", "--amend", "--no-edit", "-a")
+    _git(repo, "push", "--force", "origin", f"copy:{branch}")
+    merged_head = _tip(repo, "copy")
+    _git(repo, "checkout", "main")
+    _git(repo, "branch", "-D", "copy")
+    if squash:
+        _squash_merge(repo, f"origin/{branch}")
+    else:
+        _git(repo, "merge", "--no-ff", "--no-edit", f"origin/{branch}")
+        _git(repo, "push", "origin", "main")
+    assert _git(repo, "merge-base", "--is-ancestor", branch, merged_head, check=False).returncode != 0
+    return merged_head
+
+
+@pytest.mark.parametrize("squash", [False, True])
+def test_local_ref_rebased_elsewhere_then_merged_is_deleted(
+    repo: Path, monkeypatch, squash: bool,
+) -> None:
+    # The local commits are patch-equivalent to the merged head's rebased
+    # copies, so the merged PR vouches for them even though no ancestry does.
+    _push_branch(repo, "feat")
+    tip = _tip(repo, "feat")
+    merged_head = _merge_rebased_copy(repo, "feat", squash=squash)
+    _fake_gh(monkeypatch, {"feat": merged_head})
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == ["feat"]
+    assert result.remote_deleted == ["feat"]
+    assert not _branch_exists_local(repo, "feat")
+    assert not _branch_exists_remote(repo, "feat")
+    assert _tip(repo, "refs/tags/retired/feat") == tip
+    assert any("refs/pull/7/head" in note for note in result.notes), result.notes
+
+
+def test_local_ref_whose_rebase_changed_the_patch_is_kept(
+    repo: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat")
+    merged_head = _merge_rebased_copy(repo, "feat", amend="resolved differently")
+    _fake_gh(monkeypatch, {"feat": merged_head})
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == []
+    assert result.skipped == ["feat"]
+    assert _branch_exists_local(repo, "feat")
+    assert any("PR #7" in note and "feat.txt" in note for note in result.notes), result.notes
+
+
+@pytest.mark.parametrize("squash", [False, True])
+@pytest.mark.parametrize("change", ["indentation", "line-endings"])
+def test_local_ref_whose_rebase_changed_whitespace_is_kept(
+    repo: Path, monkeypatch, squash: bool, change: str,
+) -> None:
+    original = "def f(x):\n    if x:\n        print(x)\n    return 1\n"
+    changed = (
+        original.replace("    return", "        return")
+        if change == "indentation" else original.replace("\n", "\r\n")
+    )
+    _push_branch(repo, "feat")
+    _git(repo, "checkout", "feat")
+    (repo / "feat.txt").write_text(original)
+    _git(repo, "commit", "--amend", "--no-edit", "-a")
+    _git(repo, "checkout", "main")
+    merged_head = _merge_rebased_copy(repo, "feat", amend=changed, squash=squash)
+    _fake_gh(monkeypatch, {"feat": merged_head})
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == []
+    assert result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+    assert any("feat.txt" in note for note in result.notes), result.notes
+
+
+def test_patch_comparison_failure_preserves_rebased_branch(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat")
+    merged_head = _merge_rebased_copy(repo, "feat")
+    _fake_gh(monkeypatch, {"feat": merged_head})
+    run = subprocess.run
+
+    def fail_patch_id(argv, **kwargs):
+        if "patch-id" in argv:
+            return subprocess.CompletedProcess(argv, 1, b"", b"patch-id unavailable")
+        return run(argv, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", fail_patch_id)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == []
+    assert result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+    assert any("patches could not be compared" in note for note in result.notes)
+
+
+def test_reapplied_local_source_needs_another_merged_patch_match(repo: Path) -> None:
+    _git(repo, "checkout", "-b", "feat")
+    _commit(repo, "base.txt", "changed", "feature")
+    original = _tip(repo, "feat")
+    _git(repo, "checkout", "main")
+    _commit(repo, "later.txt", "main advanced", "main change")
+    _git(repo, "checkout", "-b", "copy")
+    _git(repo, "cherry-pick", original)
+    _git(repo, "revert", "--no-edit", "HEAD")
+    merged_head = _tip(repo, "copy")
+    _git(repo, "checkout", "main")
+    _git(repo, "merge", "--ff-only", "copy")
+    _git(repo, "checkout", "feat")
+    _git(repo, "revert", "--no-edit", "HEAD")
+    _commit(repo, "base.txt", "changed", "reapply local work")
+
+    verdict = _verdict(repo, _tip(repo, "feat"), merged_head)
+
+    assert verdict.landed is False
+    assert "base.txt" in verdict.reason
+
+
+@pytest.mark.parametrize("submodule_format", ["log", "diff"])
+def test_submodule_display_config_cannot_hide_a_changed_gitlink(
+    repo: Path, submodule_format: str,
+) -> None:
+    # Gitlink objects need not be checked out. Use distinct valid commit IDs.
+    first = _tip(repo, "main")
+    _commit(repo, "later.txt", "one", "next gitlink target")
+    second = _tip(repo, "main")
+    _commit(repo, "later.txt", "two", "another gitlink target")
+    third = _tip(repo, "main")
+    _git(repo, "update-index", "--add", "--cacheinfo", f"160000,{first},a-sub")
+    _git(repo, "commit", "-m", "add gitlink")
+    _git(repo, "checkout", "-b", "feat")
+    _git(repo, "update-index", "--cacheinfo", f"160000,{second},a-sub")
+    _commit(repo, "base.txt", "feature", "local source and gitlink")
+    tip = _tip(repo, "feat")
+    _git(repo, "checkout", "main")
+    _git(repo, "checkout", "-b", "copy")
+    _git(repo, "update-index", "--cacheinfo", f"160000,{third},a-sub")
+    _commit(repo, "base.txt", "feature", "different gitlink with same source")
+    merged_head = _tip(repo, "copy")
+    _git(repo, "config", "diff.submodule", submodule_format)
+
+    verdict = _verdict(repo, tip, merged_head)
+
+    assert verdict.landed is False
+    assert "a-sub" in verdict.reason
 
 
 @pytest.mark.parametrize("unpushed_source", [False, True])

@@ -13,14 +13,16 @@ ticket to point at a PR, so the check here is by **head branch name**
 (`gh pr list --head <branch> --json number,headRefOid`), and it requires a
 merged PR for that head **and no open PR** for it. A merged PR vouches for a
 local ref only when the ref carries nothing beyond what landed: every commit
-on the ref that neither the merged head nor the control branch contains must
-touch only generated Coga state (`tasks/**`, `log.md`) — see
-`merged_pr_verdict`. A branch that once merged a PR and was later reused for
-real work therefore survives, while the two shapes Coga itself produces are
-released: a ref that walked past the merged head through state-sync commits
-(this repo squash-merges, so ancestry into control never says "landed" for
-those), and a ref that *lags* the merged head because the last commit was
-pushed from another checkout. A remote ref is authorized only at the exact
+on the ref that neither the merged head nor the control branch contains, and
+that is not patch-equivalent to a commit on the merged head, must touch only
+generated Coga state (`tasks/**`, `log.md`) — see `merged_pr_verdict`. A
+branch that once merged a PR and was later reused for real work therefore
+survives, while the three shapes Coga itself produces are released: a ref that
+walked past the merged head through state-sync commits (this repo
+squash-merges, so ancestry into control never says "landed" for those), a ref
+that *lags* the merged head because the last commit was pushed from another
+checkout, and a ref whose commits another checkout *rebased* and merged from
+that copy. A remote ref is authorized only at the exact
 merged tip; its objects are usually not local.
 
 Live tickets are consulted defensively before any gh lookup: a branch that any
@@ -69,6 +71,7 @@ import os
 import re
 import subprocess
 import sys
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -306,7 +309,8 @@ def sweep_branches(
         ):
             retirement_tips.append(remote_tip)
         if retirement_tips and not _publish_retirement_tag(
-            cfg, root, branch, retirement_tips, result, echo
+            cfg, root, branch, retirement_tips, result, echo,
+            pr_heads={head: number for number, head in merged},
         ):
             result.skipped.append(branch)
             continue
@@ -391,8 +395,16 @@ def _publish_retirement_tag(
     tips: list[str],
     result: BranchSweepResult,
     echo: Callable[[str], None],
+    *,
+    pr_heads: dict[str, str] | None = None,
 ) -> bool:
-    """Push an immutable archive covering every tip authorized for deletion."""
+    """Push an immutable archive covering every tip authorized for deletion.
+
+    `pr_heads` maps merged PR head SHAs to their PR numbers. GitHub keeps each
+    at `refs/pull/<n>/head`, so when the tips diverge — a local ref whose
+    commits another checkout rebased and merged from that copy — a tip that
+    is a merged head is left to that ref and the tag archives the rest.
+    """
     tag = f"retired/{branch}"
 
     def refuse(reason: str) -> bool:
@@ -415,18 +427,21 @@ def _publish_retirement_tag(
 
     # Local refs may lag a merged remote head or carry later bookkeeping.
     # Choose the actual tip that contains all the others; never synthesize a
-    # merge or drop one side of divergent history to make retirement work.
-    target = next(
-        (
-            candidate for candidate in tips
-            if all(
-                tip == candidate
-                or _git(root, "merge-base", "--is-ancestor", tip, candidate).returncode == 0
-                for tip in tips
+    # merge. Divergent history drops only a side GitHub already preserves.
+    target = _containing_tip(root, tips)
+    pr_heads = pr_heads or {}
+    pr_kept = [tip for tip in tips if tip in pr_heads]
+    if target is None and pr_kept and len(pr_kept) < len(tips):
+        target = _containing_tip(root, [tip for tip in tips if tip not in pr_kept])
+        if target is not None:
+            kept = ", ".join(
+                f"{tip[:12]} at refs/pull/{pr_heads[tip]}/head" for tip in pr_kept
             )
-        ),
-        None,
-    )
+            _note(
+                result, echo,
+                f"Branch sweep: {branch!r} tips diverge; {kept} stays on "
+                f"{cfg.git_remote} as the merged PR head.",
+            )
     if target is None:
         return refuse("divergent tips cannot be preserved by one retirement tag")
 
@@ -523,6 +538,21 @@ def _mirror_local_tag(root: Path, name: str, local: str | None, archived: str) -
         _git(root, "merge-base", "--is-ancestor", local, archived).returncode == 0
     ):
         _git(root, "tag", "--force", "--", name, archived)
+
+
+def _containing_tip(root: Path, tips: list[str]) -> str | None:
+    """The tip in `tips` that every other tip is an ancestor of, if any."""
+    return next(
+        (
+            candidate for candidate in tips
+            if all(
+                tip == candidate
+                or _git(root, "merge-base", "--is-ancestor", tip, candidate).returncode == 0
+                for tip in tips
+            )
+        ),
+        None,
+    )
 
 
 def _remove_pinning_worktree(
@@ -645,13 +675,19 @@ def merged_pr_verdict(
     """Decide whether one of the `merged` PRs vouches for the local ref at `tip`.
 
     A merged PR authorizes the delete when the ref carries nothing the PR did
-    not land: every commit in `git rev-list <tip> ^<merged head> ^<landed>...`
-    touches only generated Coga state (`is_coga_state_path`). `landed_refs`
-    are the control refs that exist locally — the control branch and its
-    remote-tracking ref — because a branch that merged the remote-tracking
-    control ref after its PR landed carries control's own later source
-    commits, which a lagging local control branch would otherwise report as
-    the ref's unmerged work. That one rule covers the exact merged tip
+    not land: commits beyond the merged head and control must either have a
+    whitespace-sensitive patch match on the merged head or touch only
+    generated Coga state (`is_coga_state_path`). `git patch-id --verbatim`
+    preserves meaningful whitespace, including Python indentation. Compare
+    against the merged head's history without excluding control: a normal
+    merge puts the matching commits on control too. A rebase that changed a
+    patch keeps its commit in the list and the branch, and merge commits are
+    never excluded by patch matching.
+    `landed_refs` are the control refs that exist locally — the control
+    branch and its remote-tracking ref — because a branch that merged the
+    remote-tracking control ref after its PR landed carries control's own
+    later source commits, which a lagging local control branch would
+    otherwise report as the ref's unmerged work. That one rule covers the exact merged tip
     (nothing to list), a local ref that lags the merged head because the last
     commit was pushed from another checkout (nothing to list either), and a
     ref that walked past the merged head through Coga's own state-sync
@@ -687,6 +723,21 @@ def merged_pr_verdict(
             )
             continue
         commits = [line for line in beyond.stdout.splitlines() if line]
+        if commits:
+            merged_patches = _verbatim_patch_ids(root, [head, f"^{tip}"])
+            local_patches = _verbatim_patch_ids(root, commits, no_walk=True)
+            if merged_patches is None or local_patches is None:
+                reason = f"{refused} its patches could not be compared"
+                continue
+            matching = Counter(merged_patches.values())
+            unmatched = []
+            for commit in commits:
+                patch_id = local_patches.get(commit)
+                if patch_id is not None and matching[patch_id]:
+                    matching[patch_id] -= 1
+                else:
+                    unmatched.append(commit)
+            commits = unmatched
         offending = _non_state_paths(root, commits, coga_prefix=coga_prefix)
         if offending is None:
             reason = f"{refused} the commits beyond it could not be inspected"
@@ -696,13 +747,55 @@ def merged_pr_verdict(
                 f"; the {len(commits)} later commit(s) on this ref touch only "
                 "Coga task/log state"
                 if commits
-                else "; the ref is contained in the merged head"
+                else "; the ref is contained in or patch-equivalent to landed history"
             )
             return MergedPrVerdict(True, f"PR #{number} merged{beyond_note}")
         shown = ", ".join(sorted(offending)[:3])
         more = f" (+{len(offending) - 3} more)" if len(offending) > 3 else ""
         reason = f"{refused} the ref carries commits touching {shown}{more} — left in place"
     return MergedPrVerdict(False, reason)
+
+
+def _verbatim_patch_ids(
+    root: Path, revisions: list[str], *, no_walk: bool = False
+) -> dict[str, str] | None:
+    """Map non-merge commits to whitespace-sensitive patch IDs; fail closed.
+
+    Keep control exclusions out of the merged-side revisions so normal
+    merges retain the same comparison evidence as squash merges. A differing
+    context can conservatively prevent a match. Disable external diff and
+    text conversion so the proof describes the stored source bytes.
+    """
+    # Use bytes: text-mode subprocess IO would normalize CRLF in a patch.
+    git = ["git", "-C", str(root)]
+    patches = subprocess.run(
+        [
+            *git, "log", "--stdin", *(["--no-walk=unsorted"] if no_walk else []),
+            "--no-merges", "--root", "--format=commit %H", "--patch", "--binary",
+            "--full-index", "--no-color", "--no-ext-diff", "--no-textconv",
+            "--no-renames", "--no-notes", "--no-relative", "--ignore-submodules=none",
+            "--submodule=short", "--src-prefix=a/", "--dst-prefix=b/", "--",
+        ],
+        input=("\n".join(revisions) + "\n").encode("ascii"),
+        capture_output=True,
+        check=False,
+    )
+    if patches.returncode != 0:
+        return None
+    ids = subprocess.run(
+        [*git, "patch-id", "--verbatim"], input=patches.stdout,
+        capture_output=True, check=False,
+    )
+    if ids.returncode != 0:
+        return None
+    result: dict[str, str] = {}
+    for line in ids.stdout.decode("ascii").splitlines():
+        fields = line.split()
+        if len(fields) != 2:
+            return None
+        patch_id, commit = fields
+        result[commit] = patch_id
+    return result
 
 
 def _non_state_paths(

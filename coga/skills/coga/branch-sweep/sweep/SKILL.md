@@ -38,45 +38,15 @@ a ticket is deleted without going through retire or a session dies mid-flight.
    (`branchcleanup.local_branch_landed`) — a real merge-commit or
    fast-forward landing, which needs no PR at all — or a merged PR for that
    **head branch name** (`gh pr list --head <branch>` with `number,headRefOid`)
-   and no PR currently open for it, judged by `merged_pr_verdict`: the merged
-   PR vouches for the ref only when every commit in `git rev-list <tip>
-   ^<merged head> ^<control> ^<remote>/<control>` (each control ref only when
-   it exists locally) touches only generated Coga state (`tasks/**`,
-   `log.md` — `github_preflight.is_coga_state_path`, the same carve-out
-   `validate --check-github` makes). `git diff-tree --cc` lists a merge
-   commit's paths only where the result differs from every parent, so Coga's
-   clean `Merge <control> state into <branch>` commits pass and an evil merge
-   does not. One rule therefore covers the exact merged tip, a local ref that
-   *lags* the merged head (its last commit was pushed from another checkout),
-   and a ref that walked *past* the merged head through state-sync commits;
-   a ref with real unmerged source commits is skipped with the offending
-   paths in the run record. When the merged head is not a local object it is
-   fetched from `refs/pull/<number>/head` without writing a ref. The remote
-   ref takes only a merged PR at its exact tip: its objects are usually not
-   local, and ancestry never authorizes deleting `<remote>/<branch>`.
-
-   **A rebased copy is refused by design, on every pass, until a human deletes
-   it.** The verdict above admits ancestors only; it has no `git cherry` /
-   patch-id equivalence check (`branchsweep.py`, `branchcleanup.py`). So a
-   local ref whose commits were re-applied under new SHAs from *another*
-   checkout — a review follow-up pushed from a scratch clone that rebased
-   onto fresh control first, or a `resolve-conflicts` rebase — and then
-   merged from that copy is reported as `has merged PR #N at <oid>, but the
-   ref carries commits touching <source paths>` and left in place, local and
-   remote: the merged PR vouches for the head *name*, but the recorded
-   worktree's pre-rebase commits are patch-equivalent rather than ancestors
-   and touch real source paths. The 2026-09-21 sweep carried six such refs
-   (`branch-sweep-landed` #811, `dream-w38-extract-backlog` #812,
-   `sweep-abandoned-record` #813, `recurring-missing-workflow` #814,
-   `title-only-validator` #815, `v2-premise-holes` #819); the W39 Dream scan
-   verified #812's shape — local tip `1d23cb4c` is a rebase of the same two
-   commits the merged head `35b9b609` carries as `8714fda3` + `a2659a86`, and
-   `git merge-base --is-ancestor 1d23cb4c 35b9b609` is false. Clear one by
-   hand after proving equivalence — `git cherry <merged-head> <tip>` printing
-   only `-` lines — with `git branch -D <branch>` and `git push <remote>
-   --delete <branch>`; or extend `merged_pr_verdict` with a patch-id check.
-   Neither is owned by a ticket yet (`clean-up-all-the-working-trees`
-   excludes branch deletion),
+   and no PR currently open for it, judged by `merged_pr_verdict`. Its
+   local-ref proof accepts landed history, whitespace-sensitive patch
+   equivalence for rebased copies, and Coga state-only follow-ups; the
+   contract is in [dev/checkout-cleanup](../../../../../docs/contexts/dev/checkout-cleanup/SKILL.md#branch-sweep-protection-and-archive).
+   A changed patch or unmerged source work preserves the ref and reports the
+   offending paths. Inspect that difference before any manual clearance:
+   `git cherry -v <merged-head> <tip>` can locate candidates, but its patch
+   IDs ignore whitespace and are not sufficient deletion proof. Remote refs
+   require the exact merged head,
 5. for a branch whose **local tip** landed either way but is still held by
    a live worktree, require no open PR before removing the checkout. A merged
    remote tip alone never authorizes removing newer unmerged local work:
