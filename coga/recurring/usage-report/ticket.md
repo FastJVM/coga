@@ -17,8 +17,8 @@ Coga records every launched session's usage into `coga/log.md` and reads it
 back with `coga usage`, but nobody looks unless they ask. This task pushes the
 number weekly, to the **flow** route, so consumption is visible on a
 cadence short enough to notice a change. This report is for awareness and
-asks for no human action, so it does not qualify for
-[`coga-important`](../../../docs/contexts/coga/important/SKILL.md).
+asks for no human action, so it does not qualify for the important
+route defined by `coga/important` (`docs/contexts/coga/important/SKILL.md`).
 
 Once a week this recurring task's `ticket.py` runs `report.py` beside it,
 which:
