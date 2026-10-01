@@ -89,4 +89,18 @@ owning topic says that usage is counted once per message.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: fix/claude-usage-dedupe
+
+## Implementation plan
+
+Owner approved last-wins usage per message ID after window filtering; lines
+without IDs count individually. Keep model and activity extraction unchanged.
+Add regression coverage before the fix and update both owning topics and twins.
+
+Read-only transcript check on 2026-10-01: 69 transcripts under
+`~/.claude/projects/-home-n-Code-codex-coga/`, 1,580 repeated message-ID lines,
+all with identical usage. Example: `00360668-53cc-4cd6-beb3-870fef24deea.jsonl`,
+message `msg_011CembykCtB5QFoP8v5rvxT`. Last-wins also accommodates later
+streaming lines with complete output counts; real samples do not distinguish
+first from last today.
