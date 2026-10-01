@@ -7188,3 +7188,4 @@ fatal: Unable to add (null) to database
 2026-09-30 21:42 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-09-30 22:00 [launch-locks/ticket-ownership-lock] [human:nicktoper] created (status=draft)
 2026-09-30 22:00 [launch-locks/checkout-exclusivity-lock] [human:nicktoper] created (status=draft)
+2026-09-30 22:06 [marketing/fix-installer/offer-agent-cli-install-and-setup-at-init] [human:nicktoper] created (status=draft)
