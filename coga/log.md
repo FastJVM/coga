@@ -7300,3 +7300,4 @@ fatal: Unable to add (null) to database
 2026-10-01 12:32 [launch-locks/ticket-ownership-lock] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-01 12:32 [launch-locks/ticket-ownership-lock] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-01 12:32 [launch-locks/ticket-ownership-lock] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-01 12:41 [launch-locks/ticket-ownership-lock] [agent:claude] advanced to step 2 (evaluate-design) → codex — Design on blackboard; owner decided write guard, recurring locking, collector follow-up
