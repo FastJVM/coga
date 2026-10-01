@@ -7220,3 +7220,4 @@ fatal: Unable to add (null) to database
 2026-10-01 10:30 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-10-01
 2026-10-01 10:30 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-10-01
 2026-10-01 10:30 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-01 10:30 [recurring/address-pr-comments] [system] started (active → in_progress) via recurring delegation to bootstrap/address-pr-comments
