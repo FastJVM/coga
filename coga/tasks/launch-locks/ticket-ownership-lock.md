@@ -31,6 +31,14 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (design)
+contexts:
+  - coga/launch
+  - coga/tickets
+  - coga/internals/launch-claims
+  - coga/internals/claim-recovery
+  - coga/internals/state-publication
+  - coga/internals/git-regressions
+  - coga/recurring/scheduling
 ---
 
 ## Description
