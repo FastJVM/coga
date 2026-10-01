@@ -7238,3 +7238,4 @@ fatal: Unable to add (null) to database
 2026-10-01 10:48 [name-phone-home-as-the-record-failure-false-caller] [human:nicktoper] advanced to step 3 (open-pr) → claude
 2026-10-01 10:49 [recurring/autoclose-merged] [system] task done
 2026-10-01 10:49 [recurring/autoclose-merged] [system] script exited with code 0
+2026-10-01 10:49 [recurring/blocker-reminders] [system] started (active → in_progress) via coga launch
