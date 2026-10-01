@@ -49,7 +49,7 @@ Hold ownership across script and agent phases, workflow bumps and chained steps,
 
 Evaluate a daily recurring collector for stale claims; never clear a potentially live worker solely because the claim is old. Immediate restart recovery must not depend on a daily job. Define local-only behavior when Git sync is unavailable.
 
-Orthogonal sibling: launch-locks/checkout-exclusivity-lock protects a physical checkout, not ticket identity. This ticket must stand alone and permit different tickets in separate clones. When both ship, acquire the checkout lock first, then the ticket lock (the sibling already fixes this order); specify release order and how a refusal of either unwinds the other. Include concurrency/crash acceptance scenarios and update owning contracts and packaged twins in the eventual implementation PR. The design requires owner approval before code.
+Orthogonal sibling: launch-locks/checkout-exclusivity-lock protects a physical checkout, not ticket identity. This ticket must stand alone and permit different tickets in separate clones. When both ship, acquire the checkout lock first, then the ticket lock (the sibling already fixes this order); release in reverse order (ticket lock before the checkout lock, whose release follows the outer `cli.main` sweep); specify how a refusal of either unwinds the other. Include concurrency/crash acceptance scenarios and update owning contracts and packaged twins in the eventual implementation PR. The design requires owner approval before code. The design step is done when the design is on the blackboard (per `code/design`), ending with the concurrency/crash acceptance-scenario list, and names the `coga/internals/*` topic that will own the lock contract.
 
 ## Context
 
@@ -70,6 +70,18 @@ Code anchors (cite by symbol; line numbers drift):
 Cited, not attached — `coga/tickets` (`docs/contexts/coga/tickets/SKILL.md`, "Where tasks live and how they are named"). Placement facts: `list_tasks` walks `coga/tasks/` at any depth; a directory holding `ticket.md` is a task and is never recursed into; a bare `<slug>.md` is a file-form task; `<slug>.md` and `<slug>/` must not both exist (`DuplicateTaskSlugError`); `README.md` is never a task and `_`-prefixed names are skipped at every level; attachments are never composed, and only the exact sibling `ticket.py` changes dispatch. Moving a task orphans its log history under the old ref.
 
 Cited, not attached — `coga/recurring/scheduling` (`docs/contexts/coga/recurring/scheduling/SKILL.md`), for evaluating the daily collector. Facts: templates live under `coga/recurring/` and materialize one stable task per template under `tasks/recurring/`; a `ticket.py` period runs headless and is the shape for unattended schedulers, while agent periods need TTYs; a scheduled agent run must reach `done` in one launch or the sweep pauses it; repo-inactivity skips templates unless `run_when_inactive: true`; the shipped daily `autoclose-merged` template chains registered `coga run` recipes from its `ticket.py`.
+
+Sweep interaction (main gap from the authoring review): `git.sync_coga_state`, the end-of-command sweep, publishes every dirty path under the tasks directory. A lock file beside the ticket would therefore be pushed by any unrelated `coga` command in any clone, including an unconfirmed, stale, or deleted claim. The design must state whether the sweep, `delete-task`/Retro, and moving a task skip, carry, or refuse lock paths.
+
+Cited, not attached — `coga/internals/agent-spawn` (`docs/contexts/coga/internals/agent-spawn/SKILL.md`): read it for supervisor death with a surviving agent child, which crash recovery must handle (the sibling attaches it for the same case).
+
+Open design questions:
+
+- Is the cost of two extra control commits/pushes per launch, and refusing to start when control is unreachable, acceptable?
+- Under megalaunch, does the admission step or the child acquire the ticket lock, and how does that compose with the `pending:` seal?
+- Do `coga ticket` authoring and recurring `ticket.py` periods take the lock?
+- Does "local-only when Git sync is unavailable" also cover `[git].enabled = false` and remote-less repos?
+- Should the daily stale-claim collector be a recurring template with a `ticket.py` (microkernel rule) rather than core code, and is it a separate follow-up ticket?
 
 <!-- coga:blackboard -->
 
