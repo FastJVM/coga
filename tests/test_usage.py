@@ -72,6 +72,116 @@ def test_parse_claude_transcript_sums_assistant_usage(
     assert parsed.output_tokens == 12
 
 
+@pytest.mark.parametrize("final_output", [4, 9], ids=["identical", "streaming"])
+def test_parse_claude_transcript_counts_last_usage_per_message(
+    tmp_path: Path, monkeypatch, final_output: int
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    session_id = "session-duplicates"
+    transcript = _claude_transcript(cwd, tmp_path, session_id)
+    _write(
+        transcript,
+        f"""
+        {{"type":"user","timestamp":"2026-06-23T12:01:00Z","message":{{"content":"Please check"}}}}
+        {{"type":"assistant","timestamp":"2026-06-23T12:02:00Z","message":{{"id":"msg-1","model":"claude-sonnet-4","content":[{{"type":"thinking","thinking":"Thinking"}}],"usage":{{"input_tokens":10,"cache_creation_input_tokens":2,"cache_read_input_tokens":3,"output_tokens":4}}}}}}
+        {{"type":"assistant","timestamp":"2026-06-23T12:03:00Z","message":{{"id":"msg-1","model":"claude-sonnet-4","content":[{{"type":"text","text":"Working"}}],"usage":{{"input_tokens":10,"cache_creation_input_tokens":2,"cache_read_input_tokens":3,"output_tokens":4}}}}}}
+        {{"type":"assistant","timestamp":"2026-06-23T12:04:00Z","message":{{"id":"msg-1","model":"claude-sonnet-4","content":[{{"type":"tool_use","name":"Read"}}],"usage":{{"input_tokens":10,"cache_creation_input_tokens":2,"cache_read_input_tokens":3,"output_tokens":{final_output}}}}}}}
+        {{"type":"assistant","timestamp":"2026-06-23T12:05:00Z","message":{{"id":"msg-2","model":"claude-opus-4","content":[{{"type":"text","text":"Finished"}}],"usage":{{"input_tokens":5,"cache_creation_input_tokens":1,"cache_read_input_tokens":7,"output_tokens":8}}}}}}
+        {{"type":"assistant","timestamp":"2026-06-23T12:06:00Z","message":{{"model":"<synthetic>","usage":{{"input_tokens":1,"cache_creation_input_tokens":2,"cache_read_input_tokens":3,"output_tokens":4}}}}}}
+        {{"type":"assistant","timestamp":"2026-06-23T12:07:00Z","message":{{"model":"<synthetic>","usage":{{"input_tokens":1,"cache_creation_input_tokens":2,"cache_read_input_tokens":3,"output_tokens":4}}}}}}
+        """,
+    )
+    start, end = _window()
+
+    parsed = parse_session(
+        "claude",
+        cwd=cwd,
+        session_id=session_id,
+        pre_existing=None,
+        window_start=start,
+        window_end=end,
+    )
+
+    assert parsed.usage_status == "ok"
+    assert parsed.model == "claude-opus-4"
+    assert parsed.input_tokens == 17
+    assert parsed.cache_creation_input_tokens == 7
+    assert parsed.cache_read_input_tokens == 16
+    assert parsed.output_tokens == final_output + 16
+    assert parsed.content_status == "ok"
+    assert parsed.human_turns == 1
+    assert parsed.agent_turns == 2
+    assert parsed.request == "Please check"
+    assert parsed.outcome == "Finished"
+
+
+def test_parse_claude_transcript_deduplicates_after_window_filter(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    session_id = "session-window-duplicates"
+    transcript = _claude_transcript(cwd, tmp_path, session_id)
+    _write(
+        transcript,
+        """
+        {"type":"assistant","timestamp":"2026-06-23T11:59:00Z","message":{"id":"msg-1","model":"claude-old","usage":{"input_tokens":999,"output_tokens":999}}}
+        {"type":"assistant","timestamp":"2026-06-23T12:02:00Z","message":{"id":"msg-1","model":"claude-sonnet-4","usage":{"input_tokens":10,"output_tokens":4}}}
+        {"type":"assistant","timestamp":"2026-06-23T12:03:00Z","message":{"id":"msg-1","model":"claude-sonnet-4","usage":{"input_tokens":10,"output_tokens":9}}}
+        {"type":"assistant","timestamp":"2026-06-23T13:01:00Z","message":{"id":"msg-1","model":"claude-later","usage":{"input_tokens":999,"output_tokens":999}}}
+        """,
+    )
+    start, end = _window()
+
+    parsed = parse_session(
+        "claude",
+        cwd=cwd,
+        session_id=session_id,
+        pre_existing=None,
+        window_start=start,
+        window_end=end,
+    )
+
+    assert parsed.usage_status == "ok"
+    assert parsed.model == "claude-sonnet-4"
+    assert parsed.input_tokens == 10
+    assert parsed.output_tokens == 9
+
+
+def test_parse_claude_transcript_keeps_usage_when_later_line_lacks_it(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    session_id = "session-missing-usage"
+    transcript = _claude_transcript(cwd, tmp_path, session_id)
+    _write(
+        transcript,
+        """
+        {"type":"assistant","timestamp":"2026-06-23T12:02:00Z","message":{"id":"msg-1","model":"claude-sonnet-4","usage":{"input_tokens":10,"output_tokens":9}}}
+        {"type":"assistant","timestamp":"2026-06-23T12:03:00Z","message":{"id":"msg-1","model":"claude-sonnet-4"}}
+        """,
+    )
+    start, end = _window()
+
+    parsed = parse_session(
+        "claude",
+        cwd=cwd,
+        session_id=session_id,
+        pre_existing=None,
+        window_start=start,
+        window_end=end,
+    )
+
+    assert parsed.usage_status == "ok"
+    assert parsed.input_tokens == 10
+    assert parsed.output_tokens == 9
+
+
 @pytest.mark.parametrize(
     ("models", "expected_model"),
     [

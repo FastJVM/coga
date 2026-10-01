@@ -432,6 +432,7 @@ def _parse_claude_session(
     cache_creation_input_tokens = 0
     cache_read_input_tokens = 0
     output_tokens = 0
+    usage_by_message: dict[str | int, dict] = {}
     matched = False
     human_texts: list[str] = []
     agent_texts: list[str] = []
@@ -443,7 +444,7 @@ def _parse_claude_session(
         lines = path.read_text().splitlines()
     except OSError as exc:
         return _unknown("anthropic", session_id=session_id, reason=str(exc))
-    for line in lines:
+    for line_index, line in enumerate(lines):
         if not line.strip():
             continue
         try:
@@ -465,14 +466,12 @@ def _parse_claude_session(
                 line_model = _first_str(message.get("model"), obj.get("model"))
                 if line_model and (model is None or line_model != "<synthetic>"):
                     model = line_model
-                input_tokens += _int_value(usage.get("input_tokens"))
-                cache_creation_input_tokens += _int_value(
-                    usage.get("cache_creation_input_tokens")
-                )
-                cache_read_input_tokens += _int_value(
-                    usage.get("cache_read_input_tokens")
-                )
-                output_tokens += _int_value(usage.get("output_tokens"))
+                # Content blocks repeat usage for one API message. Keep its
+                # last in-window count; ID-less lines remain independent.
+                if usage:
+                    message_id = _first_str(message.get("id"))
+                    key = message_id if message_id else line_index
+                    usage_by_message[key] = usage
 
         if line_ts is None:
             if kind in {"user", "assistant"}:
@@ -492,6 +491,14 @@ def _parse_claude_session(
         elif parts:
             agent_turns += 1
             agent_texts.extend(parts)
+
+    for usage in usage_by_message.values():
+        input_tokens += _int_value(usage.get("input_tokens"))
+        cache_creation_input_tokens += _int_value(
+            usage.get("cache_creation_input_tokens")
+        )
+        cache_read_input_tokens += _int_value(usage.get("cache_read_input_tokens"))
+        output_tokens += _int_value(usage.get("output_tokens"))
 
     activity = _finalize_activity(
         human_turns=human_turns,

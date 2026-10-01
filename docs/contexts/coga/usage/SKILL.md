@@ -98,6 +98,7 @@ rather than rediscover them.
 - **Context-length tiers are invisible.** Providers price long-context
   requests at higher tiers, and records do not say which tier applied.
 - **A session's tokens go to its last model.** `_parse_claude_session` sums
-  usage across every assistant line but records only the last model seen, so
+  usage once per message but records only the last real model seen (see
+  [activity capture](../internals/activity-capture/SKILL.md)), so
   a session that switches models attributes all of its tokens to the final
   one.
