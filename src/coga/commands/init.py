@@ -3,7 +3,7 @@
 `coga init` writes everything from scratch into `<path>/coga/`. Templates come
 from the installed coga package. Init installs no Python packages or skills;
 in an interactive terminal it offers (never forces) to install missing
-external CLIs such as `gh`. On a repo whose `coga/` already exists it
+external CLIs such as `gh`, only after every precondition has passed. On a repo whose `coga/` already exists it
 refuses — unless the gitignored machine-local half
 (`coga.local.toml` with a `user`, the agent skill symlinks) is missing, which
 is what a fresh clone looks like: then `coga init --user NAME` creates only
@@ -391,36 +391,68 @@ focused topic a task needs rather than a broad overview.
 """
 
 
-def _check_external_dependencies() -> None:
-    """Offer to install missing external CLIs, then fail loud on required ones.
+def _interactive() -> bool:
+    return sys.stdin.isatty() and sys.stdout.isatty()
 
-    Runs at the start of every `coga init` invocation (fresh, update,
-    update-all) over the `coga.dependencies` manifest. In an interactive
-    terminal each missing tool with an `offer_install` default is offered
-    through the machine's package manager, printing the exact command before
-    running it; `gh` is then offered `gh auth login` if it is not logged in.
-    Nothing installs without a yes, and a non-interactive init (CI, an agent)
-    never prompts. Afterwards a missing `required_at_init` tool — just `git` —
-    still exits 2 with its install hint; a missing optional tool (`gh`, `op`)
-    is only a warning, since each is enforced again at its point of need.
-    Agent CLIs are neither offered nor warned about here: the next steps name
-    them.
+
+def _require_init_tools() -> None:
+    """Fail loud when a tool `coga init` *requires* is not on PATH.
+
+    Covers the `required_at_init` dependencies in the `coga.dependencies`
+    manifest — just `git`. `_do_init` calls it only after the checks that need
+    no tool (the `coga/` state, `--user`, an enclosing Coga repo) have passed,
+    and before the Git-backed ones that cannot run without it. In an
+    interactive terminal a missing required tool is first offered through the
+    machine's package manager; nothing installs without a yes, and a
+    non-interactive init never prompts. A tool still missing exits 2 with its
+    install hint.
     """
-    interactive = sys.stdin.isatty() and sys.stdout.isatty()
-    manager = _package_manager()
-    missing: list[Dependency] = []
-    for dep in DEPENDENCIES:
-        if dep.offer_install is None and not dep.required_at_init:
-            continue
-        if shutil.which(dep.name) is None and not (
-            interactive and _offer_install(dep, manager)
-        ):
-            missing.append(dep)
-    if interactive and "gh" not in {dep.name for dep in missing}:
-        _offer_gh_login()
+    interactive = _interactive()
+    manager = _package_manager() if interactive else None
+    required = [
+        dep
+        for dep in DEPENDENCIES
+        if dep.required_at_init
+        and shutil.which(dep.name) is None
+        and not (interactive and _offer_install(dep, manager))
+    ]
+    if not required:
+        return
+    lines = [
+        "coga needs these external command-line tools, but they are not on "
+        "PATH:",
+        *(f"  - {dep.name}: install from {dep.install}" for dep in required),
+        "Install the missing tool(s), then re-run `coga init`.",
+    ]
+    typer.secho("\n".join(lines), fg=typer.colors.RED, err=True)
+    sys.exit(2)
 
-    required = [dep for dep in missing if dep.required_at_init]
-    optional = [dep for dep in missing if not dep.required_at_init]
+
+def _offer_optional_tools() -> None:
+    """Offer missing optional CLIs and `gh auth login`; warn on what is left.
+
+    `_do_init` calls it once every precondition has passed, just before the
+    first write, so a malformed or redundant invocation never installs or
+    authenticates anything. In an interactive terminal each missing optional
+    tool with an `offer_install` default (`gh`, `op`) is offered through the
+    machine's package manager, printing the exact command first, and `gh` is
+    then offered `gh auth login` if its active github.com account is not
+    logged in. A tool still missing is only a warning: each is enforced again
+    at its point of need. Agent CLIs are neither offered nor warned about
+    here; the next steps name them.
+    """
+    interactive = _interactive()
+    manager = _package_manager() if interactive else None
+    optional = [
+        dep
+        for dep in DEPENDENCIES
+        if not dep.required_at_init
+        and dep.offer_install is not None
+        and shutil.which(dep.name) is None
+        and not (interactive and _offer_install(dep, manager))
+    ]
+    if interactive and "gh" not in {dep.name for dep in optional}:
+        _offer_gh_login()
     if optional:
         typer.secho(
             "\n".join(
@@ -432,16 +464,6 @@ def _check_external_dependencies() -> None:
             fg=typer.colors.YELLOW,
             err=True,
         )
-    if not required:
-        return
-    lines = [
-        "coga needs these external command-line tools, but they are not on "
-        "PATH:",
-        *(f"  - {dep.name}: install from {dep.install}" for dep in required),
-        "Install the missing tool(s), then re-run `coga init`.",
-    ]
-    typer.secho("\n".join(lines), fg=typer.colors.RED, err=True)
-    sys.exit(2)
 
 
 def _package_manager() -> str | None:
@@ -496,14 +518,29 @@ def _offer_gh_login() -> None:
     gh = shutil.which("gh")
     if gh is None:
         return
-    status = subprocess.run(
-        [gh, "auth", "status"], capture_output=True, text=True, check=False
-    )
-    if status.returncode == 0:
+    if _gh_logged_in(gh):
         return
     typer.echo("`gh` is installed but not logged in to GitHub.")
     if typer.confirm("Run `gh auth login` now?", default=True):
         subprocess.run([gh, "auth", "login"], check=False)
+
+
+def _gh_logged_in(gh: str) -> bool:
+    """True when the active github.com account of `gh` is authenticated.
+
+    Plain `gh auth status` tests every known account on every host and exits
+    1 if any of them has a problem, so a stale second account would read as
+    "logged out". `--active --hostname github.com` checks only the account
+    `gh` actually uses there. A `gh` older than 2.40 has no `--active` (and
+    holds one account per host), so on an unknown-flag error retry with
+    `--hostname` alone.
+    """
+    argv = [gh, "auth", "status", "--active", "--hostname", "github.com"]
+    status = subprocess.run(argv, capture_output=True, text=True, check=False)
+    if status.returncode != 0 and "unknown flag" in (status.stderr or ""):
+        argv.remove("--active")
+        status = subprocess.run(argv, capture_output=True, text=True, check=False)
+    return status.returncode == 0
 
 
 def _check_git_identity(target: Path) -> None:
@@ -521,7 +558,7 @@ def _check_git_identity(target: Path) -> None:
     yet (nested init), so probe from the nearest existing ancestor; repo-local
     `user.email` still counts. A missing or unrunnable git is not this check's
     problem —
-    `_check_external_dependencies` owns that.
+    `_require_init_tools` owns that.
     """
     probe = nearest_existing_dir(target)
     if probe is None:
@@ -577,7 +614,6 @@ def init(
     ),
 ) -> None:
     """Create `coga/` from package templates, or set up a clone's machine-local half."""
-    _check_external_dependencies()
     _do_init(path or Path("."), user=user)
 
 
@@ -926,9 +962,10 @@ def _setup_initialized_clone(target: Path, coga_os: Path, user: str | None) -> N
     symlinks, and the generated `coga/.agent-skills/` view. This is the
     supported way to create that machine-local half. It writes only gitignored
     state — nothing is staged or committed — and is idempotent: a second run
-    finds the same user and takes the ordinary refusal below.
+    finds the same user and takes the ordinary refusal below. The refusals
+    that need no tool come first; optional installs are offered only once
+    every check has passed.
     """
-    _require_git_work_tree(target)
     local_toml = coga_os / "coga.local.toml"
     if _local_toml_user(local_toml) is not None:
         # The machine-local half is already there, so re-running init was
@@ -962,6 +999,9 @@ def _setup_initialized_clone(target: Path, coga_os: Path, user: str | None) -> N
         )
         sys.exit(2)
     name = _require_user_name(user)
+    _require_init_tools()
+    _require_git_work_tree(target)
+    _offer_optional_tools()
 
     # A saved user is the completed-setup guard on the next invocation. Keep
     # the local config unchanged until every agent link is ready, so failures
@@ -1056,6 +1096,11 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     # invocation leaves nothing on disk.
     name = _require_user_name(user)
 
+    # Every check below runs git, so a missing git is reported (or, in a
+    # terminal, offered for install) only now, once the checks that need no
+    # tool have passed.
+    _require_init_tools()
+
     # Coga is git-backed: `coga init` commits coga/ into the host repo.
     # If the target isn't inside a git work tree, fail loud (principle 6)
     # instead of writing coga/ and silently skipping the commit further down.
@@ -1135,6 +1180,10 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             err=True,
         )
         sys.exit(2)
+
+    # Every precondition has passed: only now offer optional installs and
+    # `gh auth login`, so a doomed invocation never changes the machine.
+    _offer_optional_tools()
 
     target.mkdir(parents=True, exist_ok=True)
 

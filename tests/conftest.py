@@ -82,17 +82,18 @@ def _isolate_home(tmp_path_factory, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _stub_init_dep_check(monkeypatch):
-    """No-op `coga init`'s external-CLI dependency check by default.
+    """No-op `coga init`'s external-CLI dependency checks by default.
 
-    `coga init` hard-fails when `git`/`gh`/`op` are not on PATH, but CI and dev
-    machines may legitimately lack `op` (or `gh`). Default the check to a no-op
-    so init-invoking tests run anywhere; the dedicated dependency tests call the
-    real `_check_external_dependencies` with `shutil.which` mocked."""
-    monkeypatch.setattr(
-        "coga.commands.init._check_external_dependencies",
-        lambda: None,
-        raising=False,
-    )
+    `coga init` hard-fails when `git` is not on PATH and warns about (or, in a
+    terminal, offers to install) `gh`/`op`, which CI and dev machines may
+    legitimately lack. Default both phases to no-ops so init-invoking tests
+    run anywhere; the dedicated dependency tests call the real
+    `_require_init_tools` / `_offer_optional_tools` with `shutil.which`
+    mocked."""
+    for name in ("_require_init_tools", "_offer_optional_tools"):
+        monkeypatch.setattr(
+            f"coga.commands.init.{name}", lambda: None, raising=False
+        )
 
 
 @pytest.fixture(autouse=True)

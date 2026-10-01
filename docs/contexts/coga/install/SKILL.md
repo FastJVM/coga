@@ -19,7 +19,7 @@ that, and offers to install missing external CLIs (see
   `Requires-Python` notes, or it may succeed at installing the old `0.0.1`
   placeholder, which provides no `coga` command. Check `python3 --version`.
 - **Git.** The only external tool `coga init` enforces
-  (`src/coga/commands/init.py` `_check_external_dependencies`, driven by the
+  (`src/coga/commands/init.py` `_require_init_tools`, driven by the
   `required_at_init` entries in `src/coga/dependencies.py`). Git is also
   Coga's sync layer: state changes are commits.
 - **An agent CLI**, installed and authenticated: Claude Code or Codex. Needed
@@ -33,7 +33,8 @@ that, and offers to install missing external CLIs (see
   ([coga/secrets](../secrets/SKILL.md)).
 
 In an interactive terminal, `coga init` offers to install a missing `git`,
-`gh` (default yes, then `gh auth login` if logged out) or `op` (default no)
+`gh` (default yes, then `gh auth login` if the active github.com account
+is not logged in) or `op` (default no)
 with the machine's package manager — brew, winget, apt-get, dnf or pacman,
 with `sudo` on Linux — printing the exact command first. The per-tool
 packages live in `src/coga/dependencies.py`. Without a terminal, a known

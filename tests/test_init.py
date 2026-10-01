@@ -2504,8 +2504,20 @@ def test_running_cli_location_detects_pipx_when_python_is_a_symlink(
 # not on PATH; a missing `gh`/`op` only warns — each is enforced at its point
 # of need.
 # Captured before the autouse `_stub_init_dep_check` fixture replaces
-# the module attribute, so these tests exercise the real implementation.
-_real_dep_check = init_cmd._check_external_dependencies
+# the module attributes, so these tests exercise the real implementation.
+_real_require_tools = init_cmd._require_init_tools
+_real_offer_tools = init_cmd._offer_optional_tools
+
+
+def _real_dep_check() -> None:
+    """Both phases in order, as a fresh init runs them."""
+    _real_require_tools()
+    _real_offer_tools()
+
+
+def _restore_real_dep_checks(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(init_cmd, "_require_init_tools", _real_require_tools)
+    monkeypatch.setattr(init_cmd, "_offer_optional_tools", _real_offer_tools)
 
 
 def _which_missing(missing: set[str]):
@@ -2596,6 +2608,7 @@ def _interactive(
     answers: list[bool],
     platform: str = "darwin",
     gh_logged_in: bool = True,
+    gh_supports_active: bool = True,
 ) -> list[list[str]]:
     """Fake a tty on `platform` with `missing` tools; installs succeed.
 
@@ -2619,6 +2632,10 @@ def _interactive(
     def fake_run(argv, **kwargs):
         calls.append(list(argv))
         if argv[1:3] == ["auth", "status"]:
+            if "--active" in argv and not gh_supports_active:
+                return subprocess.CompletedProcess(
+                    argv, 1, "", "unknown flag: --active\n"
+                )
             return subprocess.CompletedProcess(argv, 0 if gh_logged_in else 1, "", "")
         tool = {"github-cli": "gh", "1password-cli": "op"}.get(argv[-1], argv[-1])
         absent.discard(tool)
@@ -2661,7 +2678,9 @@ def test_dep_check_skips_op_offer_without_a_package(
     the link rather than a prompt."""
     calls = _interactive(monkeypatch, missing={"op"}, answers=[], platform="linux")
     _real_dep_check()
-    assert calls == [["/usr/bin/gh", "auth", "status"]]
+    assert calls == [
+        ["/usr/bin/gh", "auth", "status", "--active", "--hostname", "github.com"]
+    ]
     assert "op: install from" in capsys.readouterr().err
 
 
@@ -2692,12 +2711,103 @@ def test_dep_check_never_prompts_without_a_tty(monkeypatch: pytest.MonkeyPatch) 
     _real_dep_check()  # an exhausted `answers` iterator would raise
 
 
+def test_dep_check_gh_login_checks_only_the_active_github_account(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stale second account makes plain `gh auth status` exit 1; init must
+    ask only about the active github.com account and not offer a login."""
+    calls = _interactive(monkeypatch, missing=set(), answers=[])
+    _real_dep_check()  # an exhausted `answers` iterator would raise
+    assert calls == [
+        ["/usr/bin/gh", "auth", "status", "--active", "--hostname", "github.com"]
+    ]
+
+
+def test_dep_check_gh_login_falls_back_without_active_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A `gh` older than 2.40 rejects `--active`; retry per host, no prompt."""
+    calls = _interactive(
+        monkeypatch, missing=set(), answers=[], gh_supports_active=False
+    )
+    _real_dep_check()
+    assert calls[-1] == ["/usr/bin/gh", "auth", "status", "--hostname", "github.com"]
+    assert ["/usr/bin/gh", "auth", "login"] not in calls
+
+
+@pytest.mark.parametrize(
+    "case", ["no_user", "not_git", "initialized", "clone_without_user"]
+)
+def test_init_offers_nothing_when_preflight_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    """A malformed or redundant `coga init` exits before any install or login
+    offer, so it never changes the machine."""
+    target = tmp_path / "repo"
+    argv = ["init", str(target), "--user", "tester"]
+    if case == "no_user":
+        _make_git_repo(target)
+        argv = ["init", str(target)]
+    elif case == "not_git":
+        target.mkdir()
+    else:
+        _make_git_repo(target)
+        (target / "coga").mkdir()
+        (target / "coga" / "coga.toml").write_text("")
+        if case == "initialized":
+            (target / "coga" / "coga.local.toml").write_text('user = "tester"\n')
+        else:
+            argv = ["init", str(target)]
+    _restore_real_dep_checks(monkeypatch)
+    offers: list[str] = []
+    real_which = shutil.which
+    # CliRunner swaps sys.stdin/stdout, so fake the terminal at init's probe.
+    monkeypatch.setattr(init_cmd, "_interactive", lambda: True)
+    monkeypatch.setattr(
+        "coga.commands.init.shutil.which",
+        lambda name: None if name in {"gh", "op"} else real_which(name),
+    )
+    monkeypatch.setattr(
+        init_cmd, "_offer_install", lambda dep, manager: offers.append(dep.name)
+    )
+    monkeypatch.setattr(
+        init_cmd, "_offer_gh_login", lambda: offers.append("gh auth login")
+    )
+    result = CliRunner().invoke(app, argv)
+    assert result.exit_code == 2, result.output
+    assert offers == []
+
+
+def test_init_offers_optional_tools_once_preflight_passes(
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = _make_git_repo(tmp_path / "repo")
+    _restore_real_dep_checks(monkeypatch)
+    offers: list[str] = []
+    real_which = shutil.which
+    monkeypatch.setattr(init_cmd, "_interactive", lambda: True)
+    monkeypatch.setattr(
+        "coga.commands.init.shutil.which",
+        lambda name: None if name in {"gh", "op"} else real_which(name),
+    )
+
+    def offer(dep, manager):
+        offers.append(dep.name)
+        assert not (target / "coga").exists()  # offered before any write
+        return False
+
+    monkeypatch.setattr(init_cmd, "_offer_install", offer)
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+    assert offers == ["gh", "op"]
+
+
 def test_init_bails_before_scaffolding_when_required_dep_missing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A missing required dep (git) stops `coga init` before it writes anything."""
-    # Restore the real check (autouse no-ops it), then make `git` absent.
-    monkeypatch.setattr(init_cmd, "_check_external_dependencies", _real_dep_check)
+    # Restore the real checks (autouse no-ops them), then make `git` absent.
+    _restore_real_dep_checks(monkeypatch)
     monkeypatch.setattr("coga.commands.init.shutil.which", _which_missing({"git"}))
 
     target = tmp_path / "fresh"
