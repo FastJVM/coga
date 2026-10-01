@@ -217,6 +217,13 @@ test receipts, and PR body above remain current; no code or AWS changes
 were needed in this resumed session. Advancing the completed peer-review
 step; delayed host release remains outstanding.
 
+Handoff resumed 2026-10-01T04:30Z: start check passed on clean, fetched
+`main`. Verified GitHub's feature branch still points to reviewed commit
+`69895a55583202d791892d571aba14af2ff0a6ea`; restored its missing local
+tracking branch. Upstream changes since the recorded rebase are exclusively
+Coga task/log state, so the returned review and test evidence above still
+apply. No code changed or AWS resources created in this resumed handoff.
+
 ## PR
 
 Adds an EC2 Mac clean-install harness for the current PyPI release and wheels
