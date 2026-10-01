@@ -46,6 +46,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/945
 branch: phone-home-record-failure-caller
 
 Plan: in `coga/notifications/failures` "What reaches `coga/log.md`" (live
