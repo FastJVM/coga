@@ -2,6 +2,7 @@
 # Host-side driver for the macOS clean-install harness on an EC2 Mac
 # (mac2.metal dedicated host). See the coga/testing/clean-install/macos-aws topic.
 set -Eeuo pipefail
+umask 077
 
 usage() {
     cat >&2 <<'EOF'
@@ -50,6 +51,18 @@ record() {
     printf '%s=%q\n' "$1" "$2" >> "$evidence/resources.env"
     printf -v "$1" '%s' "$2"
     printf 'recorded %s=%s\n' "$1" "$2"
+}
+
+record_output() {
+    # Capture separately: record KEY "$(aws ...)" would hide the AWS exit code.
+    local key=$1 value
+    shift
+    value=$("$@")
+    record "$key" "$value"
+}
+
+checksum() {
+    if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi
 }
 
 load() {
@@ -133,7 +146,7 @@ EOF
     trap 'status=$?; printf "FAILED (exit %s): %s\nResources so far are in %s; run: %q teardown %q\n" "$status" "$BASH_COMMAND" "$evidence/resources.env" "$0" "$run_name" >&2; exit "$status"' ERR
     record REGION "$region"
     record AZ "$az"
-    record CALLER "$(awsc sts get-caller-identity --query Arn --output text)"
+    record_output CALLER awsc sts get-caller-identity --query Arn --output text
 
     local ami ami_name subnet vpc ip
     if [[ -n ${COGA_MAC_AMI:-} ]]; then
@@ -156,28 +169,28 @@ EOF
         --query KeyMaterial --output text > "$evidence/key.pem"
     chmod 600 "$evidence/key.pem"
     record KEY_NAME "$resource_name"
-    record SG_ID "$(run awsc ec2 create-security-group --group-name "$resource_name" \
+    record_output SG_ID run awsc ec2 create-security-group --group-name "$resource_name" \
         --description 'Coga clean-install harness: SSH from one address' \
-        --vpc-id "$vpc" --query GroupId --output text)"
+        --vpc-id "$vpc" --query GroupId --output text
     # SSH only; VNC travels through an SSH tunnel, so 5900 stays closed.
     run awsc ec2 authorize-security-group-ingress --group-id "$SG_ID" \
         --protocol tcp --port 22 --cidr "$ip/32" >/dev/null
 
     local tags="Tags=[{Key=Name,Value=$resource_name},{Key=coga-clean-install,Value=$1}]"
-    record HOST_ID "$(run awsc ec2 allocate-hosts --instance-type mac2.metal \
+    record_output HOST_ID run awsc ec2 allocate-hosts --instance-type mac2.metal \
         --availability-zone "$az" --quantity 1 \
         --tag-specifications "ResourceType=dedicated-host,$tags" \
-        --query 'HostIds[0]' --output text)"
+        --query 'HostIds[0]' --output text
     record HOST_ALLOCATED_AT "$(date -u +%FT%TZ)"
-    record INSTANCE_ID "$(run awsc ec2 run-instances --image-id "$ami" \
+    record_output INSTANCE_ID run awsc ec2 run-instances --image-id "$ami" \
         --instance-type mac2.metal --placement "Tenancy=host,HostId=$HOST_ID" \
         --key-name "$resource_name" --security-group-ids "$SG_ID" \
         --subnet-id "$subnet" --associate-public-ip-address \
         --tag-specifications "ResourceType=instance,$tags" \
-        --query 'Instances[0].InstanceId' --output text)"
+        --query 'Instances[0].InstanceId' --output text
     run awsc ec2 wait instance-running --instance-ids "$INSTANCE_ID"
-    record PUBLIC_IP "$(awsc ec2 describe-instances --instance-ids "$INSTANCE_ID" \
-        --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)"
+    record_output PUBLIC_IP awsc ec2 describe-instances --instance-ids "$INSTANCE_ID" \
+        --query 'Reservations[0].Instances[0].PublicIpAddress' --output text
 
     ssh_args
     echo 'Waiting for SSH (an EC2 Mac often needs 10-20 minutes to boot)'
@@ -221,13 +234,14 @@ walk() {
         rm -rf -- "$tmp"
         wheels=("$out"/wheels/*.whl)
         [[ ${#wheels[@]} -eq 1 && -f ${wheels[0]} ]]
-        run sha256sum "${wheels[0]}"
+        run checksum "${wheels[0]}"
         remote_wheel="/tmp/coga-clean-install/$(basename -- "${wheels[0]}")"
         run scp "${ssh_opts[@]}" "${wheels[0]}" "$target:$remote_wheel"
         mode=wheel
     fi
     local status=0
-    run mac bash /tmp/coga-clean-install/macos-walk.sh walk \
+    # Passwords stay out of the terminal and host.txt command trace.
+    mac bash /tmp/coga-clean-install/macos-walk.sh walk \
         "$mode" "$operator" "$user" "$password" ${remote_wheel:+"$remote_wheel"} || status=$?
     fetch_evidence "$user" "$out"
     printf 'artifact=%s\nmac_user=%s\nexit_code=%s\n' "$artifact" "$user" "$status" | tee "$out/result.txt"
@@ -248,7 +262,8 @@ vnc() {
     local password
     password=$(openssl rand -hex 12)
     (umask 077 && printf '%s\n' "$password" > "$evidence/vnc-password.txt")
-    run mac bash /tmp/coga-clean-install/macos-walk.sh vnc "$password"
+    # Do not trace the password argument.
+    mac bash /tmp/coga-clean-install/macos-walk.sh vnc "$password"
     printf 'Tunnel:  ssh -i %q -N -L 5900:localhost:5900 %s\n' "$evidence/key.pem" "$target"
     printf 'Then open vnc://localhost:5900 as ec2-user; password in %s\n' "$evidence/vnc-password.txt"
 }

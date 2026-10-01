@@ -60,8 +60,9 @@ This command:
 
 Each resource ID is appended to `.coga/clean-install/<name>/resources.env`
 (gitignored) as soon as the resource exists, so a failed provision can still be
-torn down. The SSH wait allows 30 minutes, because an EC2 Mac can take 10–20
-minutes to become reachable.
+torn down. A failed AWS resource-creation call stops provisioning without
+recording an empty ID or attempting later allocations. The SSH wait allows
+30 minutes, because an EC2 Mac can take 10–20 minutes to become reachable.
 
 Then `provision` copies both scripts to `/tmp/coga-clean-install/` and saves a
 `baseline.txt`: the macOS version, the Command Line Tools (CLT) state, Homebrew
@@ -117,7 +118,10 @@ homes are not shared.
 Evidence for each walk is in `.coga/clean-install/<name>/walks/<user>/`:
 `result.txt`, the wheel and `source.txt` for `main`, and `mac/evidence/`, which
 holds `transcript.txt`, `steps.txt` (first failure and its exit code) and
-`init-passed.txt`. Driver output goes to `host.txt`.
+`init-passed.txt`. Driver output goes to `host.txt`. New evidence is
+owner-readable only; generated passwords are omitted from command traces and remain in their
+separate password files. Host wheel checksums use `sha256sum` or macOS
+`shasum -a 256`.
 
 ## Attended continuation: SSH or VNC
 
