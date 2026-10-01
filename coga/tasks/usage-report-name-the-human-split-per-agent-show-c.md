@@ -29,9 +29,10 @@ post) renders three changes:
    `780.9M tokens (25.4M excluding cache reads + 755.5M cache reads) across 142 sessions`.
    Non-cache-read means input + cache write + output. The existing four-category
    line and the unknown-session floor caveat stay.
-3. **Per-agent split.** Add one row per `agent` (e.g. `claude`, `codex`) with
-   its total tokens, alongside the existing per-model rows (both kept). An
-   empty agent falls into `(unknown)` like the model buckets do, and it is
+3. **Per-agent split.** Add a labeled `By agent:` block with one row per
+   `agent` (e.g. `claude`, `codex`) and its total tokens. Place it before the
+   existing per-model rows, which stay and get a matching `By model:` label.
+   An empty agent falls into `(unknown)` like the model buckets do, and it is
    never dropped.
 
 `--json` carries the same new data (user, non-cache-read total, per-agent
@@ -63,9 +64,14 @@ including the case with no user.
 - Slack routing (`post(cfg, text, important=True, fatal=False)` in the shim)
   is out of scope. Keep it as it is.
 - Update `coga/workflows/usage-report/post.md` (its `## post` prose lists
-  what the message carries) and `coga/recurring/usage-report/ticket.md` if
-  they enumerate the message contents. These are repo-local files with no
-  packaged twin.
+  what the message carries) and `coga/recurring/usage-report/ticket.md`
+  (step 2 lists the message contents). The latter ends by saying the report
+  has "no per-person attribution". Reword that line: the header names the
+  configured user, but records are still not attributed per person. Both are
+  repo-local files with no packaged twin.
+- Existing tests pin the old headline (e.g.
+  `test_main_renders_without_a_local_user` asserts
+  `"10 tokens across 1 session"`). Expect to update them.
 
 <!-- coga:blackboard -->
 
