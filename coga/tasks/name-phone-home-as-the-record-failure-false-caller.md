@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: d5f204e1-fcee-4ea0-9214-da1260c3ffcc
 ---
 
 ## Description
@@ -65,3 +64,34 @@ failure must not affect capture or completion, so a miss must not dirty
   (`ticket.py` `_receipt`) and its reason, linking `coga/telemetry`.
 - Verified: `pytest tests/test_packaging.py` 23 passed; full suite 3135 passed.
 - No code or fixture change; `coga/notifications/producers` already named it.
+
+## Peer review
+
+- `codex review --base main` returned successfully with no findings. It
+  confirmed that the caller and rationale match the implementation and that
+  canonical and packaged copies remain synchronized.
+- Review verification: `.venv/bin/python -m pytest tests/test_packaging.py -q`
+  passed all 23 tests. This is a documentation-only change; no terminal or
+  rendered notification surface changed.
+- Rebased unconditionally with `git fetch origin main` and
+  `git rebase FETCH_HEAD`. New upstream code arrived during the first suite,
+  so rebased again onto `3afe8006b` and reran the full suite:
+  `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest` — 3160 passed.
+  `git diff --check origin/main...HEAD` passed; the reviewed two-file diff
+  remained unchanged. No review fixes were needed.
+- Pushed commit `a11383c99` on `phone-home-record-failure-caller` with
+  `--force-with-lease`. Returned to clean `main` at `385df7d58`; the only
+  newer upstream commits are Coga state updates.
+
+## PR
+
+Correct the notification-failure topic's stale claim that no caller passes
+`record_failure=False`: phone-home's weekly snapshot receipt does. Explain
+that this best-effort telemetry receipt must not dirty `coga/log.md` when
+delivery fails, and link the telemetry contract. Update both the canonical
+topic and its packaged bootstrap twin; runtime behavior is unchanged.
+
+Test plan: `.venv/bin/python -m pytest tests/test_packaging.py -q` (23 passed);
+`PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest` (3160 passed after
+rebasing onto current upstream code); `git diff --check origin/main...HEAD`
+(passed).
