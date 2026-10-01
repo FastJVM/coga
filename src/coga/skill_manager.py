@@ -1081,11 +1081,25 @@ def _pruned_upstream_matches_installed(
     return hash_skill_tree(probe) == installed_digest
 
 
+# Machine-local state an agent tool or interpreter may drop inside an installed
+# skill: never upstream content and never a local adaptation, so the tree digest
+# skips any path under one of these directory names. A fixed set rather than
+# `git check-ignore`, because the digest must stay a pure function of the bytes
+# (it also hashes downloads materialized outside any repository). Mirrors the
+# generated-state set the packaging twin comparison excludes.
+LOCAL_ARTIFACT_DIRS = frozenset(
+    {".coga", ".venv", ".agent-skills", ".claude", ".codex", "__pycache__"}
+)
+
+
 def hash_skill_tree(skill_dir: Path) -> str:
     hasher = hashlib.sha256()
     for path in sorted(p for p in skill_dir.rglob("*") if p.is_file()):
-        rel = path.relative_to(skill_dir).as_posix()
+        rel_path = path.relative_to(skill_dir)
+        rel = rel_path.as_posix()
         if rel == SOURCE_METADATA:
+            continue
+        if LOCAL_ARTIFACT_DIRS.intersection(rel_path.parts[:-1]):
             continue
         hasher.update(rel.encode("utf-8"))
         hasher.update(b"\0")

@@ -797,6 +797,34 @@ def test_url_update_skips_locally_adapted_skill_when_upstream_unchanged(
     assert "local edit" in (skill_dir / "SKILL.md").read_text()
 
 
+def test_url_update_ignores_machine_local_agent_tooling_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    commands: list[list[str]] = []
+    install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+        runner=_gh_install_runner(commands),
+        now=lambda: "2026-05-13T12:00:00Z",
+    )
+    skill_dir = cfg.repo_root / "skills" / "tools" / "example"
+    clean_digest = hash_skill_tree(skill_dir)
+    _write(skill_dir / ".claude" / "launch.json", "{}\n")
+    _write(skill_dir / ".codex" / "config.toml", "model = 'x'\n")
+    _write(skill_dir / ".agent-skills" / "generated" / "SKILL.md", "generated\n")
+    _write(skill_dir / "scripts" / "__pycache__" / "run.cpython-312.pyc", "bytecode")
+
+    assert hash_skill_tree(skill_dir) == clean_digest
+    summary = update_skills(
+        cfg,
+        "tools/example",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+    )
+    assert summary.results[0].status == "unchanged"
+
+
 def test_url_update_reports_conflict_when_local_and_upstream_changed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

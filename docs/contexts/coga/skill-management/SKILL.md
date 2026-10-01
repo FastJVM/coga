@@ -95,6 +95,14 @@ updates left in the working tree.
   `local_adaptation_notes` but keeps `include`. Force never overrides a
   namespace collision in either direction (flat ref over a namespace
   directory, or namespaced ref under a flat skill).
+- **Tree digests skip machine-local state.** Both digests exclude
+  `.coga-source.json` and any path under a `.coga`, `.venv`, `.agent-skills`,
+  `.claude`, `.codex`, or `__pycache__` directory — the same generated-state
+  set the packaging twin comparison excludes. An agent tool's or
+  interpreter's droppings inside an installed skill are therefore never local
+  adaptation, and an upstream change confined to those paths is not detected.
+  The set is fixed rather than read from `.gitignore`, so a digest depends
+  only on the tree's bytes.
 - **`include` makes pruning reproducible.** Install and update prune the
   fetched tree to the listed repo-relative paths before landing it (no
   absolute paths or `..`; `SKILL.md` and `.coga-source.json` always kept).
