@@ -7193,3 +7193,4 @@ fatal: Unable to add (null) to database
 2026-09-30 22:27 [decide-whether-the-weekly-usage-report-belongs-on] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-09-30 22:27 [decide-whether-the-weekly-usage-report-belongs-on] [megalaunch] launched via coga megalaunch
 2026-09-30 22:28 [marketing/fix-installer/macos-clean-install-harness-on-aws] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
+2026-09-30 22:34 [decide-whether-the-weekly-usage-report-belongs-on] [agent:codex] advanced to step 3 (open-pr) → claude

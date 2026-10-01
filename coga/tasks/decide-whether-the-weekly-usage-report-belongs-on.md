@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 693f42df-23e3-4574-a6d1-b863045ab1ed
 ---
 
 ## Description
@@ -40,6 +39,53 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: usage-report-flow
+
+## Peer review
+
+Tool: Claude `/code-review` (default effort) against
+`origin/usage-report-flow` vs `main`. The review **returned** (2026-09-30).
+- Finding (low, applied): the template `ticket.md` had a relative link
+  `../../../docs/contexts/coga/important/SKILL.md`. `recurring.py` copies that
+  body unchanged into the deeper `coga/tasks/recurring/usage-report/<slug>/ticket.md`,
+  where the link would break. It is now a plain-text `coga/important` topic
+  reference, matching other recurring templates.
+- No other findings. The review confirmed several points: the default flow
+  routing is correct, `fatal=False` is kept, the test assertion is right, the
+  skill and workflow links resolve, and the producer topic twins are
+  byte-identical.
+- The review found no stale important-route references (checked by `git grep`).
+- There is no TTY or rendered surface beyond the Slack text. That text is
+  unchanged, and only its webhook destination moves.
+- Freshened the branch with a rebase onto `origin/main` (45 commits, no
+  conflicts). The full suite on the rebased branch gave **3135 passed**.
+  After the fix, `tests/test_usage_report.py tests/test_packaging.py
+  tests/test_recurring.py` gave **496 passed**, and `git diff --check` was
+  clean. Committed `peer-review: apply review findings` and force-pushed with
+  lease. The branch is now 2 commits ahead of `main`, and the checkout is back
+  on a clean `main`.
+
+## PR
+
+Route the weekly usage report to flow (resolves the Dream 2026-W40 stale
+finding against `coga/important`).
+
+`coga/important` reserves the important destination for notifications that need
+a human to act. The repo-local `coga/recurring/usage-report` template was
+posting its weekly token-usage FYI there. The owner decided the contract holds,
+so the report moves instead:
+
+- `coga/recurring/usage-report/ticket.py` posts with default (flow) routing,
+  keeping `fatal=False` and the CLI bump.
+- The template `ticket.md` now owns the routing decision and its rationale. The
+  `usage-report/post` skill and workflow link to it instead of restating the
+  route.
+- `coga/notifications/producers` (canonical and packaged twin, byte-identical)
+  now scopes its inventory to package and bundled producers. Repo-local
+  templates own their routing in their own `ticket.md`.
+- `tests/test_usage_report.py` asserts that the shim no longer passes
+  `important`.
+
+Test plan: `python -m pytest` (3135 passed on the rebased branch).
 
 ## Resumed implementation (2026-09-30)
 
