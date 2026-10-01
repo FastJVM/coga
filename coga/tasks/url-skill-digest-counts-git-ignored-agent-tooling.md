@@ -36,3 +36,15 @@ Filed by Dream 2026-W40, Phase 6 (shard ks-23, class gap; targets `src/coga/skil
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: skill-digest-skip-local-artifacts
+
+Plan: `src/coga/skill_manager.py::hash_skill_tree` skips any path with a
+component in a fixed machine-local set (`.coga`, `.venv`, `.agent-skills`,
+`.claude`, `.codex`, `__pycache__`) — the same set as
+`tests/test_packaging.py::GENERATED_TEMPLATE_DIRS`. Chose a fixed set over
+`git check-ignore`: hashing must stay pure/deterministic (also runs on
+materialized downloads in temp dirs outside any repo). PR #914 is already
+merged, so no topic-edit coordination needed.
