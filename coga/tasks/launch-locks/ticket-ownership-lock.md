@@ -55,6 +55,10 @@ Orthogonal sibling: launch-locks/checkout-exclusivity-lock protects a physical c
 
 ## Context
 
+Owner priority: design and ship ticket ownership locking before checkout exclusivity; checkout collisions are considered uncommon. Keep the two deliverables independent.
+
+The owner also requests "fast git sync". At minimum the lock design must define immediate acquisition/release publication, confirm acquisition before work starts, and avoid depending on delayed sweeps. Whether the request also includes general state-sync performance is awaiting clarification; do not silently expand this ticket into a sync rewrite. Fast publication alone is not mutual exclusion: simultaneous claims still require an atomic remote decision.
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
