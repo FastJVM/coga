@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 40fd6983-38a2-49b9-8357-41d28df15fba
 ---
 
 ## Description
@@ -209,6 +208,14 @@ Rebased unconditionally onto fetched main, fixed the findings, and pushed
 with `--force-with-lease` (tip `69895a555`). Returned to clean main before writing this handoff.
 Host release is still pending; the earliest release time is
 2026-10-01T23:28:57Z. Keep that outstanding operation visible in the PR.
+
+Resume verification — 2026-09-30: completed the checkout start check on clean
+`main` at `459800ff6`; verified the remote feature branch still points to
+reviewed tip `69895a55583202d791892d571aba14af2ff0a6ea`. Changes on main
+since the recorded rebase are Coga state only. The returned review, fixes,
+test receipts, and PR body above remain current; no code or AWS changes
+were needed in this resumed session. Advancing the completed peer-review
+step; delayed host release remains outstanding.
 
 ## PR
 
