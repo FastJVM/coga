@@ -1,6 +1,6 @@
 ---
 title: Offer agent CLI install and setup at init
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: direct/body
@@ -11,7 +11,6 @@ workflow:
     assignee: agent
 step: 1 (execute)
 agent: claude
-launch_generation: 8c713222-6190-49c2-bad0-e92b82e13a72
 ---
 
 ## Description
@@ -23,3 +22,19 @@ Follow-up to PR #942 (init offers to install missing git/gh/op). New users who h
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## 2026-10-01 — execute session (megalaunch): blocked before implementation
+
+Findings:
+- PR #942 ("Offer to install missing git/gh/op during coga init") is still OPEN, unmerged. This ticket builds on its prompt/installer machinery; implementing now would fork or duplicate it.
+- Current contract `coga/init` (docs/contexts/coga/init/SKILL.md:76) and `coga/install` (:10) say "Init installs no software" — this ticket reverses that; needs owner sign-off (same as #942).
+- Workflow is `direct/body`, which has no branch/PR step and whose `mark done` guard refuses product commits. This ticket changes `src/coga/` + topics + twins, so it belongs on a `code/*` workflow. Agents may not edit `workflow:`.
+- Owner questions from the description remain unanswered: trusted installers (npm `@anthropic-ai/claude-code` / `@openai/codex`, Anthropic curl script, brew cask), whether init may write the default agent into coga.toml, interaction with `coga build` onboarding.
+
+Proposed defaults (for owner to accept/adjust): reuse #942's offer-and-confirm prompt; installer order = brew (macOS, if present) → npm global (if node present) → print official URL, no curl|sh; run `claude` / `codex login` only on explicit yes; write `[agent] default` in coga.toml only when it is unset; `coga build` keeps its current not-found hint pointing at `coga init`. Non-interactive (no TTY / --yes-less flags) never prompts.
+
+---
+
+## Blockers
+
+- [ ] [2026-10-01 11:12] [agent:claude] id=20261001T111233 Needs: (1) PR #942 (init installs git/gh/op) merged first — this builds on it; (2) workflow switched from direct/body to a code/* workflow (product code + twins, direct/body can't land a PR); (3) answers to the open questions: trusted installers (brew/npm/curl script), may init write the default agent into coga.toml, interaction with coga build onboarding. Proposed defaults on the blackboard.
