@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 807f6ad7-9aaa-40d7-84a1-935ff11a7080
 ---
 
 ## Description
@@ -48,3 +47,19 @@ component in a fixed machine-local set (`.coga`, `.venv`, `.agent-skills`,
 `git check-ignore`: hashing must stay pure/deterministic (also runs on
 materialized downloads in temp dirs outside any repo). PR #914 is already
 merged, so no topic-edit coordination needed.
+
+## Handoff (implement)
+
+- `src/coga/skill_manager.py`: new `LOCAL_ARTIFACT_DIRS`; `hash_skill_tree`
+  skips any file whose parent path contains one of those names. Applies to
+  both `installed_tree_digest` and `source_tree_digest` (same function), so
+  existing recorded digests stay valid unless they included such files.
+- Regression test
+  `tests/test_skill_manager.py::test_url_update_ignores_machine_local_agent_tooling_artifacts`
+  (fails without the fix; update reports `unchanged`).
+- `coga/skill-management` topic (canonical + bootstrap twin): new
+  "Tree digests skip machine-local state" bullet under URL-backed provenance
+  rules. PR #914 was already merged; no conflict.
+- Tradeoff noted in topic: an upstream change confined to those dirs is not
+  detected. Live `coga/skills/clarity` digest still matches its record.
+- Verification: `.venv/bin/python -m pytest` → 3161 passed.

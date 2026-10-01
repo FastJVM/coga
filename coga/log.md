@@ -7255,3 +7255,4 @@ fatal: Unable to add (null) to database
 2026-10-01 10:53 [bootstrap/ticket] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
 2026-10-01 10:56 [dedupe-claude-transcript-usage-by-message-id] [human:nicktoper] created (status=draft)
 2026-10-01 10:56 [usage-report-name-the-human-split-per-agent-show-c] [human:nicktoper] created (status=draft)
+2026-10-01 10:57 [url-skill-digest-counts-git-ignored-agent-tooling] [agent:claude] advanced to step 2 (peer-review) → codex
