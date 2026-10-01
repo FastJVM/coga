@@ -72,6 +72,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/943
 branch: macos-clean-install-harness
 
 ## Plan — 2026-09-30 (claude, megalaunch)
@@ -223,6 +224,17 @@ Handoff resumed 2026-10-01T04:30Z: start check passed on clean, fetched
 tracking branch. Upstream changes since the recorded rebase are exclusively
 Coga task/log state, so the returned review and test evidence above still
 apply. No code changed or AWS resources created in this resumed handoff.
+
+## Open-PR verification
+
+The first `coga open-pr` refused because upstream included a README change.
+Rebased onto fetched `origin/main` without conflicts; `git range-diff`
+confirmed all three reviewed patches unchanged. Re-ran
+`PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q`: 3143 passed in 276.43s;
+`git diff --check` passed. Pushed tip `d2cf99bc1` with an explicit lease
+against reviewed tip `69895a555` and returned to clean, current `main`.
+The returned review remains applicable. Host release remains outstanding as
+documented below; no AWS operations were performed in this step.
 
 ## PR
 
