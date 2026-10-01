@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -131,3 +131,39 @@ Rebased onto `origin/main` at `9b6615195`; incoming changes were only Coga
 ticket/log state. Pushed the branch, then returned to clean, fast-forwarded
 `main` before this handoff. No PR opened. No unresolved implementation issues
 or adjacent bugs found. Next step is peer review.
+
+## Peer review
+
+Tool: Claude `/code-review` (default effort) on `fix/claude-usage-dedupe` vs
+`main`. It **returned** with one low-severity finding: a later line for the
+same `message.id` with no `usage` (parsed as `{}`) would overwrite that
+message's real usage with zero under last-wins. Real transcripts do not show
+this today: across 3,435 assistant lines, every one has an ID and usage, and no
+later line for an ID has a smaller output count. With the owner's approval it
+was fixed anyway: usage is stored only when non-empty, and
+`test_parse_claude_transcript_keeps_usage_when_later_line_lacks_it` covers it
+(it fails without the fix). Commit `a6661d2b6`. The review confirmed no other
+issues: no key collisions between IDs and line indexes, dedupe runs after
+the window filter, model attribution is unchanged, and the twins are
+byte-identical. No surface needs a terminal check; the change is a pure parser fix.
+
+Rebased onto `origin/main` and pushed with `--force-with-lease`.
+`PYTHONPATH=$PWD/src .venv/bin/python -m pytest`: 3,164 passed.
+`git diff --check` is clean. Checkout is back on a clean `main`.
+
+## PR
+
+Claude session token counts were about 1.6× too high, and up to ~1.9× for a
+single session. Claude Code writes one transcript line per content block, and
+each line repeats the API response's full `usage` under the same `message.id`.
+`_parse_claude_session` now keeps the last in-window usage for each
+`message.id` and sums those values. Lines without an ID still count
+individually, and a later line with no usage does not erase earlier counts.
+Model attribution, the window filter, activity extraction, the record schema,
+and the Codex parser are unchanged. Historical `coga/log.md` records are not
+recounted. The activity-capture and usage topics (and their packaged twins)
+now say usage is counted once per message.
+
+Test plan: `python -m pytest`, including new `tests/test_usage.py` cases for
+duplicated content blocks, streaming output growth, the window boundary, and a
+later line with no usage.
