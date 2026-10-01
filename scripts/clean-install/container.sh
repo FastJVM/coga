@@ -56,14 +56,20 @@ run() {
     fi
 }
 
+checksum() {
+    # GNU coreutils on Linux; macOS ships shasum.
+    if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi
+}
+
 run id
-run python --version
+# On a fresh Mac, this first git call is where the Command Line Tools prompt appears.
 run git --version
+run python3 --version
 run uv --version
 if [[ $mode == pypi ]]; then
     run uv tool install coga
 else
-    run sha256sum "$3"
+    run checksum "$3"
     run uv tool install "$3"
 fi
 run coga --version

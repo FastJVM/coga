@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import sys
@@ -40,7 +41,7 @@ def install_env(tmp_path: Path, monkeypatch) -> dict[str, str]:
     # Keep the host's installed coga out of PATH; only installation exposes it.
     for name in ("bash", "git", "mkdir", "tee"):
         (bin_dir / name).symlink_to(shutil.which(name))
-    (bin_dir / "python").symlink_to(sys.executable)
+    (bin_dir / "python3").symlink_to(sys.executable)
     _executable(bin_dir / "id", "#!/bin/sh\nprintf '1000\\n'\n")
     stub = tmp_path / "coga-stub"
     _executable(stub, """
@@ -94,7 +95,7 @@ def test_clean_install_reaches_init_from_selected_artifact(
     assert ("uv tool install coga " in steps) == (mode == "pypi")
     if mode == "wheel":
         assert "coga-1.0-py3-none-any.whl" in steps
-        assert "sha256sum" in steps
+        assert "checksum" in steps
     assert "attended coga ticket has not run" in (evidence / "init-passed.txt").read_text()
     assert not (evidence / "ticket.txt").exists()
 
@@ -181,3 +182,203 @@ def test_clean_install_main_builds_fetched_commit_not_working_tree(
     assert "docker create --network host --name clean-main" in result.stdout
     assert "network=host" in (evidence / "result.txt").read_text()
     assert git_repo.git("branch", "--show-current").strip() == "feature"
+
+
+@pytest.fixture
+def aws_mac(git_repo, tmp_path: Path, monkeypatch):
+    script = git_repo.root / "scripts/clean-install/aws-mac.sh"
+    script.parent.mkdir(parents=True)
+    shutil.copyfile(ROOT / "scripts/clean-install/aws-mac.sh", script)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    calls = tmp_path / "calls.txt"
+    # Canned text output per AWS operation; release-hosts can be refused.
+    _executable(bin_dir / "aws", f"""
+        #!{sys.executable}
+        import os
+        import sys
+
+        args = sys.argv[1:]
+        with open({str(calls)!r}, "a") as log:
+            log.write("aws " + " ".join(args) + "\\n")
+        op = args[args.index("--region") + 3]
+        if op == os.environ.get("COGA_TEST_AWS_FAIL"):
+            sys.exit(23)
+        release = os.environ.get("COGA_TEST_RELEASE", "None")
+        print({{
+            "get-caller-identity": "arn:aws:sts::123:assumed-role/dev",
+            "describe-images": "ami-1\\tamzn-ec2-macos-15.6",
+            "describe-subnets": "subnet-1\\tvpc-1",
+            "create-key-pair": "PRIVATE KEY",
+            "create-security-group": "sg-1",
+            "allocate-hosts": "h-1",
+            "run-instances": "i-1",
+            "describe-instances": "203.0.113.5",
+            "release-hosts": release,
+        }}.get(op, ""))
+    """)
+    for name in ("ssh", "scp"):
+        _executable(bin_dir / name, f"""
+            #!/bin/sh
+            echo "{name} $*" >> {calls}
+        """)
+    _executable(bin_dir / "curl", "#!/bin/sh\necho 198.51.100.7\n")
+    monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ["PATH"])
+    monkeypatch.setenv("AWS_PROFILE", "dev-sso")
+    monkeypatch.setenv("COGA_MAC_SSH_WAIT", "0")
+    monkeypatch.delenv("COGA_CLEAN_INSTALL_ALLOCATE", raising=False)
+
+    def run(*args: str, **env: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["bash", str(script), *args], env={**os.environ, **env},
+            capture_output=True, text=True,
+        )
+
+    return run, calls, git_repo.root / ".coga/clean-install/mac1"
+
+
+def test_aws_mac_provision_needs_cost_approval(aws_mac) -> None:
+    run, calls, evidence = aws_mac
+    result = run("provision", "mac1", "us-east-1", "us-east-1a")
+    assert result.returncode == 2
+    assert "24 hours" in result.stderr
+    assert not calls.exists()
+    assert not evidence.exists()
+
+
+def test_aws_mac_records_every_resource_and_tears_down(aws_mac) -> None:
+    run, calls, evidence = aws_mac
+    result = run(
+        "provision", "mac1", "us-east-1", "us-east-1a",
+        COGA_CLEAN_INSTALL_ALLOCATE="yes",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    resources = (evidence / "resources.env").read_text()
+    for line in ("KEY_NAME=coga-clean-install-mac1", "SG_ID=sg-1", "HOST_ID=h-1",
+                 "INSTANCE_ID=i-1", "PUBLIC_IP=203.0.113.5", "SSH_FROM=198.51.100.7/32"):
+        assert line in resources
+    assert (evidence / "key.pem").stat().st_mode & 0o777 == 0o600
+    aws_calls = [c for c in calls.read_text().splitlines() if c.startswith("aws ")]
+    assert all("--profile dev-sso --region us-east-1" in c for c in aws_calls)
+    assert "--placement Tenancy=host,HostId=h-1" in calls.read_text()
+    assert "--port 22 --cidr 198.51.100.7/32" in calls.read_text()
+    assert "macos-walk.sh reset" in calls.read_text()
+
+    # Inside 24 hours AWS refuses the release; everything else is still removed.
+    result = run("teardown", "mac1", COGA_TEST_RELEASE="Too early to release")
+    assert result.returncode == 1
+    assert "h-1 NOT released: Too early to release" in result.stdout
+    resources = (evidence / "resources.env").read_text()
+    assert "INSTANCE_TERMINATED=" in resources and "SG_DELETED=" in resources
+    assert "KEY_DELETED=" in resources and "HOST_RELEASED=" not in resources
+    ops = [c.split()[6] for c in calls.read_text().splitlines() if c.startswith("aws ")]
+    teardown = ops[ops.index("terminate-instances"):]
+    assert teardown == ["terminate-instances", "wait", "delete-security-group",
+                        "delete-key-pair", "release-hosts"]
+
+    assert run("release", "mac1").returncode == 0
+    assert "HOST_RELEASED=" in (evidence / "resources.env").read_text()
+    assert run("teardown", "mac1").returncode == 0
+    assert calls.read_text().count("terminate-instances") == 1
+
+
+@pytest.mark.parametrize(
+    ("operation", "missing_key", "forbidden_operation"),
+    [
+        ("get-caller-identity", "CALLER", "create-key-pair"),
+        ("create-security-group", "SG_ID", "allocate-hosts"),
+        ("allocate-hosts", "HOST_ID", "run-instances"),
+        ("run-instances", "INSTANCE_ID", "wait"),
+    ],
+)
+def test_aws_mac_stops_on_failed_resource_capture(
+    aws_mac, operation: str, missing_key: str, forbidden_operation: str,
+) -> None:
+    run, calls, evidence = aws_mac
+    result = run(
+        "provision", "mac1", "us-east-1", "us-east-1a",
+        COGA_CLEAN_INSTALL_ALLOCATE="yes", COGA_TEST_AWS_FAIL=operation,
+    )
+    assert result.returncode == 23, result.stdout + result.stderr
+    assert f"{missing_key}=" not in (evidence / "resources.env").read_text()
+    ops = [c.split()[6] for c in calls.read_text().splitlines() if c.startswith("aws ")]
+    assert forbidden_operation not in ops
+    # Every successfully recorded resource remains available to teardown.
+    assert run("teardown", "mac1").returncode == 0
+
+
+def test_aws_mac_passwords_stay_out_of_logs(aws_mac) -> None:
+    run, calls, evidence = aws_mac
+    assert run(
+        "provision", "mac1", "us-east-1", "us-east-1a",
+        COGA_CLEAN_INSTALL_ALLOCATE="yes",
+    ).returncode == 0
+    for args, password_path in (
+        (("walk", "mac1", "pypi", "walk1"), evidence / "walks/walk1/password.txt"),
+        (("vnc", "mac1"), evidence / "vnc-password.txt"),
+    ):
+        result = run(*args)
+        assert result.returncode == 0, result.stdout + result.stderr
+        password = password_path.read_text().strip()
+        assert password and password in calls.read_text()  # delivered to SSH
+        assert password not in result.stdout + result.stderr
+        assert password not in (evidence / "host.txt").read_text()
+        assert password_path.stat().st_mode & 0o777 == 0o600
+    assert (evidence / "host.txt").stat().st_mode & 0o777 == 0o600
+
+
+def test_aws_mac_walk_quotes_remote_argv(aws_mac, tmp_path: Path) -> None:
+    run, calls, evidence = aws_mac
+    assert run(
+        "provision", "mac1", "us-east-1", "us-east-1a",
+        COGA_CLEAN_INSTALL_ALLOCATE="yes",
+    ).returncode == 0
+    remote = tmp_path / "remote.txt"
+    # Record only the remote command string, exactly as the remote shell sees it.
+    _executable(tmp_path / "bin/ssh", f"""
+        #!/bin/sh
+        for arg; do last=$arg; done
+        printf '%s\\n' "$last" >> {remote}
+    """)
+    operator = "Alice Smith; touch pwned"
+    result = run("walk", "mac1", "pypi", "walk1", operator)
+    assert result.returncode == 0, result.stdout + result.stderr
+    password = (evidence / "walks/walk1/password.txt").read_text().strip()
+    walk = next(line for line in remote.read_text().splitlines() if "macos-walk.sh" in line)
+    assert shlex.split(walk) == [
+        "bash", "/tmp/coga-clean-install/macos-walk.sh", "walk",
+        "pypi", operator, "walk1", password,
+    ]
+
+
+def test_aws_mac_main_walk_without_gnu_checksum(
+    aws_mac, git_repo, tmp_path: Path, monkeypatch,
+) -> None:
+    run, calls, evidence = aws_mac
+    assert run(
+        "provision", "mac1", "us-east-1", "us-east-1a",
+        COGA_CLEAN_INSTALL_ALLOCATE="yes",
+    ).returncode == 0
+    git_repo.git("push", "origin", "main")
+    # A host tool path with shasum, but deliberately no sha256sum.
+    bin_dir = tmp_path / "portable-bin"
+    bin_dir.mkdir()
+    for name in ("bash", "git", "dirname", "tee", "date", "mkdir", "openssl",
+                 "mktemp", "tar", "rm", "basename", "ssh", "scp"):
+        (bin_dir / name).symlink_to(shutil.which(name))
+    _executable(bin_dir / "uv", """
+        #!/bin/sh
+        mkdir -p "$5"
+        echo wheel > "$5/coga-1.0-py3-none-any.whl"
+    """)
+    _executable(bin_dir / "shasum", """
+        #!/bin/sh
+        [ "$1 $2" = '-a 256' ] || exit 18
+        echo "portable-checksum $3"
+    """)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    result = run("walk", "mac1", "main", "walk1")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "portable-checksum" in result.stdout
+    assert "macos-walk.sh walk wheel" in calls.read_text()
+    assert "origin/main=" in (evidence / "walks/walk1/source.txt").read_text()
