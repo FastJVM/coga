@@ -39,6 +39,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/946
 branch: skill-digest-skip-local-artifacts
 
 Plan: `src/coga/skill_manager.py::hash_skill_tree` skips any path with a
