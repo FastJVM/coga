@@ -177,3 +177,75 @@ release is pending until 2026-10-01T23:29Z.
 
 - [x] [2026-09-30 14:24] [agent:claude] id=20260930T142425 Harness is pushed on branch macos-clean-install-harness; the required live provision→install→init→teardown cycle needs you to: (1) run 'aws sso login --profile multiply-telemetry' (token expired), and (2) approve allocating one mac2.metal dedicated host (24h minimum billing, release only after 24h) and name the region/AZ (suggest us-east-1; 'aws-mac.sh preflight <region>' shows quota and AZs). Then unblock and relaunch implement.
   resolved: [2026-09-30 16:28] [human:nicktoper] Owner re-ran aws sso login for multiply-telemetry (sts identity verified 2026-09-30) and approved allocating one mac2.metal dedicated host in us-east-1 (24h minimum billing); AZ to be chosen from preflight output.
+
+## Peer review
+
+`codex review --base main` **returned** on 2026-09-30. It found two P2
+issues: generated walk/VNC passwords appeared in command traces, and the
+host-side main-wheel path required GNU `sha256sum`. Both are fixed: the
+password-bearing calls bypass tracing, new evidence is owner-readable only,
+and wheel checksums fall back to `shasum -a 256`.
+
+Manual review also found that `record KEY "$(aws ...)"` masked AWS failures.
+Resource output is now captured with its exit status before recording; failed
+identity/SG/host/instance calls stop without recording an empty ID or launching
+later resources. Regression tests cover those failures, secret-free traces,
+and a main-wheel walk with no `sha256sum` on PATH. The runbook and packaged
+twin document the behavior.
+
+Verification:
+- `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q tests/test_clean_install_harness.py tests/test_packaging.py`: 40 passed.
+- `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q`: 3143 passed
+- `bash -n scripts/clean-install/aws-mac.sh scripts/clean-install/macos-walk.sh scripts/clean-install/container.sh` and `git diff --check`: passed.
+- Drove the SSH wrapper and Mac ticket continuation in real PTYs at 80x24 and
+  120x40, using local SSH/agent substitutes. Prompts displayed, typed input
+  arrived, the multiword title stayed intact, and both runs recorded
+  `ticket_exit_code=0`. This checks terminal plumbing, not live agent login.
+- Read the saved mac1 resource ledger and walk1/walk3/walk4 receipts to verify
+  the implementation handoff. No AWS resources created during review; VNC,
+  agent authentication and a real first ticket remain unexercised.
+
+Rebased unconditionally onto fetched main, fixed the findings, and pushed
+with `--force-with-lease` (tip `69895a555`). Returned to clean main before writing this handoff.
+Host release is still pending; the earliest release time is
+2026-10-01T23:28:57Z. Keep that outstanding operation visible in the PR.
+
+## PR
+
+Adds an EC2 Mac clean-install harness for the current PyPI release and wheels
+built from fetched `origin/main`. It provisions a `mac2.metal` dedicated host,
+records resource IDs for cleanup, removes the AMI's Command Line Tools to
+expose the fresh-Mac Git prerequisite, and runs the Linux harness's shared
+install/init/validate script as a new macOS user. The runbook covers spend
+approval, region/quota checks, SSH/VNC continuation, and delayed host release.
+Provisioning stops on failed AWS calls; generated passwords stay out of
+command traces; wheel checksums support Linux and macOS operators.
+
+Live cycle, 2026-09-30, owner-approved AWS profile `multiply-telemetry`:
+- Region/AZ: `us-east-1` / `us-east-1a`.
+- Host: `h-0833c01ac15e645ac`, allocated `2026-09-30T23:28:57Z`.
+- Instance: `i-0c94f48cbd0210aa0`, terminated `2026-09-30T23:50:28Z`.
+- AMI: `ami-0531fecfb292182a3` (`amzn-ec2-macos-27.0-20260918-030202-arm64`).
+- Security group `sg-01259984f101c8d33` deleted `23:50:29Z`; key pair
+  `coga-clean-install-mac1` deleted `23:50:30Z`.
+- Initial PyPI walk stopped at `git --version` without CLT. CLT was then
+  installed headlessly; the GUI prompt/VNC path was not exercised.
+- PyPI retry resolved `coga==0.0.1` and failed at `uv tool install coga`
+  because the package provides no executables (exit 2).
+- Main wheel `coga-0.3.2`, source `375df29abed60dcdc426daba7a5148aa1a9321bf`,
+  SHA-256 `46387d984e8cea33201f7c4924808266ce6a06e29b2d00e7b27f6025c8aa9d2d`:
+  install, `coga init`, and `coga validate --json` all passed.
+- Agent login and a real first ticket were not run. Installer findings belong
+  to `marketing/fix-installer/run-clean-installs-and-file-issues`.
+
+**Cleanup remains incomplete: the host is still allocated and billing.** AWS
+refused release within its 24-hour minimum. At or after
+`2026-10-01T23:28:57Z`, once the host is available, run
+`AWS_PROFILE=multiply-telemetry scripts/clean-install/aws-mac.sh release mac1`
+from the checkout retaining `.coga/clean-install/mac1/`, or
+`aws --profile multiply-telemetry --region us-east-1 ec2 release-hosts --host-ids h-0833c01ac15e645ac`.
+Confirm release and record its time before considering cleanup complete.
+
+Test plan: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q`: 3143 passed; focused harness/packaging suite (40 passed),
+Bash syntax and diff checks, terminal continuation at 80x24 and 120x40 with
+transport/agent substitutes, plus the recorded EC2 Mac install/init cycle.
