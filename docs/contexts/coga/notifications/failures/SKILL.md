@@ -87,7 +87,11 @@ The ordinary delivery-miss path appends an audit line. Two paths do not:
 - `record_failure=False` keeps a delivery miss on stderr only. `post` and
   `notify` accept it for strict publishers whose exact lease is already
   consumed, where a new dirty log line would block the child's clean
-  checkout gate or be swept unleased; no current caller passes it.
+  checkout gate or be swept unleased. Its current caller is the
+  `recurring/phone-home` weekly snapshot receipt (`ticket.py` `_receipt`):
+  a best-effort telemetry receipt from a bounded worker whose failure must
+  not affect capture or completion, so a delivery miss must not dirty
+  `coga/log.md` ([coga/telemetry](../../telemetry/SKILL.md)).
 
 ## Never render a raw Slack error
 
