@@ -165,7 +165,8 @@ in every clone and judge each branch in its owning repository. Independent
 sandbox clones receive the same protection. Closure captures the owner before
 filtering its primary path; legacy worklist entries infer missing ownership
 before disposal or discharge. A cleared branch clears the entry automatically.
-Unknown paths remain pending.
+Unknown paths remain pending except for the missing self-owned clone policy
+in `dev/checkout-cleanup`.
 
 ### A branch in another clone
 
@@ -183,7 +184,10 @@ instead (`retire_worklist.branch_owner`). An owner that is a checkout of the
 sweeping repository judges the entry like any other; an owner path that is
 gone or that git cannot read is an unknown and keeps the entry — except an
 independent clone recorded as its own owner (the line keeps its primary path
-as `worktree:`), whose branch went with its directory, so the entry clears.
+as `worktree:`), whose missing directory is treated as deletion, so the entry
+clears. Apply `dev/checkout-cleanup`, "Accepted disappearance policy", for the
+accepted relocation/unmount risk and the operator procedure before moving a
+clone or making its filesystem unavailable.
 Once the
 worktree is gone or is a primary checkout, the sweep does not run this repository's proofs on the
 branch — they would find no local branch and call it disposed — and reports

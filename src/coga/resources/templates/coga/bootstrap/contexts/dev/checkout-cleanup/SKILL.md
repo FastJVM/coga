@@ -73,11 +73,26 @@ does not delete a same-named branch in the sweeping clone. A remaining foreign
 branch is reported for inspection and
 manual branch cleanup in its owning clone; an unreadable owner or branch
 list keeps the entry pending, and so does a missing owner of a foreign linked
-worktree. An independent clone owns itself, so once its directory is gone its
-branch went with it and the entry clears. Once that owner's branch is gone, the
+worktree. For an independent clone recorded as its own owner, a missing
+directory is treated as deletion of the clone and its branch, so the entry
+clears. Once that owner's branch is gone, the
 primary-checkout entry discharges automatically, with no directory deletion or
 manual `retires.md` edit. Foreign linked worktrees still owe their directory
 cleanup as well.
+
+**Accepted disappearance policy (owner decision, 2026-10-01).** A missing
+self-owned path does not prove deletion: relocation or a temporarily
+unavailable filesystem looks the same. Automatic discharge is deliberate so
+deleted sandbox clones do not generate reminders forever. It can forget a
+surviving clone's branch cleanup if the recorded path disappears.
+
+Before moving or renaming a clone, pause autoclose sweeps in every participating
+checkout, update both `owner` and `worktree` in its `retires.md` entries to the
+new path (using the worklist's field encoding), and update any surviving
+ticket's recorded `worktree:`. Move the clone and verify the new path is
+accessible before resuming sweeps. For a temporary unmount, keep sweeps paused
+until the original path is accessible again; otherwise its cleanup record may
+be discharged. This policy drops bookkeeping only; it never deletes a clone.
 
 This replaces the repeated-posting failure and manual workaround documented in
 [the September incident](../../../evidence/independent-clone-worklist-2026-09.md).
