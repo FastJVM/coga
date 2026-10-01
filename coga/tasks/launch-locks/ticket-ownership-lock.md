@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 contexts:
 - coga/launch
 - coga/internals/launch-claims
@@ -453,3 +453,151 @@ for `review-design`.
 6. **Local-only scope.** Proposal: `[git].enabled = false` and non-Git →
    local `O_EXCL` lock; remote-less → normal local-control CAS; missing
    control branch → refuse rather than degrade. Confirm.
+
+## Evaluator review
+
+Cold review, 2026-10-01. **Not ready for implementation.** The body clearly
+identifies the required outcome and explicitly locates the spec on this
+blackboard. The frozen workflow matches the packaged
+`code/design-then-implement` workflow: this review hands findings to the owner,
+not approval to implement. The shared lock module, Git CAS foundation,
+separate checkout-lock deliverable, and separate collector follow-up fit the
+repo boundaries. The following protocol gaps must be resolved first.
+
+### Must resolve before implementation
+
+1. **P1 — The fork-to-record death proof can admit two workers.** The
+   Liveness proof claims Linux's environment scan closes this window, while
+   Env witness explicitly leaves the supervisor environment unchanged.
+   `src/coga/repl_supervisor.py::run_with_done_marker` forks first and installs
+   the supplied environment only in `os.execvpe`. An ordinary, ungated child
+   stopped before exec has neither that witness nor a roster entry if the
+   supervisor dies before recording it. A recoverer can declare the claim
+   dead, adopt, and start a second worker before the first child resumes.
+   A local fork probe confirmed the live pre-exec child's `/proc/.../environ`
+   lacks the proposed key even though the future exec environment contains it.
+   Specify a durable spawning barrier and child-release protocol for **every**
+   spawn path (PTY, non-TTY, script), or treat incomplete spawning as uncertain
+   on Linux too. Define the state's transitions and test an actual paused
+   pre-exec child, not just a fake process table. Scenario 12 currently asserts
+   a guarantee the proposed mechanism cannot provide.
+
+2. **P1 — Normal/exceptional release lacks proof that workers stopped.**
+   Release only requires published task bytes; it never checks the child
+   roster or surviving descendants. In
+   `src/coga/repl_supervisor.py::run_with_done_marker`, the PTY-loop `finally`
+   restores terminal state and removes the sentinel; `waitpid` is afterwards,
+   and arbitrary exceptions do not run `_trigger_term`. Wrapping `_launch`
+   in a release context manager therefore does not establish child death on
+   `KeyboardInterrupt` or another exception. `launch_script.run_script_phase`
+   uses `subprocess.run`, with no process-group/descendant shutdown contract.
+   A surviving child can coexist with a newly acquired owner after removal.
+   Specify terminate/reap and descendant evidence before release, and retain
+   the claim if termination is uncertain. Add interrupt, natural parent exit
+   with a surviving descendant, and teardown-failure tests. This is needed
+   independently of crash-time adoption and does not promise fencing of
+   arbitrary external side effects.
+
+3. **P1 — Recovery is circular and contradicts the retained-state scenarios.**
+   Existing claim rule 3 refuses adoption whenever the old checkout has
+   unpublished task state, including when invoked from that same checkout;
+   Release and scenarios 18/23 nevertheless promise that relaunch there
+   adopts, publishes/reconciles, and releases. Moreover,
+   `commands/launch.py::_CheckoutBoundary.enter` publishes and calls
+   `git.prepare_control_checkout` **before** the proposed acquisition point.
+   The new holder guard rejects that publication under the dead session's
+   claim; `git._plan_preparation` then refuses unpublished paths. A local
+   `released:` witness cannot pass an ordinary sync either
+   (`git.ticket_regression_reason`,
+   `launch._reconcile_released_launch_admission`). Recovery is unreachable.
+   Specify a narrow recovery entry before preparation, its exact CAS and
+   preservation rules, and when new work may start. Cover done/canceled and
+   deleted tickets with withheld releases: ordinary launch cannot resume all
+   of them. Also reconcile the statement that a pending generation retains
+   its lock until manual reconciliation with generic Release, which would
+   remove it when ticket bytes already equal control. Extend scenarios 18/23
+   to real Git checkouts with dirty state and the entry boundary enabled.
+
+4. **P1 — Recurring holds need their own complete outer boundary.** The
+   acceptance criterion includes every recurring period, but Proposed shape
+   only wraps `_launch` and `megalaunch._launch_until_stop`.
+   `src/coga/recurring_runner.py::_launch_due_tasks` and `_launch_created`
+   call `_run_delegated_task` directly; its child is a bootstrap target,
+   expressly exempt from locking. These paths would take no period lock.
+   Ordinary recurring launches also return before the runner calls
+   `_stop_if_unfinished_after_launch`; releasing inside `_launch` leaves that
+   final pause/publication outside ownership. `_prepare_forced_launch` can
+   activate before dispatch. Specify which recurring caller owns the hold
+   through activation, delegation, finalization and checkout settlement, and
+   how direct `coga launch recurring/...` shares it without double acquisition.
+   Add sweep, named, direct, forced, delegated, timeout and failed-finalization
+   scenarios. `tests/test_recurring.py::test_delegated_task_launches_target_and_owns_lifecycle`
+   confirms that lifecycle ownership is in the runner.
+
+5. **P1 — Local-only replacement/removal has no atomic decision.** `O_EXCL`
+   protects first creation; reading exact bytes and then unlinking does not
+   protect release or unlock. A releaser can read claim A, a concurrent
+   remover can delete A and a launcher create B, then the first releaser can
+   unlink B. Two adopters can likewise both read a dead A unless replacement
+   is serialized. Define the local compare-and-replace/delete transaction,
+   including all acquire/adopt/unlock/release participants; the existing
+   short-lived `git.state_lock` is a possible checkout-local primitive without
+   turning it into the long ownership hold. Add local-mode concurrent adopter
+   and replacement-between-check-and-unlink tests. Scenario 26 alone only
+   proves initial creation exclusion.
+
+6. **P2 — Excluding locks from publication does not make stale local files
+   harmless to checkout preparation.** Lock paths / scenario 21 promise a
+   stale dirty lock cannot block preparation. `git._plan_preparation` examines
+   all staged, tracked and untracked paths and rejects bytes that differ from
+   pinned control; it does not consult `_candidates`. Filtering the latter
+   prevents publication but leaves precisely this obstruction. Specify a
+   separate, evidence-preserving stale-lock reconciliation rule, or explicitly
+   make this a diagnosed refusal with a recovery procedure and revise scenario
+   21. Test dirty tracked and untracked lock files, not just a clean feature
+   checkout whose HEAD contains an older lock.
+
+### Optional recommendations and owner decisions
+
+- Tighten the new `publish(content=...)` contract before coding it. Current
+  `git._guard` requires `expect=None` to mean absence even if desired bytes
+  already match control (`tests/test_git.py::test_expect_none_means_the_path_must_not_exist_on_control`).
+  Forced candidates therefore do not give the stated idempotent `False` acquire
+  when the claim already exists. Describe explicit reconciliation of that
+  case rather than treating a generic `False` as remote confirmation. Also
+  preserve the distinction between observed working bytes and desired landed
+  bytes in `fast_forward_control`'s staging proof; its remote-less path uses
+  `merge --ff-only` when a worktree holds control, not always `update-ref`.
+- Reserve or diagnose the lock-path namespace. `tasks.list_tasks` currently
+  allows a group/directory task named `foo.lock` alongside `foo.md`; the
+  proposed claim for `foo` collides with that directory. Do not silently
+  replace a subtree in the Git tree. Add malformed-claim, path-collision and
+  orphan-unlock coverage, plus the new env keys to test isolation.
+- State rollout assumptions: older launchers and publishers do not enforce
+  these locks. Name the writer-upgrade/quiet-window requirement or explicitly
+  limit guarantees to participating versions. Include
+  `coga/internals/agent-spawn`, recurring ownership topics and `dev/checkouts`
+  in the eventual contract changes if the fixes above change their behavior.
+- Owner still decides general launch cost/availability, `unlock` command
+  placement, existing-ticket authoring, and local-only scope. The all-writer
+  guard, recurring participation and separate collector were already decided;
+  remove their stale alternatives from Open Questions when accepting the
+  revision. No decision was made on the owner's behalf in this review.
+
+### Verification
+
+Read the current source, relevant tests, supplied contracts, discovery and
+recurring topics, and the packaged workflow. No implementation, fixture,
+ticket-body or frontmatter edits were made. An isolated fork/pipe probe
+verified the pre-exec environment gap and reaped its child.
+
+The initial ambient `python -m pytest` attempt could not collect because
+`tomlkit` is absent there. The repository venv completed **12 passed** with:
+
+```sh
+.venv/bin/python -m pytest -q tests/test_git.py::test_expect_pins_the_exact_control_copy tests/test_git.py::test_expect_none_means_the_path_must_not_exist_on_control tests/test_git.py::test_guard_sees_every_base_the_publish_pushes_on tests/test_git.py::test_pending_claim_on_control_accepts_only_its_own_admission tests/test_git.py::test_a_released_witness_is_never_published tests/test_repl_supervisor.py::test_pty_child_replaces_inherited_environment tests/test_recurring.py::test_delegated_task_launches_target_and_owns_lifecycle
+```
+
+These validate existing mechanisms; they are not implementation tests for the
+proposed lock. Handoff: owner resolves or explicitly dispositions the six
+must-fix findings before advancing to implementation.
