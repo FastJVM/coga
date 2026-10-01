@@ -1,6 +1,6 @@
 ---
 title: Offer agent CLI install and setup at init
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: direct/body

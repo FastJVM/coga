@@ -7313,3 +7313,4 @@ fatal: Unable to add (null) to database
 2026-10-01 15:19 [marketing/fix-installer/run-clean-installs-and-file-issues] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
 2026-10-01 15:20 [marketing/fix-installer/affordable-macos-testing-on-owned-macs-and-per-min] [human:nicktoper] created (status=draft)
 2026-10-01 15:23 [marketing/fix-installer/offer-agent-cli-install-and-setup-at-init] [human:nicktoper] activated (blocked → active) — auto on launch
+2026-10-01 15:23 [marketing/fix-installer/offer-agent-cli-install-and-setup-at-init] [human:nicktoper] started (active → in_progress) via coga launch
