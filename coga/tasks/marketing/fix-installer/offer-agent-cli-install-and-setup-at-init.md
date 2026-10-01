@@ -1,6 +1,6 @@
 ---
 title: Offer agent CLI install and setup at init
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: direct/body
