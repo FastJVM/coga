@@ -7219,3 +7219,4 @@ fatal: Unable to add (null) to database
 2026-10-01 10:30 [recurring/blocker-reminders] [system] created (status=active)
 2026-10-01 10:30 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-10-01
 2026-10-01 10:30 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-10-01
+2026-10-01 10:30 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
