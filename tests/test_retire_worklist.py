@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 from dataclasses import replace
 from pathlib import Path
@@ -299,15 +300,57 @@ def test_the_primary_checkout_is_never_worktree_debt(tmp_path: Path) -> None:
     assert rw.is_discharged(entry, root=root, branches=frozenset({"main"}))
 
 
-def test_a_checkout_a_human_disposes_of_by_hand_stays_worktree_debt(
-    tmp_path: Path,
+@pytest.mark.parametrize("from_linked", [False, True])
+def test_another_clones_primary_tracks_its_own_branch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, from_linked: bool,
 ) -> None:
-    # An independent clone, another repository's linked worktree, and a
-    # directory git cannot read are all preserved by the proofs, but somebody
-    # still removes them: this file is their only durable trace.
     root = _git_repo_with_branch(tmp_path / "repo", "feature")
     clone = tmp_path / "clone"
     _git(tmp_path, "clone", "-q", str(root), str(clone))
+    _git(clone, "branch", "feature")
+    if from_linked:
+        linked = tmp_path / "control"
+        _git(root, "worktree", "add", "--detach", str(linked))
+        root = linked
+    entry = _entry("legacy", branch="feature", worktree=str(clone))
+
+    assert rw.is_primary_checkout(root, str(clone))
+    assert rw.worktree_owner(root, str(clone)) == str(clone.resolve())
+    # An old ownerless entry must not use the sweeping clone's branch list.
+    assert not rw.is_discharged(entry, root=root, branches=frozenset())
+    _git(clone, "branch", "-D", "feature")
+    assert rw.is_discharged(entry, root=root, branches=frozenset({"feature"}))
+    assert clone.is_dir()
+    with monkeypatch.context() as patch:
+        patch.setattr(rw, "local_branches", lambda _root: None)
+        assert not rw.is_discharged(entry, root=root, branches=frozenset())
+
+
+def test_a_removed_independent_clone_takes_its_branch_with_it(
+    tmp_path: Path,
+) -> None:
+    root = _git_repo_with_branch(tmp_path / "repo", "feature")
+    clone = tmp_path / "clone"
+    _git(tmp_path, "clone", "-q", str(root), str(clone))
+    _git(clone, "branch", "feature")
+    entry = _entry("sandbox", branch="feature", worktree=str(clone))
+    entry = replace(entry, owner=rw.worktree_owner(root, str(clone)))
+    assert not rw.is_discharged(entry, root=root, branches=frozenset())
+
+    shutil.rmtree(clone)
+
+    # The recorded owner was the clone itself: gone, not unreadable.
+    assert rw.owner_branch_remains(root, entry) is False
+    assert rw.is_discharged(entry, root=root, branches=frozenset())
+
+
+def test_a_checkout_a_human_disposes_of_by_hand_stays_worktree_debt(
+    tmp_path: Path,
+) -> None:
+    # Another repository's linked worktree and a directory git cannot read
+    # are preserved by the proofs, but somebody
+    # still removes them: this file is their only durable trace.
+    root = _git_repo_with_branch(tmp_path / "repo", "feature")
     other = _git_repo_with_branch(tmp_path / "other", "fix")
     foreign = tmp_path / "other-wt"
     _git(other, "worktree", "add", "-q", str(foreign), "fix")
@@ -316,7 +359,7 @@ def test_a_checkout_a_human_disposes_of_by_hand_stays_worktree_debt(
     linked = tmp_path / "linked"
     _git(root, "worktree", "add", "-q", str(linked), "feature")
 
-    for path in (clone, foreign, plain, linked):
+    for path in (foreign, plain, linked):
         assert not rw.is_primary_checkout(root, str(path))
         entry = _entry("kept", branch="gone", worktree=str(path))
         assert not rw.is_discharged(entry, root=root, branches=frozenset())
@@ -414,7 +457,7 @@ def test_a_bare_owner_is_read_like_any_other_repository(tmp_path: Path) -> None:
     assert rw.is_discharged(entry, root=root, branches=frozenset())
 
 
-def test_only_another_repositorys_linked_worktree_records_an_owner(
+def test_only_another_repositorys_checkouts_record_an_owner(
     tmp_path: Path,
 ) -> None:
     root, _owner, worktree = _cross_clone(tmp_path)
@@ -424,9 +467,9 @@ def test_only_another_repositorys_linked_worktree_records_an_owner(
     _git(root, "worktree", "add", "-q", str(linked), "unrelated")
 
     assert rw.worktree_owner(root, str(worktree))
-    # An independent clone's branch dies with its directory, and the rest are
-    # this repository's or unknown: none of them names an owner.
-    for recorded in (str(clone), str(linked), str(root), str(tmp_path / "gone"), ""):
+    assert rw.worktree_owner(root, str(clone)) == str(clone.resolve())
+    # This repository's checkouts and unknown paths do not name an owner.
+    for recorded in (str(linked), str(root), str(tmp_path / "gone"), ""):
         assert rw.worktree_owner(root, recorded) == ""
     assert rw.worktree_owner(None, str(worktree)) == ""
 

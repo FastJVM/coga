@@ -612,7 +612,55 @@ def test_cross_clone_entry_with_an_unreadable_owner_asks_for_the_owner(
     assert rw.parse_worklist(worklist.read_text())[1] == [entry]
 
 
-def test_independent_clone_is_named_for_removal_by_hand(
+@pytest.mark.parametrize("legacy", [False, True])
+def test_another_clones_primary_is_preserved_and_discharged_without_reposting(
+    git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, legacy: bool,
+) -> None:
+    clone = tmp_path / "active-clone"
+    _git(tmp_path, "clone", "-q", str(git_repo.root), str(clone))
+    _git(clone, "branch", "feature-x")
+    # A same-named local branch must never be touched for this foreign ticket.
+    _git(git_repo.root, "branch", "feature-x")
+    (clone / "local-data").write_text("keep me")
+    _route_important(git_repo)
+    _, worklist = _period_task(git_repo, monkeypatch)
+    if legacy:
+        slug = "old-ticket"
+        worklist.parent.mkdir(parents=True, exist_ok=True)
+        worklist.write_text(rw.render_worklist(rw.RETIRE_WORKLIST_HEADER, [
+            rw.RetireFollowUp(slug, "feature-x", str(clone), "2026-09-01"),
+        ]))
+    else:
+        slug, _ = _final_step_ticket(git_repo, branch="feature-x", worktree=clone)
+    _stub_gh(monkeypatch, git_repo)
+    posts = _capture_posts(monkeypatch)
+    cfg = load_config(git_repo.coga_os)
+    result = am.AutocloseResult()
+
+    assert am.run_autoclose_recipe(cfg, [], result=result) == 0
+
+    [kept] = result.preserved
+    assert kept.branch_owner == clone.resolve()
+    assert kept.worktree is None
+    assert "remove" not in kept.manual_command
+    assert f"git -C {clone} branch -d feature-x" in kept.manual_command
+    assert _local_branch_exists(git_repo.root, "feature-x")
+    _, [entry] = rw.parse_worklist(worklist.read_text())
+    assert entry.owner == str(clone.resolve())
+
+    _git(clone, "branch", "-D", "feature-x")
+    posts.clear()
+    for _ in range(2):
+        result = am.AutocloseResult()
+        assert am.run_autoclose_recipe(cfg, [], result=result) == 0
+        assert not result.preserved
+        assert rw.parse_worklist(worklist.read_text())[1] == []
+    assert not any(url == IMPORTANT_WEBHOOK for url, _ in posts)
+    assert (clone / "local-data").read_text() == "keep me"
+    assert _local_branch_exists(git_repo.root, "feature-x")
+
+
+def test_independent_clone_without_its_recorded_branch_is_not_debt(
     git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     clone = tmp_path / "fallback-clone"
@@ -625,14 +673,37 @@ def test_independent_clone_is_named_for_removal_by_hand(
     assert am.run_autoclose_recipe(load_config(git_repo.coga_os), [], result=result) == 0
 
     assert clone.is_dir()
-    [preserved] = result.preserved
-    assert preserved.manual_command == (
-        f"`{clone.resolve()}` is an independent checkout with its own "
-        "repository, which no proof removes — inspect and remove it by hand, "
-        "unless it is another clone's primary checkout in active use: then "
-        "never remove it; verify the branch is gone in that clone and delete "
-        "this `retires.md` line by hand (see `dev/checkout-cleanup`)"
-    )
+    assert not result.preserved
+    assert [item.slug for item in result.disposed] == [slug]
+
+
+def test_a_wiped_sandbox_clone_clears_its_entry_without_reposting(
+    git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clone = tmp_path / "fallback-clone"
+    _git(tmp_path, "clone", "-q", str(git_repo.root), str(clone))
+    _git(clone, "branch", "fallback")
+    _route_important(git_repo)
+    _, worklist = _period_task(git_repo, monkeypatch)
+    _final_step_ticket(git_repo, branch="fallback", worktree=clone)
+    _stub_gh(monkeypatch, git_repo)
+    posts = _capture_posts(monkeypatch)
+    cfg = load_config(git_repo.coga_os)
+
+    result = am.AutocloseResult()
+    assert am.run_autoclose_recipe(cfg, [], result=result) == 0
+    [kept] = result.preserved
+    assert kept.branch_owner == clone.resolve()
+
+    # `/tmp` is wiped: the branch went with the clone, so this is not an
+    # unreadable owner to locate forever.
+    shutil.rmtree(clone)
+    posts.clear()
+    result = am.AutocloseResult()
+    assert am.run_autoclose_recipe(cfg, [], result=result) == 0
+    assert not result.preserved
+    assert rw.parse_worklist(worklist.read_text())[1] == []
+    assert not any(url == IMPORTANT_WEBHOOK for url, _ in posts)
 
 
 def test_primary_checkout_recorded_as_worktree_is_not_retire_debt(

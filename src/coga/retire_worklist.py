@@ -27,29 +27,20 @@ list or git root that cannot be read, a checkout git cannot answer for) keeps
 the entry — the failure mode is "listed one time too many", never "silently
 forgotten".
 
-The rule's other half is that debt has to be clearable by somebody. One
-recorded `worktree:` never is: this repository's own primary checkout, which a
-ticket worked in the single-checkout layout records as its own, and which no
-proof removes and no operator deletes — counting it kept such an entry listed,
-and re-posted to coga-important, forever. `is_primary_checkout` is that one
-exception, applied through `git.classify_checkout` both where autoclose records
-a closure and where `is_discharged` judges an entry, so the two sides cannot
-disagree. A checkout the proofs preserve but a human can dispose of — an
-independent fallback clone, or another repository's linked worktree, which is
-what cross-repo work records — stays listed, because this file is its only
-durable trace once the ticket is gone.
+Primary checkouts are never directory debt, including those of another clone:
+Git topology proves a primary checkout, not that its repository is disposable.
+`is_primary_checkout` applies `git.classify_checkout` at closure and discharge.
+Independent sandbox clones get the same protection. Linked worktrees and
+unreadable directories stay listed until removed.
 
-Another repository's linked worktree has a second consequence: its branch
-lives in *that* repository, and the recurring sweep may fire from a clone that
-never had it. Judging `branch:` against this repository's branches would read
-"branch gone" the moment the worktree directory vanished and silently drop the
-debt. So an entry records its checkout's **owner** — the owning repository's
-main working tree, `git.classify_checkout`'s `"foreign-linked"` verdict —
-while the directory still exists to be classified, and `is_discharged` asks
-that owner's branch list instead (`branch_owner`). An owner that cannot be
-read is an unknown and keeps the entry. Lines recorded before the field
-existed carry no owner and are judged against this repository as before; a
-cross-clone entry whose worktree is already gone can be backfilled by hand.
+A foreign checkout's branch belongs to its owning repository. Entries record
+that primary checkout as `owner` while it can still be classified; legacy
+ownerless entries infer ownership before judging discharge, then backfill it
+when retained. An unreadable owner or branch list keeps the entry, except
+that an independent clone owns itself: once its directory is gone, so is its
+branch. Once the recorded branch is gone there, a primary checkout entry clears
+without removing the directory. A legacy foreign linked worktree already gone cannot be
+classified; its owner can be backfilled by hand.
 
 The file is plain markdown so a human can read, hand-edit, or backfill it.
 The one line shape is::
@@ -319,9 +310,9 @@ def _recorded_relation(
 
 
 def is_primary_checkout(root: Path | None, recorded: str | None) -> bool:
-    """Whether a recorded `worktree:` is provably this repository's primary checkout.
+    """Whether a recorded `worktree:` is provably a repository's primary checkout.
 
-    The one recorded path that is never retire debt: no proof removes it and
+    A primary checkout is never directory debt: no proof removes it and
     no operator deletes it (see the module docstring). A relative value
     resolves against `root`. Every unknown answers False — no git root, a path
     that is not a directory, a checkout `git.classify_checkout` cannot read —
@@ -329,20 +320,18 @@ def is_primary_checkout(root: Path | None, recorded: str | None) -> bool:
     proof.
     """
     relation = _recorded_relation(root, recorded)
-    return relation is not None and relation.kind == "primary"
+    return relation is not None and relation.kind in {"primary", "foreign-primary"}
 
 
 def worktree_owner(root: Path | None, recorded: str) -> str:
-    """The owning repository's main working tree for a foreign-linked `worktree:`.
+    """The owning repository's primary checkout for a foreign `worktree:`.
 
-    Empty for every other answer — a checkout of this repository, an
-    independent clone (whose branch dies with its directory), a path that is
-    not a directory, or no verdict — so only a proven "another repository's
-    linked worktree" is ever recorded as an owner. A relative value resolves
-    against `root`.
+    Both linked worktrees and independent primary checkouts carry ownership.
+    This repository's checkouts and unknown paths return an empty string.
+    A relative value resolves against `root`.
     """
     relation = _recorded_relation(root, recorded)
-    if relation is None or relation.kind != "foreign-linked" or relation.owner is None:
+    if relation is None or relation.owner is None:
         return ""
     return str(relation.owner)
 
@@ -381,16 +370,20 @@ def branch_owner(root: Path | None, owner: str) -> Path | None:
 def owner_branch_remains(root: Path | None, entry: RetireFollowUp) -> bool | None:
     """Whether an entry's `branch:` is still held by its recorded `owner`.
 
-    `None` when the entry has no owner, no branch, or an owner that is
+    Infer ownership for legacy entries before consulting branches. `None`
+    when the entry has no provable owner, no branch, or an owner that is
     `root`'s own repository: the branch is judged here like any other. `True`
     also covers an owner or branch list that cannot be read, because an
-    unknown keeps the entry.
+    unknown keeps the entry. The one exception is an independent clone that
+    owns itself (`owner` is the recorded `worktree:`): once that directory is
+    gone its branch went with it, so `False`.
     """
+    entry = _with_owner(entry, root)
     if not entry.branch or not entry.owner:
         return None
     home = branch_owner(root, entry.owner)
     if home is None:
-        return True
+        return not _removed_self_owned_clone(root, entry)
     if home == root:
         return None
     branches = local_branches(home)
@@ -403,7 +396,7 @@ def is_discharged(
     """Whether `coga retire <slug>` has nothing left to dispose of.
 
     Discharged means the recorded worktree path is no longer a directory, or is
-    this repository's own primary checkout (`is_primary_checkout`), *and* the
+    a repository's primary checkout (`is_primary_checkout`), *and* the
     recorded branch is no longer a local branch; either half still to dispose
     of keeps the entry. A relative `worktree:` resolves against the git root
     the ticket lives in, never the process working directory. Every unknown
@@ -447,7 +440,7 @@ def reconcile_worklist(
     overwritten. `branches` defaults to `local_branches(root)`, probed only
     when there are entries to judge, so a quiet day with no worklist costs no
     git call. Every kept or recorded entry without an `owner` whose worktree
-    is another repository's linked worktree gains one while the directory
+    belongs to another repository gains one while the directory
     still exists to be classified (`worktree_owner`), so the discharge rule
     can later judge its branch where it lives.
     """
@@ -500,6 +493,18 @@ def reconcile_worklist(
         atomic_write_text(path, rendered)
         change.written = True
     return change
+
+
+def _removed_self_owned_clone(root: Path | None, entry: RetireFollowUp) -> bool:
+    if not entry.worktree:
+        return False
+    worktree = Path(entry.worktree).expanduser()
+    if not worktree.is_absolute():
+        if root is None:
+            return False
+        worktree = root / worktree
+    owner = Path(entry.owner).expanduser()
+    return worktree.resolve() == owner.resolve() and not owner.exists()
 
 
 def _with_owner(entry: RetireFollowUp, root: Path | None) -> RetireFollowUp:

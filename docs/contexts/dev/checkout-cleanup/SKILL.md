@@ -50,31 +50,56 @@ retire prints and records the explicit opt-in
 `git worktree remove --force '<path>'`; it never offers that over tracked or
 untracked work.
 
-Reported for manual disposal: an independent `/tmp` clone (not a linked
-worktree); the checkout running `coga retire`; a stale path now on another
-branch; a checkout shared with another live ticket or an open PR; a locked or
+Reported for manual disposal: a stale linked worktree now on another branch; a checkout shared with another live ticket or an open PR; a locked or
 dirty worktree; and a recorded path already gone (reported, not pruned).
 
-**Known failure mode (unresolved): another clone's primary checkout never
-discharges.** The "primary checkout is not debt" rule
-(`retire_worklist.is_primary_checkout`) exempts only *this* repository's
-primary. A ticket worked in the single-checkout layout of a second,
-long-lived clone of the same project records that clone's primary as its
-`worktree:`. The sweeping clone classifies it `standalone`, so autoclose keeps
-the `retires.md` entry and re-posts it to coga-important on every run. Its
-remedy (`autoclose.py`: "an independent checkout with its own repository,
-which no proof removes — inspect and remove it by hand") cannot tell that
-clone from a disposable one, so it now carries this exception: never remove
-another clone's primary checkout in active use. `worktree_owner` records no `owner` for
-a standalone clone, on the assumption that its branch dies with its
-directory, so the branch half is judged against this repository, where the
-branch may never have existed. The worktree half never clears. The rule that
-keeps independent clones on the worklist as their only durable trace was
-written for disposable fallback clones and does not cover this case. Until a
-fix lands, do not act on that remedy for a clone in active use: check that
-the branch is gone in the named clone, then remove the line from `retires.md`
-by hand. The observed instance is recorded in
-`docs/evidence/independent-clone-worklist-2026-09.md`.
+## Primary checkouts and foreign branch ownership
+
+A primary checkout is never directory debt, including another clone's primary
+and independent sandbox clones. `git.classify_checkout` identifies another
+repository's primary as `foreign-primary`, with its root as `owner`;
+`retire_worklist.is_primary_checkout` exempts its directory. Git topology
+cannot establish whether an independent clone is disposable, and neither its
+path nor its current branch proves that. Autoclose preserves the directory and
+never recommends deleting it. This also preserves local untracked and ignored
+data there.
+
+The branch remains debt in the repository that owns it. `worktree_owner`
+records that owner for both foreign primary and foreign linked checkouts.
+Autoclose captures ownership before dropping a primary's directory from the
+closure, and infers missing ownership on legacy worklist entries before any
+branch cleanup or discharge check for primary entries. For those entries it
+does not delete a same-named branch in the sweeping clone. A remaining foreign
+branch is reported for inspection and
+manual branch cleanup in its owning clone; an unreadable owner or branch
+list keeps the entry pending, and so does a missing owner of a foreign linked
+worktree. For an independent clone recorded as its own owner, a missing
+directory is treated as deletion of the clone and its branch, so the entry
+clears. Once that owner's branch is gone, the
+primary-checkout entry discharges automatically, with no directory deletion or
+manual `retires.md` edit. Foreign linked worktrees still owe their directory
+cleanup as well.
+
+**Accepted disappearance policy (owner decision, 2026-10-01).** A missing
+self-owned path does not prove deletion: relocation or a temporarily
+unavailable filesystem looks the same. Automatic discharge is deliberate so
+deleted sandbox clones do not generate reminders forever. It can forget a
+surviving clone's branch cleanup if the recorded path disappears.
+
+Before moving or renaming a clone, pause autoclose sweeps in every participating
+checkout, update both `owner` and `worktree` in its `retires.md` entries to the
+new path (using the worklist's field encoding), and update any surviving
+ticket's recorded `worktree:`. Move the clone and verify the new path is
+accessible before resuming sweeps. For a temporary unmount, keep sweeps paused
+until the original path is accessible again; otherwise its cleanup record may
+be discharged. This policy drops bookkeeping only; it never deletes a clone.
+
+This replaces the repeated-posting failure and manual workaround documented in
+[the September incident](../../../evidence/independent-clone-worklist-2026-09.md).
+An independent fallback clone can still be removed deliberately by its operator
+(or vanish with `/tmp`), which also discharges its entry; the worklist tracks its
+branch rather than requiring removal of its primary directory. Publish ephemeral
+work before removing any such clone.
 
 ## `/tmp` checkouts do not survive; the branch does
 
@@ -106,7 +131,7 @@ checkout and branch under the proofs above (best-effort: a cleanup failure is
 reported, never aborts). It then drops the slug from any recurring template's
 `retires.md` worklist, but only once its local branch is gone (judged in the
 owning repository when the entry records another clone as `owner`) and its recorded
-worktree directory is gone or is the repository's own primary checkout (which
+worktree directory is gone or is a repository's primary checkout (which
 nobody disposes of). Finally it scaffolds a `retire-<slug>` task straight to `active`,
 whose body invokes the `retro/done-ticket` skill; that skill opens the PR that
 records `## Retro`, edits knowledge if warranted, and deletes the source task

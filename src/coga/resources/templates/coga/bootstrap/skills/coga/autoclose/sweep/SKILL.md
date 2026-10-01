@@ -160,54 +160,36 @@ no checkout; the fourth is the durable worklist:
 
 ### The primary checkout is not debt
 
-A recorded `worktree:` is debt while somebody still has to dispose of it.
-Exactly one recorded path never is: **this repository's own primary
-checkout**. A ticket worked in the single-checkout layout records it as its
-own `worktree:`; the worktree proof refuses it forever (it is always a
-directory and never a linked worktree), and nobody deletes it. Counted as
-debt, such an entry was preserved, re-posted to coga-important on every run,
-and — once retro deleted the ticket — told a human to dispose of the repo by
-hand.
-
-Both halves apply one probe, `retire_worklist.is_primary_checkout` over
-`git.classify_checkout`, so they cannot disagree: a closure drops the
-worktree half before the proofs run (a live branch still gets a branch-only
-follow-up; neither gets none), and an entry already on disk stops counting
-its worktree half and clears once its branch is gone — no hand edit of
-`retires.md`. The verdict compares common git dirs, so it holds when the
-sweep runs from a recurring control worktree rather than the primary
-checkout. Every unknown keeps the worktree half: a relative path with no git
-root, a directory inside a checkout rather than its root, or a checkout git
-cannot read.
-
-**A checkout `coga retire` will not remove is still listed.** Retire and
-the sweep dispose of one shape, a linked worktree of this repository; an
-independent fallback clone and another repository's linked worktree they
-preserve by design, and a human removes those by hand. They stay on the
-worklist until the directory goes, because this file is their only durable
-trace once the ticket is deleted — the ticket's own `## Dev` dies with it, and
-another repository's sweeps never see a ticket here. One exception: when
-the recorded path is another clone's *primary* checkout in active use, never
-remove it. Follow the workaround in `dev/checkout-cleanup` (*Known failure
-mode (unresolved): another clone's primary checkout never discharges*)
-instead.
+Apply `dev/checkout-cleanup`, "Primary checkouts and foreign branch ownership": preserve primary directories
+in every clone and judge each branch in its owning repository. Independent
+sandbox clones receive the same protection. Closure captures the owner before
+filtering its primary path; legacy worklist entries infer missing ownership
+before disposal or discharge. A cleared branch clears the entry automatically.
+Unknown paths remain pending except for the missing self-owned clone policy
+in `dev/checkout-cleanup`.
 
 ### A branch in another clone
 
-Another repository's linked worktree has its branch in *that* repository —
+Another repository's checkout has its branch in *that* repository —
 typically a second clone of the same project, when the recurring job fires
 from more than one. Judged against the sweeping clone's branches, such an
 entry read "branch gone" the moment its worktree directory vanished and was
 dropped silently while the branch lived on. So each entry whose worktree is
-another repository's linked worktree records that repository's main working
+another repository's checkout records that repository's main working
 tree as `owner` (`retire_worklist.worktree_owner`, over
 `git.classify_checkout`), written by the reconcile while the directory still
 exists to be classified — on the run that records it, or, for an older line,
 the next run — and the discharge rule reads the owner's local branches
 instead (`retire_worklist.branch_owner`). An owner that is a checkout of the
 sweeping repository judges the entry like any other; an owner path that is
-gone or that git cannot read is an unknown and keeps the entry. Once the
-worktree is gone, the sweep does not run this repository's proofs on the
+gone or that git cannot read is an unknown and keeps the entry — except an
+independent clone recorded as its own owner (the line keeps its primary path
+as `worktree:`), whose missing directory is treated as deletion, so the entry
+clears. Apply `dev/checkout-cleanup`, "Accepted disappearance policy", for the
+accepted relocation/unmount risk and the operator procedure before moving a
+clone or making its filesystem unavailable.
+Once the
+worktree is gone or is a primary checkout, the sweep does not run this repository's proofs on the
 branch — they would find no local branch and call it disposed — and reports
 the entry as preserved with the by-hand delete in the owning clone
 (`git -C <owner> branch -d <branch>`), on the run report and coga-important,
@@ -241,12 +223,10 @@ the remedy names where it can be removed:
   still holds the branch (*A branch in another clone*). No runnable deletion
   command is advertised without those proofs. `coga retire` fails the same
   proof from here, and the task does not exist in the owning repo.
-- **An independent clone, or a path git cannot read**: says so, and to
-  inspect and remove the directory by hand; a local branch still here is
-  named separately (`coga retire <slug>` for it while the ticket exists,
-  otherwise `git branch -d`). If that independent clone is another
-  clone's primary checkout in active use, do not remove it; apply the
-  exception above.
+- **A primary checkout, including an independent clone**: preserve the
+  directory; inspect and clean up the recorded branch in the owning repository
+  under the contract above. Never recommend directory deletion.
+- **A path git cannot read**: reports the failed probe and manual inspection.
 - **A worktree already gone from disk**: says so, and names branch-only
   cleanup.
 

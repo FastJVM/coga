@@ -1323,15 +1323,15 @@ def is_linked_worktree(start: Path) -> bool:
     return Path(git_dir).resolve() != Path(common).resolve()
 
 
-CheckoutKind = Literal["primary", "linked", "foreign-linked", "standalone"]
+CheckoutKind = Literal["primary", "linked", "foreign-linked", "foreign-primary"]
 
 
 @dataclass(frozen=True)
 class CheckoutRelation:
     """`classify_checkout`'s verdict on one recorded checkout.
 
-    `owner` is set only for `"foreign-linked"`: the main working tree of the
-    repository the checkout belongs to, which is where a human runs the
+    `owner` is set for `"foreign-linked"` and `"foreign-primary"`: the main
+    working tree of the repository the checkout belongs to, where a human runs
     `git worktree remove` / `git branch -d` that no Coga command here can.
     """
 
@@ -1354,8 +1354,9 @@ def classify_checkout(root: Path, path: Path) -> CheckoutRelation | None:
       never retire debt.
     - `"foreign-linked"` — a linked worktree of some *other* repository, with
       that repository's main working tree as `owner`.
-    - `"standalone"` — a checkout with its own repository: an independent
-      clone (including the sandbox `/tmp` fallback) or an unrelated repo.
+    - `"foreign-primary"` — the primary checkout of another repository: an
+      independent clone (including the sandbox `/tmp` fallback) or unrelated
+      repo. Its resolved root is `owner`; topology cannot prove disposability.
     - `None` — no answer: `path` or `root` is not a git checkout git can read,
       `path` is a directory *inside* a checkout rather than its root, or `git`
       could not run. Every caller fails closed on it.
@@ -1381,7 +1382,7 @@ def classify_checkout(root: Path, path: Path) -> CheckoutRelation | None:
     if common_dir == anchor[1]:
         return CheckoutRelation("linked" if linked else "primary")
     if not linked:
-        return CheckoutRelation("standalone")
+        return CheckoutRelation("foreign-primary", owner=top)
     return CheckoutRelation(
         "foreign-linked", owner=_main_worktree(path) or common_dir.parent
     )
