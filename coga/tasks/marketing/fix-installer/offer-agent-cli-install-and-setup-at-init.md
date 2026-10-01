@@ -1,16 +1,29 @@
 ---
 title: Offer agent CLI install and setup at init
-status: paused
+status: active
 owner: nicktoper
 workflow:
-  name: direct/body
+  name: code/with-review
   steps:
-  - name: execute
+  - name: implement
     skills:
-    - direct/body
+    - code/implement
     assignee: agent
-step: 1 (execute)
+    requires: branch
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
 agent: claude
+step: 1 (implement)
 ---
 
 ## Description

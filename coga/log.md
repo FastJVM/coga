@@ -7322,3 +7322,5 @@ fatal: Unable to add (null) to database
 2026-10-01 15:33 [coga] [git] sync failed: push to origin/main failed: fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com; control could not be re-read: `git fetch --quiet origin +refs/heads/main:refs/remotes/origin/main` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com
 2026-10-01 16:00 [marketing/fix-installer/pin-python-3-11-in-the-macos-clean-install-harness] [human:nicktoper] created (status=draft)
 2026-10-01 16:00 [marketing/fix-installer/offer-agent-cli-install-and-setup-at-init] [human:nicktoper] paused (in_progress → paused) — Switching workflow direct/body -> code/with-review (owner request)
+2026-10-01 16:00 [marketing/fix-installer/offer-agent-cli-install-and-setup-at-init] [human:nicktoper] paused (in_progress → paused) — Switching workflow direct/body -> code/with-review (owner request)
+2026-10-01 16:00 [marketing/fix-installer/offer-agent-cli-install-and-setup-at-init] [human:nicktoper] activated (paused → active) — Workflow now code/with-review
