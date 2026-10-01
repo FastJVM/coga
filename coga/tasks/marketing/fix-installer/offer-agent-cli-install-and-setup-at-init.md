@@ -1,6 +1,6 @@
 ---
 title: Offer agent CLI install and setup at init
-status: in_progress
+status: paused
 owner: nicktoper
 workflow:
   name: direct/body
@@ -39,3 +39,12 @@ Proposed defaults (for owner to accept/adjust): reuse #942's offer-and-confirm p
 
 - [x] [2026-10-01 11:12] [agent:claude] id=20261001T111233 Needs: (1) PR #942 (init installs git/gh/op) merged first — this builds on it; (2) workflow switched from direct/body to a code/* workflow (product code + twins, direct/body can't land a PR); (3) answers to the open questions: trusted installers (brew/npm/curl script), may init write the default agent into coga.toml, interaction with coga build onboarding. Proposed defaults on the blackboard.
   resolved: [2026-10-01 15:33] [human:nicktoper] Owner 2026-10-01: (1) PR #942 merged. (2) Owner will switch workflow to code/with-review. (3) Installers: macOS brew cask (claude-code / codex), else npm -g if node on PATH, else print official URL; no curl|sh; always print the command and require yes. coga.toml: init may set or replace [agent] default, always with an explicit confirm. coga build: interactive build also offers the same agent-CLI install/login (shared helper); non-interactive never prompts.
+
+## 2026-10-01 — attended session: owner decisions (blocker resolved)
+
+- #942 merged 2026-10-01; build on `src/coga/dependencies.py` + its offer/confirm prompt in `commands/init.py`.
+- Installers: macOS → `brew install --cask claude-code` / `codex`; else `npm i -g @anthropic-ai/claude-code` / `@openai/codex` when `npm` is on PATH; else print the official install URL. No curl|sh. Print the command, require yes, then offer login (`claude` / `codex login`).
+- coga.toml: init may set **or replace** `[agent] default`, always behind an explicit confirm (note: deliberate exception to "agents don't edit coga.toml" — this is the CLI, run by the human).
+- `coga build`: interactive build offers the same install/login via a shared helper (≥2 consumers → justifies core). Non-interactive (no TTY) never prompts in either.
+- Workflow: owner switching to `code/with-review`; implementation waits for the relaunch on that workflow. Nothing implemented yet.
+- Topics to update + twins: `coga/install`, `coga/init`, `coga/agents` (and `coga/build` onboarding if it documents the not-found path). Drop "Agent CLIs are not offered" from `coga/install`.
