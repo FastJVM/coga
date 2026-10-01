@@ -56,10 +56,13 @@ and megalaunch children each emit exactly one record.
 `session_id_flag` (claude: `--session-id`; codex: unset, mirroring
 `name_flag`) keeps `build_agent_command` provider-agnostic. Each iteration
 mints a `uuid4`, passes it to the CLI and to capture, which reads
-`~/.claude/projects/<cwd-hash>/<session-id>.jsonl` and sums
-`message.usage.*` over `assistant` lines whose `timestamp` falls inside the
-session window. A resumed session keeps writing to the transcript it resumed
-from, so the pinned file may not exist; capture then considers transcripts in
+`~/.claude/projects/<cwd-hash>/<session-id>.jsonl` and counts
+`message.usage.*` once per `message.id` among `assistant` lines whose
+`timestamp` falls inside the session window. The last in-window line for each
+ID supplies its usage, including any updated streaming output count; lines
+without a message ID count individually. A resumed session keeps writing to
+the transcript it resumed from, so the pinned file may not exist; capture
+then considers transcripts in
 the same project directory with a per-line `timestamp` in the window and
 adopts the match's stem as `session_id`. Two or more in-window candidates
 (concurrent sessions in one cwd) → usage unknown.
