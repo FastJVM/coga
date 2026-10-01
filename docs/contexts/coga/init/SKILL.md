@@ -13,12 +13,13 @@ one of two paths depending on whether `PATH/coga/coga.toml` already exists.
 
 ## Fresh repo
 
-Every precondition is checked before anything is written, and each failure
-exits 2 with the remedy:
+Every precondition is checked before anything is written or installed, and
+each failure exits 2 with the remedy:
 
-- `git` is on `PATH`;
 - `--user` is given, non-empty, with no `"` or `\` (Coga never guesses a
   name from Git or `$USER`);
+- `git` is on `PATH` (checked after the checks that need no tool, before
+  the ones that run Git);
 - `PATH` is inside a Git work tree (it need not be the root: `coga init
   tools/ops` scaffolds a nested `tools/ops/coga/` in a monorepo);
 - the host repo does not gitignore the target `coga/`;
@@ -73,10 +74,15 @@ partial `coga/` and any relocated contexts, so a re-run is not wedged. A
 failed commit itself (a hook, odd repo state) does not roll back. It warns
 with the exact `git add`/`git commit` commands to finish.
 
-Init installs no software. It builds no virtualenv, installs no package or
-skill, makes no `gh` call and writes no `PATH` shim. It is offline and cheap,
-so an editable checkout can scaffold a scratch repo without publishing a
-release. The printed next steps are: put `coga` on `PATH` if it is missing;
+Init installs no Coga software. It builds no virtualenv, installs no Python
+package or skill and writes no `PATH` shim, so an editable checkout can
+scaffold a scratch repo without publishing a release. The one exception is
+external CLIs: in an interactive terminal it offers to install a missing
+`git` when the `git` precondition is reached, and a missing `gh` or `op` and
+`gh auth login` only once every precondition has passed, before scaffolding.
+Each runs only on a yes ([coga/install](../install/SKILL.md) owns the
+details), so an invocation that must exit changes nothing on the machine. A
+non-interactive init never prompts, installs nothing and stays offline. The printed next steps are: put `coga` on `PATH` if it is missing;
 edit `coga.toml`; install an agent CLI; then `coga build` (empty repo) or
 `coga ticket "<title>"` (filled repo).
 
@@ -99,7 +105,8 @@ gets the full template. An existing `coga.local.toml` is edited in place as
 TOML, so other keys, nested tables and comments survive; `user` is a
 top-level key, and table entries also named `user` are left alone. An
 unparseable local file is a hard error. Without `--user` it fails naming the
-flag. Once `user` is set, re-running init is refused with the upgrade menu:
+flag. Only after these checks and the `git` ones does it make the same install
+offers as a fresh init. Once `user` is set, re-running init is refused with the upgrade menu:
 upgrade via the owning installer, fix or remove a broken `coga/`, or
 `coga uninstall`.
 
