@@ -86,7 +86,8 @@ No runs were started, no issues filed, and no AWS resources were created.
 
 ## Blockers
 
-- [ ] [2026-09-29 08:42] [agent:claude] id=20260929T084212 Waiting on marketing/fix-installer/linux-clean-install-harness and macos-clean-install-harness-on-aws to merge (neither has a branch/PR yet); unblock and relaunch after both land.
+- [x] [2026-09-29 08:42] [agent:claude] id=20260929T084212 Waiting on marketing/fix-installer/linux-clean-install-harness and macos-clean-install-harness-on-aws to merge (neither has a branch/PR yet); unblock and relaunch after both land.
+  resolved: [2026-10-01 11:56] [human:nicktoper] Owner confirms both clean-install harness tickets have merged; clear the dependency blocker and proceed with runbook verification and clean-install testing.
 
 ---
 

@@ -7295,3 +7295,4 @@ fatal: Unable to add (null) to database
 2026-10-01 11:56 [marketing/fix-installer/run-clean-installs-and-file-issues] [human:nicktoper] activated (blocked → active) — auto on launch
 2026-10-01 11:56 [marketing/fix-installer/run-clean-installs-and-file-issues] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-01 11:56 [marketing/fix-installer/run-clean-installs-and-file-issues] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
+2026-10-01 11:56 [marketing/fix-installer/run-clean-installs-and-file-issues] [human:nicktoper] unblocked (asks resolved, still in_progress): Owner confirms both clean-install harness tickets have merged; clear the dependency blocker and proceed with runbook verification and clean-install testing.
