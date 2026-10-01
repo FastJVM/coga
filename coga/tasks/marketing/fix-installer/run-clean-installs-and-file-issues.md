@@ -1,6 +1,6 @@
 ---
 title: Run clean installs and file issues
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: direct/body
