@@ -1,6 +1,6 @@
 ---
 title: Offer agent CLI install and setup at init
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: direct/body
@@ -11,6 +11,7 @@ workflow:
     assignee: agent
 step: 1 (execute)
 agent: claude
+launch_generation: pending:8c713222-6190-49c2-bad0-e92b82e13a72
 ---
 
 ## Description
