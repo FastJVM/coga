@@ -1,6 +1,6 @@
 ---
 title: URL skill digest counts git-ignored agent-tooling files as local adaptation
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:807f6ad7-9aaa-40d7-84a1-935ff11a7080
 ---
 
 ## Description
