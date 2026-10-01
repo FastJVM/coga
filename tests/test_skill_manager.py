@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import re
@@ -795,6 +796,133 @@ def test_url_update_skips_locally_adapted_skill_when_upstream_unchanged(
     assert fetched == ["https://example.test/skill.zip"]
     assert summary.results[0].status == "skipped-local-adaptation"
     assert "local edit" in (skill_dir / "SKILL.md").read_text()
+
+
+def test_url_update_ignores_machine_local_agent_tooling_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    commands: list[list[str]] = []
+    install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+        runner=_gh_install_runner(commands),
+        now=lambda: "2026-05-13T12:00:00Z",
+    )
+    skill_dir = cfg.repo_root / "skills" / "tools" / "example"
+    clean_digest = hash_skill_tree(skill_dir)
+    _write(skill_dir / ".claude" / "launch.json", "{}\n")
+    _write(skill_dir / ".codex" / "config.toml", "model = 'x'\n")
+    _write(skill_dir / ".agent-skills" / "generated" / "SKILL.md", "generated\n")
+    _write(skill_dir / ".coga" / "run.json", "{}\n")
+    _write(skill_dir / ".venv" / "pyvenv.cfg", "home = /python\n")
+    _write(skill_dir / "scripts" / "__pycache__" / "run.cpython-312.pyc", "bytecode")
+
+    assert hash_skill_tree(skill_dir) == clean_digest
+    summary = update_skills(
+        cfg,
+        "tools/example",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+    )
+    assert summary.results[0].status == "unchanged"
+
+
+@pytest.mark.parametrize("include", [None, ["SKILL.md"]])
+@pytest.mark.parametrize("upstream_changed", [False, True])
+@pytest.mark.parametrize("local_edit", [False, True])
+def test_url_legacy_digests_migrate_only_after_verifying_unchanged_content(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    include: list[str] | None,
+    upstream_changed: bool,
+    local_edit: bool,
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+
+    def archive(body: str) -> bytes:
+        out = io.BytesIO(_skill_zip("tools/example", body=body))
+        with zipfile.ZipFile(out, "a") as bundle:
+            bundle.writestr("bundle/.claude/settings.json", "{}\n")
+        return out.getvalue()
+
+    install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        downloader=lambda url: archive("old\n"),
+        runner=_gh_install_runner([]),
+    )
+    skill_dir = cfg.repo_root / "skills" / "tools" / "example"
+
+    def legacy_digest() -> str:
+        # Reproduce the pre-upgrade record independently of the new hasher.
+        digest = hashlib.sha256()
+        for path in sorted(p for p in skill_dir.rglob("*") if p.is_file()):
+            rel = path.relative_to(skill_dir).as_posix()
+            if rel != ".coga-source.json":
+                digest.update(rel.encode() + b"\0" + path.read_bytes() + b"\0")
+        return digest.hexdigest()
+
+    metadata = read_source_metadata(skill_dir)
+    assert metadata is not None
+    metadata["source_tree_digest"] = legacy_digest()
+    if include is not None:
+        metadata["include"] = include
+        apply_include_allowlist(skill_dir, include)
+    metadata["installed_tree_digest"] = legacy_digest()
+    metadata["local_adaptation_notes"] = "Keep these provenance notes."
+    write_source_metadata(skill_dir, metadata)
+    if local_edit:
+        with (skill_dir / "SKILL.md").open("a") as fh:
+            fh.write("local edit\n")
+    before = {
+        p.relative_to(skill_dir): p.read_bytes()
+        for p in skill_dir.rglob("*") if p.is_file()
+    }
+
+    def download(url: str) -> bytes:
+        return archive("new\n" if upstream_changed else "old\n")
+
+    unchecked = next(r for r in status_skills(cfg) if r.name == "tools/example")
+    assert unchecked.status == ("locally-adapted" if local_edit else "not-checked")
+    checked = next(
+        r for r in status_skills(cfg, check=True, downloader=download)
+        if r.name == "tools/example"
+    )
+    expected_status = (
+        ("conflict" if upstream_changed else "locally-adapted")
+        if local_edit
+        else ("upstream-changed" if upstream_changed else "up-to-date")
+    )
+    assert checked.status == expected_status
+    assert read_source_metadata(skill_dir) == metadata  # Status never writes.
+
+    result = update_skills(cfg, "tools/example", downloader=download).results[0]
+    if local_edit:
+        assert result.status == (
+            "conflict" if upstream_changed else "skipped-local-adaptation"
+        )
+        assert not result.changed
+        assert {
+            p.relative_to(skill_dir): p.read_bytes()
+            for p in skill_dir.rglob("*") if p.is_file()
+        } == before
+    else:
+        assert result.status == ("updated" if upstream_changed else "unchanged")
+        assert result.changed  # Provenance-only migrations must reach --pr.
+        refreshed = read_source_metadata(skill_dir)
+        assert refreshed is not None
+        assert refreshed["installed_tree_digest"] == hash_skill_tree(skill_dir)
+        assert refreshed["source_tree_digest"] != metadata["source_tree_digest"]
+        assert refreshed.get("include") == include
+        assert refreshed["local_adaptation_notes"] == metadata["local_adaptation_notes"]
+        if not upstream_changed:
+            for path, content in before.items():
+                if path.name != ".coga-source.json":
+                    assert (skill_dir / path).read_bytes() == content
+        again = update_skills(cfg, "tools/example", downloader=download).results[0]
+        assert again.status == "unchanged"
+        assert not again.changed
 
 
 def test_url_update_reports_conflict_when_local_and_upstream_changed(

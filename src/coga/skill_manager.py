@@ -195,7 +195,8 @@ def install_url_skill(
             else None
         )
         dirty_existing_skill = bool(
-            installed_digest and hash_skill_tree(target) != installed_digest
+            installed_digest
+            and not _matches_tree_digest(target, installed_digest, hash_skill_tree(target))
         )
         if dirty_existing_skill and not force:
             raise SkillManagerError(
@@ -1081,17 +1082,47 @@ def _pruned_upstream_matches_installed(
     return hash_skill_tree(probe) == installed_digest
 
 
+# Machine-local state an agent tool or interpreter may drop inside an installed
+# skill: never upstream content and never a local adaptation, so the tree digest
+# skips any path under one of these directory names. A fixed set rather than
+# `git check-ignore`, because the digest must stay a pure function of the bytes
+# (it also hashes downloads materialized outside any repository). Mirrors the
+# generated-state set the packaging twin comparison excludes.
+LOCAL_ARTIFACT_DIRS = frozenset(
+    {".coga", ".venv", ".agent-skills", ".claude", ".codex", "__pycache__"}
+)
+
+
 def hash_skill_tree(skill_dir: Path) -> str:
+    return _hash_skill_tree(skill_dir, skip_local_artifacts=True)
+
+
+def _hash_skill_tree(skill_dir: Path, *, skip_local_artifacts: bool) -> str:
     hasher = hashlib.sha256()
     for path in sorted(p for p in skill_dir.rglob("*") if p.is_file()):
-        rel = path.relative_to(skill_dir).as_posix()
+        rel_path = path.relative_to(skill_dir)
+        rel = rel_path.as_posix()
         if rel == SOURCE_METADATA:
+            continue
+        if skip_local_artifacts and LOCAL_ARTIFACT_DIRS.intersection(rel_path.parts[:-1]):
             continue
         hasher.update(rel.encode("utf-8"))
         hasher.update(b"\0")
         hasher.update(path.read_bytes())
         hasher.update(b"\0")
     return hasher.hexdigest()
+
+
+def _matches_tree_digest(
+    skill_dir: Path, recorded_digest: str | None, current_digest: str
+) -> bool:
+    # Older records included machine-local directories. Accept that format
+    # only when the complete tree still proves the recorded digest; a mismatch
+    # must not silently bless real edits as a hashing-policy migration.
+    return current_digest == recorded_digest or (
+        bool(recorded_digest)
+        and _hash_skill_tree(skill_dir, skip_local_artifacts=False) == recorded_digest
+    )
 
 
 def utc_now() -> str:
@@ -1315,7 +1346,10 @@ def _update_url_skill_dir(
     ref = _skill_ref_from_path(skills_root(cfg), skill_dir)
     current_digest = hash_skill_tree(skill_dir)
     installed_digest = metadata.get("installed_tree_digest")
-    locally_adapted = bool(installed_digest and current_digest != installed_digest)
+    locally_adapted = bool(
+        installed_digest
+        and not _matches_tree_digest(skill_dir, installed_digest, current_digest)
+    )
 
     url = metadata.get("source_url")
     if not isinstance(url, str) or not url:
@@ -1361,7 +1395,9 @@ def _update_url_skill_dir(
                 ):
                     locally_adapted = False
 
-            if materialized.source_tree_digest == previous_source_tree:
+            if _matches_tree_digest(
+                materialized.path, previous_source_tree, materialized.source_tree_digest
+            ):
                 if locally_adapted:
                     return SkillResult(
                         name=ref,
@@ -1377,10 +1413,13 @@ def _update_url_skill_dir(
                             "source_tree_digest": previous_source_tree,
                         },
                     )
-                if include is not None and current_digest != installed_digest:
-                    # Clean, but the recorded digest predates the allowlist
-                    # being honored. Repair it so the next run compares
-                    # against the pruned tree that is actually installed.
+                if (
+                    current_digest != installed_digest
+                    or materialized.source_tree_digest != previous_source_tree
+                ):
+                    # A verified legacy digest or a reproduced allowlist
+                    # proves the tree is clean. Migrate provenance without
+                    # replacing installed files (including local artifacts).
                     write_source_metadata(
                         skill_dir,
                         _url_metadata(
@@ -1405,7 +1444,7 @@ def _update_url_skill_dir(
                         status="unchanged",
                         message=(
                             "upstream digest unchanged; repaired provenance "
-                            "recorded before the include allowlist was honored"
+                            "for current tree hashing and include rules"
                         ),
                         changed=True,
                         details={
@@ -1495,7 +1534,10 @@ def _status_url_skill(
 ) -> SkillResult:
     current_digest = hash_skill_tree(skill_dir)
     installed_digest = metadata.get("installed_tree_digest")
-    locally_adapted = bool(installed_digest and current_digest != installed_digest)
+    locally_adapted = bool(
+        installed_digest
+        and not _matches_tree_digest(skill_dir, installed_digest, current_digest)
+    )
     if locally_adapted and not check:
         return SkillResult(
             name=ref,
@@ -1541,9 +1583,11 @@ def _status_url_skill(
                 )
             ):
                 locally_adapted = False
-        upstream_changed = (
-            materialized.source_tree_digest != metadata.get("source_tree_digest")
-        )
+            upstream_changed = not _matches_tree_digest(
+                materialized.path,
+                metadata.get("source_tree_digest"),
+                materialized.source_tree_digest,
+            )
         if locally_adapted:
             details = {
                 "source_url": url,
