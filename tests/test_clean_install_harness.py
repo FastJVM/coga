@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import sys
@@ -324,6 +325,30 @@ def test_aws_mac_passwords_stay_out_of_logs(aws_mac) -> None:
         assert password not in (evidence / "host.txt").read_text()
         assert password_path.stat().st_mode & 0o777 == 0o600
     assert (evidence / "host.txt").stat().st_mode & 0o777 == 0o600
+
+
+def test_aws_mac_walk_quotes_remote_argv(aws_mac, tmp_path: Path) -> None:
+    run, calls, evidence = aws_mac
+    assert run(
+        "provision", "mac1", "us-east-1", "us-east-1a",
+        COGA_CLEAN_INSTALL_ALLOCATE="yes",
+    ).returncode == 0
+    remote = tmp_path / "remote.txt"
+    # Record only the remote command string, exactly as the remote shell sees it.
+    _executable(tmp_path / "bin/ssh", f"""
+        #!/bin/sh
+        for arg; do last=$arg; done
+        printf '%s\\n' "$last" >> {remote}
+    """)
+    operator = "Alice Smith; touch pwned"
+    result = run("walk", "mac1", "pypi", "walk1", operator)
+    assert result.returncode == 0, result.stdout + result.stderr
+    password = (evidence / "walks/walk1/password.txt").read_text().strip()
+    walk = next(line for line in remote.read_text().splitlines() if "macos-walk.sh" in line)
+    assert shlex.split(walk) == [
+        "bash", "/tmp/coga-clean-install/macos-walk.sh", "walk",
+        "pypi", operator, "walk1", password,
+    ]
 
 
 def test_aws_mac_main_walk_without_gnu_checksum(

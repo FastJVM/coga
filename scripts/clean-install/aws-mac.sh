@@ -96,7 +96,8 @@ ssh_args() {
 }
 
 mac() {
-    ssh "${ssh_opts[@]}" "$target" "$@"
+    # ssh joins remote words with spaces for the remote shell; quote each one.
+    ssh "${ssh_opts[@]}" "$target" "$(printf '%q ' "$@")"
 }
 
 latest_ami() {
