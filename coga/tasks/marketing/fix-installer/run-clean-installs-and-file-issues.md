@@ -94,3 +94,18 @@ No runs were started, no issues filed, and no AWS resources were created.
 ## Blocker reminders
 
 - 741767debc86 last_reminded: 2026-09-29 08:50
+
+## Resumed precondition verification — 2026-10-01
+
+Owner confirmed both harnesses merged and authorized clearing the old ask;
+`coga unblock` recorded that resolution. Subsequent live GitHub verification
+found Linux PR #930 merged at 2026-09-29T21:39:08Z, but macOS PR #943 still
+OPEN with no merge commit. Fetched `origin/main`; the local main checkout
+has the Linux harness but no `aws-mac.sh` or `macos-walk.sh`. Asked the owner
+whether to wait for #943, proceed with Linux only, or park. No new install
+runs, issues, or AWS resources created during this session yet.
+
+The macOS harness blackboard records host `h-0833c01ac15e645ac` in
+`us-east-1a` still allocated, earliest release 2026-10-01T23:28:57Z
+(16:28:57 Pacific). That is prior-session evidence, not a current AWS
+verification; keep cleanup visible when resuming the macOS work.
