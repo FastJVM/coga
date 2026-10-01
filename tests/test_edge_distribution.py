@@ -225,9 +225,38 @@ def _operator_command(name, root, env, *, success=True):
     return result.stdout
 
 
+@pytest.mark.parametrize("layout", ["user", "tool-link"])
+def test_documented_interpreter_uses_console_script_shebang(tmp_path, layout):
+    scripts = tmp_path / "bin"
+    scripts.mkdir()
+    # A separate venv proves that resolving the Python symlink would lose
+    # the environment even though the base interpreter remains executable.
+    venv = tmp_path / "tool"
+    subprocess.run([sys.executable, "-m", "venv", "--without-pip", str(venv)], check=True)
+    interpreter = venv / "bin/python"
+    launcher = scripts / "coga" if layout == "user" else venv / "bin/coga"
+    launcher.write_text(f"#!{interpreter}\nraise AssertionError('do not run coga')\n")
+    launcher.chmod(0o755)
+    if layout == "tool-link":
+        (scripts / "coga").symlink_to(launcher)
+    assert not (scripts / "python").exists()
+    env = {**os.environ, "PATH": str(scripts) + os.pathsep + os.environ["PATH"]}
+    assert _operator_command("interpreter", tmp_path, env).strip() == str(interpreter)
+
+
+@pytest.mark.parametrize("shebang", ["#!/bin/sh", "#!/usr/bin/env python3", "#!/missing/python3"])
+def test_documented_interpreter_refuses_unknown_launcher(tmp_path, shebang):
+    launcher = tmp_path / "coga"
+    launcher.write_text(f"{shebang}\nexit 0\n")
+    launcher.chmod(0o755)
+    env = {**os.environ, "PATH": str(tmp_path) + os.pathsep + os.environ["PATH"]}
+    _operator_command("interpreter", tmp_path, env, success=False)
+
+
 def test_documented_legacy_adoption_preserves_state_and_reconciles_callers(tmp_path, edge_wheels):
     root, installed, env, guard = _initialized_repo(tmp_path, edge_wheels["A"])
-    env["COGA_PY"] = sys.executable
+    env["PATH"] = str(installed / "bin") + os.pathsep + env["PATH"]
+    env["COGA_PY"] = _operator_command("interpreter", root, env).strip()
     template = root / "coga/recurring/phone-home/ticket.py"
     period = root / "coga/tasks/recurring/phone-home/ticket.py"
     parked = root / "coga/tasks/_parked/phone-home/ticket.py"

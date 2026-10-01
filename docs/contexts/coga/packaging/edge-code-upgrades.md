@@ -59,11 +59,41 @@ fi
 ```
 
 4. Install the new wheel in the existing Coga environment. Resolve its actual
-   interpreter, including a uv/pipx environment, rather than ambient Python:
+   interpreter from the console script's shebang. A user install's scripts
+   directory need not contain Python; for a uv/pipx environment, keep the
+   shebang's interpreter path without resolving its symlinks out of the venv:
+
+<!-- migration:interpreter -->
+```sh
+COGA_PY=$(python3 - <<'PY'
+import os
+from pathlib import Path
+from shutil import which
+
+script = which("coga")
+if script is None:
+    raise SystemExit("coga is not on PATH")
+with Path(script).open() as stream:
+    line = stream.readline().rstrip("\r\n")
+interpreter = line[2:] if line.startswith("#!") else ""
+path = Path(interpreter)
+if (not path.is_absolute() or any(c.isspace() for c in interpreter)
+        or not path.name.startswith("python") or not path.is_file()
+        or not os.access(path, os.X_OK)):
+    raise SystemExit("No direct Python shebang: inspect the launcher and use its environment manager to identify the interpreter")
+print(interpreter)
+PY
+) &&
+"$COGA_PY" -c 'import sys; print(sys.executable)'
+```
+
+Stop if resolution fails. For an `env` shebang or shell wrapper, inspect the
+launcher and its owning environment manager, set `COGA_PY` to that
+installation's Python, and verify it with `"$COGA_PY" -c 'import sys;
+print(sys.executable)'` before proceeding. Do not substitute an unrelated
+ambient Python. Then upgrade that installation:
 
 ```sh
-COGA_PY=$(python3 -c 'from pathlib import Path; from shutil import which; print(Path(which("coga")).resolve().parent / "python")')
-"$COGA_PY" -c 'import sys; print(sys.executable)'
 "$COGA_PY" -m pip install --upgrade /path/to/reviewed-coga.whl
 ```
 
