@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: ada9bb4d-48ea-4b70-8f2a-2866689ef8b9
 ---
 
 ## Description
@@ -64,3 +63,40 @@ merged, so no topic-edit coordination needed.
 - Tradeoff noted in topic: an upstream change confined to those dirs is not
   detected. Live `coga/skills/clarity` digest still matches its record.
 - Verification: `.venv/bin/python -m pytest` → 3161 passed.
+
+## Peer review
+
+- `codex review --base main` returned with one P2 finding: an unchanged
+  pre-upgrade installation whose recorded hashes include excluded directories
+  would falsely conflict. Fixed by verifying the legacy hash before accepting
+  an old record. Update migrates verified provenance; status stays read-only;
+  real local edits still block overwrites. Metadata-only repairs report
+  `changed=True` so the skill-update PR flow publishes them.
+- A second `codex review --base main` returned with no actionable findings.
+- Added eight migration cases covering pruned/full installs, local edits,
+  unchanged/changed upstream, metadata-only repairs, and repeat-update no-ops.
+  Expanded artifact coverage to all six excluded directories. Canonical and
+  bootstrap skill-management topics document compatibility behavior.
+- Verification: `PYTHONPATH="$PWD/src" .venv/bin/python -m pytest
+  tests/test_skill_manager.py tests/test_packaging.py -q` → 117 passed;
+  `PYTHONPATH="$PWD/src" .venv/bin/python -m pytest` → 3169 passed;
+  `git diff --check` passed. Live clarity's current digest matches its record.
+  No terminal or rendered-message surface changed, so no interactive gate applies.
+- Ran `git fetch origin main` and `git rebase FETCH_HEAD` successfully onto
+  `c85dea144`; committed the fix as `fda915f69`, then pushed the branch with
+  `--force-with-lease`. Two code commits remain ahead of main. Returned to a
+  clean main at `1ef9d66d7` before this handoff; intervening main changes were
+  only other tickets and the audit log.
+
+## PR
+
+URL-installed skills could report local adaptation solely because an agent
+created `.claude/launch.json` inside the skill. Exclude the fixed machine-local
+directory set used by packaging from installed and upstream tree digests,
+keeping hashing independent of Git ignore configuration. Verify legacy hashes
+before migrating older provenance so unchanged pre-upgrade installs continue
+updating while real local edits remain protected. Document the exclusions and
+migration in the canonical skill-management topic and its packaged twin.
+
+Test plan: `PYTHONPATH="$PWD/src" .venv/bin/python -m pytest` → 3169 passed;
+targeted skill-management/packaging suite → 117 passed; `git diff --check` passed.

@@ -7267,3 +7267,4 @@ fatal: Unable to add (null) to database
 2026-10-01 11:06 [dedupe-claude-transcript-usage-by-message-id] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-01 11:06 [dedupe-claude-transcript-usage-by-message-id] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-01 11:06 [dedupe-claude-transcript-usage-by-message-id] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
+2026-10-01 11:10 [url-skill-digest-counts-git-ignored-agent-tooling] [human:nicktoper] advanced to step 3 (open-pr) → claude
