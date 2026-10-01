@@ -1,19 +1,46 @@
-# Coga
-Coga is a tool built to amplify your thinking and learning.
+## Coga
 
-It is a work system for humans and AI agents. It helps you focus on the parts of a problem that are still unclear, while agents automate the known parts.
+Coga is a work system for humans and AI agents. Humans focus on the parts of a problem that are still unclear, and agents automate the parts that have become known. What both learn along the way becomes part of how future work gets done.
 
-As you learn, you update the work. Coga carries those changes into future agent sessions.
+### Why I built it
 
-A big part of my work is inventing new things — making judgment calls, figuring things out, and learning what works along the way. I needed a system where what we learn along the way becomes part of how the work gets done. I tried a lot of agent tools and couldn't find one built around that idea, so I built Coga.
+A big part of my work is inventing new things: making judgment calls, figuring things out, and learning what works along the way. I wanted a system where what we learn through the work changes how the next piece of work gets done. I tried a lot of agent tools and couldn't find one built around that idea, so I built Coga.
 
-For humans and agents to create, inspect, and change knowledge together, it has to exist as something they can both work on. In Coga, it lives in Markdown, is versioned in Git, and can be reviewed in a pull request. The knowledge belongs to the team, not to an agent or a hidden memory system. Humans can inspect it, change it, reject it, or remove it, and different agents can use it over time.
+### The problem: scattered context
 
-Automated memory is useful, but today it still gets things wrong, misses important context, and preserves conclusions that no longer hold. When that memory shapes future work, those errors compound. Coga keeps that learning loop visible so humans can correct it.
+When you delegate work to an agent, you need to give it context: the task, how the system works, and how the work should be done. Today that context is spread across a ticket tracker, `AGENTS.md`, documentation, and whatever the agent finds by exploring the codebase.
 
-This creates a learning loop between humans and AI: humans work on what is still unknown and make the judgments that matter; agents automate what has become known; the work captures what both learn; and that knowledge improves the next round of work.
+That holds up for a while. But different work needs different context, so you start pasting task-specific instructions into the chat box and explaining the same things over and over. Agents can rediscover some of it themselves, but discovery costs time and tokens, and you never quite know what they found or what they missed.
 
-Coga is built for collaboration, not human replacement. The goal is not just to make agents more autonomous. It is to make humans and agents together learn faster over time.
+### The work system as files
+
+Coga makes the work system itself explicit. Tickets, knowledge, instructions, workflows, and working state live in Markdown files in Git that humans and agents can both read and change.
+
+Because tickets and instructions live in the same place, context becomes declarative. A ticket and its workflow declare the knowledge and skills the work needs — skills are reusable procedures an agent can follow — and Coga assembles the prompt from those pieces deterministically. You can see exactly what the agent is given and why. The foundation isn't left to the agent's judgment. Agents still discover things on top of it, but you know where they start.
+
+### A system you can reshape
+
+When you're building something new, you don't yet know the right architecture, the right process, or even the right way to describe the work. As you learn, you change the knowledge, workflows, and instructions the same way you change the product.
+
+Shared pieces carry a risk: changing one affects future work across the project. That's why they're ordinary versioned files. Every change can be inspected, reviewed, reverted, or rejected in a pull request, just like code.
+
+### Agents work on the system too
+
+Because humans and agents work on the same material, agents can improve the system used to build the product, not only the product itself. When an agent makes a useful discovery, notices a repeated procedure, or gets corrected, it can propose a change to the project's knowledge or workflows. A human reviews the change, and once it's merged, it shapes how similar work gets done next time.
+
+Coga also runs recurring maintenance over that knowledge. Its Dream process looks for knowledge that has become stale, drift between the documented system and the real one, missing knowledge, and useful lessons buried in completed work. It proposes changes as pull requests or durable tickets rather than silently rewriting the team's memory.
+
+### Why not automated memory?
+
+Automated memory is useful, but it still gets things wrong, misses context, and holds on to conclusions that no longer apply. Files can go stale too. The difference is that Coga's knowledge is visible and attributable: you can see what an agent was told, trace where it came from, review proposed changes, and fix or remove it when reality changes.
+
+This knowledge belongs to the team, not to an agent or a hidden memory store, and different agents can use it over time.
+
+### The loop
+
+Humans work on what is still unknown and make the judgments that matter. Agents automate what has become known. The work captures what both learn, and that knowledge improves the next round.
+
+The goal isn't just more autonomous agents. It's humans and agents learning faster together.
 
 ## Getting Started
 
