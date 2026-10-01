@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -104,3 +104,30 @@ all with identical usage. Example: `00360668-53cc-4cd6-beb3-870fef24deea.jsonl`,
 message `msg_011CembykCtB5QFoP8v5rvxT`. Last-wins also accommodates later
 streaming lines with complete output counts; real samples do not distinguish
 first from last today.
+
+## Implement handoff
+
+Implemented and pushed `403fca7e3` on `fix/claude-usage-dedupe`.
+`src/coga/usage.py` / `_parse_claude_session` retains the last usage per
+message ID after the existing window filter, then sums those values. Lines
+without a nonempty string ID use their line index as an independent key.
+Model attribution and activity extraction still visit every eligible line.
+The record schema, Codex parser, and historical log records are unchanged.
+
+Updated the activity-capture contract and usage caveat with byte-identical
+packaged twins. Regression fixtures cover identical thinking/text/tool blocks,
+later larger output counts, distinct messages, two ID-less lines, synthetic
+model attribution, activity extraction, and duplicates across both window edges.
+
+Verification:
+- Before the fix: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_usage.py -k 'counts_last_usage_per_message or deduplicates_after_window_filter' -q`
+  failed all three new cases with inflated counts, as expected.
+- `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_usage.py tests/test_packaging.py -q`
+  passed 48 tests before the full run and again after rebasing.
+- `PYTHONPATH=$PWD/src .venv/bin/python -m pytest`: 3,163 passed in 262.89s.
+- `git diff --check`: clean.
+
+Rebased onto `origin/main` at `9b6615195`; incoming changes were only Coga
+ticket/log state. Pushed the branch, then returned to clean, fast-forwarded
+`main` before this handoff. No PR opened. No unresolved implementation issues
+or adjacent bugs found. Next step is peer review.
