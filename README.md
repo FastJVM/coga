@@ -19,8 +19,6 @@ Coga is built for collaboration, not human replacement. The goal is not just to 
 
 ```sh
 coga build
-coga ticket my-first-ticket
-coga launch my-first-ticket
 ```
 
 `coga build` is a guided discussion about your project and your goals. It turns that discussion into tickets, contexts and workflows.
@@ -29,6 +27,19 @@ Everything it creates is just files in your repo. Edit them directly with any te
 
 What it creates is far from perfect — that's the point. It gives you a structure to work from, exposes how agents understand your project and how they would approach it, and gives you something concrete to correct as your own understanding changes.
 
+```sh
+coga status
+```
+lists all the tickets
+
+```sh
+coga ticket my-first-ticket
+``` will start another conversation to complete the ticket. You can edit it yourself.
+
+
+```sh
+coga launch my-first-ticket
+```
 coga launch <ticket> works through the ticket by launching an agent. It assembles the prompt from the ticket, relevant context, workflow instructions and working state.
 
 When the work teaches you something worth keeping, you decide what should change. Edit it yourself, ask an agent to propagate that new understanding through the project, or let Coga surface and carry it forward through its recurring work.
