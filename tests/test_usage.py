@@ -151,6 +151,37 @@ def test_parse_claude_transcript_deduplicates_after_window_filter(
     assert parsed.output_tokens == 9
 
 
+def test_parse_claude_transcript_keeps_usage_when_later_line_lacks_it(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    session_id = "session-missing-usage"
+    transcript = _claude_transcript(cwd, tmp_path, session_id)
+    _write(
+        transcript,
+        """
+        {"type":"assistant","timestamp":"2026-06-23T12:02:00Z","message":{"id":"msg-1","model":"claude-sonnet-4","usage":{"input_tokens":10,"output_tokens":9}}}
+        {"type":"assistant","timestamp":"2026-06-23T12:03:00Z","message":{"id":"msg-1","model":"claude-sonnet-4"}}
+        """,
+    )
+    start, end = _window()
+
+    parsed = parse_session(
+        "claude",
+        cwd=cwd,
+        session_id=session_id,
+        pre_existing=None,
+        window_start=start,
+        window_end=end,
+    )
+
+    assert parsed.usage_status == "ok"
+    assert parsed.input_tokens == 10
+    assert parsed.output_tokens == 9
+
+
 @pytest.mark.parametrize(
     ("models", "expected_model"),
     [

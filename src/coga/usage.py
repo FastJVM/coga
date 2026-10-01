@@ -468,8 +468,10 @@ def _parse_claude_session(
                     model = line_model
                 # Content blocks repeat usage for one API message. Keep its
                 # last in-window count; ID-less lines remain independent.
-                message_id = _first_str(message.get("id"))
-                usage_by_message[message_id if message_id else line_index] = usage
+                if usage:
+                    message_id = _first_str(message.get("id"))
+                    key = message_id if message_id else line_index
+                    usage_by_message[key] = usage
 
         if line_ts is None:
             if kind in {"user", "assistant"}:
