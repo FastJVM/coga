@@ -1,11 +1,11 @@
 ---
 title: Autoclose merged tickets
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: 63866837-3fbd-4196-9454-1ed762ad2058
+period_generation: 48c316e9-ef10-4d6f-abf6-1d07e705c99b
 workflow:
   name: autoclose-merged/sweep
   steps:
@@ -13,6 +13,7 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
+step: 1 (sweep)
 ---
 
 ## Description
@@ -79,149 +80,3 @@ proofs and worktree opt-in remain those in
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Autoclose Sweep: retire follow-ups
-
-Generated: 2026-09-30T16:59:57+00:00
-Task: `recurring/autoclose-merged`
-
-4 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
-
-- `launch-moves-the-checkout-to-main-before-and-after` (worklist backlog): branch `launch-normalizes-checkout`
-- `marketing/fix-installer/linux-clean-install-harness` (worklist backlog): branch `linux-clean-install-harness`
-- `prevent-parent-ticket-assumptions-during-task-spli` (worklist backlog): branch `no-parent-ticket-guidance`
-- `record-the-attended-ticket-switch-recipe-launch-do` (worklist backlog): branch `attended-ticket-switch-recipe`
-
-4 checkout(s) preserved — a proof refused; each stays on the worklist until a human acts:
-
-- `cleanup/quiet-the-first-run-noise-from-recurring-jobs-and` (worklist backlog): worktree `/home/n/Code/codex/coga`, branch `quiet-first-run` — '/home/n/Code/codex/coga' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`/home/n/Code/codex/coga` is an independent checkout with its own repository, which no proof removes — inspect and remove it by hand, unless it is another clone's primary checkout in active use: then never remove it; verify the branch is gone in that clone and delete this `retires.md` line by hand (see `dev/checkout-cleanup`))
-  - Worktree cleanup: '/home/n/Code/codex/coga' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
-  - Branch cleanup: local 'quiet-first-run' not present.
-  - Branch cleanup: remote origin/quiet-first-run already gone.
-- `document-how-to-recover-a-retired-ticket-s-body-fr` (worklist backlog): worktree `/home/n/Code/codex/coga`, branch `retired-ticket-recovery` — '/home/n/Code/codex/coga' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`/home/n/Code/codex/coga` is an independent checkout with its own repository, which no proof removes — inspect and remove it by hand, unless it is another clone's primary checkout in active use: then never remove it; verify the branch is gone in that clone and delete this `retires.md` line by hand (see `dev/checkout-cleanup`))
-  - Worktree cleanup: '/home/n/Code/codex/coga' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
-  - Branch cleanup: local 'retired-ticket-recovery' not present.
-  - Branch cleanup: remote origin/retired-ticket-recovery already gone.
-- `make-dream-run-correctly-under-codex` (worklist backlog): worktree `/home/n/Code/codex/coga`, branch `dream-under-codex` — '/home/n/Code/codex/coga' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`/home/n/Code/codex/coga` is an independent checkout with its own repository, which no proof removes — inspect and remove it by hand, unless it is another clone's primary checkout in active use: then never remove it; verify the branch is gone in that clone and delete this `retires.md` line by hand (see `dev/checkout-cleanup`))
-  - Worktree cleanup: '/home/n/Code/codex/coga' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
-  - Branch cleanup: local 'dream-under-codex' not present.
-  - Branch cleanup: remote origin/dream-under-codex already gone.
-- `run-the-landed-branch-sweep-daily-from-autoclose` (worklist backlog): worktree `/home/n/Code/codex/coga`, branch `daily-autoclose-branches` — '/home/n/Code/codex/coga' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place. (`/home/n/Code/codex/coga` is an independent checkout with its own repository, which no proof removes — inspect and remove it by hand, unless it is another clone's primary checkout in active use: then never remove it; verify the branch is gone in that clone and delete this `retires.md` line by hand (see `dev/checkout-cleanup`))
-  - Worktree cleanup: '/home/n/Code/codex/coga' is not a linked worktree of this repository (independent clone, unrelated repo, or the primary checkout) — left in place.
-  - Branch cleanup: local 'daily-autoclose-branches' not present.
-  - Branch cleanup: remote origin/daily-autoclose-branches already gone.
-
-## Branch Sweep
-
-Generated: 2026-09-30T17:00:12+00:00
-Task: `recurring/autoclose-merged`
-
-Result: partial sweep — Branch sweep: 'codex/retro-independent-clone-worklist-knowledge' could not publish 'retired/codex/retro-independent-clone-worklist-knowledge': To https://github.com/FastJVM/coga/
- ! [rejected]            retired/codex/retro-independent-clone-worklist-knowledge -> retired/codex/retro-independent-clone-worklist-knowledge (already exists)
-error: failed to push some refs to 'https://github.com/FastJVM/coga/'
-hint: Updates were rejected because the tag already exists in the remote. — left in place.
-Counts: 1 local and 0 remote branch(es) deleted, 0 worktree(s) removed, 0 skipped-worktree-pinned, 13 skipped.
-- deleted local: ci-posture
-- skipped: autoclose-retires-durable-home, codex/retro-independent-clone-worklist-knowledge, dream-w40-testing-baseline, guard-reauthor-in-progress, publish-off-control, recurring-crlf-lease, recurring-ledger-from-log, retire-worklist-linked-only, scrub-sa-token, slack-important-alert, split-ticket-contract, v2-premise-adjudication, wedge-ticket-admin-reproduction
-
-### Decisions
-
-- Branch cleanup: local 'autoclose-retires-durable-home' has unmerged work and no merged PR vouching for it — left in place.
-- Branch sweep: 'bloated-blackboard-remedy' is recorded on a live ticket — left in place.
-- Branch sweep: 'branch-sweep-landed' is recorded on a live ticket — left in place.
-- Branch sweep: archived 'ci-posture' at 1c1e5255d0b542d07b58904bd4bd68663d252cc9 as 'retired/ci-posture' on origin.
-- Branch cleanup: force-deleted local 'ci-posture' (was 1c1e5255d0b542d07b58904bd4bd68663d252cc9) — PR merged; recover with `git checkout -b` from the reflog SHA.
-- Branch sweep: 'codex/retro-independent-clone-worklist-knowledge' could not publish 'retired/codex/retro-independent-clone-worklist-knowledge': To https://github.com/FastJVM/coga/
- ! [rejected]            retired/codex/retro-independent-clone-worklist-knowledge -> retired/codex/retro-independent-clone-worklist-knowledge (already exists)
-error: failed to push some refs to 'https://github.com/FastJVM/coga/'
-hint: Updates were rejected because the tag already exists in the remote. — left in place.
-- Branch sweep: 'codex/retro-recurring-branch-sweep-knowledge' is recorded on a live ticket — left in place.
-- Branch sweep: 'coga/skill-update' is the shared skill-update branch — left in place.
-- Branch sweep: 'doc-context-boundary' is recorded on a live ticket — left in place.
-- Branch sweep: 'docs/v2-batch-verdicts' is recorded on a live ticket — left in place.
-- Branch sweep: 'docs/w40-workflow-corrections' is recorded on a live ticket — left in place.
-- Branch sweep: 'dream-w38-extract-backlog' is recorded on a live ticket — left in place.
-- Branch sweep: 'dream-w40-doc-corrections' is recorded on a live ticket — left in place.
-- Branch sweep: 'dream-w40-notification-skill-docs' is recorded on a live ticket — left in place.
-- Branch cleanup: skipping remote origin/dream-w40-testing-baseline (no merged PR).
-- Branch sweep: 'fix-autoclose-clone-primary' is recorded on a live ticket — left in place.
-- Branch sweep: 'fix/retire-followup-owner' is recorded on a live ticket — left in place.
-- Branch cleanup: local 'guard-reauthor-in-progress' has unmerged work and no merged PR vouching for it — left in place.
-- Branch cleanup: skipping remote origin/publish-off-control (no merged PR).
-- Branch sweep: 'recurring-control-worktree' is recorded on a live ticket — left in place.
-- Branch cleanup: skipping remote origin/recurring-crlf-lease (no merged PR).
-- Branch cleanup: skipping remote origin/recurring-ledger-from-log (no merged PR).
-- Branch sweep: 'recurring-missing-workflow' is recorded on a live ticket — left in place.
-- Branch cleanup: skipping remote origin/retire-worklist-linked-only (no merged PR).
-- Branch cleanup: local 'scrub-sa-token' has unmerged work and no merged PR vouching for it — left in place.
-- Branch sweep: 'shebang-exec-check' is recorded on a live ticket — left in place.
-- Branch sweep: 'skill-update-per-skill' is recorded on a live ticket — left in place.
-- Branch cleanup: skipping remote origin/slack-important-alert (no merged PR).
-- Branch cleanup: local 'split-ticket-contract' has unmerged work and no merged PR vouching for it — left in place.
-- Branch sweep: 'sweep-abandoned-record' is recorded on a live ticket — left in place.
-- Branch sweep: 'title-only-validator' is recorded on a live ticket — left in place.
-- Branch cleanup: skipping remote origin/v2-premise-adjudication (no merged PR).
-- Branch sweep: 'v2-premise-holes' is recorded on a live ticket — left in place.
-- Branch cleanup: skipping remote origin/wedge-ticket-admin-reproduction (no merged PR).
-
-## Recipe Failure
-
-Recipe: `branch-sweep`
-Exit: 2
-Task: `recurring/autoclose-merged`
-Recorded: 2026-09-30T17:00:12+00:00
-
-    [branch-sweep] Branch sweep: 'codex/retro-independent-clone-worklist-knowledge' could not publish 'retired/codex/retro-independent-clone-worklist-knowledge': To https://github.com/FastJVM/coga/
-     ! [rejected]            retired/codex/retro-independent-clone-worklist-knowledge -> retired/codex/retro-independent-clone-worklist-knowledge (already exists)
-    error: failed to push some refs to 'https://github.com/FastJVM/coga/'
-    hint: Updates were rejected because the tag already exists in the remote. — left in place.
-
-## Branch Sweep
-
-Generated: 2026-09-30T17:49:32+00:00
-Task: `recurring/autoclose-merged`
-
-Result: 0 local and 0 remote branch(es) deleted, 0 worktree(s) removed, 0 skipped-worktree-pinned, 4 skipped.
-- skipped: clean-install-merge, pr849, pr870, wip/numbered-drain-order-stale-base
-
-### Decisions
-
-- Branch sweep: 'carry-knowledge-amendments' is recorded on a live ticket — left in place.
-- Branch cleanup: local 'clean-install-merge' has unmerged work and no merged PR vouching for it — left in place.
-- Branch sweep: 'codex/retro-recurring-branch-sweep-knowledge' is recorded on a live ticket — left in place.
-- Branch sweep: 'coga/skill-update' is the shared skill-update branch — left in place.
-- Branch sweep: 'doc-context-boundary' is recorded on a live ticket — left in place.
-- Branch sweep: 'docs/v2-batch-verdicts' is recorded on a live ticket — left in place.
-- Branch sweep: 'docs/w40-workflow-corrections' is recorded on a live ticket — left in place.
-- Branch sweep: 'dream-w40-doc-corrections' is recorded on a live ticket — left in place.
-- Branch sweep: 'dream-w40-testing-baseline' is recorded on a live ticket — left in place.
-- Branch sweep: 'fix-autoclose-clone-primary' is recorded on a live ticket — left in place.
-- Branch sweep: 'fix/retire-followup-owner' is recorded on a live ticket — left in place.
-- Branch sweep: 'launch-normalizes-checkout' is recorded on a live ticket — left in place.
-- Branch sweep: 'linux-clean-install-harness' is recorded on a live ticket — left in place.
-- Branch cleanup: local 'pr849' has unmerged work and no merged PR vouching for it — left in place.
-- Branch cleanup: local 'pr870' has unmerged work and no merged PR vouching for it — left in place.
-- Branch sweep: 'publish-off-control' is recorded on a live ticket — left in place.
-- Branch sweep: 'recurring-crlf-lease' is recorded on a live ticket — left in place.
-- Branch sweep: 'recurring-ledger-from-log' is recorded on a live ticket — left in place.
-- Branch sweep: 'retire-worklist-linked-only' is recorded on a live ticket — left in place.
-- Branch sweep: 'shebang-exec-check' is recorded on a live ticket — left in place.
-- Branch sweep: 'skill-update-per-skill' is recorded on a live ticket — left in place.
-- Branch sweep: 'slack-important-alert' is recorded on a live ticket — left in place.
-- Branch sweep: 'split-ticket-contract' is recorded on a live ticket — left in place.
-- Branch sweep: 'v2-premise-adjudication' is recorded on a live ticket — left in place.
-- Branch sweep: 'wedge-ticket-admin-reproduction' is recorded on a live ticket — left in place.
-- Branch cleanup: local 'wip/numbered-drain-order-stale-base' has unmerged work and no merged PR vouching for it — left in place.
-
-## Agent follow-up (2026-09-30)
-
-- Autoclose recipe succeeded (4 disposed, 4 preserved independent-clone entries
-  on `/home/n/Code/codex/coga` — worklist keeps them, per skill).
-- Branch-sweep exit 2 is a single branch, `codex/retro-independent-clone-worklist-knowledge`,
-  in `/home/n/Code/claude/coga`: its stale tip `2d1ee292a` is an ancestor of
-  PR #920's merged head `82461f50b`, which the remote `retired/` tag already
-  archives (pushed from another clone). No data at risk; the branch was left in place.
-  Every other branch was judged normally.
-- Code fix is tracked by `autofix/make-branch-sweep-retirement-survive-an-existing-r`
-  (diagnosis appended there). Not deleting by hand: the proofs refused it and
-  the fix owns that decision. Expect the same exit 2 daily until it lands.
