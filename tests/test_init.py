@@ -2499,8 +2499,10 @@ def test_running_cli_location_detects_pipx_when_python_is_a_symlink(
 
 # --- external dependency check --------------------------------------------------
 #
-# `coga init` fails loud when a required-at-init external CLI (only `git`) is
-# not on PATH; `gh` and `op` are enforced at their points of need instead.
+# `coga init` offers to install missing external CLIs in an interactive
+# terminal, then fails loud when a required-at-init one (only `git`) is still
+# not on PATH; a missing `gh`/`op` only warns — each is enforced at its point
+# of need.
 # Captured before the autouse `_stub_init_dep_check` fixture replaces
 # the module attribute, so these tests exercise the real implementation.
 _real_dep_check = init_cmd._check_external_dependencies
@@ -2557,7 +2559,22 @@ def test_dep_check_crashes_on_missing_git(
     assert "git" in capsys.readouterr().err
 
 
-def test_dep_check_omits_optional_tools_from_crash(
+def test_dep_check_warns_but_does_not_crash_on_optional_tools(
+    monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """Non-interactive: a missing `gh`/`op` is a warning with its install
+    hint, never a prompt or a crash."""
+    monkeypatch.setattr(
+        "coga.commands.init.shutil.which", _which_missing({"gh", "op"})
+    )
+    _real_dep_check()  # must not raise
+    err = capsys.readouterr().err
+    assert "gh: install from https://cli.github.com" in err
+    assert "op: install from" in err
+    assert "claude" not in err  # agent CLIs belong to the next steps
+
+
+def test_dep_check_crash_lists_only_required_tools(
     monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
     monkeypatch.setattr(
@@ -2566,11 +2583,113 @@ def test_dep_check_omits_optional_tools_from_crash(
     with pytest.raises(SystemExit):
         _real_dep_check()
     err = capsys.readouterr().err
-    # Only the required-at-init tool is reported; point-of-need tools are
-    # omitted even when they are also missing.
-    assert "git" in err
-    assert "gh" not in err
-    assert "op" not in err
+    required = err[err.index("coga needs these") :]
+    assert "git" in required
+    assert "gh" not in required
+    assert "op:" not in required
+
+
+def _interactive(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    missing: set[str],
+    answers: list[bool],
+    platform: str = "darwin",
+    gh_logged_in: bool = True,
+) -> list[list[str]]:
+    """Fake a tty on `platform` with `missing` tools; installs succeed.
+
+    Returns the argv of every subprocess init ran; `answers` feed the
+    confirm prompts in order."""
+    absent = set(missing)
+    calls: list[list[str]] = []
+    monkeypatch.setattr("coga.commands.init.sys.platform", platform)
+    monkeypatch.setattr("coga.commands.init.sys.stdin.isatty", lambda: True)
+    monkeypatch.setattr("coga.commands.init.sys.stdout.isatty", lambda: True)
+    monkeypatch.setattr(
+        "coga.commands.init.shutil.which",
+        lambda name: None if name in absent else f"/usr/bin/{name}",
+    )
+    monkeypatch.setattr("coga.commands.init.os.geteuid", lambda: 1000, raising=False)
+    prompts = iter(answers)
+    monkeypatch.setattr(
+        "coga.commands.init.typer.confirm", lambda *a, **kw: next(prompts)
+    )
+
+    def fake_run(argv, **kwargs):
+        calls.append(list(argv))
+        if argv[1:3] == ["auth", "status"]:
+            return subprocess.CompletedProcess(argv, 0 if gh_logged_in else 1, "", "")
+        tool = {"github-cli": "gh", "1password-cli": "op"}.get(argv[-1], argv[-1])
+        absent.discard(tool)
+        return subprocess.CompletedProcess(argv, 0)
+
+    monkeypatch.setattr("coga.commands.init.subprocess.run", fake_run)
+    return calls
+
+
+def test_dep_check_installs_gh_on_yes(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    calls = _interactive(monkeypatch, missing={"gh"}, answers=[True])
+    _real_dep_check()
+    assert ["brew", "install", "gh"] in calls
+    out = capsys.readouterr()
+    assert "Will run: brew install gh" in out.out
+    assert "Optional tools not on PATH" not in out.err
+
+
+def test_dep_check_declined_gh_only_warns(monkeypatch: pytest.MonkeyPatch, capsys) -> None:
+    calls = _interactive(monkeypatch, missing={"gh"}, answers=[False])
+    _real_dep_check()
+    assert calls == []
+    assert "gh: install from" in capsys.readouterr().err
+
+
+def test_dep_check_linux_uses_sudo_and_distro_package(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _interactive(
+        monkeypatch, missing={"gh", "apt-get", "dnf"}, answers=[True], platform="linux"
+    )
+    _real_dep_check()
+    assert ["sudo", "pacman", "-S", "--noconfirm", "github-cli"] in calls
+
+
+def test_dep_check_skips_op_offer_without_a_package(
+    monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """op has no apt package (1Password's own repo is needed), so Linux gets
+    the link rather than a prompt."""
+    calls = _interactive(monkeypatch, missing={"op"}, answers=[], platform="linux")
+    _real_dep_check()
+    assert calls == [["/usr/bin/gh", "auth", "status"]]
+    assert "op: install from" in capsys.readouterr().err
+
+
+def test_dep_check_git_declined_still_crashes(monkeypatch: pytest.MonkeyPatch) -> None:
+    _interactive(monkeypatch, missing={"git"}, answers=[False])
+    with pytest.raises(SystemExit) as exc:
+        _real_dep_check()
+    assert exc.value.code == 2
+
+
+def test_dep_check_git_installed_on_yes_passes(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _interactive(monkeypatch, missing={"git"}, answers=[True])
+    _real_dep_check()  # must not raise
+    assert ["brew", "install", "git"] in calls
+
+
+def test_dep_check_offers_gh_login_when_logged_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _interactive(monkeypatch, missing=set(), answers=[True], gh_logged_in=False)
+    _real_dep_check()
+    assert ["/usr/bin/gh", "auth", "login"] in calls
+
+
+def test_dep_check_never_prompts_without_a_tty(monkeypatch: pytest.MonkeyPatch) -> None:
+    _interactive(monkeypatch, missing={"gh"}, answers=[])
+    monkeypatch.setattr("coga.commands.init.sys.stdin.isatty", lambda: False)
+    _real_dep_check()  # an exhausted `answers` iterator would raise
 
 
 def test_init_bails_before_scaffolding_when_required_dep_missing(

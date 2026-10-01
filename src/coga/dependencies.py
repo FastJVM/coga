@@ -6,13 +6,15 @@ coga needs it, where to install it, and whether it is required at `coga init`
 softer, deferred failure at the point of need).
 
 `coga init` reads `required_at_init` to decide what to enforce before doing
-anything; the README's "Getting Started" section describes the same set for
-humans. Keeping the list here means the init check and the docs can't drift.
+anything, and `offer_install` / `packages` to offer installing a missing tool
+through the machine's package manager; the README's "Getting Started" section
+describes the same set for humans. Keeping the list here means the init check
+and the docs can't drift.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -22,12 +24,19 @@ class Dependency:
     `name` is the binary as found on PATH; `purpose` is why coga needs it;
     `install` is an install URL/hint; `required_at_init` is True when a missing
     binary must crash `coga init` (vs. being enforced later, when first used).
+    `offer_install` is the default answer when an interactive `coga init`
+    offers to install the missing binary, or None to never offer; `packages`
+    maps a package manager (see `PACKAGE_MANAGERS`) to the argv tail that
+    installs the binary with it. A manager absent from `packages` falls back
+    to the `install` URL.
     """
 
     name: str
     purpose: str
     install: str
     required_at_init: bool
+    offer_install: bool | None = None
+    packages: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
 
 DEPENDENCIES: tuple[Dependency, ...] = (
@@ -39,6 +48,14 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         ),
         install="https://git-scm.com/downloads",
         required_at_init=True,
+        offer_install=True,
+        packages={
+            "brew": ("git",),
+            "apt-get": ("git",),
+            "dnf": ("git",),
+            "pacman": ("git",),
+            "winget": ("--id", "Git.Git", "-e"),
+        },
     ),
     Dependency(
         name="gh",
@@ -54,6 +71,14 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         ),
         install="https://cli.github.com",
         required_at_init=False,
+        offer_install=True,
+        packages={
+            "brew": ("gh",),
+            "apt-get": ("gh",),
+            "dnf": ("gh",),
+            "pacman": ("github-cli",),
+            "winget": ("--id", "GitHub.cli", "-e"),
+        },
     ),
     Dependency(
         name="op",
@@ -66,6 +91,13 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         ),
         install="https://developer.1password.com/docs/cli/get-started/",
         required_at_init=False,
+        # Most repos never declare an `op://` secret: offered, default no.
+        # Linux distros need 1Password's own repo, so only brew/winget.
+        offer_install=False,
+        packages={
+            "brew": ("--cask", "1password-cli"),
+            "winget": ("--id", "AgileBits.1Password.CLI", "-e"),
+        },
     ),
     Dependency(
         name="claude",
@@ -92,6 +124,19 @@ DEPENDENCIES: tuple[Dependency, ...] = (
         required_at_init=False,
     ),
 )
+
+
+# Package managers `coga init` knows how to drive, in detection order, each
+# mapped to the argv head that installs a package non-interactively. Linux
+# managers need root; init prefixes `sudo` when it is not already root.
+PACKAGE_MANAGERS: dict[str, tuple[str, ...]] = {
+    "brew": ("brew", "install"),
+    "winget": ("winget", "install"),
+    "apt-get": ("apt-get", "install", "-y"),
+    "dnf": ("dnf", "install", "-y"),
+    "pacman": ("pacman", "-S", "--noconfirm"),
+}
+NEEDS_ROOT = frozenset({"apt-get", "dnf", "pacman"})
 
 
 def install_hint(name: str) -> str | None:

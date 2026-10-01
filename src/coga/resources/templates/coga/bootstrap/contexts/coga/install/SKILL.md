@@ -7,7 +7,8 @@ description: Prerequisites and installing the coga CLI (uv tool, pipx, virtualen
 
 Coga is one CLI, installed once per machine, that operates every repo you
 adopt it into. Installing the package never modifies a repo; `coga init` does
-that, and init installs no software (see [coga/init](../init/SKILL.md)).
+that, and offers to install missing external CLIs (see
+[coga/init](../init/SKILL.md)).
 
 ## Prerequisites
 
@@ -30,6 +31,20 @@ that, and init installs no software (see [coga/init](../init/SKILL.md)).
 - **1Password CLI (`op`)**, only if a ticket declares an `op://` secret; it
   is checked when that launch resolves the reference
   ([coga/secrets](../secrets/SKILL.md)).
+
+In an interactive terminal, `coga init` offers to install a missing `git`,
+`gh` (default yes, then `gh auth login` if logged out) or `op` (default no)
+with the machine's package manager — brew, winget, apt-get, dnf or pacman,
+with `sudo` on Linux — printing the exact command first. The per-tool
+packages live in `src/coga/dependencies.py`. Without a terminal, a known
+package manager or a package for the tool, init prints the install link
+instead: a missing `git` still stops init, a missing `gh` or `op` is a
+warning. Agent CLIs are not offered; init's next steps name them.
+
+> Owner reversal (2026-09-30): users read a missing `gh` as a broken,
+> unprofessional install and churn. Interactive `coga init` now offers to
+> install missing external CLIs; it still installs no Python package or
+> skill, and never installs anything without a yes.
 
 Coga does not own your identity. It uses tools you already authenticate
 (`git`, your credential helper or `ssh-agent`, `gh`) and fails with an

@@ -1,8 +1,10 @@
 """`coga init` — create a new coga repo, or finish setting up a clone of one.
 
 `coga init` writes everything from scratch into `<path>/coga/`. Templates come
-from the installed coga package; init installs no software. On a repo whose
-`coga/` already exists it refuses — unless the gitignored machine-local half
+from the installed coga package. Init installs no Python packages or skills;
+in an interactive terminal it offers (never forces) to install missing
+external CLIs such as `gh`. On a repo whose `coga/` already exists it
+refuses — unless the gitignored machine-local half
 (`coga.local.toml` with a `user`, the agent skill symlinks) is missing, which
 is what a fresh clone looks like: then `coga init --user NAME` creates only
 that half and commits nothing.
@@ -43,7 +45,13 @@ from coga.config import (
     load_config,
     resolve_layout_contexts_path,
 )
-from coga.dependencies import DEPENDENCIES, install_hint
+from coga.dependencies import (
+    DEPENDENCIES,
+    NEEDS_ROOT,
+    PACKAGE_MANAGERS,
+    Dependency,
+    install_hint,
+)
 from coga.git import GitError, control_branch_present, symbolic_head
 from coga.logfile import append_log
 
@@ -384,34 +392,118 @@ focused topic a task needs rather than a broad overview.
 
 
 def _check_external_dependencies() -> None:
-    """Fail loud if an external CLI coga *requires at init* is not on PATH.
+    """Offer to install missing external CLIs, then fail loud on required ones.
 
-    Enforces only the `required_at_init` dependencies in the `coga.dependencies`
-    manifest — just `git` — at the start of every `coga init` invocation
-    (fresh, update, update-all). `gh` and `op` are deliberately not enforced
-    here: each is enforced at its point of need (`gh` by `coga skill
-    install`, the open-pr step, and the autoclose sweep; `op` by a launch
-    that resolves an `op://` secret), and each failure there is loud with its
-    own install hint — so a missing `gh`/`op` never blocks init on a machine
-    that doesn't use those features. The per-tool rationale lives on each
-    manifest entry. Missing tools are reported together, each with an install
-    hint.
+    Runs at the start of every `coga init` invocation (fresh, update,
+    update-all) over the `coga.dependencies` manifest. In an interactive
+    terminal each missing tool with an `offer_install` default is offered
+    through the machine's package manager, printing the exact command before
+    running it; `gh` is then offered `gh auth login` if it is not logged in.
+    Nothing installs without a yes, and a non-interactive init (CI, an agent)
+    never prompts. Afterwards a missing `required_at_init` tool — just `git` —
+    still exits 2 with its install hint; a missing optional tool (`gh`, `op`)
+    is only a warning, since each is enforced again at its point of need.
+    Agent CLIs are neither offered nor warned about here: the next steps name
+    them.
     """
-    missing = [
-        dep
-        for dep in DEPENDENCIES
-        if dep.required_at_init and shutil.which(dep.name) is None
-    ]
-    if not missing:
+    interactive = sys.stdin.isatty() and sys.stdout.isatty()
+    manager = _package_manager()
+    missing: list[Dependency] = []
+    for dep in DEPENDENCIES:
+        if dep.offer_install is None and not dep.required_at_init:
+            continue
+        if shutil.which(dep.name) is None and not (
+            interactive and _offer_install(dep, manager)
+        ):
+            missing.append(dep)
+    if interactive and "gh" not in {dep.name for dep in missing}:
+        _offer_gh_login()
+
+    required = [dep for dep in missing if dep.required_at_init]
+    optional = [dep for dep in missing if not dep.required_at_init]
+    if optional:
+        typer.secho(
+            "\n".join(
+                [
+                    "Optional tools not on PATH (init continues without them):",
+                    *(f"  - {dep.name}: install from {dep.install}" for dep in optional),
+                ]
+            ),
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+    if not required:
         return
     lines = [
         "coga needs these external command-line tools, but they are not on "
         "PATH:",
-        *(f"  - {dep.name}: install from {dep.install}" for dep in missing),
+        *(f"  - {dep.name}: install from {dep.install}" for dep in required),
         "Install the missing tool(s), then re-run `coga init`.",
     ]
     typer.secho("\n".join(lines), fg=typer.colors.RED, err=True)
     sys.exit(2)
+
+
+def _package_manager() -> str | None:
+    """The first `PACKAGE_MANAGERS` entry this platform supports and has."""
+    if sys.platform == "darwin":
+        candidates = ["brew"]
+    elif sys.platform == "win32":
+        candidates = ["winget"]
+    else:
+        candidates = ["apt-get", "dnf", "pacman", "brew"]
+    for name in candidates:
+        if shutil.which(name) is not None:
+            return name
+    return None
+
+
+def _offer_install(dep: Dependency, manager: str | None) -> bool:
+    """Ask to install `dep` with `manager`; True when it is now on PATH."""
+    if dep.offer_install is None or manager not in dep.packages:
+        return False
+    argv = [*PACKAGE_MANAGERS[manager], *dep.packages[manager]]
+    if manager in NEEDS_ROOT and hasattr(os, "geteuid") and os.geteuid() != 0:
+        if shutil.which("sudo") is None:
+            return False
+        argv.insert(0, "sudo")
+    first_line = dep.purpose.split(" — ")[0].split(". ")[0]
+    typer.echo(f"`{dep.name}` is not installed ({first_line}).")
+    typer.echo(f"  Will run: {shlex.join(argv)}")
+    if not typer.confirm("Install it now?", default=dep.offer_install):
+        return False
+    result = subprocess.run(argv, check=False)
+    if result.returncode != 0:
+        typer.secho(
+            f"`{shlex.join(argv)}` failed (exit {result.returncode}).",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        return False
+    if shutil.which(dep.name) is None:
+        typer.secho(
+            f"Installed `{dep.name}`, but it is not on PATH yet — open a new "
+            "shell, then re-run `coga init` if it is required.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        return False
+    return True
+
+
+def _offer_gh_login() -> None:
+    """Offer `gh auth login` when `gh` is installed but not logged in."""
+    gh = shutil.which("gh")
+    if gh is None:
+        return
+    status = subprocess.run(
+        [gh, "auth", "status"], capture_output=True, text=True, check=False
+    )
+    if status.returncode == 0:
+        return
+    typer.echo("`gh` is installed but not logged in to GitHub.")
+    if typer.confirm("Run `gh auth login` now?", default=True):
+        subprocess.run([gh, "auth", "login"], check=False)
 
 
 def _check_git_identity(target: Path) -> None:

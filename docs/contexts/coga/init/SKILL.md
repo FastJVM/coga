@@ -73,10 +73,13 @@ partial `coga/` and any relocated contexts, so a re-run is not wedged. A
 failed commit itself (a hook, odd repo state) does not roll back. It warns
 with the exact `git add`/`git commit` commands to finish.
 
-Init installs no software. It builds no virtualenv, installs no package or
-skill, makes no `gh` call and writes no `PATH` shim. It is offline and cheap,
-so an editable checkout can scaffold a scratch repo without publishing a
-release. The printed next steps are: put `coga` on `PATH` if it is missing;
+Init installs no Coga software. It builds no virtualenv, installs no Python
+package or skill and writes no `PATH` shim, so an editable checkout can
+scaffold a scratch repo without publishing a release. The one exception is
+external CLIs: in an interactive terminal it offers, before scaffolding, to
+install a missing `git`, `gh` or `op` and to run `gh auth login`, each only
+on a yes ([coga/install](../install/SKILL.md) owns the details). A
+non-interactive init never prompts, installs nothing and stays offline. The printed next steps are: put `coga` on `PATH` if it is missing;
 edit `coga.toml`; install an agent CLI; then `coga build` (empty repo) or
 `coga ticket "<title>"` (filled repo).
 
