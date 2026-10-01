@@ -47,8 +47,19 @@ remove and no `--purge`, it says so and exits.
 ## The global package
 
 Without `--purge`, the `coga` package stays installed (it serves every repo
-on the machine) and the command prints `pipx uninstall coga` /
-`pip uninstall coga`. With `--purge`, it uninstalls through pipx when the
-running CLI is a pipx install, otherwise through
-`<python> -m pip uninstall -y coga`. If that fails, it prints the manual
-command.
+on the machine) and the command prints `uv tool uninstall coga` /
+`pipx uninstall coga` / `pip uninstall coga`. With `--purge`, it uninstalls
+through the installer that owns the running CLI's venv, detected by
+`running_cli_location` (`src/coga/commands/update.py`) from a marker in the
+unresolved `sys.executable` venv root:
+
+- `uv-receipt.toml` (the preferred `uv tool install coga`,
+  [coga/install](../install/SKILL.md)) → `uv tool uninstall coga` with
+  `UV_TOOL_DIR` set to the venv root's parent, so a nondefault tools
+  directory is targeted even when `$UV_TOOL_DIR` is now unset or different.
+  A uv tool venv normally has no pip, so pip is never tried there;
+- `pipx_metadata.json` → `pipx uninstall coga`;
+- anything else → `<python> -m pip uninstall -y coga`.
+
+If the installer is missing from `PATH` or the uninstall fails, it prints the
+same installer's manual command (for uv, prefixed with that `UV_TOOL_DIR=`).

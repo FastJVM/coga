@@ -7,14 +7,16 @@ block. The `coga` CLI itself is the operator's own global install, which init
 never touches. `coga uninstall` removes that footprint so trying Coga is a
 reversible decision.
 
-By default it removes everything *local to this repo* and prints the one
-command to drop the global pip package. `--purge` also runs that package
-uninstall. Destructive, so it prints the plan and asks for confirmation unless
+By default it removes everything *local to this repo* and prints the commands
+to drop the global package (`uv tool`, pipx, or pip). `--purge` also runs the
+uninstall matching the running install. Destructive, so it prints the plan and asks for confirmation unless
 `--yes` is passed.
 """
 
 from __future__ import annotations
 
+import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -79,8 +81,8 @@ def uninstall(
         False,
         "--purge",
         help=(
-            "Also uninstall the global `coga` pip/pipx package — this removes "
-            "`coga` for every repo on the machine, not just this one. Without it, "
+            "Also uninstall the global `coga` package (uv tool, pipx, or pip) — "
+            "this removes `coga` for every repo on the machine, not just this one. Without it, "
             "the command prints the uninstall command for you to run."
         ),
     ),
@@ -274,43 +276,29 @@ def _remove_skill_link(link: Path) -> None:
 
 
 def _handle_package(purge: bool, coga_os: Path) -> None:
-    """Drop the global pip/pipx package on --purge, or print the command."""
+    """Drop the global uv tool/pipx/pip package on --purge, or print the command."""
     if not purge:
         typer.echo("")
         typer.echo(
             f"The global `{COGA_PIPX_PACKAGE}` package is left installed. To "
             f"remove it for every repo on this machine, run one of:"
         )
+        typer.echo(f"    uv tool uninstall {COGA_PIPX_PACKAGE}")
         typer.echo(f"    pipx uninstall {COGA_PIPX_PACKAGE}")
         typer.echo(f"    pip uninstall {COGA_PIPX_PACKAGE}")
         typer.echo("(or re-run `coga uninstall --purge` from another Coga repo).")
         return
 
-    kind, _ = running_cli_location()
+    kind, venv = running_cli_location()
     if kind == "pipx":
-        pipx = shutil.which("pipx")
-        if pipx is None:
-            typer.secho(
-                f"Couldn't find pipx on PATH. Remove the global package by hand:\n"
-                f"    pipx uninstall {COGA_PIPX_PACKAGE}\n"
-                f"(installed however you set Coga up — see {COGA_REPO_URL}).",
-                fg=typer.colors.YELLOW,
-            )
-            return
-        typer.echo(f"Uninstalling global package (pipx uninstall {COGA_PIPX_PACKAGE})…")
-        result = subprocess.run(
-            [pipx, "uninstall", COGA_PIPX_PACKAGE],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode == 0:
-            typer.echo(f"Uninstalled `{COGA_PIPX_PACKAGE}` via pipx.")
-            return
-        typer.secho(
-            f"pipx uninstall failed — remove it by hand:\n"
-            f"    pip uninstall {COGA_PIPX_PACKAGE}\n"
-            f"{(result.stderr or result.stdout).strip()}",
-            fg=typer.colors.YELLOW,
+        _uninstall_via_tool("pipx", ["uninstall"])
+        return
+    if kind == "uv":
+        # Pin uv to the tools dir that owns the running venv: with a
+        # nondefault $UV_TOOL_DIR that is unset or changed now, plain
+        # `uv tool uninstall` would search the wrong dir and miss it.
+        _uninstall_via_tool(
+            "uv", ["tool", "uninstall"], env={"UV_TOOL_DIR": str(venv.parent)}
         )
         return
 
@@ -329,6 +317,51 @@ def _handle_package(purge: bool, coga_os: Path) -> None:
     typer.secho(
         f"pip uninstall failed — remove it by hand:\n"
         f"    {sys.executable} -m pip uninstall {COGA_PIPX_PACKAGE}\n"
+        f"{(result.stderr or result.stdout).strip()}",
+        fg=typer.colors.YELLOW,
+    )
+
+
+def _uninstall_via_tool(
+    tool: str, subcommand: list[str], env: dict[str, str] | None = None
+) -> None:
+    """Uninstall the global package through the installer that owns its venv
+    (pipx or `uv tool`); such a venv normally has no pip to fall back on.
+
+    `env` overrides are passed to the subprocess and shown as `VAR=value`
+    prefixes in every printed command, so the manual fallback targets the
+    same install."""
+    env = env or {}
+    display = " ".join(
+        [
+            *(f"{k}={shlex.quote(v)}" for k, v in env.items()),
+            tool,
+            *subcommand,
+            COGA_PIPX_PACKAGE,
+        ]
+    )
+    exe = shutil.which(tool)
+    if exe is None:
+        typer.secho(
+            f"Couldn't find {tool} on PATH. Remove the global package by hand:\n"
+            f"    {display}\n"
+            f"(installed however you set Coga up — see {COGA_REPO_URL}).",
+            fg=typer.colors.YELLOW,
+        )
+        return
+    typer.echo(f"Uninstalling global package ({display})…")
+    result = subprocess.run(
+        [exe, *subcommand, COGA_PIPX_PACKAGE],
+        capture_output=True,
+        text=True,
+        env={**os.environ, **env} if env else None,
+    )
+    if result.returncode == 0:
+        typer.echo(f"Uninstalled `{COGA_PIPX_PACKAGE}` via {tool}.")
+        return
+    typer.secho(
+        f"{tool} uninstall failed — remove it by hand:\n"
+        f"    {display}\n"
         f"{(result.stderr or result.stdout).strip()}",
         fg=typer.colors.YELLOW,
     )

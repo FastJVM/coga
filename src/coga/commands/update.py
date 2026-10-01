@@ -202,18 +202,23 @@ def running_cli_location() -> tuple[str, Path]:
 
     Returns `(kind, venv_root)`:
       - `("pipx", <pipx-venv>)` — installed via pipx; we can offer to upgrade.
-      - `("other", <venv_root>)` — pip / uv tool / system python; the caller
-        should print a manual-upgrade hint.
+      - `("uv", <uv-tool-venv>)` — installed via `uv tool install`, marked by
+        the `uv-receipt.toml` uv writes into the tool's venv root. Such a venv
+        normally has no pip, so callers must go through `uv tool`.
+      - `("other", <venv_root>)` — pip / system python; the caller should
+        print a manual-upgrade hint.
 
-    Detection uses the *unresolved* `sys.executable` parent venv. A pipx
-    venv's `bin/python` is a symlink to the host Python (Homebrew, pyenv,
-    system). Resolving the symlink lands in the host's framework dir and
-    misses the `pipx_metadata.json` marker that lives in the venv root, which
-    would collapse pipx and other onto the same directory.
+    Detection uses the *unresolved* `sys.executable` parent venv. A pipx or
+    uv tool venv's `bin/python` is a symlink to the host Python (Homebrew,
+    pyenv, system, uv-managed). Resolving the symlink lands in the host's
+    framework dir and misses the marker that lives in the venv root, which
+    would collapse pipx, uv, and other onto the same directory.
     """
     venv = Path(sys.executable).absolute().parent.parent
     if (venv / "pipx_metadata.json").is_file():
         return ("pipx", venv)
+    if (venv / "uv-receipt.toml").is_file():
+        return ("uv", venv)
     return ("other", venv)
 
 
