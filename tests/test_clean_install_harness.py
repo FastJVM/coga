@@ -201,6 +201,8 @@ def aws_mac(git_repo, tmp_path: Path, monkeypatch):
         with open({str(calls)!r}, "a") as log:
             log.write("aws " + " ".join(args) + "\\n")
         op = args[args.index("--region") + 3]
+        if op == os.environ.get("COGA_TEST_AWS_FAIL"):
+            sys.exit(23)
         release = os.environ.get("COGA_TEST_RELEASE", "None")
         print({{
             "get-caller-identity": "arn:aws:sts::123:assumed-role/dev",
@@ -277,3 +279,81 @@ def test_aws_mac_records_every_resource_and_tears_down(aws_mac) -> None:
     assert "HOST_RELEASED=" in (evidence / "resources.env").read_text()
     assert run("teardown", "mac1").returncode == 0
     assert calls.read_text().count("terminate-instances") == 1
+
+
+@pytest.mark.parametrize(
+    ("operation", "missing_key", "forbidden_operation"),
+    [
+        ("get-caller-identity", "CALLER", "create-key-pair"),
+        ("create-security-group", "SG_ID", "allocate-hosts"),
+        ("allocate-hosts", "HOST_ID", "run-instances"),
+        ("run-instances", "INSTANCE_ID", "wait"),
+    ],
+)
+def test_aws_mac_stops_on_failed_resource_capture(
+    aws_mac, operation: str, missing_key: str, forbidden_operation: str,
+) -> None:
+    run, calls, evidence = aws_mac
+    result = run(
+        "provision", "mac1", "us-east-1", "us-east-1a",
+        COGA_CLEAN_INSTALL_ALLOCATE="yes", COGA_TEST_AWS_FAIL=operation,
+    )
+    assert result.returncode == 23, result.stdout + result.stderr
+    assert f"{missing_key}=" not in (evidence / "resources.env").read_text()
+    ops = [c.split()[6] for c in calls.read_text().splitlines() if c.startswith("aws ")]
+    assert forbidden_operation not in ops
+    # Every successfully recorded resource remains available to teardown.
+    assert run("teardown", "mac1").returncode == 0
+
+
+def test_aws_mac_passwords_stay_out_of_logs(aws_mac) -> None:
+    run, calls, evidence = aws_mac
+    assert run(
+        "provision", "mac1", "us-east-1", "us-east-1a",
+        COGA_CLEAN_INSTALL_ALLOCATE="yes",
+    ).returncode == 0
+    for args, password_path in (
+        (("walk", "mac1", "pypi", "walk1"), evidence / "walks/walk1/password.txt"),
+        (("vnc", "mac1"), evidence / "vnc-password.txt"),
+    ):
+        result = run(*args)
+        assert result.returncode == 0, result.stdout + result.stderr
+        password = password_path.read_text().strip()
+        assert password and password in calls.read_text()  # delivered to SSH
+        assert password not in result.stdout + result.stderr
+        assert password not in (evidence / "host.txt").read_text()
+        assert password_path.stat().st_mode & 0o777 == 0o600
+    assert (evidence / "host.txt").stat().st_mode & 0o777 == 0o600
+
+
+def test_aws_mac_main_walk_without_gnu_checksum(
+    aws_mac, git_repo, tmp_path: Path, monkeypatch,
+) -> None:
+    run, calls, evidence = aws_mac
+    assert run(
+        "provision", "mac1", "us-east-1", "us-east-1a",
+        COGA_CLEAN_INSTALL_ALLOCATE="yes",
+    ).returncode == 0
+    git_repo.git("push", "origin", "main")
+    # A host tool path with shasum, but deliberately no sha256sum.
+    bin_dir = tmp_path / "portable-bin"
+    bin_dir.mkdir()
+    for name in ("bash", "git", "dirname", "tee", "date", "mkdir", "openssl",
+                 "mktemp", "tar", "rm", "basename", "ssh", "scp"):
+        (bin_dir / name).symlink_to(shutil.which(name))
+    _executable(bin_dir / "uv", """
+        #!/bin/sh
+        mkdir -p "$5"
+        echo wheel > "$5/coga-1.0-py3-none-any.whl"
+    """)
+    _executable(bin_dir / "shasum", """
+        #!/bin/sh
+        [ "$1 $2" = '-a 256' ] || exit 18
+        echo "portable-checksum $3"
+    """)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    result = run("walk", "mac1", "main", "walk1")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "portable-checksum" in result.stdout
+    assert "macos-walk.sh walk wheel" in calls.read_text()
+    assert "origin/main=" in (evidence / "walks/walk1/source.txt").read_text()
