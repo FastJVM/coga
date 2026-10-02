@@ -5,9 +5,10 @@ calls `sync_task_state`, `sync_log`, or (at the CLI boundary) the catch-all
 `sync_coga_state`. All three are thin wrappers over one primitive, `publish`,
 which builds a commit on top of `origin/<control>` in a temporary index and
 pushes it straight to `refs/heads/<control>` — never committing on any local
-branch and never touching the working tree. The local `<control>` only ever
-fast-forwards (`fast_forward_control`), and `refresh` is the one integrate
-path (fetch + fast-forward) used by launch teardown and the recurring gate.
+branch and never touching the working tree. The local `<control>` only
+fast-forwards, or realigns over local commits proven to be Coga state control
+already carries (`fast_forward_control`), and `refresh` is the one integrate
+path (fetch + that move) used by exempt launches and the recurring gate.
 
 Invariants, in the order they matter:
 
@@ -26,8 +27,10 @@ Invariants, in the order they matter:
   bytes themselves — else the publish is refused and names the fix. A
   control ticket carrying `pending:<uuid>` accepts only its own admission.
 - **One integrate path.** `fast_forward_control` is the only code that moves
-  the local control ref, after a publish and inside `refresh` alike, and it
-  checks ancestry explicitly rather than trusting `merge --ff-only`'s exit.
+  the local control ref, after a publish and inside `refresh` alike (and
+  `prepare_control_checkout` applies the same `_local_control_subsumed`
+  proof). It checks ancestry explicitly rather than trusting `merge
+  --ff-only`'s exit, and never stashes, rebases, resets, or commits.
 
 Outcomes: `publish` returns `True` (pushed), `False` (control already held
 the built tree), or `None` (soft-skipped: git disabled, not a repo, control
@@ -211,9 +214,12 @@ def sync_log(cfg: Config, *, message: str) -> bool:
 
 
 def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
-    """The catch-all sweep: publish every dirty task, log, and recurring path.
+    """The catch-all sweep: publish eligible task, log, and recurring state.
 
     Runs at the CLI dispatch boundary and is the retry for every earlier miss.
+    The whole configured state areas go to `publish`, so `_candidates` selects
+    committed state this checkout derived (a hand commit on local control) as
+    well as dirty state; clean state merely behind control is not a write.
     Hand-authored contexts, skills, and workflows are review work and are left
     alone.
     """
@@ -221,11 +227,7 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
         root = _publishable_root(cfg, message)
         if root is None:
             return
-        state = [tasks_dir(cfg), log_path(cfg), recurring_dir(cfg)]
-        pathspecs = [relative_to_root(root, path) for path in state if path.exists()]
-        paths = [root / rel for rel in _dirty_paths(root, pathspecs)]
-        if paths:
-            publish(cfg, paths, message)
+        publish(cfg, [tasks_dir(cfg), log_path(cfg), recurring_dir(cfg)], message)
     except StateRegressionError as exc:
         sys.stderr.write(f"[git] sync refused: {exc}. Message was: {message}\n")
     except GitError as exc:
@@ -436,13 +438,17 @@ def _candidates(root: Path, pathspecs: list[str], base: str, ancestor: str | Non
     Every path dirty against HEAD (a write no commit holds yet), plus a
     clean path whose HEAD copy moved past control from a copy this checkout
     derived from — a feature branch that committed Coga state it had itself
-    published. A clean path that is merely *behind* control is not a write
-    and is left alone.
+    published, or a hand commit on local control. A clean path that is merely
+    *behind* control — HEAD's copy unchanged since the merge base, even when
+    control holds a copy this worktree published — is not a write and is left
+    alone.
     """
     rels = _dirty_paths(root, pathspecs)
     committed = run_git(root, "diff", "-z", "--name-only", base, "HEAD", "--", *pathspecs)
     for rel in (rel for rel in committed.split("\x00") if rel and rel not in rels):
         head_oid = _blob_oid(root, "HEAD", rel)
+        if ancestor is not None and head_oid == _blob_oid(root, ancestor, rel):
+            continue
         derived = _provenance(root, [rel], ancestor)[rel] - {head_oid}
         if _blob_oid(root, base, rel) in derived:
             rels.append(rel)
@@ -679,19 +685,23 @@ def fast_forward_control(
     *,
     staged: Mapping[str, tuple[bytes | None, bytes | None]] | None = None,
 ) -> bool:
-    """Move the local control branch to `new` if that is a fast-forward.
+    """Move the local control branch to `new`: fast-forward, or realign.
 
-    Ancestry is checked first: a local branch that is ahead or diverged
-    (unpushed human commits) is left alone with one stderr line naming
-    `git pull --rebase`, and nothing is staged. When this checkout holds the
-    branch, `staged` — path → (bytes read, bytes landed) — lets a file this
-    process just published be brought to its landed bytes and staged, so the
-    fast-forward is not refused by the very edit it carries; a file a peer
-    changed meanwhile is left dirty for the next sweep. Another worktree
-    holding the branch is fast-forwarded through `merge --ff-only`; with no
-    holder the ref moves directly under an old-value guard.
+    Ancestry is checked first. When local control is behind `new`, this is a
+    fast-forward: another worktree holding the branch moves through `merge
+    --ff-only`; with no holder the ref moves directly under an old-value
+    guard. When local control is ahead or diverged, it *realigns* only when
+    `_local_control_subsumed` proves every local-only commit is Coga state
+    whose content `new` already carries; the invoking checkout must have no
+    Git operation in progress, a control branch held by another worktree is
+    left alone, and the dropped commits are named on stderr (they stay in the
+    reflog). Anything else is left alone with one stderr line naming the fix.
+    When this checkout holds the branch, `staged` — path → (bytes read,
+    bytes landed) — lets a file this process just published be brought to its
+    landed bytes and staged, so the move is not refused by the very edit it
+    carries; a file a peer changed meanwhile is left dirty for the next sweep.
     """
-    control, remote = cfg.git_control_branch, cfg.git_remote
+    control = cfg.git_control_branch
     ref = f"refs/heads/{control}"
     if not _ref_present(root, ref):
         return True
@@ -699,11 +709,7 @@ def fast_forward_control(
     if local == new:
         return True
     if not _is_ancestor(root, local, new):
-        sys.stderr.write(
-            f"[git] note: local {control!r} has commits not on {remote}/{control}; "
-            f"run `git pull --rebase {remote} {control}` there to catch up\n"
-        )
-        return False
+        return _realign_control(cfg, root, local, new, staged)
     try:
         holder = worktree_holding_branch(root, control)
     except GitError as exc:
@@ -716,17 +722,8 @@ def fast_forward_control(
             sys.stderr.write(f"[git] note: local {control!r} not fast-forwarded: {exc}\n")
             return False
         return True
-    if staged and holder.resolve() == root.resolve():
-        try:
-            for rel, (read, landed) in staged.items():
-                if _working_tree_bytes(root, rel) != read:
-                    continue
-                if landed is not None:
-                    (root / rel).write_bytes(landed)
-                run_git(root, "add", "--all", "--", rel)
-        except (GitError, OSError) as exc:
-            sys.stderr.write(f"[git] note: local {control!r} not fast-forwarded: {exc}\n")
-            return False
+    if holder.resolve() == root.resolve() and not _stage_landed(cfg, root, staged):
+        return False
     result = _run(["git", "-C", str(holder), "merge", "--ff-only", "--quiet", new])
     if result.returncode != 0:
         sys.stderr.write(
@@ -737,10 +734,81 @@ def fast_forward_control(
     return True
 
 
+def _stage_landed(
+    cfg: Config,
+    root: Path,
+    staged: Mapping[str, tuple[bytes | None, bytes | None]] | None,
+) -> bool:
+    """Bring files this process just published to their landed bytes and stage them."""
+    try:
+        for rel, (read, landed) in (staged or {}).items():
+            if _working_tree_bytes(root, rel) != read:
+                continue
+            if landed is not None:
+                (root / rel).write_bytes(landed)
+            run_git(root, "add", "--all", "--", rel)
+    except (GitError, OSError) as exc:
+        sys.stderr.write(f"[git] note: local {cfg.git_control_branch!r} not moved: {exc}\n")
+        return False
+    return True
+
+
+def _realign_control(
+    cfg: Config,
+    root: Path,
+    local: str,
+    new: str,
+    staged: Mapping[str, tuple[bytes | None, bytes | None]] | None,
+) -> bool:
+    """`fast_forward_control`'s path for an ahead or diverged local control."""
+    control, remote = cfg.git_control_branch, cfg.git_remote
+    ref = f"refs/heads/{control}"
+    try:
+        operation = _operation_in_progress(root)
+    except GitError as exc:
+        sys.stderr.write(
+            f"[git] note: local {control!r} not realigned: could not inspect "
+            f"{root} for an in-progress Git operation: {exc}\n"
+        )
+        return False
+    if operation is not None:
+        sys.stderr.write(
+            f"[git] note: local {control!r} not realigned to {remote}/{control}: "
+            f"{operation} is in progress in {root}; finish or abort it and retry\n"
+        )
+        return False
+    verdict = _local_control_subsumed(cfg, root, local, new)
+    if verdict.kind != "ok":
+        sys.stderr.write(f"[git] note: {_divergence_message(cfg, verdict, on_control=True)}\n")
+        return False
+    try:
+        holder = worktree_holding_branch(root, control)
+        if holder is not None and holder.resolve() != root.resolve():
+            sys.stderr.write(
+                f"[git] note: local {control!r} in {holder} has commits not on "
+                f"{remote}/{control}; left alone — realign it from that checkout\n"
+            )
+            return False
+        if holder is not None:
+            if not _stage_landed(cfg, root, staged):
+                return False
+            run_git(root, "read-tree", "-m", "-u", "HEAD", new)
+        run_git(
+            root, "update-ref", "-m", f"coga: realign to {remote}/{control}",
+            ref, new, local,
+        )
+    except GitError as exc:
+        sys.stderr.write(f"[git] note: local {control!r} not realigned: {exc}\n")
+        return False
+    _report_realignment(cfg, verdict, new)
+    return True
+
+
 def refresh(cfg: Config) -> bool:
     """Make a control checkout equal to `<remote>/<control>`.
 
-    Fetches, then fast-forwards when HEAD is the control branch. A feature
+    Fetches, then fast-forwards (or realigns, see `fast_forward_control`) when
+    HEAD is the control branch; it never publishes. A feature
     or detached checkout is stale-by-design for tickets other checkouts
     advance: the fetch still lands (so `coga status` can warn) but no file
     moves, and the result is `True`. `False` means the control checkout could
@@ -812,6 +880,34 @@ class _PreparationPlan:
     restore: tuple[str, ...]
     remove: tuple[str, ...]
     evidence: tuple[object, ...]
+    realign: _Subsumption | None = None
+
+
+SubsumptionKind = Literal["ok", "foreign", "unpublished", "unproven"]
+
+
+@dataclass(frozen=True)
+class _Subsumption:
+    """`_local_control_subsumed`'s verdict on local control's own commits.
+
+    - `"ok"` — every local-only commit touches only Coga state and its net
+      change is already on the target: the local ref may move to the target.
+    - `"foreign"` — some local-only commit touches a path outside the state
+      areas; `blocking` names those paths.
+    - `"unpublished"` — the commits are state-only, but `blocking` lists the
+      paths whose content is not yet on the target, each with why.
+    - `"unproven"` — no single merge base, an unsupported entry (symlink,
+      submodule), or a failed Git probe; `reason` names what failed.
+
+    `dropped` is `(commit, subject)` per local-only commit, oldest first;
+    `evidence` is everything the verdict was decided from.
+    """
+
+    kind: SubsumptionKind
+    reason: str = ""
+    blocking: tuple[str, ...] = ()
+    dropped: tuple[tuple[str, str], ...] = ()
+    evidence: tuple[object, ...] = ()
 
 
 def prepare_control_checkout(
@@ -821,9 +917,11 @@ def prepare_control_checkout(
 
     Confined to this one checkout: a sibling worktree is never switched,
     fast-forwarded, or cleaned. The fetched `<remote>/<control>` commit is
-    pinned once. Local control must exist and be equal to or behind it; a
-    detached HEAD, an in-progress Git operation, or control checked out in
-    another worktree refuses. Every staged, tracked, and untracked change in
+    pinned once. Local control must exist and be equal to or behind it, or
+    carry only commits `_local_control_subsumed` proves are Coga state already
+    on the pinned tip (it is then realigned, not merged); a detached HEAD, an
+    in-progress Git operation, or control checked out in another worktree
+    refuses. Every staged, tracked, and untracked change in
     the checkout is examined: only files under the tasks directory, the
     recurring directory, and the log may be cleaned, and only when their
     existence, mode, and content already match the pinned tree (a
@@ -832,8 +930,10 @@ def prepare_control_checkout(
     are never candidates, and one the move would overwrite refuses. The whole
     plan is validated and then re-observed before the first mutation; changed
     evidence refuses. Only then are proven paths restored to HEAD or removed,
-    HEAD switched to control, and control fast-forwarded. Never stashes,
-    resets, force-switches, deletes a branch, or publishes anything.
+    HEAD switched to control, and control fast-forwarded — or realigned with
+    `read-tree -m -u` and an old-value-guarded `update-ref`, naming the
+    dropped commits on stderr. Never stashes, rebases, resets, force-switches,
+    commits, deletes a branch, or publishes anything.
 
     `require_remote_control` is for a boundary after a prepared entry: a
     remote or control ref that disappeared mid-run is refused rather than
@@ -895,14 +995,13 @@ def _plan_preparation(
             f"(`git switch {control}`) and retry",
             blocking=("HEAD",),
         )
-    git_dir = Path(run_git(root, "rev-parse", "--path-format=absolute", "--git-dir").strip())
-    for marker, what in _IN_PROGRESS_MARKERS:
-        if (git_dir / marker).exists():
-            return CheckoutPreparation(
-                "refused",
-                f"{what} is in progress on {branch!r}; finish or abort it and retry",
-                blocking=(branch,),
-            )
+    operation = _operation_in_progress(root)
+    if operation is not None:
+        return CheckoutPreparation(
+            "refused",
+            f"{operation} is in progress on {branch!r}; finish or abort it and retry",
+            blocking=(branch,),
+        )
     control_ref = f"refs/heads/{control}"
     if not _ref_present(root, control_ref):
         return CheckoutPreparation(
@@ -912,13 +1011,15 @@ def _plan_preparation(
             blocking=(control,),
         )
     local = run_git(root, "rev-parse", control_ref).strip()
+    realign: _Subsumption | None = None
     if local != pinned and not _is_ancestor(root, local, pinned):
-        return CheckoutPreparation(
-            "refused",
-            f"local {control!r} has commits not on {remote}/{control}; reconcile "
-            f"them (`git pull --rebase {remote} {control}` and push) and retry",
-            blocking=(control,),
-        )
+        realign = _local_control_subsumed(cfg, root, local, pinned)
+        if realign.kind != "ok":
+            return CheckoutPreparation(
+                "refused",
+                _divergence_message(cfg, realign, on_control=branch == control),
+                blocking=(control, *(() if realign.kind == "foreign" else realign.blocking)),
+            )
     holder = worktree_holding_branch(root, control)
     if holder is not None and holder.resolve() != root.resolve():
         return CheckoutPreparation(
@@ -1010,8 +1111,9 @@ def _plan_preparation(
         local,
         status,
         tuple(sorted((rel, _digest(data)) for rel, data in candidate_bytes.items())),
+        realign.evidence if realign is not None else None,
     )
-    return _PreparationPlan(branch, local, tuple(restore), tuple(remove), evidence)
+    return _PreparationPlan(branch, local, tuple(restore), tuple(remove), evidence, realign)
 
 
 def _apply_preparation(
@@ -1036,10 +1138,20 @@ def _apply_preparation(
             )
             (root / rel).unlink(missing_ok=True)
             _prune_empty_parents(root, rel, areas)
+        if plan.realign is not None:
+            if plan.branch == control:
+                stage = f"realigning the working tree to {pinned[:12]}"
+                run_git(root, "read-tree", "-m", "-u", "HEAD", pinned)
+            stage = f"realigning {control!r} to {pinned[:12]}"
+            run_git(
+                root, "update-ref", "-m", f"coga: realign to {cfg.git_remote}/{control}",
+                f"refs/heads/{control}", pinned, plan.local_control,
+            )
+            _report_realignment(cfg, plan.realign, pinned)
         if plan.branch != control:
             stage = f"switching from {plan.branch!r} to {control!r}"
             run_git(root, "switch", "--quiet", control)
-        if plan.local_control != pinned:
+        if plan.realign is None and plan.local_control != pinned:
             stage = f"fast-forwarding {control!r} to {pinned[:12]}"
             run_git(root, "merge", "--ff-only", "--quiet", pinned)
         stage = "verifying the prepared checkout"
@@ -1156,6 +1268,161 @@ def _blob_bytes(root: Path, oid: str) -> bytes:
     if result.returncode != 0:
         raise GitError(f"`git cat-file blob {oid}` failed: {result.stderr.decode(errors='replace').strip()}")
     return result.stdout
+
+
+def _operation_in_progress(root: Path) -> str | None:
+    """The Git operation that owns this checkout's index, or `None`.
+
+    Raises `GitError` when the checkout cannot be inspected, so every caller
+    refuses before mutating rather than mistaking a failed probe for "none".
+    """
+    git_dir = Path(run_git(root, "rev-parse", "--path-format=absolute", "--git-dir").strip())
+    for marker, what in _IN_PROGRESS_MARKERS:
+        if (git_dir / marker).exists():
+            return what
+    return None
+
+
+def _local_control_subsumed(cfg: Config, root: Path, local: str, target: str) -> _Subsumption:
+    """Whether moving local control from `local` to `target` loses nothing.
+
+    `ok` only when `local` and `target` have exactly one merge base, every
+    commit in `target..local` — each checked on its own, merges against every
+    parent — touches only the configured state areas, and every path in the
+    net `base..local` diff is already on `target`: same existence, mode, and
+    bytes, or, for a `merge=union` path, union-merging the local copy onto
+    the target changes nothing (`_published_proof` with the merge base as the
+    three-way base). Fails closed: anything it cannot prove is `unproven`.
+    """
+    literal = {"GIT_LITERAL_PATHSPECS": "1"}
+    stage = f"finding the merge base of {local[:12]} and {target[:12]}"
+    try:
+        result = _run(["git", "-C", str(root), "merge-base", "--all", local, target])
+        if result.returncode not in (0, 1):
+            raise GitError(
+                f"`git merge-base --all` failed (exit {result.returncode}): "
+                f"{result.stderr.decode(errors='replace').strip()}"
+            )
+        bases = result.stdout.decode().split()
+        if len(bases) != 1:
+            return _Subsumption(
+                "unproven",
+                f"{local[:12]} and {target[:12]} have "
+                f"{'no' if not bases else len(bases)} merge bases, not exactly one",
+                evidence=(local, target, tuple(bases)),
+            )
+        base = bases[0]
+        stage = f"listing the commits in {target[:12]}..{local[:12]}"
+        dropped = tuple(
+            tuple(line.split("\x1f", 1))
+            for line in run_git(
+                root, "log", "--reverse", "--format=%H%x1f%s", f"{target}..{local}"
+            ).splitlines()
+            if line
+        )
+        areas = _state_areas(cfg, root)
+        foreign: list[str] = []
+        offenders: list[str] = []
+        for commit, subject in dropped:
+            stage = f"listing the paths commit {commit[:12]} touches"
+            touched = run_git(
+                root, "diff-tree", "-r", "-z", "-m", "--root", "--no-commit-id",
+                "--no-renames", "--name-only", commit,
+            )
+            outside = sorted({rel for rel in touched.split("\x00") if rel and not _in_state_area(rel, areas)})
+            if outside:
+                offenders.append(f"{commit[:12]} {subject!r} touches {', '.join(outside)}")
+                foreign.extend(rel for rel in outside if rel not in foreign)
+        if foreign:
+            return _Subsumption(
+                "foreign",
+                "local commits touch more than Coga state: " + "; ".join(offenders),
+                blocking=tuple(foreign),
+                dropped=dropped,
+                evidence=(local, target, base, dropped),
+            )
+        stage = f"diffing {base[:12]}..{local[:12]}"
+        rels = [
+            rel
+            for rel in run_git(
+                root, "diff", "-z", "--no-renames", "--name-only", base, local
+            ).split("\x00")
+            if rel
+        ]
+        stage = "reading `merge` attributes"
+        union = union_merge_paths(root, rels) if rels else set()
+        examined: list[tuple[object, ...]] = []
+        failed: list[str] = []
+        for rel in rels:
+            stage = f"proving {rel} is on {target[:12]}"
+            mine = _tree_entry(root, local, rel)
+            published = _tree_entry(root, target, rel)
+            head_entry = _tree_entry(root, base, rel)
+            examined.append((rel, mine, published, head_entry))
+            unsupported = [
+                entry for entry in (mine, published, head_entry)
+                if entry is not None and entry[0] not in _REGULAR_MODES
+            ]
+            if unsupported:
+                return _Subsumption(
+                    "unproven",
+                    f"{rel} is a symlink, submodule, or other non-regular entry "
+                    f"(mode {unsupported[0][0]})",
+                    blocking=(rel,),
+                    dropped=dropped,
+                    evidence=(local, target, base, dropped, tuple(examined)),
+                )
+            working = None if mine is None else (mine[0], _blob_bytes(root, mine[1]))
+            proof = _published_proof(
+                root, rel, working, published, head_entry=head_entry, union=rel in union
+            )
+            if proof:
+                failed.append(f"{rel} ({proof})")
+    except GitError as exc:
+        return _Subsumption(
+            "unproven", f"failed while {stage}: {exc}", evidence=(local, target)
+        )
+    evidence = (local, target, base, dropped, tuple(examined), tuple(sorted(union)))
+    if failed:
+        return _Subsumption(
+            "unpublished",
+            "local Coga state commits are not yet on control: " + "; ".join(failed),
+            blocking=tuple(failed),
+            dropped=dropped,
+            evidence=evidence,
+        )
+    return _Subsumption("ok", dropped=dropped, evidence=evidence)
+
+
+def _divergence_message(cfg: Config, verdict: _Subsumption, *, on_control: bool) -> str:
+    """The refusal and remedy for an ahead or diverged local control."""
+    remote, control = cfg.git_remote, cfg.git_control_branch
+    pull = f"`git pull --rebase --autostash {remote} {control}`"
+    head = f"local {control!r} has commits not on {remote}/{control}"
+    if verdict.kind == "foreign":
+        return f"{head} ({verdict.reason}); reconcile them ({pull} and push) and retry"
+    if verdict.kind == "unpublished":
+        where = (
+            f"run {pull} on {control!r}" if on_control
+            else f"switch to {control!r} (`git switch {control}`), run {pull} there"
+        )
+        return f"{head} ({verdict.reason}); {where}, then retry the command"
+    return (
+        f"{head} and could not prove them already on control ({verdict.reason}); "
+        f"inspect them (`git log {remote}/{control}..{control}`), reconcile by hand, "
+        "and retry"
+    )
+
+
+def _report_realignment(cfg: Config, verdict: _Subsumption, new: str) -> None:
+    """The one stderr line naming the commits a realignment dropped."""
+    remote, control = cfg.git_remote, cfg.git_control_branch
+    dropped = "; ".join(f"{commit[:12]} {subject}" for commit, subject in verdict.dropped)
+    sys.stderr.write(
+        f"[git] realigned local {control!r} to {remote}/{control} ({new[:12]}); "
+        f"dropped commits whose Coga state is already there: {dropped}. "
+        f"They remain in the reflog (`git reflog {control}`)\n"
+    )
 
 
 def _ignored_collisions(root: Path, revs: list[str]) -> list[str]:

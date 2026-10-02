@@ -48,12 +48,17 @@ that checkout first.
 
 ## The `--all` child entry gate
 
-Each `--all` child must have `[git]` enabled and must fetch and fast-forward the
-control branch before reading or writing period state; a stale child exits
-with `STALE_CONTROL_EXIT_CODE`. An off-branch child is serviced from a temporary
-worktree ([recurring-temp-worktrees](../recurring-temp-worktrees/SKILL.md)). An
-*ahead or diverged* control checkout still fails loud, once, naming
-`git pull --rebase` — Coga never rebases a human's commits. Duplicate
+Each `--all` child must have `[git]` enabled and must fetch and bring the
+control branch level (`git.refresh`: a fast-forward, or a realignment over
+local commits of Coga state control already carries) before reading or
+writing period state; a stale child exits with `STALE_CONTROL_EXIT_CODE`. An
+off-branch child is serviced from a temporary worktree
+([recurring-temp-worktrees](../recurring-temp-worktrees/SKILL.md)). Any other
+*ahead or diverged* control checkout, or one with a Git operation in
+progress, still fails loud: the `[git]` note names the refusal and its remedy
+(`git pull --rebase --autostash` for local commits, finish or abort for an
+operation), and the catch-up reason points to that note rather than adding a
+second remedy — Coga never rebases a human's commits. Duplicate
 checkouts of one remote workspace are grouped by resolved remote URL plus
 workspace path; one runs (preferring one already on control) and the rest are
 named and skipped.

@@ -6497,7 +6497,7 @@ def test_recurring_launch_leaves_a_diverged_control_checkout_alone(
     # best-effort on freshness, so the period is created and published to
     # control; the diverged local `main` is left alone with the fix named.
     assert result.exit_code == 0, result.output
-    assert "git pull --rebase origin main" in result.output
+    assert "git pull --rebase --autostash origin main" in result.output
     cfg = load_config(coga_os)
     ref = list_tasks(cfg)[0]
     assert not git_repo.origin_tracks("LOCAL.txt")
@@ -9357,16 +9357,37 @@ def test_pre_scan_catch_up_diverged_names_the_fix(git_repo, capsys) -> None:
     # The control branch *is* checked out here — this is a real integration
     # problem, not the recoverable off-branch case.
     assert not catchup.off_control_branch
-    assert "could not be fast-forwarded" in reason
-    assert f"git -C {git_repo.root} pull --rebase origin main" in reason
+    assert "could not be brought level" in reason
+    assert f"Resolve it in {git_repo.root} as the [git] note above says" in reason
+    # The reason defers to the git layer's diagnostic rather than adding a
+    # generic remedy that could contradict it.
+    assert "pull --rebase" not in reason
     err = capsys.readouterr().err
     # The git layer names the divergence once; announce_failure=False keeps
     # the caller's own report from duplicating it.
-    assert "git pull --rebase origin main" in err
+    assert "git pull --rebase --autostash origin main" in err
     assert "pre-scan catch-up skipped" not in err
     # Nothing moved: the local commit and its file are untouched.
     assert (git_repo.root / "notes.md").read_text() == "local\n"
     assert git_repo.git("status", "--porcelain") == ""
+
+
+def test_pre_scan_catch_up_realigns_a_state_only_divergence(git_repo, capsys) -> None:
+    """A local commit of Coga state control already carries no longer stalls
+    the catch-up: control is realigned and the scan starts from its tip."""
+    ticket = git_repo.coga_os / "tasks" / "demo.md"
+    ticket.write_text("---\ntitle: demo\n---\nhand edit\n")
+    git_repo.git("add", "coga/tasks/demo.md")
+    git_repo.git("commit", "-m", "hand commit")
+    git_repo.push_competing_commit("coga/tasks/demo.md", ticket.read_text())
+
+    catchup = recurring_cmd._sync_control_checkout_ahead(load_config(git_repo.coga_os))
+
+    origin = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+    assert catchup.fresh, catchup.reason
+    assert catchup.revision == origin
+    assert git_repo.git("status", "--porcelain") == ""
+    assert "realigned local 'main'" in capsys.readouterr().err
 
 
 def test_bare_scan_notes_catch_up_failure_once_and_continues(

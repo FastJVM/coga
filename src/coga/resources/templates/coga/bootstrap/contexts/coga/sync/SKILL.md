@@ -15,7 +15,9 @@ each layer only reports or publishes it.
 - **Git** makes task state durable and shared. Coga publishes `coga/tasks/**`,
   `coga/log.md`, and `coga/recurring/**` onto the control branch
   (`origin/main` by default) without committing on a local branch, stashing,
-  or rebasing.
+  or rebasing. The local control branch only fast-forwards, or realigns over
+  its own commits once they are proven to be Coga state control already
+  carries.
 
 Both layers treat a failed announcement or push of a durable write alike:
 surface the miss, keep the file as written, and never let it undo the
@@ -24,13 +26,18 @@ transition.
 ## Control versus feature checkouts
 
 - A **control checkout** (HEAD is the control branch) stays clean and level:
-  each publish fast-forwards it.
+  each publish fast-forwards it, or realigns it when its local-only commits
+  are Coga state that publication has put on control (a hand commit of
+  ticket state). Local commits touching anything else, state not yet on
+  control, or an in-progress Git operation leave it alone with the remedy.
 - A **feature or detached checkout** publishes the same way but keeps its
   published ticket and log dirty by design. Do not `git add` Coga state into
   a PR. `coga status` warns when control is ahead of the local copy.
 - The end-of-command sweep publishes every dirty task, log, and recurring
-  path from **whichever checkout you ran the command in** — including a hand
-  edit to ticket prose or a recurring template on a feature branch. Contexts,
+  path, plus eligible committed state there (through the same provenance
+  checks), from **whichever checkout you ran the command in** — including a
+  hand edit to ticket prose or a recurring template on a feature branch,
+  committed or not. Contexts,
   skills, workflows, and config are review work and are never swept. Guided
   authoring also keeps knowledge edits local and reports them for a branch
   and human-reviewed PR; see the
@@ -46,7 +53,7 @@ transition.
 | The action-needed channel and its bar | [`coga/important`](../important/SKILL.md) |
 | `publish`, the sweep, strict versus best-effort paths | [`coga/internals/state-publication`](../internals/state-publication/SKILL.md) |
 | Why a publish is refused; stale generations; schema conversions | [`coga/internals/git-regressions`](../internals/git-regressions/SKILL.md) |
-| `refresh`, fast-forward, staleness and stranded writes | [`coga/internals/git-refresh`](../internals/git-refresh/SKILL.md) |
+| `refresh`, fast-forward and realignment, staleness and stranded writes | [`coga/internals/git-refresh`](../internals/git-refresh/SKILL.md) |
 | Append-only files, `merge=union`, and concurrent writers | [`coga/internals/spool-merge`](../internals/spool-merge/SKILL.md) |
 | Composing new cross-run state without hidden queues | [`coga/patterns`](../patterns/SKILL.md) |
 | Session usage records carried by the log | [`coga/usage`](../usage/SKILL.md) |
