@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "coga"
 version = "0.4.0"
-description = "A way to organize agent work — a git-backed, markdown-first CLI for humans and AI agents."
+description = "A CLI on top of your coding agents: per-task context and workflows, stored as Markdown in Git."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "AGPL-3.0-or-later" }
