@@ -1,6 +1,6 @@
 ---
 title: Run recurring agent templates off the control branch
-status: blocked
+status: active
 owner: nicktoper
 agent: claude
 workflow:
