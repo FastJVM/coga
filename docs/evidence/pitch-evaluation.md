@@ -17,7 +17,7 @@ delegation practical. Preserve this connection when developing the endorsed
 explanation below; the competitive findings remain evidence about its
 distinctiveness, not a replacement for the product promise.
 
-**License update, 2026-10-02:** the owner changed Coga to MPL 2.0.
+**License update, 2026-10-02:** the owner changed Coga to Apache 2.0.
 The AGPL comparisons below describe the September evaluation; current
 licensing is defined by the repository [LICENSE](../../LICENSE).
 
