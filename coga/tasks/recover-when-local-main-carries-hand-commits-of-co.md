@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 agent: claude
 ---
 
@@ -246,3 +246,85 @@ No implementation, ticket-body change, branch, or PR was produced.
 ## Dev
 
 branch: recover-state-only-divergence
+
+## Implementation handoff (implement step, 2026-10-02)
+
+Commit `5938263cc` on `recover-state-only-divergence` (rebased on
+`origin/main` 0b007ef08, pushed). No PR yet.
+
+**What changed**
+- `src/coga/git.py`:
+  - `sync_coga_state` passes the full tasks/log/recurring paths to `publish`
+    (no dirty narrowing, no existence filter).
+  - New `_Subsumption` (frozen; kind `ok|foreign|unpublished|unproven`,
+    reason, blocking, dropped, evidence) and `_local_control_subsumed`.
+  - New `_operation_in_progress` shared by `_plan_preparation` and the
+    realignment path.
+  - `_divergence_message` (remedies) and `_report_realignment` (one stderr
+    line plus reflog note).
+  - `fast_forward_control` → `_realign_control` for not-ancestor. Order:
+    operation check, guard, holder, `_stage_landed`, `read-tree -m -u`,
+    guarded `update-ref`.
+  - `_PreparationPlan.realign`, with guard evidence in the plan evidence.
+    `_apply_preparation` realigns: on control `read-tree` then
+    `update-ref`; elsewhere `update-ref` then `switch`. It skips
+    `merge --ff-only` after a realignment.
+  - Docstrings updated, including the module docstring.
+- `recurring_runner._sync_control_checkout_ahead`: the reason now says
+  "could not be brought level … Resolve it in <root> as the [git] note
+  above says". No generic pull command.
+- Docs updated and twins synced byte-identical: `state-publication`,
+  `git-refresh`, `dev/checkouts`, `coga/sync`, `recurring-control`, plus
+  `recurring-temp-worktrees`, which repeated the old "only fast-forwards"
+  docstring.
+
+**Deviation from the spec (for review):** `_candidates()` is not fully
+unchanged. Widening the sweep exposed a real hazard. On a feature branch,
+control can hold a ticket this worktree published (`PUBLISHED_REF`)
+while HEAD lacks it. `_candidates` then selected the path and would have
+**published its deletion**. `test_launch_prepares_a_feature_checkout_and_resolves_a_ticket_created_on_control`
+caught this. Fix: a clean committed path is skipped when HEAD's blob
+equals the merge-base blob, meaning HEAD did not change it and control
+moved. Regression: `test_sweep_does_not_republish_a_ticket_this_feature_checkout_lacks`
+fails without the fix.
+
+**Other decisions**
+- For `foreign`, preparation keeps `blocking == (control,)` and names the
+  offending commits and paths in `reason`, so the existing test keeps its
+  blocking assertion. For `unpublished` and `unproven`, the failing paths
+  are appended to `blocking`.
+- The guard uses `diff-tree -m --root` per commit. A local merge of
+  origin into main (plain `git pull`) is therefore `foreign`. This fails
+  closed, per spec.
+- `update-ref -m "coga: realign to <remote>/<control>"` makes the reflog
+  entry identifiable.
+
+**Verification**
+- `python -m pytest`: 3253 passed, 6 failed. The 6 failures are
+  `tests/test_edge_distribution.py` (installed-wheel shim tests). They
+  fail identically on a clean `origin/main` worktree, so they are
+  **pre-existing and unrelated** (`coga.commands.init` lacks
+  `_check_external_dependencies` in the installed copy).
+- After the rebase, `tests/test_git.py tests/test_recurring.py tests/test_launch.py tests/test_packaging.py`
+  gave 792 passed.
+- `coga validate --json` (example fixture, `SLACK_WEBHOOK_URL` unset):
+  4 ok, no issues.
+- New tests in `tests/test_git.py`:
+  - 5 sweep tests.
+  - The 2026-10-01 entry-order recovery test.
+  - The rebase-then-retry recovery test (runs the suggested command
+    verbatim).
+  - Feature-branch remedy wording.
+  - State-plus-code refusal.
+  - Preparation realignment from a feature branch and on control, and
+    proof drift refusing.
+  - Realignment through refresh and fast-forward, including another
+    holder left alone.
+  - An unfinished merge left unchanged through `refresh` and direct
+    `staged=`.
+  - Every `_IN_PROGRESS_MARKERS` entry (parametrized).
+  - Inspection failure.
+  - Direct guard tests: revert, evil merge, zero and criss-cross bases,
+    deletion, exec mode, symlink and submodule, union log.
+
+  `tests/test_recurring.py` has a new catch-up realignment test.
