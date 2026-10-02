@@ -7371,3 +7371,4 @@ fatal: Unable to add (null) to database
 2026-10-02 10:17 [autoclose-re-posts-another-clone-s-primary-checkou] [human:nicktoper] auto-bumped on merge of PR #939 → done
 2026-10-02 10:17 [dedupe-claude-transcript-usage-by-message-id] [human:nicktoper] auto-bumped on merge of PR #947 → done
 2026-10-02 10:17 [marketing/fix-installer/macos-clean-install-harness-on-aws] [human:nicktoper] auto-bumped on merge of PR #943 → done
+2026-10-02 10:17 [name-phone-home-as-the-record-failure-false-caller] [human:nicktoper] auto-bumped on merge of PR #945 → done
