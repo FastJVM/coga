@@ -43,6 +43,13 @@ Release: https://github.com/FastJVM/coga/releases/tag/v0.4.0 .
 - Prepare the final candidate from `main` after the remaining V1 fixes land.
   Record the exact commit, readiness evidence, release notes, and proposed
   `1.0.0` version bump for the owner to review.
+- Include the final README from `main` as the PyPI project description via
+  `pyproject.toml` (`[project] readme = "README.md"`). Coordinate the rewrite
+  with `marketing/readme-top`; keep one source rather than separate PyPI copy.
+  Check the built metadata and the published PyPI description against the
+  release commit's README, including Markdown rendering and documentation
+  links. The 0.4.0 description was verified byte-identical to the current
+  `main` README on 2026-10-02; recheck after the V1 README changes land.
 - Read `coga/testing` (`docs/contexts/coga/testing/SKILL.md`) for the local
   suite and validation gate, and `coga/packaging`
   (`docs/contexts/coga/packaging/SKILL.md`) for pristine-checkout build checks.
