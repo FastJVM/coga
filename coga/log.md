@@ -7392,3 +7392,4 @@ fatal: Unable to add (null) to database
 2026-10-02 10:55 [run-recurring-agent-templates-off-the-control-bran] [human:nicktoper] activated (blocked → active) — auto on launch
 2026-10-02 10:55 [run-recurring-agent-templates-off-the-control-bran] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-02 10:55 [run-recurring-agent-templates-off-the-control-bran] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-02 10:59 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
