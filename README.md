@@ -4,6 +4,24 @@
 
 Coga is a CLI that sits on top of your coding agents. It works out with you how each kind of work should be done, then runs hundreds of tasks that way. Coga is built with Coga: see [`coga/tasks/`](coga/tasks).
 
+## Sample Project
+I want to add in Codex a plugin to pick the best model with the right "thinking" power (hard, etc.) This is a surprisingly something agents don't do naturally even though the models MoE work like that on their server. 
+
+Anyway, I typed
+
+sh' coga build to explain my project. Coga built a first plan using Jev.  
+(screenshot of the plan + link to whole convo)
+
+I read the first ticket and I realized that Codex used as assumption that this is an "solved problem"; in the sense that there were well-known solution. I asked to explain how and why. "Yes you're absolutely I don't know what I'm doing" was basically Claude's answer; I subsequently put it to work on building a research and parking his current plan for when we'll know what to build. I came up with the key idea: use double request to actually compute the drift and use this infrastructure to evaluate different strategies. It came out with the plan and the limitations (we can know only for a given repository and we'll need to redo this periodically).
+
+(links to add: screnshot + comparison in video with Zed and Superset to show more autonomy/less work)
+I saw a lot of people using Jev to route task to the best models. I wanted to build a plugin in Codex. So I started a repository and a coga session, during the coga build phase, it built a plan and a plugin plan. I reviewed the first ticket and reading it I had some questions and potential blind spot, so I asked Codex in Coga. We (it was a guided conversation) found out that the implementation plan was good but it's predicated on the hypothesis that Jev knows how to route better and that is imposssible to know post. You need to launch a round of research to confirm or infirm this hypothesis. Coga first parked the implementation tickets and build out a research plans in the ticket; it created a dedicated worfklow. I read it, approved it (I tweaked a few things) and then ran it.
+
+Then it concluded: planning are better with frontier model but implementation any model would do. This is for my repositories, it's not a general results and it's simple enough to not consider Jev further. All of the results are recorded in context blocks so agents have them handy AND the experiment is archived (so accessed on demands by agents but not by default to save tokens)
+
+On my side the time was maube 10 min (of deep concentration) and it was able to figure ou the rest + execute it and MOST importantly carry all of that into the implemtnation phase direclty
+
+
 ## Why
 
 To delegate work to agents, you need to give them context: the task, how the system works, and how the work should be done. Together, these make up the **whole context**. Today, that context is scattered across a ticket tracker, `AGENTS.md`, documentation, and code. This works—up to a point.
@@ -15,6 +33,8 @@ I built Coga to make those differences explicit.
 In Coga, tickets describe the work, workflows define its steps, context blocks hold the knowledge, and skills provide reusable procedures. These all live in Git as Markdown files. For instance, an investigation can have a workflow for running experiments and discussing results; an implementation task can have one for coding, testing, and review.
 
 Coga uses agent conventions, including `SKILL.md`, so humans and agents can read and change the same material directly. The system is meant to be hacked by you and your agent: you can edit the instructions, reshape a workflow, or add a new way of working as the project evolves.
+
+
 
 ## Install
 
