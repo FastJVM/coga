@@ -274,7 +274,8 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - [x] [2026-09-09 12:03] [agent:nick] id=20260909T120328 Blocked on sibling `reuse-the-existing-control-worktree-for-recurring` merging first. Its branch `recurring-control-worktree` (a8c12607) is unmerged with no PR open, and its `COGA_LOCAL_CONFIG` / `local_config_path` seam is still in peer-review. That seam, plus its 'agent templates are admitted' and 'delegate: works unchanged' conclusions, are load-bearing for this ticket's ## Context and for its likely close-unbuilt outcome. Unblock once that branch lands, then re-verify ## Context against the merged code before launching design.
   resolved: [2026-09-25 11:19] [human:nicktoper] Sibling reuse-the-existing-control-worktree-for-recurring merged as eb725dfa3 (PR #846); ## Context re-verified and updated 2026-09-25.
 
-- [ ] [2026-09-25 11:19] [agent:claude] id=20260925T111958 Wait for stop-using-worktrees to merge. It removes linked worktrees from ordinary ticket work and decides the fate of the worktree: field, which changes known breaks #1 and #2 in ## Context. Unblock once it lands, re-verify those two breaks against merged code, then launch design.
+- [x] [2026-09-25 11:19] [agent:claude] id=20260925T111958 Wait for stop-using-worktrees to merge. It removes linked worktrees from ordinary ticket work and decides the fate of the worktree: field, which changes known breaks #1 and #2 in ## Context. Unblock once it lands, re-verify those two breaks against merged code, then launch design.
+  resolved: [2026-10-02 11:07] [human:nicktoper] stop-using-worktrees merged as e122d774 (PR #896). Re-verified: break #1 gone (code/implement branches in the launch checkout, no ../coga-<branch>); break #2 largely gone (branch gate needs only branch:; worktree: only for the read-only-git sandbox clone fallback). open_pr._checkout_mode to be re-checked in design.
 
 
 ---
