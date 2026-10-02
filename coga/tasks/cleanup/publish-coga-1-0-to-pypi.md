@@ -76,7 +76,31 @@ verification; an install/init check does not claim that audit passed.
   212 valid tickets, one existing error (`marketing/readme-top` unsynthesized
   draft blackboard), explicitly accepted by the owner. Scoped release-ticket
   validation passed with only the isolated checkout's missing-user warning.
-- Awaiting publication and fresh PyPI installation receipt.
+- Published **0.4.0** from `7cccb27e47dff7f0f8ee1e2bae61a3ab0a564c6e`:
+  https://github.com/FastJVM/coga/releases/tag/v0.4.0 . The release commit was
+  rebased over concurrent ticket-state-only changes; source and tests were
+  unchanged from the passing gate.
+- Trusted Publishing succeeded:
+  https://github.com/FastJVM/coga/actions/runs/37041169165 . Both artifacts
+  are live at https://pypi.org/project/coga/0.4.0/ . Wheel SHA256:
+  `ba57ac7b7e9fc73af75dfe3bec7ac7569f03ca0af0f9aed929827bc5b680d564`;
+  sdist SHA256:
+  `da9c8e3c35152a51deed28417f7ee2007d150249cda1295dd8ce4f677036f7fa`.
+- Fresh published-package gate passed on Python 3.11.15:
+  `python3.11 -m venv /tmp/coga-pypi-0.4.0-final-venv`, then
+  `/tmp/coga-pypi-0.4.0-final-venv/bin/python -m pip install --no-cache-dir
+  --index-url https://pypi.org/simple coga` installed **0.4.0** without a pin.
+  Its `coga --version` printed `coga 0.4.0`; `coga init --user tester` and
+  `coga validate --json` passed (`ok_count: 1`, no issues), with clean Git
+  status in `/tmp/coga-040-pypi-smoke-62g6_rrq`.
+- The first immediate post-upload unpinned install still saw cached 0.2.0;
+  a new fresh environment after index refresh obtained 0.4.0. Receipts:
+  `/tmp/coga-pypi-0.4.0-final-install.log`,
+  `/tmp/coga-pypi-0.4.0-final-smoke.log`,
+  `/tmp/coga-release-0.4.0-pytest-fixed.log`.
+- Release execution is complete. Owner-step transition remains unrequested;
+  no bump performed. The next workflow step's independent verification and
+  the marketing full authenticated first-task audit remain separate.
 
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
