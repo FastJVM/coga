@@ -681,7 +681,7 @@ def test_fast_forward_leaves_an_ahead_main_alone_and_names_the_fix(
     assert git_repo.git("rev-parse", "main").strip() == ahead_tip
     assert "status: in_progress" in ticket.read_text()
     assert _dirty(git_repo) == set()
-    assert "git pull --rebase origin main" in capsys.readouterr().err
+    assert "git pull --rebase --autostash origin main" in capsys.readouterr().err
     # The human's commit was neither pushed nor rebased.
     assert not git_repo.origin_tracks("local.txt")
 
@@ -709,7 +709,7 @@ def test_refresh_refuses_an_ahead_or_diverged_control_checkout(git_repo, capsys)
     tip = git_repo.git("rev-parse", "main").strip()
 
     assert git.refresh(cfg) is False  # ahead: `merge --ff-only` would say "up to date"
-    assert "git pull --rebase origin main" in capsys.readouterr().err
+    assert "git pull --rebase --autostash origin main" in capsys.readouterr().err
 
     git_repo.push_competing_commit("other.txt", "remote\n")
     assert git.refresh(cfg) is False  # diverged
@@ -858,6 +858,105 @@ def test_sweep_leaves_a_stale_ticket_refused_but_converges_a_fresh_one(git_repo,
     git.sync_coga_state(cfg)
     assert "status: blocked" in _control(git_repo, "coga/tasks/fresh.md")
     assert _dirty(git_repo) == set()
+
+
+def _hand_commit(git_repo, rel: str, text: str | None, message: str = "hand commit") -> str:
+    """Commit a write (or, with `None`, a deletion) of `rel` on the current branch."""
+    path = git_repo.root / rel
+    if text is None:
+        git_repo.git("rm", "-r", "--quiet", "--", rel)
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+        git_repo.git("add", "--", rel)
+    git_repo.git("commit", "-m", message)
+    return git_repo.git("rev-parse", "HEAD").strip()
+
+
+def test_sweep_publishes_a_hand_committed_ticket_from_a_clean_control_checkout(
+    git_repo, capsys
+):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    hand = _ticket_text(blackboard="hand edit\n")
+    tip = _hand_commit(git_repo, "coga/tasks/demo.md", hand)
+    assert _dirty(git_repo) == set()
+
+    git.sync_coga_state(cfg)
+
+    assert _control(git_repo, "coga/tasks/demo.md") == hand
+    # Publication made its own commit; the hand commit was realigned away,
+    # named on stderr, and kept in the reflog.
+    assert _head(git_repo) == ("main", _origin_tip(git_repo))
+    assert _dirty(git_repo) == set()
+    err = capsys.readouterr().err
+    assert f"realigned local 'main' to origin/main" in err and tip[:12] in err
+    assert tip in git_repo.git("reflog", "--format=%H", "main")
+
+
+def test_sweep_publishes_committed_state_from_a_feature_checkout(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    hand = _ticket_text(blackboard="feature handoff\n")
+    (git_repo.root / "src.py").write_text("code\n")
+    git_repo.git("add", "src.py")
+    tip = _hand_commit(git_repo, "coga/tasks/demo.md", hand)
+
+    git.sync_coga_state(cfg)
+
+    assert _control(git_repo, "coga/tasks/demo.md") == hand
+    assert not git_repo.origin_tracks("src.py")
+    assert _head(git_repo) == ("feature/x", tip)
+    assert git_repo.git("rev-parse", "main").strip() == _origin_tip(git_repo)
+
+
+def test_sweep_leaves_clean_state_behind_control_alone(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.push_competing_commit("coga/tasks/demo.md", _ticket_text(status="blocked"))
+    git_repo.git("fetch", "origin")
+    before = _origin_tip(git_repo)
+
+    git.sync_coga_state(cfg)
+
+    assert _origin_tip(git_repo) == before
+
+
+def test_sweep_does_not_republish_a_ticket_this_feature_checkout_lacks(git_repo):
+    """Control holds a copy this worktree published, but HEAD's copy is merely
+    older (here: absent since the branch point) — not a write to carry."""
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    fresh = git_repo.coga_os / "tasks" / "fresh.md"
+    fresh.write_text(_ticket_text())
+    assert git.publish(cfg, [fresh], "Ticket: fresh — created") is True
+    fresh.unlink()
+    before = _origin_tip(git_repo)
+
+    git.sync_coga_state(cfg)
+
+    assert _origin_tip(git_repo) == before
+    assert _control(git_repo, "coga/tasks/fresh.md") == _ticket_text()
+
+
+def test_sweep_publishes_a_committed_deletion_of_an_absent_state_directory(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    weekly = git_repo.coga_os / "recurring" / "weekly" / "ticket.md"
+    weekly.parent.mkdir(parents=True)
+    weekly.write_text("---\ntitle: weekly\n---\n")
+    git_repo.git("add", "coga/recurring")
+    git_repo.git("commit", "-m", "seed recurring")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/x")
+    _hand_commit(git_repo, "coga/recurring", None, "drop recurring")
+    assert not (git_repo.coga_os / "recurring").exists()
+
+    git.sync_coga_state(cfg)
+
+    assert not git_repo.origin_tracks("coga/recurring/weekly/ticket.md")
 
 
 # --- soft skips ---------------------------------------------------------------
@@ -1304,7 +1403,7 @@ def test_prepare_refuses_an_ahead_or_diverged_control_and_changes_nothing(git_re
 
     assert outcome.kind == "refused"
     assert outcome.blocking == ("main",)
-    assert "git pull --rebase origin main" in outcome.reason
+    assert "git pull --rebase --autostash origin main" in outcome.reason
     assert _head(git_repo) == before
 
 
@@ -1545,3 +1644,473 @@ def test_prepare_uses_the_configured_remote_and_control_names(git_repo):
         "trunk",
         git_repo.git("rev-parse", "trunk", cwd=git_repo.origin).strip(),
     )
+
+
+# --- realigning a state-only divergence ---------------------------------------
+
+
+def _peer_commit(git_repo, mutate, message: str = "peer") -> None:
+    """Commit `mutate(clone)`'s changes on origin/main from a peer clone."""
+    clone = git_repo.origin.parent / "peer-clone"
+    if not clone.exists():
+        _clone(git_repo, "peer-clone")
+    else:
+        git_repo.git("pull", "--quiet", "--ff-only", "origin", "main", cwd=clone)
+    mutate(clone)
+    git_repo.git("add", "-A", cwd=clone)
+    git_repo.git("commit", "-m", message, cwd=clone)
+    git_repo.git("push", "--quiet", "origin", "main", cwd=clone)
+
+
+def _subsumed_divergence(git_repo) -> tuple[str, str]:
+    """Local main carries a hand-committed ticket edit whose bytes control
+    already holds, and control moved on elsewhere: (hand commit, edited text)."""
+    _seed_ticket(git_repo)
+    hand = _ticket_text(blackboard="hand edit\n")
+    tip = _hand_commit(git_repo, "coga/tasks/demo.md", hand)
+    git_repo.push_competing_commit("coga/tasks/demo.md", hand)
+    git_repo.push_competing_commit("coga/tasks/other.md", _ticket_text())
+    git_repo.git("fetch", "--quiet", "origin")
+    return tip, hand
+
+
+def _snapshot(git_repo) -> tuple[object, ...]:
+    """HEAD, branch tip, index, working status, and operation markers."""
+    git_dir = git_repo.root / ".git"
+    return (
+        _head(git_repo),
+        git_repo.git("rev-parse", "main").strip(),
+        git_repo.git("ls-files", "--stage"),
+        git_repo.git("status", "--porcelain", "--untracked-files=all"),
+        (git_repo.coga_os / "log.md").read_bytes() if (git_repo.coga_os / "log.md").exists() else None,
+        sorted(marker for marker, _ in git._IN_PROGRESS_MARKERS if (git_dir / marker).exists()),
+    )
+
+
+def _subsumed(git_repo, cfg: Config, local: str = "main", target: str = "origin/main"):
+    rev = lambda name: git_repo.git("rev-parse", name).strip()  # noqa: E731
+    return git._local_control_subsumed(cfg, git_repo.root, rev(local), rev(target))
+
+
+def test_launch_entry_order_recovers_a_hand_commit_with_unpublished_log_lines(git_repo):
+    """The 2026-10-01 shape: a state-only hand commit on local main, log lines
+    appended since, and control moved on another state path."""
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    append_log(cfg, "demo", "human:marc", "seeded")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed log")
+    git_repo.git("push", "origin", "main")
+    hand = _ticket_text(blackboard="hand edit\n")
+    _hand_commit(git_repo, "coga/tasks/demo.md", hand)
+    append_log(cfg, "demo", "agent:claude", "unpublished one")
+    append_log(cfg, "demo", "agent:claude", "unpublished two")
+    git_repo.push_competing_commit("coga/tasks/other.md", _ticket_text())
+
+    git.sync_coga_state(cfg)
+    outcome = git.prepare_control_checkout(cfg)
+
+    _assert_prepared(git_repo, outcome)
+    assert _control(git_repo, "coga/tasks/demo.md") == hand
+    log = _control(git_repo, "coga/log.md")
+    assert "seeded" in log and "unpublished one" in log and "unpublished two" in log
+
+
+def test_prepare_names_the_rebase_for_an_unpublished_hand_commit_and_retry_recovers(
+    git_repo,
+):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    append_log(cfg, "demo", "human:marc", "seeded")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed log")
+    git_repo.git("push", "origin", "main")
+    _hand_commit(git_repo, "coga/tasks/demo.md", _ticket_text(blackboard="hand edit\n"))
+    append_log(cfg, "demo", "agent:claude", "unpublished line")
+    # Control's copy of the same ticket moved after the merge base, on a line
+    # well away from the hand edit: the sweep cannot carry the hand commit.
+    git_repo.push_competing_commit("coga/tasks/demo.md", _ticket_text(status="blocked"))
+
+    git.sync_coga_state(cfg)
+    before = _snapshot(git_repo)
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused", outcome
+    assert outcome.blocking == ("main", "coga/tasks/demo.md (content differs from control)")
+    assert _snapshot(git_repo) == before
+    command = "git pull --rebase --autostash origin main"
+    assert f"run `{command}` on 'main', then retry" in outcome.reason
+    pulled = subprocess.run(
+        command.split(), cwd=git_repo.root, capture_output=True, text=True, check=False
+    )
+    assert pulled.returncode == 0, pulled.stderr
+
+    git.sync_coga_state(cfg)
+    _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
+    ticket = _control(git_repo, "coga/tasks/demo.md")
+    assert "status: blocked" in ticket and "hand edit" in ticket
+    log = _control(git_repo, "coga/log.md")
+    assert "seeded" in log and "unpublished line" in log
+
+
+def test_prepare_remedy_says_to_switch_to_control_from_a_feature_branch(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    _hand_commit(git_repo, "coga/tasks/demo.md", _ticket_text(blackboard="hand\n"))
+    git_repo.push_competing_commit("coga/tasks/demo.md", _ticket_text(status="blocked"))
+    git_repo.checkout_branch("feature/x")
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert (
+        "switch to 'main' (`git switch main`), run "
+        "`git pull --rebase --autostash origin main` there" in outcome.reason
+    )
+
+
+def test_prepare_refuses_a_local_commit_touching_state_and_code(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    hand = _ticket_text(blackboard="hand\n")
+    (git_repo.root / "local.txt").write_text("code\n")
+    git_repo.git("add", "local.txt")
+    _hand_commit(git_repo, "coga/tasks/demo.md", hand)
+    git_repo.push_competing_commit("coga/tasks/demo.md", hand)
+    before = _snapshot(git_repo)
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert outcome.blocking == ("main",)
+    assert "touches local.txt" in outcome.reason
+    assert "git pull --rebase --autostash origin main` and push" in outcome.reason
+    assert _snapshot(git_repo) == before
+
+
+def test_prepare_realigns_from_a_feature_branch_with_no_control_holder(git_repo, capsys):
+    cfg = load_config(git_repo.coga_os)
+    tip, hand = _subsumed_divergence(git_repo)
+    git_repo.checkout_branch("feature/x")
+
+    _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
+
+    assert (git_repo.coga_os / "tasks" / "demo.md").read_text() == hand
+    assert (git_repo.coga_os / "tasks" / "other.md").exists()
+    err = capsys.readouterr().err
+    assert err.count("[git] realigned local 'main'") == 1
+    assert f"{tip[:12]} hand commit" in err and "reflog" in err
+    assert tip in git_repo.git("reflog", "--format=%H", "main")
+
+
+def test_prepare_realigns_a_subsumed_control_checkout_to_a_clean_tip(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _tip, hand = _subsumed_divergence(git_repo)
+    append_log(cfg, "demo", "agent:claude", "already published")
+    assert git.publish(cfg, [git.log_path(cfg)], "Log: demo", fast_forward=False) is True
+    # Still diverged, with a dirty log whose lines control already carries.
+    assert _dirty(git_repo) == {"coga/log.md"}
+
+    _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
+    assert (git_repo.coga_os / "tasks" / "demo.md").read_text() == hand
+    assert "already published" in (git_repo.coga_os / "log.md").read_text()
+
+
+def test_prepare_refuses_when_the_realignment_proof_changes_before_apply(
+    git_repo, monkeypatch
+):
+    cfg = load_config(git_repo.coga_os)
+    _subsumed_divergence(git_repo)
+    real = git._local_control_subsumed
+    calls = []
+
+    def drifting(*args, **kwargs):
+        verdict = real(*args, **kwargs)
+        calls.append(verdict)
+        if len(calls) > 1:
+            return replace(verdict, evidence=(*verdict.evidence, "drift"))
+        return verdict
+
+    monkeypatch.setattr(git, "_local_control_subsumed", drifting)
+    before = _snapshot(git_repo)
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert "changed while it was being examined" in outcome.reason
+    assert len(calls) == 2
+    assert _snapshot(git_repo) == before
+
+
+def test_refresh_realigns_a_subsumed_diverged_control_checkout(git_repo, capsys):
+    cfg = load_config(git_repo.coga_os)
+    tip, hand = _subsumed_divergence(git_repo)
+
+    assert git.refresh(cfg) is True
+
+    assert _head(git_repo) == ("main", _origin_tip(git_repo))
+    assert _dirty(git_repo) == set()
+    assert (git_repo.coga_os / "tasks" / "other.md").exists()
+    assert tip[:12] in capsys.readouterr().err
+
+
+def test_fast_forward_realigns_an_unheld_control_and_leaves_another_holder_alone(
+    git_repo, tmp_path, capsys
+):
+    cfg = load_config(git_repo.coga_os)
+    _subsumed_divergence(git_repo)
+    git_repo.checkout_branch("feature/x")
+    origin_tip = git_repo.git("rev-parse", "origin/main").strip()
+    held_tip = git_repo.git("rev-parse", "main").strip()
+    linked = tmp_path / "held"
+    git_repo.git("worktree", "add", "--quiet", str(linked), "main")
+    try:
+        assert git.fast_forward_control(cfg, git_repo.root, origin_tip) is False
+        assert git_repo.git("rev-parse", "main").strip() == held_tip
+        assert f"in {linked} has commits not on origin/main; left alone" in (
+            capsys.readouterr().err
+        )
+    finally:
+        git_repo.git("worktree", "remove", "--force", str(linked))
+
+    assert git.fast_forward_control(cfg, git_repo.root, origin_tip) is True
+    assert git_repo.git("rev-parse", "main").strip() == origin_tip
+    assert _head(git_repo)[0] == "feature/x"
+
+
+def test_realignment_refuses_an_unfinished_merge_before_staging_anything(git_repo, capsys):
+    cfg = load_config(git_repo.coga_os)
+    _subsumed_divergence(git_repo)
+    append_log(cfg, "demo", "agent:claude", "local line")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "log")
+    git_repo.git("checkout", "--quiet", "-b", "feature/code", "HEAD~1")
+    (git_repo.root / "code.txt").write_text("feature code\n")
+    git_repo.git("add", "code.txt")
+    git_repo.git("commit", "-m", "code")
+    git_repo.git("checkout", "--quiet", "main")
+    git_repo.git("merge", "--no-commit", "--no-ff", "feature/code")
+    assert (git_repo.root / ".git" / "MERGE_HEAD").exists()
+    log_rel = "coga/log.md"
+    log_bytes = (git_repo.coga_os / "log.md").read_bytes()
+    before = _snapshot(git_repo)
+
+    assert git.refresh(cfg) is False
+    assert "a merge is in progress" in capsys.readouterr().err
+    assert _snapshot(git_repo) == before
+
+    staged = {log_rel: (log_bytes, b"would be written if staging ran\n")}
+    origin_tip = git_repo.git("rev-parse", "origin/main").strip()
+    assert git.fast_forward_control(cfg, git_repo.root, origin_tip, staged=staged) is False
+    assert "finish or abort it and retry" in capsys.readouterr().err
+    assert _snapshot(git_repo) == before
+
+
+@pytest.mark.parametrize("marker, what", git._IN_PROGRESS_MARKERS)
+def test_realignment_refuses_every_in_progress_operation(git_repo, capsys, marker, what):
+    cfg = load_config(git_repo.coga_os)
+    _subsumed_divergence(git_repo)
+    path = git_repo.root / ".git" / marker
+    if marker.startswith("rebase-"):
+        path.mkdir()
+    else:
+        path.write_text(git_repo.git("rev-parse", "HEAD"))
+    log = git_repo.coga_os / "log.md"
+    log.write_text("dirty\n")
+    staged = {"coga/log.md": (b"dirty\n", b"landed\n")}
+    before = _snapshot(git_repo)
+
+    origin_tip = git_repo.git("rev-parse", "origin/main").strip()
+    assert git.fast_forward_control(cfg, git_repo.root, origin_tip, staged=staged) is False
+
+    assert f"{what} is in progress" in capsys.readouterr().err
+    assert _snapshot(git_repo) == before
+
+
+def test_realignment_refuses_when_the_operation_check_cannot_inspect(
+    git_repo, monkeypatch, capsys
+):
+    cfg = load_config(git_repo.coga_os)
+    _subsumed_divergence(git_repo)
+    (git_repo.coga_os / "log.md").write_text("dirty\n")
+    staged = {"coga/log.md": (b"dirty\n", b"landed\n")}
+    before = _snapshot(git_repo)
+    real = git.run_git
+
+    def failing(root, *args, **kwargs):
+        if "--git-dir" in args:
+            raise git.GitError("`git rev-parse --git-dir` failed (exit 128): boom")
+        return real(root, *args, **kwargs)
+
+    monkeypatch.setattr(git, "run_git", failing)
+    origin_tip = real(git_repo.root, "rev-parse", "origin/main").strip()
+
+    assert git.fast_forward_control(cfg, git_repo.root, origin_tip, staged=staged) is False
+
+    assert "could not inspect" in capsys.readouterr().err
+    monkeypatch.setattr(git, "run_git", real)
+    assert _snapshot(git_repo) == before
+
+
+def test_subsumed_guard_accepts_state_already_on_control(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    tip, _hand = _subsumed_divergence(git_repo)
+
+    verdict = _subsumed(git_repo, cfg)
+
+    assert verdict.kind == "ok", verdict
+    assert verdict.dropped == ((tip, "hand commit"),)
+    origin_tip = git_repo.git("rev-parse", "origin/main").strip()
+    assert verdict.evidence[:2] == (tip, origin_tip)
+
+
+def test_subsumed_guard_refuses_code_changed_then_reverted(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    code = _hand_commit(git_repo, "local.txt", "code\n", "add code")
+    _hand_commit(git_repo, "local.txt", None, "revert code")
+    hand = _ticket_text(blackboard="hand\n")
+    _hand_commit(git_repo, "coga/tasks/demo.md", hand)
+    git_repo.push_competing_commit("coga/tasks/demo.md", hand)
+    git_repo.git("fetch", "--quiet", "origin")
+
+    verdict = _subsumed(git_repo, cfg)
+
+    assert verdict.kind == "foreign"
+    assert verdict.blocking == ("local.txt",)
+    assert code[:12] in verdict.reason
+
+
+def test_subsumed_guard_refuses_a_merge_commit_with_non_state_changes(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    hand = _ticket_text(blackboard="hand\n")
+    git_repo.git("checkout", "--quiet", "-b", "side")
+    _hand_commit(git_repo, "coga/tasks/demo.md", hand)
+    git_repo.git("checkout", "--quiet", "main")
+    git_repo.git("merge", "--no-ff", "--no-commit", "side")
+    (git_repo.root / "evil.txt").write_text("snuck into the merge\n")
+    git_repo.git("add", "evil.txt")
+    git_repo.git("commit", "-m", "merge side")
+    merge = git_repo.git("rev-parse", "HEAD").strip()
+    git_repo.push_competing_commit("coga/tasks/demo.md", hand)
+    git_repo.git("fetch", "--quiet", "origin")
+
+    verdict = _subsumed(git_repo, cfg)
+
+    assert verdict.kind == "foreign"
+    assert verdict.blocking == ("evil.txt",)
+    assert merge[:12] in verdict.reason
+
+
+def test_subsumed_guard_needs_exactly_one_merge_base(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.git("checkout", "--quiet", "--orphan", "orphan")
+    git_repo.git("commit", "--quiet", "-m", "unrelated history")
+
+    verdict = _subsumed(git_repo, cfg, local="orphan", target="main")
+    assert verdict.kind == "unproven"
+    assert "no merge bases" in verdict.reason
+
+    # A criss-cross: x and y each merged the other, so they have two bases.
+    git_repo.git("checkout", "--quiet", "-b", "x", "main")
+    _hand_commit(git_repo, "coga/tasks/x.md", "x\n", "x")
+    git_repo.git("checkout", "--quiet", "-b", "y", "main")
+    _hand_commit(git_repo, "coga/tasks/y.md", "y\n", "y")
+    git_repo.git("checkout", "--quiet", "-b", "mx", "x")
+    git_repo.git("merge", "--quiet", "--no-ff", "-m", "mx", "y")
+    git_repo.git("checkout", "--quiet", "-b", "my", "y")
+    git_repo.git("merge", "--quiet", "--no-ff", "-m", "my", "x")
+
+    verdict = _subsumed(git_repo, cfg, local="mx", target="my")
+    assert verdict.kind == "unproven"
+    assert "2 merge bases" in verdict.reason
+
+
+@pytest.mark.parametrize("on_control", [True, False])
+def test_subsumed_guard_proves_a_committed_deletion(git_repo, on_control):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    _hand_commit(git_repo, "coga/tasks/demo.md", None, "drop demo")
+    if on_control:
+        _peer_commit(git_repo, lambda clone: (clone / "coga/tasks/demo.md").unlink())
+    else:
+        git_repo.push_competing_commit("coga/tasks/other.md", "other\n")
+    git_repo.git("fetch", "--quiet", "origin")
+
+    verdict = _subsumed(git_repo, cfg)
+
+    if on_control:
+        assert verdict.kind == "ok", verdict
+    else:
+        assert verdict.kind == "unpublished"
+        assert verdict.blocking == (
+            "coga/tasks/demo.md (deleted here but present on control)",
+        )
+
+
+def test_subsumed_guard_compares_executable_modes(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.git("update-index", "--chmod=+x", "coga/tasks/demo.md")
+    git_repo.git("commit", "-m", "make executable")
+    git_repo.push_competing_commit("coga/tasks/other.md", "other\n")
+    git_repo.git("fetch", "--quiet", "origin")
+
+    verdict = _subsumed(git_repo, cfg)
+
+    assert verdict.kind == "unpublished"
+    assert verdict.blocking == ("coga/tasks/demo.md (file mode differs from control)",)
+
+    _peer_commit(git_repo, lambda clone: (clone / "coga/tasks/demo.md").chmod(0o755))
+    git_repo.git("fetch", "--quiet", "origin")
+    assert _subsumed(git_repo, cfg).kind == "ok"
+
+
+@pytest.mark.parametrize("entry", ["symlink", "submodule"])
+def test_subsumed_guard_cannot_prove_symlinks_or_submodules(git_repo, entry):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    rel = "coga/tasks/odd"
+    if entry == "symlink":
+        (git_repo.root / rel).symlink_to("demo.md")
+        git_repo.git("add", rel)
+    else:
+        head = git_repo.git("rev-parse", "HEAD").strip()
+        git_repo.git("update-index", "--add", "--cacheinfo", f"160000,{head},{rel}")
+    git_repo.git("commit", "-m", f"add {entry}")
+    git_repo.push_competing_commit("coga/tasks/other.md", "other\n")
+    git_repo.git("fetch", "--quiet", "origin")
+
+    verdict = _subsumed(git_repo, cfg)
+
+    assert verdict.kind == "unproven"
+    assert verdict.blocking == (rel,)
+    assert "non-regular" in verdict.reason
+
+
+def test_subsumed_guard_union_merges_committed_log_lines(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    append_log(cfg, "demo", "human:marc", "seeded")
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "seed log")
+    git_repo.git("push", "origin", "main")
+    seed = (git_repo.coga_os / "log.md").read_text()
+    append_log(cfg, "demo", "agent:claude", "committed line")
+    mine = (git_repo.coga_os / "log.md").read_text()
+    git_repo.git("add", "coga/log.md")
+    git_repo.git("commit", "-m", "log by hand")
+    git_repo.push_competing_commit("coga/log.md", seed + "peer line\n")
+    git_repo.git("fetch", "--quiet", "origin")
+
+    verdict = _subsumed(git_repo, cfg)
+    assert verdict.kind == "unpublished"
+    assert verdict.blocking == ("coga/log.md (lines not yet on control)",)
+
+    git_repo.push_competing_commit("coga/log.md", seed + "peer line\n" + mine[len(seed):])
+    git_repo.git("fetch", "--quiet", "origin")
+    verdict = _subsumed(git_repo, cfg)
+    assert verdict.kind == "ok", verdict
+    assert verdict.evidence[-1] == ("coga/log.md",)

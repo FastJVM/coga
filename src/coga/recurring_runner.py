@@ -1561,7 +1561,7 @@ def _service_from_control_worktree(
     on-control run from a different directory and every existing sync, ledger,
     and push path applies unmodified. A detached worktree at the remote tip
     would also publish, but the inner scan's catch-up (`git.refresh`) only
-    fast-forwards a checked-out control branch, so a detached worktree could
+    moves a checked-out control branch, so a detached worktree could
     never be proven level with control before scanning.
 
     `git worktree add` is also the concurrency lock: git refuses to check one
@@ -3464,7 +3464,8 @@ def _sync_control_checkout_ahead(
     The scan decides what is due from working-tree templates and period tasks;
     starting from origin's tip means those reads see runs another machine
     already serviced. Runs while the tree is still clean of scan writes, so
-    the integration is a plain fast-forward (`git.refresh`). Only applies when
+    the integration is `git.refresh`: a fast-forward, or a realignment over
+    local commits of Coga state control already carries. Only applies when
     this checkout holds the control branch. Returns a `_ControlCatchup`: a
     confirmation flag, an actionable reason, and whether the refusal was merely
     "the control branch is not checked out here". Bare and named sweeps keep
@@ -3506,10 +3507,9 @@ def _sync_control_checkout_ahead(
             revision=git.run_git(root, "rev-parse", "HEAD").strip(),
         )
     reason = (
-        f"local {cfg.git_control_branch!r} could not be fast-forwarded to "
-        f"{cfg.git_remote}/{cfg.git_control_branch} (see the note above)."
-        f"\nResolve in that checkout — e.g. `git -C {root} pull --rebase "
-        f"{cfg.git_remote} {cfg.git_control_branch}` — then re-run."
+        f"local {cfg.git_control_branch!r} could not be brought level with "
+        f"{cfg.git_remote}/{cfg.git_control_branch}."
+        f"\nResolve it in {root} as the [git] note above says, then re-run."
     )
     if announce_failure:
         sys.stderr.write(f"[git] note: pre-scan catch-up skipped: {reason}\n")

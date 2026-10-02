@@ -16,17 +16,23 @@ append-only merging is [`coga/internals/spool-merge`](../spool-merge/SKILL.md).
    (`origin` / `main` by default) is the only durable home of `coga/tasks/**`,
    `coga/log.md`, and `coga/recurring/**`; a write is durable when it is on
    that ref. `publish` builds a commit on control's tip and pushes it; it never
-   commits on the checked-out branch, stashes, or rebases, and the local
-   control branch only fast-forwards. With no remote, local control is
-   canonical.
+   commits on the checked-out branch, stashes, or rebases, and never pushes a
+   hand commit as such — it lands that commit's state in a commit of its own.
+   The local control branch fast-forwards, or *realigns* (the ref moves to
+   the control commit) when `_local_control_subsumed` proves every local-only
+   commit is Coga state already on control
+   ([`coga/internals/git-refresh`](../git-refresh/SKILL.md)). With no remote,
+   local control is canonical.
 2. **Nothing is lost.** The markdown on disk is the write. A publish that
    cannot reach control leaves the file as written, reports on stderr (and
    usually `coga/log.md`), and is retried by the next command's sweep.
 3. **Nothing moves backward.** Every published path is compare-and-swapped
    against control (`coga/internals/git-regressions`).
-4. **One integrate path.** `git.refresh` is the only way a checkout is
-   brought level; `fast_forward_control` is the only code that moves the local
-   control ref.
+4. **One integrate path.** `git.refresh` is the only way an exempt or
+   recurring checkout is brought level; `fast_forward_control` is the only
+   code that moves the local control ref after a publish or in `refresh`, by
+   fast-forward or realignment. `prepare_control_checkout` (the launch
+   boundary) applies the same realignment proof.
 
 ## `publish` and its wrappers
 
@@ -38,9 +44,12 @@ control branch missing locally and on the remote
 (`control_branch_mismatch_message` names the `coga.toml` fix).
 
 1. **Candidates** (`_candidates`): every file under `paths` dirty against
-   HEAD, plus a clean file whose HEAD copy moved past control from a copy this
-   checkout derived from (a feature branch that committed state it had
-   published). A clean file merely behind control is not a write.
+   HEAD, plus a clean file whose HEAD copy changed since the merge base and
+   moved past control from a copy this checkout derived from (a feature
+   branch that committed state it had published, or a hand commit of state on
+   local control). A clean file merely behind control — HEAD's copy unchanged
+   since the merge base, even when control holds a copy this worktree
+   published — is not a write.
 2. **Base**: `refs/remotes/<remote>/<control>` without a fetch on the hot
    path; local `<control>` when there is no remote or no tracking ref yet.
 3. **Guard** (`_guard`): the provenance and generation checks; any refusal
@@ -53,11 +62,16 @@ control branch missing locally and on the remote
    push failure rereads control once: `True` if control now carries the
    commit, `GitError` if it definitely does not, `UncertainPublishError` if it
    cannot be reread. Push output is redacted.
-5. **Record and fast-forward**: the landed blobs are recorded under
+5. **Record and integrate**: the landed blobs are recorded under
    `refs/worktree/coga/published` (per-worktree provenance), then
    `fast_forward_control` runs unless `fast_forward=False` (Retro's isolated
-   delete). With no remote, a refused fast-forward is a failed publish
-   (`GitError`); the write stays dirty.
+   delete). It fast-forwards local control, or — when local control carries
+   hand commits whose state this publication (or an earlier one) already put
+   on control — realigns it, refusing first if a Git operation is in progress
+   in this checkout; anything else leaves local control alone with a note
+   (`coga/internals/git-refresh`). A refusal here does not undo the push.
+   With no remote, a refused fast-forward is a failed publish (`GitError`);
+   the write stays dirty.
 
 Wrappers: `sync_task_state(cfg, task_path, *, message, expect=None,
 strict=False)` publishes one task plus the log; `sync_log(cfg, *, message)`
@@ -113,9 +127,15 @@ checkout return, so routine state lands before the checkout moves
 - reloads config first, so a command that edited `coga.toml` or moved the
   Coga root is swept at the new location (an invalid config skips the sweep
   with a warning);
-- publishes every dirty path under the tasks directory, `coga/log.md`, and
-  the recurring directory — nothing else. Contexts, skills, workflows, and
-  config are review work and are never swept.
+- passes the whole tasks directory, `coga/log.md`, and the recurring
+  directory to `publish`, present or not, on control and feature checkouts
+  alike — nothing else. `_candidates` then selects every dirty path there
+  plus eligible committed state (a hand commit of a ticket whose control copy
+  has not moved since), so a clean checkout can still publish; clean state
+  behind control is never republished, and a committed path whose control
+  copy moved beyond its provenance stays unselected until the operator
+  rebases. Contexts, skills, workflows, and config are review work and are
+  never swept.
 
 ## Guided authoring and review work
 

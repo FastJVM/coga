@@ -7,21 +7,61 @@ description: How a checkout is brought level with the control branch — `git.re
 
 Publishing is [`coga/internals/state-publication`](../state-publication/SKILL.md);
 this page is the inbound direction. State sync never copies control's Coga
-state into a feature checkout: only the local control branch moves, and only
-by fast-forward.
+state into a feature checkout: only the local control branch moves, by
+fast-forward, or by *realignment* when its own local-only commits are proven
+to be Coga state control already carries. Realignment never stashes,
+rebases, resets hard, commits, or pushes.
+
+## The realignment proof — `_local_control_subsumed(cfg, root, local, target)`
+
+One deterministic guard shared by `fast_forward_control` and
+`prepare_control_checkout`. Its frozen result has a `kind`, a `reason`,
+`blocking` paths, the `dropped` commits (ID and subject), and the
+`evidence` the verdict was decided from. It returns `ok` only when:
+
+- `git merge-base --all local target` yields exactly one base;
+- every commit in `target..local`, checked on its own (merges against every
+  parent, renames off), touches only the tasks directory, the recurring
+  directory, or `coga/log.md` — a commit that touched code and a later one
+  that reverted it still fails;
+- every path in the net `base..local` diff is already on `target`: same
+  existence, mode, and bytes, or for a `merge=union` path, union-merging the
+  local copy onto `target` with the merge base as the three-way base changes
+  nothing.
+
+`foreign` names the non-state commits and paths; `unpublished` lists each
+state path whose content is not yet on control; `unproven` covers zero or
+several merge bases, a symlink or submodule entry, and any failed Git probe,
+naming what failed. Only `ok` permits a move; everything else fails closed.
 
 ## `fast_forward_control(cfg, root, new, *, staged=None)`
 
 The only code that moves the local control ref, used after a publish and
 inside `refresh`.
 
-- Ancestry is checked first. A local control that is ahead or diverged
-  (unpushed human commits) is left alone, nothing is staged, and one stderr
-  line names `git pull --rebase <remote> <control>`. Returns `False`.
+- Ancestry is checked first. When local control is ahead or diverged, the
+  invoking checkout is first checked for an in-progress merge, rebase,
+  cherry-pick, revert, or bisect (the same markers preparation uses); one
+  present, or a failed inspection, returns `False` with a finish-or-abort
+  note before anything is staged, written, or moved. Then the realignment
+  proof runs:
+  - `ok` with this checkout holding control: the staging below, then
+    `read-tree -m -u HEAD <new>` (refuses on conflicting dirty files) and an
+    old-value-guarded `update-ref`. With no holder: the guarded `update-ref`
+    alone. One stderr line names the dropped commits and says they remain in
+    the reflog. Returns `True`.
+  - `ok` with control held by another worktree: left alone with a note.
+  - `foreign`: left alone; the note names the commits and
+    `git pull --rebase --autostash <remote> <control>` and push.
+  - `unpublished`: left alone; the note lists the paths and suggests
+    `git pull --rebase --autostash <remote> <control>` on control, then
+    retrying the command, whose sweep publishes the rebased state.
+  - `unproven`: left alone; the note says what could not be proved, with no
+    rebase prescribed.
 - When this checkout holds the branch, each just-published file still equal
   to the bytes `publish` read is written to its landed bytes (the union result
-  for the log) and staged, so `merge --ff-only` is not refused by the edit it
-  carries. A file a peer changed meanwhile stays dirty for the next sweep.
+  for the log) and staged, so the move is not refused by the edit it carries.
+  A file a peer changed meanwhile stays dirty for the next sweep.
 - Another worktree holding the branch is fast-forwarded with
   `merge --ff-only` there; with no holder the ref moves by `update-ref` under
   an old-value guard.
@@ -30,16 +70,24 @@ inside `refresh`.
 
 ## `refresh(cfg) -> bool`
 
-Fetches `+refs/heads/<control>:refs/remotes/<remote>/<control>`, then
-fast-forwards when HEAD is the control branch.
+Fetches `+refs/heads/<control>:refs/remotes/<remote>/<control>`, then runs
+`fast_forward_control` when HEAD is the control branch: a fast-forward, or a
+realignment over local commits of state control already carries. It never
+publishes: state committed by hand but missing from control is left for the
+next sweep or the operator.
 
 - `True`: level, or nothing to do — git disabled, no remote, control branch
   absent, or a **feature or detached checkout**. Those get the fetch and no
   file moves: they are stale by design for tickets other checkouts advance,
   and their own published ticket stays dirty.
-- `False`: a control checkout that could not be brought level (ahead,
-  diverged, or blocked by a dirty file control changed), or a git failure,
-  which is also appended to `coga/log.md` as `refresh failed`.
+- `True` as well after realigning a control checkout whose local-only
+  commits the proof accepted.
+- `False`: a control checkout that could not be brought level (local commits
+  the proof refused, an in-progress Git operation, a holder in another
+  worktree, or a dirty file control changed), or a git failure, which is
+  also appended to `coga/log.md` as `refresh failed`. The reason is the
+  `[git]` note already on stderr; callers point to it rather than add a
+  second remedy.
 
 `refresh` is not a readiness proof: a feature or detached checkout returns
 `True` without moving. The launch checkout boundary uses the separate
@@ -58,7 +106,15 @@ Confined to the invoking checkout, and never implemented with
 `fast_forward_control`, which may move another holder: it fetches and pins
 the remote control commit, proves every change is already published Coga
 state, then restores or removes those paths, switches HEAD to the control
-branch, and fast-forwards it with `merge --ff-only`. The result is
+branch, and fast-forwards it with `merge --ff-only`. When local control is
+ahead or diverged, the realignment proof decides: `ok` (its evidence,
+union-attribute decisions included, is part of the re-observed plan) moves
+control to the pinned commit with `read-tree -m -u HEAD <pinned>` and a
+guarded `update-ref` when HEAD is control, or the guarded `update-ref` then
+the ordinary `switch` from another branch, naming the dropped commits on
+stderr and writing nothing to `coga/log.md`; any other verdict refuses with
+the diagnostics and remedy above (from a feature branch, the
+`unpublished` remedy says to switch to control before pulling). The result is
 `CheckoutPreparation`: `prepared`, `exempt` (Git disabled, not a checkout,
 no remote, or no remote control branch unless `require_remote_control`),
 `refused` (nothing but the remote-tracking ref changed), or `failed` (where

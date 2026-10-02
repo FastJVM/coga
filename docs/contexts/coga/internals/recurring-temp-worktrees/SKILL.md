@@ -31,7 +31,7 @@ Why this shape:
   cron timeout.
 - **A real checkout, not a detached HEAD.** A detached worktree at the remote
   tip would still publish (through the per-worktree `git.PUBLISHED_REF`), but
-  the inner scan's catch-up (`git.refresh`) only fast-forwards a checked-out
+  the inner scan's catch-up (`git.refresh`) only moves a checked-out
   control branch, so a detached worktree could never be proven level with
   control before scanning.
 - **`git worktree add` is the lock.** Git will not check a branch out twice, so
