@@ -1,22 +1,20 @@
-## Coga
+# Coga
 
-**Put your agents to real work. Keep your sanity.**
+**Put your agents to work. Keep your sanity.**
 
-Coga is a CLI that sits on top of your coding agents. Work out with them how each kind of work should be done, and run hundreds of tasks that way. Coga is built with Coga: see [`coga/tasks/`](coga/tasks).
-
+Coga is a CLI that sits on top of your coding agents. It works out with you how each kind of work should be done, then runs hundreds of tasks that way. Coga is built with Coga: see [`coga/tasks/`](coga/tasks).
 
 ## Why
+
 To delegate work to agents, you need to give them context: the task, how the system works, and how the work should be done. Together, these make up the **whole context**. Today, that context is scattered across a ticket tracker, `AGENTS.md`, documentation, and code. This works—up to a point.
 
-You start noticing the limits when you keep adding instructions in the chat box: “Push this one directly to main.” “Run the full test suite.” “Have another agent review this change before opening a PR.” You are repeatedly supplying distinctions that your work system leaves implicit. Even a simple project contains several types of work: straightforward bug fixes, research, implementation, and maintenance. They each need different context, procedures, and human decisions.
+You start noticing the limits when you keep adding instructions in the chat box: "Push this one directly to main." "Run the full test suite." "Have another agent review this change before opening a PR." You are repeatedly supplying distinctions that your work system leaves implicit. Even a simple project contains several types of work: straightforward bug fixes, research, implementation, and maintenance. They each need different context, procedures, and human decisions.
 
 I built Coga to make those differences explicit.
 
 In Coga, tickets describe the work, workflows define its steps, context blocks hold the knowledge, and skills provide reusable procedures. These all live in Git as Markdown files. For instance, an investigation can have a workflow for running experiments and discussing results; an implementation task can have one for coding, testing, and review.
 
 Coga uses agent conventions, including `SKILL.md`, so humans and agents can read and change the same material directly. The system is meant to be hacked by you and your agent: you can edit the instructions, reshape a workflow, or add a new way of working as the project evolves.
-
-
 
 ## Install
 
