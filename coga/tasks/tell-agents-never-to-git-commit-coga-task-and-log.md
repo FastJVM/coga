@@ -1,6 +1,6 @@
 ---
 title: Tell agents never to git-commit coga task and log state
-status: in_progress
+status: canceled
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -22,7 +22,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
 agent: claude
 ---
 

@@ -7340,3 +7340,4 @@ fatal: Unable to add (null) to database
 2026-10-01 21:29 [tell-agents-never-to-git-commit-coga-task-and-log] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-01 21:29 [tell-agents-never-to-git-commit-coga-task-and-log] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-01 21:29 [tell-agents-never-to-git-commit-coga-task-and-log] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-01 21:31 [tell-agents-never-to-git-commit-coga-task-and-log] [human:nicktoper] canceled (in_progress → canceled): Owner: no prompt rule; agents would hide the issue. Deterministic before/after-launch guard moved to recover-when-local-main-carries-hand-commits-of-co.
