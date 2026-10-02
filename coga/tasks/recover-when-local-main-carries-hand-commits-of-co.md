@@ -245,6 +245,7 @@ No implementation, ticket-body change, branch, or PR was produced.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/948
 branch: recover-state-only-divergence
 
 ## Implementation handoff (implement step, 2026-10-02)
