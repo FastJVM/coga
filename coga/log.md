@@ -7393,3 +7393,6 @@ fatal: Unable to add (null) to database
 2026-10-02 10:55 [run-recurring-agent-templates-off-the-control-bran] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-02 10:55 [run-recurring-agent-templates-off-the-control-bran] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-02 10:59 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-02 11:00 [cleanup/publish-coga-1-0-to-pypi] [human:nicktoper] advanced to step 3 (verify-read-only) → claude
+2026-10-02 11:00 [cleanup/publish-coga-1-0-to-pypi] [git] sync failed: push to origin/main failed: fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com; control could not be re-read: `git fetch --quiet origin +refs/heads/main:refs/remotes/origin/main` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com
+2026-10-02 11:00 [coga] [git] sync failed: push to origin/main failed: fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com; control could not be re-read: `git fetch --quiet origin +refs/heads/main:refs/remotes/origin/main` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com

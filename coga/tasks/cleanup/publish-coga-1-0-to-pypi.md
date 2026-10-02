@@ -15,7 +15,7 @@ workflow:
   - name: verify-read-only
     skills: []
     assignee: agent
-step: 2 (human-executes)
+step: 3 (verify-read-only)
 ---
 
 ## Description
