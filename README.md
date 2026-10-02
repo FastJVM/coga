@@ -1,10 +1,8 @@
 ## Coga
-Coga is a CLI that sits on top of your coding agents so you stop repeating yourself in the chat box. 
 
+**Put your agents to real work. Keep your sanity.**
 
-AGENTS.md gives your agent one set of instructions for all situation but real work is more complex: Coga makes one AGENTS.md per task
-. You only write what you want once in a markdown file 
-and gives each kind of work its own workflow and context, stored as Markdown in Git, 
+Coga is a CLI that sits on top of your coding agents. Work out with them how each kind of work should be done, and run hundreds of tasks that way. Coga is built with Coga: see [`coga/tasks/`](coga/tasks).
 
 
 ## Why
@@ -17,7 +15,6 @@ I built Coga to make those differences explicit.
 In Coga, tickets describe the work, workflows define its steps, context blocks hold the knowledge, and skills provide reusable procedures. These all live in Git as Markdown files. For instance, an investigation can have a workflow for running experiments and discussing results; an implementation task can have one for coding, testing, and review.
 
 Coga uses agent conventions, including `SKILL.md`, so humans and agents can read and change the same material directly. The system is meant to be hacked by you and your agent: you can edit the instructions, reshape a workflow, or add a new way of working as the project evolves.
-
 
 
 
