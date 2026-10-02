@@ -1,6 +1,6 @@
 ---
 title: Recover when local main carries hand commits of coga state
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
