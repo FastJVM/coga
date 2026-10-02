@@ -1,6 +1,6 @@
 ---
 title: Tell agents never to git-commit coga task and log state
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
