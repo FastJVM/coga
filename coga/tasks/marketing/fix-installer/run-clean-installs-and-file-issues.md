@@ -125,3 +125,31 @@ verification; keep cleanup visible when resuming the macOS work.
 - Approved-host instance `i-0d3a252d7bf58d1ec`, public IP `98.92.230.104`, SG `sg-0e7c5aa2030eb3969`, key `coga-clean-install-installer-mac-20261001`, AMI `ami-0531fecfb292182a3`. Ledger: `.coga/clean-install/installer-mac-20261001/resources.env`. Original harness has no reuse switch; `/tmp/coga-reuse-approved-mac.sh` is a temporary operator copy that substitutes the existing host ID for allocate-hosts; all tracked harness files remain untouched. Standard `aws-mac.sh teardown installer-mac-20261001` can clean these resources.
 - Owner selected Codex and a `direct/body` first task, avoiding any GitHub repo/account mutation. Codex 0.160.0 installed in Linux main container; owner asked to perform its device login in their terminal.
 - Linux main install/init/validate passed with no validation issues. PyPI after installing gh now fails at `MultiplexedPath.joinpath() takes 2 positional arguments but 3 were given` on Python 3.11.16. Existing owner: `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r` (done, PR #831), release follow-through: `cleanup/publish-coga-1-0-to-pypi`. No duplicate live code bug. Test-only package-marker workaround applied to continue; any later success is explicitly not an unmodified PyPI pass.
+
+
+### Findings matrix (in progress, 2026-10-01T23:00Z)
+
+All artifact walks below use Python 3.11.16. Linux is Debian bookworm x86_64, uv 0.12.20; Mac is macOS 27.0 build 26A428 arm64, uv 0.12.21.
+
+| Run / artifact | Step reached / observed result | Existing owner or new draft |
+| --- | --- | --- |
+| Linux PyPI 0.2.0, `installer-pypi-20261001` | install/version/git init pass; init exit 2 without gh, then exit 1 with resource namespace TypeError. After test-only gh + package-marker workarounds, init/validate pass; old init vendors upstream `8890f9f1b2d73e23bfc467aa5f64185405fea341`. Codex login pending. | `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r` (fixed on main), `cleanup/publish-coga-1-0-to-pypi` (release pending); gh requirement also fixed on main |
+| Linux main 0.3.2, `installer-main-20261001`, source `581038663170badbcd2aa086149f35ca7d8ac7f7` | install/version/init/validate pass. Codex 0.160.0 installed; owner login pending. | No new main installer failure |
+| Mac fresh prerequisite probe, `cltprobe` | git --version exit 1 before Python/artifact resolution; no active GUI for CLT prompt. Headless softwareupdate installs Command Line Tools for Xcode 27.0-27.0. | `marketing/fix-installer/document-the-macos-command-line-tools-prerequisite` (new draft) |
+| Mac PyPI 0.2.0, `pypi311` | After CLT and explicit Python selection, install/version/git init pass; init exit 2 without gh. Continuation in progress. | Same PyPI release gap; no duplicate |
+| Mac main 0.3.2, `main311`, source `8411a5e3689a0f3f24f5cd45257853eb218cea62` | After CLT and explicit Python selection, install/version/init/validate pass. gh was installed concurrently before init; op remains absent. Codex setup/login pending. | No new main installer failure |
+
+Both main wheel checksums are identical: `b23f9546d7e1c8f949999ae488ca051dadcdb96b3e819f9c1f64a73c2f59df60`; source changes between builds were state only. The Mac default `/usr/bin/python3` is 3.9.6 after CLT. New draft `marketing/fix-installer/pin-python-3-11-in-the-macos-clean-install-harness` owns the missing interpreter pin in the harness; temporary Mac-side script explicitly installs/selects 3.11. Prior 0.0.1 placeholder observation must not be treated as a current supported-Python PyPI result.
+
+README conflict stays with `marketing/readme-top`; its blackboard has the coordination note. Linux venv pip and pipx both resolve 0.2.0 on Python 3.11.16. pipx installed a separate environment but warned that the coga command was already owned by uv (expected when comparing installers in one test home). Plain pip changes the current environment; venv/pipx isolate it; none avoid the released package bug. No alternative is claimed as a separate clean end-to-end run.
+
+Drafts created with `coga create --workflow code/with-review`; initial sandbox sync failed, later network-enabled create synced state successfully. No product files were edited. Workflow selected by owner: `direct/body`, intended read-only inspection task with findings on its blackboard; no PR/repo creation needed. No first task completed yet. AWS instance and host still running/allocated; cleanup remains mandatory.
+
+
+### Continuation evidence — 2026-10-02T00:10Z
+
+Mac PyPI 0.2.0 reproduced the same Python 3.11 resource namespace TypeError after installing gh. Test-only package marker then allowed init and validation to pass (ok_count 2, no issues); old init vendored upstream `b5e42a2993bf676e220583d3eb53037a7654b447`. It installed four optional managed skills and hit unauthenticated GitHub API rate limits on three; main init installs no skills, so this is additional obsolete-release behavior tracked with `cleanup/publish-coga-1-0-to-pypi`, not a new main bug. Receipt archive: `.coga/clean-install/installer-mac-20261001/walks/pypi311/continuation-evidence.tar`. Linux post-workaround receipts refreshed in `installer-pypi-20261001/container/`.
+
+Codex 0.160.0 installed in both Linux containers and exposed to both Mac users. No owner credentials copied from the host or between machines. An attempted device login in the Linux main container expired after 15 minutes without authentication. No real `coga ticket` interview or first-task `coga launch` has completed. Intended workflow remains `direct/body`; no workflow was actually exercised. Owner was asked whether to retry sign-in or accept authentication as the recorded blocking step and clean up. Do not claim a full first-task pass.
+
+At 00:10Z the host has exceeded its 24-hour minimum. AWS resource cleanup and owner review of the findings remain pending; do not mark done until cleanup is verified and the owner reviews the list.
