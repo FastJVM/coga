@@ -20,39 +20,64 @@ step: 2 (human-executes)
 
 ## Description
 
-Cut the `1.0` release and publish it to PyPI. The owner decided (2026-09-02)
-that the launch release is `1.0`, published before marketing post 1 ships.
-PyPI currently serves `0.2.0` (plus a 1 KB `0.0.1` placeholder); this repo is
-at `0.3.1`. The owner executes the release by hand; the agent briefs first and
-verifies read-only afterwards.
+Publish `coga 0.4.0` to PyPI. On 2026-10-02 the owner changed the release
+from `1.0.0` to `0.4.0` and explicitly authorized the agent to execute it
+in this attended owner-step session. The historical ticket title and path
+remain unchanged.
 
 ## Context
 
-**Why this blocks post 1.** `marketing/phase-0-audit` (step 1, 2026-09-02)
-found there is no working first run from PyPI today: 0.2.0's `coga init`
-crashes, and 0.3.1's `init` pip-installs its own version from PyPI into the
-vendored venv, so a source install cannot `init` until that version exists on
-PyPI either. 1.0 on PyPI fixes both by construction.
+The release runbook is `docs/contexts/coga/releasing/SKILL.md`. Bump
+`pyproject.toml` from `0.3.2` to `0.4.0`, land it on `main`, and publish the
+GitHub Release tagged `v0.4.0`; `.github/workflows/release.yml` uploads via
+PyPI Trusted Publishing.
 
-**Procedure.** The `coga/releasing` topic
-(`docs/contexts/coga/releasing/SKILL.md`) is the contributor-facing runbook: bump
-`version` in `pyproject.toml` from `0.3.1` to `1.0.0`, tag, and publish a
-GitHub Release; `.github/workflows/release.yml` publishes to PyPI over Trusted
-Publishing (no token). The doc recommends a TestPyPI dry run first
-(`workflow_dispatch` with target `testpypi`); PyPI uploads are immutable.
+The Python 3.11 resource-package fix is now present on `main`:
+`src/coga/resources/__init__.py` is tracked. Keep the documented Python 3.11
+floor and verify the built wheel and the published package on that version.
+The old claim that init installs its own package into a vendored venv is
+obsolete.
 
-**Ordering.** The Python 3.11 fix
-(`fix-coga-init-crash-on-python-3-11-by-adding-the-r`) must land on `main`
-before this release is cut, or `requires-python` must be raised to 3.12 in the
-same release. Without one of the two, `coga init` on 1.0 still crashes on the
-documented Python floor.
+**Release gate.** Run the full local suite, build and check both distributions,
+and verify a fresh Python 3.11 install plus `coga init --user tester` in a
+scratch Git repository. The owner explicitly accepted the existing repository
+validation error `unsynthesized-draft-blackboard` in `marketing/readme-top`
+on 2026-10-02, provided package tests and clean-install checks pass. Leave
+that unrelated draft untouched.
 
-**Done check.** `uv tool install coga` (or `pip install coga` in a fresh 3.11
-venv) yields `1.0.0`, and `coga init --user tester` succeeds in a scratch git
-repo. Step 3 of `marketing/phase-0-audit` re-runs the full README quickstart
-against it; that run is the one that counts.
+**Done check.** A fresh `pip install coga` yields `0.4.0`; `coga --version`,
+`coga init --user tester`, and validation succeed in a scratch repository.
+The full authenticated README first-task audit remains separate marketing
+verification; an install/init check does not claim that audit passed.
 
 <!-- coga:blackboard -->
+
+## Release execution — 2026-10-02 (current)
+
+- Owner authorized agent execution and confirmed `0.4.0`, superseding the
+  September `1.0.0` brief below. No owner-step workflow advance requested.
+- Release checkout: `/tmp/coga-release-0.4.0`, branch `release-0.4.0`, based on
+  `origin/main` at `304167cf5`. PyPI currently has only `0.0.1` and `0.2.0`.
+- Python 3.11 wheel smoke passed: version `0.4.0`, init in
+  `/tmp/coga-040-wheel-smoke-pst8gnxf`, validation `ok_count: 1`, no issues.
+- Both wheel and sdist build and pass `twine check`.
+- Initial full suite: 3220 passed, 6 failed. All six failures came from the
+  installed-wheel test helper patching deleted `_check_external_dependencies`.
+  Updated it to patch `_require_init_tools` and `_offer_optional_tools`, matching
+  the existing packaging test. Runtime package behavior is unchanged.
+- Final release gate: `PYTHONPATH=/tmp/coga-release-0.4.0/src
+  /home/n/Code/codex/coga/.venv/bin/python -m pytest -q` -> **3226 passed**
+  in 297.08s (Python 3.12.12).
+- `/home/n/Code/codex/coga/.venv/bin/python -m hatchling build` and
+  `/tmp/coga-release-wheel-venv/bin/python -m twine check dist/*` -> both
+  distributions passed. Built wheel installed using Python 3.11.15.
+- `PYTHONPATH=/tmp/coga-release-0.4.0/src
+  /home/n/Code/codex/coga/.venv/bin/python -m coga.cli validate --json` ->
+  212 valid tickets, one existing error (`marketing/readme-top` unsynthesized
+  draft blackboard), explicitly accepted by the owner. Scoped release-ticket
+  validation passed with only the isolated checkout's missing-user warning.
+- Awaiting publication and fresh PyPI installation receipt.
+
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
