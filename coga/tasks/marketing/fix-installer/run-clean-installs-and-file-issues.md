@@ -136,7 +136,7 @@ All artifact walks below use Python 3.11.16. Linux is Debian bookworm x86_64, uv
 | Linux PyPI 0.2.0, `installer-pypi-20261001` | install/version/git init pass; init exit 2 without gh, then exit 1 with resource namespace TypeError. After test-only gh + package-marker workarounds, init/validate pass; old init vendors upstream `8890f9f1b2d73e23bfc467aa5f64185405fea341`. Codex login pending. | `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r` (fixed on main), `cleanup/publish-coga-1-0-to-pypi` (release pending); gh requirement also fixed on main |
 | Linux main 0.3.2, `installer-main-20261001`, source `581038663170badbcd2aa086149f35ca7d8ac7f7` | install/version/init/validate pass. Codex 0.160.0 installed; owner login pending. | No new main installer failure |
 | Mac fresh prerequisite probe, `cltprobe` | git --version exit 1 before Python/artifact resolution; no active GUI for CLT prompt. Headless softwareupdate installs Command Line Tools for Xcode 27.0-27.0. | `marketing/fix-installer/document-the-macos-command-line-tools-prerequisite` (new draft) |
-| Mac PyPI 0.2.0, `pypi311` | After CLT and explicit Python selection, install/version/git init pass; init exit 2 without gh. Continuation in progress. | Same PyPI release gap; no duplicate |
+| Mac PyPI 0.2.0, `pypi311` | After CLT and explicit Python selection, install/version/git init pass; init exit 2 without gh, then resource namespace TypeError after gh. Test-only package marker allows init/validate to pass; Codex login not completed. | Same PyPI release gap; no duplicate |
 | Mac main 0.3.2, `main311`, source `8411a5e3689a0f3f24f5cd45257853eb218cea62` | After CLT and explicit Python selection, install/version/init/validate pass. gh was installed concurrently before init; op remains absent. Codex setup/login pending. | No new main installer failure |
 
 Both main wheel checksums are identical: `b23f9546d7e1c8f949999ae488ca051dadcdb96b3e819f9c1f64a73c2f59df60`; source changes between builds were state only. The Mac default `/usr/bin/python3` is 3.9.6 after CLT. New draft `marketing/fix-installer/pin-python-3-11-in-the-macos-clean-install-harness` owns the missing interpreter pin in the harness; temporary Mac-side script explicitly installs/selects 3.11. Prior 0.0.1 placeholder observation must not be treated as a current supported-Python PyPI result.
@@ -153,3 +153,20 @@ Mac PyPI 0.2.0 reproduced the same Python 3.11 resource namespace TypeError afte
 Codex 0.160.0 installed in both Linux containers and exposed to both Mac users. No owner credentials copied from the host or between machines. An attempted device login in the Linux main container expired after 15 minutes without authentication. No real `coga ticket` interview or first-task `coga launch` has completed. Intended workflow remains `direct/body`; no workflow was actually exercised. Owner was asked whether to retry sign-in or accept authentication as the recorded blocking step and clean up. Do not claim a full first-task pass.
 
 At 00:10Z the host has exceeded its 24-hour minimum. AWS resource cleanup and owner review of the findings remain pending; do not mark done until cleanup is verified and the owner reviews the list.
+
+
+### AWS teardown started — 2026-10-02T01:10Z
+
+Owner asked whether the Mac was still needed. Evidence is saved and authenticated continuation is blocked; proceeding with previously authorized teardown rather than retaining the billed Mac. `AWS_PROFILE=multiply-telemetry ./scripts/clean-install/aws-mac.sh teardown installer-mac-20261001` submitted termination of `i-0d3a252d7bf58d1ec`. Verify the dedicated host is actually released before declaring cleanup complete. Local Linux containers remain available for any login retry. No full first-task pass is claimed for either Mac artifact.
+
+
+### AWS cleanup verified — 2026-10-02
+
+Teardown completed successfully (UTC timestamps from the resource ledger):
+- Instance `i-0d3a252d7bf58d1ec`: terminated at 01:20:16Z (waiter succeeded).
+- Security group `sg-0e7c5aa2030eb3969`: deleted at 01:20:18Z (AWS Return true).
+- Key pair `coga-clean-install-installer-mac-20261001`: deleted at 01:20:19Z.
+- Dedicated host `h-0833c01ac15e645ac`: released at 01:20:21Z (2026-10-01 18:20:21 Pacific).
+- Fresh `AWS_PROFILE=multiply-telemetry ./scripts/clean-install/aws-mac.sh status installer-mac-20261001` at 02:36Z confirms the host is `released`; the terminated instance is no longer returned. No AWS test resources remain running or allocated. This also resolves the prior macOS-harness host-release obligation.
+
+Evidence and ledger remain under `.coga/clean-install/installer-mac-20261001/`. Mac runs stop at the recorded authentication blocker; no actual first-task workflow completed. Local Linux containers remain available for a Codex login retry. The ticket remains in progress pending the owner's findings review and decision on authenticated continuation; no completion transition run.

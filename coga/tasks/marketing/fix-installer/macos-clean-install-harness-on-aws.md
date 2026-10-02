@@ -275,3 +275,8 @@ Confirm release and record its time before considering cleanup complete.
 Test plan: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q`: 3143 passed; focused harness/packaging suite (40 passed),
 Bash syntax and diff checks, terminal continuation at 80x24 and 120x40 with
 transport/agent substitutes, plus the recorded EC2 Mac install/init cycle.
+
+
+## Host cleanup resolved — 2026-10-02
+
+The run ticket `marketing/fix-installer/run-clean-installs-and-file-issues` reused host `h-0833c01ac15e645ac` with explicit owner approval, then released it at **2026-10-02T01:20:21Z**. AWS status verified `released` at 02:36Z. The reuse instance `i-0d3a252d7bf58d1ec`, SG `sg-0e7c5aa2030eb3969`, and key `coga-clean-install-installer-mac-20261001` were terminated/deleted first. Ledger: `.coga/clean-install/installer-mac-20261001/resources.env`. The earlier STILL ALLOCATED/pending-release notes above are now historical; the host cleanup obligation is fulfilled. Detailed installer findings and authentication limitations belong to the run ticket.
