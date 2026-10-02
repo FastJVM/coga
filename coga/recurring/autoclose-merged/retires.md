@@ -24,7 +24,6 @@ For the line format and field encoding, see the `coga/autoclose/sweep` skill.
 
 ## Follow-ups (open)
 
-- `cleanup/quiet-the-first-run-noise-from-recurring-jobs-and` — branch `quiet-first-run`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-22`
-- `document-how-to-recover-a-retired-ticket-s-body-fr` — branch `retired-ticket-recovery`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-28`
-- `make-dream-run-correctly-under-codex` — branch `dream-under-codex`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-28`
-- `run-the-landed-branch-sweep-daily-from-autoclose` — branch `daily-autoclose-branches`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-28`
+- `document-how-to-recover-a-retired-ticket-s-body-fr` — branch `retired-ticket-recovery`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-28`, owner `/home/n/Code/codex/coga`
+- `make-dream-run-correctly-under-codex` — branch `dream-under-codex`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-28`, owner `/home/n/Code/codex/coga`
+- `run-the-landed-branch-sweep-daily-from-autoclose` — branch `daily-autoclose-branches`, worktree `/home/n/Code/codex/coga`, recorded `2026-09-28`, owner `/home/n/Code/codex/coga`
