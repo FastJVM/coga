@@ -7374,3 +7374,4 @@ fatal: Unable to add (null) to database
 2026-10-02 10:17 [name-phone-home-as-the-record-failure-false-caller] [human:nicktoper] auto-bumped on merge of PR #945 → done
 2026-10-02 10:17 [ship-edge-ticket-py-code-upgrades-with-the-wheel] [human:nicktoper] auto-bumped on merge of PR #938 → done
 2026-10-02 10:18 [uninstall-has-no-removal-path-for-the-preferred-uv] [human:nicktoper] auto-bumped on merge of PR #940 → done
+2026-10-02 10:18 [url-skill-digest-counts-git-ignored-agent-tooling] [human:nicktoper] auto-bumped on merge of PR #946 → done
