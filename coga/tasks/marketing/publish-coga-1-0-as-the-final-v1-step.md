@@ -2,6 +2,9 @@
 title: Publish coga 1.0 as the final V1 step
 status: draft
 owner: nicktoper
+contexts:
+  - coga/releasing
+  - marketing/plan
 workflow:
   name: draft-for-human
   steps:
@@ -22,6 +25,40 @@ step: 1 (agent-produces)
 Prepare and publish coga 1.0.0 to PyPI as the final V1 product-delivery step, after all remaining V1 changes and readiness checks are complete and before the public V1 launch. The 0.4.0 release published on 2026-10-02 is an interim release, not the final V1 release. Prepare a tested release candidate and release notes for owner approval, publish through the existing Trusted Publishing workflow when authorized, then verify the public package and record the release evidence.
 
 ## Context
+
+### Ordering and scope
+
+Owner request, 2026-10-02: this is the last V1 product-delivery ticket. Keep it
+in draft until the owner confirms the remaining V1 work is complete. Follow
+the release ordering in `marketing/plan`; coordinate readiness with
+`marketing/build-the-launch-plan` without taking over its public launch work.
+
+The earlier ticket `cleanup/publish-coga-1-0-to-pypi` shipped **0.4.0** despite
+its historical title. The owner confirmed that release works. Its successful
+install check is historical evidence, not approval to skip the final V1 gate.
+Release: https://github.com/FastJVM/coga/releases/tag/v0.4.0 .
+
+### Execution and acceptance
+
+- Prepare the final candidate from `main` after the remaining V1 fixes land.
+  Record the exact commit, readiness evidence, release notes, and proposed
+  `1.0.0` version bump for the owner to review.
+- Read `coga/testing` (`docs/contexts/coga/testing/SKILL.md`) for the local
+  suite and validation gate, and `coga/packaging`
+  (`docs/contexts/coga/packaging/SKILL.md`) for pristine-checkout build checks.
+  These are cited rather than attached. Record exact commands and results;
+  do not carry forward the 0.4.0 validation exception without a new decision.
+- Follow the attached release runbook. The owner approves the final candidate
+  and publication; an explicitly authorized agent may assist with publishing.
+  This draft does not authorize an immediate upload.
+- After publishing, verify that a fresh public-index install obtains `1.0.0`,
+  init and validation succeed on the documented Python floor, and the README
+  first-task path works against the published artifact. Reuse the existing
+  clean-install harnesses and coordinate outstanding platform and PostHog
+  evidence with their owning tickets.
+- Record the GitHub Release, PyPI page, workflow run, artifact hashes, and
+  verification receipts. Hand the verified release links to the launch
+  execution ticket before the public V1 announcement.
 
 <!-- coga:blackboard -->
 

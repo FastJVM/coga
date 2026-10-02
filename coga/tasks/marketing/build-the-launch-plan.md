@@ -52,6 +52,9 @@ launch checklist. They are also the editing targets for accepted learnings.
   README/onboarding corrections to the existing tickets before Show HN.
 - Prepare a self-contained Show HN title, introduction, working product link,
   install/example path and replies. Readers need not have seen the argument.
+- Before the public product launch, obtain the verified release links from
+  `marketing/publish-coga-1-0-as-the-final-v1-step`, following the final-release
+  ordering in `marketing/plan`.
 - Target roughly one week after the idea piece, conditional on readiness and
   owner availability. Recheck Show HN rules and links before submission;
   the owner submits and is available to discuss the work. No vote solicitation.

@@ -28,6 +28,13 @@ superseded. Historical material is indexed in [the catalogue](../map/SKILL.md).
   [its own ticket](../../../../coga/tasks/marketing/verify-posthog-telemetry-with-the-live-clean-wheel.md).
   Campaign simplification does not waive that gate.
 
+**Final V1 release (owner decision, 2026-10-02).** Publish `1.0.0` as the
+last V1 product-delivery step, after the remaining V1 changes and readiness
+checks and before the public product launch. The published `0.4.0` is an
+interim release. The [final release ticket](../../../../coga/tasks/marketing/publish-coga-1-0-as-the-final-v1-step.md)
+owns candidate preparation, publication and verification under the
+[release runbook](../../coga/releasing/SKILL.md).
+
 ## Publication sequence
 
 1. [One idea piece](../../../../coga/tasks/marketing/idea-piece.md) publishes the
@@ -48,7 +55,8 @@ channel and measurement policy. Publication remains an owner action.
 ## Scope
 
 The remaining marketing work is launch execution, the idea piece, the README,
-the `fix-installer/` ticket group and the PostHog live-wheel verification. There is no separate audience/story/pitch
+the `fix-installer/` ticket group, PostHog live-wheel verification and the final
+V1 release. There is no separate audience/story/pitch
 pipeline, three-essay commitment, Discord/community prerequisite, domain
 purchase or additional channel campaign for V1. The writing ticket settles
 editorial details directly with the owner. The old numeric scorecard,
