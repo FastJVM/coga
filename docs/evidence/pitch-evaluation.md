@@ -17,6 +17,10 @@ delegation practical. Preserve this connection when developing the endorsed
 explanation below; the competitive findings remain evidence about its
 distinctiveness, not a replacement for the product promise.
 
+**License update, 2026-10-02:** the owner changed Coga to MPL 2.0.
+The AGPL comparisons below describe the September evaluation; current
+licensing is defined by the repository [LICENSE](../../LICENSE).
+
 ## Research-work comparison — 2026-09-16
 
 **Live follow-up:** [CE replacement test, Kortix implementation and traction](research-replacement-trial.md).

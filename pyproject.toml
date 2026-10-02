@@ -8,7 +8,7 @@ version = "0.4.0"
 description = "A CLI on top of your coding agents: per-task context and workflows, stored as Markdown in Git."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "AGPL-3.0-or-later" }
+license = { text = "MPL-2.0" }
 authors = [
   { name = "Coga contributors" },
 ]

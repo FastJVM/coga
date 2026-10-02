@@ -115,7 +115,7 @@ comparisons with other tools, see the [evidence pages](docs/evidence/) and the
 - [Contributing](CONTRIBUTING.md).
 
 Coga is free software licensed under
-[AGPL-3.0-or-later](LICENSE).
+[MPL-2.0](LICENSE).
 
 ## Weekly telemetry
 

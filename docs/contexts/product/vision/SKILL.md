@@ -31,7 +31,7 @@ maintained material improves with use.
 
 Coga began as the operating substrate of FastJVM, a two-person technical
 company, and it runs the work that builds Coga. It is published as open source
-(AGPL-3.0-or-later) as a field report from that use.
+(MPL-2.0) as a field report from that use.
 
 ## Intended audience
 
