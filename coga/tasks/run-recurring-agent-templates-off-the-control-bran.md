@@ -31,7 +31,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (design)
+step: 2 (evaluate-design)
 ---
 
 ## Description
@@ -66,6 +66,96 @@ reasoning into `## Description` and on the blackboard, then run `coga bump` as
 normal — the `code/design` skill has no close-unbuilt affordance and will
 otherwise push toward `implement`. Do not stop without bumping; the owner
 cancels the ticket at the `review-design` gate.
+
+### Design outcome (2026-10-02): do not build
+
+**Recommendation: close this ticket unbuilt.** Coga should not create a
+checkout, throwaway or persistent, to run agent-backed recurring templates
+when the operator is off control and no worktree holds control. Since
+`stop-using-worktrees` merged (`e122d774`, PR #896), any linked worktree that
+holds the control branch, whoever made it, makes every ordinary ticket launch
+in the operator's own checkout refuse. That conflict outweighs the small gap
+this ticket would close.
+
+Reasoning, checked against code on `main` as of 2026-10-02:
+
+1. **The gap is narrow, and attended by construction.** Ten templates now
+   ship in `coga/recurring/`. Seven carry `ticket.py` (`autoclose-merged`,
+   `blocker-reminders`, `branch-sweep`, `phone-home`, `skill-update`,
+   `upstream-coga`, `usage-report`); the `--all` temp-worktree path already
+   serves them. Three are agent-backed: `dream`, plus the delegating
+   `resolve-conflicts` and `address-pr-comments`. Agent and delegated launches
+   need a TTY (`coga/recurring/scheduling`, `coga/recurring/delegation`), so
+   the case only arises when a human is at the terminal. That human gets a
+   refusal (`recurring_runner._refuse_non_control_branch`) naming
+   `git switch <control>` as a remedy.
+2. **Being off control is now short-lived.** Under `dev/checkouts`, every
+   code step starts and ends on `main`, and `coga launch`
+   (`git.prepare_control_checkout` plus the return half) moves the invoking
+   checkout back to `main` around each session. Between steps the operator's
+   checkout is on control, and a sweep or `coga dream` there needs no relay.
+   What remains is "the human is on a feature branch by hand", and
+   `git switch main` is the obvious remedy for that.
+3. **A persistent control worktree now fights ordinary ticket work.**
+   `git.prepare_control_checkout` refuses when `worktree_holding_branch(root,
+   control)` returns a different checkout ("`main` is checked out in another
+   worktree … `git worktree remove <path>`"). A Coga-kept control worktree
+   would therefore make every `coga launch <ticket>` from the operator's
+   primary checkout refuse, and would stop `git switch main`. The old leading
+   option is no longer a candidate, whoever owns it.
+4. **A throwaway created checkout has one break left, and it got worse.**
+   Re-verified against merged code:
+   - Break #1 (the feature worktree lands inside the temp parent) **is gone**.
+     `code/implement` makes the branch in the launch checkout with
+     `git branch` / `git switch` and forbids a linked worktree. The branch is
+     a shared ref, so it outlives the checkout once pushed.
+   - Break #2 (a temp `worktree:` path is recorded) **is gone**.
+     `step_gate._has_branch_linkage` needs only `branch:`. `worktree:` is
+     written only by the sandbox clone fallback. `open_pr._checkout_mode`
+     needs only that the invoking checkout is on control, and pushes the
+     branch by name.
+   - Break #3 (lock duration) **still holds and is worse**. For the whole
+     session, often hours, the created checkout holds `main`. During that
+     time the operator cannot `git switch main`, and every ticket launch from
+     their checkout refuses through `prepare_control_checkout`. A seconds-long
+     sweep can afford that lock; an attended agent session cannot.
+   On top of that, the created checkout would need `.agent-skills/` and the
+   ignored `.claude/skills/coga` / `.codex/skills/coga` discovery links.
+   `dev/checkouts` notes that those links do *not* self-heal.
+5. **The "operator creates it by hand" branch is already shipped** (sibling 2,
+   relay), and it inherits conflict 3. So the honest remedy is
+   `git switch <control>`, not a new artifact.
+
+What a created checkout would change if built anyway: the agent would scan the
+control tip rather than the operator's tree, the same as the relay case. That
+answer does not change, and it was never the blocker.
+
+### Acceptance criteria
+
+- [ ] Owner accepts or rejects the do-not-build recommendation at
+      `review-design`. On acceptance, the ticket is canceled with no code
+      change.
+- [ ] The follow-up in *Open Questions* (the relay refusal recommending
+      `git worktree add`, which now conflicts with `prepare_control_checkout`)
+      is either filed as its own ticket or explicitly declined. It is not
+      folded in here unless the owner retargets this ticket.
+
+### Proposed shape
+
+None. No checkout is created and no code changes. If the owner retargets this
+ticket to the follow-up instead of canceling, its shape is: in
+`recurring_runner._refuse_non_control_branch`, change both `absence` messages
+(no holder; unusable holder) so `git switch <control>` is the primary remedy
+and creating a control worktree is either dropped or carries a warning that it
+blocks ticket launches. Mirror that in `coga/internals/recurring-control` and
+its packaged twin, and update the tests that assert the refusal text.
+
+### Out of scope
+
+- Any Coga-created checkout for agent sessions, throwaway or persistent.
+- Removing the existing-control-worktree relay (sibling 2). It stays as a
+  supported path for operators who choose that layout.
+- Everything already listed under *Not this ticket* below.
 
 ## Context
 
@@ -266,6 +356,34 @@ context-in-the-same-PR rule. These topics now **do** have packaged twins under
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+---
+
+## Design notes (2026-10-02, design step)
+
+- Outcome: **do not build**. Full reasoning is in `## Description` →
+  *Design outcome*. Expect the owner to cancel at `review-design`.
+- New fact since the ticket was written: `git.prepare_control_checkout` (the
+  launch boundary from `stop-using-worktrees`) refuses when control is checked
+  out in another worktree. Any persistent control worktree therefore blocks
+  ordinary ticket launches from the primary checkout, and a throwaway one
+  blocks them for the length of the session.
+- Template census has drifted from `## Context`. There are now 10 templates:
+  7 `ticket.py` and 3 agent-backed (`dream`, plus `resolve-conflicts` and
+  `address-pr-comments` via `delegate:`). `digest` no longer exists.
+- Breaks #1 and #2 are confirmed gone against merged code; #3 stands and is
+  worse (see Description).
+
+## Open Questions
+
+- The relay's refusal (`recurring_runner._refuse_non_control_branch`, both
+  `absence` branches) and `coga/internals/recurring-control` still tell the
+  operator to `git worktree add ../<repo>-<control> <control>`. Following that
+  advice now makes every `coga launch <ticket>` from the primary checkout
+  refuse via `git.prepare_control_checkout`. Should this be filed as a small
+  follow-up ticket (lead with `git switch <control>`, or warn about the
+  conflict), should this ticket be retargeted to it, or should it be left
+  alone?
 
 ---
 
