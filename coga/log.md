@@ -7337,3 +7337,4 @@ fatal: Unable to add (null) to database
 2026-10-01 16:12 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-01 19:37 [tell-agents-never-to-git-commit-coga-task-and-log] [human:nicktoper] created (status=draft)
 2026-10-01 19:37 [recover-when-local-main-carries-hand-commits-of-co] [human:nicktoper] created (status=draft)
+2026-10-01 21:29 [tell-agents-never-to-git-commit-coga-task-and-log] [human:nicktoper] activated (draft → active) — auto on launch
