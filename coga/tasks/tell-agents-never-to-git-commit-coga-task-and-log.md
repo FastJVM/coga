@@ -39,3 +39,7 @@ Incident (2026-10-01): an attended `bootstrap/orient` session (Claude, session `
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Decision (2026-10-01, attended)
+
+Canceled by owner: no base-prompt rule. Agent-side prevention would let agents fix and hide the real issue. A deterministic before/after-launch guard moved to `recover-when-local-main-carries-hand-commits-of-co`; its description now carries this framing. No branch or code was created.
