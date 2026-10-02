@@ -1,4 +1,13 @@
 ## Coga
+Coga is a CLI that sits on top of your coding agents so you stop repeating yourself in the chat box. 
+
+
+AGENTS.md gives your agent one set of instructions for all situation but real work is more complex: Coga makes one AGENTS.md per task
+. You only write what you want once in a markdown file 
+and gives each kind of work its own workflow and context, stored as Markdown in Git, 
+
+
+## Why
 To delegate work to agents, you need to give them context: the task, how the system works, and how the work should be done. Together, these make up the **whole context**. Today, that context is scattered across a ticket tracker, `AGENTS.md`, documentation, and code. This works—up to a point.
 
 You start noticing the limits when you keep adding instructions in the chat box: “Push this one directly to main.” “Run the full test suite.” “Have another agent review this change before opening a PR.” You are repeatedly supplying distinctions that your work system leaves implicit. Even a simple project contains several types of work: straightforward bug fixes, research, implementation, and maintenance. They each need different context, procedures, and human decisions.
@@ -9,15 +18,20 @@ In Coga, tickets describe the work, workflows define its steps, context blocks h
 
 Coga uses agent conventions, including `SKILL.md`, so humans and agents can read and change the same material directly. The system is meant to be hacked by you and your agent: you can edit the instructions, reshape a workflow, or add a new way of working as the project evolves.
 
-## How It Works?
-I saw a lot of people using Jev to route task to the best models. I wanted to build a plugin in Codex. So I started a repository and a coga session, during the coga build phase, it built a plan and a plugin plan. I reviewed the first ticket and reading it I had some questions and potential blind spot, so I asked Codex in Coga. We (it was a guided conversation) found out that the implementation plan was good but it's predicated on the hypothesis that Jev knows how to route better and that is imposssible to know post. You need to launch a round of research to confirm or infirm this hypothesis. Coga first parked the implementation tickets and build out a research plans in the ticket; it created a dedicated worfklow. I read it, approved it (I tweaked a few things) and then ran it.
-
-Then it concluded: planning are better with frontier model but implementation any model would do. This is for my repositories, it's not a general results and it's simple enough to not consider Jev further. All of the results are recorded in context blocks so agents have them handy AND the experiment is archived (so accessed on demands by agents but not by default to save tokens)
-
-On my side the time was maube 10 min (of deep concentration) and it was able to figure ou the rest + execute it and MOST importantly carry all of that into the implemtnation phase direclty
 
 
-## Getting Started
+
+## Install
+
+## Quick Start 
+### Existing repo
+
+### New repo
+
+## Development & Community
+
+## Donors and Sponsors
+## Licnence
 
 ```sh
 coga build
