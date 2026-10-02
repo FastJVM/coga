@@ -7362,3 +7362,4 @@ fatal: Unable to add (null) to database
 2026-10-02 10:16 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-10-02
 2026-10-02 10:17 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-02 10:17 [recurring/address-pr-comments] [system] started (active → in_progress) via recurring delegation to bootstrap/address-pr-comments
+2026-10-02 10:17 [recurring/address-pr-comments] [system] launched delegated target bootstrap/address-pr-comments
