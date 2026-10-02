@@ -242,3 +242,7 @@ No implementation, ticket-body change, branch, or PR was produced.
 - `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest tests/test_git.py -q -k 'fast_forward_leaves_an_ahead_main_alone_and_names_the_fix or refresh_refuses_an_ahead_or_diverged_control_checkout or prepare_refuses_an_ahead_or_diverged_control_and_changes_nothing'`
   → **4 passed, 88 deselected**. These confirm the current refusal baseline;
   no proposed implementation exists to run the full acceptance suite against.
+
+## Dev
+
+branch: recover-state-only-divergence
