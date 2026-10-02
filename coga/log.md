@@ -7369,3 +7369,4 @@ fatal: Unable to add (null) to database
 2026-10-02 10:17 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
 2026-10-02 10:17 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
 2026-10-02 10:17 [autoclose-re-posts-another-clone-s-primary-checkou] [human:nicktoper] auto-bumped on merge of PR #939 → done
+2026-10-02 10:17 [dedupe-claude-transcript-usage-by-message-id] [human:nicktoper] auto-bumped on merge of PR #947 → done
