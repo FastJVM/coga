@@ -31,7 +31,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 ---
 
 ## Description
@@ -373,6 +373,79 @@ The blackboard is a notepad to be written to often as the human and agent works 
   `address-pr-comments` via `delegate:`). `digest` no longer exists.
 - Breaks #1 and #2 are confirmed gone against merged code; #3 stands and is
   worse (see Description).
+
+## Evaluator review
+
+2026-10-02 — cold review of the ticket body against the merged checkout.
+
+**Verdict:** the do-not-build recommendation is technically supported and ready
+for the owner's decision, with one closure requirement to resolve. This is not
+owner approval and does not authorize implementation of the optional follow-up.
+The body clearly selects cancellation over implementation; the frozen workflow
+correctly places an owner gate next. Acceptance and follow-up disposition are
+observable, but the closure plan omits the durable decision below.
+
+### Must resolve at owner review, before closure or implementation
+
+1. **Preserve an accepted rejection outside this ticket.** Description and
+   Proposed Shape leave the rationale in the ticket and require no changes;
+   neither acceptance criterion assigns its durable publication.
+   `docs/contexts/coga/knowledge/SKILL.md`, “Where knowledge lives,” explicitly
+   requires an owner decision not to act to live in the owning topic, stating
+   what was declined, why, and what would reopen it. The current
+   `docs/contexts/coga/internals/recurring-control/SKILL.md`, “Recurring runs
+   start on the control branch,” describes the relay but not this rejection;
+   `recurring-temp-worktrees`, “Deterministic only,” explains the existing
+   temporary restriction but not the persistent-checkout decision. On
+   acceptance, assign a reviewed documentation change to the control topic
+   and its packaged twin before this rationale can be retired. This needs no
+   runtime implementation and need not absorb the refusal-text follow-up.
+
+### Optional clarifications
+
+- Qualify “for the whole session” and “every ordinary ticket launch.”
+  `src/coga/git.py::prepare_control_checkout` / `_plan_preparation` refuse
+  **while another checkout holds control**, with explicit Git-disabled,
+  remote-less and other exemptions. `coga/skills/code/implement/SKILL.md`,
+  “Start check, then branch,” switches the launch checkout onto a feature
+  branch, releasing control during that work. If another checkout takes it,
+  `src/coga/commands/launch.py::_CheckoutBoundary.settle` then refuses the
+  return and stops chaining. This remains a sound reason to reject the
+  feature, but is a contention/return hazard rather than an unconditional
+  session-long reservation. The existing main-holding relay remains usable
+  from its own checkout; no removal of that supported path is implied.
+- If the owner retargets to the refusal follow-up, settle whether worktree
+  creation is removed or warned about before implementation. Preserve the
+  unusable-holder repair/remove/prune guidance: a bare `git switch` cannot
+  succeed while that holder still owns control. Otherwise the existing
+  file-or-decline acceptance criterion is sufficient.
+
+### Verification
+
+- `e122d774` is an ancestor of the reviewed HEAD. The live template census is
+  seven `ticket.py` templates and three agent templates; `resolve-conflicts`
+  and `address-pr-comments` declare `delegate:`. Scheduling/delegation topics
+  require TTYs for agent admission. `_relay_to_control_worktree` inherits
+  stdio and forwards local config; `_service_from_control_worktree` still
+  prohibits agent phases. The remaining gap is as described.
+- The ordinary implementation skill no longer creates linked worktrees;
+  `src/coga/step_gate.py::_has_branch_linkage` requires only `branch:`;
+  `src/coga/open_pr.py::_checkout_mode` permits control and `open_pr` checks
+  the feature ref by name unless a separate recorded clone exists. The two
+  original ordinary-ticket path dependencies are gone.
+- Confirmed both `absence` messages in
+  `src/coga/recurring_runner.py::_refuse_non_control_branch` recommend
+  creating a control holder, validating the proposed follow-up. Existing
+  tests use real Git fixtures for the holder refusal and relay selection.
+- Focused check: **8 passed** with the exact command below. The initial run
+  using ambient `python` failed collection because `tomlkit` was absent;
+  rerunning under the repository venv resolved the environment issue.
+
+```sh
+PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_git.py::test_prepare_refuses_when_control_is_held_by_another_worktree tests/test_recurring.py::test_recurring_scan_relays_into_existing_control_worktree tests/test_recurring.py::test_recurring_named_relays_into_existing_control_worktree tests/test_recurring.py::test_recurring_scan_refusal_names_the_missing_control_worktree tests/test_recurring.py::test_recurring_relay_skips_a_worktree_without_a_coga_root tests/test_recurring.py::test_recurring_relay_names_a_stale_control_worktree tests/test_open_pr.py::test_open_pr_pushes_branch_by_name_from_main
+```
+
+No ticket-body, runtime, workflow, or topic edits; no branch or PR created.
 
 ## Open Questions
 
