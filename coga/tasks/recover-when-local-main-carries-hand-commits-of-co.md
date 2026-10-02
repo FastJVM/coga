@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -116,3 +116,85 @@ The blackboard is a notepad to be written to often as the human and agent works 
 2. **The `unpublished` remedy.** Should the remedy be `git pull --rebase --autostash` then retry the launch (the spec's choice: the retried sweep publishes through the guard), or also include `git push` as in the incident? A plain push lands a hand commit on control without the provenance guard.
 3. **Recurring.** `refresh()` now realigns silently (apart from stderr) during the recurring pre-scan catch-up. Is that acceptable for unattended recurring runs, or should recurring keep refusing and leave realignment to `coga launch` only?
 
+## Evaluator review
+
+Reviewed cold on 2026-10-01 against the current source, fixtures, owning topics,
+and frozen workflow. **Not ready for implementation: resolve the two findings
+below at owner review.** The shared guard fits the microkernel rule (two real
+consumers), and the evaluate-design → owner review workflow fits this work.
+No implementation, ticket-body change, branch, or PR was produced.
+
+### Must resolve before implementation
+
+1. **P1 — The entry sweep does not publish the clean hand-committed ticket;
+   the primary regression and the retry remedy cannot succeed as specified.**
+   In `src/coga/git.py`, `sync_coga_state()` first calls `_dirty_paths()` and
+   passes only those individual paths to `publish()`. `_candidates()` can add
+   committed paths only within the supplied pathspecs. With a clean committed
+   ticket and a dirty log, its pathspec is therefore only `coga/log.md`; the
+   ticket never reaches the committed-path discovery described in the spec.
+   A temporary real-Git fixture using `init_git_repo`, `_seed_ticket`, a
+   tracked seed log, and `push_competing_commit` reproduced the exact shape:
+   the sweep published the appended log line but left the hand-committed
+   ticket bytes absent from origin. Applying the specified `_published_proof`
+   to the committed ticket returns `content differs from control`, so the new
+   guard must also refuse. `git pull --rebase --autostash origin main` then
+   exited 0, but another sweep left a clean checkout one commit ahead, with
+   the ticket still unpublished. Thus “then retry” also loops without an
+   additional change. Decide explicitly whether to extend sweep candidate
+   discovery through the existing provenance guard (and specify/test that
+   contract change), or narrow this ticket to content independently published
+   beforehand and provide a complete recovery procedure for unpublished
+   content. A helper-only implementation cannot meet the current acceptance
+   criteria. The retry test should assert successful subsequent recovery,
+   not just a zero rebase exit code.
+
+2. **P1 — The `fast_forward_control()` realignment path needs an explicit
+   in-progress-operation refusal before staging or moving anything.**
+   `_plan_preparation()` checks `_IN_PROGRESS_MARKERS`, but `refresh()` and
+   `_publish_locked()` reach `fast_forward_control()` without that check.
+   Its existing `merge --ff-only` invocation supplies Git's unfinished-merge
+   protection; the proposed plumbing bypasses it. In a temporary fixture
+   with a state-only local commit whose ticket bytes were separately on
+   origin, starting a clean `merge --no-commit --no-ff feature` left
+   `MERGE_HEAD` and staged `code.txt`. The existing merge invocation refused
+   with exit 128 (“You have not concluded your merge”), while the proposed
+   `read-tree -m -u HEAD <target>` followed by guarded `update-ref` succeeded,
+   moved `main`, and left `MERGE_HEAD` and the staged code in place. The
+   committed-content guard cannot detect this operation state. Specify the
+   refusal for realignment through this caller and test that HEAD, index,
+   working files, and operation markers remain unchanged. Reuse the existing
+   operation-marker policy rather than relying on dirty-file conflicts.
+
+### Optional recommendations and owner decisions
+
+- Settle the helper's result contract: acceptance requires `str | None`,
+  while Proposed Shape permits a tuple/dataclass. Also name the outcome for
+  zero/multiple merge bases and inspection failures; neither establishes
+  “non-state commit” nor “state not yet on control.” Preserve fail-closed
+  behavior and distinguish inspection failure from an actionable content
+  refusal.
+- Add direct guard coverage for code changed then reverted, merge commits,
+  zero/multiple merge bases, deletions, executable modes, symlinks/submodules,
+  and committed union-log content. The listed end-to-end cases do not exercise
+  these central proof conditions. Cover the feature-HEAD/no-holder path too.
+- Update stale fast-forward-only statements throughout the named topics,
+  including `dev/checkouts` launch-boundary step 4, the `git-refresh` opening
+  paragraph and `refresh` outcomes, and `coga/sync`'s control-checkout bullet;
+  updating only the specifically listed sentences leaves contradictions.
+  Mirror all owning-topic changes to their packaged twins. The three existing
+  Open Questions remain owner decisions, not evaluator approvals.
+
+### Verification evidence
+
+- Read `src/coga/git.py` publication, integration, and preparation paths;
+  `commands/launch.py::_CheckoutBoundary.enter/settle`;
+  `recurring_runner.py::_sync_control_checkout_ahead`; the relevant Git tests
+  and fixture helpers; and the packaged `code/design-then-implement` workflow.
+- Ran the two isolated real-Git reproductions described above under
+  `PYTHONPATH=/home/n/Code/coga/src:/home/n/Code/coga/tests .venv/bin/python`
+  using temporary repositories; no live Git refs or implementation files
+  were changed by those probes.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest tests/test_git.py -q -k 'fast_forward_leaves_an_ahead_main_alone_and_names_the_fix or refresh_refuses_an_ahead_or_diverged_control_checkout or prepare_refuses_an_ahead_or_diverged_control_and_changes_nothing'`
+  → **4 passed, 88 deselected**. These confirm the current refusal baseline;
+  no proposed implementation exists to run the full acceptance suite against.
