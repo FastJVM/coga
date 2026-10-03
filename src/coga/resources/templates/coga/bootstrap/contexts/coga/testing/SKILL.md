@@ -123,8 +123,10 @@ and counts, for example `PYTHONPATH=$PWD/src python3.12 -m pytest` ->
 
 ## Restricted sandboxes
 
-- `codex review --base main` fails in a read-only app-server sandbox; rerun
-  unsandboxed.
+- `codex review --base main` fails inside a Codex session (`failed to
+  initialize in-process app-server client: Read-only file system`), even
+  when rerun unsandboxed. A Codex reviewer reviews `git diff main...<branch>`
+  directly instead.
 - **`codex review`'s own test attempt is expected to fail collection** (for
   example `No module named 'tomlkit'`): it runs pytest under an ambient
   interpreter without Coga's dependencies. That is not a finding against the
