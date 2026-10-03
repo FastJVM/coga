@@ -1,6 +1,6 @@
 ---
 title: Publish coga 1.0 to PyPI
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -15,7 +15,6 @@ workflow:
   - name: verify-read-only
     skills: []
     assignee: agent
-step: 3 (verify-read-only)
 ---
 
 ## Description
