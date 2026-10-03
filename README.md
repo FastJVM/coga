@@ -21,6 +21,8 @@ Altgoether competings tools were all able to build it but they built something d
 
 On my side the time was maube 10 min (of deep concentration) and it was able to figure ou the rest + execute it and MOST importantly carry all of that into the implemtnation phase direclty
 
+OPh and here's the plugin: do use it! 
+
 
 ## Why
 
