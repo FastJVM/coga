@@ -1,5 +1,5 @@
 ---
-title: Run recurring agent templates off the control branch
+title: Stop recommending control worktrees in the recurring refusal
 status: in_progress
 owner: nicktoper
 agent: claude
@@ -36,6 +36,150 @@ step: 3 (review-design)
 
 ## Description
 
+> Design history: retargeted on 2026-10-02 from "run agent-backed recurring
+> templates off control from a created checkout" (declined); see
+> `## Superseded designs` below.
+
+When a recurring run starts off the control branch and no worktree can be
+relayed into, Coga's refusal currently tells the operator to create one
+(`git worktree add ../<repo>-<control> <control>`). Stop recommending that.
+Owner direction (2026-10-02): no linked worktrees outside Coga's own
+recurring internals. Hand-made checkouts pile up on disk and get forgotten.
+Since `stop-using-worktrees` merged (`e122d774`, PR #896), any other checkout
+holding control also makes `git.prepare_control_checkout` refuse every
+`coga launch <ticket>` from the operator's own checkout. So the advice that
+fixes one refusal causes another.
+
+The same PR records the declined feature, *Coga creating a checkout to run
+agent-backed recurring templates off control*, in the owning topic, so the
+rationale survives this ticket's deletion.
+
+Done means the refusal leads with `git switch <control>`, no Coga refusal or
+recurring topic tells the operator to create a control worktree, and the
+declined decision is published in `coga/internals/recurring-control`.
+
+### Acceptance criteria
+
+- [ ] `recurring_runner._refuse_non_control_branch`, **no-holder** branch
+      (`no_control_worktree`): names the absence and gives
+      `git switch <control>` as the remedy. No `git worktree add`.
+- [ ] Same function, **unusable-holder** branch
+      (`unusable_control_worktree`): still names the holder and keeps the
+      `git worktree remove <path>` / `git worktree prune` repair (the stale
+      holder owns the branch, so a bare `git switch` fails until it is gone).
+      After that, the next step is `git switch <control>`, not "recreate it
+      with `git worktree add`". Keeping the holder by bringing it up to date
+      may stay as an option.
+- [ ] The function's docstring stops describing a `git worktree add` remedy.
+- [ ] `docs/contexts/coga/internals/recurring-control/SKILL.md` and its
+      packaged twin
+      (`src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/recurring-control/SKILL.md`)
+      describe the new refusal text and stay byte-identical
+      (`tests/test_packaging.py`).
+- [ ] The same topic gains a short **declined** note, per `coga/knowledge`
+      ("Where knowledge lives": an owner decision not to act lives in the
+      owning topic and says what was declined, why, and what would reopen
+      it). Substance: Coga will not create a throwaway or persistent control
+      checkout to run `dream` / delegating agent templates off control.
+      (1) Agent and delegated launches need a TTY, so the case is always
+      attended and `git switch <control>` is available. (2) `coga launch`
+      returns the checkout to control between steps, so being off control is
+      short-lived. (3) While a created checkout holds control,
+      `prepare_control_checkout` refuses ticket launches from the primary
+      checkout, and a session can last hours. Reopen if ticket launches stop
+      requiring the primary checkout to own control.
+- [ ] The relay into an **existing** control worktree stays supported and
+      documented as-is. Only the advice to *create* one goes.
+- [ ] Tests asserting the refusal text are updated. At minimum
+      `test_recurring_scan_refusal_names_the_missing_control_worktree`
+      (asserts `"git worktree add" in error` today; flip to `not in`) and
+      `test_recurring_relay_names_a_stale_control_worktree`.
+      `python -m pytest tests/test_recurring.py tests/test_packaging.py`
+      passes.
+
+### Out of scope
+
+- Any Coga-created checkout for agent sessions (declined; see above).
+- Removing the existing-control-worktree relay.
+- `--all` temp control worktrees (`coga/internals/recurring-temp-worktrees`).
+  These are Coga-owned, marker-tracked, and reaped, which is the allowed
+  exception.
+- `coga retire`'s isolated Retro checkout (`src/coga/resources/retire.md`,
+  `retro/done-ticket` isolation boundary). It needs its own design and is
+  split into a sibling ticket, `stop-creating-linked-worktrees-for-coga-retire`.
+- Direct `coga launch recurring/<name>`. Its refusal already says nothing
+  about worktrees (`test_recurring_launch_spelling_keeps_the_plain_branch_refusal`).
+
+## Context
+
+Cite symbols, not line numbers.
+
+- **Code.** `recurring_runner._refuse_non_control_branch` builds both
+  `absence` messages. The caller that sets `no_control_worktree` /
+  `unusable_control_worktree` is `_relay_off_control_single_repo_run`.
+  Leave relay selection itself alone.
+- **Why `git switch` alone is safe to recommend.** The refusal fires only
+  when no usable holder exists. With no holder, `git switch <control>` in
+  the operator's checkout succeeds unless the tree is dirty, and Git explains
+  that case itself. With an unusable holder, the switch fails until the
+  holder is removed or pruned, so keep that repair first in that branch.
+- **Topic paragraph to rewrite.** In `recurring-control`, section
+  "Recurring runs start on the control branch", the paragraph beginning
+  "With **no** worktree on control" currently offers
+  `git worktree add ../<repo>-<control> <control>` or `git switch <control>`.
+  Put the declined note in the same section, or a short subsection right
+  after the relay description.
+- **Verification already done in design (2026-10-02, against `main`).**
+  `git.prepare_control_checkout` refuses when `worktree_holding_branch(root,
+  control)` names a different checkout (covered by
+  `tests/test_git.py::test_prepare_refuses_when_control_is_held_by_another_worktree`).
+  Ten recurring templates ship: seven `ticket.py` ones, plus three
+  agent-backed (`dream`, and the delegating `resolve-conflicts` and
+  `address-pr-comments`). Agent/delegated admission requires a TTY
+  (`coga/recurring/scheduling`, `coga/recurring/delegation`).
+- **Wording nuance from the design evaluator.** The lock is a contention
+  hazard *while another checkout holds control*, with Git-disabled and
+  remote-less exemptions. It is not an unconditional reservation. Phrase the
+  declined note that way rather than "every launch, for the whole session".
+- Repo rule: a behavior change updates the owning topic and its packaged twin
+  in the same PR.
+
+<!-- coga:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+---
+
+## Blockers
+
+- [x] [2026-09-09 12:03] [agent:nick] id=20260909T120328 Blocked on sibling `reuse-the-existing-control-worktree-for-recurring` merging first. Its branch `recurring-control-worktree` (a8c12607) is unmerged with no PR open, and its `COGA_LOCAL_CONFIG` / `local_config_path` seam is still in peer-review. That seam, plus its 'agent templates are admitted' and 'delegate: works unchanged' conclusions, are load-bearing for this ticket's ## Context and for its likely close-unbuilt outcome. Unblock once that branch lands, then re-verify ## Context against the merged code before launching design.
+  resolved: [2026-09-25 11:19] [human:nicktoper] Sibling reuse-the-existing-control-worktree-for-recurring merged as eb725dfa3 (PR #846); ## Context re-verified and updated 2026-09-25.
+
+- [x] [2026-09-25 11:19] [agent:claude] id=20260925T111958 Wait for stop-using-worktrees to merge. It removes linked worktrees from ordinary ticket work and decides the fate of the worktree: field, which changes known breaks #1 and #2 in ## Context. Unblock once it lands, re-verify those two breaks against merged code, then launch design.
+  resolved: [2026-10-02 11:07] [human:nicktoper] stop-using-worktrees merged as e122d774 (PR #896). Re-verified: break #1 gone (code/implement branches in the launch checkout, no ../coga-<branch>); break #2 largely gone (branch gate needs only branch:; worktree: only for the read-only-git sandbox clone fallback). open_pr._checkout_mode to be re-checked in design.
+
+
+---
+
+## Blocker reminders
+
+- 8cf614ca1bd7 last_reminded: 2026-09-11 10:00
+
+- a18bb9968178 last_reminded: 2026-09-28 08:36
+
+---
+
+## Superseded designs
+
+### 2026-10-02 — Coga-created checkout for agent-backed recurring templates off control
+
+Superseded by: retarget to "Stop recommending control worktrees in the recurring refusal" (owner, 2026-10-02).
+
+Reason: design concluded do-not-build — any checkout holding control makes `git.prepare_control_checkout` refuse ordinary ticket launches; owner accepted and folded in the refusal-text follow-up, with the `coga retire` worktree split to `stop-creating-linked-worktrees-for-coga-retire`.
+
+
+#### Description
+
 The hard remainder of "recurring should run from anywhere". Two sibling tickets
 cover the easy cases: `service-recurring-from-a-temp-control-worktree-ins`
 services the `--all` child's deterministic templates from a created temp
@@ -67,7 +211,7 @@ normal — the `code/design` skill has no close-unbuilt affordance and will
 otherwise push toward `implement`. Do not stop without bumping; the owner
 cancels the ticket at the `review-design` gate.
 
-### Design outcome (2026-10-02): do not build
+##### Design outcome (2026-10-02): do not build
 
 **Recommendation: close this ticket unbuilt.** Coga should not create a
 checkout, throwaway or persistent, to run agent-backed recurring templates
@@ -130,7 +274,7 @@ What a created checkout would change if built anyway: the agent would scan the
 control tip rather than the operator's tree, the same as the relay case. That
 answer does not change, and it was never the blocker.
 
-### Acceptance criteria
+##### Acceptance criteria
 
 - [ ] Owner accepts or rejects the do-not-build recommendation at
       `review-design`. On acceptance, the ticket is canceled with no code
@@ -140,7 +284,7 @@ answer does not change, and it was never the blocker.
       is either filed as its own ticket or explicitly declined. It is not
       folded in here unless the owner retargets this ticket.
 
-### Proposed shape
+##### Proposed shape
 
 None. No checkout is created and no code changes. If the owner retargets this
 ticket to the follow-up instead of canceling, its shape is: in
@@ -150,20 +294,20 @@ and creating a control worktree is either dropped or carries a warning that it
 blocks ticket launches. Mirror that in `coga/internals/recurring-control` and
 its packaged twin, and update the tests that assert the refusal text.
 
-### Out of scope
+##### Out of scope
 
 - Any Coga-created checkout for agent sessions, throwaway or persistent.
 - Removing the existing-control-worktree relay (sibling 2). It stays as a
   supported path for operators who choose that layout.
 - Everything already listed under *Not this ticket* below.
 
-## Context
+#### Context
 
 Cite symbols, not line numbers. `5243dfd5` (`delegate:` field, 2026-08-26)
 moved ~306 lines in `recurring_runner.py` and invalidated the line citations in
 this work's first draft.
 
-### Known breaks in the throwaway-worktree shape
+##### Known breaks in the throwaway-worktree shape
 
 These were established failures as of 2026-09-09. `stop-using-worktrees`
 (see *Dependency* below) is expected to remove #1 and may shrink or remove #2;
@@ -220,7 +364,7 @@ creates and keeps it", that is a new durable on-disk artifact in a system whose
 principles favor legible, git-backed state — argue for it on those terms rather
 than filing it under "a directory to manage".
 
-### Scope check the design must perform first
+##### Scope check the design must perform first
 
 The payoff here is two templates out of seven. Five carry `ticket.py`
 (`autoclose-merged`, `blocker-reminders`, `branch-sweep`, `digest`,
@@ -248,7 +392,7 @@ Sibling state as of 2026-09-25: both siblings are `done`.
   (`COGA_LOCAL_CONFIG`). So the remaining gap is exactly "agent template, off
   control, no control worktree exists".
 
-### Dependency: `stop-using-worktrees`
+##### Dependency: `stop-using-worktrees`
 
 Owner direction (2026-09-25): ordinary ticket work stops using linked
 worktrees; Coga-internal recurring/Dream worktrees stay. That is ticket
@@ -262,7 +406,7 @@ composes with a created checkout (fast-forward to `origin/main` inside a
 worktree that owns `main`), and whether its "dirty or on another ticket's
 branch → stop and ask/block" rule fires spuriously there.
 
-### Delegating templates
+##### Delegating templates
 
 `resolve-conflicts` is a `delegate:` template as of `5243dfd5`: the sweep
 performs the delegated launch in the operator's own terminal, with its own
@@ -274,7 +418,7 @@ Do not redo that reasoning. The narrower open question this design owns is
 whether it still holds when the checkout is one Coga created rather than one the
 operator already owns.
 
-### What the agent sees
+##### What the agent sees
 
 An agent session inside a control checkout scans the control tip, not the
 operator's dirty feature-branch tree. Sibling 2 already settled this for the
@@ -282,7 +426,7 @@ reuse case and calls it intended. The remaining question is narrower — whether
 *created* checkout changes that answer (probably not). Whatever the choice,
 state it: it changes what the feature *means*, not just how it is built.
 
-### Worktree hygiene facts
+##### Worktree hygiene facts
 
 - `coga.local.toml`, `.coga/`, and `.agent-skills/` are all gitignored
   (`coga/.gitignore`), so a fresh checkout lacks them.
@@ -316,7 +460,7 @@ state it: it changes what the feature *means*, not just how it is built.
   skips the local commit there, so the serviced-period ledger line would never
   reach control and every sweep would re-fire the period.
 
-### Context to read and update
+##### Context to read and update
 
 The old monolithic `coga/contexts/coga/recurring/SKILL.md` was split into
 focused topics under `docs/contexts/`. They are cited, not attached; read them
@@ -342,7 +486,7 @@ context-in-the-same-PR rule. These topics now **do** have packaged twins under
 `src/coga/resources/templates/coga/bootstrap/contexts/coga/`, byte-checked by
 `tests/test_packaging.py`; keep both copies in sync.
 
-### Not this ticket
+##### Not this ticket
 
 - The `--all` path (`service-recurring-from-a-temp-control-worktree-ins`).
 - Reusing an existing control worktree
@@ -353,13 +497,8 @@ context-in-the-same-PR rule. These topics now **do** have packaged twins under
   Rejected with full reasoning in
   `service-recurring-from-a-temp-control-worktree-ins`; not an open question.
 
-<!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
-
----
-
-## Design notes (2026-10-02, design step)
+#### Design notes (2026-10-02, design step)
 
 - Outcome: **do not build**. Full reasoning is in `## Description` →
   *Design outcome*. Expect the owner to cancel at `review-design`.
@@ -374,7 +513,8 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - Breaks #1 and #2 are confirmed gone against merged code; #3 stands and is
   worse (see Description).
 
-## Evaluator review
+
+#### Evaluator review
 
 2026-10-02 — cold review of the ticket body against the merged checkout.
 
@@ -385,7 +525,7 @@ The body clearly selects cancellation over implementation; the frozen workflow
 correctly places an owner gate next. Acceptance and follow-up disposition are
 observable, but the closure plan omits the durable decision below.
 
-### Must resolve at owner review, before closure or implementation
+##### Must resolve at owner review, before closure or implementation
 
 1. **Preserve an accepted rejection outside this ticket.** Description and
    Proposed Shape leave the rationale in the ticket and require no changes;
@@ -401,7 +541,7 @@ observable, but the closure plan omits the durable decision below.
    and its packaged twin before this rationale can be retired. This needs no
    runtime implementation and need not absorb the refusal-text follow-up.
 
-### Optional clarifications
+##### Optional clarifications
 
 - Qualify “for the whole session” and “every ordinary ticket launch.”
   `src/coga/git.py::prepare_control_checkout` / `_plan_preparation` refuse
@@ -420,7 +560,7 @@ observable, but the closure plan omits the durable decision below.
   succeed while that holder still owns control. Otherwise the existing
   file-or-decline acceptance criterion is sufficient.
 
-### Verification
+##### Verification
 
 - `e122d774` is an ancestor of the reviewed HEAD. The live template census is
   seven `ticket.py` templates and three agent templates; `resolve-conflicts`
@@ -447,7 +587,8 @@ PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_git.py
 
 No ticket-body, runtime, workflow, or topic edits; no branch or PR created.
 
-## Open Questions
+
+#### Open Questions
 
 - The relay's refusal (`recurring_runner._refuse_non_control_branch`, both
   `absence` branches) and `coga/internals/recurring-control` still tell the
@@ -459,20 +600,3 @@ No ticket-body, runtime, workflow, or topic edits; no branch or PR created.
   alone?
 
 ---
-
-## Blockers
-
-- [x] [2026-09-09 12:03] [agent:nick] id=20260909T120328 Blocked on sibling `reuse-the-existing-control-worktree-for-recurring` merging first. Its branch `recurring-control-worktree` (a8c12607) is unmerged with no PR open, and its `COGA_LOCAL_CONFIG` / `local_config_path` seam is still in peer-review. That seam, plus its 'agent templates are admitted' and 'delegate: works unchanged' conclusions, are load-bearing for this ticket's ## Context and for its likely close-unbuilt outcome. Unblock once that branch lands, then re-verify ## Context against the merged code before launching design.
-  resolved: [2026-09-25 11:19] [human:nicktoper] Sibling reuse-the-existing-control-worktree-for-recurring merged as eb725dfa3 (PR #846); ## Context re-verified and updated 2026-09-25.
-
-- [x] [2026-09-25 11:19] [agent:claude] id=20260925T111958 Wait for stop-using-worktrees to merge. It removes linked worktrees from ordinary ticket work and decides the fate of the worktree: field, which changes known breaks #1 and #2 in ## Context. Unblock once it lands, re-verify those two breaks against merged code, then launch design.
-  resolved: [2026-10-02 11:07] [human:nicktoper] stop-using-worktrees merged as e122d774 (PR #896). Re-verified: break #1 gone (code/implement branches in the launch checkout, no ../coga-<branch>); break #2 largely gone (branch gate needs only branch:; worktree: only for the read-only-git sandbox clone fallback). open_pr._checkout_mode to be re-checked in design.
-
-
----
-
-## Blocker reminders
-
-- 8cf614ca1bd7 last_reminded: 2026-09-11 10:00
-
-- a18bb9968178 last_reminded: 2026-09-28 08:36
