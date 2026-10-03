@@ -1,6 +1,6 @@
 ---
 title: Run clean installs and file issues
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: direct/body
@@ -9,7 +9,6 @@ workflow:
     skills:
     - direct/body
     assignee: agent
-step: 1 (execute)
 agent: claude
 ---
 
@@ -170,3 +169,38 @@ Teardown completed successfully (UTC timestamps from the resource ledger):
 - Fresh `AWS_PROFILE=multiply-telemetry ./scripts/clean-install/aws-mac.sh status installer-mac-20261001` at 02:36Z confirms the host is `released`; the terminated instance is no longer returned. No AWS test resources remain running or allocated. This also resolves the prior macOS-harness host-release obligation.
 
 Evidence and ledger remain under `.coga/clean-install/installer-mac-20261001/`. Mac runs stop at the recorded authentication blocker; no actual first-task workflow completed. Local Linux containers remain available for a Codex login retry. The ticket remains in progress pending the owner's findings review and decision on authenticated continuation; no completion transition run.
+
+
+### Resumption review — 2026-10-02
+
+- Verified both child findings still exist as `draft` on `code/with-review`:
+  `document-the-macos-command-line-tools-prerequisite` and
+  `pin-python-3-11-in-the-macos-clean-install-harness`.
+  `marketing/readme-top` remains the existing README owner with the coordination note.
+- The local AWS resource ledger confirms all four cleanup timestamps above;
+  no new AWS call or provisioning was performed in this resumption.
+- Newer durable evidence supersedes the matrix's “release pending” label:
+  `cleanup/publish-coga-1-0-to-pypi` is now done and records publication of
+  **0.4.0**, plus a fresh unpinned PyPI install/init/validate pass on Python
+  3.11.15. This is that release ticket's evidence, not a new matrix run here.
+  The 0.2.0 failure remains valid historical evidence; it is no longer an
+  outstanding release gap. All four matrix runs above remain dated October 1.
+- Owner review is still required before completion. Present the two drafts,
+  README owner, historical release finding, and authentication limitation;
+  ask whether to close this dated audit with its recorded blocking steps or
+  refresh Linux against 0.4.0/current main and retry attended authentication.
+  Refreshing macOS would require separate approval for a new billed host.
+  No first-task pass or completion transition is claimed.
+
+
+### Owner review and completion — 2026-10-02
+
+Owner reviewed the presented findings and replied “ok”; closing this dated
+October 1 audit with authentication recorded as the blocking step for all
+four artifact runs. No refreshed 0.4.0 matrix or authenticated first-task
+completion is claimed. The intended workflow was `direct/body`; none was
+exercised. The two new draft findings and existing README owner are linked
+above, the historical PyPI release gap is superseded by the 0.4.0 release
+evidence, and AWS teardown is verified in the recorded ledger and prior
+status check. No additional resources were provisioned. Local Linux
+containers were retained for a possible later retry, as previously recorded.
