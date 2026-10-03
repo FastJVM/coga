@@ -69,8 +69,10 @@ tool you natively speak:
 
 - **Claude**: run the `/code-review` slash command (default effort —
   *not* `ultra`) against the branch diff vs `main`.
-- **Codex**: run `codex review --base <branch you forked from>`
-  (usually `main`).
+- **Codex**: review the branch diff vs the branch you forked from (usually
+  `main`) yourself, from `git diff main...<branch>`. Don't shell out to
+  `codex review`: inside a Codex session its sandbox makes `~/.codex`
+  read-only, so the nested client fails with `Read-only file system`.
 
 Start with the `dev/checkouts` start check on `main`, and read the change by
 name without switching (`git diff main...<branch>`, `git log
