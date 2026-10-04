@@ -2361,6 +2361,9 @@ def _launch_due_tasks(
                             template_damage=_damage_since(
                                 cfg, task.template, template_description_before
                             ),
+                            # A launch refusal before `ticket.py` ran leaves
+                            # the blackboard blank; its message is the record.
+                            detail=getattr(exc, "reason", ""),
                         )
                     )
                     failures.append((task.ref.id_slug, code))
@@ -2515,6 +2518,7 @@ def _task_outcome(
     result: str = "",
     exit_code: int | None = None,
     template_damage: str | None = None,
+    detail: str = "",
 ) -> TaskOutcome:
     """Classify one period task's run for the record.
 
@@ -2529,7 +2533,6 @@ def _task_outcome(
     overrides an otherwise-clean result so the sweep counts it as a problem.
     """
     status = outcome_for_ref(cfg, ref)
-    detail = ""
     if not result:
         # Status first, `kind` only to explain it. `kind == "script"` says the
         # deterministic phase ended the launch — including the ordinary success
