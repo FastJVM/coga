@@ -1,6 +1,6 @@
 ---
 title: Complete the authenticated clean-install audit
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: direct/body
@@ -32,3 +32,35 @@ Use the owned-Mac route from marketing/fix-installer/affordable-macos-testing-on
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Readiness review — 2026-10-05 (attended, claude)
+
+Base: local main == origin/main `44ce9a05d` after fetch. pyproject 0.4.0; PyPI latest 0.4.0. Host has uv 0.11.28, python3.11, Docker.
+
+Coordinating tickets — **none of the relevant fixes has landed**:
+- `offer-agent-cli-install-and-setup-at-init`: active step 1, owner decisions recorded 2026-10-01, nothing implemented (waits for relaunch on code/with-review). Until it lands, agent CLI install/login stays a manual step in each env.
+- `document-the-macos-command-line-tools-prerequisite`: draft. Mac walks will hit the CLT stop again; headless `softwareupdate` remains the test-only workaround.
+- `pin-python-3-11-in-the-macos-clean-install-harness`: draft; `container.sh` still bare `python3`. Mac walks need the explicit 3.11 test-only workaround again.
+- `affordable-macos-testing-on-owned-macs-and-per-min`: draft, no owned-Mac SSH path exists yet. Mac route today = AWS (new allocation needs fresh spend approval, ~USD 15.60/24h min) or an ad-hoc owner Mac.
+- `marketing/readme-top`: draft; `build-the-launch-plan`: in_progress, human-owned step.
+
+Predecessor (`run-clean-installs-and-file-issues`) retired; its matrix recovered from git (`598104e10^`). Codex was the chosen agent; device login expired; no first task ran. Prior AWS host released 2026-10-02.
+
+Leftover local Docker containers still running from earlier tickets: `installer-{main,pypi}-20261001`, `clean-{main,pypi}`, `clean-{main,pypi}-20260929`, plus 4 exited unnamed. Not this ticket's resources; candidates for cleanup with owner OK. Not reused as fresh runs.
+
+Asked owner: proceed now vs wait for fixes; Mac route + spend; agent choice; first-task body.
+
+### Owner decisions — 2026-10-05
+- **Wait for fixes** before running the matrix: offer-agent-cli-install-and-setup-at-init, document-the-macos-command-line-tools-prerequisite, pin-python-3-11-in-the-macos-clean-install-harness. No runs started; no environments or AWS resources created.
+- Mac route: **owned Mac via SSH** (no AWS spend). Depends on owner providing SSH access (and/or affordable-macos-testing-on-owned-macs-and-per-min landing).
+- Agent: **both** Claude Code and Codex (scope per env to confirm on resume).
+- First task approved: direct/body "Write a short NOTES.md in the scratch repo summarizing what coga init created, then mark the task done"; must reach status done.
+- Agent scope confirmed: **both Claude Code and Codex in each of the four environments** (8 authenticated first tasks).
+- Owner approved deleting leftover containers; removed 2026-10-05: `installer-{main,pypi}-20261001`, `clean-{main,pypi}`, `clean-{main,pypi}-20260929`, `loving_germain`, `dreamy_mcnulty`, `confident_sanderson`, `peaceful_visvesvaraya`. Unrelated `magicator-llvm14` and `coga-retest2` left untouched. Host receipts under `.coga/clean-install/` kept.
+- Owner asked to park: blocked until the three fix tickets merge and owned-Mac SSH access is available.
+
+---
+
+## Blockers
+
+- [ ] [2026-10-05 16:28] [agent:claude] id=20261005T162853 Waiting on fixes to land before the 4-run matrix: offer-agent-cli-install-and-setup-at-init, document-the-macos-command-line-tools-prerequisite, pin-python-3-11-in-the-macos-clean-install-harness merged; plus owner SSH access to the spare Mac (owned-Mac route). Unblock and relaunch when ready.
