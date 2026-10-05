@@ -7491,3 +7491,4 @@ fatal: Unable to add (null) to database
 2026-10-05 14:41 [match-concurrent-codex-sessions-to-their-launch-so] [human:nicktoper] created (status=draft)
 2026-10-05 14:48 [match-concurrent-codex-sessions-to-their-launch-so] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-05 14:48 [match-concurrent-codex-sessions-to-their-launch-so] [human:nicktoper] started (active → in_progress) via coga launch
+2026-10-05 14:48 [match-concurrent-codex-sessions-to-their-launch-so] [human:nicktoper] launched (operator=claude, agent=claude)
