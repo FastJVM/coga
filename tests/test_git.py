@@ -1465,6 +1465,31 @@ def test_prepare_cleans_a_published_ticket_edit_from_a_feature_checkout(git_repo
     assert "handoff" in ticket.read_text()
 
 
+def test_a_crlf_working_copy_publishes_the_blob_git_add_stages(git_repo):
+    """Under `core.autocrlf`, publish must hash through the clean filters.
+
+    Raw bytes landed a CRLF blob on control while `git add` staged LF, so
+    the staged copy never matched and the checkout return refused forever.
+    """
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.git("config", "core.autocrlf", "input")
+    git_repo.checkout_branch("feature/x")
+    task = git_repo.coga_os / "tasks" / "recurring" / "sweep"
+    task.mkdir(parents=True)
+    (task / "ticket.md").write_bytes(_ticket_text().replace("\n", "\r\n").encode())
+    (task / "ticket.py").write_bytes(b"print('hi')\r\nraise SystemExit(0)\r\n")
+    git_repo.git("add", "--", "coga/tasks/recurring/sweep")
+    assert git.publish(cfg, [task], "Recurring: create sweep") is True
+
+    published = subprocess.run(
+        ["git", "show", "main:coga/tasks/recurring/sweep/ticket.py"],
+        cwd=git_repo.origin, capture_output=True, check=True,
+    ).stdout
+    assert published == b"print('hi')\nraise SystemExit(0)\n"
+    _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
+
+
 def test_prepare_cleans_published_untracked_and_deleted_state(git_repo):
     cfg = load_config(git_repo.coga_os)
     gone = _seed_ticket(git_repo, slug="gone")

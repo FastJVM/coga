@@ -269,7 +269,10 @@ def publish(
         sys.stderr.write(control_branch_mismatch_message(cfg, root) + f" ({message})\n")
         return None
     expected = {
-        relative_to_root(root, path): (None if data is None else _hash_blob(root, data))
+        relative_to_root(root, path): (
+            None if data is None
+            else _hash_blob(root, data, relative_to_root(root, path))
+        )
         for path, data in (expect or {}).items()
     }
     with state_lock(cfg):
@@ -515,7 +518,7 @@ def _guard(
                 refusals.append(reason)
                 continue
         control_oid = _blob_oid(root, base, rel)
-        working_oid = None if data is None else _hash_blob(root, data)
+        working_oid = None if data is None else _hash_blob(root, data, rel)
         allowed = {expected[rel]} if rel in expected else baseline[rel] | {working_oid}
         if control_oid not in allowed:
             delta = ""
@@ -610,7 +613,7 @@ def _build_tree(
                 mode = "100755" if os.access(root / rel, os.X_OK) else "100644"
                 run_git(
                     root, "update-index", "--add", "--cacheinfo",
-                    mode, _hash_blob(root, data), rel, env=env,
+                    mode, _hash_blob(root, data, rel), rel, env=env,
                 )
         return run_git(root, "write-tree", env=env).strip()
     finally:
@@ -1256,7 +1259,9 @@ def _published_proof(
     if mode != published[0]:
         return "file mode differs from control"
     if not union:
-        return None if _hash_blob(root, data) == published[1] else "content differs from control"
+        if _hash_blob(root, data, rel) == published[1]:
+            return None
+        return "content differs from control"
     control_bytes = _blob_bytes(root, published[1])
     base = _blob_bytes(root, head_entry[1]) if head_entry is not None else b""
     merged = _merge_union_bytes(current=control_bytes, base=base, other=data)
@@ -1862,8 +1867,18 @@ def _blob_oid(root: Path, rev: str, rel: str) -> str | None:
     return result.stdout.decode().strip() or None
 
 
-def _hash_blob(root: Path, data: bytes) -> str:
-    result = _run(["git", "-C", str(root), "hash-object", "-w", "--stdin"], input=data)
+def _hash_blob(root: Path, data: bytes, rel: str) -> str:
+    """Store `data` as the blob `git add` would make for `rel`.
+
+    `--path` applies the checkout's clean filters (`core.autocrlf`,
+    `.gitattributes`), so a CRLF working copy hashes to the same LF blob the
+    index holds. Raw bytes would land a CRLF blob on control that no staged
+    or re-added copy of the file can ever match.
+    """
+    result = _run(
+        ["git", "-C", str(root), "hash-object", "-w", f"--path={rel}", "--stdin"],
+        input=data,
+    )
     if result.returncode != 0:
         raise GitError(f"`git hash-object` failed: {result.stderr.decode(errors='replace').strip()}")
     return result.stdout.decode().strip()
