@@ -816,3 +816,10 @@ Result: pr-opened — 10 eligible done tickets processed (progress file reported
 - Knowledge PR https://github.com/FastJVM/coga/pull/954 — K16 `coga/testing/clean-install/macos-aws`: EC2 Mac host reuse substitution + unpinned Python 3.11 known failure; deletes `marketing/fix-installer/run-clean-installs-and-file-issues`.
 - Direct-deleted (nothing durable, landed on origin/main): recurring/address-pr-comments, autoclose-merged, blocker-reminders, branch-sweep, phone-home, resolve-conflicts, skill-update, usage-report.
 - Deferred retirement debt: 139 done tickets with a real `## Dev` checkout (not Retro input; `coga retire <slug>`).
+
+## Dream Skill: cleanup-orphan-markers
+
+Generated: 2026-10-05T18:52:35+00:00
+Task: `recurring/dream`
+
+Result: no-op. No cleanup-eligible processed done tickets still have task directories.
