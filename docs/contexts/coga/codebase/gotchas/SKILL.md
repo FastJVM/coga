@@ -73,9 +73,10 @@ pitfalls live in [coga/testing](../../testing/SKILL.md); checkout hazards in
 - **Use `git branch --show-current`, never `rev-parse --abbrev-ref HEAD`.** A
   tag with the branch's name makes the latter return `heads/<name>`. Fail
   closed when the probe errors instead of treating it as "not control".
-  `branchcleanup._current_branch` is correct; `branchsweep._current_branch`
-  and two call sites in `open_pr.py` still use the shadowable form and map a
-  failed probe to `""`.
+  `branchcleanup._current_branch` is correct. The shared `git.current_branch`
+  still uses the shadowable form and has the widest reach (refresh, launch,
+  `bump`, `retire`, autoclose); `branchsweep._current_branch` and two call
+  sites in `open_pr.py` also use that form and map a failed probe to `""`.
 - **Prompt resources are the only copy of a rule most agents see.**
   `src/coga/resources/prompt*.md` compose into every launch, while contexts
   attach per ticket. Restate a rule there completely or point at the topic,
