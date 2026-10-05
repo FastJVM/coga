@@ -1,6 +1,6 @@
 ---
 title: Match concurrent Codex sessions to their launch so usage stops undercounting
-status: draft
+status: active
 owner: nicktoper
 contexts:
 - dev/code
@@ -31,6 +31,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
