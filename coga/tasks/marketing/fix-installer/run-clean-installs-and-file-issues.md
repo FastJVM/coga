@@ -204,3 +204,13 @@ above, the historical PyPI release gap is superseded by the 0.4.0 release
 evidence, and AWS teardown is verified in the recorded ledger and prior
 status check. No additional resources were provisioned. Local Linux
 containers were retained for a possible later retry, as previously recorded.
+
+
+### Follow-up ownership — 2026-10-05
+
+The authenticated rerun recommended after this dated audit is now assigned
+to `marketing/fix-installer/complete-the-authenticated-clean-install-audit`.
+It owns fresh Linux/macOS × current PyPI/main evidence through a completed
+first task, and is linked from `marketing/build-the-launch-plan`. This
+closed audit remains historical evidence, including its authentication
+limitations. The existing macOS fixes and README ticket retain their scope.

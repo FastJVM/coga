@@ -43,7 +43,11 @@ launch checklist. They are also the editing targets for accepted learnings.
 
 - Track `marketing/readme-top`, the `marketing/fix-installer/` tickets
   (clean-install harnesses, then the run that files each issue; including
-  one-task onboarding), and the [weekly snapshot contract](../../contexts/coga/telemetry/SKILL.md). Record the verified first-run
+  one-task onboarding). The authenticated Linux/macOS × PyPI/main rerun is
+  owned by `marketing/fix-installer/complete-the-authenticated-clean-install-audit`;
+  the earlier installer audit closed with authentication blockers and does
+  not establish a completed first task. Track that evidence alongside
+  the [weekly snapshot contract](../../contexts/coga/telemetry/SKILL.md). Record the verified first-run
   path and PostHog acceptance evidence; this ticket does not implement them.
 - `marketing/idea-piece` produces the single argument and concrete proof.
   The owner chooses its publication venue and approves/publishes the copy.
