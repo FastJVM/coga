@@ -40,6 +40,12 @@ step movement are [coga/lifecycle](../lifecycle/SKILL.md).
   the original's own path: `coga create` refuses to nest a ticket inside a
   directory-form task. Do not put `ticket.md` at a group root; that makes it a
   task, and discovery stops there.
+  Owner decision (2026-09-25): there is deliberately no split contract (no
+  split skill, `## Split` roster, or `Split from` cross-link convention; #889
+  closed) and no oversized-ticket instruction in the `code/*` step skills
+  (#899, then removed in `2ffcd4f8b`): agents almost never split or escalated,
+  so the text was prompt noise. Splitting stays the ad-hoc sibling practice
+  above; reopen only on evidence of repeated oversized-ticket failures.
 
 A task's identity is its **path under `tasks/`**: the bare leaf at top level,
 otherwise the relative path (`marketing/social/relaunch`). `resolve_task`

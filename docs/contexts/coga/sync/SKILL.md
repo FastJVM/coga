@@ -33,6 +33,11 @@ transition.
 - A **feature or detached checkout** publishes the same way but keeps its
   published ticket and log dirty by design. Do not `git add` Coga state into
   a PR. `coga status` warns when control is ahead of the local copy.
+  Owner decision (2026-10-01): the base prompt carries no rule forbidding
+  agents to commit Coga state, though a hand commit on local control diverges
+  it from origin and blocks launch. Prevention in the prompt would let agents
+  hide the divergence; the remedy belongs in a deterministic CLI guard that
+  detects it. Reopen only if such a guard proves insufficient.
 - The end-of-command sweep publishes every dirty task, log, and recurring
   path, plus eligible committed state there (through the same provenance
   checks), from **whichever checkout you ran the command in** — including a
