@@ -7413,3 +7413,25 @@ fatal: Unable to add (null) to database
 2026-10-02 17:40 [marketing/fix-installer/run-clean-installs-and-file-issues] [human:nicktoper] slack: Completed: owner reviewed the dated four-run clean-install audit. Authentication blockers recorded; two draft findings filed and existing owners linked. AWS cleanup verified. No full first-task pass claimed.
 2026-10-02 17:06 [run-recurring-agent-templates-off-the-control-bran] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
 2026-10-02 17:40 [stop-creating-linked-worktrees-for-coga-retire] [human:nicktoper] created (status=draft)
+2026-10-05 11:26 [recurring/address-pr-comments] [system] created (status=active)
+2026-10-05 11:26 [recurring/address-pr-comments] [system] deleted completed prior-period task before 2026-10-05
+2026-10-05 11:26 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-10-05
+2026-10-05 11:26 [recurring/autoclose-merged] [system] created (status=active)
+2026-10-05 11:26 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-10-05
+2026-10-05 11:26 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-10-05
+2026-10-05 11:26 [recurring/blocker-reminders] [system] created (status=active)
+2026-10-05 11:26 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-10-05
+2026-10-05 11:26 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-10-05
+2026-10-05 11:26 [recurring/branch-sweep] [system] created (status=active)
+2026-10-05 11:26 [recurring/branch-sweep] [system] created recurring/branch-sweep for 2026-W41
+2026-10-05 11:26 [recurring/dream] [system] created (status=active)
+2026-10-05 11:26 [recurring/dream] [system] deleted completed prior-period task before 2026-W41
+2026-10-05 11:26 [recurring/dream] [system] created recurring/dream for 2026-W41
+2026-10-05 11:26 [recurring/phone-home] [system] created (status=active)
+2026-10-05 11:26 [recurring/phone-home] [system] created recurring/phone-home for 2026-W41
+2026-10-05 11:26 [recurring/resolve-conflicts] [system] created (status=active)
+2026-10-05 11:26 [recurring/resolve-conflicts] [system] created recurring/resolve-conflicts for 2026-W41
+2026-10-05 11:26 [recurring/skill-update] [system] created (status=active)
+2026-10-05 11:26 [recurring/skill-update] [system] created recurring/skill-update for 2026-W41
+2026-10-05 11:26 [recurring/usage-report] [system] created (status=active)
+2026-10-05 11:26 [recurring/usage-report] [system] created recurring/usage-report for 2026-W41
