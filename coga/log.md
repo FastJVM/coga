@@ -7454,3 +7454,4 @@ fatal: Unable to add (null) to database
 2026-10-05 11:29 [recurring/autoclose-merged] [system] task done
 2026-10-05 11:29 [recurring/autoclose-merged] [system] script exited with code 0
 2026-10-05 11:29 [bootstrap/resolve-conflicts] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-05 11:29 [recurring/resolve-conflicts] [system] started (active → in_progress) via recurring delegation to bootstrap/resolve-conflicts
