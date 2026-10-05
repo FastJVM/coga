@@ -7436,3 +7436,4 @@ fatal: Unable to add (null) to database
 2026-10-05 11:26 [recurring/usage-report] [system] created (status=active)
 2026-10-05 11:26 [recurring/usage-report] [system] created recurring/usage-report for 2026-W41
 2026-10-05 11:26 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-05 11:26 [recurring/address-pr-comments] [system] started (active → in_progress) via recurring delegation to bootstrap/address-pr-comments
