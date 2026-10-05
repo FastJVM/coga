@@ -75,8 +75,13 @@ remain attributed to the last real model.
 **Codex** (cumulative counts, **last event**). With no session-id flag,
 capture snapshots `~/.codex/sessions/**/rollout-*.jsonl` before spawn and
 claims the one new file whose `session_meta.payload.cwd` equals the session
-cwd (and whose start time is in the window). None or several → usage
-unknown. `token_count` events carry cumulative `info.total_token_usage`, so the
+cwd (and whose start time is in the window). Subagent rollouts are skipped
+first: every codex child writes its own rollout with the parent's cwd, so a
+rollout whose `session_meta.payload` has `thread_source == "subagent"` or a
+non-empty `parent_thread_id` never matches. A parent plus N children resolves
+to the parent; subagent tokens are deliberately not counted (parity with a
+parent-only session). None or several top-level matches (a child-only set
+included) → usage unknown. `token_count` events carry cumulative `info.total_token_usage`, so the
 last event is taken and never summed, which makes resume and compaction
 double-counting a non-issue. Mapping: `cached_input_tokens` → cache-read,
 reasoning folded into output, cache-create null (Codex exposes no split).
