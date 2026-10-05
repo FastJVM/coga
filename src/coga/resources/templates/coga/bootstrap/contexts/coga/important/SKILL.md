@@ -6,7 +6,11 @@ description: The coga-important destination — the action-needed bar that earns
 # coga-important — notifications that need human action
 
 `coga-important` is the channel behind `[notification.slack].important_webhook`
-for notifications that need a human to act. Nothing else goes there.
+for notifications that need a human to act. Nothing else Coga ships posts
+there. A repo may deliberately route its own low-volume periodic report to
+important as an explicit exception: the Coga source repo's weekly usage
+report (`coga/recurring/usage-report`) posts there so token consumption is
+seen on a cadence short enough to notice a change.
 Everything else Coga posts — explicit FYIs, urgent exceptions, ticket
 outcomes — stays on the flow webhook, and routine lifecycle churn is not
 posted at all ([`coga/notifications`](../notifications/SKILL.md)). Being

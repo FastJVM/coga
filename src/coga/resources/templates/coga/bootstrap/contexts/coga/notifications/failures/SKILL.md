@@ -88,7 +88,8 @@ The ordinary delivery-miss path appends an audit line. Two paths do not:
   `notify` accept it for strict publishers whose exact lease is already
   consumed, where a new dirty log line would block the child's clean
   checkout gate or be swept unleased. Its current caller is the
-  `recurring/phone-home` weekly snapshot receipt (`ticket.py` `_receipt`):
+  `recurring/phone-home` weekly snapshot receipt (`src/coga_edge/phone_home.py`
+  `_receipt`, reached through the phone-home `ticket.py` shim):
   a best-effort telemetry receipt from a bounded worker whose failure must
   not affect capture or completion, so a delivery miss must not dirty
   `coga/log.md` ([coga/telemetry](../../telemetry/SKILL.md)).
