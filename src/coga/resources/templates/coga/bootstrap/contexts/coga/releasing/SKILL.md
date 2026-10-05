@@ -66,10 +66,28 @@ no-cost way to catch a packaging problem.
 ## Real release
 
 1. Bump `version` in `pyproject.toml` if needed and land it on `main`.
-2. Releases -> Draft a new release -> tag `v<version>`, target `main`,
+2. Run the pre-tag gate on the exact commit you will tag. The workflow runs
+   no tests, so this is the only behavioral check before an immutable upload:
+   - the full suite against that checkout,
+     `PYTHONPATH=<checkout>/src python -m pytest`, with its count recorded
+     ([coga/testing](../testing/SKILL.md));
+   - build both distributions and `twine check dist/*`;
+   - install the built wheel into a fresh Python 3.11 venv (the
+     `requires-python` floor), then run `coga --version`,
+     `coga init --user tester`, and `coga validate --json` in a scratch Git
+     repository.
+3. Releases -> Draft a new release -> tag `v<version>`, target `main`,
    Publish release.
-3. The workflow publishes to PyPI.
-4. Verify: `pipx install coga && coga --version`.
+4. The workflow publishes to PyPI.
+5. Verify from a fresh environment that bypasses caches:
+   `python3.11 -m venv <dir>` then
+   `<dir>/bin/python -m pip install --no-cache-dir --index-url https://pypi.org/simple coga`
+   (or pin `coga==<version>`), then `coga --version`. Right after the upload,
+   an unpinned install can still resolve the previous version from a stale
+   index or cache: the 0.4.0 release's first check got 0.2.0, and a new fresh
+   venv after the index refreshed got 0.4.0. Retry before treating an old
+   version as a failed publish; the release page and the workflow run are the
+   upload evidence.
 
 Each version uploads once per index. To re-test on TestPyPI, bump to a dev
 version such as `0.2.0.dev1`. A bad release can be yanked, not deleted.

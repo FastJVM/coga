@@ -163,3 +163,10 @@ never re-uploaded. Anything wrong in the wheel means the next fix ships as
   succeeds and creates `coga/`.
 - The run that counts is `marketing/phase-0-audit` step 3's full README
   quickstart against the published 1.0.0.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: release gate runs before tagging; post-upload install can see a stale index
