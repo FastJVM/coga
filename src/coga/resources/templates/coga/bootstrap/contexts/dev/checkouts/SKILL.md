@@ -28,14 +28,22 @@ Each time it:
 
 1. **Publishes routine state.** The ordinary state sweep (`sync_coga_state`)
    lands any dirty `coga/tasks/`, `coga/recurring/`, and `coga/log.md` path
-   the session or script did not publish. Only what publication cannot land
-   stays dirty.
+   the session or script did not publish, plus eligible committed state such
+   as a hand commit of a ticket on local `main` whose control copy has not
+   moved since. Only what publication cannot land stays dirty or unpublished.
 2. **Pins control.** `git fetch origin main` and pin that commit. Local
-   `main` must exist and be equal to or behind it. A detached HEAD, a merge,
-   rebase, cherry-pick, revert, or bisect in progress, `main` ahead of or
-   diverged from `origin/main`, or `main` checked out in another worktree
-   refuses (remedy: `git pull --rebase` and push, or
-   `git worktree remove <path>`).
+   `main` must exist and be equal to or behind it, or carry only commits of
+   Coga state whose content is already on the pinned commit (proved commit
+   by commit and path by path; [coga/internals/git-refresh](../../coga/internals/git-refresh/SKILL.md)),
+   in which case it is realigned rather than fast-forwarded. A detached HEAD,
+   a merge, rebase, cherry-pick, revert, or bisect in progress, `main` checked
+   out in another worktree, or any other ahead or diverged `main` refuses.
+   Remedies: for local commits of Coga state not yet on control, run
+   `git pull --rebase --autostash origin main` on `main` (switch to `main`
+   first from a feature branch) and retry the command; for local commits
+   touching anything else, reconcile them (`git pull --rebase --autostash
+   origin main` and push); otherwise `git worktree remove <path>`, or finish
+   or abort the operation.
 3. **Proves every change.** Staged, tracked, and untracked changes anywhere
    in the checkout are examined. Only Coga state may be discarded, and only
    when already on the pinned `origin/main`: the same existence, file mode,
@@ -48,9 +56,12 @@ Each time it:
 4. **Mutates only after full proof.** The whole plan is re-observed just
    before the first write, and changed evidence refuses. Then proven tracked
    paths are restored to HEAD, proven untracked files removed, HEAD switched
-   to `main`, and `main` fast-forwarded to the pinned commit; the result is
-   verified clean at that commit. It never stashes, resets hard,
-   force-switches, deletes a branch, or pushes code. The feature branch stays.
+   to `main`, and `main` fast-forwarded to the pinned commit — or realigned
+   to it (`read-tree -m -u` and an old-value-guarded `update-ref`), with the
+   dropped commits named on stderr and kept in the reflog. The result is
+   verified clean at that commit. It never stashes, rebases, resets hard,
+   force-switches, commits, deletes a branch, or pushes code. The feature
+   branch stays.
 
 An entry refusal names the blocking paths or branch and the remedy, starts no
 work, changes no checkout contents or local ref, and exits 75 so the outer
@@ -225,7 +236,8 @@ links are ignored, non-regenerable state, so they make it preserve the checkout.
 
 - **Mutating commands publish from wherever they run.** The exit sweep
   (`sync_coga_state`) publishes every dirty path under `coga/tasks/`,
-  `coga/log.md`, and `coga/recurring/` to control, even after a config
+  `coga/log.md`, and `coga/recurring/`, plus eligible committed state there,
+  to control, even after a config
   failure; contexts, skills, workflows, and config are never swept. Write
   deliberate ticket prose on `main`, not on a feature branch. Which
   invocations sweep is owned by
