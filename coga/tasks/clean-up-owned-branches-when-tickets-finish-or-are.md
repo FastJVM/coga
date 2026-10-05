@@ -50,4 +50,20 @@ Read docs/contexts/dev/checkout-cleanup/SKILL.md, docs/contexts/coga/lifecycle/S
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: terminal-branch-cleanup
+
+## Plan
+
+Owner approved the design on 2026-10-05: share explicit ownership checks across
+terminal transitions, retire/autoclose, and sweeps; support multiple recorded
+branches; permit closed-unmerged PR cleanup only for terminal owners; archive
+before deletion and preserve unsafe refs with retry reasons. Defer cleanup
+inside active sessions so no checkout disappears beneath the agent.
+
+Read `src/coga/mark.py` (`mark_done`, `mark_canceled`),
+`src/coga/checkout_disposal.py` (`dispose_checkout`, `live_checkout_claim`), and
+`src/coga/branchsweep.py` (`sweep_branches`, `merged_pr_verdict`). Existing
+sweep archives and merged-history proofs are the shared foundation. Backlog
+must be rechecked: the snapshot changed and PR #961 is now open.
+

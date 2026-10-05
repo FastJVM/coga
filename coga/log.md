@@ -7510,3 +7510,4 @@ fatal: Unable to add (null) to database
 2026-10-05 15:50 [marketing/fix-installer/complete-the-authenticated-clean-install-audit] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-05 15:50 [marketing/fix-installer/complete-the-authenticated-clean-install-audit] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-05 15:50 [marketing/fix-installer/complete-the-authenticated-clean-install-audit] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-05 16:27 [coga] [git] sync failed: push to origin/main failed: fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com; control could not be re-read: `git fetch --quiet origin +refs/heads/main:refs/remotes/origin/main` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com
