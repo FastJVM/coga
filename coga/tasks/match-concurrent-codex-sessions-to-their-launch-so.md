@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -160,3 +160,43 @@ Verification:
 - `coga validate --json` (repo): 1 error, pre-existing on base (`marketing/readme-top` unsynthesized-draft-blackboard). `example/`: no issues.
 
 Known gaps (documented): Claude discussion launches (marker goes to system prompt), resumed Codex rollouts (excluded by the pre-spawn snapshot).
+
+## Peer review
+
+2026-10-05: `codex review --base main` **returned** with one P2 finding:
+a malformed/truncated pinned Claude transcript could be misreported as known
+zero usage. Independently reproduced; owner approved the fix in this session.
+Commit `f7773d78c` requires complete JSON parsing before the empty-session
+classification, preserves unknown usage with an explanatory reason otherwise,
+and adds regressions for malformed JSON and a truncated assistant usage line.
+Updated activity-capture and its packaged twin. No outstanding review findings;
+no terminal/UI surface changed.
+
+Rebased unconditionally with `git fetch origin main` then `git rebase FETCH_HEAD`
+onto `f94ec5d0e`, without conflicts. Branch `launch-marker-usage-match` is
+committed and pushed with `--force-with-lease` at `f7773d78c` (two code commits
+ahead of main). Returned to clean, current `main` before writing this handoff.
+
+Verification on the final branch:
+- `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider` → **3273 passed** in 246.26s, including packaging tests. The implementation handoff's edge-distribution failure did not recur; its isolated test also passed on a clean main clone.
+- `PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --task match-concurrent-codex-sessions-to-their-launch-so --json` → 1 checked, no issues.
+- From `example/`: `env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json` → 4 checked, no issues.
+- Repo-wide `PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --json` → one error, `marketing/readme-top` / `unsynthesized-draft-blackboard`. Independently reproduced with main's source in `/tmp/coga-launch-marker-review-base`; unrelated to this branch and left unchanged.
+- `git diff --check origin/main...HEAD` passed; all three changed canonical/packaged context pairs checked byte-identical after rebase and fix.
+
+## PR
+
+Concurrent agent launches in one checkout could produce multiple matching
+transcripts, leaving real token usage uncounted. Append a unique launch marker
+at the end of each prompt (including oversized-prompt pointers) and use exact
+user/developer message matches to resolve ambiguous Codex rollouts and Claude
+resume candidates. Tool output cannot claim a marker; unresolved ambiguity
+remains unknown.
+
+Persist `usage_reason` without changing schema 2, and count valid empty pinned
+Claude transcripts as zero while keeping malformed/truncated transcripts
+unknown. Update the usage, activity-capture, and prompt-composition contracts
+and packaged twins. Resumed Codex rollouts and ambiguous Claude discussion
+sessions remain documented limitations; past records are not backfilled.
+
+Test plan: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider` → 3273 passed; task-scoped and example validation clean; repo validation retains the independently reproduced `marketing/readme-top` draft error on main. Context twins and `git diff --check origin/main...HEAD` pass.
