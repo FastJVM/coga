@@ -7452,3 +7452,4 @@ fatal: Unable to add (null) to database
 2026-10-05 11:29 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
 2026-10-05 11:29 [recurring/autoclose-merged] [system] launched as a script (ticket.py)
 2026-10-05 11:29 [recurring/autoclose-merged] [system] task done
+2026-10-05 11:29 [recurring/autoclose-merged] [system] script exited with code 0
