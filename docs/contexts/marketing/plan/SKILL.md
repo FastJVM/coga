@@ -55,8 +55,14 @@ channel and measurement policy. Publication remains an owner action.
 ## Scope
 
 The remaining marketing work is launch execution, the idea piece, the README,
-the `fix-installer/` ticket group, PostHog live-wheel verification and the final
-V1 release. There is no separate audience/story/pitch
+the `fix-installer/` ticket group, PostHog live-wheel verification, the final
+V1 release and first-user targeting. First-user targeting is two draft
+tickets the owner agreed on 2026-09-29: the
+[first-user ICP audit](../../../../coga/tasks/marketing/1st-users/ticket.md)
+records a `marketing/first-users` context before the idea piece is
+published, so the piece and Show HN can target it, and
+[recruiting first users](../../../../coga/tasks/marketing/recruit-first-users.md)
+follows it. Neither gates Show HN. There is no separate audience/story/pitch
 pipeline, three-essay commitment, Discord/community prerequisite, domain
 purchase or additional channel campaign for V1. The writing ticket settles
 editorial details directly with the owner. The old numeric scorecard,
