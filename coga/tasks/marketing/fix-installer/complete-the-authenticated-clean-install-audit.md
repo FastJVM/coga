@@ -1,6 +1,6 @@
 ---
 title: Complete the authenticated clean-install audit
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: direct/body
@@ -10,6 +10,7 @@ workflow:
     - direct/body
     assignee: agent
 step: 1 (execute)
+agent: claude
 ---
 
 ## Description
