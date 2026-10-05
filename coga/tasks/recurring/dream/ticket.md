@@ -823,3 +823,70 @@ Generated: 2026-10-05T18:52:35+00:00
 Task: `recurring/dream`
 
 Result: no-op. No cleanup-eligible processed done tickets still have task directories.
+
+## Dream Run Summary
+
+Generated: 2026-10-05 (period 2026-W41). Repo identity: coga-source. Preflight: git-common-dir ok, remote ok, gh ok.
+
+| Phase | Result | Notes |
+|---|---|---|
+| 1 validate-drift | reported | 30 issues: 0 direct-fix, 3 pr-proposal, 27 human-needed |
+| 2 knowledge scan | reported | 33/33 shards, 44 raw → 42 merged findings |
+| 3 contract audit | reported | 8/8 shards, 3 drift (copy-divergence shard clean) |
+| 4 retro/done-ticket | pr-opened | 10 eligible: 2 knowledge PRs, 8 direct deletes; 139 checkout-bearing done tickets deferred |
+| 5 cleanup-orphan-markers | no-op | no candidates |
+| 6 disposition | proposed | 6 proposal PRs, 3 draft tickets, 0 upstream-captured (source repo) |
+
+**PRs opened (all `pr-required`, not merged)**
+- #953 releasing gate / stale index (Retro K4), #954 macOS harness host reuse (Retro K16)
+- #955 marketing/plan first-user ICP scope (K18)
+- #956 internals: assist-publication open-pr dirt gate (C3), activity-capture Codex subagent exclusion (K12)
+- #957 codebase gotchas `git.current_branch` (K23), extension-model `coga owner` placement (K29; reviewer decides tier)
+- #958 phone-home receipt in coga_edge (C2=K10), gotchas shim shapes (K20), coga/important usage-report exception (K27)
+- #959 checkout-cleanup off-control retire skip (K2), autoclose/sweep live checkout layout (K28)
+- #960 platform support / Windows (K19, canceled source), declined split-a-ticket mechanic (K34), declined no-commit base-prompt rule (K37). Review note: K37 edits `coga/sync`, which open PR #948 also edits — expect a rebase.
+
+**Draft tickets created**
+- `correct-the-code-workflows-review-section-autoclos` — C1 (overlaps PR #950 on with-review.md)
+- `record-the-owner-s-decline-of-a-pytest-ci-gate-in` — K24, canceled source (overlaps PR #950 on packaged coga/testing)
+- `validate-drift-blackboard-hygiene-two-oversized-bl` — Phase 1 pr-proposals: large-blackboard ×2 (launch-locks/ticket-ownership-lock, reconcile-recurring-wrapper-tty-admission-guidance), unsynthesized-draft-blackboard ×1 (marketing/readme-top)
+
+**Already ticketed**
+- validate-drift: stuck-in-progress (7 this run) — already ticketed as `validate-drift-stuck-in-progress-11-in-progress-ti`; new since filing: add-an-applying-a-batch-of-verdicts-section-to-the, carry-the-apply-the-register-amendment-step-in-a-w, gigantic-refactor-move-recurring-recipes-out-of-co, launch-locks/ticket-ownership-lock, lifecycle-writes-read-control-s-ticket-before-modi, recover-when-local-main-carries-hand-commits-of-co
+- validate-drift: unfrozen-workflow (14) — already ticketed as `validate-drift-unfrozen-workflow-11-hand-authored`; 12 new since filing (see `coga validate --json`)
+- validate-drift: empty-description (6) — already ticketed as `validate-drift-empty-description-23-title-only-tic`; all 6 new since filing: autofix/name-cross-repo-retire-follow-ups-with-the-repo-th, fix-the-commit-git-journal, improve-pr-check, open-pr-becomes-detereminstici-mechanic-no-check, recurring-unblock-launch, stop-with-all-the-worktreees-its-super-noisy-and-u
+- gap K40 (sandboxed sessions cannot publish state) — already ticketed as `lifecycle-writes-read-control-s-ticket-before-modi` (the canceled `ticket-sync-fails-with-read-only-git-inside-agent` names it as successor)
+
+Machine-local validator issues: none. Already-decided classes: none this run. Reused proposal PRs: none.
+
+**Retirement debt — `extract` findings each `coga retire` unlocks** (139 checkout-bearing done tickets total)
+- `retire-never-removes-a-worktree-that-ran-the-tests` — dev/checkout-cleanup: Retire carries a preserved checkout's reason into the retro task body; status probe is -z and fails closed (K0)
+- `launch-moves-the-checkout-to-main-before-and-after` — coga/internals/pr-publication: open-pr freshness does not treat coga/recurring/** as state drift (K1)
+- `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r` — coga/testing: Testing on the 3.11 floor: 3.12 hides 3.11-only stdlib breaks (coga.resources must stay a regular package) (K3)
+- `cleanup/handle-a-bare-slack-webhook-url-during-empty-repo` — coga/notifications: Notifications: init's one-read tolerance of a bare SLACK_WEBHOOK_URL is no longer documented (K5)
+- `stop-using-worktrees` — coga/testing: Testing: running a not-yet-installed Coga change from `main` via a source snapshot (K6)
+- `autofix/make-dream-block-instead-of-done-when-its-retro-ch` — coga/dream: Record that Dream's stranded-Retro → blocked rule is prompt-enforced by design (K7)
+- `megalaunch-only-shows-one-page` — coga/codebase/gotchas (picker rendering; coga/megalaunch links): Megalaunch picker one-line-per-candidate rendering invariant and Rich gotchas (K8)
+- `unblock-rewind` — coga/lifecycle: Record why human rewind refuses done tickets (reopen is a separate decision) (K9)
+- `marketing/add-telemetry` — coga/telemetry: Telemetry live ingestion acceptance was owner-deferred and never performed (K11, +K15)
+- `launch-activates-before-preflight` — coga/recurring/scheduling: Forced recurring reactivation is durable before launch preflights, by design (K13)
+- `exclude-superseded-designs-from-launch-prompts` — coga/blackboard: Blocker reader is section- and fence-blind: archived example asks gate launch (K14)
+- `make-dream-run-correctly-under-codex` — coga/launch: Launch-time --agent override is not used for audit actor / Slack label (unresolved adjacent bug) (K17)
+- `autofix/treat-non-requestexception-slack-send-errors-as-de` — coga/notifications/failures: Record why notification.post has no catch-all and preflight_post has no TLS probe (K21)
+- `persist-autoclose-retire-follow-ups` — coga/codebase/gotchas: Tag-shadowed branch gotcha also bites `for-each-ref %(refname:short)` (K22)
+- `recurring-task-to-manage-all-open-pr-and-address-c` — coga/recurring: Shipped recurring templates must not pin `agent:`/`owner:` — periods inherit repository defaults (K25)
+- `autofix/report-per-skill-outcomes-from-gh-skill-update-in` — coga/skill-management: Why skill-update calls `gh skill update` once per skill: bulk mode hides outcomes (K26)
+- `keep-agent-edits-to-contexts-and-skills-off-the-co` — coga/internals/state-publication: Record why knowledge publication is not gated by actor metadata or lifecycle refusals (K30)
+- `agent-usage-report` — coga/recurring/templates: A recurring ticket.py reaches its template siblings through $COGA_COGA_OS_ROOT/recurring/<name> (K31)
+- `agent-usage-report` — coga/usage: coga/usage should name the weekly usage-report consumer and the half-open window recipe (K32)
+- `add-an-agent-picker-for-recurring` — coga/codebase/gotchas: Typer cannot give an option an optional value; is_flag=False/flag_value is ignored (K33)
+- `record-dochub-s-why-not-the-api-answer-that-browse` — browser/api-first: browser/api-first: generalize the DocHub check's evidence standard and re-check triggers (K35)
+- `validate-that-committed-skill-scripts-with-a-sheba` — coga/skill-management: `coga validate`'s `non-executable-script` rule is documented nowhere after the context reorg (K36)
+- `prevent-parent-ticket-assumptions-during-task-spli` — coga/tickets: State that a group README does not compose into sibling ticket launches (K38)
+- `reconcile-recurring-wrapper-tty-admission-guidance` — coga/recurring/delegation: Delegation context omits why the two alternatives to `delegate:` were rejected (K39)
+- `detect-stranded-ticket-writes-across-checkouts` — coga/internals/pr-publication: State the freshness probe's already-rebased early exit as a known stranded-write coverage limit (K41)
+- `autoclose-re-posts-another-clone-s-primary-checkou` — dev/checkout-cleanup: Manual `coga retire` of a foreign linked worktree still judges the same-named branch in the invoking clone (K42)
+- `no-skill-exists-for-the-cold-evaluator-review-of-a` — coga/skill-management: skill-creator's `quick_validate.py` rejects Coga's namespaced `name:` — expected, not a defect (K43)
+
+Human-needed / review gates: review and merge PRs #953–#960; decide the three drafts; work down retirement debt (`coga retire <slug>`).
+

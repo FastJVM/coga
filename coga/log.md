@@ -7478,3 +7478,4 @@ fatal: Unable to add (null) to database
 2026-10-05 11:52 [correct-the-code-workflows-review-section-autoclos] [human:nicktoper] created (status=draft)
 2026-10-05 11:53 [record-the-owner-s-decline-of-a-pytest-ci-gate-in] [human:nicktoper] created (status=draft)
 2026-10-05 11:53 [validate-drift-blackboard-hygiene-two-oversized-bl] [human:nicktoper] created (status=draft)
+2026-10-05 11:53 [recurring/dream] [agent:claude] slack: Dream 2026-W41: validate-drift 30 issues (27 already ticketed, 3 → 1 draft); 45 scan findings; Retro 2 knowledge PRs + 8 direct deletes; 6 proposal PRs (#955–#960); 3 drafts; 27 extract findings waiting on retirement of 139 checkout-bearing done tickets.
