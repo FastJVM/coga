@@ -26,6 +26,8 @@ The console output is unchanged.
    [scheduling](../scheduling/SKILL.md#failures-and-exit-code). Tee-ing
    fd 1 would make `isatty` false and break every agent launch, so the
    blackboard — the only durable per-run channel — is what carries detail.
+   A launch that refuses before `ticket.py` runs leaves that blackboard
+   blank, so the record carries the refusal's message as the outcome's note.
    Successful runs contribute a report only if they write one; failures follow
    the reporting contract in [templates](../templates/SKILL.md).
 2. **One one-shot agent call reads it** and answers `ok`, `duplicate`, or

@@ -11238,6 +11238,76 @@ def test_recurring_all_scan_services_off_control_checkout_from_worktree(
     assert "temporary 'main' worktree" in capsys.readouterr().out
 
 
+def test_sweep_launches_every_crlf_recipe_template_and_leaves_nothing_staged(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Period creation from CRLF `ticket.py` copies must land as `git add` would.
+
+    Under `core.autocrlf=input` a template's working `ticket.py` can be CRLF
+    while its blob is LF. Publishing the period copy's raw bytes put a CRLF
+    blob on control while the index staged LF, so every child's refresh
+    could not fast-forward ("local changes would be overwritten"): each
+    launch bailed with exit 2 before its recipe ran, and the period files and
+    log lines stayed staged. Nothing is stubbed but the autofix analyst.
+    """
+    git_repo.git("config", "core.autocrlf", "input")
+    names = ("a-script-check", "b-script-check")
+    for name in names:
+        _seed_recipe_template_on_control(git_repo, name)
+        script = git_repo.coga_os / "recurring" / name / "ticket.py"
+        script.write_bytes(script.read_bytes().replace(b"\n", b"\r\n"))
+    git_repo.git("add", "-A")  # refresh stat info; the content is unchanged
+    assert git_repo.git("status", "--porcelain") == ""
+    records: list[recurring_cmd.RunRecord] = []
+    monkeypatch.setattr(
+        recurring_cmd, "run_autofix", lambda cfg, record, **kw: records.append(record)
+    )
+
+    cfg = load_config(git_repo.coga_os)
+    assert recurring_cmd.run_recurring_scan(cfg, require_fresh_control=True) == 0
+
+    assert [(o.slug, o.result, o.exit_code) for o in records[0].outcomes] == [
+        (f"recurring/{name}", "completed", None) for name in names
+    ]
+    assert git_repo.git("status", "--porcelain", "--untracked-files=all") == ""
+    for name in names:
+        assert _control_serviced_period(git_repo, name) is not None
+
+
+def test_sweep_records_why_a_child_launch_bailed_before_its_recipe(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pre-recipe launch refusal names its reason in the run record.
+
+    The refusal leaves the period blackboard blank, so without its message
+    the record shows only an exit code.
+    """
+    from coga.commands import launch as launch_module
+
+    _seed_recipe_template_on_control(git_repo)
+    reason = "Cannot launch recurring/z-script-check: test refusal."
+
+    def refuse(task: str, *args, **kwargs) -> bool:  # type: ignore[no-untyped-def]
+        launch_module._bail(reason)
+        return True
+
+    monkeypatch.setattr(
+        launch_module, "_refresh_recurring_period_before_launch", refuse
+    )
+    records: list[recurring_cmd.RunRecord] = []
+    monkeypatch.setattr(
+        recurring_cmd, "run_autofix", lambda cfg, record, **kw: records.append(record)
+    )
+
+    cfg = load_config(git_repo.coga_os)
+    assert recurring_cmd.run_recurring_scan(cfg, require_fresh_control=True) == 2
+
+    [outcome] = records[0].outcomes
+    assert (outcome.result, outcome.exit_code) == ("failed", 2)
+    assert outcome.detail == reason
+    assert f"- note: {reason}" in records[0].render()
+
+
 def test_control_worktree_seeds_missing_branch_in_a_narrow_clone(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:

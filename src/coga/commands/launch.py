@@ -3520,6 +3520,19 @@ def _refresh_agent_skills_for_launch(coga_os: Path) -> None:
         )
 
 
+class LaunchBail(SystemExit):
+    """A launch refusal that keeps its message beside the exit code.
+
+    A caller that catches the exit in-process (the recurring sweep) records
+    `reason`, so a refusal before `ticket.py` runs is not a bare exit code
+    beside a blank blackboard.
+    """
+
+    def __init__(self, code: int, reason: str) -> None:
+        super().__init__(code)
+        self.reason = reason
+
+
 def _bail(msg: str, *, exit_code: int = 2) -> None:
     typer.secho(msg, fg=typer.colors.RED, err=True)
-    sys.exit(exit_code)
+    raise LaunchBail(exit_code, msg)
