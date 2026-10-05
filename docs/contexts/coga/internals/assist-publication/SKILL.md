@@ -31,9 +31,10 @@ plus whatever `coga open-pr` pushes
 ## Consequences
 
 - The single checkout keeps Coga's live task, log, and recurring state dirty
-  by design. `coga open-pr` publishes the pending log append first, then
-  leaves those paths out of its cleanliness gate; any other dirt still
-  refuses. Assist alignment tolerates the same three paths and nothing else.
+  by design. Assist alignment tolerates those three paths and nothing else.
+  `coga open-pr` has no such carve-out: it runs only from a checkout on the
+  control branch, and a recorded clone with any dirt refuses
+  ([PR publication](../pr-publication/SKILL.md)).
 - Assist writes use ordinary best-effort publication: a refused or failed
   sync is reported on stderr and in the log, the local transition stands,
   and the end-of-command state sweep retries it. There is no assist lease,
