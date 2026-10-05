@@ -7474,3 +7474,4 @@ fatal: Unable to add (null) to database
 2026-10-05 11:32 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-05 11:32 [recurring/dream] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-05 11:52 [recurring/dream] [agent:claude] slack: New context: release gate runs before tagging; post-upload install can see a stale index. PR: https://github.com/FastJVM/coga/pull/953
+2026-10-05 11:52 [recurring/dream] [agent:claude] slack: New context: macOS harness host reuse needs a manual substitution; walks must select Python 3.11. PR: https://github.com/FastJVM/coga/pull/954
