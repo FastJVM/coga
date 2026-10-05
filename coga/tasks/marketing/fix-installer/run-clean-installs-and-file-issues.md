@@ -214,3 +214,10 @@ It owns fresh Linux/macOS × current PyPI/main evidence through a completed
 first task, and is linked from `marketing/build-the-launch-plan`. This
 closed audit remains historical evidence, including its authentication
 limitations. The existing macOS fixes and README ticket retain their scope.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: macOS harness host reuse needs a manual substitution; walks must select Python 3.11
