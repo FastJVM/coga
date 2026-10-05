@@ -15,9 +15,11 @@ Hand-made or agent-made checkouts pile up on disk and are never found again.
 Decide what replaces that isolation for `retire`, then build it.
 
 Done means `coga retire` no longer creates (or tells an agent to create) a
-linked worktree that can outlive the run, Retro still cannot touch the
-operator's working tree or branch, and the owning instructions and topics
-describe the new shape.
+linked worktree that can outlive the run, Retro cannot lose or corrupt the
+operator's uncommitted work, and the owning instructions and topics describe
+the new shape. Option 1 below relaxes "never touches the operator's checkout"
+to "only touches it when clean, and returns it to where it was". Design may
+choose it, but must say so.
 
 ## Context
 
@@ -55,10 +57,23 @@ which fixes the recurring refusal text only.
   Native Claude `isolation: worktree` is created and cleaned by the agent
   harness, not by Coga. Check whether it actually leaves directories behind
   before ruling it out.
-- Before choosing, run `git worktree list` on a working machine to find the
-  leftover checkouts the owner reports and which path made them.
-- Behavior changes update `retire.md`, the skill and its packaged twin, and
-  any owning topic in the same PR.
+- **Evidence.** On the owner's primary machine (2026-10-02),
+  `git worktree list` shows only the primary checkout, but there is an
+  unregistered tree under `.coga/worktrees/`. Leftovers may come from native
+  `isolation: worktree`, from unregistered clones, or from other machines.
+  The design should name where its evidence comes from before picking an
+  option.
+- **Tests that pin the current wording:** `tests/test_retire.py` (asserts
+  `git worktree add` in the retire body), `tests/test_retro_skill_template.py`,
+  and `tests/test_dream_worker_templates.py`.
+- **Twins.** `retro/done-ticket` exists only as the packaged copy (there is
+  no `coga/skills/retro/`). Dream's ticket has a live copy at
+  `coga/recurring/dream/ticket.md` paired with the packaged one.
+- **Name clash.** `dev/checkouts` uses "retire" for disposing of leftover
+  linked worktrees. That is unrelated to `coga retire` the command, so don't
+  conflate them, though that topic is a useful read on cleanup.
+- Behavior changes update `retire.md`, the packaged skill, any live/packaged
+  twins touched, and any owning topic in the same PR.
 
 <!-- coga:blackboard -->
 

@@ -54,7 +54,8 @@ The same PR records the declined feature, *Coga creating a checkout to run
 agent-backed recurring templates off control*, in the owning topic, so the
 rationale survives this ticket's deletion.
 
-Done means the refusal leads with `git switch <control>`, no Coga refusal or
+Done means the refusal offers `git switch <control>` as the way forward, no
+Coga refusal or
 recurring topic tells the operator to create a control worktree, and the
 declined decision is published in `coga/internals/recurring-control`.
 
@@ -68,8 +69,10 @@ declined decision is published in `coga/internals/recurring-control`.
       `git worktree remove <path>` / `git worktree prune` repair (the stale
       holder owns the branch, so a bare `git switch` fails until it is gone).
       After that, the next step is `git switch <control>`, not "recreate it
-      with `git worktree add`". Keeping the holder by bringing it up to date
-      may stay as an option.
+      with `git worktree add`". "Bring that worktree up to date" stays as the
+      alternative (it creates nothing). Today `git switch` appears only in
+      the shared closing sentence after `absence`; restructure the message
+      so the remedy order reads correctly in each branch.
 - [ ] The function's docstring stops describing a `git worktree add` remedy.
 - [ ] `docs/contexts/coga/internals/recurring-control/SKILL.md` and its
       packaged twin
@@ -88,12 +91,18 @@ declined decision is published in `coga/internals/recurring-control`.
       `prepare_control_checkout` refuses ticket launches from the primary
       checkout, and a session can last hours. Reopen if ticket launches stop
       requiring the primary checkout to own control.
-- [ ] The relay into an **existing** control worktree stays supported and
-      documented as-is. Only the advice to *create* one goes.
+- [ ] The relay into an **existing** control worktree stays supported. Only
+      the advice to *create* one goes. The relay paragraph gains one
+      sentence warning that such a worktree makes
+      `prepare_control_checkout` refuse ticket launches from the primary
+      checkout. `recurring-temp-worktrees` ("Deterministic only") gets a
+      one-line link to the declined note.
 - [ ] Tests asserting the refusal text are updated. At minimum
       `test_recurring_scan_refusal_names_the_missing_control_worktree`
-      (asserts `"git worktree add" in error` today; flip to `not in`) and
-      `test_recurring_relay_names_a_stale_control_worktree`.
+      (asserts `"git worktree add" in error` today; flip to `not in`), and
+      add a `"git worktree add" not in error` assertion to both
+      unusable-holder tests, `test_recurring_relay_names_a_stale_control_worktree`
+      and `test_recurring_relay_skips_a_worktree_without_a_coga_root`.
       `python -m pytest tests/test_recurring.py tests/test_packaging.py`
       passes.
 
