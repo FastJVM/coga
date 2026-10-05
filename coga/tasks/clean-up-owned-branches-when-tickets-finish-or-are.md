@@ -1,6 +1,6 @@
 ---
 title: Clean up owned branches when tickets finish or are canceled
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
