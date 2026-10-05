@@ -7476,3 +7476,4 @@ fatal: Unable to add (null) to database
 2026-10-05 11:52 [recurring/dream] [agent:claude] slack: New context: release gate runs before tagging; post-upload install can see a stale index. PR: https://github.com/FastJVM/coga/pull/953
 2026-10-05 11:52 [recurring/dream] [agent:claude] slack: New context: macOS harness host reuse needs a manual substitution; walks must select Python 3.11. PR: https://github.com/FastJVM/coga/pull/954
 2026-10-05 11:52 [correct-the-code-workflows-review-section-autoclos] [human:nicktoper] created (status=draft)
+2026-10-05 11:53 [record-the-owner-s-decline-of-a-pytest-ci-gate-in] [human:nicktoper] created (status=draft)
