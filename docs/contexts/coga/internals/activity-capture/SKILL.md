@@ -84,10 +84,11 @@ unknown. A discussion launch (`coga chat`, `coga ticket`) passes its prompt
 through `--append-system-prompt`, so the marker never reaches the transcript
 and that case stays unknown.
 
-**Provably empty.** When the pinned transcript itself exists but has no
-in-window assistant usage, the session never reached the API: the record is
-`ok` with all four token counts zero. This applies only to the pinned file; a
-fallback candidate with no usage proves nothing about this launch and stays
+**Provably empty.** When the pinned transcript itself exists, every nonblank
+line parses as JSON, and it has no in-window assistant usage, the record is
+`ok` with all four token counts zero. Malformed or truncated JSON prevents
+this empty-session classification and keeps usage unknown. This applies only
+to the pinned file; a fallback candidate with no usage proves nothing about this launch and stays
 unknown, and a missing Codex rollout is never treated as zero (absence is not
 proof).
 

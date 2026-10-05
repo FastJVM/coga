@@ -1162,6 +1162,39 @@ def test_parse_claude_empty_pinned_transcript_is_zero(
     ) == (0, 0, 0, 0)
 
 
+@pytest.mark.parametrize("unreadable_line", [
+    "not JSON",
+    '{"type":"assistant","message":{"usage":{"input_tokens":100',
+])
+def test_parse_claude_malformed_pinned_transcript_stays_unknown(
+    tmp_path: Path, monkeypatch, unreadable_line: str
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    start, end = _window()
+    pinned = _claude_transcript(cwd, tmp_path, "pinned")
+    _write(
+        pinned,
+        _claude_user_line("2026-06-23T12:01:00Z", _prompt(_MARKER))
+        + unreadable_line + "\n",
+    )
+
+    parsed = parse_session(
+        "claude",
+        cwd=cwd,
+        session_id="pinned",
+        pre_existing=None,
+        window_start=start,
+        window_end=end,
+    )
+
+    assert parsed.usage_status == "unknown"
+    assert parsed.input_tokens is None
+    assert parsed.output_tokens is None
+    assert parsed.reason == f"claude transcript contains malformed JSON: {pinned}"
+
+
 def test_parse_claude_empty_fallback_transcript_stays_unknown(
     tmp_path: Path, monkeypatch
 ) -> None:

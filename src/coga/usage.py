@@ -468,6 +468,7 @@ def _parse_claude_session(
     output_tokens = 0
     usage_by_message: dict[str | int, dict] = {}
     matched = False
+    transcript_parsed = True
     human_texts: list[str] = []
     agent_texts: list[str] = []
     human_turns = 0
@@ -484,6 +485,7 @@ def _parse_claude_session(
         try:
             obj = json.loads(line)
         except json.JSONDecodeError:
+            transcript_parsed = False
             content_safe = False
             continue
         line_ts = _parse_ts(obj.get("timestamp"))
@@ -544,10 +546,10 @@ def _parse_claude_session(
     )
 
     if not matched:
-        if pinned:
-            # The transcript this launch pinned exists and never reached the
-            # API: provably zero tokens, not an unknown. A fallback candidate
-            # proves nothing about this launch, so it stays unknown.
+        if pinned and transcript_parsed:
+            # The pinned transcript parsed completely and has no usage.
+            # Unreadable lines could hide usage; a fallback candidate proves
+            # nothing about this launch. Neither qualifies as known zero.
             return ParsedUsage(
                 provider="anthropic",
                 model=model,
@@ -566,7 +568,11 @@ def _parse_claude_session(
         return _unknown(
             "anthropic",
             session_id=session_id,
-            reason=f"claude transcript had no assistant usage: {path}",
+            reason=(
+                f"claude transcript had no assistant usage: {path}"
+                if transcript_parsed
+                else f"claude transcript contains malformed JSON: {path}"
+            ),
             activity=activity,
         )
     return ParsedUsage(
