@@ -54,11 +54,24 @@ dated; inspect the video and current behavior rather than treating the old
 command comparison as a complete present-day check. The original notes remain
 in `docs/archive/launch-programs/phase-0-audit/audit-history.md`.
 
+### Clean-install coordination
+
+Reconcile the README's entry paths against `coga/install`, `coga/init`, and
+`coga/first-task`: prerequisites and initialization precede `coga build`,
+which is valid after initializing an empty repo. Keep this ticket as the
+owner of the README correction; do not create a duplicate installer draft.
+Use `marketing/fix-installer/run-clean-installs-and-file-issues`'s final
+matrix before claiming an end-to-end verified path.
+
+That ticket's October 1, 2026 check found two conflicting entry paths:
+“Getting Started” began with `coga build` before prerequisites/init, while
+“Install” later gave `uv tool install coga`, repo selection, `coga init --user`,
+`coga ticket`, and `coga launch`. Its clean Linux Python 3.11.16 test found
+PyPI 0.2.0 blocked at init (gh, then a resource namespace crash), while the
+main wheel 0.3.2 installed, initialized, and validated. First-ticket tests
+were still in progress at that date; consult the final matrix for current
+results.
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-
-## Clean-install coordination — 2026-10-01
-
-`marketing/fix-installer/run-clean-installs-and-file-issues` confirms the current README still presents two entry paths: “Getting Started” begins with `coga build` before prerequisites/init, while “Install” later gives `uv tool install coga`, repo selection, `coga init --user`, `coga ticket`, and `coga launch`. These are no longer identically titled blocks, but the ordering conflict remains. Keep this existing ticket as owner; no duplicate installer draft. Reconcile against `coga/install`, `coga/init`, and `coga/first-task`; build is valid after initializing an empty repo. Current clean Linux Python 3.11.16 test: PyPI 0.2.0 blocks at init (gh, then resource namespace crash); main wheel 0.3.2 installs/inits/validates. First-ticket tests remain in progress. Use the run ticket's final matrix before claiming an end-to-end verified path.
