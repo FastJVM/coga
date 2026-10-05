@@ -1,11 +1,11 @@
 ---
 title: Dream
-status: done
+status: active
 owner: nicktoper
 agent: claude
 contexts:
 - coga/period-task
-period_generation: 2031332c-45b3-43e7-b0be-b8aa8e199628
+period_generation: bfeed55d-68fd-41da-9e56-767fd5f5ccd9
 workflow:
   name: direct/body
   steps:
@@ -13,6 +13,7 @@ workflow:
     skills:
     - direct/body
     assignee: agent
+step: 1 (execute)
 ---
 
 ## Description
@@ -226,13 +227,8 @@ Phase 4 so done-ticket evidence is still available.
 
 Merge the shards' findings into this task's blackboard under `## Findings`;
 Phase 4 reads that section when batching knowledge PRs. Keep each `extract`
-finding's `source:` line, each `gap` finding's `owner:` line, and each
-`premise` finding's `target:`, `question:`, and `owner:` lines, and every
-`owner: coga` line on any class, through the merge — Phase 6 routes on them. The `premise` class is this scan's standing
-re-validation of the parking area, where `coga/tasks/v2/README.md` exists:
-the skill asks that contract's four premise questions of every parked draft
-it owns, so a draft that sits there is re-checked every run instead of only
-when a human pulls it forward.
+finding's `source:` line, each `gap` finding's `owner:` line, and every
+`owner: coga` line on any class, through the merge — Phase 6 routes on them.
 
 ### Phase 3 — contract audit
 
@@ -431,9 +427,9 @@ record is this blackboard was lost, not reported.
 **Filing rules for every draft ticket Dream creates.** File at the top level:
 `coga create "<title>" ...` with no `/` in the title; put paths in the
 description. Dream never files
-under `coga/tasks/v2/` — that directory is the human's parking decision, made
-after reading a draft, and a Dream draft parked there by construction decays
-unread. The `--description` names the Dream run (period, phase, shard) and the
+into a parked (`_`-prefixed) directory such as `coga/tasks/_v2/` — parking is
+the human's decision, made after reading a draft, and a Dream draft parked
+there by construction decays unread. The `--description` names the Dream run (period, phase, shard) and the
 target path or validator `kind`, so a later run can find the owner by grep.
 Before any `coga create`, search for an existing owner (the per-class rules say
 what to search for): an open ticket — any status but `done` or `canceled` —
@@ -615,27 +611,6 @@ Route each remaining Phase 2 and Phase 3 finding by class:
   whether and how to add the context, skill, or workflow; a draft ticket is
   where that judgment happens, and unlike a blackboard note it survives this
   task's retirement.
-- `premise` — a parked draft under `coga/tasks/v2/` failed one of the
-  README's premise questions. The verdict is the author's, never Dream's:
-  Dream does not cancel, close, narrow, or edit the draft, and it does not
-  file under `v2/`. Reconcile first, as for `gap`: the shard wrote
-  `owner: <slug>` when an open ticket already adjudicates the draft, and Phase
-  6 repeats that search with the whole corpus in view — grep `coga/tasks/`
-  for the draft's exact slug and read each open hit's title and description,
-  including an adjudication draft an earlier run filed. For an owned draft,
-  create nothing and report "already ticketed as `<slug>`". Collect every
-  remaining `premise` finding of this run into **one** adjudication draft —
-  never one ticket per draft —
-  `coga create "Premise check <period>: <N> parked drafts need a verdict"
-  --workflow brief-for-human --description "<...>"` under the filing rules
-  above, whose description lists each draft by path-qualified slug with the
-  question it failed and the shard's evidence, names the README's verdict
-  vocabulary (cancel with evidence, including already-delivered work; narrow;
-  rewrite), and repeats the README's guard that a green `coga validate` is never a reason
-  to rule a draft dead. `brief-for-human` is the workflow because every
-  verdict is the human's. A draft ruled on in that ticket stops appearing
-  when its verdict lands; a draft the human leaves open is owned by that
-  ticket until it closes, and reported as already ticketed meanwhile.
 
 Then append one top-level `## Dream Run Summary` section to this task's
 blackboard: the generation time, a phase result table using the vocabulary
@@ -643,8 +618,7 @@ blackboard: the generation time, a phase result table using the vocabulary
 `human-needed`, `upstream-captured`, the finding counts with one-line
 summaries, the number of entries appended to `coga/upstream-coga.md` (zero in
 the Coga source repo), links to every PR
-opened and draft ticket created (the run's premise adjudication draft
-included, with its member count), every `already ticketed as` line, the
+opened and draft ticket created, every `already ticketed as` line, the
 already-decided classes with their context citations, reused proposal PRs,
 the retirement-debt list with the `extract` findings each retirement unlocks, the
 machine-local validator issues, and any `human-needed` decisions or review
@@ -684,289 +658,3 @@ Git history preserves the completed run.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Dream Skill: validate-drift
-
-Generated: 2026-09-29T16:06:48+00:00
-Command: `/home/n/.local/share/uv/tools/coga/bin/python -m coga.validate --json --fix`
-Task: `recurring/dream`
-
-Result: 43 issue(s): 0 direct fix, 1 PR proposal, 42 human-needed.
-
-### PR Proposal
-
-- `reconcile-recurring-wrapper-tty-admission-guidance`: `large-blackboard` (warn) - blackboard region is 54.0 KiB (warning threshold 32.0 KiB); it is included in launch prompts. Consider summarizing old notes.
-  Remediation: Propose the `coga/blackboard` bloated-blackboard remedy: promote a file-form task to directory form (a task that already has `<slug>/ticket.md` keeps its directory), move dated evidence into sibling attachments and superseded material into an unattached context, and leave the current handoff, worklist and verification on the blackboard. Keep `## Dev` and `## Blockers` in place under the `coga/blackboard` contract; CLI readers do not follow attachment links for that state. Move, do not delete.
-
-### Human Needed
-
-- `autoclose-should-be-script-only`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `autofix/name-cross-repo-retire-follow-ups-with-the-repo-th`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `autofix/treat-non-requestexception-slack-send-errors-as-de`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `cleanup/publish-coga-1-0-to-pypi`: `stuck-in-progress` (warn) - in_progress but idle for 325.9h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `dream-should-be-able-to-use-codex-instead-of-claud`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `fix-git-sync-failure`: `unfrozen-workflow` (warn) - workflow 'code/with-self-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `implement-the-include-allowlist-that-url-skill-upd`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `improve-pr-check`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `invert-command-line-to-have-actions-passed-last-or`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `make-every-code-workflow-review-with-the-other-age`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `marketing/build-the-launch-plan`: `stuck-in-progress` (warn) - in_progress but idle for 94.4h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `marketing/idea-piece`: `unfrozen-workflow` (warn) - workflow 'draft-for-human' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `marketing/readme-top`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `parse-agents-rejects-cogalocaltoml`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `recurring-unblock-launch`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `stop-with-all-the-worktreees-its-super-noisy-and-u`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `ticket-sync-fails-with-read-only-git-inside-agent`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/add-subproject`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `v2/autoroute-agent-based-on-remaining-usage`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `v2/cleanup-core-commands/lifecycle-verbs-to-ticket-operations`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/cleanup-core-commands/read-report-commands-as-ticket-workflows`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/cleanup-core-commands/residual-command-surfaces`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/cleanup-core-commands/support-commands-boundary`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/cleanup-core-commands/work-orchestration-commands-to-tickets`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/create-vault-and-service-account-for-mid-trust-sec`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `v2/create-vault6-and-service-account-for-high-trust-s`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `v2/docs-and-contt-block-should-be-merged`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `v2/document-contexts-as-prompt-payload-not-tags-princ`: `stuck-in-progress` (warn) - in_progress but idle for 1674.9h
-  Remediation: Ask the owner whether the task should be relaunched, blocked, paused, or bumped. The skill should not change lifecycle state silently.
-- `v2/fix-windows-cli-import-crash`: `unfrozen-workflow` (warn) - workflow 'code/design-then-implement' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-- `v2/generic-lib-to-use-e-g-patent-models`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `v2/in-general-relay-files-should-be-easier-to-access`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `v2/manage-security-and-pii`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `v2/model-selector`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `v2/pick-model-on-workflow-to-save-on-cost`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `v2/project-manager-split-spec-in-tickets-block`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `v2/remote-stale-command-line-toosl`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `v2/script-mode-to-activate`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `v2/simplify-command-lines`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `v2/sync-support-files-and-bare-ticket-authoring`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `v2/update-all-doesn-t-copy-workflow-correctly-to-atta`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `v2/why-ai-asks-me-to-bump-instead-of-doing-it`: `empty-description` (warn) - `## Description` is empty — a title-only ticket whose intent is unrecoverable from the repo; write the description down, or cancel with a recorded reason when the author confirms it is lost. Do not cancel it just to clear this warning
-  Remediation: A title-only ticket: only its author can say what the title meant. Ask the owner to write the description in their own words, or to cancel it with a recorded reason when the intent is lost. Do not infer a description from the slug, and never cancel a draft merely to clear this warning — a green validate is a consequence of a correct verdict, not a reason for one.
-- `where-have-code-review-disappeared`: `unfrozen-workflow` (warn) - workflow 'code/with-review' is not a frozen dict — likely a hand-authored ticket awaiting first launch
-  Remediation: Needs an owner decision because the correction changes task routing, workflow state, or who is expected to act next.
-
-## Run log (2026-W40)
-
-- Preflight: git-common-dir ok, remote ok, gh ok. repo-identity: coga-source (no Rule A exclusion).
-- Phase 1 validate-drift: reported — 43 issues (0 direct-fix, 1 pr-proposal, 42 human-needed).
-- Phase 2 knowledge scan dir: /tmp/tmp.2WO6zW2aK2 (36 shards). Phase 3 contract audit dir: /tmp/tmp.fDawIchohQ (7 shards).
-  Excluded: this Dream task's own ticket; `google-agents-cli-*` (github-repo managed).
-- Phase 2 knowledge scan: reported — 36/36 shards complete, 94 raw findings.
-- Phase 3 contract audit: reported — 7/7 shards complete, 10 raw drift findings (copy-divergence shard: pytest tests/test_packaging.py green, 0 divergent pairs).
-
-## Findings
-
-Merged 92 findings (Phase 2: 94 raw from 36 shards; Phase 3: 10 raw from 7 shards; 12 duplicates folded). Full text preserved in the Dream scratch copies until Phase 6 routes each.
-
-### extract (24)
-
-- `simplify-ticket-format` — Record that an ephemeral --agent override does not move other-agent's peer resolution (source: done+checkout; area: coga/agents) [ks-32]
-- `exclude-superseded-designs-from-launch-prompts` — Blocker parsing is not archive- or fence-aware (historical checkbox examples gate launch) (source: done+checkout; area: coga/blackboard) [ks-13]
-- `validate-that-committed-skill-scripts-with-a-sheba` — `non-executable-script` validate check is undocumented in any context since the #875 docs restructure (source: done+checkout; area: coga/cli) [ks-07]
-- `add-an-agent-picker-for-recurring` — Record the typer optional-value flag gotcha from the agent-picker ticket (source: done+checkout; area: coga/codebase) [ks-24]
-- `persist-autoclose-retire-follow-ups` — Tag-shadowed branch names also bite `for-each-ref %(refname:short)` (source: done+checkout; area: coga/codebase/gotchas) [ks-23]
-- `nothing-exercises-python-3-11-the-declared-floor` — Record the Python 3.11 resource-package gotcha and what a 3.12-only green run proves (source: canceled; area: coga/codebase/gotchas) [ks-18]
-- `the-v2-parking-area-premise-check-has-four-holes` — coga/dream topic omits Dream's standing premise pass over parked v2 drafts (source: done+checkout; area: coga/dream) [ks-03]
-- `make-dream-run-correctly-under-codex` — Codex subagent mechanics and the owner-search budget pressure observed in real Dream runs (source: done+checkout; area: coga/dream) [ks-04]
-- `attribute-headless-recurring-completions-to-system` — Carry the unresolved strict-assist audit-publication observation out of attribute-headless-recurring-completions-to-system (source: done+checkout; area: coga/internals/assist-publication) [ks-22]
-- `phase-0-audit-is-complete-per-the-plan-but-still-i` — Contexts that link a live ticket by path break when Retro reaps it (source: canceled; area: coga/knowledge) [ks-17]
-- `make-dream-run-correctly-under-codex` — Launch-time `--agent` override is lost in completion attribution (unresolved adjacent bug) (source: done+checkout; area: coga/launch) [ks-04]
-- `cleanup/handle-a-bare-slack-webhook-url-during-empty-repo` — Init's bare SLACK_WEBHOOK_URL tolerance was dropped from the notifications contract (source: done+checkout; area: coga/notifications) [ks-19]
-- `redo-documentation-dir-and-merge-it-with-context-b` — Link-topology rule for bundled topics is unowned (source: done+checkout; area: coga/packaging) [ks-08]
-- `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r` — coga.resources must stay a regular package; 3.11 regressions are invisible on 3.12 dev envs (source: done+checkout; area: coga/packaging (with a line in coga/testing)) [ks-29]
-- `digest-can-clobber-recurring-last-serviced-period` — Parent-blackboard state writers must preserve lines they do not own (source: canceled; area: coga/period-task) [ks-24]
-- `make-sure-repo-clietn-don-t-edit-coga` — A `##` line inside a code fence in `## Description` truncates the composed section (source: done+checkout; area: coga/prompt-composition) [ks-17]
-- `recurring-task-to-manage-all-open-pr-and-address-c` — Shipped recurring templates must leave owner/agent empty so installs inherit repo routing (source: done+checkout; area: coga/recurring/templates) [ks-21]
-- `agent-usage-report` — Document how a copied ticket.py reaches its template's other siblings (source: done+checkout; area: coga/recurring/templates) [ks-24]
-- `v2/skill-update-aborts-on-uncommitted-log-file` — Canceled skill-update abort ticket leaves a verified dirty-tree gotcha recorded nowhere durable (source: canceled; area: coga/skill-management) [ks-34]
-- `simplify-git-sync` — Record why state publication never commits locally, stashes, or rebases (source: done+checkout; area: coga/sync (internals/state-publication, internals/git-refresh)) [ks-06]
-- `four-parked-tickets-carry-premises-that-have-since` — Verdict-application mechanics for batch premise adjudication (four-parked-tickets) (source: done+checkout; area: coga/tasks/v2 README (verdict application) / coga/workflows requires-pr gate) [ks-05]
-- `reuse-the-existing-control-worktree-for-recurring` — Testing gotcha: every coga module shares one `subprocess`, so patching `run` wholesale swallows git probes (source: done+checkout; area: coga/testing) [ks-20]
-- `define-the-api-equivalent-cost-proxy-and-price-tab` — Record the measured pricing facts a future price table would need (source: canceled; area: coga/usage) [ks-18]
-- `agent-usage-report` — Record that usage.rollup's until bound is inclusive, and the weekly usage-report consumer (source: done+checkout; area: coga/usage) [ks-24]
-
-### stale (26)
-
-- `coga/skills/anthropic/skill-creator/ATTRIBUTION.md` — skill-creator ATTRIBUTION cites the removed managed-skills.toml registry (area: skills) [ks-04,ks-21]
-- `coga/skills/code/self-qa/SKILL.md` — code/self-qa gotcha overstates the state sweep ("every uncommitted coga/ file") (area: coga/sync (code skills)) [ks-09]
-- `docs/contexts/coga/dream/SKILL.md` — Retro's adjacent-bug preservation rule was dropped from the contexts by the docs restructure (area: coga/dream) [ks-04]
-- `coga/skills/code/implement/SKILL.md` — code/implement claims "any python works" for seed_local_config.py, but it imports tomllib at module top (area: code/implement) [ks-07]
-- `docs/contexts/coga/testing/SKILL.md` — coga/testing "known red baseline" bullet is stale — repo-wide validate is now green (area: coga/testing) [ks-09,ks-33,ks-28]
-- `coga/tasks/v2/README.md` — v2 README's title-only expiry rule and "batch precedent" contradict the 2026-09-20 park-v2 direction (area: coga/roadmap (deferred work / v2 parking)) [ks-05]
-- `docs/contexts/dev/checkouts/SKILL.md` — dev/checkouts End procedure cannot prove a merge=union log.md was published (area: dev/checkouts) [ks-11]
-- `docs/contexts/coga/notifications/producers/SKILL.md` — Producer inventory omits the recurring period-contradiction important alert (area: coga/notifications) [ks-19]
-- `docs/contexts/marketing/map/SKILL.md, docs/contexts/marketing/plan/SKILL.md` — marketing/map and marketing/plan link the deleted fix-installer parent ticket (area: marketing) [ks-15,ca-03]
-- `docs/contexts/coga/telemetry/operations/SKILL.md` — telemetry/operations still addresses the live wheel proof to PR #880's review (area: coga/telemetry) [ks-16]
-- `docs/contexts/coga/workflows/SKILL.md` — coga/workflows says the `branch` gate needs `worktree:`, but the gate only checks the branch (area: coga/workflows) [ks-18,ca-03]
-- `coga/recurring/usage-report/ticket.md` — usage-report schedule_comment still names the removed 9am digest (area: coga/recurring) [ks-24,ca-06]
-- `docs/contexts/coga/skill-management/SKILL.md` — skill-management spells the per-skill gh argv without the load-bearing `--all` (area: coga/skill-management) [ks-22,ks-29]
-- `coga/skills/coga/autoclose/sweep/SKILL.md` — autoclose sweep skill cites a dev/code section that no longer exists (area: coga/autoclose) [ks-21,ca-04]
-- `docs/contexts/coga/notifications/failures/SKILL.md` — Failures context says no caller passes record_failure=False, but phone-home does (area: coga/notifications) [ks-19]
-- `docs/contexts/coga/important/SKILL.md` — This repo's usage-report routes a weekly FYI to coga-important against the context's bar (area: coga/notifications) [ks-19]
-- `src/coga/resources/prompt-queue.md, src/coga/resources/prompt-megalaunch.md` — Queue conduct prompts still trigger the /tmp fallback on "cannot create a linked worktree" (area: coga/session-conduct) [ks-14]
-- `coga/skills/coga/blockers/remind/SKILL.md` — Blocker-reminders skill says no ticket owns the paused-period blind spot; an open PR now does (area: coga/blockers) [ks-23]
-- `docs/contexts/coga/cli/SKILL.md` — coga/cli lists `claude`/`codex` as default aliases, but they are commented-out opt-ins (area: coga/cli) [ks-31,ca-01]
-- `docs/contexts/coga/recurring/autofix/SKILL.md` — Autofix context implies named recurring launches record failed create syncs; they do not (area: coga/recurring) [ks-27]
-- `docs/contexts/coga/workflows/SKILL.md` — coga/workflows misstates which workflows the package ships and init seeds (area: coga/workflows) [ks-32,ca-03]
-- `docs/contexts/coga/uninstall/SKILL.md` — coga/uninstall has no removal path for the preferred `uv tool install coga` (area: coga/install, coga/uninstall) [ks-29]
-- `docs/contexts/coga/internals/recurring-temp-worktrees/SKILL.md` — Temp control worktree context gives a removed detached-HEAD refusal as its rationale (area: coga/internals) [ks-27]
-- `docs/contexts/coga/current-direction/SKILL.md` — current-direction still calls PostHog telemetry unshipped after it landed (area: coga/current-direction) [ks-32]
-- `docs/contexts/coga/roadmap/SKILL.md` — coga/roadmap names a done ticket among "the open tickets" the v2-parking follow-up must re-scope (area: coga/roadmap) [ks-31,ks-34,ca-02]
-- `coga/tasks/premise-check-2026-w39-25-parked-drafts-need-a-ver.md` — Open adjudication draft's F49 verdict for `support-commands-boundary` rests on an extension-model section that no longer exists (area: coga/extension-model) [ks-36]
-
-### drift (3)
-
-- `coga/skills/coga/recurring/verify/SKILL.md` — recurring/verify quotes an error message Coga never emits (area: skills/coga/recurring) [ca-05]
-- `README.md` — README Getting Started launches a nonexistent `init` target (area: docs) [ca-06]
-- `docs/contexts/dev/code/SKILL.md` — dev/code points schema-conversion rules at coga/sync instead of their owner (area: dev/code) [ca-03]
-
-### gap (4)
-
-- `src/coga/branchsweep.py (merged_pr_verdict) / coga/skills/coga/branch-sweep/sweep/SKILL.md` — Rebased-copy branches accumulate every sweep with no owner for the fix or the manual clearance (area: coga/branch-sweep) [ks-23]
-- `docs/contexts/coga/sync/SKILL.md` — Sandboxed agents' state publication fails on read-only .git; no topic says so (area: coga/sync; owner: ticket-sync-fails-with-read-only-git-inside-agent) [ks-14]
-- `docs/contexts/coga/skill-management/SKILL.md (URL-backed provenance rules) / src/coga/skill_manager.py::hash_skill_tree` — Git-ignored agent-tooling files inside a URL skill read as local adaptation (clarity false follow-up) (area: coga/skill-management) [ks-23]
-- `docs/contexts/coga/lifecycle/SKILL.md` — Canceling or superseding a ticket never repairs the tickets that point at it (area: coga/lifecycle; owner: repair-ticket-referents-when-a-referent-is-renamed) [ks-30]
-
-### premise (35)
-
-- `v2/add-relay-skill-search-with-candidate-eval` — Skill-search draft still names relay-era surfaces on main (area: coga/skill-management; owner: adjudicate-the-eight-premise-dead-v2-drafts; question: surfaces) [ks-35]
-- `v2/acceptance-criteria` — Parked `v2/acceptance-criteria` is already delivered by its own named successor, which is `done` (area: coga/tickets (ticket interview); question: delivered) [ks-36]
-- `v2/issue-inbox-slack` — `v2/issue-inbox-slack` still names the replaced `relay panic` surface; blocker-reason half already shipped (area: coga/notifications; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-36]
-- `v2/relay-design-repositories` — `v2/relay-design-repositories` is partly delivered by the onboarding workflow and still names `relay design`/`relay init` (area: coga/init (onboarding); owner: adjudicate-the-eight-premise-dead-v2-drafts; question: delivered) [ks-36]
-- `v2/measure-relay-prompt-scope-and-agent-precision` — Parked prompt-scope/precision draft: half of its remaining part-2 criterion is delivered by `coga usage` (area: coga/usage; question: delivered) [ks-34]
-- `v2/split-context-to-doc-user-accessible-and-editable` — split-context draft's pull-forward guard names a gate that has since closed (area: coga/prompt-composition; owner: adjudicate-the-eight-premise-dead-v2-drafts; question: surfaces) [ks-35]
-- `v2/implement-accepted-ticket-interview-improvements` — Parked interview-improvements draft still delegates its prompt wording to a retired ticket's git history (area: bootstrap/ticket; question: citations) [ks-34]
-- `v2/capture-report-series-google-drive-folder-ids-in-a` — `v2/capture-report-series-google-drive-folder-ids-in-a` outlived the report series it was written for (area: docs (Google Drive); owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: subject) [ks-36]
-- `v2/op-service-account-auth-to-skip-op-read-prompt` — `v2/op-service-account-auth-to-skip-op-read-prompt` is already answered by the `coga/secrets` context (area: coga/secrets; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: delivered) [ks-36]
-- `v2/compose-strips-skill-md-and-context-frontmatter-be` — `v2/compose-strips-skill-md-and-context-frontmatter-be` names the removed rules layer, `src/relay/` paths, and stale line numbers (area: coga/prompt-composition; question: surfaces) [ks-36]
-- `v2/absorb-compound-engineering-leaf-skills-as-a-coga` — Parked CE-absorption study rests on the managed-skill manifest that PR #852 deleted (area: coga/skill-management; question: surfaces) [ks-34]
-- `v2/rename-workflow-primitive-to-playbook` — Playbook-rename draft's blast-radius plan still names dead pre-rename surfaces (area: coga/workflows; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-34]
-- `v2/launch-tasks-in-container-or-vm` — Container/VM launch draft still preserves dead `feed`/`panic`/lockfile primitives (area: coga/launch; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-35]
-- `v2/cleanup-core-commands/lifecycle-verbs-to-ticket-operations` — Lifecycle-verbs cleanup draft's design question is settled by extension-model with the opposite verdict (area: coga/extension-model; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: delivered) [ks-35]
-- `v2/validate-tickets-on-hand-edit-gap-outside-relay-co` — Hand-edit validation draft is written against relay-era surfaces, and launch already fails loud on a malformed ticket (area: coga/lifecycle; question: surfaces) [ks-35]
-- `v2/add-a-first-class-relay-config-directory-for-machi` — `v2/add-a-first-class-relay-config-directory-for-machi` builds on the removed `mode: script` env-var set and predates the 1Password secrets model (area: coga/secrets, coga/configuration; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-36]
-- `v2/use-slack-as-a-sync-channel-for-tickets` — Slack-as-sync draft's premise ("no multi-machine story") and its blocking dependency are both gone (area: coga/sync; question: surfaces) [ks-34]
-- `v2/fix-windows-cli-import-crash` — `v2/fix-windows-cli-import-crash`: tier-1 surface list is incomplete — `coga.git` has a top-level `import fcntl` (area: coga/codebase (platform support); owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-36]
-- `v2/validate-skill-md-frontmatter-conformance-not-just` — SKILL.md conformance draft still names relay-era paths and the removed skill `script:` field (area: coga/skill-management; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-35]
-- `v2/add-dev-testing-setup-skill` — `v2/add-dev-testing-setup-skill` names a deleted consumer skill and a vanished checkout; its "no CI" discovery note is false (area: dev (testing contract); owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-36]
-- `v2/cleanup-core-commands/work-orchestration-commands-to-tickets` — Work-orchestration cleanup draft still scopes the removed `coga digest` (area: coga/extension-model; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-34]
-- `v2/cleanup-core-commands/residual-command-surfaces` — Residual-command-surfaces draft: alias/init/delete/recurring classification delivered; `ticket` and `skill *` still open per extension-model (area: coga/extension-model; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: delivered) [ks-34]
-- `v2/autotrigger-ticket-type` — `v2/autotrigger-ticket-type` models recurring as "a fresh task instance per fire", contradicting the stable `recurring/<name>` period-task model (area: coga/recurring; owner: adjudicate-the-eight-premise-dead-v2-drafts; question: surfaces) [ks-36]
-- `v2/op-secret-dependency-init-enforcement` — `op`-at-init draft's baseline (init hard-requires `gh`) is gone (area: coga/secrets; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-34]
-- `v2/reintroduce-per-launch-worktree-isolation` — Per-launch worktree draft's motivating hazard is now serialized by `git.state_lock`, and the `coga/sync` limitation it cites no longer exists (area: coga/launch-internals; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: delivered) [ks-34]
-- `v2/document-contexts-as-prompt-payload-not-tags-princ` — Contexts-as-payload draft is delivered by coga/knowledge "Attach or cite" and has sat in_progress since July (area: coga/knowledge; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: delivered) [ks-35]
-- `v2/log-timestamps-need-seconds-and-timezone-for-unamb` — Log-timestamp draft: core ask live, reconcile half already delivered, all paths relay-era (area: coga/lifecycle; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-35]
-- `v2/minimal-ci-run-pytest-on-prs-and-tags` — Minimal-CI draft's opening premise ("no `.github/workflows/`") is false and its citations are relay-era (area: coga/testing; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-35]
-- `v2/onboarding-v2-first-run-experience-after-removing` — Onboarding-v2 draft assumes `coga build` is removed, but it was restored and is live (area: coga/first-task; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: subject) [ks-35]
-- `v2/clean-uncommitted-work` — clean-uncommitted-work is delivered for `coga/` state by the sync exit sweep (area: coga/sync; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: delivered) [ks-35]
-- `v2/use-worktree-when-starting-a-dev-task` — `v2/use-worktree-when-starting-a-dev-task` is now premise-dead: `dev/checkouts` abolished linked worktrees for ticket work (area: dev/checkouts; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: subject) [ks-36]
-- `v2/cleanup-core-commands/launch-decomposition` — Parked launch-decomposition draft names moved and deleted surfaces (area: coga/launch, coga/extension-model; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-36]
-- `v2/identify-blocking-issues` — `identify-blocking-issues` is framed on the deleted `project` command, and its dependency-field ask was ruled against (area: coga/lifecycle; question: subject) [ks-34]
-- `v2/coga-recurring-ack` — `coga recurring ack` draft: the reminder harness has now landed and deliberately ships no ack writer (area: coga/recurring; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-34]
-- `v2/register-a-real-domain-for-relay` — Domain draft pairs itself with Wave 1 launch-gate tickets that no longer exist (area: marketing/plan; owner: premise-check-2026-w39-25-parked-drafts-need-a-ver; question: surfaces) [ks-34]
-
-
-## Phase 4 — Retro (result: pr-opened)
-
-11 eligible done tickets (118 other done tickets carry a real `## Dev` checkout = retirement debt, left for `coga retire`).
-- Knowledge PR https://github.com/FastJVM/coga/pull/920 "New context: another clone's primary checkout never leaves the autoclose worklist" — deletes `clean-up-all-the-working-trees`, `recurring/autoclose-merged`; edits dev/checkout-cleanup (+twin). Carries an unresolved adjacent bug (standalone-clone worklist entries re-post forever) → needs a follow-up ticket (Phase 6).
-- Direct-deleted (verified gone on origin/main): correct-two-stale-marketing-map-catalogue-rows-aft, recurring/{address-pr-comments,blocker-reminders,branch-sweep,phone-home,resolve-conflicts,skill-update,upstream-coga,usage-report}.
-- Verified: PR branch pushed, deletes landed, checkout had nothing unlanded; worktree, temp branch, local-config copy and run dir removed.
-
-## Dream Skill: cleanup-orphan-markers
-
-Generated: 2026-09-29T16:37:08+00:00
-Task: `recurring/dream`
-
-Result: no-op. No cleanup-eligible processed done tickets still have task directories.
-
-## Dream Run Summary
-
-Generated: 2026-09-29T16:42:31Z — period 2026-W40, repo-identity coga-source. Preflight: git-common-dir ok, remote ok, gh ok.
-
-| Phase | Result | Detail |
-| --- | --- | --- |
-| 1 validate-drift | reported | 43 issues: 0 direct-fix, 1 pr-proposal, 42 human-needed |
-| 2 knowledge scan | reported | 36/36 shards; 94 raw → merged with Phase 3 into 92 findings |
-| 3 contract audit | reported | 7/7 shards; 10 raw drift (9 dup of Phase 2); packaging twins green |
-| 4 retro/done-ticket | pr-opened | 11 eligible: 1 knowledge PR (#920, 2 tickets), 9 direct deletes |
-| 5 cleanup-orphan-markers | no-op | no orphaned processed markers |
-| 6 disposition | proposed | 9 proposal PRs, 11 draft tickets, 0 upstream-captured |
-
-**Findings (92):** 24 extract (19 done+checkout → retirement debt, 5 canceled → PRs/drafts), 26 stale + 3 unique drift, 4 gap, 35 premise.
-
-**Proposal PRs (pr-required, not merged):**
-- #920 New context: another clone's primary checkout never leaves the autoclose worklist (Phase 4 Retro)
-- #921 Restore Retro's adjacent-bug rule in coga/dream — ks-04
-- #922 Repoint contexts and skills at references that moved or were deleted — marketing map/plan, autoclose sweep citation, skill-creator ATTRIBUTION (ks-15/ks-21/ks-04, ca-03/ca-04)
-- #923 Drop the cleared repo-wide validate baseline from coga/testing — ks-09/28/33
-- #924 Record the usage-record facts a future price table needs — canceled `define-the-api-equivalent-cost-proxy-and-price-tab`
-- #925 Record two verified gotchas from canceled tickets — `nothing-exercises-python-3-11-the-declared-floor`, `digest-can-clobber-recurring-last-serviced-period`
-- #926 Refresh direction topics (current-direction, roadmap, telemetry/operations) — ks-32/31/34/16, ca-02
-- #927 Correct the CLI index's default aliases and the README first-run command — ks-31, ca-01, ca-06
-- #928 Correct three stale recurring-job claims (usage-report schedule_comment, autofix scope, temp-worktree rationale) — ks-24/27, ca-06
-- #929 Fix a stale sandbox-fallback trigger and a phantom error quote in agent instructions — ks-14, ca-05
-
-**Draft tickets created:**
-- Overlap with open PRs (finding not carried by that PR): `apply-three-dream-w40-skill-and-context-correction` (#909: self-qa, dev/code link, implement python), `apply-three-dream-w40-workflow-and-v2-readme-corre` (#912: workflows ×2, v2 README expiry), `apply-three-dream-w40-notification-and-skill-manag` (#914: producers, skill-management --all, canceled `v2/skill-update-aborts-on-uncommitted-log-file` extract), `name-phone-home-as-the-record-failure-false-caller` (#911), `record-that-contexts-linking-tickets-by-path-break` (#918; canceled `phase-0-audit-is-complete-per-the-plan-but-still-i` extract)
-- Human choice: `decide-whether-the-weekly-usage-report-belongs-on` (coga/important vs usage-report), `uninstall-has-no-removal-path-for-the-preferred-uv`
-- Gaps: `branch-sweep-never-clears-rebased-copy-branches`, `url-skill-digest-counts-git-ignored-agent-tooling`
-- Retro adjacent bug (PR #920): `autoclose-re-posts-another-clone-s-primary-checkou`
-- Premise adjudication: `premise-check-2026-w40-8-parked-drafts-need-a-verd` (8 drafts + correction to W39 F49 for `support-commands-boundary`)
-
-**Already ticketed / covered:**
-- validate-drift: empty-description → `validate-drift-empty-description-23-title-only-tic` (24 members now; 17 v2 stubs are an already-decided class per `coga/roadmap` "park v2", tag `validate-drift: empty-description`; new non-v2 since filing: autoclose-should-be-script-only, autofix/name-cross-repo-retire-follow-ups-with-the-repo-th, autofix/treat-non-requestexception-slack-send-errors-as-de, improve-pr-check, recurring-unblock-launch, stop-with-all-the-worktreees-its-super-noisy-and-u)
-- validate-drift: unfrozen-workflow → `validate-drift-unfrozen-workflow-11-hand-authored` (15 members; new: dream-should-be-able-to-use-codex-instead-of-claud, implement-the-include-allowlist-that-url-skill-upd, make-every-code-workflow-review-with-the-other-age, marketing/idea-piece, marketing/readme-top, ticket-sync-fails-with-read-only-git-inside-agent, where-have-code-review-disappeared)
-- validate-drift: stuck-in-progress → `validate-drift-stuck-in-progress-11-in-progress-ti` (3 members, none new)
-- dev/checkouts union-log End procedure → PR #909; blockers/remind "no ticket owns" → PR #914
-- read-only .git state publication gap → `ticket-sync-fails-with-read-only-git-inside-agent`; cancel/supersede referent repair gap → `repair-ticket-referents-when-a-referent-is-renamed` (its target should be retargeted at coga-side surfaces)
-- 27 premise findings → `premise-check-2026-w39-25-parked-drafts-need-a-ver` / `adjudicate-the-eight-premise-dead-v2-drafts`
-
-**Phase 1 pr-proposal:** `large-blackboard` on `reconcile-recurring-wrapper-tty-admission-guidance` (54 KiB) — a done ticket with a real `## Dev` checkout; its retirement (`coga retire`) removes it and clears the warning, so no restructuring PR was opened.
-
-**Machine-local validator issues:** none.
-
-**Retirement debt (118 done tickets with a real `## Dev` checkout; `coga retire <slug>` is the consumer).** Extracts each retirement unlocks: `the-v2-parking-area-premise-check-has-four-holes` (coga/dream premise pass), `make-dream-run-correctly-under-codex` (codex subagent mechanics; --agent override lost in completion attribution — adjacent bug), `four-parked-tickets-carry-premises-that-have-since` (verdict-application mechanics), `redo-documentation-dir-and-merge-it-with-context-b` (bundled-topic link topology), `validate-that-committed-skill-scripts-with-a-sheba` (non-executable-script check undocumented), `simplify-git-sync` (why publication never commits locally/stashes/rebases), `persist-autoclose-retire-follow-ups` (tag-shadowed for-each-ref names), `recurring-task-to-manage-all-open-pr-and-address-c` (shipped templates leave owner/agent empty), `add-an-agent-picker-for-recurring` (typer optional-value flag), `attribute-headless-recurring-completions-to-system` (strict-assist audit publication), `exclude-superseded-designs-from-launch-prompts` (blocker parsing not fence-aware), `reuse-the-existing-control-worktree-for-recurring` (shared subprocess patching gotcha), `agent-usage-report` (ticket.py sibling access; usage.rollup until inclusive), `cleanup/handle-a-bare-slack-webhook-url-during-empty-repo` (init bare SLACK_WEBHOOK_URL tolerance), `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r` (coga.resources regular package), `make-sure-repo-clietn-don-t-edit-coga` (`##` inside a fence truncates Description), `simplify-ticket-format` (--agent override vs peer resolution).
-Full list: `a-slack-repo-without-important-webhook-can-abort-t`, `activation-does-not-resolve-step-1-s-assignee-role`, `add-an-agent-picker-for-recurring`, `adjudicate-parked-and-active-tickets-whose-premise`, `agent-usage-report`, `allow-description-and-owner-on-create`, `apply-12-context-and-skill-corrections-blocked-by`, `attribute-headless-recurring-completions-to-system`, `autoclose-preserved-checkout-remedies`, `autoclose-should-name-the-retire-follow-up`, `autoclose-should-name-unanswered-review-threads-on`, `autofix/keep-cross-clone-retire-follow-ups-from-being-disc`, `autofix/make-dream-block-instead-of-done-when-its-retro-ch`, `autofix/report-per-skill-outcomes-from-gh-skill-update-in`, `autofix/stop-one-failing-ticket-py-from-starving-the-rest`, `automerge/fix-let-a-lot-of-open-craps`, `branch-sweep-strands-squash-merged-branches-whose`, `bumppy-requires-exactly-two-agents`, `carry-adjacent-bugs-out-of-a-blackboard-before-ret`, `cleanup/add-a-debug-mode-to-init-for-vendoring-from-source`, `cleanup/add-contributing-docs-issue-templates-and-a-repo-d`, `cleanup/detect-the-current-git-branch-instead-of-hard-codi`, `cleanup/fix-coga-init-crash-on-python-3-11-by-adding-the-r`, `cleanup/handle-a-bare-slack-webhook-url-during-empty-repo`, `cleanup/quiet-the-first-run-noise-from-recurring-jobs-and`, `cleanup/yank-the-pypi-0-0-1-placeholder-and-document-the-f`, `cloning-a-coga-repo-has-no-setup-path`, `coga-build-fails-after-init-on-a-github-scaffolded`, `correct-the-v2-known-stale-surfaces-table-and-rout`, `define-the-recipe-reporting-contract-report-durabi`, `detect-stranded-ticket-writes-across-checkouts`, `document-how-packaged-contexts-reach-a-repo-and-se`, `document-how-to-recover-a-retired-ticket-s-body-fr`, `document-the-remedy-for-a-bloated-blackboard-sibli`, `document-the-ticket-blackboard-writer-s-contract`, `document-when-to-attach-a-large-context-versus-cit`, `dream-2026-w36-extract-backlog-18-findings-phase-4`, `dream-2026-w38-extract-backlog-4-findings-phase-4`, `dream-findings-have-three-routing-holes-that-lose`, `dream-phases-2-3-cannot-complete-scan-subagents-re`, `dream-reconciliation-must-count-distinct-shard-ids`, `exclude-superseded-designs-from-launch-prompts`, `fix-the-autofix-analyst`, `four-docs-cite-positioning-context-sections-that-w`, `four-parked-tickets-carry-premises-that-have-since`, `give-a-ticket-s-superseded-design-one-documented-h`, `give-the-three-kinds-of-work-taxonomy-an-owning-do`, `installer-managed-skills-the-local-adaptation-guar`, `isolated-checkouts-nothing-says-what-a-fresh-workt`, `keep-agent-edits-to-contexts-and-skills-off-the-co`, `launch-activates-before-preflight`, `launch-ignores-the-recorded-worktree-stranding-bla`, `live-and-packaged-twin-pairs-are-edited-together-b`, `make-dream-run-correctly-under-codex`, `make-sure-repo-clietn-don-t-edit-coga`, `marketing/add-telemetry`, `megalaunch-activates-picks-before-preflight`, `megalaunch-only-shows-one-page`, `migrate-recurring-templates-to-ticket-py-shims-and`, `move-cogacontext-to-roodoc-so-its-easier-for-human`, `narrative-candidates-md-publishes-log-text-the-own`, `no-comms-writing-skill-the-process-is-smeared-thro`, `no-context-records-the-ci-posture-publish-only-rel`, `no-rule-says-ticket-context-must-cite-symbols-not`, `no-skill-exists-for-the-cold-evaluator-review-of-a`, `packaged-code-workflows-never-name-coga-retire-as`, `packaged-repos-ship-recurring-templates-without-th`, `persist-autoclose-retire-follow-ups`, `preserve-edits-during-released-claim-recovery`, `put-build-back`, `read-the-recurring-serviced-period-from-the-log-dr`, `reconcile-recurring-wrapper-tty-admission-guidance`, `record-dochub-s-why-not-the-api-answer-that-browse`, `record-four-repeated-dev-loop-verification-gotchas`, `record-or-clear-the-standing-repo-wide-coga-valida`, `recurring-context-never-mentions-the-packaged-twin`, `recurring-last-serviced-period-compares-as-a-strin`, `recurring-recipe-question`, `recurring-sweep-aborts-and-orphans-a-deleted-done`, `recurring-sweep-wedges-on-the-ticket-py-it-copies`, `recurring-task-to-manage-all-open-pr-and-address-c`, `redo-documentation-dir-and-merge-it-with-context-b`, `refresh-recurring-ledger-before-first-create-sync`, `refuse-recurring-runs-from-a-non-control-branch`, `reject-context-artifacts-that-escape-the-checkout`, `remov-digest-in-recurring`, `remove-coga-build-and-project`, `remove-legacy-config-compatibility-shims`, `retire-never-removes-a-worktree-that-ran-the-tests`, `reuse-the-existing-control-worktree-for-recurring`, `review-slack-channels`, `rewrite-coga-base-prompt-and-agent-mode-block`, `run-the-landed-branch-sweep-daily-from-autoclose`, `select-session-conduct-instead-of-appending-a-cont`, `service-recurring-from-a-temp-control-worktree-ins`, `settle-whether-megalaunch-is-the-only-unclassified`, `simplify-git-sync`, `simplify-ticket-format`, `state-which-branch-is-canonical-for-machine-genera`, `stop-recurring-on-inactive-repo`, `stop-syncing-task-state-onto-the-feature-branch`, `stop-using-worktrees`, `sync-context-omits-preflight-post-from-the-notific`, `the-autofix-analyst-ticket-closed-without-shipping`, `the-human-doc-vs-agent-context-boundary-is-decided`, `the-period-task-context-never-covers-the-determini`, `the-retro-done-ticket-skill-should-verify-a-done-t`, `the-ticket-interview-never-asks-what-done-means`, `the-v2-parking-area-premise-check-has-four-holes`, `ticket-relationships-and-ownership-have-no-mechani`, `ticket-specs-should-cite-symbols-not-line-numbers`, `title-only-tickets-have-no-convention-and-no-valid`, `unblock-rewind`, `v2/propagate-local-coga-config-into-worktrees`, `v2/ship-a-shared-recurring-reminder-engine-battery`, `validate-drift-classifier-misses-17-emitted-kinds`, `validate-that-committed-skill-scripts-with-a-sheba`, `vendored-skills-carry-no-coga-source-json-so-coga`.
-
-**Human-needed / review gates:** review and merge PRs #920–#929; triage the 11 new drafts; owner verdicts in the W40 and W39 premise drafts.
