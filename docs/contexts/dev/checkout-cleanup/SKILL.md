@@ -128,7 +128,11 @@ landed. Recover from the primary checkout after refreshing `main` from `origin`
 
 Refuses unless the ticket is `status: done`. It first disposes of the
 checkout and branch under the proofs above (best-effort: a cleanup failure is
-reported, never aborts). It then drops the slug from any recurring template's
+reported, never aborts). Run it from a checkout on `[git].control_branch`:
+off control (or with `[git].enabled` false, or outside a git work tree) it
+skips disposal and says so (`Retire: checkout cleanup skipped ...`) rather
+than failing, leaving the checkout and branch to autoclose or `branch-sweep`.
+It then drops the slug from any recurring template's
 `retires.md` worklist, but only once its local branch is gone (judged in the
 owning repository when the entry records another clone as `owner`) and its recorded
 worktree directory is gone or is a repository's primary checkout (which

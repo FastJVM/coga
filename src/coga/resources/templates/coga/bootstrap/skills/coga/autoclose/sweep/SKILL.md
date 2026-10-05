@@ -85,11 +85,15 @@ closes tickets as usual but preserves every recorded checkout and says so
 checkout's tickets and the branch proofs its refs. `coga recurring` services
 deterministic phases from a checkout on the control branch, so the scheduled
 run meets the guard. The sweep only ever touches worktrees a ticket or a
-worklist entry recorded, and only those linked to the clone it runs from: in
-this repo the recurring jobs run from `/home/n/Code/claude/coga`, whose
-`/home/n/Code/claude/coga-<branch>` worktrees are what the worklist names.
-Other clones' worktrees are preserved as independent clones and need their
-own `coga run branch-sweep`.
+worklist entry recorded, and only those linked to the clone it runs from.
+Ticket work no longer creates linked worktrees
+([dev/checkouts](context:dev/checkouts)), so for a current ticket the
+disposal is the local and remote branch; linked-worktree removal applies to
+legacy worklist entries and tickets from the retired layout (in this repo,
+`/home/n/Code/claude/coga-<branch>` worktrees of
+`/home/n/Code/claude/coga`). Other clones' worktrees, including a sandbox
+clone recorded as `worktree:`, are preserved as independent clones and need
+their own `coga run branch-sweep`.
 
 **Four surfaces.** The first three are per-run and silent when the run touched
 no checkout; the fourth is the durable worklist:
