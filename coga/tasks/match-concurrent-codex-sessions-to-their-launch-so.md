@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -145,3 +145,18 @@ branch: launch-marker-usage-match
 - `usage_reason` nullable, unknown only, schema stays 2.
 - Pinned, existing, empty Claude transcript -> ok/zero.
 - Known gaps: Claude discussion mode (marker in system prompt), resumed Codex rollouts.
+
+## Implement handoff (2026-10-05)
+
+Branch `launch-marker-usage-match` pushed, one commit, rebased on `origin/main` (80463f62b).
+
+- `commands/launch.py` `spawn_agent_session`: always mints `launch_marker = uuid4()`, appends `\n\ncoga-launch: <uuid>\n` after `prompt_suffix` (so it's in `excluded_user_texts` too); `_argv_prompt` pointer repeats the line; passes `launch_marker` to `capture_session`. Claude `--session-id` minting unchanged.
+- `usage.py`: `LAUNCH_MARKER_PREFIX`/`launch_marker_line`; `_codex_rollout_has_marker` (user/developer `response_item` messages only), `_claude_transcript_has_marker` (in-window `user` lines, text blocks only); tie-break runs only when >1 candidate, exactly one marked wins. `UsageRecord.usage_reason` (unknown only, schema stays 2). Pinned-existing-empty Claude transcript -> ok/zero; empty fallback stays unknown.
+- Docs + packaged twins: activity-capture (marker, tie-breaks, usage_reason, empty rule, known gaps), prompt-composition (`### Launch marker`), usage (usage_reason / provably-empty sentence).
+- Tests: 7 new in `tests/test_usage.py` (codex user+developer marker resolve, marker only in tool output stays unknown, marker absent stays unknown, claude resumed resolve, empty pinned = zero, empty fallback unknown, usage_reason round-trip); `tests/test_launch.py` pins `uuid4` for exact-argv tests + pointer marker test.
+
+Verification:
+- `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider` -> 3270 passed, 1 failed. The failure, `tests/test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`, also fails on untouched base (expects `_custom-phone-home` first in live `coga/recurring/` ordering) — pre-existing, unrelated; needs its own ticket.
+- `coga validate --json` (repo): 1 error, pre-existing on base (`marketing/readme-top` unsynthesized-draft-blackboard). `example/`: no issues.
+
+Known gaps (documented): Claude discussion launches (marker goes to system prompt), resumed Codex rollouts (excluded by the pre-spawn snapshot).
