@@ -12,6 +12,12 @@ that, and offers to install missing external CLIs (see
 
 ## Prerequisites
 
+- **Linux or macOS (POSIX).** Native Windows is unsupported:
+  `src/coga/git.py` imports `fcntl` at module top for the state-publication
+  lock, and `cli.py` imports `coga.git` eagerly, so every command, even
+  `coga --help`, fails with `No module named 'fcntl'`. A port needs a
+  portable substitute for that lock, not only guarded terminal imports. WSL
+  is the untested Windows route.
 - **Python 3.11+.** The package declares `requires-python = ">=3.11"`
   (`pyproject.toml`) because config loading uses the standard-library
   `tomllib`. On an older interpreter, `pip install coga` fails with
