@@ -133,3 +133,15 @@ Since 2026-09-05 Claude has only 8 unknowns (5 empty). The gap is Codex.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: launch-marker-usage-match
+
+## Plan (agreed with owner 2026-10-05)
+
+- Spawn always mints a launch uuid; prompt (and oversized-prompt pointer) ends with `coga-launch: <uuid>`.
+- Tie-break only when >1 candidate: Codex = marker in any user/developer `response_item` message (prompt is a user msg after AGENTS.md in normal mode, a developer msg in discussion mode — "first user message" would miss both); Claude fallback = marker in an in-window user line. Tool output never searched (`ps` could leak a sibling's argv).
+- `usage_reason` nullable, unknown only, schema stays 2.
+- Pinned, existing, empty Claude transcript -> ok/zero.
+- Known gaps: Claude discussion mode (marker in system prompt), resumed Codex rollouts.
