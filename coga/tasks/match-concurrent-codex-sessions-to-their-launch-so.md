@@ -1,6 +1,6 @@
 ---
 title: Match concurrent Codex sessions to their launch so usage stops undercounting
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - dev/code
