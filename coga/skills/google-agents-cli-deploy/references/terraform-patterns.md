@@ -106,7 +106,7 @@ resource "google_pubsub_topic_iam_member" "app_publisher" {
 
 ```bash
 # For single-project infrastructure
-agents-cli infra single-project  # Runs terraform apply in deployment/terraform/single-project/
+agents-cli infra single-project --apply  # Runs terraform apply in deployment/terraform/single-project/
 
 # For CI/CD, infrastructure is applied automatically on push
 ```

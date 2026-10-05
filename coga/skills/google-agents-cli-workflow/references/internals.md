@@ -16,7 +16,7 @@ The dev commands dispatch on the project's `language`, recorded in the manifest.
 | `agents-cli lint` | `uv run ruff check .` + `ruff format . --check` + `ty check .` + codespell (skip via `--skip-ty` / `--skip-codespell`) | `golangci-lint run` |
 | `agents-cli lint --fix` | `uv run ruff check . --fix && uv run ruff format .` | `golangci-lint run --fix` |
 | `agents-cli lint --mypy` | the default checks plus `uv run mypy .` | not applicable — `--mypy`, `--skip-ty` and `--skip-codespell` are Python only |
-| `agents-cli infra single-project` | `terraform init + apply in deployment/terraform/single-project/` | `terraform init + apply in deployment/terraform/single-project/` |
+| `agents-cli infra single-project --apply` | `terraform init + apply in deployment/terraform/single-project/` | `terraform init + apply in deployment/terraform/single-project/` |
 | `agents-cli deploy` | Dispatches by target: `gcloud run deploy` (Cloud Run), `terraform` + `docker build` + `kubectl apply` (GKE), `vertexai` Agent Engines SDK in-process (Agent Runtime) | identical dispatch; the container is built from the project `Dockerfile` either way |
 | `agents-cli install` | `uv sync` (`--clean` deletes `.venv`) | `go mod tidy` (`--clean` ignored) |
 | `agents-cli install --locked` | `uv sync --locked` | `go mod tidy -diff` then `go mod download` |

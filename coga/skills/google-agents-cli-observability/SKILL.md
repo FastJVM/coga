@@ -4,29 +4,31 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-observability
-    github-ref: refs/tags/v1.7.0
+    github-ref: refs/tags/v1.8.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: d74575dc75cb6be82e55d11fc0905c2e8b42a941
+    github-tree-sha: 896c29ce7cda58e140d38c037ad44718c727969f
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.7.0
+    version: 1.8.0
 name: google-agents-cli-observability
 ---
 # Observability Guide
 
-> **Cloud Trace** works out of the box — no infrastructure needed. **Prompt-response logging** and **BigQuery Agent Analytics** require Terraform-provisioned infrastructure (service account, GCS bucket, BigQuery dataset). Run `agents-cli infra single-project --project PROJECT_ID` to provision these resources. Go projects get the BigQuery telemetry stack too; the GCS completion upload behind prompt-response logging and the BigQuery Agent Analytics plugin are Python only. See `references/cloud-trace-and-logging.md` for details, env vars, and verification commands. If your project isn't scaffolded yet, see `/google-agents-cli-scaffold` first.
+> **Cloud Trace** works out of the box — no infrastructure needed. **Prompt-response logging** and **BigQuery Agent Analytics** require Terraform-provisioned infrastructure (service account, GCS bucket, BigQuery dataset). Run `agents-cli infra single-project --apply --project PROJECT_ID` to provision these resources. Go projects get the BigQuery telemetry stack too; the GCS completion upload behind prompt-response logging and the BigQuery Agent Analytics plugin are Python only. See `references/cloud-trace-and-logging.md` for details, env vars, and verification commands. If your project isn't scaffolded yet, see `/google-agents-cli-scaffold` first.
 
-### Order of operations for `agent_runtime` deployments
+### Deployment order
 
-For `deployment_target = agent_runtime`, run `agents-cli infra single-project` **before** the first `agents-cli deploy`. The Terraform module owns the entire Reasoning Engine resource (service account, deployment spec, env vars), so applying it after an SDK-based deploy creates a state mismatch Terraform can't reconcile without taking ownership of the whole resource.
+| Do you want Terraform-managed observability? | Action |
+|---|---|
+| **No** | Run `agents-cli deploy` directly (works for all targets). |
+| **Yes** | Run `agents-cli infra single-project --apply` first, then `agents-cli deploy`. |
 
-Already ran `agents-cli deploy`? Two options:
-
-1. **Switch to Terraform-managed** — delete the SDK-deployed Reasoning Engine, then run `agents-cli infra single-project` and `agents-cli deploy` (sessions and in-flight state are lost).
-2. **Keep the SDK-deployed instance** — skip `infra single-project` and set the observability env vars by re-running `agents-cli deploy --update-env-vars "KEY=VALUE,..."`; deploy matches the existing Reasoning Engine by display name and updates it in place, preserving env vars set outside the deploy. You must also grant its service account the telemetry IAM roles the Terraform module would otherwise provision: `roles/storage.admin` (write completions to the logs bucket), `roles/logging.logWriter`, `roles/cloudtrace.agent`, plus `roles/bigquery.dataOwner` + `roles/bigquery.jobUser` when scaffolded with `--bq-analytics`. The full set lives in `deployment/terraform/single-project/iam.tf` (from `app_sa_roles`) and `telemetry.tf`. Terraform-managed env vars aren't available in this mode.
+**If you already ran `agents-cli deploy` imperatively:**
+Do not apply Terraform afterward. For Agent Runtime, Terraform owns the whole engine (service account, deployment spec, env vars), so a later apply can't be reconciled without taking over the resource. 
+Either delete the deployment and start over, or keep the SDK-deployed instance — skip `infra single-project` and set the observability env vars by re-running `agents-cli deploy --update-env-vars "KEY=VALUE,..."`; deploy matches the existing Reasoning Engine by display name and updates it in place, preserving env vars set outside the deploy. You must also grant its service account the telemetry IAM roles the Terraform module would otherwise provision: `roles/storage.admin` (write completions to the logs bucket), `roles/logging.logWriter`, `roles/cloudtrace.agent`, plus `roles/bigquery.dataOwner` + `roles/bigquery.jobUser` when scaffolded with `--bq-analytics`. The full set lives in `deployment/terraform/single-project/iam.tf` (from `app_sa_roles`) and `telemetry.tf`. Terraform-managed env vars aren't available in this mode.
 
 ### Reference Files
 

@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-publish
-    github-ref: refs/tags/v1.7.0
+    github-ref: refs/tags/v1.8.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 4beb4702c673452811e782134e9bc52a52e14509
+    github-tree-sha: 7fd31e58d2e21cd49540855d9b19fcf0c34defa3
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.7.0
+    version: 1.8.0
 name: google-agents-cli-publish
 ---
 # Gemini Enterprise Registration
@@ -146,12 +146,6 @@ agents-cli publish gemini-enterprise \
 
 ---
 
-## SDK Compatibility (Python only)
-
-Agent Runtime deployments may encounter "Session not found" errors with `google-cloud-aiplatform` versions <= 1.128.0. In interactive mode (`--interactive`), the command checks the SDK version from `uv.lock` and offers to upgrade. In programmatic mode, ensure your SDK is up to date before registering.
-
----
-
 ## Agent Registry (agents and MCP servers)
 
 Agent Registry (Preview) is the Google Cloud fleet-wide catalog of **agents and MCP servers**, separate from a Gemini Enterprise app.
@@ -190,7 +184,7 @@ Docs: https://docs.cloud.google.com/agent-registry/manage-agents · https://docs
 
 | Issue | Solution |
 |-------|----------|
-| "Session not found" after registration | SDK version issue — upgrade `google-cloud-aiplatform` (see SDK Compatibility above), redeploy, then re-register |
+| "Session not found" after registration | Python projects on `google-cloud-aiplatform` <= 1.128.0 hit a known SDK bug — upgrade it, redeploy, then re-register |
 | `--registration-type is required` | Non-interactive mode needs `--registration-type` when no `deployment_metadata.json` exists |
 | "Gemini Enterprise App ID is required" | Provide `--gemini-enterprise-app-id` or set the `ID` / `GEMINI_ENTERPRISE_APP_ID` env var |
 | Re-publishing the same agent | Registration is idempotent — re-running updates the existing registration in place instead of creating a duplicate |
