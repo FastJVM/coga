@@ -7445,3 +7445,4 @@ fatal: Unable to add (null) to database
 2026-10-05 11:28 [recurring/branch-sweep] [system] launched as a script (ticket.py)
 2026-10-05 11:29 [recurring/branch-sweep] [system] task done
 2026-10-05 11:29 [recurring/branch-sweep] [system] script exited with code 0
+2026-10-05 11:29 [recurring/phone-home] [system] started (active → in_progress) via coga launch
