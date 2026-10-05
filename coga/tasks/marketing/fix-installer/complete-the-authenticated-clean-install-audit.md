@@ -1,6 +1,6 @@
 ---
 title: Complete the authenticated clean-install audit
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: direct/body
