@@ -59,6 +59,7 @@ effects, or calling shared infrastructure does not settle their placement.
 | `show`, `status`, `validate`, `usage`, `recurring list` | Placement of the read/report heads, separately from shared rendering and validation infrastructure | `read-report-commands-as-ticket-workflows` |
 | `secret get`, `uninstall` | Placement of acquisition/inspection and removal tooling, separately from launch-time secret injection | `support-commands-boundary` |
 | `skill *` | Explicit tooling classification; excluded from the current migration push, without a ratified permanent package-home proof | `residual-command-surfaces` |
+| `owner` | Placement of the ticket-owner reassignment head (a `mark`-shaped locked write of `owner:`) | none yet |
 
 These reviews live under the parked `coga/tasks/_v2/cleanup-core-commands/`,
 off the execution path (parked directories: `coga/tickets`). Commands stay where they are
