@@ -35,6 +35,19 @@ After the task layers, launch appends a `## Launch arguments` JSON block only
 when positional launch arguments were given ([coga/launch](../launch/SKILL.md)).
 Conduct is never appended there.
 
+### Launch marker
+
+The very last line of every spawned prompt is `coga-launch: <uuid>`, a fresh
+`uuid4` minted by `commands/launch.py` `spawn_agent_session` for that spawn
+(after any `## Launch arguments` block and after a preflighted prompt). It is
+not a layer: `--prompt-report` and `compose_prompt` never show it. It sits at
+the end so everything before it stays a byte-stable prompt-cache prefix across
+launches; a unique line near the top would break that. Usage capture uses it
+to tell a launch's transcript from a concurrent one in the same cwd
+([activity capture](../internals/activity-capture/SKILL.md)). The
+oversized-prompt pointer (Delivery, below) repeats the line so it still
+reaches the transcript.
+
 ## What each layer reads
 
 - Contexts and skills resolve local-first, then the package bootstrap copy

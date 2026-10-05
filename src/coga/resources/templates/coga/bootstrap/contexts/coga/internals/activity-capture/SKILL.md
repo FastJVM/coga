@@ -21,8 +21,11 @@ Activity (schema 2): `started_at`, `ended_at`, `elapsed_seconds`,
 `human_turns`, `agent_turns`, `request`, `outcome`, `content_status` (`ok` |
 `unknown`), and `outcome_status` (`completed`, `failed`, `timed_out`,
 `interrupted`, `unknown`). `outcome_status` describes the process, independent
-of token parsing. Schema-1 records stay readable with activity fields null
-and roll up unchanged.
+of token parsing. `usage_reason` carries the parser's reason when
+`usage_status` is `unknown` (the same text capture prints to stderr) and is
+null otherwise; it was added without a schema bump, so records written before
+it read back with it null. Schema-1 records stay readable with activity fields
+null and roll up unchanged.
 
 ## Capture point and gates
 
@@ -49,6 +52,16 @@ and megalaunch children each emit exactly one record.
 
 ## Provider matching — never by file mtime
 
+**Launch marker.** `spawn_agent_session` mints a fresh `uuid4` per spawn and
+ends the prompt with the line `coga-launch: <uuid>`
+([prompt composition](../../prompt-composition/SKILL.md#launch-marker)),
+passing the same value to capture as `launch_marker`. It is only a
+tie-breaker: when more than one candidate survives a provider's ordinary
+filters, capture keeps the candidates whose own message text carries that
+exact line and accepts exactly one. Zero or several marked candidates stay
+unknown. Only message text counts, never tool calls or results, so a session
+that saw a sibling's argv (for example via `ps`) cannot claim it.
+
 `usage.parser_key_for_cli` maps the agent's `cli` basename to `claude` or
 `codex`; any other CLI records `provider: unknown` with usage unknown.
 
@@ -65,7 +78,18 @@ the transcript it resumed from, so the pinned file may not exist; capture
 then considers transcripts in
 the same project directory with a per-line `timestamp` in the window and
 adopts the match's stem as `session_id`. Two or more in-window candidates
-(concurrent sessions in one cwd) → usage unknown.
+(a resume plus a concurrent session in one cwd) are narrowed to those with an
+in-window `user` line carrying the launch marker; otherwise usage is
+unknown. A discussion launch (`coga chat`, `coga ticket`) passes its prompt
+through `--append-system-prompt`, so the marker never reaches the transcript
+and that case stays unknown.
+
+**Provably empty.** When the pinned transcript itself exists but has no
+in-window assistant usage, the session never reached the API: the record is
+`ok` with all four token counts zero. This applies only to the pinned file; a
+fallback candidate with no usage proves nothing about this launch and stays
+unknown, and a missing Codex rollout is never treated as zero (absence is not
+proof).
 
 Claude model attribution takes the last non-`<synthetic>` model, falling back
 to `<synthetic>` when that is the only model present. Synthetic assistant
@@ -80,8 +104,13 @@ first: every codex child writes its own rollout with the parent's cwd, so a
 rollout whose `session_meta.payload` has `thread_source == "subagent"` or a
 non-empty `parent_thread_id` never matches. A parent plus N children resolves
 to the parent; subagent tokens are deliberately not counted (parity with a
-parent-only session). None or several top-level matches (a child-only set
-included) → usage unknown. `token_count` events carry cumulative `info.total_token_usage`, so the
+parent-only session). Several top-level matches (concurrent launches in one
+cwd) are narrowed to the one whose `user` or `developer` `response_item`
+message carries the launch marker: an ordinary prompt is a user message after
+codex's own AGENTS.md/environment user message, a discussion prompt is a
+developer message. None, or several after the tie-break (a child-only set
+included) → usage unknown. A resumed rollout predates the pre-spawn snapshot
+and is never a candidate, so a resumed Codex session stays unknown. `token_count` events carry cumulative `info.total_token_usage`, so the
 last event is taken and never summed, which makes resume and compaction
 double-counting a non-issue. Mapping: `cached_input_tokens` → cache-read,
 reasoning folded into output, cache-create null (Codex exposes no split).

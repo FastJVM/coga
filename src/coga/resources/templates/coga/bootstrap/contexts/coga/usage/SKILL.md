@@ -62,7 +62,9 @@ unknown, total, input, cache_create, cache_read, and output tokens. The four
 token categories stay distinct because Coga's composed context makes cache
 tokens dominate. `unknown` counts sessions whose usage could not be
 attributed; they count as sessions but contribute zero tokens, so a high
-unknown count means the totals are a floor, not a measurement.
+unknown count means the totals are a floor, not a measurement. Each unknown
+record carries a `usage_reason` saying why; a session that provably never
+reached the API is recorded `ok` with zero tokens rather than unknown.
 
 `coga usage` is read-only: no mutation, no network, and it is in
 `cli._NON_SWEEPING_COMMANDS`, so it never triggers the end-of-command state

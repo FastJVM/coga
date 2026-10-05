@@ -33,6 +33,15 @@ _LOG_LINE_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \[[^\]]*\] \[[^\]]*\] (\{.*)$"
 )
 
+# Every agent launch ends its prompt with this line carrying a fresh uuid, so
+# capture can tell its own transcript from a concurrent one in the same cwd.
+# It sits at the very end so prompts stay cache-identical up to it.
+LAUNCH_MARKER_PREFIX = "coga-launch: "
+
+
+def launch_marker_line(marker: str) -> str:
+    return f"{LAUNCH_MARKER_PREFIX}{marker}"
+
 
 @dataclass(frozen=True)
 class ParsedUsage:
@@ -86,6 +95,7 @@ class UsageRecord:
     outcome: str | None = None
     content_status: ContentStatus | None = None
     outcome_status: OutcomeStatus | None = None
+    usage_reason: str | None = None
     schema: int = USAGE_SCHEMA
 
     def to_json(self) -> str:
@@ -135,6 +145,7 @@ class UsageRecord:
                 outcome=_optional_str_value(data.get("outcome")),
                 content_status=_content_status(data.get("content_status")),
                 outcome_status=_outcome_status(data.get("outcome_status")),
+                usage_reason=_optional_str_value(data.get("usage_reason")),
                 schema=schema,
             )
         except KeyError as exc:
@@ -205,6 +216,7 @@ def parse_session(
     window_end: datetime,
     excluded_user_texts: tuple[str, ...] = (),
     secret_values: tuple[str, ...] | None = (),
+    launch_marker: str | None = None,
 ) -> ParsedUsage:
     if provider == "claude":
         return _parse_claude_session(
@@ -214,6 +226,7 @@ def parse_session(
             window_end=window_end,
             excluded_user_texts=excluded_user_texts,
             secret_values=secret_values,
+            launch_marker=launch_marker,
         )
     if provider == "codex":
         return _parse_codex_session(
@@ -223,6 +236,7 @@ def parse_session(
             window_end=window_end,
             excluded_user_texts=excluded_user_texts,
             secret_values=secret_values,
+            launch_marker=launch_marker,
         )
     return ParsedUsage(
         provider="unknown",
@@ -253,6 +267,7 @@ def capture_session(
     excluded_user_texts: tuple[str, ...] = (),
     secret_values: tuple[str, ...] | None = (),
     outcome_status: OutcomeStatus = "unknown",
+    launch_marker: str | None = None,
 ) -> None:
     provider_key = parser_key_for_cli(cli)
     try:
@@ -265,6 +280,7 @@ def capture_session(
             window_end=window_end,
             excluded_user_texts=excluded_user_texts,
             secret_values=secret_values,
+            launch_marker=launch_marker,
         )
     except Exception as exc:  # pragma: no cover - defensive launch guard
         print(f"coga usage: failed to parse session usage: {exc}", file=sys.stderr)
@@ -309,6 +325,7 @@ def capture_session(
         outcome=parsed.outcome,
         content_status=parsed.content_status,
         outcome_status=outcome_status,
+        usage_reason=parsed.reason if parsed.usage_status == "unknown" else None,
     )
     try:
         append_record(cfg, record)
@@ -387,6 +404,7 @@ def _parse_claude_session(
     window_end: datetime,
     excluded_user_texts: tuple[str, ...],
     secret_values: tuple[str, ...] | None,
+    launch_marker: str | None = None,
 ) -> ParsedUsage:
     if not session_id:
         return _unknown(
@@ -395,7 +413,8 @@ def _parse_claude_session(
             reason="missing claude session id",
         )
     path = _claude_transcript_path(cwd, session_id)
-    if not path.is_file():
+    pinned = path.is_file()
+    if not pinned:
         # The pinned `--session-id` transcript is absent. `claude` only
         # materialises that id for a *fresh* session: a resumed one keeps
         # appending to the transcript it was resumed from, so the pinned file
@@ -413,9 +432,24 @@ def _parse_claude_session(
                 session_id=session_id,
                 reason=f"claude transcript not found: {path}",
             )
+        if len(candidates) > 1 and launch_marker:
+            # Concurrent sessions in one cwd: only the one whose user turns
+            # carry this launch's exact marker line is ours.
+            marked = [
+                item
+                for item in candidates
+                if _claude_transcript_has_marker(
+                    item,
+                    launch_marker,
+                    window_start=window_start,
+                    window_end=window_end,
+                )
+            ]
+            if len(marked) == 1:
+                candidates = marked
         if len(candidates) > 1:
-            # Concurrent sessions in one cwd — picking either would misattribute
-            # usage, so report ambiguity instead of guessing.
+            # Still ambiguous — picking either would misattribute usage, so
+            # report ambiguity instead of guessing.
             return _unknown(
                 "anthropic",
                 session_id=session_id,
@@ -510,6 +544,25 @@ def _parse_claude_session(
     )
 
     if not matched:
+        if pinned:
+            # The transcript this launch pinned exists and never reached the
+            # API: provably zero tokens, not an unknown. A fallback candidate
+            # proves nothing about this launch, so it stays unknown.
+            return ParsedUsage(
+                provider="anthropic",
+                model=model,
+                session_id=session_id,
+                input_tokens=0,
+                cache_creation_input_tokens=0,
+                cache_read_input_tokens=0,
+                output_tokens=0,
+                usage_status="ok",
+                human_turns=activity.human_turns,
+                agent_turns=activity.agent_turns,
+                request=activity.request,
+                outcome=activity.outcome,
+                content_status=activity.content_status,
+            )
         return _unknown(
             "anthropic",
             session_id=session_id,
@@ -541,6 +594,7 @@ def _parse_codex_session(
     window_end: datetime,
     excluded_user_texts: tuple[str, ...],
     secret_values: tuple[str, ...] | None,
+    launch_marker: str | None = None,
 ) -> ParsedUsage:
     candidates: list[Path] = []
     cwd_str = str(cwd.resolve())
@@ -562,6 +616,14 @@ def _parse_codex_session(
         candidates.append(path)
     if not candidates:
         return _unknown("openai", reason=f"codex rollout not found for cwd: {cwd_str}")
+    if len(candidates) > 1 and launch_marker:
+        # Concurrent launches in one cwd: only the rollout whose prompt
+        # carries this launch's exact marker line is ours.
+        marked = [
+            path for path in candidates if _codex_rollout_has_marker(path, launch_marker)
+        ]
+        if len(marked) == 1:
+            candidates = marked
     if len(candidates) > 1:
         return _unknown(
             "openai",
@@ -755,6 +817,92 @@ def _claude_transcript_active_in_window(
         if stamp is not None and _inside_window(
             stamp, window_start=window_start, window_end=window_end
         ):
+            return True
+    return False
+
+
+def _has_marker_line(texts: list[str], marker: str) -> bool:
+    line = launch_marker_line(marker)
+    return any(
+        candidate.strip() == line for text in texts for candidate in text.splitlines()
+    )
+
+
+def _claude_transcript_has_marker(
+    path: Path,
+    marker: str,
+    *,
+    window_start: datetime,
+    window_end: datetime,
+) -> bool:
+    """True when an in-window user turn carries `marker` as its own line.
+
+    Only user message text counts — never tool results — so an agent that saw
+    a sibling launch's argv (for example via `ps`) cannot claim it.
+    """
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return False
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(obj, dict) or obj.get("type") != "user":
+            continue
+        stamp = _parse_ts(obj.get("timestamp"))
+        if stamp is None or not _inside_window(
+            stamp, window_start=window_start, window_end=window_end
+        ):
+            continue
+        message = obj.get("message") if isinstance(obj.get("message"), dict) else {}
+        parts, _ = _message_text_parts(message.get("content"))
+        if _has_marker_line(parts, marker):
+            return True
+    return False
+
+
+def _codex_rollout_has_marker(path: Path, marker: str) -> bool:
+    """True when a user or developer message carries `marker` as its own line.
+
+    An ordinary launch's prompt is a user message (after codex's own
+    AGENTS.md/environment user message); a discussion launch's prompt is a
+    developer message. Tool calls and outputs never count.
+    """
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return False
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(obj, dict) or obj.get("type") != "response_item":
+            continue
+        payload = obj.get("payload") if isinstance(obj.get("payload"), dict) else {}
+        if payload.get("type") != "message":
+            continue
+        if payload.get("role") not in {"user", "developer"}:
+            continue
+        content = payload.get("content")
+        texts = (
+            [content]
+            if isinstance(content, str)
+            else [
+                item["text"]
+                for item in content
+                if isinstance(item, dict) and isinstance(item.get("text"), str)
+            ]
+            if isinstance(content, list)
+            else []
+        )
+        if _has_marker_line(texts, marker):
             return True
     return False
 

@@ -2789,22 +2789,26 @@ def _agent_args_prompt_suffix(args: list[str]) -> str:
 _MAX_PROMPT_ARG_BYTES = 120_000
 
 
-def _argv_prompt(prompt: str, prompt_file: Path) -> str:
+def _argv_prompt(
+    prompt: str, prompt_file: Path, marker_line: str = ""
+) -> str:
     """The prompt as it rides argv: verbatim, or a file pointer when oversized.
 
     The prompt file is already on disk (written before the argv is built) and
     is only removed after the session ends, so the pointer stays valid for the
     agent's whole run. Same content, one indirection — the alternative is a
-    guaranteed E2BIG exec failure.
+    guaranteed E2BIG exec failure. The pointer repeats the launch marker line
+    so usage capture can still find it in the transcript's own message.
     """
     if len(prompt.encode()) <= _MAX_PROMPT_ARG_BYTES:
         return prompt
-    return (
+    pointer = (
         f"Read the file {prompt_file} in full before doing anything else — "
         "its contents are your complete composed Coga prompt, too large to "
         "pass as a command-line argument. Follow it exactly as if it had "
         "been given to you as this message."
     )
+    return f"{pointer}\n\n{marker_line}\n" if marker_line else pointer
 
 
 def build_agent_command(
@@ -3029,12 +3033,18 @@ def spawn_agent_session(
         prompt = composed_prompt
     if prompt_suffix:
         prompt = f"{prompt}{prompt_suffix}"
+    # A per-launch marker, last so everything before it stays a stable prompt
+    # cache prefix. Usage capture uses it to pick this launch's transcript
+    # when concurrent sessions share the cwd.
+    launch_marker = str(uuid4())
+    marker_line = usage_tracking.launch_marker_line(launch_marker)
+    prompt = prompt.rstrip("\n") + f"\n\n{marker_line}\n"
     prompt_file = write_prompt_file(prompt, ref)
     typer.echo(
         f"{label}: prompt written to {prompt_file} "
         f"({len(prompt)} chars)"
     )
-    prompt_arg = _argv_prompt(prompt, prompt_file)
+    prompt_arg = _argv_prompt(prompt, prompt_file, marker_line)
     if prompt_arg is not prompt:
         typer.echo(
             f"{label}: prompt exceeds the {_MAX_PROMPT_ARG_BYTES}-byte "
@@ -3226,6 +3236,7 @@ def spawn_agent_session(
                 excluded_user_texts=excluded_user_texts,
                 secret_values=usage_secret_values,
                 outcome_status=outcome_status,
+                launch_marker=launch_marker,
             )
             # The usage record lands in `log.md` *past* the agent's final
             # `bump`/`mark` sync, so publish exactly the log now via its
