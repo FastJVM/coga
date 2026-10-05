@@ -26,6 +26,17 @@ of the region and the cost first. `provision` refuses to run unless you set
 `COGA_CLEAN_INSTALL_ALLOCATE=yes`. Plan to run every walk you need on one host
 within its first day.
 
+**Reusing an already-allocated host takes a manual step.** `provision` always
+calls `ec2 allocate-hosts` and has no option to target an existing host, so a
+later provision name cannot reuse a host that an earlier one allocated (for
+example one still inside its 24-hour minimum). The 2026-10-01 run reused
+`h-0833c01ac15e645ac` this way. The owner approved the reuse separately from
+the original allocation. The operator ran a temporary, untracked copy of
+`aws-mac.sh` that substituted the existing host ID for the allocation call,
+and left the tracked harness unchanged. The new provision's `resources.env`
+then owns that host. Its standard `teardown <name>` released it, so that
+ledger, not the original one, must record `HOST_RELEASED`.
+
 ## Credentials and region
 
 Use an AWS SSO profile, never root credentials:
@@ -96,6 +107,16 @@ steps match the Linux container:
 
 `main` mode builds the wheel on your machine from the fetched `origin/main`,
 not from your working tree, and copies only that wheel to the Mac.
+
+**The walk does not pin Python 3.11.** Step 2 only reports `python3`. After
+the CLT install, the Mac's default `/usr/bin/python3` is 3.9.6, which is
+below Coga's 3.11 floor. A result produced there is not evidence about a
+supported interpreter. On 2026-10-01 an earlier walk that resolved the PyPI
+`0.0.1` placeholder was set aside for this reason. Install and select 3.11 explicitly for the walk user,
+and record the interpreter in the evidence. The draft
+`marketing/fix-installer/pin-python-3-11-in-the-macos-clean-install-harness`
+owns the harness fix. It is unresolved on `main`: `container.sh` still runs a
+bare `python3 --version`.
 
 **Expect the first walk to stop at `git --version`.** The shim exits non-zero.
 Over SSH no GUI session owns the walk user, so it prints `xcode-select: error:
