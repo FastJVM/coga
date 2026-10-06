@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 82f85e0f-75dd-4e48-8bb6-dbdbd35e3c9d
 ---
 
 ## Description
@@ -50,3 +49,21 @@ workflows (no live twin under `coga/workflows/code/`). Key nuance from
 `autoclose._dispose_checkouts`: only tickets *the sweep* closes (plus open
 `retires.md` entries) get disposal; a `coga bump` close does not dispose.
 PR #950 is CLOSED unmerged, so no rebase dependency.
+
+## Implement handoff
+
+- Commit on `fix-code-workflow-review-autoclose-disposal` (pushed) rewrites the
+  `done is not the end` paragraph of the `## review` section in
+  `bootstrap/workflows/code/{design-then-implement,with-review,with-self-review}.md`
+  identically: the sweep disposes of provably-safe checkouts of tickets it
+  closes (`coga.autoclose._dispose_checkouts`, shared `coga.checkout_disposal`
+  proofs), preserved ones land on `retires.md`; a `coga bump` close disposes of
+  nothing; `coga retire` stays the path for the retro and leftover checkouts.
+- No live twin exists (`coga/workflows/code/` absent); packaging test passes.
+- Tests: `python -m pytest` → 3273 passed, 1 failed:
+  `tests/test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`
+  — fails identically on clean `main` (recurring ticket.py ordering:
+  `autoclose-merged` vs `_custom-phone-home`); unrelated, not fixed here.
+- Adjacent (not fixed, out of ticket scope):
+  `bootstrap/workflows/docs/with-review.md` carries the same stale
+  "outlive the close" paragraph; needs the same correction in a follow-up.
