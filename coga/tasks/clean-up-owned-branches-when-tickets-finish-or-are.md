@@ -51,7 +51,22 @@ Read docs/contexts/dev/checkout-cleanup/SKILL.md, docs/contexts/coga/lifecycle/S
 <!-- coga:blackboard -->
 
 ## Dev
-branch: terminal-branch-cleanup
+branch: terminal-branch-cleanup-retire-sweep
+
+Owner decision, 2026-10-05: two sessions implemented this ticket in parallel.
+The owner chose `terminal-branch-cleanup-retire-sweep` (commits `89075137d`,
+`3d611862a`, `fb331c25a`): terminal transitions delete nothing, and retire,
+autoclose disposal and the daily/weekly sweep apply the terminal-owner
+closed-PR rule. The *Implement handoff* below describes the abandoned
+`terminal-branch-cleanup` branch (inline cleanup in `mark_done` /
+`mark_canceled`). Its backlog deletions did happen, and its audit page is
+carried on the chosen branch as `docs/evidence/branch-cleanup-audit-2026-10-05.md`,
+together with a second pass from `/home/n/Code/coga`. Verification on the
+chosen branch: full suite 3284 passed, 1 failed; the failure,
+`test_edge_distribution::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`,
+fails the same way on clean `main`. Still open: the owner-approved manual
+removals listed in that audit page (refused by tool permissions), and the
+`branchsweep._local_branches` follow-up noted below.
 
 ## Plan
 
