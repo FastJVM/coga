@@ -1,50 +1,48 @@
 # Coga: don't don't think.
 
-**Stop repeating yourself to agents**
+**Stop repeating yourself to agents.**
+
+Coga is a CLI that runs Claude Code or Codex from Markdown files in your Git
+repo. Every launch rebuilds the agent's prompt from those files, never from
+chat history. When an agent gets something wrong, you fix the file once, and
+every later run starts from the fix.
+
+Coga is built with Coga: see the tickets in [`coga/tasks/`](coga/tasks) and
+the full history in [`coga/log.md`](coga/log.md).
+
+## What is it
+
+When you use coding agents a lot, they forget instructions, skip steps and
+drift off course. You end up babysitting them. Coga turns the instructions
+you keep repeating into a way of working that lives in your repo.
+
+It is built around three ideas:
+
+- **Built for work you discover by doing.** Work is small tickets you can
+  reshape at any time. When a premise turns out wrong, rollback:
+  what was learned stays, and abandoned designs stay on disk but out of the
+  agent's prompt.
+- - **Improvements compound.** Coga is full of feedback loops, at every scale:
+  - **Within a ticket**, the blackboard carries what each step learned into
+    the next one, and a second agent can review the first one's work.
+  - **Across tickets**, what a finished ticket taught is folded into the
+    contexts and skills that future tickets start from.
+  - **Across the system**, recurring jobs such as Dream check docs against
+    the code, flag drift and keep skills up to date.
+  - **From you**, any correction to a ticket, context or skill takes effect
+    on the next launch.
+- **Everything is inspectable and hackable.** The base prompt, workflows,
+  docs and skills are plain files, and every one can be overridden from your
+  repo. `coga launch --prompt-report` shows the exact prompt before anything
+  runs. You and your agents change the system as your ways of working evolve.
+
+The trade-off: you specify more up front, and you stay the one who decides.
+Coga fits when writing down how work should be done costs less than
+supervising it again and again.
 
 
-Coga is a CLI that sits on top of your coding agents. It organizes your agentic work so you spend 0 time repeating instructions, handling interruptions, and getting sessions back on track.
-Check it out yourself: Coga is built with Coga see [`coga/tasks/`](coga/tasks) and log.
 
-# What is it
-When you use coding agents a lot, agents forget instructions, skip steps, and steer off path. You end up babysitting them and correcting them as they work.
-Coga turns those repeated instructions into a reusable way of working.
 
-Coga is a complete work system that brings together agent best practices: tickets, retrospectives, skills, and documentation. It is built around two ideas:
-- Improvements compound. Coga is full of feedback loops that carry what you learn back into the system.
-- Everything is inspectable, debuggable, and hackable. You and your agents can understand and change the system as your ways of working evolve.-
-
-For instance, after implementing a ticket, what's changeed and new will be added into the documentation and pushed in a PR so you can read it if you choose to.
-
-Coga: don't don't think
-Stop repeating yourself to agents.
-
-Most agent tools ask you to think less. Coga asks you to think once,
-write it down, and stop re-explaining it.
-
-Coga is a CLI that runs Claude Code or Codex from files in your Git repo.
-Every launch rebuilds the agent's prompt from those files, never from chat
-history. So when an agent gets something wrong, you fix the file, and every
-later run starts from the fix.
-
-What that changes in practice:
-
-Each kind of work has its own workflow. Research, implementation and
-upkeep get different steps, and each step says who acts: you, an agent,
-or a second agent reviewing the first.
-
-Agents stop at your decisions, not your attention. coga megalaunch
-carries each ticket to its next human decision, then moves on. You answer
-the decisions in one batch.
-
-Nothing changes how the system works without your merge. Lessons from
-finished tickets come back as pull requests to the docs and skills.
-
-The trade-off: you specify more up front. Coga fits when writing down how
-work should be done costs less than supervising it again and again.
-
-Coga is built with Coga: see the tickets in [coga/tasks/](coga/tasks)
-and the full history in [coga/log.md](coga/log.md).
 
 ## Sample Project
 I want to add in Codex a plugin to pick the best model with the right "thinking" power (hard, etc.) asit would save quite a bit of money. 
