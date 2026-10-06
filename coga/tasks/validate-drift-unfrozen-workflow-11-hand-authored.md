@@ -1,7 +1,7 @@
 ---
 title: 'validate-drift: unfrozen-workflow — 11 hand-authored drafts carry an unfrozen
   workflow'
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: brief-for-human
@@ -16,6 +16,7 @@ workflow:
     skills: []
     assignee: agent
 step: 1 (brief-and-hand-off)
+agent: claude
 ---
 
 ## Description
