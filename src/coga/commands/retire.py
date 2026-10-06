@@ -7,7 +7,12 @@ import sys
 import typer
 
 from coga import git
-from coga.autoclose import parse_branch_name, parse_pr_url, parse_worktree_path
+from coga.autoclose import (
+    parse_branch_name,
+    parse_branch_names,
+    parse_pr_url,
+    parse_worktree_path,
+)
 from coga.branchcleanup import WorktreeCleanupResult
 from coga.checkout_disposal import dispose_checkout
 from coga.config import Config, ConfigError, load_config
@@ -184,6 +189,7 @@ def _cleanup_checkout(cfg: Config, ref: TaskRef) -> WorktreeCleanupResult | None
         worktree=parse_worktree_path(blackboard),
         pr_url=parse_pr_url(blackboard),
         echo=typer.echo,
+        owned_branches=parse_branch_names(blackboard),
     )
     return disposal.worktree_result
 

@@ -335,8 +335,8 @@ def test_entry_ticket_requires_an_exact_slug_match(
     stale = slug[: len(slug) // 2]
     assert stale != slug
 
-    assert am._entry_ticket(cfg, stale) == (False, None)
-    assert am._entry_ticket(cfg, slug) == (True, PR_URL)
+    assert am._entry_ticket(cfg, stale) == (False, None, ())
+    assert am._entry_ticket(cfg, slug) == (True, PR_URL, ("foo-followup",))
 
 
 def test_recipe_keeps_a_claimed_worklist_entry_with_its_reason(

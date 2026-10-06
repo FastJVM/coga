@@ -280,6 +280,20 @@ def test_parse_branch_name_empty_value_is_none() -> None:
     assert am.parse_branch_name("## Dev\n\nbranch: ``\n") is None
 
 
+def test_parse_branch_names_lists_every_dev_branch_once() -> None:
+    text = (
+        "## Plan\n\nbranch: prose-only\n\n"
+        "## Dev\n\nbranch: first\n- branch: `second` (retry)\nbranch: first\n"
+        "pr: https://x/pull/4\n"
+    )
+    assert am.parse_branch_names(text) == ["first", "second"]
+    assert am.parse_branch_name(text) == "first"
+
+
+def test_parse_branch_names_empty_without_dev_section() -> None:
+    assert am.parse_branch_names("## Plan\n\nbranch: nope\n") == []
+
+
 def test_parse_worktree_path_bare_form_preserves_spaces() -> None:
     text = "## Dev\n\nworktree: /tmp/path with spaces\n"
     assert am.parse_worktree_path(text) == "/tmp/path with spaces"

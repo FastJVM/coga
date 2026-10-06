@@ -48,7 +48,12 @@ unclaimed landed branches are checked daily at the cost of extra GitHub API
 calls. The standalone Monday `branch-sweep` schedule remains an independent
 retry and manual entry point. Both use the existing
 [checkout cleanup proofs](../../../dev/checkout-cleanup/SKILL.md); daily
-frequency grants no new deletion authority.
+frequency grants no new deletion authority. That includes the
+[terminal-owner rule](../../../dev/checkout-cleanup/SKILL.md#terminal-owners-and-closed-prs):
+a branch whose PR closed unmerged is released only when a done or canceled
+ticket owns it. The daily pass is the integration point for terminal
+transitions, which delete nothing themselves; a refusal is reported under
+`## Branch Sweep` and retried the next day.
 
 One stable task per template (`recurring.create_template`):
 

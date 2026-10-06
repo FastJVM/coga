@@ -38,9 +38,13 @@ Tickets without a workflow move through statuses only via `coga mark`.
   it is the required audit reason, appended to `coga/log.md`. Cancellation
   leaves the body and blackboard (including open blocker text) untouched.
 - `done` and `canceled` are terminal: launch refuses them and nothing
-  reactivates a canceled ticket. `mark done --force` / final-step
-  `bump --force` finish a `direct/body` ticket while acknowledging product code
-  stranded off the control branch.
+  reactivates a canceled ticket. A terminal transition deletes no branch or
+  checkout. The ticket's owned branches are cleaned up later by `coga retire`
+  and the daily autoclose branch pass, so nothing disappears beneath the
+  session that finished it
+  ([dev/checkout-cleanup](../../dev/checkout-cleanup/SKILL.md#terminal-owners-and-closed-prs)).
+  `mark done --force` / final-step `bump --force` finish a `direct/body`
+  ticket while acknowledging product code stranded off the control branch.
 - `done` is a control-plane transition, not a receipt: a done ticket's own
   verification prose is no proof that the change its `## Description` scoped
   reached the control branch. `retro/done-ticket` checks the scope against the
