@@ -43,6 +43,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/965
 branch: fix-code-workflow-review-autoclose-disposal
 
 Plan: rewrite the `done is not the end` paragraph in the three packaged code
