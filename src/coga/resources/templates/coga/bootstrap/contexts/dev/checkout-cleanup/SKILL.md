@@ -39,6 +39,9 @@ remote goes through the branch sweep restricted to those names
 terminal-owner rule below and the archive gate. A kept branch is reported
 with its reason, and the disposal stays pending while its local ref
 survives. This step is skipped while the recorded worktree survives.
+Every candidate, including additional merged branches, gets its own
+cross-workspace live-claim check before the restricted sweep. An incomplete
+claim scan preserves it.
 
 Local cleanup precedes remote deletion; local deletion re-checks the authorized
 tip on both the ancestry and merged-PR paths. On the ancestry path, a tip already
@@ -130,8 +133,21 @@ counts, because autoclose records it for a ticket it closed and that ticket
 may since be gone. An entry whose recorded `owner` is another clone does not
 count. The owner must be `done` or `canceled`
 (`branchsweep._terminal_owners`). These never count as ownership: a closed PR
-on its own, a prose or attachment mention, and a ticket or worklist that
+on its own, a prose or attachment mention, a fenced or indented code example,
+and a ticket or worklist that
 cannot be read.
+
+**Durable branch debt.** Worklist entries retain additional owned branches
+in an optional `branches` list beside the primary `branch`. Autoclose records
+that list even when checkout disposal was skipped. Before discharge,
+reconciliation backfills a legacy entry from its surviving ticket's exact
+slug; an unreadable ticket refuses reconciliation. A union-merged older line
+cannot erase an existing additional branch list. The entry stays open until
+every recorded local branch is gone in its owning repository and the existing
+worktree gate clears. This keeps secondary branch ownership and retries alive
+after the first branch or the ticket disappears. Remote leftovers retain the
+existing best-effort sweep policy. Field syntax is documented in the
+`coga/autoclose/sweep` invocation skill.
 
 **Authorization.** A closed, unmerged PR for a terminal-owned branch vouches
 for it the way a merged PR does (`merged_pr_verdict`'s `closed` PRs). The
@@ -139,7 +155,8 @@ existing gates still apply:
 
 - No live ticket in this workspace mentions the branch, and no live ticket in
   any workspace of the Git checkout records it (`live_checkout_claim`). One
-  terminal owner and one live claimant means the branch stays.
+  terminal owner and one live claimant means the branch stays. Every recorded
+  branch counts, including secondary branches on recurring period tickets.
 - No PR for the head is open.
 - The remote ref still equals the closed PR's exact head. A remote moved past
   that head is kept and reported, even when the local ref goes.

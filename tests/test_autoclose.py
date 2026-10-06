@@ -294,6 +294,26 @@ def test_parse_branch_names_empty_without_dev_section() -> None:
     assert am.parse_branch_names("## Plan\n\nbranch: nope\n") == []
 
 
+@pytest.mark.parametrize("fence", ["```", "~~~~", "````"])
+def test_branch_ownership_ignores_fenced_examples(fence: str) -> None:
+    text = (
+        f"{fence}markdown\n## Dev\nbranch: fake-section\n{fence}\n"
+        f"## Dev\n{fence}yaml\nbranch: example\n## Notes\n"
+        f"```\nbranch: still-example\n{fence}\n"
+        "branch: real\n    branch: indented-example\n"
+    )
+    # A matching triple fence already closed the first parametrized block.
+    if fence == "```":
+        text = text.replace("```\nbranch: still-example\n", "")
+    assert am.parse_branch_names(text) == ["real"]
+    assert am.parse_branch_name(text) == "real"
+
+
+def test_branch_ownership_does_not_read_past_empty_line_or_unclosed_fence() -> None:
+    assert am.parse_branch_names("## Dev\nbranch:\n\nprose\n") == []
+    assert am.parse_branch_names("## Dev\n```\nbranch: example\n") == []
+
+
 def test_parse_worktree_path_bare_form_preserves_spaces() -> None:
     text = "## Dev\n\nworktree: /tmp/path with spaces\n"
     assert am.parse_worktree_path(text) == "/tmp/path with spaces"

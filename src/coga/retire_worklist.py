@@ -47,8 +47,9 @@ The one line shape is::
 
     - `<slug>` — branch `<branch>`, worktree `<path>`, recorded `<YYYY-MM-DD>`
 
-with an optional trailing ``, owner `<path>` `` for a checkout owned by
-another repository.
+with an optional ``, owner `<path>` `` for a checkout owned by another
+repository, then optional ``, branches `<second>`, `<third>` `` for additional
+branch debt. Older entries remain valid; union merges retain additional debt.
 Field encoding for hand-edited entries is documented in `coga/autoclose/sweep`.
 A line that does not parse, or a file without the `## Follow-ups (open)`
 heading, fails loud rather than growing a second section no reader would find.
@@ -91,7 +92,7 @@ only while a proof keeps refusing it — a dirty worktree, an independent clone,
 a branch another live ticket records — and clears on the next run after the
 cause is fixed. Run `coga retire <slug>` to see the proofs at first hand.
 Entries are keyed by slug, so a later sweep refreshes one rather than
-duplicating it, and an entry is dropped once its local branch is gone and its
+duplicating it, and an entry is dropped once all its local branches are gone and its
 worktree directory is gone or is this repository's own primary checkout, which
 nobody disposes of. A worktree owned by another repository records that
 repository as `owner`, and its branch is judged there: an owner this run
@@ -106,7 +107,8 @@ For the line format and field encoding, see the `coga/autoclose/sweep` skill.
 _ENTRY_RE = re.compile(
     r"^- `(?P<slug>[^`]+)` — branch `(?P<branch>[^`]*)`, "
     r"worktree `(?P<worktree>[^`]*)`, recorded `(?P<recorded>[^`]*)`"
-    r"(?:, owner `(?P<owner>[^`]*)`)?$"
+    r"(?:, owner `(?P<owner>[^`]*)`)?"
+    r"(?:, branches (?P<branches>`[^`]+`(?:, `[^`]+`)*))?$"
 )
 
 
@@ -125,6 +127,12 @@ class RetireFollowUp:
     owner: str = ""
     """The main working tree of the repository that owns `worktree`, when
     that is not this repository; empty otherwise (and on older lines)."""
+    branches: tuple[str, ...] = ()
+    """Additional branch debt; older entries record only `branch`."""
+
+    @property
+    def branch_names(self) -> tuple[str, ...]:
+        return tuple(dict.fromkeys(name for name in (self.branch, *self.branches) if name))
 
     def render(self) -> str:
         # Keep the line parseable even when a path contains a backtick or a
@@ -143,7 +151,13 @@ class RetireFollowUp:
             f"- `{slug}` — branch `{branch}`, "
             f"worktree `{worktree}`, recorded `{recorded}`"
         )
-        return f"{line}, owner `{owner}`" if owner else line
+        if owner:
+            line += f", owner `{owner}`"
+        if self.branches:
+            line += ", branches " + ", ".join(
+                f"`{quote(name, safe='/:')}`" for name in self.branches
+            )
+        return line
 
 
 @dataclass
@@ -227,8 +241,12 @@ def parse_worklist(text: str) -> tuple[str, list[RetireFollowUp]]:
             **{
                 key: unquote(value, errors="strict")
                 for key, value in match.groupdict().items()
-                if value is not None
-            }
+                if value is not None and key != "branches"
+            },
+            branches=tuple(
+                unquote(value, errors="strict")
+                for value in re.findall(r"`([^`]+)`", match.group("branches") or "")
+            ),
         )
         existing = by_slug.get(entry.slug)
         if existing is not None:
@@ -244,7 +262,10 @@ def _merge_sighting(existing: RetireFollowUp, later: RetireFollowUp) -> RetireFo
     `owner`, so neither a legacy line union merge resurrects nor a re-record
     made after the directory is gone can erase it.
     """
-    merged = replace(later, recorded=existing.recorded)
+    merged = replace(
+        later, recorded=existing.recorded,
+        branches=tuple(dict.fromkeys((*existing.branches, *later.branches))),
+    )
     if not merged.owner and merged.worktree == existing.worktree:
         merged = replace(merged, owner=existing.owner)
     return merged
@@ -379,7 +400,7 @@ def owner_branch_remains(root: Path | None, entry: RetireFollowUp) -> bool | Non
     gone its branch went with it, so `False`.
     """
     entry = _with_owner(entry, root)
-    if not entry.branch or not entry.owner:
+    if not entry.branch_names or not entry.owner:
         return None
     home = branch_owner(root, entry.owner)
     if home is None:
@@ -387,7 +408,7 @@ def owner_branch_remains(root: Path | None, entry: RetireFollowUp) -> bool | Non
     if home == root:
         return None
     branches = local_branches(home)
-    return branches is None or entry.branch in branches
+    return branches is None or bool(set(entry.branch_names) & branches)
 
 
 def is_discharged(
@@ -397,7 +418,7 @@ def is_discharged(
 
     Discharged means the recorded worktree path is no longer a directory, or is
     a repository's primary checkout (`is_primary_checkout`), *and* the
-    recorded branch is no longer a local branch; either half still to dispose
+    recorded branches are no longer local branches; either half still to dispose
     of keeps the entry. A relative `worktree:` resolves against the git root
     the ticket lives in, never the process working directory. Every unknown
     keeps the entry: a relative worktree with no git root to anchor it (`root
@@ -419,7 +440,7 @@ def is_discharged(
     held = owner_branch_remains(root, entry)
     if held is not None:
         return not held
-    if entry.branch and (branches is None or entry.branch in branches):
+    if entry.branch_names and (branches is None or set(entry.branch_names) & branches):
         return False
     return True
 
@@ -454,8 +475,10 @@ def reconcile_worklist(
         )
         if branches is None and entries and root is not None:
             branches = local_branches(root)
+        original = {entry.slug: entry for entry in entries}
         kept: dict[str, RetireFollowUp] = {}
         for entry in entries:
+            entry = _with_ticket_branches(cfg, entry)
             if is_discharged(entry, root=root, branches=branches):
                 change.dropped.append(entry)
             else:
@@ -474,7 +497,7 @@ def reconcile_worklist(
         change.refreshed = [
             entry
             for slug, entry in by_slug.items()
-            if slug in kept and entry != kept[slug]
+            if slug in kept and entry != original[slug]
         ]
         change.open = sorted(by_slug.values(), key=lambda e: e.slug)
         rendered = render_worklist(header, change.open)
@@ -505,6 +528,27 @@ def _removed_self_owned_clone(root: Path | None, entry: RetireFollowUp) -> bool:
         worktree = root / worktree
     owner = Path(entry.owner).expanduser()
     return worktree.resolve() == owner.resolve() and not owner.exists()
+
+
+def _with_ticket_branches(cfg: Config, entry: RetireFollowUp) -> RetireFollowUp:
+    """Backfill legacy debt before a surviving ticket can be retired.
+
+    An unreadable ticket cannot prove the single-branch record complete, so
+    reconciliation refuses rather than discharging potentially hidden debt.
+    """
+    from coga.autoclose import parse_branch_names
+    from coga.taskfile import TaskFileError, read_blackboard
+    from coga.tasks import list_tasks
+
+    ref = next((ref for ref in list_tasks(cfg) if ref.id_slug == entry.slug), None)
+    if ref is None:
+        return entry
+    try:
+        names = parse_branch_names(read_blackboard(ref.ticket_path, blackboard_required=False))
+    except (OSError, UnicodeError, TaskFileError) as exc:
+        raise RetireWorklistError(f"cannot read branch debt from {ref.ticket_path}: {exc}") from exc
+    additional = tuple(dict.fromkeys((*entry.branches, *(n for n in names if n != entry.branch))))
+    return replace(entry, branches=additional)
 
 
 def _with_owner(entry: RetireFollowUp, root: Path | None) -> RetireFollowUp:

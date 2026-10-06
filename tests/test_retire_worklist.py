@@ -77,6 +77,20 @@ def _git_repo_with_branch(root: Path, branch: str) -> Path:
 # --- parse / render --------------------------------------------------------
 
 
+def test_secondary_branch_debt_survives_roundtrip_and_union_merge() -> None:
+    entry = rw.RetireFollowUp(
+        "done", "first", "", "2026-10-01", branches=("second", "with,comma"),
+    )
+    raw = rw.render_worklist(rw.RETIRE_WORKLIST_HEADER, [entry])
+    assert rw.parse_worklist(raw)[1] == [entry]
+    # An older single-branch union-merge line cannot erase the new debt.
+    raw += rw.RetireFollowUp("done", "first", "", "2026-10-02").render() + "\n"
+    [merged] = rw.parse_worklist(raw)[1]
+    assert merged == entry
+    assert not rw.is_discharged(merged, root=None, branches=frozenset({"second"}))
+    assert rw.is_discharged(merged, root=None, branches=frozenset())
+
+
 def test_parse_reads_the_documented_line_shape_byte_for_byte() -> None:
     # The shape a consuming repo's hand-seeded worklist already uses; a
     # parser change here is a format change for every existing file.

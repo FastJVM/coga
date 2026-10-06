@@ -88,7 +88,6 @@ from typing import TYPE_CHECKING, Callable
 
 from coga.autoclose import (
     GhError,
-    parse_branch_name,
     parse_branch_names,
     prs_for_head,
 )
@@ -1094,9 +1093,7 @@ def _live_ticket_branches(cfg: Config, candidates: set[str]) -> set[str]:
                 blackboard = read_blackboard(ref.ticket_path, blackboard_required=False)
             except (OSError, TaskFileError):
                 continue
-            name = parse_branch_name(blackboard)
-            if name in candidates:
-                branches.add(name)
+            branches.update(candidates.intersection(parse_branch_names(blackboard)))
             continue
         for path in _task_files(ref.path):
             try:
@@ -1146,8 +1143,9 @@ def _terminal_owners(
         except (RetireWorklistError, OSError, UnicodeError):
             continue
         for entry in entries:
-            if entry.branch and owner_branch_remains(root, entry) is None:
-                own(entry.branch, f"{entry.slug} (retires.md)")
+            if owner_branch_remains(root, entry) is None:
+                for branch in entry.branch_names:
+                    own(branch, f"{entry.slug} (retires.md)")
     for labels in owners.values():
         labels.sort()
     return owners

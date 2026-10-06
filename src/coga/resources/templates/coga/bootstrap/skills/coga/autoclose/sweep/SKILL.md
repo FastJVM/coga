@@ -139,7 +139,7 @@ no checkout; the fourth is the durable worklist:
   keeps the first sighting's date), and everywhere it drops every entry that
   is **discharged** — its recorded worktree path is no longer a directory
   (or is this repository's own primary checkout, below) *and* its recorded
-  branch is no longer a local branch of the repository that owns it (see
+  branches are no longer local branches of the repository that owns them (see
   *A branch in another clone*, below). Either half still to dispose of keeps
   the entry, and a branch list that cannot be read keeps every
   entry: the failure mode is one listing too many, never a forgotten
@@ -163,7 +163,12 @@ no checkout; the fourth is the durable worklist:
   reads
   ``- `<slug>` — branch `<branch>`, worktree `<path>`, recorded `<YYYY-MM-DD>` ``
   under a `## Follow-ups (open)` heading, with an optional trailing
-  ``, owner `<path>` `` for a worktree another repository owns. Field values use UTF-8 percent
+  ``, owner `<path>` `` for a worktree another repository owns, followed by
+  optional ``, branches `<second>`, `<third>` `` for additional branch debt.
+  Old single-branch lines remain valid. Keep every additional branch listed
+  until disposal is proved; the multi-branch discharge and backfill rules
+  are owned by [dev/checkout-cleanup](context:dev/checkout-cleanup).
+  Field values use UTF-8 percent
   encoding, retaining `/` and `:`: for example, a backtick is `%60`, a literal
   percent is `%25`, and a space is `%20`. Decode the fields before using the
   recorded path or branch; use the same encoding when hand-editing or

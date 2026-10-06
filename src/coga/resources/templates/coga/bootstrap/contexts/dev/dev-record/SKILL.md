@@ -104,7 +104,10 @@ a branch that any non-terminal ordinary ticket names anywhere in its files
 (a recurring period task pins only its `## Dev` line).
 
 Each `branch:` line is the ticket's explicit ownership of that branch. A
-ticket that produced more than one branch records one `branch:` line per
+fenced or indented code example is not a record; an empty `branch:` line
+cannot borrow the following prose as its value. Both the single-branch and
+multi-branch readers use these rules.
+A ticket that produced more than one branch records one `branch:` line per
 branch; the first stays the workflow's checkout (`requires: branch`,
 `coga open-pr`). Once the ticket is done or canceled, terminal branch cleanup
 may delete every owned branch whose PR merged or was closed unmerged

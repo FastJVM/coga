@@ -2238,3 +2238,148 @@ def test_ticket_disposal_reports_an_owned_branch_it_kept(
     assert disposal.branches_remaining == ["second"]
     assert "'second'" in disposal.reason
     assert not _branch_exists_local(repo, "first")
+
+
+def test_fenced_example_never_authorizes_closed_pr_deletion(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat")
+    _write_owner(repo, "done", status="done", branches=["actual"])
+    ticket = repo / "coga/tasks/done.md"
+    ticket.write_text(ticket.read_text() + "\n```yaml\nbranch: feat\n```\n")
+    _closed_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _: None)
+
+    assert result.local_deleted == result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+
+
+@pytest.mark.parametrize("other_workspace", [False, True])
+def test_live_secondary_branch_claim_preserves_closed_pr(
+    repo: Path, monkeypatch, other_workspace: bool,
+) -> None:
+    _push_branch(repo, "feat")
+    _write_owner(repo, "done", status="done", branches=["feat"])
+    workspace = repo / "service" if other_workspace else repo
+    current = repo
+    if other_workspace:
+        current = repo / "alpha"
+        current.mkdir()
+        (repo / "coga").rename(current / "coga")
+        (workspace / "coga").mkdir(parents=True)
+        (workspace / "coga/coga.toml").write_text('version = 1\n')
+    ticket = workspace / "coga/tasks/recurring/live/ticket.md"
+    ticket.parent.mkdir(parents=True)
+    ticket.write_text(_ticket_text(
+        "live", status="in_progress", body="",
+        blackboard="## Dev\nbranch: primary\nbranch: feat\n",
+    ))
+    _closed_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(current), repo, echo=lambda _: None)
+
+    assert result.local_deleted == result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+
+
+@pytest.mark.parametrize("unreadable", [False, True])
+def test_disposal_proves_secondary_merged_branch_unclaimed_across_workspaces(
+    repo: Path, monkeypatch, unreadable: bool,
+) -> None:
+    from coga.checkout_disposal import dispose_checkout
+
+    for branch in ("first", "second"):
+        _push_branch(repo, branch)
+    _write_owner(repo, "done", status="done", branches=["first", "second"])
+    current = repo / "alpha"
+    current.mkdir()
+    (repo / "coga").rename(current / "coga")
+    workspace = repo / "service"
+    (workspace / "coga").mkdir(parents=True)
+    (workspace / "coga/coga.toml").write_text('version = 1\n')
+    _write_owner(workspace, "live", status="active", branches=["second"])
+    if unreadable:
+        (workspace / "coga/tasks/live.md").write_text("---\nbroken: [\n---\n")
+    _fake_gh(monkeypatch, merged={b: _tip(repo, b) for b in ("first", "second")})
+    monkeypatch.setattr("coga.branchcleanup.prs_for_head", lambda *_: [])
+
+    disposal = dispose_checkout(
+        _cfg(current), repo, branch="first", worktree=None, pr_url=None,
+        owned_branches=["first", "second"], echo=lambda _: None,
+    )
+
+    assert not disposal.disposed
+    assert _branch_exists_local(repo, "second")
+    assert _branch_exists_remote(repo, "second")
+
+
+def test_secondary_branch_debt_survives_ticket_deletion_and_retries(
+    repo: Path, monkeypatch,
+) -> None:
+    from coga import autoclose as am
+    from coga import retire_worklist as rw
+
+    for branch in ("first", "second"):
+        _push_branch(repo, branch)
+    _write_owner(repo, "done", status="done", branches=["first", "second"])
+    _write_worklist(repo, rw.RetireFollowUp("done", "first", "", "2026-10-01"))
+    path = repo / "coga/recurring/autoclose-merged/retires.md"
+    _closed_at_tip(monkeypatch, repo, "first")
+    monkeypatch.setattr("coga.branchcleanup.prs_for_head", lambda *_: [])
+    cfg = _cfg(repo)
+    result = am.AutocloseResult()
+    am._dispose_checkouts(cfg, result)
+    assert result.checkouts[0].disposal.branches_remaining == ["second"]
+
+    # Reconciliation must backfill an old single-branch entry before pruning.
+    rw.reconcile_worklist(cfg, path, root=repo)
+    (repo / "coga/tasks/done.md").unlink()
+    change = rw.reconcile_worklist(cfg, path, root=repo)
+    assert len(change.open) == 1
+    assert "second" in change.open[0].branch_names
+
+    # A later PR disposition is enough to drain even with the ticket gone.
+    _closed_at_tip(monkeypatch, repo, "second")
+    retried = am.AutocloseResult()
+    am._dispose_checkouts(cfg, retried)
+    assert retried.checkouts[0].disposed
+    assert not _branch_exists_local(repo, "second")
+    assert not _branch_exists_remote(repo, "second")
+    assert rw.reconcile_worklist(cfg, path, root=repo).open == []
+
+
+@pytest.mark.parametrize("skip_disposal", [False, True])
+def test_autoclose_records_secondary_debt_even_when_disposal_is_skipped(
+    repo: Path, monkeypatch, skip_disposal: bool,
+) -> None:
+    from coga import autoclose as am
+    from coga import retire_worklist as rw
+
+    for branch in ("first", "second"):
+        _push_branch(repo, branch)
+    _write_owner(repo, "done", status="done", branches=["first", "second"])
+    template = repo / "coga/recurring/autoclose-merged"
+    template.mkdir(parents=True)
+    (template / "ticket.md").write_text("template\n")
+    period = repo / "coga/tasks/recurring/autoclose-merged/ticket.md"
+    period.parent.mkdir(parents=True)
+    period.write_text(_ticket_text("period", status="in_progress", body="", blackboard=""))
+    monkeypatch.setattr(am, "blackboard_from_env", lambda _: period)
+    _closed_at_tip(monkeypatch, repo, "first")
+    monkeypatch.setattr("coga.branchcleanup.prs_for_head", lambda *_: [])
+    result = am.AutocloseResult(closed=[am.ClosedTicket(
+        "done", "Done", branch="first", worktree=None, branches=("first", "second"),
+    )])
+    cfg = _cfg(repo)
+    if skip_disposal:
+        result.disposal_skipped = "off control"
+    else:
+        am._dispose_checkouts(cfg, result)
+
+    assert am._report_retire_followups(cfg, result)
+    path = template / "retires.md"
+    [entry] = rw.parse_worklist(path.read_text())[1]
+    assert entry.branch_names == ("first", "second")
+    (repo / "coga/tasks/done.md").unlink()
+    assert len(rw.reconcile_worklist(cfg, path, root=repo).open) == 1
