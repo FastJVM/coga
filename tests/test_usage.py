@@ -907,3 +907,373 @@ def test_parse_claude_fallback_reports_ambiguity(tmp_path: Path, monkeypatch) ->
     assert parsed.usage_status == "unknown"
     assert parsed.reason is not None
     assert "multiple claude transcripts matched cwd" in parsed.reason
+
+
+_MARKER = "11111111-1111-4111-8111-111111111111"
+_OTHER_MARKER = "22222222-2222-4222-8222-222222222222"
+
+
+def _codex_message(role: str, text: str) -> str:
+    return json.dumps(
+        {
+            "type": "response_item",
+            "timestamp": "2026-06-23T12:01:00Z",
+            "payload": {
+                "type": "message",
+                "role": role,
+                "content": [{"type": "input_text", "text": text}],
+            },
+        }
+    )
+
+
+def _write_marked_codex_rollout(
+    path: Path, *, session_id: str, cwd: Path, messages: list[str], total: int
+) -> None:
+    meta = json.dumps(
+        {
+            "type": "session_meta",
+            "payload": {
+                "id": session_id,
+                "cwd": str(cwd.resolve()),
+                "model_provider": "openai",
+            },
+        }
+    )
+    usage = json.dumps(
+        {
+            "type": "event_msg",
+            "payload": {
+                "type": "token_count",
+                "info": {
+                    "total_token_usage": {
+                        "input_tokens": total,
+                        "cached_input_tokens": 0,
+                        "output_tokens": 0,
+                        "reasoning_output_tokens": 0,
+                        "total_tokens": total,
+                    }
+                },
+            },
+        }
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join([meta, *messages, usage]) + "\n")
+
+
+def _prompt(marker: str) -> str:
+    return f"# Coga task\nbody\n\ncoga-launch: {marker}\n"
+
+
+@pytest.mark.parametrize("prompt_role", ["user", "developer"])
+def test_parse_codex_concurrent_rollouts_resolve_by_launch_marker(
+    tmp_path: Path, monkeypatch, prompt_role: str
+) -> None:
+    """Two launches in one cwd: the rollout whose prompt carries this launch's
+    marker is ours. An ordinary prompt follows codex's own AGENTS.md user
+    message; a discussion prompt is a developer message."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    sessions = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23"
+    agents_md = _codex_message("user", "# AGENTS.md instructions for repo")
+    _write_marked_codex_rollout(
+        sessions / "rollout-ours.jsonl",
+        session_id="ours",
+        cwd=cwd,
+        messages=[agents_md, _codex_message(prompt_role, _prompt(_MARKER))],
+        total=100,
+    )
+    _write_marked_codex_rollout(
+        sessions / "rollout-sibling.jsonl",
+        session_id="sibling",
+        cwd=cwd,
+        messages=[agents_md, _codex_message(prompt_role, _prompt(_OTHER_MARKER))],
+        total=7,
+    )
+    start, end = _window()
+
+    parsed = parse_session(
+        "codex",
+        cwd=cwd,
+        session_id=None,
+        pre_existing=set(),
+        window_start=start,
+        window_end=end,
+        launch_marker=_MARKER,
+    )
+
+    assert parsed.usage_status == "ok"
+    assert parsed.session_id == "ours"
+    assert parsed.input_tokens == 100
+
+
+def test_parse_codex_marker_in_tool_output_does_not_match(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A sibling that saw this launch's argv (say via `ps`) holds the marker
+    only in tool output, which never counts — so no rollout claims it."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    sessions = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23"
+    leaked = json.dumps(
+        {
+            "type": "response_item",
+            "timestamp": "2026-06-23T12:02:00Z",
+            "payload": {
+                "type": "function_call_output",
+                "output": f"codex ... coga-launch: {_MARKER}",
+            },
+        }
+    )
+    for name in ("first", "second"):
+        _write_marked_codex_rollout(
+            sessions / f"rollout-{name}.jsonl",
+            session_id=name,
+            cwd=cwd,
+            messages=[_codex_message("user", _prompt(_OTHER_MARKER)), leaked],
+            total=1,
+        )
+    start, end = _window()
+
+    parsed = parse_session(
+        "codex",
+        cwd=cwd,
+        session_id=None,
+        pre_existing=set(),
+        window_start=start,
+        window_end=end,
+        launch_marker=_MARKER,
+    )
+
+    assert parsed.usage_status == "unknown"
+    assert parsed.reason is not None
+    assert "multiple codex rollouts matched cwd" in parsed.reason
+
+
+def test_parse_codex_marker_absent_from_all_candidates_stays_unknown(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    sessions = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23"
+    for name in ("first", "second"):
+        _write_marked_codex_rollout(
+            sessions / f"rollout-{name}.jsonl",
+            session_id=name,
+            cwd=cwd,
+            messages=[_codex_message("user", _prompt(_OTHER_MARKER))],
+            total=1,
+        )
+    start, end = _window()
+
+    parsed = parse_session(
+        "codex",
+        cwd=cwd,
+        session_id=None,
+        pre_existing=set(),
+        window_start=start,
+        window_end=end,
+        launch_marker=_MARKER,
+    )
+
+    assert parsed.usage_status == "unknown"
+    assert parsed.session_id is None
+    assert parsed.reason is not None
+    assert "multiple codex rollouts matched cwd" in parsed.reason
+
+
+def _claude_user_line(stamp: str, text: str) -> str:
+    return (
+        json.dumps(
+            {"type": "user", "timestamp": stamp, "message": {"content": text}}
+        )
+        + "\n"
+    )
+
+
+def test_parse_claude_resumed_fallback_resolves_by_launch_marker(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A resumed session plus a concurrent one in the same cwd: the transcript
+    whose in-window user turn carries this launch's marker is ours."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    start, end = _window()
+    ours = _claude_transcript(cwd, tmp_path, "resumed-ours")
+    _write(
+        ours,
+        _claude_user_line("2026-06-23T12:10:00Z", _prompt(_MARKER))
+        + _lines("2026-06-23T12:30:00Z"),
+    )
+    sibling = _claude_transcript(cwd, tmp_path, "concurrent-sibling")
+    _write(
+        sibling,
+        _claude_user_line("2026-06-23T12:10:00Z", _prompt(_OTHER_MARKER))
+        + _lines("2026-06-23T12:30:00Z")
+        + _lines("2026-06-23T12:31:00Z"),
+    )
+
+    parsed = parse_session(
+        "claude",
+        cwd=cwd,
+        session_id="pinned-never-materialised",
+        pre_existing=None,
+        window_start=start,
+        window_end=end,
+        launch_marker=_MARKER,
+    )
+
+    assert parsed.usage_status == "ok"
+    assert parsed.session_id == "resumed-ours"
+    assert parsed.input_tokens == 10
+
+
+def test_parse_claude_empty_pinned_transcript_is_zero(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The pinned transcript exists but never reached the API: provably zero."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    start, end = _window()
+    pinned = _claude_transcript(cwd, tmp_path, "pinned")
+    _write(pinned, _claude_user_line("2026-06-23T12:01:00Z", _prompt(_MARKER)))
+
+    parsed = parse_session(
+        "claude",
+        cwd=cwd,
+        session_id="pinned",
+        pre_existing=None,
+        window_start=start,
+        window_end=end,
+    )
+
+    assert parsed.usage_status == "ok"
+    assert parsed.session_id == "pinned"
+    assert (
+        parsed.input_tokens,
+        parsed.cache_creation_input_tokens,
+        parsed.cache_read_input_tokens,
+        parsed.output_tokens,
+    ) == (0, 0, 0, 0)
+
+
+@pytest.mark.parametrize("unreadable_line", [
+    "not JSON",
+    '{"type":"assistant","message":{"usage":{"input_tokens":100',
+])
+def test_parse_claude_malformed_pinned_transcript_stays_unknown(
+    tmp_path: Path, monkeypatch, unreadable_line: str
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    start, end = _window()
+    pinned = _claude_transcript(cwd, tmp_path, "pinned")
+    _write(
+        pinned,
+        _claude_user_line("2026-06-23T12:01:00Z", _prompt(_MARKER))
+        + unreadable_line + "\n",
+    )
+
+    parsed = parse_session(
+        "claude",
+        cwd=cwd,
+        session_id="pinned",
+        pre_existing=None,
+        window_start=start,
+        window_end=end,
+    )
+
+    assert parsed.usage_status == "unknown"
+    assert parsed.input_tokens is None
+    assert parsed.output_tokens is None
+    assert parsed.reason == f"claude transcript contains malformed JSON: {pinned}"
+
+
+def test_parse_claude_empty_fallback_transcript_stays_unknown(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A fallback candidate proves nothing about this launch, so emptiness
+    there is not zero."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    start, end = _window()
+    resumed = _claude_transcript(cwd, tmp_path, "resumed")
+    _write(resumed, _claude_user_line("2026-06-23T12:01:00Z", "hello"))
+
+    parsed = parse_session(
+        "claude",
+        cwd=cwd,
+        session_id="pinned-never-materialised",
+        pre_existing=None,
+        window_start=start,
+        window_end=end,
+    )
+
+    assert parsed.usage_status == "unknown"
+    assert parsed.reason is not None
+    assert "no assistant usage" in parsed.reason
+
+
+def test_capture_records_usage_reason_for_unknown(
+    tmp_path: Path, monkeypatch
+) -> None:
+    coga_os = tmp_path / "coga"
+    _write(
+        coga_os / "coga.toml",
+        """
+        version = 1
+        [agents.codex]
+        cli = "codex"
+        file = "AGENTS.md"
+        """,
+    )
+    _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    start, end = _window()
+
+    capture_session(
+        cfg=load_config(coga_os),
+        title="Work",
+        slug="work",
+        step="implement",
+        agent="codex",
+        cli="codex",
+        cwd=cwd,
+        session_id=None,
+        pre_existing=set(),
+        window_start=start,
+        window_end=end,
+        launch_marker=_MARKER,
+    )
+
+    record = load_records(load_config(coga_os))[0]
+    assert record.usage_status == "unknown"
+    assert record.usage_reason == "codex rollout not found for cwd: <path>"
+    assert str(tmp_path) not in (coga_os / "log.md").read_text()
+
+
+def test_redact_local_paths_keeps_reason_category() -> None:
+    from coga.usage import _redact_local_paths
+
+    assert _redact_local_paths(
+        "multiple claude transcripts matched cwd: /home/marc/a.jsonl, "
+        "~/.claude/projects/x/b.jsonl"
+    ) == "multiple claude transcripts matched cwd: <path>, <path>"
+    assert _redact_local_paths(
+        "[Errno 2] No such file or directory: '/home/marc/r.jsonl'"
+    ) == "[Errno 2] No such file or directory: '<path>'"
+    assert _redact_local_paths(r"claude transcript not found: C:\Users\m\t.jsonl") == (
+        "claude transcript not found: <path>"
+    )
+    assert _redact_local_paths("missing claude session id") == (
+        "missing claude session id"
+    )

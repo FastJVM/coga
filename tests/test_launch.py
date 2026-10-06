@@ -280,7 +280,22 @@ def test_argv_prompt_swaps_oversized_prompt_for_file_pointer(tmp_path: Path) -> 
     assert len(arg.encode()) < _MAX_PROMPT_ARG_BYTES
 
 
+def test_argv_prompt_pointer_repeats_launch_marker(tmp_path: Path) -> None:
+    """Usage capture matches the marker in the transcript's own message, so an
+    oversized prompt's pointer must carry it too."""
+    huge = "y" * (_MAX_PROMPT_ARG_BYTES + 1)
+    arg = _argv_prompt(huge, tmp_path / "prompt.md", "coga-launch: abc")
+    assert arg.endswith("\n\ncoga-launch: abc\n")
+
+
 # --- unit: shared single-shot spawn -------------------------------------------
+
+_LAUNCH_MARKER = "00000000-0000-4000-8000-000000000000"
+_MARKER_SUFFIX = f"\n\ncoga-launch: {_LAUNCH_MARKER}\n"
+
+
+def _pin_launch_marker(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("coga.commands.launch.uuid4", lambda: _LAUNCH_MARKER)
 
 
 def _ticket() -> Ticket:
@@ -313,6 +328,7 @@ def test_spawn_agent_session_appends_kickoff_for_claude(
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    _pin_launch_marker(monkeypatch)
 
     result = spawn_agent_session(
         SimpleNamespace(repo_root=tmp_path),
@@ -332,7 +348,14 @@ def test_spawn_agent_session_appends_kickoff_for_claude(
     )
 
     assert result.exit_code == 0
-    assert calls == [["claude", "--append-system-prompt", "# Coga task\nbody", "Begin"]]
+    assert calls == [
+        [
+            "claude",
+            "--append-system-prompt",
+            "# Coga task\nbody" + _MARKER_SUFFIX,
+            "Begin",
+        ]
+    ]
     assert "launched" in (tmp_path / "log.md").read_text()
 
 
@@ -355,6 +378,7 @@ def test_spawn_agent_session_appends_kickoff_for_codex(
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    _pin_launch_marker(monkeypatch)
 
     spawn_agent_session(
         SimpleNamespace(repo_root=tmp_path),
@@ -373,7 +397,14 @@ def test_spawn_agent_session_appends_kickoff_for_codex(
         kickoff="Begin",
     )
 
-    assert calls == [["codex", "-c", "developer_instructions=# Coga task\nbody", "Begin"]]
+    assert calls == [
+        [
+            "codex",
+            "-c",
+            "developer_instructions=# Coga task\nbody" + _MARKER_SUFFIX,
+            "Begin",
+        ]
+    ]
 
 
 def test_spawn_agent_session_uses_precomposed_prompt_without_rederiving_it(
@@ -395,6 +426,7 @@ def test_spawn_agent_session_uses_precomposed_prompt_without_rederiving_it(
 
     monkeypatch.setattr("coga.commands.launch.compose_prompt", fail_compose)
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    _pin_launch_marker(monkeypatch)
 
     spawn_agent_session(
         SimpleNamespace(repo_root=tmp_path),
@@ -415,7 +447,11 @@ def test_spawn_agent_session_uses_precomposed_prompt_without_rederiving_it(
     )
 
     assert calls == [
-        ["claude", "--append-system-prompt", "# Materialized\nchecked once"]
+        [
+            "claude",
+            "--append-system-prompt",
+            "# Materialized\nchecked once" + _MARKER_SUFFIX,
+        ]
     ]
 
 
@@ -1151,6 +1187,7 @@ def test_spawn_agent_session_without_kickoff_stays_silent(
         lambda cfg, ref, ticket, **kwargs: "# Coga task\nbody",
     )
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    _pin_launch_marker(monkeypatch)
 
     spawn_agent_session(
         SimpleNamespace(repo_root=tmp_path),
@@ -1168,7 +1205,9 @@ def test_spawn_agent_session_without_kickoff_stays_silent(
         discussion=True,
     )
 
-    assert calls == [["claude", "--append-system-prompt", "# Coga task\nbody"]]
+    assert calls == [
+        ["claude", "--append-system-prompt", "# Coga task\nbody" + _MARKER_SUFFIX]
+    ]
 
 
 def test_spawn_captures_stateless_discussion_session(
@@ -1212,7 +1251,13 @@ def test_spawn_captures_stateless_discussion_session(
     assert captured[0]["title"] == "Spawn test"
     assert captured[0]["step"] is None
     assert captured[0]["outcome_status"] == "completed"
-    assert captured[0]["excluded_user_texts"] == ("# Coga task\nbody",)
+    launch_marker = captured[0]["launch_marker"]
+    assert launch_marker
+    # The marker ends the prompt, so the whole prompt (marker included) stays
+    # excluded from human activity.
+    assert captured[0]["excluded_user_texts"] == (
+        f"# Coga task\nbody\n\ncoga-launch: {launch_marker}\n",
+    )
 
 
 def test_spawn_uses_bootstrap_identity_when_authoring_real_task(
