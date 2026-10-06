@@ -47,3 +47,13 @@ Done when the class is empty in `coga validate --json`, or the accepted decision
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Work log (implement, 2026-10-06)
+
+State-only ticket: every change is Coga state on `main`, so no feature branch, no code diff, and no PR. Live class at start (`coga validate --json`): `large-blackboard` × 4 (launch-locks/checkout-exclusivity-lock 37.1 KiB [new since filing], launch-locks/ticket-ownership-lock 32.9, reconcile-recurring-wrapper-tty-admission-guidance 54.0, recurring/dream 51.5). `unsynthesized-draft-blackboard` was already empty, so marketing/readme-top had been resolved elsewhere.
+
+- **launch-locks/ticket-ownership-lock, launch-locks/checkout-exclusivity-lock**: applied the coga/blackboard remedy. Converted both to directory form and moved each `## Design (step 1, …)` section verbatim (diff-checked against HEAD) to sibling `design.md`, which opens with an HTML comment recording the move. The blackboard keeps a same-named `## Design` pointer section, so evaluator-review references still resolve. Line 55 of each body now points at `design.md`. Open Questions, Decisions, and Evaluator review stay inline because they are the inputs to the review-design owner gate. Before → after: 32.9 → ~11.8 KiB and 37.1 → ~11.9 KiB; neither is flagged any more. Published in `0342c8f4c Sync coga state`.
+- **reconcile-recurring-wrapper-tty-admission-guidance** (done; checkout and branch already gone): ran `coga retire … --no-launch`, which created `retire-reconcile-recurring-wrapper-tty-admission-guidance` (active). Running it extracts the pending K39 knowledge and deletes the ticket, which clears the warning. Not launched from here (nested launch is forbidden).
+- **recurring/dream**: not trimmed. It holds Dream's per-run report, its phase writers replace those sections every firing, and coga/period-task says to own only your keys. Filed draft `dream-s-own-blackboard-trips-large-blackboard-ever` for the owner decision (attachment vs exemption vs accepted warning). Consider that member handed off.
+
+Remaining before close: the reconcile warning, which clears when the retire task runs. Blocked on that task.
