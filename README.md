@@ -1,8 +1,22 @@
 # Coga
 
-**Put your agents to work. Keep your sanity.**
+**Coga: Stop repeating yourself to agents**
 
 Coga is a CLI that sits on top of your coding agents. It works out with you how each kind of work should be done, then runs hundreds of tasks that way. Coga is built with Coga: see [`coga/tasks/`](coga/tasks).
+
+
+# Why
+When you use coding agents a lot, you know the repetition. Even with AGENTS.md and skills, your agents will forget some instructions, skip steps, and steer off path. You need to monitor them closely and repeat some of your instructions.
+
+Coga fixes that problem.
+
+It covers the whole process, from defining a ticket to executing and reviewing the work, then updating documentation and reusable knowledge.
+
+Coga assembles different prompts for different kinds of work. You control every word of the prompt Coga builds. That’s how you reduce drift.
+
+Coga also restarts sessions regularly, not because of context rot, but to make agents write down what they know in text you can read and edit.
+
+In practice, you decide the steps, what runs automatically, what knowledge must be included in the prompt, and what the agent should discover.
 
 ## Sample Project
 I want to add in Codex a plugin to pick the best model with the right "thinking" power (hard, etc.) asit would save quite a bit of money. 
