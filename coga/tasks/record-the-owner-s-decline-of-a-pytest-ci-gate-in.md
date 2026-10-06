@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -59,3 +59,25 @@ branch: docs/pytest-ci-decline
   work starts from fresh main without importing the rejected change.
 - This session has no `COGA_LAUNCH_RETURNS_CHECKOUT` witness; manual checkout
   start/return rules apply. Main was clean and current with origin/main.
+
+## Implementation handoff
+
+- Commit `0351bc601` on pushed branch `docs/pytest-ci-decline` updates
+  `docs/contexts/coga/testing/SKILL.md` and its packaged bootstrap twin.
+  The CI-posture paragraph records the owner decline and reason, PR #894,
+  surviving commit `58630a20f`, real Python 3.11 verification, and owner
+  control over reopening CI or raising `requires-python`. Removed the stale
+  expectation that the parked CI proposal will land.
+- No runtime, workflow, configuration, or fixture changes; no new tests
+  needed for this documentation correction. No PR opened in implement.
+- Verification: `PYTHONPATH="$PWD/src" .venv/bin/python -m pytest`
+  (Python 3.12.12): **3274 passed in 251.25s**, then **3274 passed in
+  245.63s** after rebasing onto `a1a356aa2`. Logs:
+  `/tmp/coga-pytest-ci-decline.log` and
+  `/tmp/coga-pytest-ci-decline-rebased.log`. These are 3.12 receipts, not
+  evidence for the 3.11 floor.
+- `git diff --check origin/main...HEAD` and byte comparison of both topic
+  copies passed on the feature branch after the rebase.
+- Pushed the branch, then returned to clean main at `99779f438`; intervening
+  main changes touched only other tickets and the audit log. No unresolved
+  implementation findings.
