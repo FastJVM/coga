@@ -7530,3 +7530,4 @@ fatal: Unable to add coga/tasks/clean-up-owned-branches-when-tickets-finish-or-a
 2026-10-06 10:25 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-10-06
 2026-10-06 10:25 [recurring/upstream-coga] [system] created (status=active)
 2026-10-06 10:25 [recurring/upstream-coga] [system] created recurring/upstream-coga for 2026-W41
+2026-10-06 10:25 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
