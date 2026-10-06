@@ -1,6 +1,6 @@
 ---
 title: Checkout exclusivity lock
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -38,6 +38,7 @@ contexts:
 - coga/internals/agent-spawn
 - coga/internals/state-publication
 agent: claude
+launch_generation: pending:f4c8c971-217c-4e1f-b5c8-e4e06e57308a
 ---
 
 ## Description
