@@ -1,6 +1,6 @@
 ---
 title: 'Correct the code workflows'' review section: autoclose now disposes of checkouts'
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:82f85e0f-75dd-4e48-8bb6-dbdbd35e3c9d
 ---
 
 ## Description
