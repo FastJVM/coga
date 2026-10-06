@@ -7595,3 +7595,8 @@ fatal: Unable to add coga/tasks/clean-up-owned-branches-when-tickets-finish-or-a
 2026-10-06 16:43 [validate-drift-unfrozen-workflow-11-hand-authored] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-06 16:43 [validate-drift-unfrozen-workflow-11-hand-authored] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-06 16:43 [validate-drift-unfrozen-workflow-11-hand-authored] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
+2026-10-06 16:40 [launch-locks/checkout-exclusivity-lock] [human:nicktoper] advanced to step 3 (review-design) → nicktoper
+2026-10-06 16:40 [launch-locks/checkout-exclusivity-lock] [git] sync failed: `git hash-object` failed: error: unable to create temporary file: Read-only file system
+fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to database
+2026-10-06 16:40 [coga] [git] sync failed: `git hash-object` failed: error: unable to create temporary file: Read-only file system
+fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to database

@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 contexts:
 - coga/launch
 - dev/checkouts
@@ -38,7 +38,6 @@ contexts:
 - coga/internals/agent-spawn
 - coga/internals/state-publication
 agent: claude
-launch_generation: 7c575b7d-3bd4-4a21-8b63-180b58d1b713
 ---
 
 ## Description
@@ -532,3 +531,160 @@ anything.
 6. **`init`/`uninstall` refusal** while a foreign lock exists. Is that the
    right set, or should `skill install/update/remove` also refuse? They
    change the skill tree a live agent reads, but they don't move HEAD.
+
+## Evaluator review
+
+Cold review, 2026-10-06. **Not ready for implementation.** The body clearly
+delegates the specification to `## Design`; the location, separate state lock,
+independence from the ticket lock, and owner-before-implementation workflow are
+clear. The issues below are defects in the proposed guarantees and integration,
+not reasons to block this evaluation. Owner review should resolve them before
+advancing to implementation.
+
+### Must resolve before implementation
+
+1. **P1 — `retire` bypasses exclusivity entirely.** The design explicitly
+   exempts `retire`, but `src/coga/commands/retire.py::retire` creates and
+   publishes a task and then calls `commands.launch.launch` in-process unless
+   `--no-launch` was passed. It does not reenter `cli.main`, so the proposed
+   argv gate never acquires a lock. `tests/test_retire.py::test_retire_launches_after_create`
+   confirms this route. A second terminal's `coga retire T` can therefore run
+   checkout preparation and an agent while another launch holds the lock.
+   Include the launching form in admission before its first side effect, and
+   explicitly classify `--no-launch`. Add an occupied-checkout test through
+   the real CLI entry point, asserting no creation/publication/spawn.
+
+2. **P1 — Releasing on an exception does not establish that the worker has
+   stopped.** `src/coga/commands/launch.py::_launch` installs `_on_signal`
+   handlers that raise `SystemExit`. In
+   `src/coga/repl_supervisor.py::run_with_done_marker`, the ordinary PTY loop's
+   `finally` restores the terminal and removes the sentinel; it does not kill
+   and reap the child on that exception. The subsequent `waitpid` is skipped.
+   Group termination is performed for sentinel/timeouts and admission failure,
+   not every unwinding path. `launch_script.run_script_phase` also has no
+   owned-group teardown contract, and changing `subprocess.run` to `Popen` +
+   `wait` does not supply one. A signal sent just to the launcher can thus
+   return the checkout and remove the lock while the child still works.
+   Specify termination/reaping (including surviving group members) before
+   checkout return and release, or conservatively retain the lock and withhold
+   checkout mutation when shutdown cannot be proved. Test PID-targeted SIGTERM
+   and SIGHUP, exceptions while waiting, scripts, and a leader that exits while
+   a descendant remains. Terminal Ctrl-C alone is insufficient evidence.
+
+3. **P1 — Recovery can incorrectly pronounce an unrecorded worker dead.**
+   Recording only *after* fork leaves a supervisor-SIGKILL window with valid
+   metadata and an empty `children` list. Recovery then approves release when
+   the supervisor/group are gone even though the new PTY session survives.
+   The design acknowledges invisibility but does not make the recovery command
+   refuse that uncertainty. Also, its claim that nested workers stay in the
+   recorded group is false: `repl_supervisor.run_with_done_marker` calls
+   `pty.fork`, creating a separate session even in a witness-bearing nested
+   CLI, whose child notes would deliberately be ignored. Removing a child
+   record immediately after reaping its leader loses surviving-group evidence
+   as well. Define a pre-spawn uncertain state or held-child handshake and a
+   policy for nested spawns and remaining groups; incomplete evidence must
+   require manual confirmation rather than a successful automatic dead verdict.
+   An existing conservative pattern is
+   `src/coga/recurring_runner.py::_run_repo_recurring`'s `starting` marker
+   before spawn and `_terminate_repo_recurring_process`'s group checks.
+   Add deterministic kill-at-spawn-window and nested-child-survival cases.
+
+4. **P1 — Child metadata updates can overwrite a newer owner's lock.**
+   `Children are recorded` specifies `os.replace` followed by a session check.
+   After manual removal and acquisition by B (acceptance case 18), A's next
+   child-start/exit update replaces B's file with A's metadata; its post-write
+   check then succeeds. The guard serializes this overwrite but cannot make it
+   correct. Require format/session verification of the current file *before*
+   replacement, inside the same guard, and refuse to recreate a missing lock.
+   Add replacement tests for both child updates, not just final release.
+
+5. **P1 — The acquisition cleanup boundary contradicts the interruption
+   acceptance cases.** Acquire is explicitly outside `cli.main`'s `try`, yet
+   its signal mask is restored inside acquire. A pending SIGINT can raise
+   after successful link/registration and before the caller enters `try`;
+   that caller's `finally` never runs. SIGTERM handlers installed only at the
+   end of acquire leave a similar window. Compare the existing
+   `repl_supervisor._defer_spawn_release_interrupts` contract: mask restoration
+   occurs inside the surrounding cleanup handler. Put acquisition within an
+   ownership-aware cleanup scope while separately preventing a losing or
+   incomplete acquisition from sweeping. Cover interruption on unmask, after
+   registration, and temporary-file cleanup failure, not just during `app()`.
+
+6. **P1 — Manual recovery lacks the required race exclusion, and liveness
+   fallbacks need conservative rules.** The unguarded `cat`/inspect/`rm`
+   procedure can inspect A, then delete B after A releases and B acquires. It
+   bypasses the exact-byte check and directory guard used by command recovery.
+   For malformed files where the command refuses, require a stated quiescent
+   maintenance procedure that stops all launchers and prevents new admission,
+   or provide guarded recovery with explicit human confirmation. The liveness
+   algorithm must also distinguish an unavailable boot ID from a proven
+   different boot: `null != current_boot_id` is not reboot proof. Scripts and
+   non-PTY children currently inherit a process group rather than create one
+   (`launch_script.run_script_phase`, the non-PTY paths in
+   `repl_supervisor.run_with_done_marker`), and the holder can share a group
+   with its invoking tools. Do not prescribe `kill -TERM -<pgid>` as a generic
+   remedy without proving that group is dedicated to this launch. Test unknown
+   identities, shared groups, and recovery racing release/reacquisition.
+
+7. **P2 — The stated safety rationale for other mutators is incorrect.**
+   The notice says these commands do not move the checkout, but
+   `src/coga/git.py::publish` calls `fast_forward_control`, which executes
+   `git merge --ff-only` in the worktree holding control (including a different
+   linked worktree). `_realign_control` can also run `read-tree -m -u` and
+   `update-ref`. Lifecycle writers and the generic CLI sweep reach this path.
+   The short `state_lock` does not protect an agent's branch switches or editor
+   activity. Allowing outside mutators is an explicit proposed limitation,
+   so broader exclusion is an owner choice; either accept and accurately
+   document these checkout mutations or change their integration behavior.
+   Remove the false notice and add a case for a foreign mutator while the
+   holder is on control, including publication from another linked worktree.
+
+8. **P2 — `init`/`uninstall` gating and the ignore-repair remedy do not match
+   today's CLI.** `src/coga/cli.py::main` dispatches `uninstall` before alias
+   expansion/the ordinary `try`; both commands intentionally tolerate broken
+   config with `cfg=None`. `commands.init.init` also accepts a target path,
+   so the ambient config is not necessarily the tree it will modify. A gate
+   solely at the proposed acquisition point misses these paths. Define target
+   root discovery independent of successful config parsing, including malformed
+   locks, and how the check remains valid until destructive work completes.
+   Separately, `coga init --update` does not exist: `commands.init.init` and
+   the observed `coga init --help` expose only the path and `--user`. Replace
+   the advertised recovery command with a verified repair procedure. Cover
+   broken config, an explicit target in another directory, and the uninstall
+   early-dispatch branch.
+
+### Optional recommendations and owner choices
+
+- Reusing exit 75 fits `cli.main` and
+  `recurring_runner._sweep_stopping_exit`. Locking authoring and the current
+  mutating `--prompt-report` path is consistent with the stated scope. Keep
+  no automatic stale clearing. These are reasonable defaults for the owner
+  to accept, not approvals issued by this review.
+- Keep this one PR focused on admission and conservative recovery. The new
+  shared module has real launch/CLI consumers, and a guarded recovery command
+  has a plausible co-versioned transaction under `coga/extension-model`.
+  Cross-platform liveness automation is optional; an unknown verdict and a
+  safe manual procedure fit the requested small design better than extending
+  it into a process monitor.
+- Use real subprocess tests for the race/signal guarantees above; fake-only
+  coverage cannot establish process-group or signal-mask behavior. Add the
+  checkout witness to test environment isolation (`tests/conftest.py::LAUNCH_OWNED_ENV`,
+  `tests/test_env_isolation.py`) without adding it blindly to
+  `task_env.TASK_ENV_KEYS`, which `apply_task_env` intentionally scrubs.
+  Exercise `cli.main`, since direct `CliRunner.invoke(app, ...)` bypasses the
+  proposed admission boundary. Preserve the existing held-child admission tests.
+- The contract/twin plan and required-bootstrap registration are appropriate.
+  Existing ignore coverage is confirmed by `git check-ignore -v
+  coga/.coga/launch.lock` (`coga/.gitignore:9`),
+  `commands.update._HOST_GITIGNORE_BODY`, and the packaged `.gitignore`.
+  Keep the already accepted two-Coga-roots limitation explicit.
+
+Verification: source/test/contract inspection, frozen workflow checked against
+`src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md`,
+`coga init --help`, and the ignore probe above. `git diff --check` passed;
+`coga validate --task launch-locks/checkout-exclusivity-lock` exited 0 with
+installed-version-skew and large-blackboard warnings. A byte-prefix check
+confirmed the review was appended without changing prior ticket content.
+No implementation or test-suite run was performed; no code, branch, or PR was produced. Ticket body and prior
+blackboard sections remain unchanged. Next step is the owner `review-design`
+gate, which resolves findings and records dispositions.
