@@ -1,6 +1,6 @@
 ---
 title: Complete the authenticated clean-install audit
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: direct/body
