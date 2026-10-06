@@ -156,6 +156,8 @@ class ClosedTicket:
     pr: str | None = None
     unanswered_threads: tuple[ReviewThread, ...] = ()
     owner: str = ""
+    # Every `## Dev` `branch:` the ticket recorded; `branch` is the first.
+    branches: tuple[str, ...] = ()
 
     @property
     def retire_command(self) -> str:
@@ -469,6 +471,25 @@ def parse_branch_name(blackboard_text: str) -> str | None:
     if not match:
         return None
     return _delimited_value(match.group(1)) or None
+
+
+def parse_branch_names(blackboard_text: str) -> list[str]:
+    """Every `branch:` name under `## Dev`, in order and without duplicates.
+
+    A ticket explicitly owns each branch it records this way; terminal branch
+    cleanup (`branchsweep`) treats the list as the ticket's ownership claim.
+    `parse_branch_name` keeps returning the first, which is the checkout the
+    workflow gates and `coga open-pr` act on. A prose mention elsewhere in the
+    ticket is never ownership.
+    """
+    section = _DEV_SECTION_RE.search(blackboard_text)
+    if not section:
+        return []
+    names = (
+        _delimited_value(match.group(1))
+        for match in _BRANCH_LINE_RE.finditer(section.group(1))
+    )
+    return list(dict.fromkeys(name for name in names if name))
 
 
 def parse_worktree_path(blackboard_text: str) -> str | None:
@@ -822,6 +843,7 @@ def _try_bump_one(
         slug=ref.id_slug,
         title=ticket.title,
         branch=parse_branch_name(blackboard),
+        branches=tuple(parse_branch_names(blackboard)),
         worktree=_recorded_worktree(cfg, recorded_worktree),
         owner=owner,
         pr=url,
@@ -1049,6 +1071,7 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
                     worktree=closed.worktree,
                     pr_url=closed.pr,
                     echo=_echo(closed.slug),
+                    owned_branches=closed.branches,
                 ),
             )
         )
@@ -1076,7 +1099,7 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
             )
             if branch is None and worktree is None:
                 continue
-            ticket_exists, pr_url = _entry_ticket(cfg, entry.slug)
+            ticket_exists, pr_url, owned = _entry_ticket(cfg, entry.slug)
             held = _owner_held_branch(
                 root,
                 entry,
@@ -1102,6 +1125,7 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
                         worktree=worktree,
                         pr_url=pr_url,
                         echo=_echo(entry.slug),
+                        owned_branches=owned,
                     ),
                 )
             )
@@ -1195,17 +1219,22 @@ def _locate_refused_worktree(root: Path, item: CheckoutOutcome) -> None:
         item.home = git.classify_checkout(root, item.worktree_path)
 
 
-def _entry_ticket(cfg: Config, slug: str) -> tuple[bool, str | None]:
-    """Whether a worklist entry's ticket still exists, and its `pr:` link if so.
+def _entry_ticket(
+    cfg: Config, slug: str
+) -> tuple[bool, str | None, tuple[str, ...]]:
+    """Whether a worklist entry's ticket still exists, its `pr:` link, and
+    every `branch:` it records.
 
     Exact `id_slug` match only: the CLI's unique-prefix resolution would let a
     deleted `foo` resolve to a newer `foo-followup` and borrow its `pr:`.
     """
     ref = next((t for t in list_tasks(cfg) if t.id_slug == slug), None)
     if ref is None:
-        return False, None
+        return False, None, ()
     blackboard = _read_dev_blackboard(ref.ticket_path)
-    return True, parse_pr_url(blackboard) if blackboard is not None else None
+    if blackboard is None:
+        return True, None, ()
+    return True, parse_pr_url(blackboard), tuple(parse_branch_names(blackboard))
 
 
 def render_retire_report(
@@ -1701,6 +1730,7 @@ __all__ = [
     "parse_pr_number",
     "parse_pr_url",
     "parse_branch_name",
+    "parse_branch_names",
     "parse_worktree_path",
     "pr_head",
     "pr_review_threads",

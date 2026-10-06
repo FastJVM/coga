@@ -71,6 +71,14 @@ carries its reason into every surface below:
 4. *The remote branch.* Deleted only when the live remote tip equals the
    merged PR's exact head, with a `--force-with-lease` on that tip, and only
    after the local branch is gone.
+5. *Every owned branch still present.* Each `## Dev` `branch:` the ticket
+   records (the recorded one included) that survives locally or on the remote
+   goes through the branch sweep restricted to those names. That sweep can
+   release a branch whose PR closed unmerged, because the ticket is terminal.
+   It archives as `retired/<branch>` first, and it keeps and reports
+   post-closure source commits. The rule is in
+   [dev/checkout-cleanup](context:dev/checkout-cleanup), *Terminal owners and
+   closed PRs*. A kept local ref leaves the checkout pending.
 
 The merge signal is the ticket's `pr:` link. A worklist entry whose ticket
 retire already deleted has none, so the proofs then use the merged PRs for

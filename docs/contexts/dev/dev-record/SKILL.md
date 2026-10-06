@@ -103,6 +103,15 @@ reads PR linkage and names the retire follow-up. Branch sweep instead protects
 a branch that any non-terminal ordinary ticket names anywhere in its files
 (a recurring period task pins only its `## Dev` line).
 
+Each `branch:` line is the ticket's explicit ownership of that branch. A
+ticket that produced more than one branch records one `branch:` line per
+branch; the first stays the workflow's checkout (`requires: branch`,
+`coga open-pr`). Once the ticket is done or canceled, terminal branch cleanup
+may delete every owned branch whose PR merged or was closed unmerged
+([dev/checkout-cleanup](../checkout-cleanup/SKILL.md#terminal-owners-and-closed-prs)).
+A prose mention elsewhere in the ticket is not ownership. Remove a `branch:`
+line for a branch the ticket does not own.
+
 When one PR covers several tickets, each records the same `branch:` and `pr:`.
 The link goes ticket to PR.
 
