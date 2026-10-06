@@ -7542,3 +7542,4 @@ fatal: Unable to add coga/tasks/clean-up-owned-branches-when-tickets-finish-or-a
 2026-10-06 10:35 [recurring/autoclose-merged] [system] task done
 2026-10-06 10:35 [recurring/autoclose-merged] [system] script exited with code 0
 2026-10-06 10:35 [recurring/upstream-coga] [system] started (active → in_progress) via coga launch
+2026-10-06 10:35 [recurring/upstream-coga] [system] launched as a script (ticket.py)
