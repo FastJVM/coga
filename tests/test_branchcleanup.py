@@ -408,6 +408,100 @@ def test_landed_local_cleanup_preserves_remote_that_advanced_after_merge(
     assert _branch_exists_remote(repo, "feat")
 
 
+def _landed_branch_with_lagging_upstream(repo: Path) -> tuple[str, str]:
+    # feat's upstream is pushed at an older commit; the newer local tip then
+    # lands on main. `git branch -d` measures "merged" against the upstream, so
+    # it refuses even though the tip is an ancestor of main.
+    _git(repo, "checkout", "-b", "feat")
+    _commit(repo, "feat.txt", "first", "first feat work")
+    _git(repo, "push", "-u", "origin", "feat")
+    upstream_tip = _git(repo, "rev-parse", "feat").stdout.strip()
+    _commit(repo, "feat.txt", "second", "second feat work")
+    local_tip = _git(repo, "rev-parse", "feat").stdout.strip()
+    _git(repo, "checkout", "main")
+    _git(repo, "merge", "--ff-only", "feat")
+    _git(repo, "push", "origin", "main")
+    return upstream_tip, local_tip
+
+
+def test_landed_local_with_stale_upstream_deletes_local_and_remote(
+    repo: Path, monkeypatch
+) -> None:
+    upstream_tip, local_tip = _landed_branch_with_lagging_upstream(repo)
+    # The PR merged at the local tip, which the remote also carries; only this
+    # checkout's `refs/remotes/origin/feat` still lags at the older commit.
+    _git(repo, "push", "origin", "feat")
+    _git(repo, "update-ref", "refs/remotes/origin/feat", upstream_tip)
+    assert "not fully merged" in _git(repo, "branch", "-d", "feat", check=False).stderr
+
+    _stub_merged_pr(monkeypatch, repo, "feat")
+    notes: list[str] = []
+    result = delete_ticket_branch(
+        _cfg(repo),
+        repo,
+        _dev_blackboard("feat", "https://github.com/o/r/pull/7"),
+        echo=notes.append,
+    )
+
+    assert result.local_deleted is True
+    assert result.remote_deleted is True
+    assert not _branch_exists_local(repo, "feat")
+    assert not _branch_exists_remote(repo, "feat")
+    assert any(
+        "force-deleted local 'feat'" in note and local_tip in note for note in notes
+    ), notes
+
+
+def test_landed_local_with_lagging_upstream_force_deletes_against_control(
+    repo: Path,
+) -> None:
+    # Branch sweep's shape: no merged PR vouches for the tip, the landed ref is
+    # the control branch, and the live remote still sits at the older commit.
+    upstream_tip, local_tip = _landed_branch_with_lagging_upstream(repo)
+
+    result = BranchCleanupResult(branch="feat")
+    notes: list[str] = []
+    delete_local_branch(
+        repo,
+        "feat",
+        False,
+        notes.append,
+        result,
+        landed_ref="main",
+        expected_tip=local_tip,
+    )
+
+    assert result.local_deleted is True
+    assert result.local_worktree_path is None
+    assert not _branch_exists_local(repo, "feat")
+    assert any(local_tip in note for note in notes), notes
+    remote = _git(repo, "ls-remote", "--heads", "origin", "feat").stdout
+    assert remote.split()[0] == upstream_tip
+
+
+def test_landed_local_with_lagging_upstream_held_by_worktree_is_kept(
+    repo: Path, tmp_path: Path
+) -> None:
+    _, local_tip = _landed_branch_with_lagging_upstream(repo)
+    worktree = tmp_path / "wt"
+    _git(repo, "worktree", "add", str(worktree), "feat")
+
+    result = BranchCleanupResult(branch="feat")
+    delete_local_branch(
+        repo,
+        "feat",
+        False,
+        lambda _m: None,
+        result,
+        landed_ref="main",
+        expected_tip=local_tip,
+    )
+
+    assert result.local_deleted is False
+    assert _branch_exists_local(repo, "feat")
+    assert result.local_worktree_path == str(worktree)
+
+
 def test_unmerged_no_pr_is_skipped(repo: Path, monkeypatch) -> None:
     # Pushed branch, tip not landed in main, no `pr:` line → never delete; the
     # work is unmerged and we have no merged-PR signal authorizing removal. This

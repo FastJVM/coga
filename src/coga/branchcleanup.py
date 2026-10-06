@@ -60,7 +60,9 @@ Branch safety model:
     half this is a re-check rather than a lease: the atomic spelling
     (`git update-ref -d <ref> <old-oid>`) is plumbing and will happily delete a
     branch a linked worktree still holds, including the rebase/bisect states
-    branch sweep relies on `-D` to catch.
+    branch sweep relies on `-D` to catch. A tip already reachable from the
+    landed ref that `-d` still refuses on its merge check — its configured
+    upstream lags behind it — is re-checked and force-deleted the same way.
 
 `gh` missing/unauthed means the merge state can't be confirmed: the gated
 deletes are skipped and reported, never forced.
@@ -955,6 +957,11 @@ def delete_local_branch(
             return
         stderr = (safe.stderr + safe.stdout).strip()
         result.local_worktree_path = _worktree_path_from_delete_error(stderr)
+        if result.local_worktree_path is None and _merge_check_refusal(stderr):
+            _force_delete_landed_local_branch(
+                root, branch, tip, landed_ref, echo, result
+            )
+            return
         _note(result, echo, f"Branch cleanup: could not delete local {branch!r}: {stderr}")
         return
 
@@ -1003,6 +1010,60 @@ def delete_local_branch(
             echo,
             f"Branch cleanup: force-deleted local {branch!r}{tip_note} — "
             "PR merged; recover with `git checkout -b` from the reflog SHA.",
+        )
+        return
+    stderr = (forced.stderr + forced.stdout).strip()
+    result.local_worktree_path = _worktree_path_from_delete_error(stderr)
+    _note(result, echo, f"Branch cleanup: could not delete local {branch!r}: {stderr}")
+
+
+def _merge_check_refusal(output: str) -> bool:
+    """True iff `git branch -d` refused only on its own merge check.
+
+    `-d` measures "merged" against the branch's configured upstream when it has
+    one, so a tip that landed on control but whose `origin/<branch>` is an
+    older commit is refused ("not yet merged to refs/remotes/origin/<branch>,
+    even though it is merged to HEAD ... is not fully merged"). The caller has
+    already proven ancestry into the landed ref, which supersedes that check.
+    A worktree refusal or any other error is not this shape.
+    """
+    return "is not fully merged" in output
+
+
+def _force_delete_landed_local_branch(
+    root: Path,
+    branch: str,
+    tip: str,
+    landed_ref: str,
+    echo: Callable[[str], None],
+    result: BranchCleanupResult,
+) -> None:
+    """`-D` a landed branch that `-d` refused over a lagging upstream.
+
+    The tip and its ancestry into `landed_ref` are re-checked immediately
+    before `-D`, the same one-exec race window the squash path accepts, and
+    the tip SHA is logged so the work stays recoverable from the reflog. `-D`
+    still refuses a branch a worktree holds.
+    """
+    current = _rev_parse(root, f"refs/heads/{branch}")
+    if current != tip or not local_branch_landed(root, branch, landed_ref):
+        _note(
+            result,
+            echo,
+            f"Branch cleanup: local {branch!r} moved from {tip[:12]} to "
+            f"{current[:12] if current else 'nothing'} since it was checked — "
+            "left in place.",
+        )
+        return
+    forced = _git(root, "branch", "-D", branch)
+    if forced.returncode == 0:
+        result.local_deleted = True
+        _note(
+            result,
+            echo,
+            f"Branch cleanup: force-deleted local {branch!r} (was {tip}) — landed "
+            f"on {landed_ref} but its upstream lags; recover with `git checkout -b` "
+            "from the reflog SHA.",
         )
         return
     stderr = (forced.stderr + forced.stdout).strip()
