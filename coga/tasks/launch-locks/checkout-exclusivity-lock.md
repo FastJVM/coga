@@ -1,6 +1,6 @@
 ---
 title: Checkout exclusivity lock
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -32,11 +32,12 @@ workflow:
     assignee: owner
 step: 1 (design)
 contexts:
-  - coga/launch
-  - dev/checkouts
-  - coga/internals/launch-claims
-  - coga/internals/agent-spawn
-  - coga/internals/state-publication
+- coga/launch
+- dev/checkouts
+- coga/internals/launch-claims
+- coga/internals/agent-spawn
+- coga/internals/state-publication
+agent: claude
 ---
 
 ## Description
