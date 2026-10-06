@@ -432,7 +432,7 @@ def test_landed_local_with_stale_upstream_deletes_local_and_remote(
     # checkout's `refs/remotes/origin/feat` still lags at the older commit.
     _git(repo, "push", "origin", "feat")
     _git(repo, "update-ref", "refs/remotes/origin/feat", upstream_tip)
-    assert "not fully merged" in _git(repo, "branch", "-d", "feat", check=False).stderr
+    assert _git(repo, "branch", "-d", "feat", check=False).returncode != 0
 
     _stub_merged_pr(monkeypatch, repo, "feat")
     notes: list[str] = []
@@ -477,6 +477,38 @@ def test_landed_local_with_lagging_upstream_force_deletes_against_control(
     assert any(local_tip in note for note in notes), notes
     remote = _git(repo, "ls-remote", "--heads", "origin", "feat").stdout
     assert remote.split()[0] == upstream_tip
+
+
+def test_landed_local_without_upstream_force_deletes_when_head_is_elsewhere(
+    repo: Path,
+) -> None:
+    # With no upstream, `git branch -d` measures against HEAD; sweep's landed
+    # ref is the control branch, which need not be what is checked out.
+    _git(repo, "checkout", "-b", "feat")
+    _commit(repo, "feat.txt", "work", "feat work")
+    tip = _git(repo, "rev-parse", "feat").stdout.strip()
+    _git(repo, "checkout", "main")
+    _git(repo, "checkout", "-b", "elsewhere")
+    _git(repo, "checkout", "main")
+    _git(repo, "merge", "--ff-only", "feat")
+    _git(repo, "checkout", "elsewhere")
+    assert _git(repo, "branch", "-d", "feat", check=False).returncode != 0
+
+    result = BranchCleanupResult(branch="feat")
+    notes: list[str] = []
+    delete_local_branch(
+        repo,
+        "feat",
+        False,
+        notes.append,
+        result,
+        landed_ref="main",
+        expected_tip=tip,
+    )
+
+    assert result.local_deleted is True
+    assert not _branch_exists_local(repo, "feat")
+    assert any(tip in note for note in notes), notes
 
 
 def test_landed_local_with_lagging_upstream_held_by_worktree_is_kept(
