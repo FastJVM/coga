@@ -7532,3 +7532,4 @@ fatal: Unable to add coga/tasks/clean-up-owned-branches-when-tickets-finish-or-a
 2026-10-06 10:25 [recurring/upstream-coga] [system] created recurring/upstream-coga for 2026-W41
 2026-10-06 10:25 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-06 10:25 [recurring/address-pr-comments] [system] started (active → in_progress) via recurring delegation to bootstrap/address-pr-comments
+2026-10-06 10:26 [recurring/address-pr-comments] [system] launched delegated target bootstrap/address-pr-comments
