@@ -1,6 +1,6 @@
 ---
 title: Record the owner's decline of a pytest CI gate in the testing topic's CI posture
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -23,6 +23,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
