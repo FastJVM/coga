@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
 ---
 
@@ -81,3 +81,38 @@ branch: docs/pytest-ci-decline
 - Pushed the branch, then returned to clean main at `99779f438`; intervening
   main changes touched only other tickets and the audit log. No unresolved
   implementation findings.
+
+## Peer review
+
+- `codex review --base main` returned successfully with no actionable
+  findings. The initial sandbox attempt could not initialize its app-server;
+  the authorized unsandboxed retry completed. Review log:
+  `/tmp/coga-pytest-ci-decline-peer-review.log`.
+- Checked the paragraph against the canceled source ticket and commit
+  `58630a20f`. Canonical and packaged topic copies are byte-identical;
+  `git diff --check origin/main...HEAD` passed. The reviewer also ran
+  `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_packaging.py::test_live_and_packaged_copies_stay_identical tests/test_packaging.py::test_context_distribution_is_complete -q`:
+  **2 passed in 0.47s**. This documentation-only diff has no terminal or
+  rendered interactive surface to exercise.
+- Unconditionally fetched origin/main and rebased onto `bf734dfe7` before
+  review and testing; no conflicts or review fixes were needed. Full suite:
+  `PYTHONPATH="$PWD/src" .venv/bin/python -m pytest` (Python 3.12.12):
+  **3274 passed in 281.34s**. Log:
+  `/tmp/coga-pytest-ci-decline-peer-pytest.log`. This is a 3.12 receipt,
+  not evidence for the 3.11 floor.
+- Pushed rebased commit `57c9bb417` on `docs/pytest-ci-decline` with
+  `--force-with-lease`, fetched again, and returned to clean main at
+  `bf734dfe7`. The feature branch remains one commit ahead. No outstanding
+  findings; ready for the mechanical open-PR step.
+
+## PR
+
+Record the owner's 2026-09-24 decision against a pytest CI gate in the testing
+topic and its packaged twin, replacing the stale expectation that the parked
+CI proposal will land. Name closed PR #894 and surviving commit `58630a20f`,
+explain workflow-owned verification on a real Python 3.11 interpreter, and
+reserve reopening test CI or raising `requires-python` for the owner.
+
+Test plan: `PYTHONPATH="$PWD/src" .venv/bin/python -m pytest` — 3274 passed
+on Python 3.12.12; `git diff --check origin/main...HEAD` and topic byte
+comparison passed. Documentation only; this run does not verify the 3.11 floor.
