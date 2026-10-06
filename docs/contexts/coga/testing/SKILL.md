@@ -103,9 +103,15 @@ The only GitHub Actions workflow is the publish-only
 Its `twine check` inspects metadata, not behavior. Nothing runs `pytest` or
 `coga validate` on any branch, PR, push, or tag, so the local suite plus
 validation are the release gate, and the pristine-tree wheel collision is
-caught only at release or by hand. The parked
-`coga/tasks/_v2/minimal-ci-run-pytest-on-prs-and-tags.md` would change this;
-update this section when it lands.
+caught only at release or by hand.
+
+On 2026-09-24, the owner declined a pytest CI gate: test verification belongs
+to Coga's implement / self-QA / review workflow steps. PR #894's Python
+3.11/3.12 GitHub Actions matrix was closed unmerged; the port survives as
+commit `58630a20f`. Those workflow steps must verify the declared 3.11 floor
+on a real Python 3.11 interpreter; a green 3.12 run is not evidence for it.
+Reopening test CI, or instead raising `requires-python` if the floor will
+not be tested, requires an owner decision.
 
 Therefore every verifier (self-QA, review, release) states the exact commands
 and counts, for example `PYTHONPATH=$PWD/src python3.12 -m pytest` ->
