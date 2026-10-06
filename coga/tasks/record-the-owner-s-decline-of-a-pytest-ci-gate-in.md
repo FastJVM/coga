@@ -1,6 +1,6 @@
 ---
 title: Record the owner's decline of a pytest CI gate in the testing topic's CI posture
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
