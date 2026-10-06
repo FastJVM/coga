@@ -162,3 +162,65 @@ local inventory. This predates the change and was not exercised by the successfu
 live audit; it remains unresolved under the implement skill's no-adjacent-fixes
 rule. No existing ticket was found for that exact failure. Keep the finding
 for Retro to route into durable ownership/follow-up.
+
+## Peer review
+
+2026-10-06: `codex review --base main` **returned**. Verdict: changes
+required; two P1 findings and one P2, with disposable-repository
+reproductions despite its 254 passing focused tests:
+
+- P1: `_live_ticket_branches` (recurring tickets) and
+  `live_checkout_claim` still read only the first branch. A terminal owner
+  can therefore authorize deleting another live ticket's second branch,
+  including a claim in another workspace.
+- P1: `_sweep_owned_branches` sends additional merged branches through the
+  sweep without the cross-workspace claim check used for the primary branch.
+  A reproduction deleted a secondary merged branch claimed by a live ticket
+  in another workspace.
+- P2: `branches_remaining` is transient. Autoclose writes only the first
+  branch to `retires.md`; reconciliation drops that record when the first
+  branch disappears, despite retained secondary branch debt. Deleting the
+  ticket subsequently loses that secondary branch's ownership authority.
+
+Additional manual P1: `parse_branch_names` treats fenced examples under
+`## Dev` as ownership. A disposable real-git reproduction with a done ticket,
+an actual `branch: real-owned` line and a fenced `branch: feat` example
+deleted both local and remote `feat` under the closed-PR rule. No production
+branches were deleted during this review.
+
+Fix proposal awaiting the attending owner's confirmation: ignore fenced
+examples when deriving ownership; inspect all recorded branches in live-claim
+checks; apply cross-workspace checks to every disposal candidate; and retain
+every outstanding branch in durable retry records. The latter needs a
+backward-compatible worklist representation change. Add regression coverage
+for the reproductions and update the owning contracts and packaged twins.
+No implementation edits made and no bump: the attended-session instructions
+require discussion and confirmation before substantive changes.
+
+Rebased unconditionally onto `origin/main` `6a6c14dec`, without conflicts,
+and force-pushed with a lease. Feature tip is now `dccf1afb9` (implementation
+`8f3f1ce43`, audit `f083bacc6`, consolidation `dccf1afb9`). Returned to clean
+`main` before writing this handoff. Verification:
+
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q`:
+  **3285 passed in 237.51s** after rebase; no deselection. The earlier
+  legacy-adoption failure did not reproduce in this run.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest tests/test_autoclose.py tests/test_autoclose_dispose.py tests/test_branchsweep.py tests/test_branchcleanup.py -q`:
+  **291 passed** before the state-only rebase.
+- From `example/coga`, `env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json`:
+  **4 valid tickets, no issues**.
+- `git diff --check`: clean. No raw-terminal loop, pager, TTY prompt, or
+  rendered message layout was introduced by this diff; cleanup behavior was
+  driven with real Git repositories and captured command output.
+
+## PR
+
+Allow retire, autoclose disposal, and the daily/weekly branch sweeps to clean
+up explicitly terminal-owned branches whose PRs were closed without merging.
+Terminal transitions continue to delete nothing. Cleanup reuses the
+post-PR source-change checks, branch protections, and retirement-tag archive;
+the change also documents the ownership rules and records the backlog audit.
+
+Test plan: full pytest suite (3285 passed), example validation (4 valid, no
+issues), and `git diff --check`; the review regressions above still need fixes
+and regression coverage before this PR body is ready for publication.
