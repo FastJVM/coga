@@ -7522,3 +7522,11 @@ fatal: Unable to add (null) to database
 2026-10-05 22:51 [clean-up-owned-branches-when-tickets-finish-or-are] [human:nicktoper] launched (operator=codex, agent=codex)
 2026-10-06 10:24 [coga] [git] sync failed: `git hash-object` failed: error: unable to create temporary file: Read-only file system
 fatal: Unable to add coga/tasks/clean-up-owned-branches-when-tickets-finish-or-are.md to database
+2026-10-06 10:25 [recurring/address-pr-comments] [system] created (status=active)
+2026-10-06 10:25 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-10-06
+2026-10-06 10:25 [recurring/autoclose-merged] [system] created (status=active)
+2026-10-06 10:25 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-10-06
+2026-10-06 10:25 [recurring/blocker-reminders] [system] created (status=active)
+2026-10-06 10:25 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-10-06
+2026-10-06 10:25 [recurring/upstream-coga] [system] created (status=active)
+2026-10-06 10:25 [recurring/upstream-coga] [system] created recurring/upstream-coga for 2026-W41
