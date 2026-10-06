@@ -38,7 +38,7 @@ contexts:
 - coga/internals/agent-spawn
 - coga/internals/state-publication
 agent: claude
-launch_generation: pending:f4c8c971-217c-4e1f-b5c8-e4e06e57308a
+launch_generation: f4c8c971-217c-4e1f-b5c8-e4e06e57308a
 ---
 
 ## Description
