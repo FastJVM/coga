@@ -64,3 +64,9 @@ Asked owner: proceed now vs wait for fixes; Mac route + spend; agent choice; fir
 ## Blockers
 
 - [ ] [2026-10-05 16:28] [agent:claude] id=20261005T162853 Waiting on fixes to land before the 4-run matrix: offer-agent-cli-install-and-setup-at-init, document-the-macos-command-line-tools-prerequisite, pin-python-3-11-in-the-macos-clean-install-harness merged; plus owner SSH access to the spare Mac (owned-Mac route). Unblock and relaunch when ready.
+
+---
+
+## Blocker reminders
+
+- 9c1da4d0e822 last_reminded: 2026-10-06 10:36
