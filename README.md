@@ -39,9 +39,7 @@ It is built around three ideas:
   `coga launch --prompt-report` shows the exact prompt before anything runs.
   You and your agents change the system as your ways of working evolve.
 
-The trade-off: you specify more up front, and you stay the one who decides.
-Coga fits when writing down how work should be done costs less than
-supervising it again and again.
+The trade-off: you specify more up front, and you need to stay in control of your instance. But then you don't need to baby-sit them.
 
 ## Sample Project
 I want to add in Codex a plugin to pick the best model with the right "thinking" power (hard, etc.) asit would save quite a bit of money. 
