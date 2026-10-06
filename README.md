@@ -5,7 +5,7 @@
 Coga is a CLI that sits on top of your coding agents. It defines with you how each kind of work should be done, then runs hundreds of tasks that way. Coga is built with Coga: see [`coga/tasks/`](coga/tasks).
 
 
-# Why
+# What is it
 When you use coding agents a lot, you know the repetition. Even with AGENTS.md and skills, your agents will forget some instructions, skip steps, and steer off path. You need to monitor them closely and repeat some of your instructions.
 
 Coga fixes that problem.
