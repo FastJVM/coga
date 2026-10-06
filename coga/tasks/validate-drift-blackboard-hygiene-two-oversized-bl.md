@@ -1,7 +1,7 @@
 ---
 title: 'validate-drift: blackboard hygiene — two oversized blackboards and one unsynthesized
   draft blackboard'
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+agent: claude
 ---
 
 ## Description
