@@ -5,10 +5,9 @@ description: How finished tickets and their feature checkouts are disposed of: `
 
 # Retiring tickets and checkouts
 
-You do not delete your own feature branch. `coga retire` (manual, while the
-ticket and its `## Dev` lines exist) and the daily autoclose sweep (for every
-ticket it closes and every open `retires.md` entry) run one shared set of
-proofs: `checkout_disposal.py` over the per-checkout proofs in
+You do not delete your own feature branch. Terminal transitions, `coga retire`
+(manual, while the ticket and its `## Dev` lines exist), and the daily/weekly
+sweeps share ownership and disposal proofs: `checkout_disposal.py` over the per-checkout proofs in
 `branchcleanup.py`. Ticket work no longer creates linked worktrees
 ([dev/checkouts](../checkouts/SKILL.md)), so a current ticket records only
 `branch:` and the disposal is branch-only. A ticket from the retired
@@ -16,6 +15,46 @@ linked-worktree layout may still record `worktree:`; the disposal removes that
 worktree first, since a branch checked out in a linked worktree cannot be
 deleted, then prunes the branch. Keep `worktree:` accurate where it exists; it
 is what they act on.
+
+## Ownership and terminal cleanup
+
+Ownership is explicit: each `branch:` line in the blackboard's `## Dev`
+section owns that exact branch. The first remains the working branch for PR
+and workflow consumers; additional lines retain ownership of earlier attempts.
+A `worktree:` applies to the first branch. Fenced examples, ticket prose,
+attachments, PR links alone, and generated sweep reports are not ownership.
+Scan every supported Coga workspace in the Git checkout. A failed or incomplete
+scan preserves all candidates. Another non-terminal owner's claim protects
+both refs, including a second or later branch record.
+
+A surviving `done` or `canceled` owner permits cleanup against a deliberately
+closed, unmerged PR for the same head. Closure alone never authorizes deletion.
+Without a terminal owner, the existing merged/landed proof is still required.
+Any open PR protects both refs, even if the local tip is already on control.
+The control branch, shared skill-update branch, and invoking branch remain
+protected. Unknown or foreign recorded checkouts preserve the branch for
+inspection in its owning clone, never deletion of a same-named local branch.
+
+For a closed-unmerged PR, compare local history with its head without excluding
+control history; commits beyond it must be patch-equivalent to that head or
+Coga task/log state. Source changes that fail this proof are named and kept.
+Merged PRs keep the broader landed-history proof below. Remote deletion always
+requires an exact eligible PR head, freshly read and leased. Divergent refs
+are judged separately: a refused local ref keeps the remote; an authorized
+local ref may be archived and deleted while a newer remote remains, with its
+SHA and refusal reported. Never infer a disposition for unreviewed source work.
+
+Published terminal transitions attempt only their explicitly owned branches,
+from control, without removing worktrees. A supervised/task session or an
+off-control transition records deferral instead. Cleanup never rolls back the
+terminal verdict. `## Branch cleanup` records the outcome on the ticket;
+`coga run branch-sweep`, the daily autoclose branch pass, and the weekly sweep
+retry from the surviving Dev records. A failed publication does not initiate
+cleanup. Retire processes every branch record before its retro can delete the
+ticket. The existing `retires.md` format remains legacy checkout debt, not a
+substitute for terminal ownership: after the ticket disappears it cannot
+newly authorize a closed-unmerged PR. Resolve such debt before deleting the
+ownership record, or inspect it manually.
 
 ## The checkout proofs
 
@@ -30,7 +69,8 @@ A recorded worktree is removed only when:
   incomplete claim scan keeps even a branch-only disposal pending, which
   autoclose reports and retains);
 - no PR for that head is open;
-- the branch has landed on control or still equals the recorded merged PR head.
+- the branch passes the eligible PR or landed-history proof below;
+- the retirement archive has been published before removal.
 
 Local cleanup precedes remote deletion; local deletion re-checks the authorized
 tip on both the ancestry and merged-PR paths. Remote deletion re-verifies the exact
@@ -145,7 +185,7 @@ in the same PR. Retire launches the task unless `--no-launch`, which prints the
 
 ## Branch-sweep protection and archive
 
-For a local ref with a merged PR and no open PR for the same branch name,
+For a local ref with an eligible PR and no open PR for the same branch name,
 `branchsweep.merged_pr_verdict` inspects commits beyond the merged head and
 the locally available control refs. Non-merge commits with matching
 `git patch-id --verbatim` IDs on the merged head are excluded; remaining
@@ -209,8 +249,8 @@ Restore archived work with `git fetch <remote> tag <tag>` and
 the `@<sha12>` name the run record reports.
 
 The daily autoclose branch pass and standalone weekly sweep share this gate.
-It does not change ticket-scoped retire/autoclose disposal into an archival
-operation.
+Ticket-scoped disposal with a surviving terminal owner uses this same archive
+gate. Owner-less legacy `retires.md` entries retain their merged-only proofs.
 
 ## `coga delete <slug>`
 

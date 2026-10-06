@@ -462,13 +462,23 @@ def parse_branch_name(blackboard_text: str) -> str | None:
     back to whole-line normalization. Bare values still consume the entire line.
     Returns None for a missing or empty branch line.
     """
-    section = _DEV_SECTION_RE.search(blackboard_text)
-    if not section:
-        return None
-    match = _BRANCH_LINE_RE.search(section.group(1))
-    if not match:
-        return None
-    return _delimited_value(match.group(1)) or None
+    return next(iter(parse_branch_names(blackboard_text)), None)
+
+
+def parse_branch_names(blackboard_text: str) -> list[str]:
+    """All explicit Dev branch records, in order; the first is the working branch.
+
+    Ignore fenced examples: documentation of a record is not ownership.
+    """
+    text = re.sub(r"^\s*(`{3,}|~{3,}).*?^\s*\1\s*$", "", blackboard_text,
+                  flags=re.MULTILINE | re.DOTALL)
+    section = _DEV_SECTION_RE.search(text)
+    if section is None:
+        return []
+    return list(dict.fromkeys(
+        name for match in _BRANCH_LINE_RE.finditer(section.group(1))
+        if (name := _delimited_value(match.group(1)))
+    ))
 
 
 def parse_worktree_path(blackboard_text: str) -> str | None:

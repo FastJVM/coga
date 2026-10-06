@@ -44,39 +44,14 @@ behavior is never implicit; that produced a ten-entry backlog nobody typed
 (the recurring clone was carrying 45 linked worktrees), so the sweep now runs
 the deterministic, narrow, named rule itself. This section names it.
 
-**The proofs, in order, per checkout.** Each refusal preserves the checkout and
-carries its reason into every surface below:
-
-1. *No other live ticket claims it.* No non-terminal ticket in any Coga
-   workspace of the git repository records the same `branch:` or the same
-   `worktree:` path. A scan that cannot complete (an unreadable workspace or
-   ticket) counts as a refusal.
-2. *The worktree is disposable.* The recorded path is a linked worktree of
-   the checkout the sweep runs from (`branchcleanup._is_linked_worktree_of`
-   over `git.classify_checkout` — an independent clone, another repository's
-   linked worktree, and anything git cannot answer for are preserved; the
-   primary checkout is not debt at all, below), it is not the checkout
-   running the sweep, it holds the
-   recorded branch, and it carries no tracked or untracked local state
-   (ignored regenerable caches — `__pycache__/`, `.pytest_cache/`,
-   `.ruff_cache/`, `.mypy_cache/` — are deleted with it; any other ignored
-   file preserves it). No PR is open for the branch, and the branch has
-   landed on the control branch or its local and remote tips equal the merged
-   PR's exact head. Then `git worktree remove`, unforced.
-3. *The local branch.* Plain `git branch -d` when the tip is reachable from
-   the control branch; a logged `-D` when the merged PR's exact head vouches
-   for it (the squash-merge shape), re-reading the tip first. A branch still
-   checked out anywhere, or with an open PR, or that advanced past the merged
-   head, is preserved.
-4. *The remote branch.* Deleted only when the live remote tip equals the
-   merged PR's exact head, with a `--force-with-lease` on that tip, and only
-   after the local branch is gone.
-
-The merge signal is the ticket's `pr:` link. A worklist entry whose ticket
-retire already deleted has none, so the proofs then use the merged PRs for
-the recorded **head branch name** (`gh pr list --head <branch> --state
-merged`) — the lookup the branch sweep already trusts — and compare the same
-exact heads.
+**The shared cleanup proof** is owned by
+[dev/checkout-cleanup](context:dev/checkout-cleanup). With a surviving terminal
+owner, `dispose_checkout` uses the branch sweep's ownership, eligible PR,
+archive, and checkout gates. Closed-unmerged PRs need that terminal ownership;
+owner-less legacy worklist entries still use merged-only proofs. Failed
+proofs retain their reasons and are retryable through the daily branch pass
+or `coga run branch-sweep`. That pass reads all explicit branches, including
+additional attempts and tickets canceled outside autoclose.
 
 **Only from the control branch, only this clone's worktrees.** A hand-run
 `coga run autoclose` on a checkout that is not on `[git].control_branch`

@@ -27,22 +27,25 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
-from coga.autoclose import parse_branch_name, parse_worktree_path
+if TYPE_CHECKING:
+    from coga.tasks import TaskRef
+
+from coga.autoclose import parse_branch_name, parse_branch_names, parse_worktree_path
 from coga.branchcleanup import (
     BranchCleanupResult,
     WorktreeCleanupResult,
     delete_branch,
     local_branch_exists,
+    inspect_worktree_for_removal,
     remove_worktree,
     resolve_worktree_path,
 )
-from coga.config import Config, ConfigError, load_config
+from coga.config import Config, load_config, local_config_path
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.taskfile import TaskFileError, read_blackboard
 from coga.tasks import list_tasks, read_ticket
-from coga.ticket import TicketError
 from coga.workspace_discovery import discover_coga_repos
 
 
@@ -144,6 +147,55 @@ def dispose_checkout(
         note(f"Checkout cleanup: skipped ({claim}).")
         return disposal
 
+    # A surviving terminal ticket supplies the authority for closed PRs. Use
+    # the sweep's archive and history proofs; legacy owner-less worklist debt
+    # retains its existing merged-only disposal path below.
+    try:
+        terminal_owned = any(
+            status in TERMINAL_STATUSES and branch in branches
+            for _, status, branches, _ in checkout_records(cfg, root)
+        )
+    except Exception as exc:
+        disposal.claim = f"could not verify ownership: {exc}"
+        note(f"Checkout cleanup: skipped ({disposal.claim}).")
+        return disposal
+    if terminal_owned and branch:
+        from coga.branchsweep import sweep_branches
+
+        from coga import git
+        relation = git.classify_checkout(root, resolve_worktree_path(root, worktree)) if worktree else None
+        if worktree and (relation is None or relation.kind != "primary"):
+            checked = WorktreeCleanupResult(worktree=worktree)
+            state = inspect_worktree_for_removal(
+                root, resolve_worktree_path(root, worktree), branch,
+                result=checked, echo=echo, local_config=local_config_path(cfg.repo_root),
+            )
+            if state is None and not checked.already_gone:
+                disposal.worktree_result = checked
+                disposal.notes.extend(checked.notes)
+                disposal.local_branch_remains = local_branch_exists(root, branch)
+                return disposal
+
+        swept = sweep_branches(
+            cfg, root, branches={branch},
+            recorded_worktrees={branch: worktree} if worktree else {}, echo=echo,
+        )
+        disposal.notes.extend(swept.notes)
+        disposal.branch_result = BranchCleanupResult(
+            branch=branch, local_deleted=branch in swept.local_deleted,
+            remote_deleted=branch in swept.remote_deleted, notes=swept.notes,
+        )
+        disposal.local_branch_remains = local_branch_exists(root, branch)
+        if worktree:
+            disposal.worktree_result = WorktreeCleanupResult(
+                worktree=worktree, removed=worktree in swept.worktree_removed,
+                already_gone=not resolve_worktree_path(root, worktree).exists(),
+                notes=swept.notes or ["Checkout cleanup: recorded checkout preserved."],
+            )
+        if swept.failure:
+            disposal.claim = swept.failure
+        return disposal
+
     if disposal.worktree is not None:
         if disposal.branch is None:
             note(
@@ -219,67 +271,38 @@ def live_checkout_claim(
     if branch is None and source_worktree is None:
         return None
 
-    workspaces = discover_coga_repos(
-        root, strict=True, allow_control_worktree_root=True
-    )
-    current_workspace = cfg.repo_root.resolve()
-    if current_workspace not in {workspace.resolve() for workspace in workspaces}:
-        raise RuntimeError(
-            f"current Coga workspace {current_workspace} was not found under "
-            f"Git root {root}"
-        )
-
-    for workspace in workspaces:
-        workspace_path = workspace.resolve()
-        try:
-            workspace_cfg = (
-                cfg
-                if workspace_path == current_workspace
-                else load_config(workspace_path, require_user=False)
-            )
-        except ConfigError as exc:
-            raise RuntimeError(
-                f"cannot inspect Coga workspace {workspace_path}: {exc}"
-            ) from exc
-
-        for other_ref in list_tasks(workspace_cfg):
-            try:
-                other_ticket = read_ticket(other_ref)
-            except (OSError, TicketError) as exc:
-                raise RuntimeError(
-                    f"cannot read {other_ref.ticket_path}: {exc}"
-                ) from exc
-            if other_ticket.status in TERMINAL_STATUSES:
-                continue
-            try:
-                other_blackboard = read_blackboard(
-                    other_ref.ticket_path, blackboard_required=False
-                )
-            except (OSError, TaskFileError) as exc:
-                raise RuntimeError(
-                    f"cannot read {other_ref.ticket_path}'s blackboard: {exc}"
-                ) from exc
-
-            ticket_label = (
-                other_ref.id_slug
-                if workspace_path == current_workspace
-                else f"{workspace_path}:{other_ref.id_slug}"
-            )
-            other_branch = parse_branch_name(other_blackboard)
-            if branch is not None and other_branch == branch:
-                return (
-                    f"live ticket {ticket_label!r} also records branch "
-                    f"{branch!r}"
-                )
-            other_worktree = _normalized_worktree(
-                root, parse_worktree_path(other_blackboard)
-            )
-            if source_worktree is not None and other_worktree == source_worktree:
-                return (
-                    f"live ticket {ticket_label!r} also records worktree "
-                    f"{str(source_worktree)!r}"
-                )
+    for label, status, branches, recorded in checkout_records(cfg, root):
+        if status in TERMINAL_STATUSES:
+            continue
+        if branch is not None and branch in branches:
+            return f"live ticket {label!r} also records branch {branch!r}"
+        if source_worktree is not None and _normalized_worktree(root, recorded) == source_worktree:
+            return f"live ticket {label!r} also records worktree {str(source_worktree)!r}"
     return None
+
+
+def checkout_records(
+    cfg: Config, root: Path,
+) -> list[tuple[str, str | None, list[str], str | None]]:
+    """Read explicit ownership across every workspace; incomplete scans raise.
+
+    A record is (ticket label, status, branches, recorded checkout). Prose and
+    attachments never grant ownership. The checkout applies to the first branch.
+    """
+    workspaces = discover_coga_repos(root, strict=True, allow_control_worktree_root=True)
+    current = cfg.repo_root.resolve()
+    if current not in {workspace.resolve() for workspace in workspaces}:
+        raise RuntimeError(f"current Coga workspace {current} was not found under Git root {root}")
+    records = []
+    for workspace in workspaces:
+        workspace = workspace.resolve()
+        other_cfg = cfg if workspace == current else load_config(workspace, require_user=False)
+        for ref in list_tasks(other_cfg):
+            ticket = read_ticket(ref)
+            board = read_blackboard(ref.ticket_path, blackboard_required=False)
+            label = ref.id_slug if workspace == current else f"{workspace}:{ref.id_slug}"
+            records.append((label, ticket.status, parse_branch_names(board), parse_worktree_path(board)))
+    return records
 
 
 def _normalized_worktree(root: Path, recorded: str | None) -> Path | None:
@@ -297,3 +320,37 @@ __all__ = [
     "dispose_checkout",
     "live_checkout_claim",
 ]
+
+
+def cleanup_terminal_ticket(cfg: Config, ref: "TaskRef", *, defer: bool = False) -> None:
+    """Best-effort scoped cleanup, with a durable reason and existing sweep retry.
+
+    Never remove checkouts from a terminal writer. Its caller may still be
+    running in one; the scheduled sweep performs the ordinary checkout proofs.
+    """
+    from coga import git
+    from coga.blackboard import append_blackboard_report
+    from coga.branchsweep import sweep_branches
+
+    if not cfg.git_enabled:
+        return
+    try:
+        board = read_blackboard(ref.ticket_path, blackboard_required=False)
+        branches = set(parse_branch_names(board))
+        if not branches:
+            return
+        root = git.toplevel(cfg.repo_root)
+        if root is None:
+            return
+        if defer or git.current_branch(root) != cfg.git_control_branch:
+            notes = ["Cleanup deferred until the session has returned to control; retry with `coga run branch-sweep`."]
+        else:
+            result = sweep_branches(cfg, root, branches=branches, remove_worktrees=False)
+            notes = result.notes
+        report = "## Branch cleanup\n\n" + "\n".join(f"- {note}" for note in notes) + "\n"
+        append_blackboard_report(cfg, ref.ticket_path, report)
+        git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — branch cleanup")
+    except Exception as exc:
+        # Cleanup is never a rollback of a published terminal verdict.
+        import sys
+        sys.stderr.write(f"[cleanup] {ref.id_slug}: {exc}; retry `coga run branch-sweep`.\n")

@@ -272,7 +272,7 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def test_retire_prunes_merged_branch_before_launch(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """retire deletes the ticket's branch (read from `## Dev`) before launching.
 
@@ -290,6 +290,10 @@ def test_retire_prunes_merged_branch_before_launch(
     (repo / "seed.txt").write_text("seed")
     _git(repo, "add", "seed.txt")
     _git(repo, "commit", "-m", "seed")
+    remote = tmp_path / "archive.git"
+    _git(tmp_path, "init", "--bare", str(remote))
+    _git(repo, "remote", "add", "origin", str(remote))
+    monkeypatch.setattr("coga.branchsweep.prs_for_head", lambda branch, state: [])
     # A feature branch whose commit lands in main (fast-forward) — merged.
     _git(repo, "checkout", "-b", "fix-retry-branch")
     (repo / "work.txt").write_text("work")
@@ -365,6 +369,10 @@ def _merged_worktree_ticket(
     (repo / "seed.txt").write_text("seed")
     _git(repo, "add", "seed.txt")
     _git(repo, "commit", "-m", "seed")
+    remote = tmp_path / "archive.git"
+    _git(tmp_path, "init", "--bare", str(remote))
+    _git(repo, "remote", "add", "origin", str(remote))
+    monkeypatch.setattr("coga.branchsweep.prs_for_head", lambda branch, state: [])
     feature = tmp_path / "feature"
     _git(repo, "worktree", "add", str(feature), "-b", "fix-retry-branch")
     (feature / "work.txt").write_text("work")
@@ -508,6 +516,10 @@ def test_retire_leaves_dirty_worktree_in_place(
     (repo / "seed.txt").write_text("seed")
     _git(repo, "add", "seed.txt")
     _git(repo, "commit", "-m", "seed")
+    remote = tmp_path / "archive.git"
+    _git(tmp_path, "init", "--bare", str(remote))
+    _git(repo, "remote", "add", "origin", str(remote))
+    monkeypatch.setattr("coga.branchsweep.prs_for_head", lambda branch, state: [])
     feature = tmp_path / "feature"
     _git(repo, "worktree", "add", str(feature), "-b", "fix-retry-branch")
     (feature / "uncommitted.txt").write_text("work in progress")
@@ -563,6 +575,10 @@ def test_retire_records_forceable_ignored_checkout_in_retro_body(
     (repo / ".gitignore").write_text("coga.local.toml\n__pycache__/\n")
     _git(repo, "add", "seed.txt", ".gitignore")
     _git(repo, "commit", "-m", "seed")
+    remote = tmp_path / "archive.git"
+    _git(tmp_path, "init", "--bare", str(remote))
+    _git(repo, "remote", "add", "origin", str(remote))
+    monkeypatch.setattr("coga.branchsweep.prs_for_head", lambda branch, state: [])
     feature = tmp_path / "feature"
     _git(repo, "worktree", "add", str(feature), "-b", "fix-retry-branch")
     (feature / "coga.local.toml").write_text('user = "marc"\n')
@@ -630,6 +646,10 @@ def test_retire_preserves_checkout_claimed_by_another_live_ticket(
     (repo / "seed.txt").write_text("seed")
     _git(repo, "add", "seed.txt")
     _git(repo, "commit", "-m", "seed")
+    remote = tmp_path / "archive.git"
+    _git(tmp_path, "init", "--bare", str(remote))
+    _git(repo, "remote", "add", "origin", str(remote))
+    monkeypatch.setattr("coga.branchsweep.prs_for_head", lambda branch, state: [])
     feature = tmp_path / "feature"
     _git(repo, "worktree", "add", str(feature), "-b", "shared-branch")
 

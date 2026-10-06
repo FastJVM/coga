@@ -122,6 +122,11 @@ def _stub_gh(
     monkeypatch.setattr("coga.branchcleanup.pr_state", lambda url: "MERGED")
     monkeypatch.setattr("coga.branchcleanup.pr_head", pr_head)
     monkeypatch.setattr("coga.branchcleanup.prs_for_head", prs_for_head)
+    tip = _git(repo.root, "rev-parse", "feature-x") if _local_branch_exists(repo.root, "feature-x") else ""
+    monkeypatch.setattr("coga.branchsweep.prs_for_head", lambda branch, state: (
+        [{"number": 30, "headRefOid": heads.get(branch, tip)}]
+        if state == "merged" and (branch in heads or (branch == "feature-x" and tip)) else []
+    ))
 
 
 def _capture_posts(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str]]:

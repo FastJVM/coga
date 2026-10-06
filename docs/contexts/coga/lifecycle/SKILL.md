@@ -36,7 +36,8 @@ Tickets without a workflow move through statuses only via `coga mark`.
 
 - `--message` adds an FYI to active/paused/done notifications; for canceled
   it is the required audit reason, appended to `coga/log.md`. Cancellation
-  leaves the body and blackboard (including open blocker text) untouched.
+  preserves the body and existing blackboard (including open blocker text);
+  cleanup may append its outcome.
 - `done` and `canceled` are terminal: launch refuses them and nothing
   reactivates a canceled ticket. `mark done --force` / final-step
   `bump --force` finish a `direct/body` ticket while acknowledging product code
@@ -54,6 +55,13 @@ Tickets without a workflow move through statuses only via `coga mark`.
   [coga/knowledge](../knowledge/SKILL.md) names, before or with the cancel,
   and let the cancellation reason point there. Dream's knowledge scan is the
   backstop for one that did not land.
+
+After successful publication, `mark_done` and `mark_canceled` attempt scoped
+branch cleanup or record session-safe deferral. Cleanup is best effort and
+never reverses the terminal verdict; retries and deletion authority belong to
+[dev/checkout-cleanup](../../dev/checkout-cleanup/SKILL.md). Final-step bump
+uses the same done finalizer. The next daily/weekly branch sweep also finds
+previously terminal owners, including canceled tickets.
 
 ## Blocking and resume
 

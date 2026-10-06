@@ -23,8 +23,9 @@ autoclose read it to dispose of that checkout.
 A bare `branch:` or `worktree:` value runs to end of line (paths may contain
 spaces); a bare `pr:` value ends at the first whitespace. To annotate, wrap the
 value in backticks before the note (``branch: `feature/x` (Magicator repo)``)
-or put the note on its own line. Update lines in place; `## Dev` is current
-linkage, not history. Lifecycle history is in `coga/log.md`; abandoned plans go
+or put the note on its own line. Keep the first `branch:` current. Additional `branch:` lines explicitly retain
+ownership of earlier attempts until cleanup; they are not narrative history.
+A `worktree:` applies to the first branch only. Lifecycle history is in `coga/log.md`; abandoned plans go
 to [dev/design-history](../design-history/SKILL.md).
 
 ## When to write each line
@@ -99,9 +100,9 @@ owned by [coga/internals/pr-publication](../../coga/internals/pr-publication/SKI
 
 Frontmatter stays reserved for canonical task state; `## Dev` is legible
 working state that focused consumers parse: `open-pr` writes `pr:`, autoclose
-reads PR linkage and names the retire follow-up. Branch sweep instead protects
-a branch that any non-terminal ordinary ticket names anywhere in its files
-(a recurring period task pins only its `## Dev` line).
+reads PR linkage and names the retire follow-up. Cleanup reads every explicit `branch:` line; prose and attachments do not
+claim a branch. Eligibility, terminal transitions, and retry behavior are
+owned by [dev/checkout-cleanup](../checkout-cleanup/SKILL.md).
 
 When one PR covers several tickets, each records the same `branch:` and `pr:`.
 The link goes ticket to PR.

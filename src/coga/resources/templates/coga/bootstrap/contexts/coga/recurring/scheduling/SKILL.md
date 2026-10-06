@@ -44,8 +44,9 @@ appear there under `## Branch Sweep`. Direct `coga run autoclose` retains its
 ticket/worklist scope; the daily composition lives in the template's `ticket.py`.
 
 This deliberately replaces the daily-recorded/weekly-unrecorded cleanup split:
-unclaimed landed branches are checked daily at the cost of extra GitHub API
-calls. The standalone Monday `branch-sweep` schedule remains an independent
+eligible branches are checked daily, including branches explicitly owned by
+previously done/canceled tickets whose PRs were deliberately closed. This costs
+extra GitHub API calls. The standalone Monday `branch-sweep` schedule remains an independent
 retry and manual entry point. Both use the existing
 [checkout cleanup proofs](../../../dev/checkout-cleanup/SKILL.md); daily
 frequency grants no new deletion authority.

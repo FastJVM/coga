@@ -38,3 +38,13 @@ human-readable markdown.
 
 The blackboard is a notepad to be written to often as the human and agent
 works through a task.
+
+## Dev
+
+branch: declined-dream-prototype
+branch: declined-dream-earlier-attempt
+
+Both branches are explicit ownership records. A closed PR alone would not
+permit their deletion; terminal ownership, PR-head checks, archival, and
+checkout safety must all pass. Cleanup preserves any branch another live
+ticket records. These fixture names have no real Git refs.

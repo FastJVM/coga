@@ -608,13 +608,10 @@ def _gh_must_not_be_consulted(branch: str, state: str) -> list[dict[str, object]
     raise AssertionError("gh must not be consulted for a live ticket's branch")
 
 
-def test_live_ticket_prose_mention_pins_branch_without_dev_section(
+def test_live_ticket_prose_mention_does_not_claim_branch(
     repo: Path, monkeypatch
 ) -> None:
-    # The guard used to read only `## Dev` `branch:`; a draft that named its
-    # branch three times in prose and attachments but had no `## Dev` at all
-    # was invisible to it, and a merged PR at the exact tip would have
-    # force-deleted the ref it still depended on.
+    # Only an explicit Dev record creates a live ownership claim.
     _push_branch(repo, "feat", land_in_main=True)
     task_dir = repo / "coga" / "tasks"
     task_dir.mkdir(parents=True, exist_ok=True)
@@ -626,17 +623,17 @@ def test_live_ticket_prose_mention_pins_branch_without_dev_section(
             blackboard="notes",
         )
     )
-    monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
+    _merged_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
-    assert result.local_deleted == []
-    assert result.remote_deleted == []
-    assert _branch_exists_local(repo, "feat")
-    assert _branch_exists_remote(repo, "feat")
+    assert result.local_deleted == ["feat"]
+    assert result.remote_deleted == ["feat"]
+    assert not _branch_exists_local(repo, "feat")
+    assert not _branch_exists_remote(repo, "feat")
 
 
-def test_live_ticket_attachment_mention_pins_branch(repo: Path, monkeypatch) -> None:
+def test_live_ticket_attachment_mention_does_not_claim_branch(repo: Path, monkeypatch) -> None:
     _push_branch(repo, "feat", land_in_main=True)
     task_dir = repo / "coga" / "tasks" / "with-manifest"
     task_dir.mkdir(parents=True)
@@ -644,12 +641,12 @@ def test_live_ticket_attachment_mention_pins_branch(repo: Path, monkeypatch) -> 
         _ticket_text("with-manifest", status="active", body="", blackboard="notes")
     )
     (task_dir / "handoff-manifest.md").write_text("Coga source branch: `feat`\n")
-    monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
+    _merged_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
-    assert result.local_deleted == []
-    assert _branch_exists_local(repo, "feat")
+    assert result.local_deleted == ["feat"]
+    assert not _branch_exists_local(repo, "feat")
 
 
 def test_live_ticket_mention_must_be_the_whole_branch_name(
@@ -680,7 +677,7 @@ def test_live_ticket_mention_must_be_the_whole_branch_name(
         "Pushed to origin/feat yesterday.",
     ],
 )
-def test_live_ticket_prose_mention_survives_punctuation(
+def test_live_ticket_prose_mention_is_not_ownership_with_punctuation(
     repo: Path, monkeypatch, prose: str
 ) -> None:
     # A sentence-final period and a remote-qualified spelling are the common
@@ -691,12 +688,12 @@ def test_live_ticket_prose_mention_survives_punctuation(
     (task_dir / "prose.md").write_text(
         _ticket_text("prose", status="active", body=prose, blackboard="notes")
     )
-    monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
+    _merged_at_tip(monkeypatch, repo, "feat")
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
-    assert result.local_deleted == []
-    assert _branch_exists_local(repo, "feat")
+    assert result.local_deleted == ["feat"]
+    assert not _branch_exists_local(repo, "feat")
 
 
 def test_period_task_report_does_not_pin_the_branches_it_names(
@@ -1278,7 +1275,7 @@ def test_open_pr_refusal_is_noted_and_costs_no_git_comparison(
     assert any("'feat' has an open PR" in note for note in result.notes), result.notes
 
 
-def test_no_pr_branch_costs_one_gh_call(repo: Path, monkeypatch) -> None:
+def test_no_pr_branch_still_checks_open_prs(repo: Path, monkeypatch) -> None:
     _push_branch(repo, "feat")
     calls: list[tuple[str, str]] = []
 
@@ -1290,7 +1287,7 @@ def test_no_pr_branch_costs_one_gh_call(repo: Path, monkeypatch) -> None:
 
     bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
-    assert calls == [("feat", "merged")]
+    assert calls == [("feat", "merged"), ("feat", "open")]
 
 
 # --- the squash-merge shapes Coga itself produces ---------------------------
@@ -1773,7 +1770,7 @@ def test_recipe_records_a_failed_sweep_on_the_blackboard(
     assert "Counts: 0 local and 0 remote branch(es) deleted" in host.read_text()
 
 
-def test_recipe_reports_local_cleanup_when_remote_listing_fails(
+def test_recipe_preserves_refs_when_remote_listing_fails(
     repo: Path, monkeypatch
 ) -> None:
     _push_branch(repo, "feat", land_in_main=True)
@@ -1798,10 +1795,9 @@ def test_recipe_reports_local_cleanup_when_remote_listing_fails(
 
     report = host.read_text()
     assert "Result: partial sweep — simulated remote listing failure" in report
-    assert "Counts: 1 local and 0 remote branch(es) deleted" in report
-    assert "- deleted local: feat" in report
-    assert "stopped early" not in report
-    assert not _branch_exists_local(repo, "feat")
+    assert "Counts: 0 local and 0 remote branch(es) deleted" in report
+    assert "- deleted local:" not in report
+    assert _branch_exists_local(repo, "feat")
     assert _git(repo, "ls-remote", "--heads", "origin", "feat").stdout.strip()
 
 
@@ -1845,3 +1841,139 @@ def test_gc_preserves_landed_checkout_with_open_pr(
     assert _branch_exists_local(repo, "reuse")
     assert result.worktree_pinned == ["reuse"]
     assert not result.local_deleted and not result.remote_deleted
+
+
+@pytest.mark.parametrize('status', ['done', 'canceled'])
+def test_terminal_owner_releases_closed_unmerged_branch(repo, monkeypatch, status):
+    _push_branch(repo, 'abandoned')
+    tip = _tip(repo, 'abandoned')
+    _write_ticket(repo, 'owner', status=status, branch='abandoned')
+    monkeypatch.setattr(bs, 'prs_for_head', lambda branch, state: (
+        [{'number': 9, 'headRefOid': tip}] if state == 'closed' else []
+    ))
+    result = bs.sweep_branches(_cfg(repo), repo)
+    assert result.local_deleted == ['abandoned']
+    assert result.remote_deleted == ['abandoned']
+    assert _tip(repo, 'refs/tags/retired/abandoned') == tip
+
+
+@pytest.mark.parametrize('status', ['active', 'done'])
+def test_closed_pr_without_explicit_terminal_owner_is_preserved(repo, monkeypatch, status):
+    _push_branch(repo, 'abandoned')
+    tip = _tip(repo, 'abandoned')
+    tasks = repo / 'coga' / 'tasks'
+    tasks.mkdir()
+    (tasks / 'mention.md').write_text(_ticket_text(
+        'mention', status=status, body='See abandoned.', blackboard=''))
+    monkeypatch.setattr(bs, 'prs_for_head', lambda branch, state: (
+        [{'number': 9, 'headRefOid': tip}] if state == 'closed' else []
+    ))
+    result = bs.sweep_branches(_cfg(repo), repo)
+    assert not result.local_deleted
+    assert not result.remote_deleted
+
+
+def test_terminal_owner_multiple_branches_and_live_shared_owner(repo, monkeypatch):
+    for branch in ('first', 'second', 'shared'):
+        _push_branch(repo, branch)
+    tips = {b: _tip(repo, b) for b in ('first', 'second', 'shared')}
+    _write_ticket(repo, 'owner', status='canceled', branch='first\nbranch: second\nbranch: shared')
+    _write_ticket(repo, 'live', status='active', branch='shared')
+    monkeypatch.setattr(bs, 'prs_for_head', lambda branch, state: (
+        [{'number': 9, 'headRefOid': tips[branch]}] if state == 'closed' else []
+    ))
+    result = bs.sweep_branches(_cfg(repo), repo)
+    assert result.local_deleted == ['first', 'second']
+    assert result.remote_deleted == ['first', 'second']
+    assert _tip(repo, 'shared') == tips['shared']
+
+
+def test_closed_pr_preserves_post_closure_source_commit(repo, monkeypatch):
+    _push_branch(repo, 'abandoned')
+    closed_tip = _tip(repo, 'abandoned')
+    _write_ticket(repo, 'owner', status='done', branch='abandoned')
+    _git(repo, 'checkout', 'abandoned')
+    _commit(repo, 'later.py', 'unreviewed', 'later source')
+    _git(repo, 'checkout', 'main')
+    monkeypatch.setattr(bs, 'prs_for_head', lambda branch, state: (
+        [{'number': 9, 'headRefOid': closed_tip}] if state == 'closed' else []
+    ))
+    result = bs.sweep_branches(_cfg(repo), repo)
+    assert not result.local_deleted
+    assert not result.remote_deleted
+    assert any('later.py' in note for note in result.notes)
+
+
+@pytest.mark.parametrize('failure', ['archive', 'open', 'remote-advanced'])
+def test_terminal_cleanup_preserves_failed_proofs(repo, monkeypatch, failure):
+    _push_branch(repo, 'abandoned')
+    tip = _tip(repo, 'abandoned')
+    _write_ticket(repo, 'owner', status='canceled', branch='abandoned')
+    if failure == 'remote-advanced':
+        _git(repo, 'checkout', 'abandoned')
+        _commit(repo, 'later.py', 'new work', 'after closure')
+        _git(repo, 'push', 'origin', 'abandoned')
+        _git(repo, 'checkout', 'main')
+        _git(repo, 'branch', '-f', 'abandoned', tip)
+    monkeypatch.setattr(bs, 'prs_for_head', lambda branch, state: (
+        [{'number': 9, 'headRefOid': tip}]
+        if state == 'closed' or (state == 'open' and failure == 'open') else []
+    ))
+    if failure == 'archive':
+        # A real failed archive push must leave both refs recoverable.
+        hook = Path(_remote_url(repo)) / 'hooks' / 'pre-receive'
+        hook.write_text('#!/bin/sh\nexit 1\n')
+        hook.chmod(0o755)
+    result = bs.sweep_branches(_cfg(repo), repo)
+    assert not result.remote_deleted
+    assert _branch_exists_remote(repo, 'abandoned')
+    if failure != 'remote-advanced':
+        assert not result.local_deleted
+        assert _branch_exists_local(repo, 'abandoned')
+    else:
+        assert result.local_deleted == ['abandoned']
+        assert any('remote tip' in note for note in result.notes)
+    if failure == 'archive':
+        assert result.failure
+
+
+@pytest.mark.parametrize('defer', [False, True])
+def test_terminal_ticket_cleanup_is_scoped_reported_and_session_safe(repo, monkeypatch, defer):
+    from coga.checkout_disposal import cleanup_terminal_ticket
+    from coga.tasks import resolve_task
+
+    for branch in ('owned', 'unrelated'):
+        _push_branch(repo, branch)
+    tip = _tip(repo, 'owned')
+    _write_ticket(repo, 'owner', status='done', branch='owned')
+    monkeypatch.setattr(bs, 'prs_for_head', lambda branch, state: (
+        [{'number': 9, 'headRefOid': tip}] if state == 'closed' else []
+    ))
+    monkeypatch.setattr('coga.git.sync_task_state', lambda *args, **kwargs: None)
+    cfg = _cfg(repo)
+    ref = resolve_task(cfg, 'owner')
+    cleanup_terminal_ticket(cfg, ref, defer=defer)
+    assert _branch_exists_local(repo, 'owned') == defer
+    assert _branch_exists_remote(repo, 'owned') == defer
+    assert _branch_exists_local(repo, 'unrelated')
+    assert '## Branch cleanup' in ref.ticket_path.read_text()
+    if defer:
+        assert 'Cleanup deferred' in ref.ticket_path.read_text()
+
+
+def test_unreadable_ownership_preserves_all_refs(repo, monkeypatch):
+    _push_branch(repo, 'feat')
+    _merged_at_tip(monkeypatch, repo, 'feat')
+    _write_ticket(repo, 'bad', status='active', branch='feat')
+    (repo / 'coga/tasks/bad.md').write_text('---\ninvalid: [\n---\n')
+    result = bs.sweep_branches(_cfg(repo), repo)
+    assert result.failure
+    assert not result.local_deleted
+    assert not result.remote_deleted
+
+
+def test_fenced_dev_example_is_not_ownership():
+    from coga.autoclose import parse_branch_names
+
+    assert parse_branch_names('```markdown\n## Dev\nbranch: example\n```\n') == []
+    assert parse_branch_names('## Dev\nbranch: first\n- branch: `second` (old attempt)\nbranch: first\n') == ['first', 'second']

@@ -12,6 +12,7 @@ shape stays identical regardless of who triggered the transition.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -201,7 +202,7 @@ def mark_done(
             fatal=False,
         )
 
-    def sync_state() -> None:
+    def sync_state() -> bool:
         paths = [ref.path, log_path(cfg)]
         # The parent template's working state (high-water / state keys) lives
         # in the blackboard region of its single-file ticket.md, so publish it
@@ -210,26 +211,29 @@ def mark_done(
             parent_ticket = parent_ticket_path(cfg, snapshot)
             if parent_ticket.parent.is_dir():
                 paths.append(parent_ticket)
-        _publish(cfg, ref, paths, f"Ticket: {ref.id_slug} — done", strict=strict)
+        return _publish(cfg, ref, paths, f"Ticket: {ref.id_slug} — done", strict=strict)
 
     # A strict caller waits until the transition is durable before announcing;
     # the ordinary path announces before syncing.
     if strict:
-        sync_state()
+        published = sync_state()
     if echo is not None:
         typer.echo(echo)
     announce()
     if not strict:
-        sync_state()
+        published = sync_state()
     _warn_if_state_not_advanced(cfg, ref, ticket, owner, snapshot)
+    if published:
+        _cleanup_terminal(cfg, ref)
 
 
 def _publish(
     cfg: Config, ref: TaskRef, paths: list[Path], message: str, *, strict: bool
-) -> None:
+) -> bool:
     """One task-state publication; non-fatal unless `strict`."""
     try:
         git.publish(cfg, paths, message)
+        return True
     except git.StateRegressionError as exc:
         sys.stderr.write(f"[git] sync refused: {exc}. Message was: {message}\n")
         if strict:
@@ -239,6 +243,7 @@ def _publish(
         append_log(cfg, ref.id_slug, "git", f"sync failed: {exc}")
         if strict:
             raise
+    return False
 
 
 class CancellationError(RuntimeError):
@@ -260,8 +265,8 @@ def mark_canceled(
 
     The reason is required in this shared layer, not only by Typer, so an
     internal caller cannot create an illegible cancellation. Cancellation
-    clears ``step:`` like completion but deliberately leaves the body and
-    blackboard untouched; an unresolved blocker therefore remains historical
+    clears ``step:`` like completion and preserves the existing body and
+    blackboard; cleanup may append its outcome, while an unresolved blocker therefore remains historical
     context while the ticket itself becomes terminal.
     """
     reason = reason.strip()
@@ -303,7 +308,16 @@ def mark_canceled(
         image_url=image_url,
         fatal=False,
     )
-    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — canceled")
+    if _publish(cfg, ref, [ref.path, log_path(cfg)], f"Ticket: {ref.id_slug} — canceled", strict=False):
+        _cleanup_terminal(cfg, ref)
+
+
+def _cleanup_terminal(cfg: Config, ref: TaskRef) -> None:
+    from coga.checkout_disposal import cleanup_terminal_ticket
+
+    cleanup_terminal_ticket(cfg, ref, defer=bool(
+        os.environ.get("COGA_SUPERVISED") or os.environ.get("COGA_TASK_TICKET")
+    ))
 
 
 def _warn_if_state_not_advanced(
