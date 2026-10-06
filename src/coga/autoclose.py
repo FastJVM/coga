@@ -392,7 +392,9 @@ _PR_COORDINATES_RE = re.compile(r"/([^/]+)/([^/]+)/pull/(\d+)")
 # leading backtick delimits the value through its matching closing backtick;
 # bare values still consume the whole remainder of the line.
 _BRANCH_LINE_RE = re.compile(r"^ {0,3}(?:-[ \t]*)?branch:[ \t]*(.*?)[ \t]*$", re.MULTILINE)
-_CODE_FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+_CODE_FENCE_RE = re.compile(
+    r"^[ \t]*(?:(?:[-+*]|\d{1,9}[.)])[ \t]+|>[ \t]*)*(`{3,}|~{3,})(.*)$"
+)
 # The `worktree:` line follows the same accreted shapes as `branch:` (bare,
 # list-item, backtick-wrapped), so parse it the same way. The open-pr command
 # needs it to locate the feature checkout it pushes from.

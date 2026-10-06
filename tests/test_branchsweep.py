@@ -2419,3 +2419,49 @@ def test_terminal_ticket_cannot_reintroduce_foreign_branch_authority(
         assert _branch_exists_local(repo, "feat")
         assert _branch_exists_remote(repo, "feat")
         assert any("grant no cleanup authority here" in note for note in result.notes)
+
+
+@pytest.mark.parametrize("container", ["- ", "1. ", "> - ", "  - "])
+def test_list_contained_fenced_example_is_not_branch_ownership(
+    repo: Path, monkeypatch, container: str,
+) -> None:
+    _push_branch(repo, "feat")
+    _write_owner(repo, "done", status="done", branches=["actual"])
+    ticket = repo / "coga/tasks/done.md"
+    ticket.write_text(ticket.read_text() + f"\n{container}```yaml\n  branch: feat\n  ```\n")
+    _closed_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _: None)
+
+    assert result.local_deleted == result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+
+
+def test_disposal_retains_proven_owner_after_removing_recorded_worktree(
+    repo: Path, monkeypatch,
+) -> None:
+    from coga.checkout_disposal import dispose_checkout
+
+    _push_branch(repo, "first", land_in_main=True)
+    _push_branch(repo, "second")
+    linked = repo.parent / "linked"
+    _git(repo, "worktree", "add", str(linked), "first")
+    _write_owner(repo, "done", status="done", branches=["first", "second"])
+    ticket = repo / "coga/tasks/done.md"
+    ticket.write_text(ticket.read_text() + f"\nworktree: {linked}\n")
+    _fake_gh(monkeypatch, merged={"first": _tip(repo, "first")}, closed={"second": _tip(repo, "second")})
+    monkeypatch.setattr("coga.branchcleanup.prs_for_head", bs.prs_for_head)
+
+    result = dispose_checkout(
+        _cfg(repo), repo, branch="first", worktree=str(linked), pr_url=None,
+        owned_branches=["first", "second"], echo=lambda _: None,
+    )
+
+    assert result.worktree_result.removed
+    assert result.disposed
+    assert not linked.exists()
+    for branch in ("first", "second"):
+        assert not _branch_exists_local(repo, branch)
+        assert not _branch_exists_remote(repo, branch)
+    assert _remote_tag(repo, "retired/second")
