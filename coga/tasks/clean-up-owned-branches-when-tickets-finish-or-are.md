@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -67,6 +67,16 @@ chosen branch: full suite 3284 passed, 1 failed; the failure,
 fails the same way on clean `main`. Still open: the owner-approved manual
 removals listed in that audit page (refused by tool permissions), and the
 `branchsweep._local_branches` follow-up noted below.
+
+Re-implement handoff, 2026-10-05 (late): rebased the chosen branch onto
+`origin/main` `b444a4af9` (README-only commits came in; no conflicts) and
+force-pushed it with a lease. The branch is now at `4378fed01` (implementation
+`660778187`, audit `5e4572b97`, audit consolidation `4378fed01`). Full suite:
+3284 passed, with `test_edge_distribution::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`
+deselected. Run on its own, it fails with the same `inventory` assertion as on
+clean `main`. `git diff --check` is clean. No PR opened. The manual
+backlog removals listed in the audit page, under *Second pass*, are still for
+the owner to run.
 
 ## Plan
 
