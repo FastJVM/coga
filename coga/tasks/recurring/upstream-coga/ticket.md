@@ -1,6 +1,6 @@
 ---
 title: Upstream Coga findings
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -12,7 +12,6 @@ workflow:
   - name: sweep
     skills: []
     assignee: agent
-step: 1 (sweep)
 ---
 
 ## Description
