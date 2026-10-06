@@ -38,6 +38,12 @@ _LOG_LINE_RE = re.compile(
 # It sits at the very end so prompts stay cache-identical up to it.
 LAUNCH_MARKER_PREFIX = "coga-launch: "
 
+# A parser reason names local files (the checkout cwd, `~/.claude/projects/...`),
+# but `usage_reason` lands in the committed, git-synced `coga/log.md`. Persist
+# it with every absolute or home-relative path replaced; stderr keeps the
+# detailed text.
+_LOCAL_PATH_RE = re.compile(r"(?<![\w.])(?:~|[A-Za-z]:)?[/\\][^\s'\",]*")
+
 
 def launch_marker_line(marker: str) -> str:
     return f"{LAUNCH_MARKER_PREFIX}{marker}"
@@ -325,7 +331,11 @@ def capture_session(
         outcome=parsed.outcome,
         content_status=parsed.content_status,
         outcome_status=outcome_status,
-        usage_reason=parsed.reason if parsed.usage_status == "unknown" else None,
+        usage_reason=(
+            _redact_local_paths(parsed.reason)
+            if parsed.usage_status == "unknown" and parsed.reason
+            else None
+        ),
     )
     try:
         append_record(cfg, record)
@@ -1109,6 +1119,10 @@ def _group_key(record: UsageRecord, by: str) -> str:
         return record.slug
     value = getattr(record, by)
     return str(value) if value else "(unknown)"
+
+
+def _redact_local_paths(text: str) -> str:
+    return _LOCAL_PATH_RE.sub("<path>", text)
 
 
 def _unknown(

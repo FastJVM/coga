@@ -22,8 +22,9 @@ Activity (schema 2): `started_at`, `ended_at`, `elapsed_seconds`,
 `unknown`), and `outcome_status` (`completed`, `failed`, `timed_out`,
 `interrupted`, `unknown`). `outcome_status` describes the process, independent
 of token parsing. `usage_reason` carries the parser's reason when
-`usage_status` is `unknown` (the same text capture prints to stderr) and is
-null otherwise; it was added without a schema bump, so records written before
+`usage_status` is `unknown` (the text capture prints to stderr, with every
+absolute or home-relative path replaced by `<path>` because the log is
+committed) and is null otherwise; it was added without a schema bump, so records written before
 it read back with it null. Schema-1 records stay readable with activity fields
 null and roll up unchanged.
 

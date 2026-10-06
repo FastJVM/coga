@@ -1257,6 +1257,23 @@ def test_capture_records_usage_reason_for_unknown(
 
     record = load_records(load_config(coga_os))[0]
     assert record.usage_status == "unknown"
-    assert record.usage_reason == (
-        f"codex rollout not found for cwd: {cwd.resolve()}"
+    assert record.usage_reason == "codex rollout not found for cwd: <path>"
+    assert str(tmp_path) not in (coga_os / "log.md").read_text()
+
+
+def test_redact_local_paths_keeps_reason_category() -> None:
+    from coga.usage import _redact_local_paths
+
+    assert _redact_local_paths(
+        "multiple claude transcripts matched cwd: /home/marc/a.jsonl, "
+        "~/.claude/projects/x/b.jsonl"
+    ) == "multiple claude transcripts matched cwd: <path>, <path>"
+    assert _redact_local_paths(
+        "[Errno 2] No such file or directory: '/home/marc/r.jsonl'"
+    ) == "[Errno 2] No such file or directory: '<path>'"
+    assert _redact_local_paths(r"claude transcript not found: C:\Users\m\t.jsonl") == (
+        "claude transcript not found: <path>"
+    )
+    assert _redact_local_paths("missing claude session id") == (
+        "missing claude session id"
     )
