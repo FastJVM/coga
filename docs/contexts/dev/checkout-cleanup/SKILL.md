@@ -131,7 +131,11 @@ retire and autoclose run for a disposed ticket.
 [dev/dev-record](../dev-record/SKILL.md)). An open `retires.md` entry also
 counts, because autoclose records it for a ticket it closed and that ticket
 may since be gone. An entry whose recorded `owner` is another clone does not
-count. The owner must be `done` or `canceled`
+count. A surviving ticket cannot bypass this with its own branch lines:
+when it records `worktree:`, that path must be a readable primary or linked
+checkout of this repository. A foreign or unavailable recorded checkout
+grants no terminal-ticket deletion authority here and is reported.
+The owner must be `done` or `canceled`
 (`branchsweep._terminal_owners`). These never count as ownership: a closed PR
 on its own, a prose or attachment mention, a fenced or indented code example,
 and a ticket or worklist that

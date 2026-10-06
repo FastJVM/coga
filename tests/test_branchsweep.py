@@ -2383,3 +2383,39 @@ def test_autoclose_records_secondary_debt_even_when_disposal_is_skipped(
     assert entry.branch_names == ("first", "second")
     (repo / "coga/tasks/done.md").unlink()
     assert len(rw.reconcile_worklist(cfg, path, root=repo).open) == 1
+
+
+@pytest.mark.parametrize("checkout", ["foreign-primary", "foreign-linked", "missing", "primary"])
+def test_terminal_ticket_cannot_reintroduce_foreign_branch_authority(
+    repo: Path, monkeypatch, checkout: str,
+) -> None:
+    from coga.retire_worklist import RetireFollowUp
+
+    _push_branch(repo, "feat")
+    _write_owner(repo, "done", status="done", branches=["feat"])
+    recorded = repo
+    if checkout.startswith("foreign"):
+        owner = repo.parent / "foreign"
+        _git(repo.parent, "clone", "-q", "-b", "feat", str(repo), str(owner))
+        recorded = owner
+        if checkout == "foreign-linked":
+            recorded = repo.parent / "foreign-linked"
+            _git(owner, "worktree", "add", "-b", "elsewhere", str(recorded))
+        _write_worklist(repo, RetireFollowUp(
+            "done", "feat", str(recorded), "2026-10-01", owner=str(owner),
+        ))
+    elif checkout == "missing":
+        recorded = repo.parent / "unavailable"
+    ticket = repo / "coga/tasks/done.md"
+    ticket.write_text(ticket.read_text() + f"\nworktree: {recorded}\n")
+    _closed_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _: None)
+
+    if checkout == "primary":
+        assert result.local_deleted == result.remote_deleted == ["feat"]
+    else:
+        assert result.local_deleted == result.remote_deleted == []
+        assert _branch_exists_local(repo, "feat")
+        assert _branch_exists_remote(repo, "feat")
+        assert any("grant no cleanup authority here" in note for note in result.notes)
