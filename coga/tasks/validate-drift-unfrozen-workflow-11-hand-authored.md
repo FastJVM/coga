@@ -1,7 +1,7 @@
 ---
 title: 'validate-drift: unfrozen-workflow — 11 hand-authored drafts carry an unfrozen
   workflow'
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: brief-for-human
