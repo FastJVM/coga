@@ -51,6 +51,7 @@ Read docs/contexts/dev/checkout-cleanup/SKILL.md, docs/contexts/coga/lifecycle/S
 <!-- coga:blackboard -->
 
 ## Dev
+pr: https://github.com/FastJVM/coga/pull/963
 branch: terminal-branch-cleanup-retire-sweep
 
 Owner decision, 2026-10-05: two sessions implemented this ticket in parallel.
