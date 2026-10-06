@@ -1002,7 +1002,7 @@ def delete_local_branch(
             result,
             echo,
             f"Branch cleanup: force-deleted local {branch!r}{tip_note} — "
-            "PR merged; recover with `git checkout -b` from the reflog SHA.",
+            "PR head authorizes cleanup; recover with `git checkout -b` from the reflog SHA.",
         )
         return
     stderr = (forced.stderr + forced.stdout).strip()

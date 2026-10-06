@@ -1855,6 +1855,7 @@ def test_terminal_owner_releases_closed_unmerged_branch(repo, monkeypatch, statu
     assert result.local_deleted == ['abandoned']
     assert result.remote_deleted == ['abandoned']
     assert _tip(repo, 'refs/tags/retired/abandoned') == tip
+    assert not any('PR merged;' in note for note in result.notes)
 
 
 @pytest.mark.parametrize('status', ['active', 'done'])

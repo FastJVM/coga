@@ -463,7 +463,7 @@ def _publish_retirement_tag(
             _note(
                 result, echo,
                 f"Branch sweep: {branch!r} tips diverge; {kept} stays on "
-                f"{cfg.git_remote} as the merged PR head.",
+                f"{cfg.git_remote} as the PR head.",
             )
     if target is None:
         return refuse("divergent tips cannot be preserved by one retirement tag")
