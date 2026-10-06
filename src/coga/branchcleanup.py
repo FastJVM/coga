@@ -958,7 +958,7 @@ def delete_local_branch(
             return
         stderr = (safe.stderr + safe.stdout).strip()
         result.local_worktree_path = _worktree_path_from_delete_error(stderr)
-        if result.local_worktree_path is None and _merge_check_refusal(stderr):
+        if _merge_check_refusal(stderr):
             _recheck_and_force_delete(
                 root,
                 branch,
@@ -1052,11 +1052,10 @@ def _recheck_and_force_delete(
     forced = _git(root, "branch", "-D", branch)
     if forced.returncode == 0:
         result.local_deleted = True
-        tip_note = f" (was {tip})" if tip else ""
         _note(
             result,
             echo,
-            f"Branch cleanup: force-deleted local {branch!r}{tip_note} — "
+            f"Branch cleanup: force-deleted local {branch!r} (was {tip}) — "
             f"{reason}; recover with `git checkout -b` from the reflog SHA.",
         )
         return
