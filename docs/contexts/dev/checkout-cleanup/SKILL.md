@@ -135,6 +135,11 @@ count. A surviving ticket cannot bypass this with its own branch lines:
 when it records `worktree:`, that path must be a readable primary or linked
 checkout of this repository. A foreign or unavailable recorded checkout
 grants no terminal-ticket deletion authority here and is reported.
+When disposal itself has just proved and removed a same-repository linked
+worktree, it carries that exact path's proof into its restricted branch pass.
+That successful removal does not revoke the surviving ticket's ownership;
+an already-missing path or a path recreated as a foreign checkout gets no such
+exception. All other deletion gates are still checked.
 The owner must be `done` or `canceled`
 (`branchsweep._terminal_owners`). These never count as ownership: a closed PR
 on its own, a prose or attachment mention, a fenced or indented code example,

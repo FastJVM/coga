@@ -176,6 +176,7 @@ def sweep_branches(
     echo: Callable[[str], None] = print,
     result: BranchSweepResult | None = None,
     only: set[str] | None = None,
+    removed_worktree: Path | None = None,
 ) -> BranchSweepResult:
     """Delete local/`origin` branches whose PR has merged, skipping live ones.
 
@@ -199,6 +200,9 @@ def sweep_branches(
     `only` restricts the pass to those branch names: ticket-scoped disposal
     (`checkout_disposal.dispose_checkout`) passes a finished ticket's owned
     branches.
+    `removed_worktree` is a checkout this same disposal operation just proved
+    local and removed. Its disappearance does not invalidate terminal ticket
+    ownership; every other claim, PR, tip, and archive gate still runs.
     """
     if result is None:
         result = BranchSweepResult()
@@ -229,6 +233,7 @@ def sweep_branches(
     owners = _terminal_owners(
         cfg, root, set(names) - live_branches,
         echo=lambda message: _note(result, echo, message),
+        removed_worktree=removed_worktree,
     )
     landed_refs = [
         ref
@@ -1114,6 +1119,7 @@ def _live_ticket_branches(cfg: Config, candidates: set[str]) -> set[str]:
 def _terminal_owners(
     cfg: Config, root: Path, candidates: set[str],
     *, echo: Callable[[str], None] = lambda _message: None,
+    removed_worktree: Path | None = None,
 ) -> dict[str, list[str]]:
     """Map each candidate a done or canceled ticket explicitly owns to its owners.
 
@@ -1144,11 +1150,18 @@ def _terminal_owners(
         branches = parse_branch_names(blackboard)
         recorded = parse_worktree_path(blackboard)
         if recorded and candidates.intersection(branches):
+            removed_here = False
             try:
-                home = git.classify_checkout(root, resolve_worktree_path(root, recorded))
+                path = resolve_worktree_path(root, recorded).resolve()
+                home = git.classify_checkout(root, path)
+                removed_here = (
+                    removed_worktree is not None
+                    and path == removed_worktree.resolve()
+                    and not path.exists()
+                )
             except OSError:
                 home = None
-            if home is None or home.kind not in {"primary", "linked"}:
+            if not removed_here and (home is None or home.kind not in {"primary", "linked"}):
                 echo(
                     f"Branch sweep: terminal ticket {ref.id_slug!r} records checkout "
                     f"{recorded!r} outside this repository or unavailable — "

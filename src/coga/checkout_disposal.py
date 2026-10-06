@@ -263,7 +263,17 @@ def _sweep_owned_branches(
     result = BranchSweepResult(notes=disposal.notes)
     try:
         if unclaimed:
-            sweep_branches(cfg, root, echo=echo, result=result, only=unclaimed)
+            removed = (
+                resolve_worktree_path(root, disposal.worktree)
+                if disposal.worktree
+                and disposal.worktree_result is not None
+                and disposal.worktree_result.removed
+                else None
+            )
+            sweep_branches(
+                cfg, root, echo=echo, result=result, only=unclaimed,
+                removed_worktree=removed,
+            )
     except Exception as exc:  # noqa: BLE001 — never let one checkout abort a sweep
         note(f"Branch sweep: failed ({exc}) — owned branches left in place.")
     disposal.branches_remaining = [
