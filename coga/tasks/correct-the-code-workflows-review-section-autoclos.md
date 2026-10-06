@@ -40,3 +40,13 @@ Done when the three shipped workflow review sections say the autoclose sweep dis
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: fix-code-workflow-review-autoclose-disposal
+
+Plan: rewrite the `done is not the end` paragraph in the three packaged code
+workflows (no live twin under `coga/workflows/code/`). Key nuance from
+`autoclose._dispose_checkouts`: only tickets *the sweep* closes (plus open
+`retires.md` entries) get disposal; a `coga bump` close does not dispose.
+PR #950 is CLOSED unmerged, so no rebase dependency.
