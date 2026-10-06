@@ -2,7 +2,7 @@
 
 **Stop repeating yourself to agents.**
 
-Coga is a CLI that runs Claude Code or Codex from Markdown files in your Git
+Coga is a CLI that runs any agent from Markdown files in your Git
 repo. Every launch rebuilds the agent's prompt from those files, never from
 chat history. When an agent gets something wrong, you fix the file once, and
 every later run starts from the fix.
