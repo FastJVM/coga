@@ -7610,3 +7610,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-06 16:51 [validate-drift-blackboard-hygiene-two-oversized-bl] [megalaunch] launched via coga megalaunch
 2026-10-06 16:53 [retire-reconcile-recurring-wrapper-tty-admission-guidance] [retire] created (status=active)
 2026-10-06 16:54 [dream-s-own-blackboard-trips-large-blackboard-ever] [human:nicktoper] created (status=draft)
+2026-10-06 16:54 [validate-drift-blackboard-hygiene-two-oversized-bl] [agent:claude] blocked: Waiting on task retire-reconcile-recurring-wrapper-tty-admission-guidance (created by coga retire --no-launch): launching it retires the 54 KiB reconcile-recurring-wrapper-tty-admission-guidance blackboard, the last large-blackboard member this ticket owns. The launch-locks members are fixed. recurring/dream is handed off to draft dream-s-own-blackboard-trips-large-blackboard-ever. Once the retire task finishes, close this ticket with coga mark done.

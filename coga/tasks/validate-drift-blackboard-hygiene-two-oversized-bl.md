@@ -1,7 +1,7 @@
 ---
 title: 'validate-drift: blackboard hygiene — two oversized blackboards and one unsynthesized
   draft blackboard'
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -25,7 +25,6 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
-launch_generation: 8ccd485f-be9c-432a-82fd-09ea484c4f75
 ---
 
 ## Description
@@ -57,3 +56,9 @@ State-only ticket: every change is Coga state on `main`, so no feature branch, n
 - **recurring/dream**: not trimmed. It holds Dream's per-run report, its phase writers replace those sections every firing, and coga/period-task says to own only your keys. Filed draft `dream-s-own-blackboard-trips-large-blackboard-ever` for the owner decision (attachment vs exemption vs accepted warning). Consider that member handed off.
 
 Remaining before close: the reconcile warning, which clears when the retire task runs. Blocked on that task.
+
+---
+
+## Blockers
+
+- [ ] [2026-10-06 16:54] [agent:claude] id=20261006T165439 Waiting on task retire-reconcile-recurring-wrapper-tty-admission-guidance (created by coga retire --no-launch): launching it retires the 54 KiB reconcile-recurring-wrapper-tty-admission-guidance blackboard, the last large-blackboard member this ticket owns. The launch-locks members are fixed. recurring/dream is handed off to draft dream-s-own-blackboard-trips-large-blackboard-ever. Once the retire task finishes, close this ticket with coga mark done.
