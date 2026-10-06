@@ -22,7 +22,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
 ---
 
@@ -67,3 +67,73 @@ Read `src/coga/mark.py` (`mark_done`, `mark_canceled`),
 sweep archives and merged-history proofs are the shared foundation. Backlog
 must be rechecked: the snapshot changed and PR #961 is now open.
 
+## Implement handoff — 2026-10-05
+
+Pushed `terminal-branch-cleanup` at `1a6ca9893` (implementation `2dc7937a4`,
+audit/diagnostics `1a6ca9893`), based on current `origin/main` `feb45858b`.
+No PR opened. Returned this checkout to clean `main` before this handoff.
+
+- `autoclose.parse_branch_names` reads every explicit Dev branch record;
+  the first still drives ordinary PR/workflow consumers. Prose, attachments,
+  and fenced examples grant no ownership.
+- `checkout_disposal.checkout_records` scans all supported Coga workspaces;
+  `branchsweep.sweep_branches` preserves live claims/open PRs and admits
+  closed-unmerged heads only with a surviving terminal owner. It archives
+  before disposal, inspects extra local source commits, judges remote tips
+  separately, and retains foreign/unknown recorded checkouts. An incomplete
+  remote or ownership scan preserves refs.
+- `mark.mark_done` and `mark.mark_canceled` attempt cleanup after successful
+  publication. `cleanup_terminal_ticket` scopes it to owned branches, records
+  outcomes, and defers in task/supervised sessions or off control; it never
+  removes checkouts. Daily/weekly sweeps retry. Retire iterates all branches;
+  legacy owner-less worklist entries remain merged-only.
+- Cleanup/lifecycle/scheduling and Dev-record contracts, invocation skills,
+  shipped recurring-template prose, packaged twins, and the canceled example
+  ticket were updated together. The recurring template change is intentional
+  shipped source, not an operational period-task/blackboard change.
+
+### Verification
+
+- `.venv/bin/python -m pytest -q`: **3,275 passed**, including a fresh run
+  after rebasing onto `feb45858b` (242.71 seconds).
+- `.venv/bin/python -m pytest tests/test_branchcleanup.py tests/test_branchsweep.py -q`:
+  **146 passed** after the final wording-only closed-PR diagnostic correction.
+- From `example/coga`, `env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m coga.cli validate --json`:
+  four valid tickets, no issues.
+- `git diff --check`: clean. Initial regression run failed the new terminal
+  ownership/multiple-branch/post-closure cases before implementation.
+
+### Completed backlog cleanup and remaining decisions
+
+The branch carries `docs/evidence/branch-cleanup-audit-2026-10-05.md`, with
+all **48 branch names** and their before-tips, explicit owners, PRs, archives,
+and dispositions. Refreshed the evidence before acting; did not use stale
+origin refs or the prior weekly report as deletion authority.
+
+Archived and deleted **24 local refs and eight remote refs**, across **31
+branch names**, including closed-unmerged `usage-report-flow` and
+`v2-premise-adjudication`. No checkout removed; no GitHub setting changed.
+Fresh local/remote enumeration confirmed all deleted refs absent and all
+31 archive tags present. Preserved **17 branch names**, including this branch
+and three other live-owned branches. The audit names every remaining ask.
+
+Human disposition is still needed for unowned closed branches (`dream-w40-testing-baseline`,
+`fix/codex-peer-review-in-sandbox`, `publish-off-control`, `recurring-crlf-lease`,
+`retire-worklist-linked-only`, `slack-important-alert`,
+`wedge-ticket-admin-reproduction`); unowned/unlanded refs
+(`docs/w40-workflow-corrections-duplicate-d4dea0eee`, `nicktoper-patch-1`);
+the changed remote `recurring-ledger-from-log`; and checkout-held/foreign
+`release-0.4.0`, `shebang-exec-check`, and `split-ticket-contract`.
+No abandonment or completion was inferred for those. Live owners retain
+`docs/v2-batch-verdicts`, `fix/retire-followup-owner`, and
+`launch-marker-usage-match` (PR #961 remains open in the audit).
+
+### Adjacent concern for follow-up
+
+Existing `branchsweep._local_branches` ignores a failed `git for-each-ref`
+return code. A failed local enumeration can therefore look like no local refs,
+allowing an otherwise authorized remote-only cleanup attempt without a known
+local inventory. This predates the change and was not exercised by the successful
+live audit; it remains unresolved under the implement skill's no-adjacent-fixes
+rule. No existing ticket was found for that exact failure. Keep the finding
+for Retro to route into durable ownership/follow-up.
