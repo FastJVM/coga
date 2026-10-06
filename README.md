@@ -16,6 +16,36 @@ Coga is a complete work system that brings together agent best practices: ticket
 
 For instance, after implementing a ticket, what's changeed and new will be added into the documentation and pushed in a PR so you can read it if you choose to.
 
+Coga: don't don't think
+Stop repeating yourself to agents.
+
+Most agent tools ask you to think less. Coga asks you to think once,
+write it down, and stop re-explaining it.
+
+Coga is a CLI that runs Claude Code or Codex from files in your Git repo.
+Every launch rebuilds the agent's prompt from those files, never from chat
+history. So when an agent gets something wrong, you fix the file, and every
+later run starts from the fix.
+
+What that changes in practice:
+
+Each kind of work has its own workflow. Research, implementation and
+upkeep get different steps, and each step says who acts: you, an agent,
+or a second agent reviewing the first.
+
+Agents stop at your decisions, not your attention. coga megalaunch
+carries each ticket to its next human decision, then moves on. You answer
+the decisions in one batch.
+
+Nothing changes how the system works without your merge. Lessons from
+finished tickets come back as pull requests to the docs and skills.
+
+The trade-off: you specify more up front. Coga fits when writing down how
+work should be done costs less than supervising it again and again.
+
+Coga is built with Coga: see the tickets in [coga/tasks/](coga/tasks)
+and the full history in [coga/log.md](coga/log.md).
+
 ## Sample Project
 I want to add in Codex a plugin to pick the best model with the right "thinking" power (hard, etc.) asit would save quite a bit of money. 
 
