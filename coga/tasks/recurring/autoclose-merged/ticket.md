@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 contexts:
@@ -13,7 +13,6 @@ workflow:
     skills:
     - coga/autoclose/sweep
     assignee: agent
-step: 1 (sweep)
 ---
 
 ## Description
@@ -80,3 +79,51 @@ proofs and worktree opt-in remain those in
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Autoclose Sweep: retire follow-ups
+
+Generated: 2026-10-06T17:35:25+00:00
+Task: `recurring/autoclose-merged`
+
+4 checkout(s) disposed of under the shared retire proofs (worktree removed, local and remote branch deleted where each proof admitted it):
+
+- `recover-when-local-main-carries-hand-commits-of-co` "Recover when local main carries hand commits of coga state": branch `recover-state-only-divergence`
+- `document-how-to-recover-a-retired-ticket-s-body-fr` (worklist backlog): branch `retired-ticket-recovery`
+- `make-dream-run-correctly-under-codex` (worklist backlog): branch `dream-under-codex`
+- `run-the-landed-branch-sweep-daily-from-autoclose` (worklist backlog): branch `daily-autoclose-branches`
+
+## Branch Sweep
+
+Generated: 2026-10-06T17:35:31+00:00
+Task: `recurring/autoclose-merged`
+
+Result: 0 local and 0 remote branch(es) deleted, 0 worktree(s) removed, 0 skipped-worktree-pinned, 5 skipped.
+- skipped: autoclose-retires-durable-home, bloated-blackboard-remedy, codex/retro-recurring-branch-sweep-knowledge, guard-reauthor-in-progress, scrub-sa-token
+
+### Decisions
+
+- Branch cleanup: local 'autoclose-retires-durable-home' has unmerged work and no merged PR vouching for it — left in place.
+- Branch sweep: 'bloated-blackboard-remedy' has merged PR #856 at 449bf55590e8, but the ref carries commits touching coga/contexts/coga/architecture/SKILL.md, coga/contexts/coga/blackboard/SKILL.md, src/coga/dream_validate_drift.py (+3 more) — left in place.
+- Branch cleanup: local 'bloated-blackboard-remedy' has unmerged work and no merged PR vouching for it — left in place.
+- Branch sweep: 'codex/retro-recurring-branch-sweep-knowledge' has merged PR #859 at 9b9e80d36a05, but the ref carries commits touching coga/skills/coga/branch-sweep/sweep/SKILL.md, src/coga/resources/templates/coga/bootstrap/skills/coga/branch-sweep/sweep/SKILL.md — left in place.
+- Branch cleanup: local 'codex/retro-recurring-branch-sweep-knowledge' has unmerged work and no merged PR vouching for it — left in place.
+- Branch sweep: 'coga/skill-update' is the shared skill-update branch — left in place.
+- Branch sweep: 'docs/v2-batch-verdicts' is recorded on a live ticket — left in place.
+- Branch sweep: 'dream-w40-testing-baseline' is recorded on a live ticket — left in place.
+- Branch sweep: 'fix/codex-peer-review-in-sandbox' is recorded on a live ticket — left in place.
+- Branch sweep: 'fix/retire-followup-owner' is recorded on a live ticket — left in place.
+- Branch cleanup: local 'guard-reauthor-in-progress' has unmerged work and no merged PR vouching for it — left in place.
+- Branch sweep: 'launch-marker-usage-match' is recorded on a live ticket — left in place.
+- Branch sweep: 'nicktoper-patch-1' is recorded on a live ticket — left in place.
+- Branch sweep: 'publish-off-control' is recorded on a live ticket — left in place.
+- Branch sweep: 'recurring-control-worktree' is recorded on a live ticket — left in place.
+- Branch sweep: 'recurring-crlf-lease' is recorded on a live ticket — left in place.
+- Branch sweep: 'recurring-ledger-from-log' is recorded on a live ticket — left in place.
+- Branch sweep: 'retire-worklist-linked-only' is recorded on a live ticket — left in place.
+- Branch cleanup: local 'scrub-sa-token' has unmerged work and no merged PR vouching for it — left in place.
+- Branch sweep: 'shebang-exec-check' is recorded on a live ticket — left in place.
+- Branch sweep: 'slack-important-alert' is recorded on a live ticket — left in place.
+- Branch sweep: 'split-ticket-contract' is recorded on a live ticket — left in place.
+- Branch sweep: 'terminal-branch-cleanup' is recorded on a live ticket — left in place.
+- Branch sweep: 'terminal-branch-cleanup-retire-sweep' is recorded on a live ticket — left in place.
+- Branch sweep: 'wedge-ticket-admin-reproduction' is recorded on a live ticket — left in place.
