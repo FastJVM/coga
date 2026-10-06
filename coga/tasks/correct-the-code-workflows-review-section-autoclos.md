@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: ac0c5091-2c2e-4489-a467-7d5fb8894280
 ---
 
 ## Description
@@ -68,3 +67,32 @@ PR #950 is CLOSED unmerged, so no rebase dependency.
 - Adjacent (not fixed, out of ticket scope):
   `bootstrap/workflows/docs/with-review.md` carries the same stale
   "outlive the close" paragraph; needs the same correction in a follow-up.
+
+## Peer review
+
+- `codex review --base main` returned successfully with no must-fix findings.
+  It confirmed the disposal/retry behavior and the distinction from manual
+  bump and retire; its targeted packaging checks passed (3 passed).
+- Independently checked the three identical replacement paragraphs against
+  `autoclose._dispose_checkouts`, `run_autoclose_recipe`, and
+  `dev/checkout-cleanup`. This is prose-only; no terminal or rendered
+  interaction changed. No review fixes were needed.
+- Ran `git fetch origin main && git rebase FETCH_HEAD` successfully onto
+  `bf734dfe7`; pushed commit `f07fe6fb9` with `--force-with-lease`.
+  Returned to clean, current `main`, with one feature commit ahead.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest`:
+  **3274 passed**, including all 23 tests in `tests/test_packaging.py`.
+  The implementation-stage legacy-adoption failure did not reproduce.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task correct-the-code-workflows-review-section-autoclos --json`:
+  1 valid task, no issues. `git diff --check` passed.
+
+## PR
+
+Correct the review sections in the three shipped code workflows to describe
+autoclose's existing cleanup: the sweep disposes of provably-safe recorded
+checkouts and retries preserved ones through `retires.md`. Clarify that a
+manual `coga bump` close does not dispose of checkouts, and `coga retire`
+remains the path for the retro and any checkout the sweep preserved or never
+saw. No runtime behavior changes; these workflows have no live twins.
+
+Test plan: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest` — 3274 passed (including all 23 packaging tests); `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task correct-the-code-workflows-review-section-autoclos --json` — no issues; `git diff --check` passed.
