@@ -36,4 +36,26 @@ The canceled ticket records an owner decision not to act (2026-09-24): test veri
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: docs/pytest-ci-decline
+
+## Implementation plan
+
+- Record the 2026-09-24 owner decline in the testing topic and its packaged
+  twin, replacing the stale expectation that the parked CI proposal will land.
+- Preserve workflow-owned verification and require a real Python 3.11 run
+  as evidence for the declared floor; reopening CI or raising the floor
+  remains an owner decision.
+- Run the full suite, commit and push the documentation change, then return
+  to main and hand off with one bump. No PR in this step.
+
+## Findings
+
+- The canceled source ticket confirms the decision and surviving commit
+  `58630a20f`; Git resolves that commit to the Python 3.11/3.12 CI port.
+- PR #950 is closed unmerged, with an owner rejection of its separate Codex
+  review change on 2026-10-05. Its pending-edit conflict no longer applies;
+  work starts from fresh main without importing the rejected change.
+- This session has no `COGA_LAUNCH_RETURNS_CHECKOUT` witness; manual checkout
+  start/return rules apply. Main was clean and current with origin/main.

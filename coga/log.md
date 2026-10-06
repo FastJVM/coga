@@ -7562,3 +7562,4 @@ fatal: Unable to add coga/tasks/clean-up-owned-branches-when-tickets-finish-or-a
 2026-10-06 15:06 [record-the-owner-s-decline-of-a-pytest-ci-gate-in] [human:nicktoper] activated (draft → active) — auto on launch
 2026-10-06 15:06 [record-the-owner-s-decline-of-a-pytest-ci-gate-in] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-06 15:06 [record-the-owner-s-decline-of-a-pytest-ci-gate-in] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
+2026-10-06 15:07 [coga] [git] sync failed: push to origin/main failed: fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com; control could not be re-read: `git fetch --quiet origin +refs/heads/main:refs/remotes/origin/main` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com
