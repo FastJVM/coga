@@ -89,6 +89,7 @@ from typing import TYPE_CHECKING, Callable
 from coga.autoclose import (
     GhError,
     parse_branch_names,
+    parse_worktree_path,
     prs_for_head,
 )
 from coga.blackboard import append_blackboard_report
@@ -100,6 +101,7 @@ from coga.branchcleanup import (
     inspect_worktree_for_removal,
     local_branch_landed,
     remove_inspected_worktree,
+    resolve_worktree_path,
 )
 from coga.checkout_disposal import live_checkout_claim
 from coga.config import Config, local_config_path
@@ -224,7 +226,10 @@ def sweep_branches(
     if only is not None:
         names &= only
     live_branches = _live_ticket_branches(cfg, set(names))
-    owners = _terminal_owners(cfg, root, set(names) - live_branches)
+    owners = _terminal_owners(
+        cfg, root, set(names) - live_branches,
+        echo=lambda message: _note(result, echo, message),
+    )
     landed_refs = [
         ref
         for ref in (cfg.git_control_branch, f"{cfg.git_remote}/{cfg.git_control_branch}")
@@ -1107,7 +1112,8 @@ def _live_ticket_branches(cfg: Config, candidates: set[str]) -> set[str]:
 
 
 def _terminal_owners(
-    cfg: Config, root: Path, candidates: set[str]
+    cfg: Config, root: Path, candidates: set[str],
+    *, echo: Callable[[str], None] = lambda _message: None,
 ) -> dict[str, list[str]]:
     """Map each candidate a done or canceled ticket explicitly owns to its owners.
 
@@ -1135,7 +1141,21 @@ def _terminal_owners(
             blackboard = read_blackboard(ref.ticket_path, blackboard_required=False)
         except (OSError, TicketError, TaskFileError):
             continue
-        for branch in parse_branch_names(blackboard):
+        branches = parse_branch_names(blackboard)
+        recorded = parse_worktree_path(blackboard)
+        if recorded and candidates.intersection(branches):
+            try:
+                home = git.classify_checkout(root, resolve_worktree_path(root, recorded))
+            except OSError:
+                home = None
+            if home is None or home.kind not in {"primary", "linked"}:
+                echo(
+                    f"Branch sweep: terminal ticket {ref.id_slug!r} records checkout "
+                    f"{recorded!r} outside this repository or unavailable — "
+                    "its branch records grant no cleanup authority here."
+                )
+                continue
+        for branch in branches:
             own(branch, f"{ref.id_slug} ({status})")
     for path in all_worklists(cfg):
         try:
