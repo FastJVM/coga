@@ -7567,3 +7567,4 @@ fatal: Unable to add coga/tasks/clean-up-owned-branches-when-tickets-finish-or-a
 2026-10-06 15:08 [marketing/fix-installer/complete-the-authenticated-clean-install-audit] [system] blocked: unresolved blocker still open after resumed launch exited
 2026-10-06 15:08 [correct-the-code-workflows-review-section-autoclos] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-06 15:08 [correct-the-code-workflows-review-section-autoclos] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-10-06 15:08 [correct-the-code-workflows-review-section-autoclos] [megalaunch] launched via coga megalaunch
