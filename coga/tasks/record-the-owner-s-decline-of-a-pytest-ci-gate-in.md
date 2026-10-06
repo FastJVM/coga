@@ -38,6 +38,7 @@ The canceled ticket records an owner decision not to act (2026-09-24): test veri
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/964
 branch: docs/pytest-ci-decline
 
 ## Implementation plan
