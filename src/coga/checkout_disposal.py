@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from coga.autoclose import parse_branch_name, parse_worktree_path
+from coga.autoclose import parse_branch_names, parse_worktree_path
 from coga.branchcleanup import (
     BranchCleanupResult,
     WorktreeCleanupResult,
@@ -250,9 +250,20 @@ def _sweep_owned_branches(
         return
     if not present:
         return
+    unclaimed: set[str] = set()
+    for name in present:
+        try:
+            claim = live_checkout_claim(cfg, root, branch=name, worktree=None)
+        except Exception as exc:  # noqa: BLE001 — incomplete proof preserves branch
+            claim = f"could not verify other live ticket claims: {exc}"
+        if claim is not None:
+            note(f"Branch sweep: {name!r} kept ({claim}).")
+        else:
+            unclaimed.add(name)
     result = BranchSweepResult(notes=disposal.notes)
     try:
-        sweep_branches(cfg, root, echo=echo, result=result, only=set(present))
+        if unclaimed:
+            sweep_branches(cfg, root, echo=echo, result=result, only=unclaimed)
     except Exception as exc:  # noqa: BLE001 — never let one checkout abort a sweep
         note(f"Branch sweep: failed ({exc}) — owned branches left in place.")
     disposal.branches_remaining = [
@@ -347,8 +358,8 @@ def live_checkout_claim(
                 if workspace_path == current_workspace
                 else f"{workspace_path}:{other_ref.id_slug}"
             )
-            other_branch = parse_branch_name(other_blackboard)
-            if branch is not None and other_branch == branch:
+            other_branches = parse_branch_names(other_blackboard)
+            if branch is not None and branch in other_branches:
                 return (
                     f"live ticket {ticket_label!r} also records branch "
                     f"{branch!r}"
