@@ -23,8 +23,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 agent: claude
-step: 1 (implement)
-launch_generation: c8c6918e-655d-47a1-becd-d170d3039c3f
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -68,3 +67,20 @@ Proposed defaults (for owner to accept/adjust): reuse #942's offer-and-confirm p
 branch: agent-cli-install-offer
 
 Plan (implement session 2026-10-06): shared core helper `coga.agent_cli_setup.offer_agent_cli(name)` (consumers: `coga init`, `coga launch` of the `coga-build` onboarding ticket) — brew cask on macOS, else `npm i -g`, else print URL; prints the command and requires yes; then offers login (`claude` / `codex login`). Init (interactive only) offers to pick + install an agent CLI and, behind a confirm, makes the chosen agent the default. Note: coga has no `[agent] default` key — the default is the first-declared `[agents.*]` table (`Config.default_agent`), so init reorders the scaffolded `[agents.*]` tables rather than inventing a new key.
+
+## 2026-10-06 — implement handoff
+
+Pushed `agent-cli-install-offer` (1 commit, rebased on origin/main). No PR yet.
+
+What changed:
+- New core module `src/coga/agent_cli_setup.py` `offer_agent_cli(name)` — 2 consumers (init, launch/build). Installer: macOS + brew → `brew install --cask claude-code|codex`; else `npm install -g @anthropic-ai/claude-code|@openai/codex` if npm on PATH; else print URL (no curl|sh). Prints the command, requires yes, then offers login (`claude` bare / `codex login`).
+- `src/coga/dependencies.py`: `Dependency.login`, agent `packages` (brew/npm), `PACKAGE_MANAGERS["npm"]`, `AGENT_CLIS`.
+- `commands/init.py`: `_offer_agent_cli(default_agent)` runs after `_offer_optional_tools` (before any write); picker claude/codex/skip when none installed; if exactly one agent CLI ends up on PATH and it isn't the packaged default, confirm → `_make_default_agent` moves its `[agents.*]` table first (text swap, verified by tomllib equality; comments preserved) and `_stamp_agent_into_delivered_tickets` repoints `agent: claude` in the onboarding ticket — inside init's atomic block, before the commit. Clone path (`_setup_initialized_clone`) offers install only, never edits committed coga.toml. Next-steps `coga build` line follows the chosen default.
+- `commands/launch.py`: missing agent CLI on the `coga-build` onboarding launch (TTY already proven) → `offer_agent_cli`, then re-check; other launches unchanged.
+- Topics + twins: coga/install, coga/init, coga/agents, coga/first-task, coga/codebase; README install line.
+
+Decision: coga has no `[agent] default` key — the default is the first-declared `[agents.*]` table (`Config.default_agent`), so "set default" = reorder, not a new config key.
+
+Tests: new `tests/test_agent_cli_setup.py`; added init picker/reorder/full-init tests and launch build-offer tests; conftest stubs `_offer_agent_cli`. Full suite: 3294 passed, 1 failed — `tests/test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`, which also fails on clean origin/main (pre-existing, unrelated; recurring ticket.py ordering assertion).
+
+For review: `claude` login runs the bare REPL (no reliable `claude auth` subcommand assumed); `npm -g` is not sudo-wrapped (fails with a printed hint on root-owned prefixes).
