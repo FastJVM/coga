@@ -7682,3 +7682,6 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-06 21:31 [marketing/fix-installer/document-the-macos-command-line-tools-prerequisite] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-10-06 21:31 [marketing/fix-installer/document-the-macos-command-line-tools-prerequisite] [megalaunch] launched via coga megalaunch
 2026-10-06 21:41 [marketing/fix-installer/document-the-macos-command-line-tools-prerequisite] [human:nicktoper] advanced to step 3 (open-pr) → claude
+2026-10-06 21:25 [stop-with-all-the-worktreees-its-super-noisy-and-u] [human:nicktoper] ticket authoring launched (interviewer=codex, agent=codex)
+2026-10-06 21:41 [coga] [git] sync failed: push to origin/main failed: fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com; control could not be re-read: `git fetch --quiet origin +refs/heads/main:refs/remotes/origin/main` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com
+2026-10-06 21:42 [stop-with-all-the-worktreees-its-super-noisy-and-u] [human:nicktoper] canceled (draft → canceled): Superseded: ordinary ticket work already uses the invoking checkout; owner accepts the recurring-job temporary-worktree exception.
