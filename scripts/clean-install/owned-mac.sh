@@ -59,6 +59,7 @@ load() {
     fi
     # shellcheck disable=SC1091
     source "$evidence/resources.env"
+    remote_dir=${REMOTE_DIR:-/tmp/coga-clean-install}
     # An interactive ssh session keeps its terminal; everything else is logged.
     [[ $command == ssh ]] && return
     exec > >(tee -a "$evidence/host.txt") 2>&1
@@ -153,6 +154,12 @@ attach() {
         echo "The SSH account on $HOST needs passwordless sudo to create walk users" >&2
         false
     fi
+    record_output WALK_OWNER openssl rand -hex 16
+    record REMOTE_DIR "/tmp/coga-clean-install-$1"
+    remote_dir=$REMOTE_DIR
+    # Refuse a pre-existing directory; never overwrite another run's scripts.
+    run mac mkdir -m 755 "$remote_dir"
+    record SCRIPTS_CREATED yes
     copy_walk_scripts
     run mac bash "$remote_dir/macos-walk.sh" baseline | tee "$evidence/baseline.txt"
     cat <<EOF
@@ -211,13 +218,11 @@ cleanup() {
         user=$(basename -- "$dir")
         key="DELETED_USER_$user"
         [[ -z ${!key:-} ]] || continue
-        if mac id "$user" >/dev/null 2>&1; then
-            run mac sudo sysadminctl -deleteUser "$user"
-            ! mac id "$user" >/dev/null 2>&1 || { echo "sysadminctl did not delete $user" >&2; exit 1; }
-        fi
+        [[ -n ${WALK_OWNER:-} ]] || { echo 'No account ownership token; manual inspection required' >&2; exit 1; }
+        run mac bash "$remote_dir/macos-walk.sh" delete-owned-user "$user" "$WALK_OWNER"
         record "$key" "$(date -u +%FT%TZ)"
     done
-    if [[ -z ${SCRIPTS_REMOVED:-} ]]; then
+    if [[ -n ${SCRIPTS_CREATED:-} && -z ${SCRIPTS_REMOVED:-} ]]; then
         run mac rm -rf "$remote_dir"
         record SCRIPTS_REMOVED "$(date -u +%FT%TZ)"
     fi

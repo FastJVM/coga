@@ -382,6 +382,7 @@ def test_aws_mac_main_walk_without_gnu_checksum(
     assert result.returncode == 0, result.stdout + result.stderr
     assert "portable-checksum" in result.stdout
     assert "macos-walk.sh walk wheel" in calls.read_text()
+    assert "chmod 644 /tmp/coga-clean-install/coga-1.0-py3-none-any.whl" in calls.read_text()
     assert "origin/main=" in (evidence / "walks/walk1/source.txt").read_text()
 
 
@@ -396,13 +397,17 @@ def owned_mac(git_repo, tmp_path: Path, monkeypatch):
     calls = tmp_path / "calls.txt"
     users = tmp_path / "mac-users.txt"
     users.write_text("")
+    owners = tmp_path / "mac-user-owners.json"
+    owners.write_text("{}")
     # One fake Mac: the physical host (via its login shell) and, behind
     # ProxyJump, its VM. Walks add their user; sysadminctl deletes it.
     _executable(bin_dir / "ssh", f"""
         #!{sys.executable}
         import os
+        import json
         from pathlib import Path
         import shlex
+        import subprocess
         import sys
 
         args = sys.argv[1:]
@@ -410,12 +415,24 @@ def owned_mac(git_repo, tmp_path: Path, monkeypatch):
         if words[:2] == ["/bin/zsh", "-lc"]:
             words = shlex.split(words[2])
         users = Path({str(users)!r})
+        owners = Path({str(owners)!r})
         known = users.read_text().split()
         with open({str(calls)!r}, "a") as log:
             log.write("ssh " + " ".join(args[:-1]) + " :: " + " ".join(words) + "\\n")
             if words[:1] == ["umask"]:
                 log.write("authorized_keys askpass=%s key=%s\\n" % (
                     os.environ.get("SSH_ASKPASS_REQUIRE"), sys.stdin.read().split()[0]))
+        if os.environ.get("COGA_TEST_SSH_FAIL"):
+            sys.exit(255)
+        owner = None
+        if words[:1] == ["env"]:
+            owner = words[1].split("=", 1)[1]
+            words = words[2:]
+        if "walk" in words and words[0] == "bash" and os.environ.get("COGA_TEST_REAL_WALK"):
+            sys.exit(subprocess.run([
+                "bash", {str(ROOT / 'scripts/clean-install/macos-walk.sh')!r},
+                *words[2:],
+            ], env={{**os.environ, "COGA_MAC_WALK_OWNER": owner or ""}}).returncode)
         if words == ["uname", "-m"]:
             print(os.environ.get("COGA_TEST_ARCH", "arm64"))
         elif words[:2] == ["tart", "--version"]:
@@ -427,10 +444,66 @@ def owned_mac(git_repo, tmp_path: Path, monkeypatch):
         elif words[:1] == ["id"]:
             sys.exit(0 if words[1] in known else 1)
         elif "walk" in words and words[0] == "bash":
+            if words[5] in known:
+                sys.exit(1)
             users.write_text(" ".join(known + [words[5]]))
-        elif words[:3] == ["sudo", "sysadminctl", "-deleteUser"]:
-            users.write_text(" ".join(u for u in known if u != words[3]))
+            tags = json.loads(owners.read_text())
+            tags[words[5]] = owner
+            owners.write_text(json.dumps(tags))
+            sys.exit(int(os.environ.get("COGA_TEST_WALK_FAIL", "0")))
+        elif "delete-owned-user" in words and words[0] == "bash":
+            sys.exit(subprocess.run([
+                "bash", {str(ROOT / 'scripts/clean-install/macos-walk.sh')!r},
+                *words[2:],
+            ]).returncode)
     """)
+    _executable(bin_dir / "sudo", '#!/bin/sh\nexec "$@"\n')
+    _executable(bin_dir / "dscl", f"""
+        #!{sys.executable}
+        import json
+        import os
+        from pathlib import Path
+        import sys
+
+        users = Path({str(users)!r}).read_text().split()
+        if sys.argv[2] == "-list":
+            if os.environ.get("COGA_TEST_DSCL_FAIL") or (
+                os.environ.get("COGA_TEST_DSCL_AFTER_DELETE_FAIL") and not users
+            ):
+                sys.exit(1)
+            print("\\n".join(users))
+        elif sys.argv[2] == "-read":
+            user = sys.argv[3].split("/")[-1]
+            tag = json.loads(Path({str(owners)!r}).read_text()).get(user)
+            if not tag:
+                sys.exit(1)
+            print("Comment: " + tag)
+        elif sys.argv[2] == "-create":
+            path = Path({str(owners)!r})
+            tags = json.loads(path.read_text())
+            tags[sys.argv[3].split("/")[-1]] = sys.argv[5]
+            path.write_text(json.dumps(tags))
+    """)
+    _executable(bin_dir / "sysadminctl", f"""
+        #!{sys.executable}
+        from pathlib import Path
+        import sys
+
+        with open({str(calls)!r}, "a") as log:
+            log.write("sysadminctl " + " ".join(sys.argv[1:]) + "\\n")
+        users = Path({str(users)!r})
+        if sys.argv[1] == "-addUser":
+            users.write_text(users.read_text() + " " + sys.argv[2])
+        else:
+            users.write_text(" ".join(u for u in users.read_text().split() if u != sys.argv[2]))
+    """)
+    _executable(bin_dir / "id", f"""
+        #!{sys.executable}
+        from pathlib import Path
+        import sys
+        sys.exit(0 if sys.argv[1] in Path({str(users)!r}).read_text().split() else 1)
+    """)
+    _executable(bin_dir / "createhomedir", "#!/bin/sh\nexit 17\n")
     _executable(bin_dir / "scp", f"""
         #!/bin/sh
         echo "scp $*" >> {calls}
@@ -487,6 +560,10 @@ def test_owned_mac_attach_never_resets_and_removes_only_walk_users(owned_mac) ->
     assert result.returncode == 0, result.stdout + result.stderr
     assert "not a fresh install" in result.stdout
     assert "KIND=host" in (evidence / "resources.env").read_text()
+    assert (
+        "chmod 755 /tmp/coga-clean-install-mac1/macos-walk.sh "
+        "/tmp/coga-clean-install-mac1/container.sh"
+    ) in calls.read_text()
     result = run("walk", "mac1", "pypi", "walk1")
     assert result.returncode == 0, result.stdout + result.stderr
     assert run("vnc", "mac1").returncode == 2
@@ -495,11 +572,52 @@ def test_owned_mac_attach_never_resets_and_removes_only_walk_users(owned_mac) ->
         assert forbidden not in log
 
     assert run("cleanup", "mac1").returncode == 0
-    assert ":: sudo sysadminctl -deleteUser walk1" in calls.read_text()
-    assert ":: rm -rf /tmp/coga-clean-install" in calls.read_text()
+    assert "sysadminctl -deleteUser walk1" in calls.read_text()
+    assert ":: rm -rf /tmp/coga-clean-install-mac1" in calls.read_text()
     assert "DELETED_USER_walk1=" in (evidence / "resources.env").read_text()
     assert run("cleanup", "mac1").returncode == 0
     assert calls.read_text().count("-deleteUser") == 1
+
+
+def test_owned_mac_cleanup_preserves_preexisting_account(owned_mac, tmp_path: Path) -> None:
+    run, calls, evidence = owned_mac
+    users = tmp_path / "mac-users.txt"
+    users.write_text("owner")
+    assert run("attach", "mac1", "tester@intel").returncode == 0
+    assert run("walk", "mac1", "pypi", "owner", COGA_TEST_REAL_WALK="1").returncode != 0
+    assert (evidence / "walks/owner").is_dir()
+    result = run("cleanup", "mac1")
+    assert result.returncode != 0
+    assert "Refusing to delete unowned user owner" in result.stdout + result.stderr
+    assert users.read_text() == "owner"
+    assert "-deleteUser" not in calls.read_text()
+    assert "DELETED_USER_owner=" not in (evidence / "resources.env").read_text()
+
+
+@pytest.mark.parametrize("failure", [
+    "COGA_TEST_SSH_FAIL", "COGA_TEST_DSCL_FAIL", "COGA_TEST_DSCL_AFTER_DELETE_FAIL",
+])
+def test_owned_mac_cleanup_retries_failed_absence_check(owned_mac, failure: str) -> None:
+    run, calls, evidence = owned_mac
+    assert run("attach", "mac1", "tester@intel").returncode == 0
+    # A walk which fails after creating the user still owns that user.
+    assert run("walk", "mac1", "pypi", "walk1", COGA_TEST_REAL_WALK="1").returncode == 17
+    assert run("cleanup", "mac1", **{failure: "1"}).returncode != 0
+    state = (evidence / "resources.env").read_text()
+    assert "DELETED_USER_walk1=" not in state
+    assert "SCRIPTS_REMOVED=" not in state
+    assert run("cleanup", "mac1").returncode == 0
+    assert calls.read_text().count("-deleteUser") == 1
+
+
+def test_owned_mac_cleanup_refuses_changed_ownership(owned_mac, tmp_path: Path) -> None:
+    run, calls, evidence = owned_mac
+    assert run("attach", "mac1", "tester@intel").returncode == 0
+    assert run("walk", "mac1", "pypi", "walk1").returncode == 0
+    (tmp_path / "mac-user-owners.json").write_text('{"walk1": "another-run"}')
+    assert run("cleanup", "mac1").returncode != 0
+    assert "-deleteUser" not in calls.read_text()
+    assert "DELETED_USER_walk1=" not in (evidence / "resources.env").read_text()
 
 
 def test_owned_mac_attach_needs_passwordless_sudo(owned_mac) -> None:

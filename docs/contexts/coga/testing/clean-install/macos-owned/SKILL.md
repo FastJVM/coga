@@ -127,7 +127,10 @@ create a new VM rather than resetting this one.
 
 Each walk still creates its own macOS user and installs uv, Coga and the
 agent in that user's home. Use the Mac's own Screen Sharing, not `vnc`, for
-GUI steps.
+GUI steps. Attached runs use `/tmp/coga-clean-install-<name>/` for their
+scripts (for example, `/tmp/coga-clean-install-i1/macos-walk.sh ticket ...`
+for the attended continuation). Setup refuses an existing directory instead
+of overwriting another run. VM runs retain `/tmp/coga-clean-install/`.
 
 ## Evidence and cleanup
 
@@ -145,11 +148,16 @@ first ticket ran, and, for an attached Mac, its baseline.
 ```
 
 For a VM, `cleanup` stops and deletes it, and with it everything the walks
-installed. For an attached Mac, it deletes only the walk users recorded under
-`walks/`, with their homes, and the copied scripts. It leaves alone any CLT
-you installed there and anything else machine-wide. Each step is recorded in
-`resources.env`, so rerunning `cleanup` is safe. Tart's image cache stays on the
-Mac for the next clone; `tart prune` reclaims it.
+installed. An attached run records a random `WALK_OWNER` token and tags each
+newly created account with it. Cleanup deletes an account and home only when
+that tag matches; a local `walks/` directory alone never authorizes deletion.
+An existing account rejected by `walk`, or an account with a changed tag,
+is preserved and cleanup refuses for manual inspection. Failed SSH or account
+checks remain retryable: no deletion receipt is written. Once all accounts
+are accounted for, cleanup removes only that run's script directory.
+It leaves alone CLT and anything else machine-wide. Completed steps are
+recorded in `resources.env`, so rerunning `cleanup` is safe. Tart's image cache
+stays on the Mac for the next clone; `tart prune` reclaims it.
 
 ## Cost and choosing a path
 

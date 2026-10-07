@@ -68,6 +68,11 @@ walk)
     sudo sysadminctl -addUser "$user" -fullName "Coga clean install $user" \
         -password "$password" -home "/Users/$user"
     id "$user" >/dev/null 2>&1 || fail "sysadminctl did not create $user"
+    # Only a newly created account may receive this run's cleanup authority.
+    # A failed walk or a reused name must never authorize deleting an owner.
+    if [ -n "${COGA_MAC_WALK_OWNER:-}" ]; then
+        sudo dscl . -create "/Users/$user" Comment "$COGA_MAC_WALK_OWNER"
+    fi
     sudo createhomedir -c -u "$user" >/dev/null
     # Fresh login shell as the new user: install uv as its docs say, then run
     # the same install/init walk the Linux container runs.
@@ -79,6 +84,23 @@ walk)
         export PATH="$HOME/.local/bin:$PATH"
         exec bash "$0" "$@"
     ' "$@"
+    ;;
+delete-owned-user)
+    [ $# -eq 3 ] || fail "usage: $0 delete-owned-user MAC_USER OWNER-TOKEN"
+    user=$2 owner=$3
+    [[ $user =~ ^[a-z][a-z0-9]*$ && $owner =~ ^[a-f0-9]{32}$ ]] || fail 'Invalid cleanup identity'
+    # Check absence on the Mac, never by treating an SSH failure as absence.
+    users=$(dscl . -list /Users) || fail 'Could not list macOS users'
+    if ! printf '%s\n' "$users" | grep -Fxq "$user"; then
+        exit 0
+    fi
+    actual=$(sudo dscl . -read "/Users/$user" Comment) || fail "Refusing to delete unowned user $user"
+    [ "$actual" = "Comment: $owner" ] || fail "Refusing to delete unowned user $user"
+    sudo sysadminctl -deleteUser "$user"
+    users=$(dscl . -list /Users) || fail 'Could not verify user deletion'
+    if printf '%s\n' "$users" | grep -Fxq "$user"; then
+        fail "sysadminctl did not delete $user"
+    fi
     ;;
 ticket)
     # Attended continuation, run by the walk user after agent login.
@@ -96,6 +118,6 @@ vnc)
     echo 'Screen Sharing enabled on localhost:5900 (reach it through the SSH tunnel)'
     ;;
 *)
-    fail "usage: $0 baseline | designate-disposable RUN-NAME | reset | walk ... | ticket TITLE [--agent NAME] | vnc PASSWORD"
+    fail "usage: $0 baseline | designate-disposable RUN-NAME | reset | walk ... | delete-owned-user MAC_USER OWNER-TOKEN | ticket TITLE [--agent NAME] | vnc PASSWORD"
     ;;
 esac

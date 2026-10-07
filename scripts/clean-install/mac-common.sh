@@ -40,9 +40,10 @@ mac() {
 }
 
 copy_walk_scripts() {
-    run mac mkdir -p "$remote_dir"
+    run mac mkdir -m 755 -p "$remote_dir"
     run scp "${ssh_opts[@]}" "$script_dir/macos-walk.sh" "$script_dir/container.sh" \
         "$target:$remote_dir/"
+    run mac chmod 755 "$remote_dir/macos-walk.sh" "$remote_dir/container.sh"
 }
 
 mac_walk() {
@@ -73,12 +74,19 @@ mac_walk() {
         run checksum "${wheels[0]}"
         remote_wheel="$remote_dir/$(basename -- "${wheels[0]}")"
         run scp "${ssh_opts[@]}" "${wheels[0]}" "$target:$remote_wheel"
+        # The build and SCP inherit the private evidence umask. The fresh walk
+        # user must be able to read this non-secret artifact owned by the admin.
+        run mac chmod 644 "$remote_wheel"
         mode=wheel
     fi
     local status=0
+    local walk_command=(bash "$remote_dir/macos-walk.sh" walk
+        "$mode" "$operator" "$user" "$password" ${remote_wheel:+"$remote_wheel"})
+    if [[ ${KIND:-} == host ]]; then
+        walk_command=(env "COGA_MAC_WALK_OWNER=$WALK_OWNER" "${walk_command[@]}")
+    fi
     # Passwords stay out of the terminal and host.txt command trace.
-    mac bash "$remote_dir/macos-walk.sh" walk \
-        "$mode" "$operator" "$user" "$password" ${remote_wheel:+"$remote_wheel"} || status=$?
+    mac "${walk_command[@]}" || status=$?
     fetch_evidence "$user" "$out"
     printf 'artifact=%s\nmac_user=%s\nexit_code=%s\n' "$artifact" "$user" "$status" | tee "$out/result.txt"
     echo "Continue attended: $0 ssh $name sudo -iu $user"
