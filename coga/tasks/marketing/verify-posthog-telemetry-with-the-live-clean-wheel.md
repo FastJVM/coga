@@ -1,9 +1,9 @@
 ---
 title: Verify PostHog telemetry with the live clean-wheel proof
-status: draft
+status: active
 owner: nicktoper
 contexts:
-  - coga/telemetry/operations
+- coga/telemetry/operations
 workflow:
   name: brief-for-human
   steps:
@@ -17,6 +17,7 @@ workflow:
     skills: []
     assignee: agent
 step: 1 (brief-and-hand-off)
+agent: claude
 ---
 
 ## Description
