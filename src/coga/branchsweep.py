@@ -36,6 +36,15 @@ period tasks are the one exception: their blackboards are generated reports
 that name branches (this sweep's own, autoclose's retire follow-ups), so they
 pin only a recorded `## Dev` `branch:`.
 
+A PR closed without merging authorizes nothing on its own. It vouches, under
+the same verdict as a merged head, only for a branch a done or canceled
+ticket explicitly owns — a `## Dev` `branch:` line, or an open `retires.md`
+entry autoclose recorded for a ticket it closed (`_terminal_owners`) — and
+only once no live ticket in any workspace records it (`_closed_pr_claim`).
+Source commits added after the PR closed keep the ref and are reported. The
+`dev/checkout-cleanup` context owns that rule; `only=` lets ticket-scoped
+disposal run it for one finished ticket's branches.
+
 The shared skill-update branch is always protected. Before deleting any other
 authorized refs or their worktree, publish `retired/<branch>` without force.
 That tag must preserve all tips this pass deletes. A remote tag of that name
@@ -77,7 +86,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
-from coga.autoclose import GhError, parse_branch_name, prs_for_head
+from coga.autoclose import (
+    GhError,
+    parse_branch_names,
+    parse_worktree_path,
+    prs_for_head,
+)
 from coga.blackboard import append_blackboard_report
 from coga.branchcleanup import (
     BranchCleanupResult,
@@ -87,12 +101,19 @@ from coga.branchcleanup import (
     inspect_worktree_for_removal,
     local_branch_landed,
     remove_inspected_worktree,
+    resolve_worktree_path,
 )
 from coga.checkout_disposal import live_checkout_claim
 from coga.config import Config, local_config_path
 from coga import git
 from coga.github_preflight import coga_root_prefix, is_coga_state_path
 from coga.lifecycle import TERMINAL_STATUSES
+from coga.retire_worklist import (
+    RetireWorklistError,
+    all_worklists,
+    owner_branch_remains,
+    parse_worklist,
+)
 from coga.skill_manager import SKILL_UPDATE_BRANCH
 from coga.task_env import blackboard_from_env
 from coga.taskfile import TaskFileError, read_blackboard
@@ -154,6 +175,8 @@ def sweep_branches(
     *,
     echo: Callable[[str], None] = print,
     result: BranchSweepResult | None = None,
+    only: set[str] | None = None,
+    removed_worktree: Path | None = None,
 ) -> BranchSweepResult:
     """Delete local/`origin` branches whose PR has merged, skipping live ones.
 
@@ -167,9 +190,19 @@ def sweep_branches(
     of the sweep is skipped and reported rather than deleting with incomplete
     safety information.
 
+    A branch a done or canceled ticket explicitly owns (`_terminal_owners`)
+    may also be released by a PR that was closed without merging, under the
+    same exact-head, post-head-commit, open-PR, archive, and checkout gates.
+
     `result`, when given, is used as the accumulator and returned — the same
     idiom `sweep_merged` offers, so a caller holding the object can read what
     the sweep did without a second enumeration of local and remote refs.
+    `only` restricts the pass to those branch names: ticket-scoped disposal
+    (`checkout_disposal.dispose_checkout`) passes a finished ticket's owned
+    branches.
+    `removed_worktree` is a checkout this same disposal operation just proved
+    local and removed. Its disappearance does not invalidate terminal ticket
+    ownership; every other claim, PR, tip, and archive gate still runs.
     """
     if result is None:
         result = BranchSweepResult()
@@ -194,7 +227,14 @@ def sweep_branches(
     local = _local_branches(root)
     remote = _remote_branches(cfg, root, result, echo)
     names = local.keys() | remote.keys()
+    if only is not None:
+        names &= only
     live_branches = _live_ticket_branches(cfg, set(names))
+    owners = _terminal_owners(
+        cfg, root, set(names) - live_branches,
+        echo=lambda message: _note(result, echo, message),
+        removed_worktree=removed_worktree,
+    )
     landed_refs = [
         ref
         for ref in (cfg.git_control_branch, f"{cfg.git_remote}/{cfg.git_control_branch}")
@@ -227,9 +267,16 @@ def sweep_branches(
 
         try:
             merged = _merged_prs(branch)
+            # A PR closed without merging vouches only for a branch a
+            # terminal ticket explicitly owns; a closed PR alone, or a mere
+            # mention, never authorizes deleting unlanded work.
+            closed = (
+                _closed_unmerged_prs(branch, merged) if branch in owners else []
+            )
             # Checkout removal also checks open PRs without a prior merged PR.
             open_pr = (
                 bool(merged)
+                or bool(closed)
                 or (cfg.git_worktrees_ticket_owned and branch in worktree_branches)
             ) and bool(prs_for_head(branch, "open"))
         except GhError as exc:
@@ -238,13 +285,40 @@ def sweep_branches(
             _note(result, echo, f"Branch sweep: gh unavailable ({exc}) — no gated deletes this run.")
             continue
 
-        # A remote ref is released only at the exact merged tip; the widened
+        closed_claim = _closed_pr_claim(cfg, root, branch) if closed else None
+        if closed_claim is not None:
+            closed = []
+            _note(result, echo, f"Branch sweep: {branch!r} {closed_claim}.")
+        elif closed:
+            shown = ", ".join(f"#{number}" for number, _head in closed)
+            _note(
+                result, echo,
+                f"Branch sweep: {branch!r} is owned by terminal ticket(s) "
+                f"{', '.join(owners[branch])}; closed unmerged PR(s) {shown} "
+                "may vouch for it.",
+            )
+        elif branch in owners and not merged and closed_claim is None:
+            _note(
+                result, echo,
+                f"Branch sweep: {branch!r} is owned by terminal ticket(s) "
+                f"{', '.join(owners[branch])} but no merged or closed PR "
+                "vouches for it — left in place for a human decision.",
+            )
+        vouching = merged + closed
+
+        # A remote ref is released only at the exact PR head; the widened
         # rule is for the local ref, whose extra commits can be inspected.
         remote_merged = (
-            not open_pr and any(head == remote_tip for _number, head in merged)
+            not open_pr and any(head == remote_tip for _number, head in vouching)
         )
+        if remote_tip is not None and closed and not remote_merged and not open_pr:
+            _note(
+                result, echo,
+                f"Branch sweep: {cfg.git_remote}/{branch} at {remote_tip[:12]} is "
+                "not the head of its merged or closed PR — remote left in place.",
+            )
         local_verdict: MergedPrVerdict | None = None
-        if local_tip is not None and merged:
+        if local_tip is not None and vouching:
             local_verdict = (
                 MergedPrVerdict(False, "has an open PR")
                 if open_pr
@@ -255,6 +329,7 @@ def sweep_branches(
                     landed_refs=landed_refs,
                     remote=cfg.git_remote,
                     coga_prefix=coga_prefix,
+                    closed=closed,
                 )
             )
         local_merged = local_verdict is not None and local_verdict.landed
@@ -310,7 +385,7 @@ def sweep_branches(
             retirement_tips.append(remote_tip)
         if retirement_tips and not _publish_retirement_tag(
             cfg, root, branch, retirement_tips, result, echo,
-            pr_heads={head: number for number, head in merged},
+            pr_heads={head: number for number, head in vouching},
         ):
             result.skipped.append(branch)
             continue
@@ -440,7 +515,7 @@ def _publish_retirement_tag(
             _note(
                 result, echo,
                 f"Branch sweep: {branch!r} tips diverge; {kept} stays on "
-                f"{cfg.git_remote} as the merged PR head.",
+                f"{cfg.git_remote} as the PR head.",
             )
     if target is None:
         return refuse("divergent tips cannot be preserved by one retirement tag")
@@ -663,6 +738,23 @@ def _merged_prs(branch: str) -> list[tuple[str, str]]:
     ]
 
 
+def _closed_unmerged_prs(
+    branch: str, merged: list[tuple[str, str]]
+) -> list[tuple[str, str]]:
+    """`(number, head SHA)` of PRs for head `branch` closed without merging.
+
+    `gh pr list --state closed` also returns merged PRs, so those already in
+    `merged` are dropped by number. Raises `GhError` like `_merged_prs`.
+    """
+    merged_numbers = {number for number, _head in merged}
+    return [
+        (number, str(item["headRefOid"]))
+        for item in prs_for_head(branch, "closed")
+        if item.get("headRefOid")
+        and (number := str(item.get("number", ""))) not in merged_numbers
+    ]
+
+
 def merged_pr_verdict(
     root: Path,
     tip: str,
@@ -671,6 +763,7 @@ def merged_pr_verdict(
     landed_refs: list[str],
     remote: str,
     coga_prefix: str,
+    closed: list[tuple[str, str]] = (),
 ) -> MergedPrVerdict:
     """Decide whether one of the `merged` PRs vouches for the local ref at `tip`.
 
@@ -701,13 +794,21 @@ def merged_pr_verdict(
     otherwise it is fetched from `refs/pull/<number>/head` without writing a
     ref (`--no-write-fetch-head`), so the objects exist for the comparison and
     nothing else changes.
+
+    `closed` are PRs closed without merging, passed only for a branch a
+    terminal ticket explicitly owns. Their head is judged by the same rule:
+    the work stays recoverable at `refs/pull/<number>/head` and in the
+    retirement tag, and any source commit added after closure keeps the ref.
     """
-    for number, head in merged:
+    candidates = [(number, head, "merged") for number, head in merged] + [
+        (number, head, "closed unmerged") for number, head in closed
+    ]
+    for number, head, verb in candidates:
         if head == tip:
-            return MergedPrVerdict(True, f"PR #{number} merged at this exact tip")
+            return MergedPrVerdict(True, f"PR #{number} {verb} at this exact tip")
     reason = ""
-    for number, head in merged:
-        refused = f"has merged PR #{number} at {head[:12]}, but"
+    for number, head, verb in candidates:
+        refused = f"has {verb} PR #{number} at {head[:12]}, but"
         if not _object_present(root, head) and not _fetch_pr_head(
             root, remote, number, head
         ):
@@ -749,7 +850,7 @@ def merged_pr_verdict(
                 if commits
                 else "; the ref is contained in or patch-equivalent to landed history"
             )
-            return MergedPrVerdict(True, f"PR #{number} merged{beyond_note}")
+            return MergedPrVerdict(True, f"PR #{number} {verb}{beyond_note}")
         shown = ", ".join(sorted(offending)[:3])
         more = f" (+{len(offending) - 3} more)" if len(offending) > 3 else ""
         reason = f"{refused} the ref carries commits touching {shown}{more} — left in place"
@@ -1002,9 +1103,7 @@ def _live_ticket_branches(cfg: Config, candidates: set[str]) -> set[str]:
                 blackboard = read_blackboard(ref.ticket_path, blackboard_required=False)
             except (OSError, TaskFileError):
                 continue
-            name = parse_branch_name(blackboard)
-            if name in candidates:
-                branches.add(name)
+            branches.update(candidates.intersection(parse_branch_names(blackboard)))
             continue
         for path in _task_files(ref.path):
             try:
@@ -1015,6 +1114,91 @@ def _live_ticket_branches(cfg: Config, candidates: set[str]) -> set[str]:
             if len(branches) == len(candidates):
                 return branches
     return branches
+
+
+def _terminal_owners(
+    cfg: Config, root: Path, candidates: set[str],
+    *, echo: Callable[[str], None] = lambda _message: None,
+    removed_worktree: Path | None = None,
+) -> dict[str, list[str]]:
+    """Map each candidate a done or canceled ticket explicitly owns to its owners.
+
+    Ownership is a `## Dev` `branch:` line (`parse_branch_names`) on a
+    terminal ticket, or an open entry in a recurring template's `retires.md`
+    — the durable record autoclose keeps for tickets it closed, which may
+    since have been deleted. An entry whose branch lives in another clone is
+    not ownership here. A prose mention is never ownership, and an
+    unreadable ticket or worklist owns nothing: the failure mode is a branch
+    kept and reported, never one deleted on a guess.
+    """
+    owners: dict[str, list[str]] = {}
+    if not candidates:
+        return owners
+
+    def own(branch: str, label: str) -> None:
+        if branch in candidates and label not in owners.setdefault(branch, []):
+            owners[branch].append(label)
+
+    for ref in list_tasks(cfg):
+        try:
+            status = read_ticket(ref).status
+            if status not in TERMINAL_STATUSES:
+                continue
+            blackboard = read_blackboard(ref.ticket_path, blackboard_required=False)
+        except (OSError, TicketError, TaskFileError):
+            continue
+        branches = parse_branch_names(blackboard)
+        recorded = parse_worktree_path(blackboard)
+        if recorded and candidates.intersection(branches):
+            removed_here = False
+            try:
+                path = resolve_worktree_path(root, recorded).resolve()
+                home = git.classify_checkout(root, path)
+                removed_here = (
+                    removed_worktree is not None
+                    and path == removed_worktree.resolve()
+                    and not path.exists()
+                )
+            except OSError:
+                home = None
+            if not removed_here and (home is None or home.kind not in {"primary", "linked"}):
+                echo(
+                    f"Branch sweep: terminal ticket {ref.id_slug!r} records checkout "
+                    f"{recorded!r} outside this repository or unavailable — "
+                    "its branch records grant no cleanup authority here."
+                )
+                continue
+        for branch in branches:
+            own(branch, f"{ref.id_slug} ({status})")
+    for path in all_worklists(cfg):
+        try:
+            _, entries = parse_worklist(path.read_text(encoding="utf-8"))
+        except (RetireWorklistError, OSError, UnicodeError):
+            continue
+        for entry in entries:
+            if owner_branch_remains(root, entry) is None:
+                for branch in entry.branch_names:
+                    own(branch, f"{entry.slug} (retires.md)")
+    for labels in owners.values():
+        labels.sort()
+    return owners
+
+
+def _closed_pr_claim(cfg: Config, root: Path, branch: str) -> str | None:
+    """Why a closed PR cannot vouch for `branch`, given live claims elsewhere.
+
+    The mention scan covers this workspace; deleting unlanded work also
+    requires that no live ticket in any Coga workspace of the same Git
+    checkout records the branch (`live_checkout_claim`). An incomplete scan
+    keeps the branch.
+    """
+    try:
+        claim = live_checkout_claim(cfg, root, branch=branch, worktree=None)
+    except Exception as exc:  # noqa: BLE001 — incomplete proof preserves branch
+        return f"could not be proven unclaimed by other live tickets ({exc}) — left in place"
+    if claim is not None:
+        return f"has a closed PR but {claim} — left in place"
+    return None
 
 
 def _task_files(path: Path) -> list[Path]:

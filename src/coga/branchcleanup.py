@@ -989,7 +989,7 @@ def delete_local_branch(
         )
         return
 
-    _recheck_and_force_delete(root, branch, tip, "PR merged", echo, result)
+    _recheck_and_force_delete(root, branch, tip, "a PR vouched for it", echo, result)
 
 
 def _merge_check_refusal(output: str) -> bool:

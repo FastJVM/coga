@@ -71,6 +71,14 @@ carries its reason into every surface below:
 4. *The remote branch.* Deleted only when the live remote tip equals the
    merged PR's exact head, with a `--force-with-lease` on that tip, and only
    after the local branch is gone.
+5. *Every owned branch still present.* Each `## Dev` `branch:` the ticket
+   records (the recorded one included) that survives locally or on the remote
+   goes through the branch sweep restricted to those names. That sweep can
+   release a branch whose PR closed unmerged, because the ticket is terminal.
+   It archives as `retired/<branch>` first, and it keeps and reports
+   post-closure source commits. The rule is in
+   [dev/checkout-cleanup](context:dev/checkout-cleanup), *Terminal owners and
+   closed PRs*. A kept local ref leaves the checkout pending.
 
 The merge signal is the ticket's `pr:` link. A worklist entry whose ticket
 retire already deleted has none, so the proofs then use the merged PRs for
@@ -131,14 +139,14 @@ no checkout; the fourth is the durable worklist:
   keeps the first sighting's date), and everywhere it drops every entry that
   is **discharged** — its recorded worktree path is no longer a directory
   (or is this repository's own primary checkout, below) *and* its recorded
-  branch is no longer a local branch of the repository that owns it (see
+  branches are no longer local branches of the repository that owns them (see
   *A branch in another clone*, below). Either half still to dispose of keeps
   the entry, and a branch list that cannot be read keeps every
   entry: the failure mode is one listing too many, never a forgotten
   checkout. `coga retire <slug>` drops its own line by the same rule once its
   cleanup has really disposed of the checkout; a retire that *preserved* the
-  checkout keeps the line even though it goes on to delete the ticket, and the
-  next sweep re-judges that entry by head branch name. A worklist the sweep
+  checkout keeps the line and creates its retire task blocked, so the ticket
+  survives until the owner fixes the checkout by hand. A worklist the sweep
   cannot safely rewrite, including a filesystem or text encoding failure,
   fails the run (exit 2) only after the per-run report and Slack lines are
   emitted (its backlog is not walked that run). If the task blackboard also
@@ -155,7 +163,12 @@ no checkout; the fourth is the durable worklist:
   reads
   ``- `<slug>` — branch `<branch>`, worktree `<path>`, recorded `<YYYY-MM-DD>` ``
   under a `## Follow-ups (open)` heading, with an optional trailing
-  ``, owner `<path>` `` for a worktree another repository owns. Field values use UTF-8 percent
+  ``, owner `<path>` `` for a worktree another repository owns, followed by
+  optional ``, branches `<second>`, `<third>` `` for additional branch debt.
+  Old single-branch lines remain valid. Keep every additional branch listed
+  until disposal is proved; the multi-branch discharge and backfill rules
+  are owned by [dev/checkout-cleanup](context:dev/checkout-cleanup).
+  Field values use UTF-8 percent
   encoding, retaining `/` and `:`: for example, a backtick is `%60`, a literal
   percent is `%25`, and a space is `%20`. Decode the fields before using the
   recorded path or branch; use the same encoding when hand-editing or

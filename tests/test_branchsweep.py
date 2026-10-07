@@ -95,15 +95,28 @@ def _fake_gh(
     merged: dict[str, str] | None = None,
     *,
     open_heads: frozenset[str] = frozenset(),
+    closed: dict[str, str] | None = None,
 ) -> None:
-    """Stub `gh pr list --head`: `merged` maps a branch to its merged head SHA."""
+    """Stub `gh pr list --head`: `merged` maps a branch to its merged head SHA.
+
+    `closed` maps a branch to the head of a PR closed without merging. Like
+    real `gh --state closed`, the closed listing also returns merged PRs.
+    """
     heads = merged or {}
+    closed_heads = closed or {}
 
     def fake_prs(branch: str, state: str) -> list[dict[str, object]]:
         if state == "merged" and branch in heads:
             return [{"number": 7, "headRefOid": heads[branch]}]
         if state == "open" and branch in open_heads:
             return [{"number": 8, "headRefOid": heads.get(branch, "")}]
+        if state == "closed":
+            prs: list[dict[str, object]] = []
+            if branch in heads:
+                prs.append({"number": 7, "headRefOid": heads[branch]})
+            if branch in closed_heads:
+                prs.append({"number": 9, "headRefOid": closed_heads[branch]})
+            return prs
         return []
 
     monkeypatch.setattr(bs, "prs_for_head", fake_prs)
@@ -1845,3 +1858,610 @@ def test_gc_preserves_landed_checkout_with_open_pr(
     assert _branch_exists_local(repo, "reuse")
     assert result.worktree_pinned == ["reuse"]
     assert not result.local_deleted and not result.remote_deleted
+
+
+# --- Terminal owners: closed unmerged PRs -----------------------------------
+
+
+def _closed_at_tip(monkeypatch, repo: Path, *branches: str, **kwargs) -> None:
+    """Stub gh so each branch's current tip is the head of a closed, unmerged PR."""
+    _fake_gh(
+        monkeypatch,
+        closed={branch: _tip(repo, branch) for branch in branches},
+        **kwargs,
+    )
+
+
+def _write_owner(repo: Path, slug: str, *, status: str, branches: list[str]) -> None:
+    task_dir = repo / "coga" / "tasks"
+    task_dir.mkdir(parents=True, exist_ok=True)
+    lines = "\n".join(f"branch: {branch}" for branch in branches)
+    (task_dir / f"{slug}.md").write_text(
+        _ticket_text(slug, status=status, body="", blackboard=f"## Dev\n{lines}")
+    )
+
+
+@pytest.mark.parametrize("status", ["done", "canceled"])
+def test_closed_unmerged_pr_releases_branch_of_terminal_owner(
+    repo: Path, monkeypatch, status: str
+) -> None:
+    _push_branch(repo, "feat")
+    tip = _tip(repo, "feat")
+    _write_owner(repo, "abandoned", status=status, branches=["feat"])
+    _closed_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == result.remote_deleted == ["feat"]
+    assert result.failure is None
+    assert _remote_tag(repo, "retired/feat") == tip
+    assert any(
+        f"owned by terminal ticket(s) abandoned ({status})" in note
+        and "#9" in note
+        for note in result.notes
+    )
+
+
+def test_closed_unmerged_pr_without_an_owner_is_kept(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat")
+    _closed_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.skipped == ["feat"]
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+
+
+def test_incidental_mention_on_a_terminal_ticket_is_not_ownership(
+    repo: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat")
+    (repo / "coga" / "tasks").mkdir(parents=True)
+    (repo / "coga" / "tasks" / "mentions.md").write_text(
+        _ticket_text(
+            "mentions",
+            status="done",
+            body="See the abandoned feat branch for an earlier attempt.",
+            blackboard="## Notes\nfeat was closed unmerged.",
+        )
+    )
+    _closed_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.skipped == ["feat"]
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+
+
+def test_closed_pr_branch_of_an_active_owner_is_kept(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat")
+    _write_owner(repo, "still-going", status="in_progress", branches=["feat"])
+    monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+
+
+def test_closed_pr_branch_shared_with_a_live_ticket_is_kept(
+    repo: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat")
+    _write_owner(repo, "abandoned", status="canceled", branches=["feat"])
+    _write_owner(repo, "picked-up", status="active", branches=["feat"])
+    monkeypatch.setattr(bs, "prs_for_head", _gh_must_not_be_consulted)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == result.remote_deleted == []
+    assert any("recorded on a live ticket" in note for note in result.notes)
+
+
+def test_closed_pr_branch_claimed_in_another_workspace_is_kept(
+    repo: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat")
+    _write_owner(repo, "abandoned", status="done", branches=["feat"])
+    _closed_at_tip(monkeypatch, repo, "feat")
+    monkeypatch.setattr(
+        bs,
+        "live_checkout_claim",
+        lambda *_a, **_k: "live ticket 'other:resumed' also records branch 'feat'",
+    )
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.skipped == ["feat"]
+    assert any("other:resumed" in note for note in result.notes)
+
+
+def test_closed_pr_branch_with_an_open_pr_is_kept(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat")
+    _write_owner(repo, "abandoned", status="done", branches=["feat"])
+    _closed_at_tip(monkeypatch, repo, "feat", open_heads=frozenset({"feat"}))
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.skipped == ["feat"]
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+
+
+def test_source_commit_after_pr_closed_is_reported_and_kept(
+    repo: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat")
+    _write_owner(repo, "abandoned", status="done", branches=["feat"])
+    _closed_at_tip(monkeypatch, repo, "feat")
+    _git(repo, "checkout", "feat")
+    _commit(repo, "late.py", "print('unreviewed')\n", "work after the PR closed")
+    _git(repo, "checkout", "main")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+    assert any(
+        "closed unmerged PR #9" in note and "late.py" in note
+        for note in result.notes
+    )
+
+
+def test_state_commit_after_pr_closed_still_releases_branch(
+    repo: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat")
+    _closed_at_tip(monkeypatch, repo, "feat")
+    _state_commit(repo, "feat", "bookkeeping")
+    local_tip = _tip(repo, "feat")
+    _git(repo, "checkout", "main")
+    _write_owner(repo, "abandoned", status="done", branches=["feat"])
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == result.remote_deleted == ["feat"]
+    assert _remote_tag(repo, "retired/feat") == local_tip
+
+
+def test_remote_moved_past_closed_head_keeps_the_remote_ref(
+    repo: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat")
+    _write_owner(repo, "abandoned", status="done", branches=["feat"])
+    _closed_at_tip(monkeypatch, repo, "feat")
+    other = repo.parent / "other"
+    _git(repo.parent, "clone", "-q", "-b", "feat", _remote_url(repo), str(other))
+    _git(other, "config", "user.email", "t@example.com")
+    _git(other, "config", "user.name", "Tester")
+    _commit(other, "pushed.py", "x = 1\n", "pushed from another clone")
+    _git(other, "push", "origin", "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == ["feat"]
+    assert result.remote_deleted == []
+    assert _branch_exists_remote(repo, "feat")
+    assert any("not the head of its merged or closed PR" in note for note in result.notes)
+
+
+def test_every_owned_branch_is_released(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "first")
+    _push_branch(repo, "second")
+    _write_owner(repo, "split-work", status="canceled", branches=["first", "second"])
+    _closed_at_tip(monkeypatch, repo, "first", "second")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert sorted(result.local_deleted) == sorted(result.remote_deleted) == [
+        "first",
+        "second",
+    ]
+
+
+def test_owned_branch_with_no_pr_is_kept_for_a_human(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat")
+    _write_owner(repo, "abandoned", status="canceled", branches=["feat"])
+    _fake_gh(monkeypatch)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.skipped == ["feat"]
+    assert any("no merged or closed PR vouches" in note for note in result.notes)
+
+
+def test_closed_pr_archive_failure_keeps_both_refs(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat")
+    _write_owner(repo, "abandoned", status="done", branches=["feat"])
+    _closed_at_tip(monkeypatch, repo, "feat")
+    real_git = bs._git
+
+    def fail_tag_push(root: Path, *args: str, input: str | None = None):
+        if args[0] == "push" and any("refs/tags/retired/feat" in arg for arg in args):
+            return subprocess.CompletedProcess(args, 1, stdout="", stderr="tag push rejected")
+        return real_git(root, *args, input=input)
+
+    monkeypatch.setattr(bs, "_git", fail_tag_push)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.failure is not None and "tag push rejected" in result.failure
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+
+
+def test_closed_pr_branch_checked_out_is_kept(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat")
+    _write_owner(repo, "abandoned", status="done", branches=["feat"])
+    _closed_at_tip(monkeypatch, repo, "feat")
+    _git(repo, "checkout", "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == result.remote_deleted == []
+    assert any("is the checked-out branch" in note for note in result.notes)
+
+
+def test_closed_pr_branch_in_a_worktree_is_pinned(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    _push_branch(repo, "feat")
+    _write_owner(repo, "abandoned", status="done", branches=["feat"])
+    _closed_at_tip(monkeypatch, repo, "feat")
+    linked = tmp_path / "linked"
+    _git(repo, "worktree", "add", str(linked), "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.worktree_pinned == ["feat"]
+    assert linked.is_dir()
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+
+
+def _write_worklist(repo: Path, *entries) -> None:
+    from coga.retire_worklist import RETIRE_WORKLIST_HEADER, render_worklist
+
+    path = repo / "coga" / "recurring" / "autoclose-merged" / "retires.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_worklist(RETIRE_WORKLIST_HEADER, entries))
+
+
+def test_worklist_entry_owns_branch_after_its_ticket_is_deleted(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    from coga.retire_worklist import RetireFollowUp
+
+    _push_branch(repo, "feat")
+    _write_worklist(
+        repo,
+        RetireFollowUp("gone-ticket", "feat", str(tmp_path / "wiped"), "2026-10-01"),
+    )
+    _closed_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == result.remote_deleted == ["feat"]
+    assert any("gone-ticket (retires.md)" in note for note in result.notes)
+
+
+def test_worklist_entry_for_another_clones_branch_is_not_ownership(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    from coga.retire_worklist import RetireFollowUp
+
+    _push_branch(repo, "feat")
+    foreign = tmp_path / "foreign"
+    subprocess.run(["git", "init", "-q", "-b", "main", str(foreign)], check=True)
+    _write_worklist(
+        repo,
+        RetireFollowUp(
+            "foreign-ticket", "feat", str(foreign), "2026-10-01", owner=str(foreign)
+        ),
+    )
+    _closed_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.skipped == ["feat"]
+    assert _branch_exists_local(repo, "feat")
+
+
+def test_only_restricts_the_sweep_to_named_branches(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "mine")
+    _push_branch(repo, "theirs")
+    _write_owner(repo, "abandoned", status="done", branches=["mine", "theirs"])
+    _closed_at_tip(monkeypatch, repo, "mine", "theirs")
+
+    result = bs.sweep_branches(
+        _cfg(repo), repo, echo=lambda _m: None, only={"mine"}
+    )
+
+    assert result.local_deleted == ["mine"]
+    assert _branch_exists_local(repo, "theirs")
+
+
+def test_ticket_disposal_releases_every_owned_closed_pr_branch(
+    repo: Path, monkeypatch
+) -> None:
+    from coga.checkout_disposal import dispose_checkout
+
+    _push_branch(repo, "first")
+    _push_branch(repo, "second")
+    _write_owner(repo, "declined", status="done", branches=["first", "second"])
+    _closed_at_tip(monkeypatch, repo, "first", "second")
+    monkeypatch.setattr("coga.branchcleanup.pr_state", lambda _url: "CLOSED")
+    monkeypatch.setattr("coga.branchcleanup.prs_for_head", lambda _b, _s: [])
+
+    disposal = dispose_checkout(
+        _cfg(repo),
+        repo,
+        branch="first",
+        worktree=None,
+        pr_url="https://github.com/owner/repo/pull/9",
+        echo=lambda _m: None,
+        owned_branches=["first", "second"],
+    )
+
+    assert disposal.disposed
+    for branch in ("first", "second"):
+        assert not _branch_exists_local(repo, branch)
+        assert not _branch_exists_remote(repo, branch)
+
+
+def test_ticket_disposal_reports_an_owned_branch_it_kept(
+    repo: Path, monkeypatch
+) -> None:
+    from coga.checkout_disposal import dispose_checkout
+
+    _push_branch(repo, "first")
+    _push_branch(repo, "second")
+    _write_owner(repo, "declined", status="done", branches=["first", "second"])
+    _closed_at_tip(monkeypatch, repo, "first")
+    monkeypatch.setattr("coga.branchcleanup.pr_state", lambda _url: "CLOSED")
+    monkeypatch.setattr("coga.branchcleanup.prs_for_head", lambda _b, _s: [])
+
+    disposal = dispose_checkout(
+        _cfg(repo),
+        repo,
+        branch="first",
+        worktree=None,
+        pr_url="https://github.com/owner/repo/pull/9",
+        echo=lambda _m: None,
+        owned_branches=["first", "second"],
+    )
+
+    assert not disposal.disposed
+    assert disposal.branches_remaining == ["second"]
+    assert "'second'" in disposal.reason
+    assert not _branch_exists_local(repo, "first")
+
+
+def test_fenced_example_never_authorizes_closed_pr_deletion(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat")
+    _write_owner(repo, "done", status="done", branches=["actual"])
+    ticket = repo / "coga/tasks/done.md"
+    ticket.write_text(ticket.read_text() + "\n```yaml\nbranch: feat\n```\n")
+    _closed_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _: None)
+
+    assert result.local_deleted == result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+
+
+@pytest.mark.parametrize("other_workspace", [False, True])
+def test_live_secondary_branch_claim_preserves_closed_pr(
+    repo: Path, monkeypatch, other_workspace: bool,
+) -> None:
+    _push_branch(repo, "feat")
+    _write_owner(repo, "done", status="done", branches=["feat"])
+    workspace = repo / "service" if other_workspace else repo
+    current = repo
+    if other_workspace:
+        current = repo / "alpha"
+        current.mkdir()
+        (repo / "coga").rename(current / "coga")
+        (workspace / "coga").mkdir(parents=True)
+        (workspace / "coga/coga.toml").write_text('version = 1\n')
+    ticket = workspace / "coga/tasks/recurring/live/ticket.md"
+    ticket.parent.mkdir(parents=True)
+    ticket.write_text(_ticket_text(
+        "live", status="in_progress", body="",
+        blackboard="## Dev\nbranch: primary\nbranch: feat\n",
+    ))
+    _closed_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(current), repo, echo=lambda _: None)
+
+    assert result.local_deleted == result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+
+
+@pytest.mark.parametrize("unreadable", [False, True])
+def test_disposal_proves_secondary_merged_branch_unclaimed_across_workspaces(
+    repo: Path, monkeypatch, unreadable: bool,
+) -> None:
+    from coga.checkout_disposal import dispose_checkout
+
+    for branch in ("first", "second"):
+        _push_branch(repo, branch)
+    _write_owner(repo, "done", status="done", branches=["first", "second"])
+    current = repo / "alpha"
+    current.mkdir()
+    (repo / "coga").rename(current / "coga")
+    workspace = repo / "service"
+    (workspace / "coga").mkdir(parents=True)
+    (workspace / "coga/coga.toml").write_text('version = 1\n')
+    _write_owner(workspace, "live", status="active", branches=["second"])
+    if unreadable:
+        (workspace / "coga/tasks/live.md").write_text("---\nbroken: [\n---\n")
+    _fake_gh(monkeypatch, merged={b: _tip(repo, b) for b in ("first", "second")})
+    monkeypatch.setattr("coga.branchcleanup.prs_for_head", lambda *_: [])
+
+    disposal = dispose_checkout(
+        _cfg(current), repo, branch="first", worktree=None, pr_url=None,
+        owned_branches=["first", "second"], echo=lambda _: None,
+    )
+
+    assert not disposal.disposed
+    assert _branch_exists_local(repo, "second")
+    assert _branch_exists_remote(repo, "second")
+
+
+def test_secondary_branch_debt_survives_ticket_deletion_and_retries(
+    repo: Path, monkeypatch,
+) -> None:
+    from coga import autoclose as am
+    from coga import retire_worklist as rw
+
+    for branch in ("first", "second"):
+        _push_branch(repo, branch)
+    _write_owner(repo, "done", status="done", branches=["first", "second"])
+    _write_worklist(repo, rw.RetireFollowUp("done", "first", "", "2026-10-01"))
+    path = repo / "coga/recurring/autoclose-merged/retires.md"
+    _closed_at_tip(monkeypatch, repo, "first")
+    monkeypatch.setattr("coga.branchcleanup.prs_for_head", lambda *_: [])
+    cfg = _cfg(repo)
+    result = am.AutocloseResult()
+    am._dispose_checkouts(cfg, result)
+    assert result.checkouts[0].disposal.branches_remaining == ["second"]
+
+    # Reconciliation must backfill an old single-branch entry before pruning.
+    rw.reconcile_worklist(cfg, path, root=repo)
+    (repo / "coga/tasks/done.md").unlink()
+    change = rw.reconcile_worklist(cfg, path, root=repo)
+    assert len(change.open) == 1
+    assert "second" in change.open[0].branch_names
+
+    # A later PR disposition is enough to drain even with the ticket gone.
+    _closed_at_tip(monkeypatch, repo, "second")
+    retried = am.AutocloseResult()
+    am._dispose_checkouts(cfg, retried)
+    assert retried.checkouts[0].disposed
+    assert not _branch_exists_local(repo, "second")
+    assert not _branch_exists_remote(repo, "second")
+    assert rw.reconcile_worklist(cfg, path, root=repo).open == []
+
+
+@pytest.mark.parametrize("skip_disposal", [False, True])
+def test_autoclose_records_secondary_debt_even_when_disposal_is_skipped(
+    repo: Path, monkeypatch, skip_disposal: bool,
+) -> None:
+    from coga import autoclose as am
+    from coga import retire_worklist as rw
+
+    for branch in ("first", "second"):
+        _push_branch(repo, branch)
+    _write_owner(repo, "done", status="done", branches=["first", "second"])
+    template = repo / "coga/recurring/autoclose-merged"
+    template.mkdir(parents=True)
+    (template / "ticket.md").write_text("template\n")
+    period = repo / "coga/tasks/recurring/autoclose-merged/ticket.md"
+    period.parent.mkdir(parents=True)
+    period.write_text(_ticket_text("period", status="in_progress", body="", blackboard=""))
+    monkeypatch.setattr(am, "blackboard_from_env", lambda _: period)
+    _closed_at_tip(monkeypatch, repo, "first")
+    monkeypatch.setattr("coga.branchcleanup.prs_for_head", lambda *_: [])
+    result = am.AutocloseResult(closed=[am.ClosedTicket(
+        "done", "Done", branch="first", worktree=None, branches=("first", "second"),
+    )])
+    cfg = _cfg(repo)
+    if skip_disposal:
+        result.disposal_skipped = "off control"
+    else:
+        am._dispose_checkouts(cfg, result)
+
+    assert am._report_retire_followups(cfg, result)
+    path = template / "retires.md"
+    [entry] = rw.parse_worklist(path.read_text())[1]
+    assert entry.branch_names == ("first", "second")
+    (repo / "coga/tasks/done.md").unlink()
+    assert len(rw.reconcile_worklist(cfg, path, root=repo).open) == 1
+
+
+@pytest.mark.parametrize("checkout", ["foreign-primary", "foreign-linked", "missing", "primary"])
+def test_terminal_ticket_cannot_reintroduce_foreign_branch_authority(
+    repo: Path, monkeypatch, checkout: str,
+) -> None:
+    from coga.retire_worklist import RetireFollowUp
+
+    _push_branch(repo, "feat")
+    _write_owner(repo, "done", status="done", branches=["feat"])
+    recorded = repo
+    if checkout.startswith("foreign"):
+        owner = repo.parent / "foreign"
+        _git(repo.parent, "clone", "-q", "-b", "feat", str(repo), str(owner))
+        recorded = owner
+        if checkout == "foreign-linked":
+            recorded = repo.parent / "foreign-linked"
+            _git(owner, "worktree", "add", "-b", "elsewhere", str(recorded))
+        _write_worklist(repo, RetireFollowUp(
+            "done", "feat", str(recorded), "2026-10-01", owner=str(owner),
+        ))
+    elif checkout == "missing":
+        recorded = repo.parent / "unavailable"
+    ticket = repo / "coga/tasks/done.md"
+    ticket.write_text(ticket.read_text() + f"\nworktree: {recorded}\n")
+    _closed_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _: None)
+
+    if checkout == "primary":
+        assert result.local_deleted == result.remote_deleted == ["feat"]
+    else:
+        assert result.local_deleted == result.remote_deleted == []
+        assert _branch_exists_local(repo, "feat")
+        assert _branch_exists_remote(repo, "feat")
+        assert any("grant no cleanup authority here" in note for note in result.notes)
+
+
+@pytest.mark.parametrize("container", ["- ", "1. ", "> - ", "  - "])
+def test_list_contained_fenced_example_is_not_branch_ownership(
+    repo: Path, monkeypatch, container: str,
+) -> None:
+    _push_branch(repo, "feat")
+    _write_owner(repo, "done", status="done", branches=["actual"])
+    ticket = repo / "coga/tasks/done.md"
+    ticket.write_text(ticket.read_text() + f"\n{container}```yaml\n  branch: feat\n  ```\n")
+    _closed_at_tip(monkeypatch, repo, "feat")
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _: None)
+
+    assert result.local_deleted == result.remote_deleted == []
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+
+
+def test_disposal_retains_proven_owner_after_removing_recorded_worktree(
+    repo: Path, monkeypatch,
+) -> None:
+    from coga.checkout_disposal import dispose_checkout
+
+    _push_branch(repo, "first", land_in_main=True)
+    _push_branch(repo, "second")
+    linked = repo.parent / "linked"
+    _git(repo, "worktree", "add", str(linked), "first")
+    _write_owner(repo, "done", status="done", branches=["first", "second"])
+    ticket = repo / "coga/tasks/done.md"
+    ticket.write_text(ticket.read_text() + f"\nworktree: {linked}\n")
+    _fake_gh(monkeypatch, merged={"first": _tip(repo, "first")}, closed={"second": _tip(repo, "second")})
+    monkeypatch.setattr("coga.branchcleanup.prs_for_head", bs.prs_for_head)
+
+    result = dispose_checkout(
+        _cfg(repo), repo, branch="first", worktree=str(linked), pr_url=None,
+        owned_branches=["first", "second"], echo=lambda _: None,
+    )
+
+    assert result.worktree_result.removed
+    assert result.disposed
+    assert not linked.exists()
+    for branch in ("first", "second"):
+        assert not _branch_exists_local(repo, branch)
+        assert not _branch_exists_remote(repo, branch)
+    assert _remote_tag(repo, "retired/second")

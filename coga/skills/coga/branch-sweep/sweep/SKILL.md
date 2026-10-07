@@ -46,7 +46,16 @@ a ticket is deleted without going through retire or a session dies mid-flight.
    offending paths. Inspect that difference before any manual clearance:
    `git cherry -v <merged-head> <tip>` can locate candidates, but its patch
    IDs ignore whitespace and are not sufficient deletion proof. Remote refs
-   require the exact merged head,
+   require the exact merged head. A branch a done or canceled ticket owns
+   (a `## Dev` `branch:` line, or an open `retires.md` entry) may also be
+   released by a PR closed without merging, judged by the same verdict
+   against the closed head, once no live ticket in any workspace records it
+   (`_terminal_owners`, `_closed_pr_claim`). A closed PR alone or a prose
+   mention never authorizes, and an owned branch with no merged or closed PR
+   is reported for a human. The contract is
+   [dev/checkout-cleanup](context:dev/checkout-cleanup), *Terminal owners and
+   closed PRs*. `only=` restricts a pass to named branches; retire and
+   autoclose use it for a disposed ticket's owned branches,
 5. for a branch whose **local tip** landed either way but is still held by
    a live worktree, require no open PR before removing the checkout. A merged
    remote tip alone never authorizes removing newer unmerged local work:
@@ -78,7 +87,8 @@ a ticket is deleted without going through retire or a session dies mid-flight.
    remove`, reported under `removed worktree`. Delete the local branch using
    retire's landing policy (`-d` for ancestry, a logged `-D` for a merged PR),
    re-reading the authorized tip first on both paths. Then delete the remote
-   ref with a lease on its authorized tip when a merged PR covers it,
+   ref with a lease on its authorized tip when a merged PR, or a terminal
+   owner's closed PR, covers it,
 7. write a `## Branch Sweep` report (`render_sweep_report`) — the outcome
    counts and lists, then every per-branch decision — to the period task's
    blackboard named by `COGA_TASK_BLACKBOARD`, or to stdout when the recipe

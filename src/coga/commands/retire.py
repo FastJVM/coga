@@ -7,12 +7,19 @@ import sys
 import typer
 
 from coga import git
-from coga.autoclose import parse_branch_name, parse_pr_url, parse_worktree_path
+from coga.blackboard import append_blocker
+from coga.autoclose import (
+    parse_branch_name,
+    parse_branch_names,
+    parse_pr_url,
+    parse_worktree_path,
+)
 from coga.branchcleanup import WorktreeCleanupResult
-from coga.checkout_disposal import dispose_checkout
+from coga.checkout_disposal import CheckoutDisposal, dispose_checkout
 from coga.config import Config, ConfigError, load_config
 from coga.create import create_task
 from coga.git import GitError
+from coga.mark import mark_blocked
 from coga.paths import read_packaged_resource
 from coga.retire_worklist import RetireWorklistError, discharge_slug
 from coga.slugify import slugify
@@ -83,12 +90,16 @@ def retire(
             f"{source.status!r}. Bump it to done first."
         )
 
-    # Prune the ticket's worktree and branch while the task (and its `## Dev`
+    # Prune the ticket's worktree and branches while the task (and its `## Dev`
     # `worktree:`/`branch:`/`pr:` lines) still exists — the retro pass below
-    # deletes the directory. Best effort: a cleanup failure must never abort the
-    # retire run.
-    checkout = _cleanup_checkout(cfg, ref)
-    _discharge_worklist_entry(cfg, ref)
+    # deletes the directory. Anything the proofs kept is a bug: the ticket is
+    # the checkout's only owner record, so the retire task below is created
+    # blocked and Retro never runs.
+    disposal = _cleanup_checkout(cfg, ref)
+    refusal = _kept_checkout_refusal(disposal)
+    checkout = disposal.worktree_result if disposal is not None else None
+    if refusal is None:
+        _discharge_worklist_entry(cfg, ref)
 
     try:
         main_agent = agent or _default_agent(cfg)
@@ -117,7 +128,7 @@ def retire(
             agent=main_agent,
             status="active",
             slug_override=slug_override,
-            description=_retire_body(ref.id_slug, checkout),
+            description=_retire_body(ref.id_slug, checkout, refusal),
             created_by="retire",
         )
     except (ConfigError, TaskValidationError, ValueError) as exc:
@@ -130,6 +141,8 @@ def retire(
     git.sync_task_state(
         cfg, created.path, message=f"Ticket: {created.id_slug} — created (retire)"
     )
+    if refusal is not None:
+        _block_retire_task(cfg, resolve_task(cfg, slug), refusal)
     if no_launch:
         typer.echo("Retire: launch skipped (--no-launch)")
         typer.echo(f"Run `coga launch {slug}` to start the retire pass.")
@@ -145,7 +158,7 @@ def retire(
     )
 
 
-def _cleanup_checkout(cfg: Config, ref: TaskRef) -> WorktreeCleanupResult | None:
+def _cleanup_checkout(cfg: Config, ref: TaskRef) -> CheckoutDisposal | None:
     """Remove the retiring ticket's linked worktree and branch, best-effort.
 
     Reads the `## Dev` blackboard section (still present pre-retro) and hands
@@ -155,8 +168,8 @@ def _cleanup_checkout(cfg: Config, ref: TaskRef) -> WorktreeCleanupResult | None
     missing, a read error, git not enabled — is reported and swallowed:
     checkout hygiene is a courtesy on top of retire, not a precondition for it.
 
-    Returns the worktree result when one was attempted, so the caller can
-    carry a *preserved* checkout into the retro task body — see
+    Returns the disposal, so the caller can refuse on owned branches the
+    sweep kept and carry a *preserved* checkout into the retro task body — see
     `_checkout_cleanup_section`. Returns `None` whenever cleanup was skipped.
     """
     if not cfg.git_enabled:
@@ -177,15 +190,61 @@ def _cleanup_checkout(cfg: Config, ref: TaskRef) -> WorktreeCleanupResult | None
     except (GitError, OSError, TaskFileError) as exc:
         typer.echo(f"Retire: checkout cleanup skipped ({exc}).")
         return None
-    disposal = dispose_checkout(
+    return dispose_checkout(
         cfg,
         root,
         branch=parse_branch_name(blackboard),
         worktree=parse_worktree_path(blackboard),
         pr_url=parse_pr_url(blackboard),
         echo=typer.echo,
+        owned_branches=parse_branch_names(blackboard),
     )
-    return disposal.worktree_result
+
+
+def _kept_checkout_refusal(disposal: CheckoutDisposal | None) -> str | None:
+    """The blocker reason when cleanup kept a worktree or branch, else None."""
+    if disposal is None or disposal.disposed:
+        return None
+    kept = []
+    if disposal.claim is not None or not disposal.worktree_gone:
+        if disposal.worktree:
+            kept.append(f"worktree `{disposal.worktree}`")
+    names = [*disposal.branches_remaining]
+    if disposal.branch and (disposal.local_branch_remains or disposal.claim):
+        names.insert(0, disposal.branch)
+    kept.extend(f"branch `{name}`" for name in dict.fromkeys(names))
+    what = ", ".join(kept) or "the checkout"
+    return f"Retire kept {what}; this is a bug, fix by hand. {disposal.reason}"
+
+
+def _block_retire_task(cfg: Config, created: TaskRef, reason: str) -> None:
+    """Block the fresh retire task over a kept checkout and exit non-zero.
+
+    Retro would delete the source ticket, the checkout's only owner record, so
+    it must not run. Blocking notifies the owner on Slack like `coga block`;
+    they fix the branch by hand, then `coga unblock` and launch the task.
+    """
+    actor = f"human:{cfg.current_user}"
+    try:
+        with git.state_lock(cfg):
+            append_blocker(created.ticket_path, actor, reason)
+        ticket = read_ticket(created)
+        mark_blocked(
+            cfg,
+            created,
+            ticket,
+            actor=actor,
+            log_message=f"blocked: {reason}",
+            slack_text=f"🛑 retire blocked *{created.id_slug}*: {reason}",
+            image_url=cfg.gif_for("block") or cfg.gif_for("panic"),
+            echo=f"{created.id_slug}: blocked (launch skipped)",
+        )
+    except TaskValidationError as exc:
+        _bail(str(exc))
+    _bail(
+        f"Retire refused: {reason} Fix it, then `coga unblock {created.id_slug}` "
+        f"and `coga launch {created.id_slug}`."
+    )
 
 
 def _discharge_worklist_entry(cfg: Config, ref: TaskRef) -> None:
@@ -216,13 +275,20 @@ def _default_agent(cfg: Config) -> str:
 
 
 def _retire_body(
-    target_slug: str, checkout: WorktreeCleanupResult | None = None
+    target_slug: str,
+    checkout: WorktreeCleanupResult | None = None,
+    refusal: str | None = None,
 ) -> str:
     template = read_packaged_resource("retire.md")
     body = template.format(slug=target_slug).strip()
     section = _checkout_cleanup_section(checkout)
     if section:
         body = f"{body}\n\n{section}"
+    if refusal:
+        body = (
+            f"{body}\n\n### Kept checkout\n\n{refusal}\n\nThis task was "
+            "created blocked. Do not run Retro until the checkout is gone."
+        )
     return body
 
 

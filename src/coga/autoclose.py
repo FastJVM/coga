@@ -156,6 +156,8 @@ class ClosedTicket:
     pr: str | None = None
     unanswered_threads: tuple[ReviewThread, ...] = ()
     owner: str = ""
+    # Every `## Dev` `branch:` the ticket recorded; `branch` is the first.
+    branches: tuple[str, ...] = ()
 
     @property
     def retire_command(self) -> str:
@@ -389,7 +391,10 @@ _PR_COORDINATES_RE = re.compile(r"/([^/]+)/([^/]+)/pull/(\d+)")
 # surrounding backticks/whitespace are normalized in `parse_branch_name`. A
 # leading backtick delimits the value through its matching closing backtick;
 # bare values still consume the whole remainder of the line.
-_BRANCH_LINE_RE = re.compile(r"^\s*(?:-\s*)?branch:\s*(.+?)\s*$", re.MULTILINE)
+_BRANCH_LINE_RE = re.compile(r"^ {0,3}(?:-[ \t]*)?branch:[ \t]*(.*?)[ \t]*$", re.MULTILINE)
+_CODE_FENCE_RE = re.compile(
+    r"^[ \t]*(?:(?:[-+*]|\d{1,9}[.)])[ \t]+|>[ \t]*)*(`{3,}|~{3,})(.*)$"
+)
 # The `worktree:` line follows the same accreted shapes as `branch:` (bare,
 # list-item, backtick-wrapped), so parse it the same way. The open-pr command
 # needs it to locate the feature checkout it pushes from.
@@ -462,13 +467,46 @@ def parse_branch_name(blackboard_text: str) -> str | None:
     back to whole-line normalization. Bare values still consume the entire line.
     Returns None for a missing or empty branch line.
     """
-    section = _DEV_SECTION_RE.search(blackboard_text)
+    return next(iter(parse_branch_names(blackboard_text)), None)
+
+
+def parse_branch_names(blackboard_text: str) -> list[str]:
+    """Every `branch:` name under `## Dev`, in order and without duplicates.
+
+    A ticket explicitly owns each branch it records this way; terminal branch
+    cleanup (`branchsweep`) treats the list as the ticket's ownership claim.
+    `parse_branch_name` keeps returning the first, which is the checkout the
+    workflow gates and `coga open-pr` act on. A prose mention elsewhere in the
+    ticket is never ownership.
+    """
+    # Examples cannot create ownership or terminate the real Dev section.
+    # A shorter or differently marked fence does not close the current one.
+    lines: list[str] = []
+    marker = ""
+    for line in blackboard_text.splitlines(keepends=True):
+        fence = _CODE_FENCE_RE.match(line.rstrip("\r\n"))
+        if marker:
+            if (
+                fence
+                and fence.group(1)[0] == marker[0]
+                and len(fence.group(1)) >= len(marker)
+                and not fence.group(2).strip()
+            ):
+                marker = ""
+            lines.append("\n")
+        elif fence and (fence.group(1)[0] == "~" or "`" not in fence.group(2)):
+            marker = fence.group(1)
+            lines.append("\n")
+        else:
+            lines.append(line)
+    section = _DEV_SECTION_RE.search("".join(lines))
     if not section:
-        return None
-    match = _BRANCH_LINE_RE.search(section.group(1))
-    if not match:
-        return None
-    return _delimited_value(match.group(1)) or None
+        return []
+    names = (
+        _delimited_value(match.group(1))
+        for match in _BRANCH_LINE_RE.finditer(section.group(1))
+    )
+    return list(dict.fromkeys(name for name in names if name))
 
 
 def parse_worktree_path(blackboard_text: str) -> str | None:
@@ -822,6 +860,7 @@ def _try_bump_one(
         slug=ref.id_slug,
         title=ticket.title,
         branch=parse_branch_name(blackboard),
+        branches=tuple(parse_branch_names(blackboard)),
         worktree=_recorded_worktree(cfg, recorded_worktree),
         owner=owner,
         pr=url,
@@ -1025,6 +1064,7 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
             RetireFollowUp(
                 closed.slug, closed.branch or "", closed.worktree or "", "",
                 owner=closed.owner,
+                branches=closed.branches,
             ),
             branch=closed.branch,
             worktree=closed.worktree,
@@ -1049,6 +1089,7 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
                     worktree=closed.worktree,
                     pr_url=closed.pr,
                     echo=_echo(closed.slug),
+                    owned_branches=closed.branches,
                 ),
             )
         )
@@ -1074,9 +1115,9 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
                 if is_primary_checkout(root, entry.worktree)
                 else entry.worktree or None
             )
-            if branch is None and worktree is None:
+            if branch is None and worktree is None and not entry.branches:
                 continue
-            ticket_exists, pr_url = _entry_ticket(cfg, entry.slug)
+            ticket_exists, pr_url, owned = _entry_ticket(cfg, entry.slug)
             held = _owner_held_branch(
                 root,
                 entry,
@@ -1102,6 +1143,7 @@ def _dispose_checkouts(cfg: Config, result: AutocloseResult) -> None:
                         worktree=worktree,
                         pr_url=pr_url,
                         echo=_echo(entry.slug),
+                        owned_branches=tuple(dict.fromkeys((*entry.branches, *owned))),
                     ),
                 )
             )
@@ -1195,17 +1237,22 @@ def _locate_refused_worktree(root: Path, item: CheckoutOutcome) -> None:
         item.home = git.classify_checkout(root, item.worktree_path)
 
 
-def _entry_ticket(cfg: Config, slug: str) -> tuple[bool, str | None]:
-    """Whether a worklist entry's ticket still exists, and its `pr:` link if so.
+def _entry_ticket(
+    cfg: Config, slug: str
+) -> tuple[bool, str | None, tuple[str, ...]]:
+    """Whether a worklist entry's ticket still exists, its `pr:` link, and
+    every `branch:` it records.
 
     Exact `id_slug` match only: the CLI's unique-prefix resolution would let a
     deleted `foo` resolve to a newer `foo-followup` and borrow its `pr:`.
     """
     ref = next((t for t in list_tasks(cfg) if t.id_slug == slug), None)
     if ref is None:
-        return False, None
+        return False, None, ()
     blackboard = _read_dev_blackboard(ref.ticket_path)
-    return True, parse_pr_url(blackboard) if blackboard is not None else None
+    if blackboard is None:
+        return True, None, ()
+    return True, parse_pr_url(blackboard), tuple(parse_branch_names(blackboard))
 
 
 def render_retire_report(
@@ -1411,6 +1458,7 @@ def _report_retire_followups(cfg: Config, result: AutocloseResult) -> bool:
                         worktree=item.worktree or item.owner,
                         recorded=now.date().isoformat(),
                         owner=item.owner,
+                        branches=tuple(name for name in item.branches if name != item.branch),
                     )
                     for item in pending
                 ]
@@ -1701,6 +1749,7 @@ __all__ = [
     "parse_pr_number",
     "parse_pr_url",
     "parse_branch_name",
+    "parse_branch_names",
     "parse_worktree_path",
     "pr_head",
     "pr_review_threads",

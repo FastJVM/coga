@@ -13,6 +13,8 @@ from coga import retire_worklist as rw
 from coga.cli import app
 from coga.branchcleanup import WorktreeCleanupResult
 from coga.commands.retire import _checkout_cleanup_section
+from coga.config import load_config
+from coga.tasks import resolve_task
 from coga.ticket import Ticket
 from coga.validate import Issue, TaskValidationError
 
@@ -347,6 +349,95 @@ def test_retire_prunes_merged_branch_before_launch(
     )
 
 
+def test_retire_blocks_its_task_when_an_owned_branch_survives_cleanup(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A kept owned branch is a bug: the retire task is created blocked.
+
+    The ticket is the branch's only owner record; once Retro deletes it, no
+    later sweep could authorize the cleanup. So the retire task is blocked
+    (which notifies the owner) and never launched, for a manual fix.
+    """
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "coga.branchcleanup.prs_for_head", lambda _branch, _state: []
+    )
+    _git(repo, "init", "-b", "main", ".")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "Tester")
+    (repo / "seed.txt").write_text("seed")
+    _git(repo, "add", "seed.txt")
+    _git(repo, "commit", "-m", "seed")
+    _git(repo, "checkout", "-b", "fix-retry-branch")
+    (repo / "work.txt").write_text("work")
+    _git(repo, "add", "work.txt")
+    _git(repo, "commit", "-m", "work")
+    _git(repo, "checkout", "main")
+    _git(repo, "merge", "--ff-only", "fix-retry-branch")
+    # A second owned branch with unlanded work and no PR vouching for it.
+    _git(repo, "checkout", "-b", "leftover")
+    (repo / "extra.txt").write_text("extra")
+    _git(repo, "add", "extra.txt")
+    _git(repo, "commit", "-m", "extra")
+    _git(repo, "checkout", "main")
+
+    slug = "fix-retry-logic"
+    task_dir = repo / "tasks" / slug
+    task_dir.mkdir(parents=True)
+    _write(
+        task_dir / "ticket.md",
+        """
+        ---
+        title: Fix retry logic
+        status: done
+        owner: marc
+        ---
+
+        ## Description
+
+        Done.
+
+        <!-- coga:blackboard -->
+
+        ## Dev
+        branch: fix-retry-branch
+        branch: leftover
+        pr: https://github.com/owner/repo/pull/9
+        """,
+    )
+    (task_dir / "log.md").write_text("")
+
+    launched: list[str] = []
+    monkeypatch.setattr(
+        "coga.commands.launch.launch", lambda slug, **_kw: launched.append(slug)
+    )
+
+    result = CliRunner().invoke(app, ["retire", slug])
+
+    assert result.exit_code == 2, result.output
+    assert "Retire refused: Retire kept branch `leftover`" in result.output
+    assert f"coga unblock retire-{slug}" in result.output
+    assert launched == []
+    retire_ref = resolve_task(load_config(repo), f"retire-{slug}")
+    retire_task = Ticket.read(retire_ref.ticket_path)
+    assert retire_task.frontmatter["status"] == "blocked"
+    assert "### Kept checkout" in retire_task.body
+    assert "`leftover`" in retire_ref.ticket_path.read_text()
+    assert (task_dir / "ticket.md").is_file()
+    assert (
+        subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--verify", "--quiet",
+             "refs/heads/leftover"],
+            capture_output=True,
+        ).returncode
+        == 0
+    )
+
+
+def _retire_status(repo: Path, slug: str) -> str:
+    return Ticket.read(repo / "tasks" / f"retire-{slug}.md").frontmatter["status"]
+
+
 def _merged_worktree_ticket(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> tuple[str, Path]:
@@ -473,7 +564,9 @@ def test_retire_keeps_the_worklist_line_for_a_checkout_it_preserved(
 
     result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 2, result.output
+    assert "Retire refused: Retire kept worktree" in result.output
+    assert _retire_status(repo, slug) == "blocked"
     assert feature.exists()
     assert "Retire: dropped" not in result.output
     _, entries = rw.parse_worklist(worklist.read_text())
@@ -539,7 +632,9 @@ def test_retire_leaves_dirty_worktree_in_place(
 
     result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 2, result.output
+    assert "Retire refused: Retire kept worktree" in result.output
+    assert _retire_status(repo, slug) == "blocked"
     assert "contains tracked or untracked local state" in result.output
     assert "--force" not in result.output
     assert (feature / "uncommitted.txt").is_file()
@@ -597,7 +692,9 @@ def test_retire_records_forceable_ignored_checkout_in_retro_body(
 
     result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 2, result.output
+    assert "Retire refused: Retire kept worktree" in result.output
+    assert _retire_status(repo, slug) == "blocked"
     assert (feature / "coga.local.toml").is_file()
     retire_task = Ticket.read(repo / "tasks" / f"retire-{slug}.md")
     assert "### Checkout cleanup" in retire_task.body
@@ -681,7 +778,9 @@ def test_retire_preserves_checkout_claimed_by_another_live_ticket(
 
     result = CliRunner().invoke(app, ["retire", source_slug, "--no-launch"])
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 2, result.output
+    assert "Retire refused: Retire kept worktree" in result.output
+    assert _retire_status(repo, source_slug) == "blocked"
     assert (
         "live ticket 'still-active' also records branch 'shared-branch'"
         in result.output
