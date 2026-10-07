@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 20416a3e-a368-4188-a7e6-0c3b243c0730
 ---
 
 ## Description
@@ -125,81 +124,111 @@ Actual implementing agent: Codex (session identity; ticket's configured `claude`
 - All changed live skills/topic match their packaged twins. Example workflow updated and validated. No unresolved adjacent bug recorded. Limits: no live GitHub write in this step; legacy/conflicting presentation needs owner reconciliation; concurrent edits after the final GitHub read can still race.
 - Next step: independently review the final diff, record the actual reviewer/session and covered head/base, apply any fixes, rerun required checks, and refresh `## PR` below without re-stamping older receipts. This initial preparation correctly recommends deep review and reports that independent review has not run.
 
+## Peer review
+
+- Tool: Claude Code `/code-review` (default effort, not ultra), run by Claude Opus 5.5 against `origin/improve-pr-presentation` at `4b63afe` vs `main`. It **returned** with 10 findings and no verification pass.
+- Fixed (must-fix) in `8856a848` "peer-review: apply review findings":
+  1. Web-editor CRLF broke marker and digest matching, so any GitHub web edit read as a conflict. Fixed by normalizing to LF.
+  2. Unmarked legacy PRs could not be published and had no adoption path, contrary to the skill text. Now adopted when the title is still the ticket title, with the old body kept below the region. A renamed one refuses with a remedy.
+  3. In with-review, rebasing after the review always made the review receipt stale. The workflow now explains that a receipt covers only the revision it read, says to rebase before reviewing, and says to re-review or record the receipt as historical.
+  4. A top-level head/base mismatch discarded all prose. Explanations are now kept, with a visible stale gap.
+  5. Prose `## PR` was silently dropped. It now shows as unverified implementation text.
+  6. An empty blackboard `## PR` shadowed the ticket-body one. Fixed.
+  7. An `independent` review by the author could yield a `merge` recommendation. It is now treated as self-review.
+- Not fixed (nits or judged incorrect):
+  - Duplicate section parser vs `compose._extract_section`: maintenance only.
+  - Redundant rev-parse, refresh and parse calls: efficiency only.
+  - `{remote}/{base}` hard-coding: the PR diff and freshness check are against the remote base by design.
+- Rebased twice onto `origin/main`; the second time because `README.md` moved mid-step. Final head `8856a848466588b780c65588b88853cdf5bcf4de`, merge base `f5da579aca6371a75d3422c1cb104096991ae318`. Pushed with `--force-with-lease`.
+- Full suite at the final head: 3310 passed, 1 failed. The failure is locale-dependent (`test_edge_distribution` legacy adoption sort order under en_US). It fails identically without these edits, is untouched by the branch, and passes with `LC_ALL=C`. Example validate is ok.
+- No TTY or rendered surface was changed beyond PR markdown, which tests assert on. The rendered GitHub page was not driven live.
+- The recommendation stays **deep**: the fixes after review have no independent re-review.
+
 ## PR
 
 ```yaml
 title: Show PR review depth and preserve human edits on reruns
 author: codex
-author_evidence: Codex implemented this branch in the attended session; the ticket configuration naming
-  Claude was not used as authorship evidence.
-head: 4b63afe49cd019b46ee97bd7492b1782df9fd052
-base: e1c9fcac385930fb12a80700b13fb44f6676fb78
+author_evidence: Codex implemented the branch in the attended implement session; Claude (Opus 5.5) added the peer-review
+  fix commit. The ticket's configured agent was not used as evidence.
+head: 8856a848466588b780c65588b88853cdf5bcf4de
+base: f5da579aca6371a75d3422c1cb104096991ae318
 depth: deep
-rationale: Changes publication evidence and overwrite behavior. The full suite passes, but independent
-  review belongs to the next peer-review step and has not run; inspect this diff before merging.
-implementation: Render a structured markdown/YAML preparation record into an advisory title, rationale,
-  implementation/deviations, per-file reasons, checks and verbatim ticket snapshot. Match evidence to
-  the feature commit and merge base. On reruns, refresh intact generated content and preserve human notes
-  outside its digest-marked region.
-deviations: None. Existing branch/auth/push/freshness/URL-only publication guarantees remain, and test
-  obligations stay with the workflow. The full suite ran because this implementation step requires it.
-limitations: No live GitHub PR was opened in this implementation step. Tests use real local Git and a
-  fake gh. Human edits inside generated content and unmarked legacy PRs require reconciliation. GitHub
-  title/body edits have no atomic compare-and-set, so a simultaneous edit after the last read can still
-  race.
+rationale: Changes publication evidence and PR overwrite behavior. Claude's independent review returned with findings
+  on an earlier revision; the fixes Claude applied afterwards have not been independently re-reviewed, and one locale-dependent
+  test outside this change fails under en_US. Read the diff before merging.
+implementation: 'Render a structured YAML preparation from ## PR into an advisory [merge|skim|deep · A:<author>
+  R:<reviewer>] title, rationale, implementation/deviations, per-file reasons, check receipts and a verbatim collapsible
+  ticket snapshot. Receipts are bound to the feature commit and merge base. On reruns, generated content inside
+  digest markers is refreshed, human notes outside it are kept, and conflicting edits are refused before push.'
+deviations: 'None in scope. Peer review added: CRLF normalization for web-edited bodies, adoption of unmarked legacy
+  PRs whose title is still the ticket title (old body kept below the region), stale top-level preparation keeps
+  explanations, legacy prose shown as unverified, and an ''independent'' review by the author treated as self-review.'
+limitations: 'No live GitHub PR was exercised; tests use real local Git and a fake gh. A human-renamed legacy PR
+  or edited generated region still needs owner reconciliation. GitHub has no atomic compare-and-set for title/body,
+  so an edit after the last read can still race. The review receipt is bound to the head OID, so any rebase makes
+  it historical. Not fixed: the duplicate section parser (_sections vs compose._extract_section) and minor redundant
+  git/parse calls.'
 files:
-  coga/skills/code/implement/SKILL.md: Capture actual implementing identity, exact check receipts and
-    initial PR preparation, including workflows without code review.
-  coga/skills/code/open-pr/SKILL.md: Consume prepared evidence, explain safe refresh and conflicts, and
-    apply the review-in-flight gate only when the workflow ordered code review.
-  coga/skills/code/self-qa/SKILL.md: Refresh preparation after fixes and distinguish self-review from
-    independent review on a particular revision.
-  docs/contexts/coga/internals/pr-publication/SKILL.md: Own the rubric, preparation schema, fallback behavior
-    and generated-content conflict contract while retaining publication guarantees.
-  example/coga/workflows/code/with-review.md: Keep the example publication step representative of the
-    structured preparation and deterministic command.
-  src/coga/open_pr.py: Format revision-bound preparation and the literal request; enumerate the actual
-    diff; refresh intact generated content while preserving external human notes and refusing conflicts.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/pr-publication/SKILL.md: Ship the
-    byte-identical owning publication topic and its rubric/schema.
-  src/coga/resources/templates/coga/bootstrap/skills/code/implement/SKILL.md: Ship the byte-identical
-    code/implement skill so installed repositories receive the same preparation instructions.
+  coga/skills/code/implement/SKILL.md: Capture actual implementing identity, exact check receipts and initial PR
+    preparation, including workflows without code review.
+  coga/skills/code/open-pr/SKILL.md: Consume prepared evidence, explain safe refresh and conflicts, and apply the
+    review-in-flight gate only when the workflow ordered code review.
+  coga/skills/code/self-qa/SKILL.md: Refresh preparation after fixes and distinguish self-review from independent
+    review on a particular revision.
+  docs/contexts/coga/internals/pr-publication/SKILL.md: Own the rubric, preparation schema, fallback behavior and
+    generated-content conflict contract while retaining publication guarantees.
+  example/coga/workflows/code/with-review.md: Keep the example publication step representative of the structured
+    preparation and deterministic command.
+  src/coga/open_pr.py: Format revision-bound preparation and the literal request; enumerate the actual diff; refresh
+    intact generated content (CRLF-normalized) while preserving human notes, adopting legacy PRs that still carry
+    the ticket title, and refusing conflicts.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/pr-publication/SKILL.md: Ship the byte-identical
+    owning publication topic and its rubric/schema.
+  src/coga/resources/templates/coga/bootstrap/skills/code/implement/SKILL.md: Ship the byte-identical code/implement
+    skill so installed repositories receive the same preparation instructions.
   src/coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md: Ship the byte-identical code/open-pr
     skill so installed repositories receive the same preparation instructions.
   src/coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md: Ship the byte-identical code/self-qa
     skill so installed repositories receive the same preparation instructions.
-  src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md: Require implement-owned
-    preparation and explicitly distinguish design approval from code review.
-  src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md: Make the peer-review step
-    prepare actual review/check receipts and explanatory prose after its final fixes and rebase.
-  src/coga/resources/templates/coga/bootstrap/workflows/code/with-self-review.md: Point workflow framing
-    at the shared preparation contract and honest self-review reporting.
-  tests/test_open_pr.py: Exercise all three depths, actual identities, stale/missing verification, snapshot
-    boundaries, added/deleted/renamed files, and safe PR refresh with real Git and fake gh.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md: Require implement-owned preparation
+    and explicitly distinguish design approval from code review.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md: Make the peer-review step prepare actual
+    review/check receipts after its final fixes and rebase, and explain that a review receipt covers only the revision
+    it read.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-self-review.md: Point workflow framing at the
+    shared preparation contract and honest self-review reporting.
+  tests/test_open_pr.py: Exercise all three depths, actual identities, stale/missing/legacy evidence, snapshot boundaries,
+    added/deleted/renamed files, legacy adoption, CRLF web edits and safe PR refresh with real Git and fake gh.
 review:
-  kind: none
-  status: not-run
-  detail: Independent review is the next workflow step; no independent code review has run during implementation.
+  reviewer: claude
+  kind: independent
+  status: failed
+  head: 4b63afe49cd019b46ee97bd7492b1782df9fd052
+  base: e1c9fcac385930fb12a80700b13fb44f6676fb78
+  detail: /code-review (default effort) returned 10 findings; 7 must-fix findings were then fixed by the same reviewer
+    in 8856a848 without independent re-review.
 checks:
-- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q
+- command: .venv/bin/python -m pytest -q
+  status: failed
+  head: 8856a848466588b780c65588b88853cdf5bcf4de
+  base: f5da579aca6371a75d3422c1cb104096991ae318
+  detail: '3310 passed, 1 failed: test_edge_distribution::test_documented_legacy_adoption_preserves_state_and_reconciles_callers
+    depends on locale sort order under LANG=en_US.UTF-8. It also fails without this review''s edits, and this branch
+    does not touch it.'
+- command: LC_ALL=C .venv/bin/python -m pytest -q tests/test_edge_distribution.py
   status: passed
-  head: 4b63afe49cd019b46ee97bd7492b1782df9fd052
-  base: e1c9fcac385930fb12a80700b13fb44f6676fb78
-  detail: 3307 passed in 249.10s (0:04:09); includes focused publication tests and packaging twins on
-    the final rebased commit.
-- command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python
-    -m coga.cli validate --json
+  head: 8856a848466588b780c65588b88853cdf5bcf4de
+  base: f5da579aca6371a75d3422c1cb104096991ae318
+  detail: 13 passed; confirms the single failure depends on locale.
+- command: env -u SLACK_WEBHOOK_URL ../../.venv/bin/python -m coga.cli validate --json
   status: passed
-  head: 4b63afe49cd019b46ee97bd7492b1782df9fd052
-  base: e1c9fcac385930fb12a80700b13fb44f6676fb78
-  detail: 'Run from example/coga on the final rebased commit: ok_count 4, no issues.'
-- command: git diff --check
+  head: 8856a848466588b780c65588b88853cdf5bcf4de
+  base: f5da579aca6371a75d3422c1cb104096991ae318
+  detail: 'Run from example/coga: ok_count 4, no issues.'
+- command: git diff --check origin/main...HEAD
   status: passed
-  head: 4b63afe49cd019b46ee97bd7492b1782df9fd052
-  base: e1c9fcac385930fb12a80700b13fb44f6676fb78
+  head: 8856a848466588b780c65588b88853cdf5bcf4de
+  base: f5da579aca6371a75d3422c1cb104096991ae318
   detail: No whitespace errors.
-- command: gh pr create
-  status: not-run
-  detail: This implementation step stops before PR creation; the later publication step owns it. Real-Git/fake-gh
-    regression tests cover creation, refresh, draft readiness and refusal paths.
 ```
