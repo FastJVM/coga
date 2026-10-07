@@ -202,3 +202,12 @@ Test plan: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q` (3285 passed);
 `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_clean_install_harness.py tests/test_packaging.py -q`
 (52 passed); task-scoped source CLI validation (1 OK, no issues); shell syntax
 and diff checks; real PTY forwarding checks at 80x24 and 120x40 with stubbed SSH.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `marketing/fix-installer/affordable-macos-testing-on-owned-macs-and-per-min`
+Recorded: 2026-10-07T18:28:15+00:00
+
+    Branch 'owned-mac-clean-install' is not safe to publish. refs/heads/owned-mac-clean-install does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Reconcile it and relaunch, or `coga block --task marketing/fix-installer/affordable-macos-testing-on-owned-macs-and-per-min`.
