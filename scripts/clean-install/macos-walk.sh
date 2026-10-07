@@ -1,14 +1,21 @@
 #!/bin/bash
-# Mac-side half of the macOS clean-install harness. aws-mac.sh copies this
-# file and container.sh to /tmp/coga-clean-install/ on the EC2 Mac and runs it
-# as ec2-user. Keep it to macOS's stock Bash 3.2.
+# Mac-side half of the macOS clean-install harness. aws-mac.sh and
+# owned-mac.sh copy this file and container.sh to /tmp/coga-clean-install/ on
+# the Mac and run it as its admin user. Keep it to macOS's stock Bash 3.2.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
+# Only a Mac that a driver created for the harness (an EC2 instance, a cloned
+# VM) carries this file. reset and vnc refuse anywhere else.
+disposable_marker=/etc/coga-disposable-test-mac
 
 fail() {
     echo "$*" >&2
     exit 1
+}
+
+require_disposable() {
+    [ -f "$disposable_marker" ] || fail "Refusing $1: this Mac is not designated a disposable test machine ($disposable_marker is absent)"
 }
 
 case ${1:-} in
@@ -26,7 +33,14 @@ baseline)
     cat /etc/paths
     ls /etc/paths.d
     ;;
+designate-disposable)
+    # Drivers call this only on a Mac they created and will destroy.
+    [ $# -eq 2 ] || fail "usage: $0 designate-disposable RUN-NAME"
+    printf '%s\n' "$2" | sudo tee "$disposable_marker" >/dev/null
+    echo "Designated disposable for $2 ($disposable_marker)"
+    ;;
 reset)
+    require_disposable reset
     # EC2 Mac AMIs ship Command Line Tools for their Homebrew. Remove them
     # (Apple's uninstall) so the first git call on this machine behaves as it
     # does on a new Mac: the /usr/bin shim asks to install them. Their receipts
@@ -74,12 +88,14 @@ ticket)
     ;;
 vnc)
     [ $# -eq 2 ] || fail "usage: $0 vnc PASSWORD"
-    sudo dscl . -passwd /Users/ec2-user "$2"
+    # Replaces the admin user's password, so never on an ordinary Mac.
+    require_disposable vnc
+    sudo dscl . -passwd "/Users/$(id -un)" "$2"
     sudo launchctl enable system/com.apple.screensharing
     sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.screensharing.plist 2>/dev/null || true
     echo 'Screen Sharing enabled on localhost:5900 (reach it through the SSH tunnel)'
     ;;
 *)
-    fail "usage: $0 baseline | reset | walk ... | ticket TITLE [--agent NAME] | vnc PASSWORD"
+    fail "usage: $0 baseline | designate-disposable RUN-NAME | reset | walk ... | ticket TITLE [--agent NAME] | vnc PASSWORD"
     ;;
 esac

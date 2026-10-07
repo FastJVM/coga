@@ -188,7 +188,8 @@ def test_clean_install_main_builds_fetched_commit_not_working_tree(
 def aws_mac(git_repo, tmp_path: Path, monkeypatch):
     script = git_repo.root / "scripts/clean-install/aws-mac.sh"
     script.parent.mkdir(parents=True)
-    shutil.copyfile(ROOT / "scripts/clean-install/aws-mac.sh", script)
+    for name in ("aws-mac.sh", "mac-common.sh"):
+        shutil.copyfile(ROOT / "scripts/clean-install" / name, script.parent / name)
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     calls = tmp_path / "calls.txt"
@@ -382,3 +383,149 @@ def test_aws_mac_main_walk_without_gnu_checksum(
     assert "portable-checksum" in result.stdout
     assert "macos-walk.sh walk wheel" in calls.read_text()
     assert "origin/main=" in (evidence / "walks/walk1/source.txt").read_text()
+
+
+@pytest.fixture
+def owned_mac(git_repo, tmp_path: Path, monkeypatch):
+    script = git_repo.root / "scripts/clean-install/owned-mac.sh"
+    script.parent.mkdir(parents=True)
+    for name in ("owned-mac.sh", "mac-common.sh"):
+        shutil.copyfile(ROOT / "scripts/clean-install" / name, script.parent / name)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    calls = tmp_path / "calls.txt"
+    users = tmp_path / "mac-users.txt"
+    users.write_text("")
+    # One fake Mac: the physical host (via its login shell) and, behind
+    # ProxyJump, its VM. Walks add their user; sysadminctl deletes it.
+    _executable(bin_dir / "ssh", f"""
+        #!{sys.executable}
+        import os
+        from pathlib import Path
+        import shlex
+        import sys
+
+        args = sys.argv[1:]
+        words = shlex.split(args[-1])
+        if words[:2] == ["/bin/zsh", "-lc"]:
+            words = shlex.split(words[2])
+        users = Path({str(users)!r})
+        known = users.read_text().split()
+        with open({str(calls)!r}, "a") as log:
+            log.write("ssh " + " ".join(args[:-1]) + " :: " + " ".join(words) + "\\n")
+            if words[:1] == ["umask"]:
+                log.write("authorized_keys askpass=%s key=%s\\n" % (
+                    os.environ.get("SSH_ASKPASS_REQUIRE"), sys.stdin.read().split()[0]))
+        if words == ["uname", "-m"]:
+            print(os.environ.get("COGA_TEST_ARCH", "arm64"))
+        elif words[:2] == ["tart", "--version"]:
+            print("2.30.0")
+        elif words[:2] == ["tart", "ip"]:
+            print("192.168.64.5")
+        elif words == ["sudo", "-n", "true"]:
+            sys.exit(int(os.environ.get("COGA_TEST_SUDO", "0")))
+        elif words[:1] == ["id"]:
+            sys.exit(0 if words[1] in known else 1)
+        elif "walk" in words and words[0] == "bash":
+            users.write_text(" ".join(known + [words[5]]))
+        elif words[:3] == ["sudo", "sysadminctl", "-deleteUser"]:
+            users.write_text(" ".join(u for u in known if u != words[3]))
+    """)
+    _executable(bin_dir / "scp", f"""
+        #!/bin/sh
+        echo "scp $*" >> {calls}
+    """)
+    monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ["PATH"])
+    monkeypatch.setenv("COGA_MAC_SSH_WAIT", "0")
+
+    def run(*args: str, **env: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["bash", str(script), *args], env={**os.environ, **env},
+            capture_output=True, text=True,
+        )
+
+    return run, calls, git_repo.root / ".coga/clean-install/mac1"
+
+
+def test_owned_mac_vm_is_disposable_and_deleted(owned_mac) -> None:
+    run, calls, evidence = owned_mac
+    result = run("vm", "mac1", "tester@mini")
+    assert result.returncode == 0, result.stdout + result.stderr
+    resources = (evidence / "resources.env").read_text()
+    for line in ("KIND=vm", "HOST=tester@mini", "VM=coga-clean-install-mac1",
+                 "IMAGE=ghcr.io/cirruslabs/macos-tahoe-vanilla:latest",
+                 "VM_IP=192.168.64.5", "VM_USER=admin", "TART_VERSION=2.30.0"):
+        assert line in resources
+    assert (evidence / "key.pem").stat().st_mode & 0o777 == 0o600
+    log = calls.read_text()
+    assert ":: tart clone ghcr.io/cirruslabs/macos-tahoe-vanilla:latest coga-clean-install-mac1" in log
+    assert "authorized_keys askpass=force key=ssh-ed25519" in log
+    vm_calls = [c for c in log.splitlines() if "admin@192.168.64.5" in c]
+    assert vm_calls and all("ProxyJump=tester@mini" in c for c in vm_calls)
+    # Only a VM this run created is designated, and only then reset.
+    assert log.index("designate-disposable coga-clean-install-mac1") < log.index("macos-walk.sh reset")
+
+    assert run("cleanup", "mac1").returncode == 0
+    assert ":: tart stop coga-clean-install-mac1" in calls.read_text()
+    assert ":: tart delete coga-clean-install-mac1" in calls.read_text()
+    assert "VM_DELETED=" in (evidence / "resources.env").read_text()
+    assert run("cleanup", "mac1").returncode == 0
+    assert calls.read_text().count("tart delete") == 1
+
+
+def test_owned_mac_vm_needs_apple_silicon(owned_mac) -> None:
+    run, calls, evidence = owned_mac
+    result = run("vm", "mac1", "tester@intel", COGA_TEST_ARCH="x86_64")
+    assert result.returncode != 0
+    assert "attach mac1 tester@intel" in result.stdout + result.stderr
+    assert "tart clone" not in calls.read_text()
+
+
+def test_owned_mac_attach_never_resets_and_removes_only_walk_users(owned_mac) -> None:
+    run, calls, evidence = owned_mac
+    result = run("attach", "mac1", "tester@intel")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "not a fresh install" in result.stdout
+    assert "KIND=host" in (evidence / "resources.env").read_text()
+    result = run("walk", "mac1", "pypi", "walk1")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert run("vnc", "mac1").returncode == 2
+    log = calls.read_text()
+    for forbidden in ("reset", "designate-disposable", "macos-walk.sh vnc", "tart", "ProxyJump"):
+        assert forbidden not in log
+
+    assert run("cleanup", "mac1").returncode == 0
+    assert ":: sudo sysadminctl -deleteUser walk1" in calls.read_text()
+    assert ":: rm -rf /tmp/coga-clean-install" in calls.read_text()
+    assert "DELETED_USER_walk1=" in (evidence / "resources.env").read_text()
+    assert run("cleanup", "mac1").returncode == 0
+    assert calls.read_text().count("-deleteUser") == 1
+
+
+def test_owned_mac_attach_needs_passwordless_sudo(owned_mac) -> None:
+    run, calls, evidence = owned_mac
+    result = run("attach", "mac1", "tester@intel", COGA_TEST_SUDO="1")
+    assert result.returncode != 0
+    assert "passwordless sudo" in result.stdout + result.stderr
+    assert "scp" not in calls.read_text()
+
+
+@pytest.mark.skipif(
+    Path("/etc/coga-disposable-test-mac").exists(), reason="this machine is designated disposable",
+)
+@pytest.mark.parametrize("args", [("reset",), ("vnc", "secret")])
+def test_macos_walk_refuses_destructive_steps_on_ordinary_mac(
+    tmp_path: Path, args: tuple[str, ...],
+) -> None:
+    sudo_log = tmp_path / "sudo.txt"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _executable(bin_dir / "sudo", f"#!/bin/sh\necho \"$*\" >> {sudo_log}\n")
+    result = subprocess.run(
+        ["bash", str(ROOT / "scripts/clean-install/macos-walk.sh"), *args],
+        env={**os.environ, "PATH": str(bin_dir) + os.pathsep + os.environ["PATH"]},
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 1
+    assert "not designated a disposable test machine" in result.stderr
+    assert not sudo_log.exists()

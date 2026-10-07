@@ -30,9 +30,9 @@ variable for the one command; do not edit the fixture's config to satisfy it.
 For artifact-level reproduction, use the
 [Linux clean-install harness](clean-install/SKILL.md). It covers current PyPI
 and a wheel from `main` in a fresh Python 3.11 container, with an attended
-continuation for agent login and the first ticket. The
-[macOS harness on AWS](clean-install/macos-aws/SKILL.md) runs the same walk on
-an EC2 Mac dedicated host.
+continuation for agent login and the first ticket. On macOS the same walk
+runs by default on [owned Macs](clean-install/macos-owned/SKILL.md) over SSH,
+or optionally on an [EC2 Mac dedicated host](clean-install/macos-aws/SKILL.md).
 
 ## Which code you are actually testing
 
@@ -105,7 +105,9 @@ Its `twine check` inspects metadata, not behavior. Nothing runs `pytest` or
 validation are the release gate, and the pristine-tree wheel collision is
 caught only at release or by hand. The parked
 `coga/tasks/_v2/minimal-ci-run-pytest-on-prs-and-tags.md` would change this;
-update this section when it lands.
+update this section when it lands. Hosted macOS runners were compared with owned
+Macs in `docs/evidence/macos-install-test-costs.md`; adding any such workflow
+needs an explicit owner decision.
 
 Therefore every verifier (self-QA, review, release) states the exact commands
 and counts, for example `PYTHONPATH=$PWD/src python3.12 -m pytest` ->

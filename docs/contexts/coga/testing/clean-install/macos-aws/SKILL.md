@@ -17,6 +17,10 @@ installed with Coga:
   CLI, SSH and the build of the `main` wheel.
 - `scripts/clean-install/macos-walk.sh` runs on the Mac as `ec2-user`.
 
+This path is optional. Prefer the cost-free
+[owned-Mac harness](../macos-owned/SKILL.md), and use EC2 only when no owned
+Mac is available.
+
 ## Cost and approval
 
 An EC2 Mac runs only on a **dedicated host**. The host bills for at least 24
@@ -77,7 +81,9 @@ recording an empty ID or attempting later allocations. The SSH wait allows
 
 Then `provision` copies both scripts to `/tmp/coga-clean-install/` and saves a
 `baseline.txt`: the macOS version, the Command Line Tools (CLT) state, Homebrew
-and `/etc/paths`. After that it **removes the CLT that the AMI ships**, using
+and `/etc/paths`. After that it marks the instance disposable (`designate-disposable`; see
+[reset is for disposable Macs only](../macos-owned/SKILL.md#reset-is-for-disposable-macs-only))
+and **removes the CLT that the AMI ships**, using
 Apple's uninstall (delete `/Library/Developer/CommandLineTools`). It checks that
 a fresh login shell resolves `git` to the `/usr/bin` shim. It never preinstalls
 CLT. A new Mac user meets the CLT prompt at their first `git` call, and so does

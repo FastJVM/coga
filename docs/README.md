@@ -120,7 +120,8 @@ Git state ([publication](contexts/coga/internals/state-publication/SKILL.md),
   [research replacement trial](evidence/research-replacement-trial.md),
   [adoption trial](evidence/adoption-trial.md),
   [upkeep audit](evidence/upkeep-audit.md),
-  [Claude cache TTL survey](evidence/claude-cache-ttl-survey.md).
+  [Claude cache TTL survey](evidence/claude-cache-ttl-survey.md),
+  [macOS install-test costs](evidence/macos-install-test-costs.md).
 
 ## Proposals and history
 

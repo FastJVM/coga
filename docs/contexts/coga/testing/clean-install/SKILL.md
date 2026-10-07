@@ -10,9 +10,10 @@ Coga. It exercises the documented [install](../../install/SKILL.md),
 [init](../../init/SKILL.md), and [first-task](../../first-task/SKILL.md) path
 against an installed artifact. The separate
 [release gate](../../releasing/SKILL.md#clean-first-install-gate) checks a pinned
-release and a completed agent launch. The
-[macOS harness on AWS](macos-aws/SKILL.md) runs the same walk script as a fresh
-user on an EC2 Mac.
+release and a completed agent launch. The same walk script runs as a fresh
+macOS user on [owned Macs](macos-owned/SKILL.md) (the default: a disposable
+VM on Apple silicon, or an attached Intel Mac) or on an optional
+[EC2 Mac](macos-aws/SKILL.md).
 
 The image starts from `python:3.11-slim-bookworm`, adds Git, TLS certificates
 and uv, and creates an empty non-root `coga` home. Coga, agent CLIs, `gh` and
