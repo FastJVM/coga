@@ -1213,6 +1213,30 @@ def _in_state_area(rel: str, areas: tuple[tuple[str, ...], tuple[str, ...]]) -> 
     return rel in files or any(rel.startswith(prefix) for prefix in dirs)
 
 
+def uncommitted_non_state_paths(cfg: Config) -> tuple[str, ...]:
+    """Uncommitted paths outside Coga state, which the next launch's entry refuses.
+
+    Read-only. Empty when Git is disabled or the workspace is not a repository;
+    a Git failure propagates as `GitError`.
+    """
+    if not cfg.git_enabled:
+        return ()
+    root = toplevel(cfg.repo_root)
+    if root is None:
+        return ()
+    status = run_git(
+        root,
+        "status", "--porcelain=v2", "-z", "--untracked-files=all",
+        "--no-renames", "--ignore-submodules=none",
+    )
+    areas = _state_areas(cfg, root)
+    return tuple(
+        rel
+        for kind, _fields, rel in _status_v2_entries(status)
+        if kind != "!" and not _in_state_area(rel, areas)
+    )
+
+
 def _regular_working_file(root: Path, rel: str) -> tuple[str, bytes] | None | Literal[False]:
     """`(mode, bytes)` of a regular working file, `None` when absent, `False` otherwise."""
     path = root / rel

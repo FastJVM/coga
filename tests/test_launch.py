@@ -50,6 +50,9 @@ from coga.tasks import BootstrapRef, TaskRef, list_tasks
 from coga.ticket import Ticket
 from coga.validate import TaskValidationError
 
+# The real `subprocess.run`, for fakes that must let git calls through.
+_REAL_RUN = subprocess.run
+
 
 FLOW_WEBHOOK = "https://slack.example.test/flow"
 IMPORTANT_WEBHOOK = "https://slack.example.test/important"
@@ -4317,7 +4320,9 @@ def test_resolve_conflicts_bootstrap_launch_is_stateless_and_receives_pr_arg(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None, **kwargs):  # type: ignore[no-untyped-def]
+        if cmd[0] == "git":
+            return _REAL_RUN(cmd, env=env, check=check, cwd=cwd, **kwargs)
         calls.append(cmd)
         return _Result()
 
@@ -4625,7 +4630,9 @@ def test_local_agent_command_ticket_plus_alias_mints_new_verb(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None, **kwargs):  # type: ignore[no-untyped-def]
+        if cmd[0] == "git":
+            return _REAL_RUN(cmd, env=env, check=check, cwd=cwd, **kwargs)
         calls.append(cmd)
         return _Result()
 
@@ -4671,7 +4678,11 @@ def test_launch_bare_bootstrap_does_not_post_to_slack(
     monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
     monkeypatch.setattr(
         "coga.commands.launch.subprocess.run",
-        lambda cmd, env=None, check=False, cwd=None: _Result(),
+        lambda cmd, env=None, check=False, cwd=None, **kwargs: (
+            _REAL_RUN(cmd, env=env, check=check, cwd=cwd, **kwargs)
+            if cmd[0] == "git"
+            else _Result()
+        ),
     )
     monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
@@ -4690,7 +4701,9 @@ def test_launch_bootstrap_skips_status_and_lock(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None, **kwargs):  # type: ignore[no-untyped-def]
+        if cmd[0] == "git":
+            return _REAL_RUN(cmd, env=env, check=check, cwd=cwd, **kwargs)
         captured["cmd"] = cmd
         captured["prompt"] = _prompt_arg(cmd)
         return _Result()
@@ -4746,7 +4759,9 @@ def test_launch_discussion_bootstrap_uses_discussion_template(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None, **kwargs):  # type: ignore[no-untyped-def]
+        if cmd[0] == "git":
+            return _REAL_RUN(cmd, env=env, check=check, cwd=cwd, **kwargs)
         captured["cmd"] = cmd
         return _Result()
 
@@ -4786,7 +4801,9 @@ def test_launch_orient_bootstrap_stays_silent(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None, **kwargs):  # type: ignore[no-untyped-def]
+        if cmd[0] == "git":
+            return _REAL_RUN(cmd, env=env, check=check, cwd=cwd, **kwargs)
         captured["cmd"] = cmd
         return _Result()
 
@@ -4849,7 +4866,9 @@ def test_launch_bootstrap_agent_override_uses_requested_agent(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None, **kwargs):  # type: ignore[no-untyped-def]
+        if cmd[0] == "git":
+            return _REAL_RUN(cmd, env=env, check=check, cwd=cwd, **kwargs)
         captured["cmd"] = cmd
         return _Result()
 
@@ -6817,6 +6836,29 @@ def test_launch_prompt_report_and_bootstrap_keep_the_checkout(
     assert orient.exit_code == 0, orient.output
     assert [seen[:2] for seen in session.seen] == [("feature/x", None)]
     assert _branch_and_tip(git_repo) == before
+
+
+def test_launch_bootstrap_warns_about_edits_the_next_launch_refuses(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _published_checkout_task(git_repo)
+
+    def write_context(_ref: TaskRef) -> bool:
+        (git_repo.root / "decision.md").write_text("owner decision\n")
+        return False
+
+    session = _CheckoutSession(git_repo, actions=[lambda _ref: False, write_context])
+    _checkout_launch_env(monkeypatch, session)
+
+    clean = CliRunner().invoke(app, ["launch", "bootstrap/orient"])
+    dirty = CliRunner().invoke(app, ["launch", "bootstrap/orient"])
+
+    assert clean.exit_code == 0, clean.output
+    assert "outside Coga state" not in clean.output
+    assert dirty.exit_code == 0, dirty.output
+    assert "outside Coga state after bootstrap/orient" in dirty.output
+    assert "  - decision.md" in dirty.output
+    assert (git_repo.root / "decision.md").read_text() == "owner decision\n"
 
 
 def test_launch_without_a_remote_keeps_its_checkout(

@@ -1862,6 +1862,8 @@ def _launch(
             checkout_returned = boundary.settle(
                 cfg, subject=f"{ref.id_slug}'s session"
             )
+            if is_bootstrap and not boundary.armed:
+                _warn_unpublished_edits(cfg, ref)
             target_removed = False
             if checkout_returned and boundary.armed:
                 cfg, returned_ref = boundary.reload(cfg, ref)
@@ -3270,6 +3272,37 @@ def _retract_log_append(path: Path, before: bytes | None, appended: bytes) -> bo
         return False
     path.write_bytes(current[:index] + current[index + len(appended):])
     return True
+
+
+def _warn_unpublished_edits(cfg: Config, ref: TaskRef | BootstrapRef) -> None:
+    """Name edits an unnormalized session left that the next launch will refuse.
+
+    Bootstrap targets skip the checkout boundary (`dev/checkouts`), and Coga
+    never commits knowledge or code edits, so without this a context written
+    during an authoring interview surfaces only as a later launch's refusal.
+    """
+    try:
+        paths = git.uncommitted_non_state_paths(cfg)
+    except git.GitError as exc:
+        typer.secho(
+            f"Warning: could not check {ref.id_slug}'s checkout for "
+            f"uncommitted edits: {exc}",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        return
+    if not paths:
+        return
+    listing = "\n".join(f"  - {path}" for path in paths)
+    typer.secho(
+        f"Warning: this checkout has uncommitted changes outside Coga state "
+        f"after {ref.id_slug}:\n{listing}\n"
+        "Coga does not commit them. The next ticket launch will refuse until "
+        "they are committed on a branch (and opened as a PR) or removed.",
+        fg=typer.colors.YELLOW,
+        bold=True,
+        err=True,
+    )
 
 
 def _is_discussion_bootstrap(ref: TaskRef | BootstrapRef) -> bool:

@@ -489,4 +489,20 @@ Optionally `coga slack --task <slug> --message "<short>"` if the ticket
 warrants a heads-up to the channel (a new context was created, the workflow
 changed, etc.). Skip the Slack post for routine fill-ins.
 
+## Before you exit — on every path
+
+This applies however the session ends: a filled draft, a revised ticket, or
+a ticket canceled mid-interview. Run `git status --porcelain`. Ticket and log
+writes under `coga/tasks/` and `coga/log.md` are Coga state and publish on
+their own. Anything else you wrote is not Coga state, and Coga never commits
+it: a new or edited context or skill (step 4), an owner decision recorded
+in a topic, a packaged twin. Left on `main`, it makes the next
+`coga launch` refuse the checkout. So before exiting:
+
+1. `git switch -c <slug>-knowledge`, commit only those paths, and
+   `git switch main`, so the checkout is clean again.
+2. Ask the human whether to push the branch and open a PR now. Context and
+   skill changes land only through a reviewed PR.
+3. Name the branch (and PR, if opened) in your closing line.
+
 Then exit.
