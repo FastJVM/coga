@@ -1,6 +1,6 @@
 ---
 title: Verify PostHog telemetry with the live clean-wheel proof
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/telemetry/operations
@@ -18,6 +18,7 @@ workflow:
     assignee: agent
 step: 1 (brief-and-hand-off)
 agent: claude
+launch_generation: pending:8a04e028-640d-43bd-88b7-d97a472cc253
 ---
 
 ## Description
