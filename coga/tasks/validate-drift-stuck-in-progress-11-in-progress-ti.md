@@ -15,9 +15,8 @@ workflow:
   - name: verify-read-only
     skills: []
     assignee: agent
-step: 1 (brief-and-hand-off)
+step: 2 (human-executes)
 agent: claude
-launch_generation: 6e639cbb-95f0-44be-9442-ba7962a7b237
 ---
 
 ## Description
@@ -52,3 +51,55 @@ Related but not an owner of the class: `phase-0-audit-is-complete-per-the-plan-b
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Brief for owner (agent, 2026-10-07, read-only)
+
+**Goal.** Empty the `stuck-in-progress` validator class, or record in a
+context which idle shapes are an accepted baseline, so Dream stops refiling.
+
+**Live membership has changed.** `coga validate --json` today lists **7**
+members, not the 11 in the 2026-09-21 snapshot. Only
+`marketing/build-the-launch-plan` carried over; the other 10 have left the
+class. Current members, by shape:
+
+| Member | Step | Shape |
+|---|---|---|
+| `gigantic-refactor-move-recurring-recipes-out-of-co` | 3 review-design | owner design-review gate, no PR (172.8h) |
+| `launch-locks/ticket-ownership-lock` | 3 review-design | owner must disposition 6 must-fix findings (144.3h) |
+| `lifecycle-writes-read-control-s-ticket-before-modi` | 3 review-design | owner design-review gate (219.6h) |
+| `run-recurring-agent-templates-off-the-control-bran` | 3 review-design | open question on blackboard: follow-up ticket, retarget, or leave it (118.5h) |
+| `carry-the-apply-the-register-amendment-step-in-a-w` | 2 human-owns-and-finishes | owner-held draft-for-human step (173.7h) |
+| `marketing/build-the-launch-plan` | 2 human-owns-and-finishes | owner-held V1 launch execution (292.9h) |
+| `add-an-applying-a-batch-of-verdicts-section-to-the` | 4 review | **its PR #912 is CLOSED (not merged)**, so it is not waiting on a live review (217.5h) |
+
+The ticket's hunch ("review step with an open PR") does not fit any current
+member: none of them has an open PR. All 7 sit at an **owner-assigned step**.
+No context records a stuck-in-progress baseline yet. A grep of
+`docs/contexts` for `stuck-in-progress` found nothing.
+
+**Ordered steps for the owner.**
+1. `add-an-applying-a-batch-of-verdicts-section-to-the`: decide why #912
+   was closed. Then either reopen or re-raise the PR, or `coga mark canceled`.
+   This is the only member that looks actually orphaned.
+2. For each of the 4 `review-design` tickets, review the design on the
+   blackboard and then `coga bump`, send it back with feedback, or cancel.
+   The ownership lock needs its 6 must-fix findings dispositioned. The recurring
+   refusal ticket needs the follow-up/retarget/leave answer.
+3. For the 2 `human-owns-and-finishes` tickets, finish and `coga mark done`
+   them, or `coga mark canceled` them, or leave them if they really are
+   long-running.
+4. Optional: record a baseline. If owner-held steps (`assignee: owner`) idle
+   past the threshold are acceptable, add a short entry with the tag line
+   `validate-drift: stuck-in-progress`, the decision, the rationale, and the
+   scope (for example "in_progress at an owner-assignee step; agent-assignee
+   steps are never accepted"). Put it in the topic that owns validate-drift
+   dispositions, likely `docs/contexts/coga/dream/SKILL.md` or the lifecycle
+   topic. Same-PR rules apply.
+
+**Irreversible action.** `coga mark canceled` on any member, and pushing or
+merging a PR, are not easily undone. Bumps are forward-only for agents. Context
+edits go through a normal PR.
+
+**Done check (for verify-read-only).** `coga validate --json` shows no
+`stuck-in-progress` entries, or every remaining entry falls within a scope
+written down in a context under the tag line above.

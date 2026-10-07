@@ -7791,3 +7791,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-07 15:37 [validate-drift-stuck-in-progress-11-in-progress-ti] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-07 15:37 [validate-drift-stuck-in-progress-11-in-progress-ti] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-07 15:37 [validate-drift-stuck-in-progress-11-in-progress-ti] [megalaunch] launched via coga megalaunch
+2026-10-07 15:38 [validate-drift-stuck-in-progress-11-in-progress-ti] [agent:claude] advanced to step 2 (human-executes) → nicktoper — Class is now 7 (not 11); all are at owner steps, and #912 is closed. Brief is on the blackboard.
