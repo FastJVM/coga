@@ -13,6 +13,14 @@ Done when onboarding in an empty repository leaves the agreed product/vision ava
 
 ## Context
 
+### Report relayed by the owner — 2026-10-07
+
+Another AI reports that thinkpick's six generated tickets reference product/vision, but the vision file is not tracked in Git. It reports reproducing broken-context from validate and launch exit 2 when the context is missing. These downstream observations have not been independently reproduced during intake; obtain the source revision and a minimal fixture before choosing a fix.
+
+Code inspection at intake confirms that the packaged build/onboarding workflow writes the agreed vision and bumps, while the general state sweep excludes contexts by design. This is an onboarding handoff gap, not permission to auto-publish arbitrary knowledge edits. Resolve how the agreed vision reaches the reviewed/published branch before calling the batch launchable.
+
+Read coga/init (`docs/contexts/coga/init/SKILL.md`) and coga/internals/state-publication (`docs/contexts/coga/internals/state-publication/SKILL.md`, especially the end-of-command sweep and guided authoring sections), cited rather than attached because they are editing targets. Start with `src/coga/resources/templates/coga/workflows/build/onboarding.md` and `src/coga/git.py::sync_coga_state`. Update applicable live/packaged instructions together. The old done ticket remove-coga-build-and-project is historical: current source again includes build onboarding.
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

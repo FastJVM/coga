@@ -106,6 +106,35 @@ Findings from the ticket's cold review, to verify rather than trust:
 4. Confirm the rebase conflict (`1678fe5`), untracked-file, and autostash
    failures are resolved by #848.
 
+### Additional downstream report — 2026-10-07
+
+Another AI, relayed by the owner, reports these additional failure counts:
+
+| Reported count | Failure | Reported window |
+| --- | --- | --- |
+| 59 | Push failures, almost all “Could not resolve host” | September–October 2026 |
+| 20 | Writes to .git fail with “Read-only file system” | September–October 2026 |
+| 68 | Fetch failures | August–September 2026 |
+
+The source checkout, precise query, and full excerpts were not supplied.
+These counts have not been independently reproduced and must not be added to
+the earlier Multiply totals without checking repository, period, and overlap.
+Obtain those inputs and compare against the running Coga revision.
+
+Proposed direction to evaluate, not an accepted root cause: detect an
+unavailable network or an unwritable .git in the actual publishing process,
+retain the pending state, and defer synchronization to an eligible supervisor
+or later retry instead of repeatedly appending the same failure. DNS failures
+alone do not prove sandbox denial. Preserve a visible pending-publication
+state, actionable recovery, strict caller semantics, and uncertain-push
+handling; a deferred write must never be reported as successfully published.
+
+The broader log-format defect (multiline Git stderr becoming orphan audit
+lines) is tracked separately in keep-multiline-audit-messages-on-one-log-line.
+The existing recover-when-local-main-carries-hand-commits-of-co ticket owns
+recovery when local state is already on control; use that implementation rather
+than introducing another realignment path here.
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

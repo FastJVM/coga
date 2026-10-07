@@ -7,6 +7,13 @@ workflow: null
 
 ## Description
 
+**Scope expanded by the owner on 2026-10-07:** cover all ticket authors and
+creation paths, not just autofix. Prevent required ticket intent from silently
+vanishing at H2 boundaries, and add at least an actionable validate warning
+for unsupported body sections even when Description starts with nonempty prose.
+Keep this existing ref and its earlier evidence; the title reflects its original
+autofix report.
+
 Most autofix tickets launch with an empty or truncated Description. The
 agent picking one up never sees the analyst's diagnosis, evidence, or fix
 outline. The analyst writes its body with `##` headings (`## What broke`,
@@ -26,7 +33,41 @@ Done when a newly generated autofix ticket composes its full analyst body into
 the `task_description` layer (`coga launch <slug> --prompt-report`) whatever
 headings the analyst chose, and a test pins that.
 
+Additional acceptance criteria for the broader scope:
+
+- Reproduce a manually authored ticket containing Description, Context,
+  Acceptance Criteria and Proposed Shape, plus an H2 after introductory
+  Description prose. Assert on actual composed text, not merely layer counts.
+- Ensure omitted intent cannot pass validation silently: at minimum name each
+  unsupported heading and explain the repair. Empty-description alone is not
+  sufficient. Account for fenced Markdown examples, blackboard contents, and
+  deliberately separate operational sections such as legacy PR preparation.
+- Choose and document whether additional intent sections compose or authors
+  must move them under supported sections; preserve the separation of ticket
+  intent from operational/PR material. Do not blindly include every H2.
+- Retain the original autofix full-body acceptance case. An autofix-only
+  heading normalizer does not satisfy the expanded ticket.
+- Update the owning ticket/composition contracts, validator guidance, affected
+  authoring instructions, and packaged twins; pin the behavior with focused
+  composer, validator, and autofix regressions.
+
 ## Context
+
+### Additional report — 2026-10-07
+
+Another AI, relayed by the owner, created a ticket with Acceptance Criteria
+and Proposed Shape and reports that only Description, Context, and blackboard
+were represented by --prompt-report, while validate said “All good.” An H2
+inside Description also truncated that section. Intake confirms the current
+`compose._extract_section` boundary and the documented two-section contract;
+the supplied manual reproduction itself has not been rerun here. A layer report
+is not a full prompt dump, so verify omissions against composed text.
+
+Read coga/tickets (`docs/contexts/coga/tickets/SKILL.md`, Body regions) and
+coga/prompt-composition (`docs/contexts/coga/prompt-composition/SKILL.md`), cited
+rather than attached because they are editing targets. The original options
+below describe the narrower September autofix proposal; they are insufficient
+on their own for the expanded scope and do not waive the validator warning.
 
 ### Mechanism (verified against `origin/main` c2268b05, 2026-09-22)
 
