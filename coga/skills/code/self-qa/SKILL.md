@@ -141,3 +141,21 @@ this step just makes sure the diff they see is already clean.
   `coga/recurring/` *before* running a `coga` command on the feature branch.
   See [coga/internals/state-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/state-publication/SKILL.md),
   "Pre-review state publication hazard".
+- **Judge scope against control's ticket, not the branch's.** The feature
+  checkout's copy of the ticket predates any owner clarification published
+  on control after the branch was cut, and a reviewer that orients in the
+  checkout reads that stale copy. One `codex review` proposed moving a new
+  context into the architecture entrypoint because the pre-clarification
+  ticket allowed it; the current acceptance criteria forbade exactly that.
+  Read the ticket with `git show origin/main:<task path>` before acting on a
+  scope or placement finding. Reject a finding that stands only against the
+  older text, and say why in `## Self-QA`.
+- **Keep only the code edits a review or `/simplify` pass makes.** A native
+  pass may orient by running `coga` in the feature checkout and leave edits
+  in `coga/log.md`, ticket files, or other Coga state. One simplifier made
+  Coga-local and log edits that were discarded, and one review left unique
+  failed-sync diagnostics in the checkout's audit log. After each pass, run
+  `git status --porcelain --untracked-files=all` and commit no `coga/tasks/**`
+  or `coga/log.md` path. Discard a path only when control already has it;
+  otherwise preserve it outside the branch, for example in a named stash,
+  and record where under `## Self-QA`.
