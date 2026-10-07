@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
-launch_generation: f780d6a3-de29-44c3-a205-a4035f1517d7
 ---
 
 ## Description
@@ -212,3 +211,11 @@ Task: `marketing/fix-installer/affordable-macos-testing-on-owned-macs-and-per-mi
 Recorded: 2026-10-07T18:28:15+00:00
 
     Branch 'owned-mac-clean-install' is not safe to publish. refs/heads/owned-mac-clean-install does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Reconcile it and relaunch, or `coga block --task marketing/fix-installer/affordable-macos-testing-on-owned-macs-and-per-min`.
+
+## Open PR (2026-10-07)
+
+First `coga open-pr` refused (branch stale vs origin/main). Rebased onto
+origin/main → tip `812ff1b92`, force-with-lease pushed. Full suite: 3284
+passed, 1 failed — `test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`,
+which fails identically on unmodified origin/main `a306c4b26` (pre-existing,
+unrelated). Opened https://github.com/FastJVM/coga/pull/976.
