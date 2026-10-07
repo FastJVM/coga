@@ -23,8 +23,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 agent: claude
-step: 3 (open-pr)
-launch_generation: dfc2443d-eebc-49f2-b365-7f227e159910
+step: 4 (review)
 ---
 
 ## Description
