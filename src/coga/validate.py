@@ -58,6 +58,7 @@ from coga.blackboard import (
     prelaunch_blackboard_synthesis_reason,
     render_blackboard,
 )
+from coga.dependency_asks import dead_dependency_asks
 from coga.config import (
     Config,
     ConfigError,
@@ -247,6 +248,7 @@ def run(
         )
 
     report.issues.extend(_check_task_numbering(refs))
+    report.issues.extend(_check_dead_dependencies(cfg, refs))
     report.issues.extend(_check_recurring_templates(cfg))
     report.issues.extend(_check_shebang_executables(cfg))
 
@@ -1176,6 +1178,26 @@ def _check_task_numbering(refs: list[TaskRef]) -> list[Issue]:
                 severity="warn",
             ))
     return out
+
+
+def _check_dead_dependencies(cfg: Config, refs: list[TaskRef]) -> list[Issue]:
+    """Warn on an open `Depends on <ref>` ask that can never drain itself.
+
+    The megalaunch drain retries a dependent only when the named task is
+    `done` or disappears mid-run, so an ask naming a canceled, renamed, or
+    already-retired task stays open with nothing to finish it
+    (`coga.dependency_asks`). The repair is the dependent owner's judgment,
+    so this only reports it.
+    """
+    return [
+        Issue(
+            kind="dead-dependency",
+            task=dead.dependent,
+            message=f"blocker {dead.blocker_id}: {dead.remedy()}",
+            severity="warn",
+        )
+        for dead in dead_dependency_asks(cfg, refs)
+    ]
 
 
 def _check_recurring_templates(cfg: Config) -> list[Issue]:

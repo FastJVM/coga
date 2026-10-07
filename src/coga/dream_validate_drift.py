@@ -373,6 +373,21 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
+    if kind == "dead-dependency":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_HUMAN_NEEDED,
+            remediation=(
+                "A `Depends on <ref>` ask names a canceled, renamed, or "
+                "already-retired task, so the megalaunch drain will never "
+                "retry it. Ask the dependent's owner to answer the ask and, "
+                "if work still waits, re-block on the real dependency (the "
+                "message names any logged successor). Do not rewrite the ask "
+                "for them: a successor may not cover what the dependent "
+                "needed."
+            ),
+        )
+
     if kind == "recurring-state-stuck":
         return ClassifiedIssue(
             issue=issue,

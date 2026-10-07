@@ -24,7 +24,8 @@ The repo separates implementation from the OS it operates:
 - `config.py` (shared/local TOML, fixed schema), `compose.py` (prompt layers),
   `tasks.py` / `taskfile.py` / `blackboard.py` (ticket IO),
   `workflow.py` / `bump.py` / `step_gate.py` / `mark.py` (steps, gates,
-  status), `validate.py` (`coga validate`).
+  status), `validate.py` (`coga validate`), `dependency_asks.py` (dead
+  `Depends on` asks, for validate and `mark canceled`).
 - `git.py`: the whole Git sync layer (`publish`, `refresh`,
   `prepare_control_checkout`, `state_lock`, public plumbing). Contract in [coga/sync](../sync/SKILL.md).
 - `runner.py`: the fixed `coga run` registry; recipes live in focused modules

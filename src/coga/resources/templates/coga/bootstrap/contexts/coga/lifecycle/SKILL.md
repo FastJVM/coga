@@ -138,6 +138,19 @@ status and reminders show the ask, and the
 `done` or retired. It is not a general dependency graph or a `dependencies:`
 field, and cancellation does not count as completion.
 
+A dependency ask whose named task is canceled, renamed or deleted (the slug
+no longer resolves), or finished and retired before a run saw it go, can
+never drain on its own. Coga reports these and never rewrites them, because
+whether a successor covers what B needed is B's owner's call:
+`coga mark canceled <A>` lists each live dependent it stranded, and
+`coga validate` warns `dead-dependency` on every such open ask (Dream's weekly
+validate-drift routes it as human-needed). The repair is
+`coga unblock <B> --answer "..."`, then, if work still waits,
+`coga block --task <B> --reason "Depends on <successor>: ..."`. A cancel
+reason starting `Superseded by <new>` supplies the successor the report
+names. Only the `Depends on <ref>` spelling is recognized; prose mentions of a
+canceled ticket in bodies and topics remain Dream's knowledge-scan territory.
+
 When a newer ticket supersedes an older one, use
 `coga mark canceled <old> --message "Superseded by <new>"`, with the successor's
 exact path-qualified slug. The cancellation reason starts with `Superseded by `;

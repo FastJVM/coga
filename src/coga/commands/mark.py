@@ -19,6 +19,7 @@ import typer
 from coga import git, pr_assist
 from coga.commands.common import completion_identity
 from coga.config import Config, ConfigError, load_config
+from coga.dependency_asks import dead_dependency_asks
 from coga.lifecycle import CANCELABLE_STATUSES
 from coga.mark import (
     BlackboardNeedsSynthesis,
@@ -35,7 +36,13 @@ from coga.mark import mark_done as _mark_done
 from coga.mark import mark_paused as _mark_paused
 from coga.repl_supervisor import emit_done_marker
 from coga.notification import preflight_post
-from coga.tasks import TaskNotFoundError, TaskRef, read_ticket, resolve_task
+from coga.tasks import (
+    TaskNotFoundError,
+    TaskRef,
+    list_tasks,
+    read_ticket,
+    resolve_task,
+)
 from coga.validate import TaskValidationError
 from coga.workflow import WorkflowError
 
@@ -248,12 +255,36 @@ def canceled(
     except (CancellationError, TaskValidationError) as exc:
         _bail(str(exc))
 
+    _echo_stranded_dependents(cfg, ref.id_slug)
+
     # Cancellation is terminal and can happen from inside a launched agent
     # session. Release the same supervisor sentinel as `mark done` / `block`.
     emit_done_marker(session_id=ref.id_slug)
 
 
 # --- helpers -----------------------------------------------------------------
+
+
+def _echo_stranded_dependents(cfg: Config, slug: str) -> None:
+    """List live tickets whose `Depends on <slug>` ask this cancel stranded.
+
+    Read-only and best-effort: a cancel never counts as completion, so each
+    listed ask stays open until its owner answers or re-points it. The cancel
+    has already been written; a failed scan must not turn it into an error.
+    """
+    try:
+        stranded = dead_dependency_asks(cfg, list_tasks(cfg), targets={slug})
+    except Exception:  # noqa: BLE001 - advisory output only
+        return
+    if not stranded:
+        return
+    typer.echo(
+        f"{len(stranded)} open dependency ask(s) named {slug} and will not "
+        "drain on their own:"
+    )
+    for dead in stranded:
+        typer.echo(f"  - {dead.dependent} (blocker {dead.blocker_id}): {dead.remedy()}")
+
 
 
 def _load(task: str):
