@@ -7801,3 +7801,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-07 15:39 [skip-inactive-repo-recurring-templates-without-str] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-07 15:40 [skip-inactive-repo-recurring-templates-without-str] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-07 15:40 [skip-inactive-repo-recurring-templates-without-str] [megalaunch] launched via coga megalaunch
+2026-10-07 15:40 [marketing/fix-installer/affordable-macos-testing-on-owned-macs-and-per-min] [human:nicktoper] paused (in_progress → paused) — Owner deferred macOS testing until a test environment is deployed. Keep the ticket and implementation branch; close PR #976 without merging.

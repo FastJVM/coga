@@ -1,6 +1,6 @@
 ---
 title: Affordable macOS testing on owned Macs and per-minute CI
-status: in_progress
+status: paused
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -47,6 +47,21 @@ Sources: https://aws.amazon.com/ec2/instance-types/mac/faqs/ ; https://docs.gith
 Outstanding AWS cleanup belongs to PR #943 and must not wait for this ticket: host h-0833c01ac15e645ac in us-east-1 was still allocated, state available with no instances, at 2026-10-01T19:29:20Z. Earliest release is 2026-10-01T23:28:57Z (4:28:57 PM Pacific). Confirm actual host release separately; stopping or terminating the instance does not stop host billing. Do not allocate more AWS resources to implement this ticket without specific spend approval.
 
 ## Context
+
+### Owner hold — 2026-10-07
+
+The owner has not yet deployed a macOS test environment and wants to retain
+this work as a ticket rather than proceed with PR #976. Pause the ticket and
+close the PR without merging; preserve the implementation on
+`owned-mac-clean-install` (reported PR head
+`812ff1b92a226ac3adf5aa98bed0d22589bde594`) and the existing test history.
+This is deferred work, not canceled or delivered work.
+
+Resume when the owner provides a deployed macOS test target and SSH access.
+Reconcile the saved branch with current main, run the applicable checks and
+live owned-Mac install/reset/cleanup verification, and refresh the evidence
+before reopening or replacing the PR. Stubbed SSH and earlier Python test
+results do not establish that live macOS deployment was exercised.
 
 <!-- coga:blackboard -->
 
