@@ -1,6 +1,6 @@
 ---
 title: Document the macOS Command Line Tools prerequisite
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:78ff9271-79de-4442-b880-fac5f3d20fc5
 ---
 
 ## Description
