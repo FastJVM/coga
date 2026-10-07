@@ -7710,3 +7710,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-06 21:55 [repair-ticket-referents-when-a-referent-is-renamed] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-06 21:55 [repair-ticket-referents-when-a-referent-is-renamed] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-06 21:55 [repair-ticket-referents-when-a-referent-is-renamed] [megalaunch] launched via coga megalaunch
+2026-10-06 22:04 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
