@@ -1,6 +1,6 @@
 ---
 title: Offer agent CLI install and setup at init
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 agent: claude
 step: 1 (implement)
+launch_generation: pending:c8c6918e-655d-47a1-becd-d170d3039c3f
 ---
 
 ## Description
