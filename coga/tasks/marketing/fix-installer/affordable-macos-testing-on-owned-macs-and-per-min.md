@@ -1,6 +1,6 @@
 ---
 title: Affordable macOS testing on owned Macs and per-minute CI
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:32720b0a-6d42-48fe-9e73-13cd60f46e44
 ---
 
 ## Description
