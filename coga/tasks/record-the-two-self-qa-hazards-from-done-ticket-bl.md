@@ -54,3 +54,13 @@ Moved from FastJVM/multiply on 2026-09-24: filed there by Dream/autofix against 
 
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+- branch: `self-qa-stale-ticket-and-state-side-effects`
+
+## Agent-produces (2026-10-06)
+
+Plan: carrier is the existing `code/self-qa` skill (no new skill). Add two
+Gotchas bullets, byte-identical in `coga/skills/code/self-qa/SKILL.md` and the
+packaged twin `src/coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md`.
