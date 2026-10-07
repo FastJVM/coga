@@ -8,7 +8,10 @@ description: Configuring agent types under `[agents.*]`, the shared-versus-local
 An agent type is a named `[agents.<name>]` table. Tickets name types directly
 in `agent:` (no per-user nickname layer), and `Config.agent_type` fails loud
 on an undefined name. The first declared type is the default for new tickets
-(`Config.default_agent`), so a team lists its default first.
+(`Config.default_agent`), so a team lists its default first. Interactive
+`coga init` may move one first in the `coga.toml` it creates, behind an
+explicit confirm, when the agent CLI it just installed or found is not the
+packaged default ([coga/init](../init/SKILL.md)).
 
 ## Keys (`src/coga/config.py` `AgentType`)
 

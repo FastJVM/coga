@@ -34,6 +34,8 @@ The repo separates implementation from the OS it operates:
   `service_order.py` (drain), `recurring_runner.py`, `recurring_autofix.py`.
 - `branchcleanup.py` (per-checkout proofs), `checkout_disposal.py` (claim and
   disposal order), `retire_worklist.py` (`retires.md`).
+- `dependencies.py` (external CLI manifest) and `agent_cli_setup.py` (agent
+  CLI install and login offer, for `coga init` and `coga build`).
 - `skill_manager.py` (`coga skill`), `notification/`,
   `text.py` (shared ANSI stripper), `reminders.py` (sweep harness for
   downstream scripts).

@@ -4213,6 +4213,62 @@ def test_launch_agent_not_in_path(active_task: Path, monkeypatch: pytest.MonkeyP
     assert "https://claude.com/claude-code" in combined
 
 
+@pytest.mark.parametrize("slug", ["coga-build", "fix-retry-logic"])
+def test_launch_offers_agent_cli_install_only_for_build(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch, slug: str
+) -> None:
+    """`coga build` (the onboarding launch) offers to install and log in a
+    missing agent CLI; every other launch keeps the plain not-found error."""
+    create_task(
+        cfg=load_config(active_task),
+        title="coga-build",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: None)
+    offered: list[str] = []
+    monkeypatch.setattr(
+        "coga.commands.launch.offer_agent_cli",
+        lambda name: offered.append(name) or False,
+    )
+    result = CliRunner().invoke(app, ["launch", slug])
+    assert result.exit_code == 2
+    assert "not found in PATH" in result.output + (result.stderr or "")
+    assert offered == (["claude"] if slug == "coga-build" else [])
+
+
+def test_launch_build_continues_once_agent_cli_installed(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    create_task(
+        cfg=load_config(active_task),
+        title="coga-build",
+        workflow_name="direct/body",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="active",
+    )
+    calls = _launch_single_spawn(monkeypatch)
+    installed: set[str] = set()
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}" if name in installed else None,
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.offer_agent_cli",
+        lambda name: installed.add(name) or True,
+    )
+    result = CliRunner().invoke(app, ["launch", "coga-build"])
+    assert result.exit_code == 0, result.output
+    assert "found agent CLI at /usr/bin/claude" in result.output
+    assert calls and calls[0][0] == "claude"
+
+
 def test_launch_warns_for_large_blackboard(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,

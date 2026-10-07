@@ -123,7 +123,8 @@ When the work teaches you something worth keeping, you decide what should change
 
 Coga needs Python 3.11+, Git, and an authenticated
 [Claude Code](https://claude.com/claude-code) or
-[Codex](https://github.com/openai/codex) CLI.
+[Codex](https://github.com/openai/codex) CLI; in a terminal, `coga init`
+offers to install and log in whichever agent CLI you pick.
 
 ```sh
 uv tool install coga            # or: python -m pip install coga

@@ -2520,6 +2520,7 @@ def test_running_cli_location_detects_pipx_when_python_is_a_symlink(
 # the module attributes, so these tests exercise the real implementation.
 _real_require_tools = init_cmd._require_init_tools
 _real_offer_tools = init_cmd._offer_optional_tools
+_real_offer_agent = init_cmd._offer_agent_cli
 
 
 def _real_dep_check() -> None:
@@ -2813,6 +2814,151 @@ def test_init_offers_optional_tools_once_preflight_passes(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
     assert offers == ["gh", "op"]
+
+
+def _agent_picker(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    have: set[str],
+    pick: str = "",
+    answers: list[bool] = (),
+    installs: bool = True,
+) -> list[str]:
+    """Fake a terminal with the agent CLIs in `have`; returns install offers.
+
+    `pick` answers the picker and `answers` feed the confirm prompts."""
+    present = set(have)
+    offered: list[str] = []
+    monkeypatch.setattr(init_cmd, "_interactive", lambda: True)
+    monkeypatch.setattr(
+        "coga.commands.init.shutil.which",
+        lambda name: f"/usr/bin/{name}" if name in present else None,
+    )
+    monkeypatch.setattr("coga.commands.init.typer.prompt", lambda *a, **kw: pick)
+    prompts = iter(answers)
+    monkeypatch.setattr(
+        "coga.commands.init.typer.confirm", lambda *a, **kw: next(prompts)
+    )
+
+    def offer(name: str) -> bool:
+        offered.append(name)
+        if installs:
+            present.add(name)
+        return installs
+
+    monkeypatch.setattr(init_cmd, "offer_agent_cli", offer)
+    return offered
+
+
+def test_agent_offer_installs_the_picked_cli_and_makes_it_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    offered = _agent_picker(monkeypatch, have=set(), pick="codex", answers=[True])
+    assert _real_offer_agent("claude") == "codex"
+    assert offered == ["codex"]
+
+
+def test_agent_offer_keeps_the_default_when_declined(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _agent_picker(monkeypatch, have=set(), pick="codex", answers=[False])
+    assert _real_offer_agent("claude") is None
+
+
+def test_agent_offer_skip_installs_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    offered = _agent_picker(monkeypatch, have=set(), pick="skip")
+    assert _real_offer_agent("claude") is None
+    assert offered == []
+
+
+def test_agent_offer_failed_install_changes_no_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _agent_picker(monkeypatch, have=set(), pick="codex", installs=False)
+    assert _real_offer_agent("claude") is None
+
+
+def test_agent_offer_asks_nothing_when_the_default_is_installed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    offered = _agent_picker(monkeypatch, have={"claude"})
+    assert _real_offer_agent("claude") is None
+    assert offered == []
+
+
+def test_agent_offer_proposes_the_only_installed_cli_as_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    offered = _agent_picker(monkeypatch, have={"codex"}, answers=[True])
+    assert _real_offer_agent("claude") == "codex"
+    assert offered == []
+
+
+def test_agent_offer_on_a_clone_never_changes_the_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A clone's coga.toml is committed team config: install only."""
+    offered = _agent_picker(monkeypatch, have=set(), pick="codex")
+    assert _real_offer_agent(None) is None
+    assert offered == ["codex"]
+
+
+def test_agent_offer_never_prompts_without_a_tty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    offered = _agent_picker(monkeypatch, have=set())
+    monkeypatch.setattr(init_cmd, "_interactive", lambda: False)
+    assert _real_offer_agent("claude") is None
+    assert offered == []
+
+
+def test_make_default_agent_reorders_the_packaged_coga_toml(tmp_path: Path) -> None:
+    """The default agent is the first-declared `[agents.*]` table; moving one
+    first keeps every table's comments and the config otherwise unchanged."""
+    coga_toml = tmp_path / "coga.toml"
+    original = (
+        update_cmd.packaged_template_root().joinpath("coga.toml").read_text()
+    )
+    coga_toml.write_text(original)
+
+    assert init_cmd._make_default_agent(coga_toml, "codex")
+
+    text = coga_toml.read_text()
+    assert list(tomllib.loads(text)["agents"]) == ["codex", "claude"]
+    assert tomllib.loads(text) == tomllib.loads(original)
+    assert sorted(text.splitlines()) == sorted(original.splitlines())
+    # Section comments stay where they were; claude's own comments move with it.
+    assert text.index("# --- Agents ---") < text.index("[agents.codex]")
+    assert text.index("[agents.claude]") < text.index("# `discussion` rides")
+    assert text.index("# `discussion` rides") < text.index(
+        "# --- Notification channels ---"
+    )
+    assert init_cmd._make_default_agent(coga_toml, "codex")  # already first
+    assert not init_cmd._make_default_agent(coga_toml, "unknown")
+
+
+def test_init_writes_the_chosen_default_agent(
+    tmp_path: Path, fake_vendor, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = _make_git_repo(tmp_path / "repo")
+    defaults: list[str | None] = []
+
+    def offer(default_agent: str | None) -> str:
+        defaults.append(default_agent)
+        assert not (target / "coga").exists()  # chosen before any write
+        return "codex"
+
+    monkeypatch.setattr(init_cmd, "_offer_agent_cli", offer)
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    assert defaults == ["claude"]
+    assert load_config(target / "coga").default_agent().name == "codex"
+    onboarding = Ticket.read(target / "coga" / "tasks" / "coga-build.md")
+    assert onboarding.frontmatter["agent"] == "codex"
+    assert "Made `codex` the default agent" in result.output
+    assert "Run `coga build` with Codex" in result.output
+    assert "`coga build --agent claude` with Claude Code" in result.output
 
 
 def test_init_bails_before_scaffolding_when_required_dep_missing(

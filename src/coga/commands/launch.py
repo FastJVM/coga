@@ -32,6 +32,7 @@ from uuid import uuid4
 import typer
 
 from coga import usage as usage_tracking
+from coga.agent_cli_setup import offer_agent_cli
 from coga.aliases import ONBOARDING_TASK
 from coga.agent_skills import refresh_agent_skill_view
 from coga.autoclose import parse_branch_name, parse_pr_url, parse_worktree_path
@@ -1551,8 +1552,16 @@ def _launch(
             f"(cli={agent.cli})"
         )
 
-        # Verify CLI binary exists.
+        # Verify CLI binary exists. `coga build` is a new user's first launch,
+        # so it offers the install and login (the TTY is proven above) rather
+        # than failing on a missing agent CLI.
         agent_path = shutil.which(agent.cli)
+        if (
+            agent_path is None
+            and ref.id_slug == ONBOARDING_TASK
+            and offer_agent_cli(agent.cli)
+        ):
+            agent_path = shutil.which(agent.cli)
         if agent_path is None:
             _bail(agent_cli_missing_message(agent.cli))
         typer.echo(f"Launch: found agent CLI at {agent_path}")

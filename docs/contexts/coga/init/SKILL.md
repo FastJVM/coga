@@ -81,7 +81,16 @@ external CLIs: in an interactive terminal it offers to install a missing
 `git` when the `git` precondition is reached, and a missing `gh` or `op` and
 `gh auth login` only once every precondition has passed, before scaffolding.
 Each runs only on a yes ([coga/install](../install/SKILL.md) owns the
-details), so an invocation that must exit changes nothing on the machine. A
+details), so an invocation that must exit changes nothing on the machine.
+At the same point, with no agent CLI on `PATH`, it asks which agent CLI to
+install (`claude`, `codex`, or skip) and offers its install and login. When
+exactly one agent CLI is then on `PATH` and it is not the packaged default
+(`claude`), init asks whether to make it the default agent; on a yes it moves
+that `[agents.*]` table first in the new `coga.toml` (the first-declared
+type is the default, see [coga/agents](../agents/SKILL.md)) and repoints
+delivered tickets naming the old default, such as the onboarding ticket's
+`agent:`, all before the commit. A reorder that would not parse back to the
+same config is skipped with a warning. A
 non-interactive init never prompts, installs nothing and stays offline. The printed next steps are: put `coga` on `PATH` if it is missing;
 edit `coga.toml`; install an agent CLI; then `coga build` (empty repo) or
 `coga ticket "<title>"` (filled repo).
@@ -106,7 +115,8 @@ TOML, so other keys, nested tables and comments survive; `user` is a
 top-level key, and table entries also named `user` are left alone. An
 unparseable local file is a hard error. Without `--user` it fails naming the
 flag. Only after these checks and the `git` ones does it make the same install
-offers as a fresh init. Once `user` is set, re-running init is refused with the upgrade menu:
+offers as a fresh init, except that it never changes the default agent: the
+committed `coga.toml` is team config. Once `user` is set, re-running init is refused with the upgrade menu:
 upgrade via the owning installer, fix or remove a broken `coga/`, or
 `coga uninstall`.
 
