@@ -41,7 +41,11 @@ def install_env(tmp_path: Path, monkeypatch) -> dict[str, str]:
     # Keep the host's installed coga out of PATH; only installation exposes it.
     for name in ("bash", "git", "mkdir", "tee"):
         (bin_dir / name).symlink_to(shutil.which(name))
-    (bin_dir / "python3").symlink_to(sys.executable)
+    # The pinned interpreter reports a version without running a real Python.
+    _executable(bin_dir / "python3.11", """
+        #!/bin/sh
+        printf '%s\\n' "${COGA_TEST_PYTHON_VERSION:-3.11.9}"
+    """)
     _executable(bin_dir / "id", "#!/bin/sh\nprintf '1000\\n'\n")
     stub = tmp_path / "coga-stub"
     _executable(stub, """
@@ -57,6 +61,11 @@ def install_env(tmp_path: Path, monkeypatch) -> dict[str, str]:
     """)
     _executable(bin_dir / "uv", """
         #!/bin/sh
+        if [ "$1 $2" = 'python find' ]; then
+            [ "$3" = 3.11 ] || exit 21
+            printf '%s\\n' "$COGA_TEST_BIN/python3.11"
+            exit
+        fi
         if [ "$1" = tool ] && [ "$2" = install ]; then
             [ "${COGA_TEST_FAIL:-}" != install ] || exit 17
             /bin/ln -s "$COGA_TEST_STUB" "$COGA_TEST_BIN/coga"
@@ -64,6 +73,8 @@ def install_env(tmp_path: Path, monkeypatch) -> dict[str, str]:
         printf 'uv stub: %s\\n' "$*"
     """)
     monkeypatch.setenv("PATH", str(bin_dir))
+    monkeypatch.setenv("UV_PYTHON", "3.11")
+    monkeypatch.setenv("UV_PYTHON_DOWNLOADS", "never")
     monkeypatch.setenv("COGA_TEST_STUB", str(stub))
     monkeypatch.setenv("COGA_TEST_BIN", str(bin_dir))
     return dict(os.environ)
@@ -92,7 +103,10 @@ def test_clean_install_reaches_init_from_selected_artifact(
     assert "PASS\tcoga init --user first-user" in steps
     assert "PASS\tcoga --version" in steps
     assert steps.splitlines()[-1] == "PASS\tcoga validate --json "
-    assert ("uv tool install coga " in steps) == (mode == "pypi")
+    assert f"PASS\tcheck_python {install_env['COGA_TEST_BIN']}/python3.11" in steps
+    assert "uv tool install --python 3.11 " in steps
+    assert ("uv tool install --python 3.11 coga " in steps) == (mode == "pypi")
+    assert "Python 3.11.9 at " in (evidence / "transcript.txt").read_text()
     if mode == "wheel":
         assert "coga-1.0-py3-none-any.whl" in steps
         assert "checksum" in steps
@@ -112,6 +126,33 @@ def test_clean_install_preserves_failure_and_stops(
     assert "FAIL (exit 17)" in steps
     assert failed_command in steps.splitlines()[-1]
     assert not (evidence / "init-passed.txt").exists()
+
+
+@pytest.mark.parametrize(
+    "unpinned", [{"UV_PYTHON": ""}, {"UV_PYTHON_DOWNLOADS": "automatic"}],
+)
+def test_clean_install_refuses_unpinned_python(
+    install_env: dict[str, str], unpinned: dict[str, str],
+) -> None:
+    result = _run({**install_env, **unpinned}, "pypi", "first-user")
+    assert result.returncode == 2
+    assert "Pin uv to Python 3.11" in result.stderr
+    assert not (Path(install_env["HOME"]) / "clean-install").exists()
+
+
+def test_clean_install_refuses_other_python_before_install(
+    install_env: dict[str, str],
+) -> None:
+    # macOS's /usr/bin/python3 after the Command Line Tools install.
+    install_env["COGA_TEST_PYTHON_VERSION"] = "3.9.6"
+    result = _run(install_env, "pypi", "first-user")
+    assert result.returncode == 2
+    evidence = Path(install_env["HOME"]) / "clean-install/evidence"
+    transcript = (evidence / "transcript.txt").read_text()
+    assert "Python 3.9.6 is not the required 3.11" in transcript
+    steps = (evidence / "steps.txt").read_text()
+    assert steps.splitlines()[-1].startswith("FAIL (exit 2)\tcheck_python ")
+    assert "uv tool install" not in steps
 
 
 def test_clean_install_refuses_reuse(install_env: dict[str, str]) -> None:
@@ -382,3 +423,51 @@ def test_aws_mac_main_walk_without_gnu_checksum(
     assert "portable-checksum" in result.stdout
     assert "macos-walk.sh walk wheel" in calls.read_text()
     assert "origin/main=" in (evidence / "walks/walk1/source.txt").read_text()
+
+
+def test_macos_walk_provisions_and_pins_python_311(tmp_path: Path, monkeypatch) -> None:
+    walk_dir = tmp_path / "coga-clean-install"
+    walk_dir.mkdir()
+    shutil.copyfile(ROOT / "scripts/clean-install/macos-walk.sh", walk_dir / "macos-walk.sh")
+    calls = tmp_path / "calls.txt"
+    # Stand-in for the shared walk: record the interpreter pins it receives.
+    _executable(walk_dir / "container.sh", f"""
+        #!/bin/sh
+        echo "container.sh $* UV_PYTHON=$UV_PYTHON UV_PYTHON_DOWNLOADS=$UV_PYTHON_DOWNLOADS" >> {calls}
+    """)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for name in ("bash", "dirname", "sh", "touch"):
+        (bin_dir / name).symlink_to(shutil.which(name))
+    created = tmp_path / "user-created"
+    _executable(bin_dir / "id", f"#!/bin/sh\n[ -e {created} ]\n")
+    _executable(bin_dir / "sysadminctl", f"#!/bin/sh\ntouch {created}\n")
+    _executable(bin_dir / "createhomedir", "#!/bin/sh\n")
+    # sudo -H -u USER /bin/zsh -lc SCRIPT ARGS... runs SCRIPT in bash here.
+    _executable(bin_dir / "sudo", """
+        #!/bin/sh
+        if [ "$1" = -H ]; then
+            shift 5
+            exec bash -c "$@"
+        fi
+        exec "$@"
+    """)
+    _executable(bin_dir / "curl", "#!/bin/sh\necho true\n")
+    _executable(bin_dir / "uv", f"""
+        #!/bin/sh
+        echo "uv $* UV_PYTHON=${{UV_PYTHON:-}}" >> {calls}
+    """)
+    monkeypatch.setenv("PATH", str(bin_dir))
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    (tmp_path / "home").mkdir()
+    monkeypatch.delenv("UV_PYTHON", raising=False)
+    monkeypatch.delenv("UV_PYTHON_DOWNLOADS", raising=False)
+    result = subprocess.run(
+        ["bash", str(walk_dir / "macos-walk.sh"), "walk", "pypi", "installer", "walk1", "pw"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert calls.read_text().splitlines() == [
+        "uv python install 3.11 UV_PYTHON=",
+        "container.sh pypi installer UV_PYTHON=3.11 UV_PYTHON_DOWNLOADS=never",
+    ]
