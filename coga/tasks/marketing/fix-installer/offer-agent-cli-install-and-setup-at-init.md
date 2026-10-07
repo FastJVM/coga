@@ -24,7 +24,7 @@ workflow:
     assignee: owner
 agent: claude
 step: 1 (implement)
-launch_generation: pending:c8c6918e-655d-47a1-becd-d170d3039c3f
+launch_generation: c8c6918e-655d-47a1-becd-d170d3039c3f
 ---
 
 ## Description
