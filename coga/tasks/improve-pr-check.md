@@ -155,6 +155,8 @@ Actual implementing agent: Codex (session identity; ticket's configured `claude`
 - Visual check: generated this ticket's PR markdown through GitHub's Markdown API, then inspected local Chromium previews at 1280px and 600px widths, plus the expanded ticket at 1280px. Rationale appeared first, all paths/checks were visible, and the literal ticket was isolated in the collapsible section. This was a local rendering of GitHub-produced HTML, not a live GitHub-page interaction. Initial previews predate the follow-up fixes. Re-rendered the final prepared body through GitHub’s Markdown API and inspected a 1280px Chromium capture: the current review/check receipts, all 15 paths and collapsed ticket are legible.
 - Final combined branch committed and pushed; checkout returned to main. Existing PR is #975. Recommendation remains **deep** because this changes publication evidence and overwrite behavior. Current ticket is already at the owner-controlled review gate; do not bump or close it without an explicit owner instruction.
 
+- Publication freshness follow-up: the first refresh refused before editing because main gained branch-cleanup changes. Rebased again without conflicts and repeated verification. The final published head is `b94e40e6d91322b545a72976830d04ab8705dcda`, base `0ff6bf7d43673ec7f1485d2fe400871a255d5c7c`. `codex review --base origin/main` **returned**, exit 0, no actionable regressions (separate gpt-6-astra session `01a117c1-3c1e-7271-83a5-51a2e0bb779f`; 119 focused tests passed). The full absolute-PYTHONPATH suite passed **3324 tests in 348.91s (0:05:48)**; example validation again reported 4 valid items/no issues, and diff whitespace check passed. These are new receipts for the rebase, superseding the earlier final-head receipts above.
+
 ## PR
 
 ```yaml
@@ -162,11 +164,11 @@ title: Show PR review depth and preserve human edits on reruns
 author: codex
 author_evidence: Codex implemented the feature and this follow-up; Claude Opus 5.5 supplied the concurrent
   peer-review fixes, which were preserved. Identities come from the actual sessions, not ticket assignments.
-head: dbe8ddf1fe8311962a72486bbca262cfdb066a05
-base: 992ac36fc4320a2c84f05c2b247b1a0562c98b79
+head: b94e40e6d91322b545a72976830d04ab8705dcda
+base: 0ff6bf7d43673ec7f1485d2fe400871a255d5c7c
 depth: deep
 rationale: Changes PR publication evidence and protection of human edits. A separate Codex review returned
-  with no actionable regressions on this revision and all 3320 tests passed; inspect the diff because publication
+  with no actionable regressions on this revision and all 3324 tests passed; inspect the diff because publication
   and overwrite behavior are consequential.
 implementation: Turn structured PR preparation into an advisory title showing review depth and actual authors/reviewers,
   with the rationale, implementation, deviations, reasons for every changed file, check receipts and a verbatim
@@ -217,27 +219,27 @@ review:
   reviewer: codex-review
   kind: independent
   status: passed
-  head: dbe8ddf1fe8311962a72486bbca262cfdb066a05
-  base: 992ac36fc4320a2c84f05c2b247b1a0562c98b79
-  detail: 'Separate codex review --base origin/main process (gpt-6-astra, session 01a117ae-3494-7b43-b9ed-326141375d42)
-    returned, exit 0: no actionable regressions. This process did not implement the change; its targeted publication/command/packaging
+  head: b94e40e6d91322b545a72976830d04ab8705dcda
+  base: 0ff6bf7d43673ec7f1485d2fe400871a255d5c7c
+  detail: 'Separate codex review --base origin/main process (gpt-6-astra, session 01a117c1-3c1e-7271-83a5-51a2e0bb779f)
+    returned, exit 0: no actionable regressions. This process did not implement the change; its focused publication/command/packaging
     run passed 119 tests.'
 checks:
 - command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q
   status: passed
-  head: dbe8ddf1fe8311962a72486bbca262cfdb066a05
-  base: 992ac36fc4320a2c84f05c2b247b1a0562c98b79
-  detail: 3320 passed in 333.91s (0:05:33); includes publication, command, packaging twin and existing workflow
-    coverage.
+  head: b94e40e6d91322b545a72976830d04ab8705dcda
+  base: 0ff6bf7d43673ec7f1485d2fe400871a255d5c7c
+  detail: 3324 passed in 348.91s (0:05:48); includes publication, command, packaging twin and existing workflow
+    coverage after rebasing onto the newly merged branch-cleanup changes.
 - command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python
     -m coga.cli validate --json
   status: passed
-  head: dbe8ddf1fe8311962a72486bbca262cfdb066a05
-  base: 992ac36fc4320a2c84f05c2b247b1a0562c98b79
+  head: b94e40e6d91322b545a72976830d04ab8705dcda
+  base: 0ff6bf7d43673ec7f1485d2fe400871a255d5c7c
   detail: 'Run from example/coga: ok_count 4, no issues.'
 - command: git diff --check origin/main...HEAD
   status: passed
-  head: dbe8ddf1fe8311962a72486bbca262cfdb066a05
-  base: 992ac36fc4320a2c84f05c2b247b1a0562c98b79
+  head: b94e40e6d91322b545a72976830d04ab8705dcda
+  base: 0ff6bf7d43673ec7f1485d2fe400871a255d5c7c
   detail: No whitespace errors on the final branch diff.
 ```
