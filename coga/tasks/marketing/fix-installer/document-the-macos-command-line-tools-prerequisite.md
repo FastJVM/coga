@@ -39,6 +39,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/971
 branch: docs/macos-clt-prerequisite
 
 Plan: add a macOS Command Line Tools prerequisite to `coga/install` (canonical + packaged twin, byte-identical), linking the `coga/testing/clean-install/macos-aws` runbook. Docs only; README wording stays with `marketing/readme-top`. Note why `coga init`'s git offer does not help on a fresh Mac: `/usr/bin/git` is a CLT shim, so `shutil.which("git")` in `init._require_init_tools` succeeds.
