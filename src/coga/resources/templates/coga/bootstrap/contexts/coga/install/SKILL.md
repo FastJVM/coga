@@ -30,7 +30,8 @@ that, and offers to install missing external CLIs (see
   Coga's sync layer: state changes are commits.
 - **An agent CLI**, installed and authenticated: Claude Code or Codex. Needed
   by anything that launches an agent (`coga launch`, `coga ticket`,
-  `coga build`); `coga init` does not require one.
+  `coga build`); `coga init` does not require one, but interactive init and
+  `coga build` offer to install one (below).
 - **GitHub CLI (`gh`)**, recommended but not required at init. PR workflows,
   the merged-ticket autoclose sweep, and `coga skill install` check for it at
   their point of use and fail with an install hint.
@@ -46,12 +47,30 @@ with `sudo` on Linux — printing the exact command first. The per-tool
 packages live in `src/coga/dependencies.py`. Without a terminal, a known
 package manager or a package for the tool, init prints the install link
 instead: a missing `git` still stops init, a missing `gh` or `op` is a
-warning. Agent CLIs are not offered; init's next steps name them.
+warning.
+
+Agent CLIs take their own route, shared by interactive `coga init` and
+`coga build` (`src/coga/agent_cli_setup.py` `offer_agent_cli`, with the
+packages and login commands in `src/coga/dependencies.py`). Init, when
+neither `claude` nor `codex` is on `PATH`, asks which to install (or skip);
+`coga build`, when the onboarding ticket's agent CLI is missing, offers that
+one before failing. The installer is the vendor's package, never a
+`curl | sh` script: on macOS the brew cask (`claude-code`, `codex`), else
+`npm install -g @anthropic-ai/claude-code` or `@openai/codex` when `npm` is
+on `PATH`, else only the install URL is printed. The exact command is printed
+and runs only on a yes; a successful install then offers the login (`claude`,
+which signs in on first run, or `codex login`). How init may change the
+default agent is in [coga/init](../init/SKILL.md). Without a terminal,
+neither command prompts.
 
 > Owner reversal (2026-09-30): users read a missing `gh` as a broken,
 > unprofessional install and churn. Interactive `coga init` now offers to
 > install missing external CLIs; it still installs no Python package or
 > skill, and never installs anything without a yes.
+>
+> Owner decision (2026-10-01): agent CLIs are offered too, through brew or
+> npm only, and init may set or replace the default agent behind an explicit
+> confirm.
 
 Coga does not own your identity. It uses tools you already authenticate
 (`git`, your credential helper or `ssh-agent`, `gh`) and fails with an

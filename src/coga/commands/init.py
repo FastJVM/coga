@@ -3,7 +3,8 @@
 `coga init` writes everything from scratch into `<path>/coga/`. Templates come
 from the installed coga package. Init installs no Python packages or skills;
 in an interactive terminal it offers (never forces) to install missing
-external CLIs such as `gh`, only after every precondition has passed. On a repo whose `coga/` already exists it
+external CLIs such as `gh` and an agent CLI, only after every precondition
+has passed. On a repo whose `coga/` already exists it
 refuses — unless the gitignored machine-local half
 (`coga.local.toml` with a `user`, the agent skill symlinks) is missing, which
 is what a fresh clone looks like: then `coga init --user NAME` creates only
@@ -28,6 +29,7 @@ from pathlib import Path
 import tomlkit
 import typer
 
+from coga.agent_cli_setup import offer_agent_cli
 from coga.agent_skills import refresh_agent_skill_view
 from coga.aliases import ONBOARDING_TASK
 from coga.commands.update import (
@@ -46,6 +48,7 @@ from coga.config import (
     resolve_layout_contexts_path,
 )
 from coga.dependencies import (
+    AGENT_CLIS,
     DEPENDENCIES,
     NEEDS_ROOT,
     PACKAGE_MANAGERS,
@@ -438,8 +441,8 @@ def _offer_optional_tools() -> None:
     machine's package manager, printing the exact command first, and `gh` is
     then offered `gh auth login` if its active github.com account is not
     logged in. A tool still missing is only a warning: each is enforced again
-    at its point of need. Agent CLIs are neither offered nor warned about
-    here; the next steps name them.
+    at its point of need. Agent CLIs are not warned about here:
+    `_offer_agent_cli` offers them, and the next steps name them.
     """
     interactive = _interactive()
     manager = _package_manager() if interactive else None
@@ -541,6 +544,142 @@ def _gh_logged_in(gh: str) -> bool:
         argv.remove("--active")
         status = subprocess.run(argv, capture_output=True, text=True, check=False)
     return status.returncode == 0
+
+
+def _offer_agent_cli(default_agent: str | None) -> str | None:
+    """Offer to install an agent CLI; the agent to make default, or None.
+
+    Interactive init only, after `_offer_optional_tools`. With no agent CLI on
+    PATH the user picks one of `AGENT_CLIS` (or skips) and
+    `coga.agent_cli_setup.offer_agent_cli` offers its install and login. When
+    exactly one agent CLI is then on PATH and it is not `default_agent` — the
+    first-declared agent of the coga.toml init is about to write — init asks
+    to make it the default and returns it on a yes. `default_agent` is None
+    where init must not edit coga.toml (a clone's machine-local setup), so
+    nothing is returned there.
+    """
+    if not _interactive():
+        return None
+    installed = [name for name in AGENT_CLIS if shutil.which(name) is not None]
+    if len(installed) > 1:
+        return None
+    if installed:
+        chosen = installed[0]
+    else:
+        typer.echo(
+            "No agent CLI is installed — coga launches agents through Claude "
+            "Code (`claude`) or Codex (`codex`)."
+        )
+        choices = [*AGENT_CLIS, "skip"]
+        chosen = ""
+        while chosen not in choices:
+            chosen = typer.prompt(
+                f"Install which agent CLI? ({'/'.join(choices)})",
+                default=AGENT_CLIS[0],
+            ).strip()
+        if chosen == "skip" or not offer_agent_cli(chosen):
+            return None
+    if default_agent is None or chosen == default_agent:
+        return None
+    if not typer.confirm(
+        f"Make `{chosen}` the default agent in coga.toml (instead of "
+        f"`{default_agent}`)?",
+        default=True,
+    ):
+        return None
+    return chosen
+
+
+def _template_default_agent(template_root: Traversable) -> str | None:
+    """First-declared `[agents.*]` type of the packaged coga.toml, or None."""
+    shared = tomllib.loads(template_root.joinpath("coga.toml").read_text())
+    agents = shared.get("agents")
+    if not isinstance(agents, dict) or not agents:
+        return None
+    return next(iter(agents))
+
+
+_AGENT_LABELS = {"claude": "Claude Code", "codex": "Codex"}
+
+_TABLE_HEADER = re.compile(r"^[ \t]*\[\[?[ \t]*([^\]]+?)[ \t]*\]\]?[ \t]*(#.*)?$")
+
+
+def _make_default_agent(coga_toml: Path, name: str) -> bool:
+    """Move `[agents.<name>]` first among the agent tables; True on success.
+
+    `Config.default_agent` is the first-declared agent type, so declaration
+    order is the default. The tables swap places as text rather than through a
+    TOML round trip, so each keeps its own comments and the comments between
+    sections stay put. The rewrite must parse to the same config with `name`
+    first, or coga.toml is left untouched and this returns False.
+    """
+    text = coga_toml.read_text()
+    lines = text.splitlines(keepends=True)
+    headers = [
+        (index, match.group(1))
+        for index, line in enumerate(lines)
+        if (match := _TABLE_HEADER.match(line))
+    ]
+    spans: list[tuple[int, int, str]] = []
+    for position, (start, key) in enumerate(headers):
+        parts = key.split(".")
+        if len(parts) != 2 or parts[0] != "agents":
+            continue
+        end = next(
+            (
+                index
+                for index, other in headers[position + 1 :]
+                if not other.startswith(f"{key}.")
+            ),
+            len(lines),
+        )
+        # Trailing blank and comment lines introduce the next section.
+        while end > start + 1 and (
+            not lines[end - 1].strip() or lines[end - 1].lstrip().startswith("#")
+        ):
+            end -= 1
+        spans.append((start, end, parts[1]))
+    order = [agent for _, _, agent in spans]
+    if name not in order:
+        return False
+    if order[0] == name:
+        return True
+    order = [name, *(agent for agent in order if agent != name)]
+    blocks = {agent: lines[start:end] for start, end, agent in spans}
+    out: list[str] = []
+    cursor = 0
+    for (start, end, _), agent in zip(spans, order):
+        out += lines[cursor:start]
+        out += blocks[agent]
+        cursor = end
+    out += lines[cursor:]
+    new_text = "".join(out)
+    try:
+        before = tomllib.loads(text)
+        after = tomllib.loads(new_text)
+    except tomllib.TOMLDecodeError:
+        return False
+    if after != before or list(after.get("agents", {})) != order:
+        return False
+    coga_toml.write_text(new_text)
+    return True
+
+
+def _stamp_agent_into_delivered_tickets(coga_os: Path, old: str, new: str) -> None:
+    """Point delivered tickets that name the old default agent at the new one.
+
+    The onboarding ticket ships `agent: claude`; once init makes another agent
+    the default, `coga build` should launch that one.
+    """
+    pattern = re.compile(rf"^agent:[ \t]*{re.escape(old)}[ \t]*$", re.M)
+    tasks = coga_os / "tasks"
+    if not tasks.is_dir():
+        return
+    for ticket in sorted(tasks.glob("**/*.md")):
+        text = ticket.read_text()
+        new_text, count = pattern.subn(f"agent: {new}", text)
+        if count:
+            ticket.write_text(new_text)
 
 
 def _check_git_identity(target: Path) -> None:
@@ -1002,6 +1141,9 @@ def _setup_initialized_clone(target: Path, coga_os: Path, user: str | None) -> N
     _require_init_tools()
     _require_git_work_tree(target)
     _offer_optional_tools()
+    # A clone's coga.toml is committed team config; this path writes only
+    # gitignored state, so it offers the install but never a new default.
+    _offer_agent_cli(None)
 
     # A saved user is the completed-setup guard on the next invocation. Keep
     # the local config unchanged until every agent link is ready, so failures
@@ -1181,9 +1323,12 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         )
         sys.exit(2)
 
-    # Every precondition has passed: only now offer optional installs and
-    # `gh auth login`, so a doomed invocation never changes the machine.
+    # Every precondition has passed: only now offer optional installs,
+    # `gh auth login`, and an agent CLI, so a doomed invocation never changes
+    # the machine. The chosen default agent is written once coga.toml exists.
     _offer_optional_tools()
+    template_default_agent = _template_default_agent(template_root)
+    default_agent = _offer_agent_cli(template_default_agent)
 
     target.mkdir(parents=True, exist_ok=True)
 
@@ -1237,6 +1382,14 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             pinned_branch = None
         if pinned_branch is not None:
             _pin_control_branch(coga_os, pinned_branch, default_control_branch)
+
+        default_agent_set = default_agent is not None and _make_default_agent(
+            coga_os / "coga.toml", default_agent
+        )
+        if default_agent_set and template_default_agent is not None:
+            _stamp_agent_into_delivered_tickets(
+                coga_os, template_default_agent, default_agent
+            )
 
         if is_empty:
             # The template cannot know when this repo is initialized. Record
@@ -1320,6 +1473,18 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             f'    control_branch = "<your-branch>"',
             fg=typer.colors.YELLOW,
         )
+    if default_agent_set:
+        typer.echo(
+            f"Made `{default_agent}` the default agent (declared first under "
+            f"[agents] in {coga_os / 'coga.toml'})."
+        )
+    elif default_agent is not None:
+        typer.secho(
+            f"Could not make `{default_agent}` the default agent: "
+            f"{coga_os / 'coga.toml'} did not reorder cleanly. Move its "
+            f"[agents.{default_agent}] table above the other agent tables.",
+            fg=typer.colors.YELLOW,
+        )
     if host_gitignore_changed:
         typer.echo(f"Updated {target / '.gitignore'} (coga-managed block).")
     if written_guides:
@@ -1395,9 +1560,12 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         "one installed and authenticated."
     )
     if is_empty:
+        build_agent = default_agent or AGENT_CLIS[0]
+        other = next(name for name in AGENT_CLIS if name != build_agent)
         steps.append(
-            "Run `coga build` with Claude Code, or `coga build --agent codex` "
-            "with Codex — it launches the coga-build onboarding: one question "
+            f"Run `coga build` with {_AGENT_LABELS[build_agent]}, or "
+            f"`coga build --agent {other}` with {_AGENT_LABELS[other]} "
+            "— it launches the coga-build onboarding: one question "
             "about what you want to build, then an agent-led chat that ends in "
             "a short vision you sign off on and a flat batch of starter tickets "
             "you can immediately `coga launch`."

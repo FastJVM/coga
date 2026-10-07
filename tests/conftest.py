@@ -88,11 +88,11 @@ def _stub_init_dep_check(monkeypatch):
     terminal, offers to install) `gh`/`op`, which CI and dev machines may
     legitimately lack. Default both phases to no-ops so init-invoking tests
     run anywhere; the dedicated dependency tests call the real
-    `_require_init_tools` / `_offer_optional_tools` with `shutil.which`
-    mocked."""
-    for name in ("_require_init_tools", "_offer_optional_tools"):
+    `_require_init_tools` / `_offer_optional_tools` / `_offer_agent_cli`
+    with `shutil.which` mocked."""
+    for name in ("_require_init_tools", "_offer_optional_tools", "_offer_agent_cli"):
         monkeypatch.setattr(
-            f"coga.commands.init.{name}", lambda: None, raising=False
+            f"coga.commands.init.{name}", lambda *args: None, raising=False
         )
 
 
