@@ -1,6 +1,6 @@
 ---
 title: 'validate-drift: empty-description — 23 title-only tickets need an author verdict'
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: brief-for-human
@@ -16,6 +16,7 @@ workflow:
     assignee: agent
 step: 1 (brief-and-hand-off)
 agent: claude
+launch_generation: pending:54ed3938-41f8-40e4-8215-ca84ad3042de
 ---
 
 ## Description
