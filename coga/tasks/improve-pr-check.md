@@ -157,6 +157,8 @@ Actual implementing agent: Codex (session identity; ticket's configured `claude`
 
 - Publication freshness follow-up: the first refresh refused before editing because main gained branch-cleanup changes. Rebased again without conflicts and repeated verification. The final published head is `b94e40e6d91322b545a72976830d04ab8705dcda`, base `0ff6bf7d43673ec7f1485d2fe400871a255d5c7c`. `codex review --base origin/main` **returned**, exit 0, no actionable regressions (separate gpt-6-astra session `01a117c1-3c1e-7271-83a5-51a2e0bb779f`; 119 focused tests passed). The full absolute-PYTHONPATH suite passed **3324 tests in 348.91s (0:05:48)**; example validation again reported 4 valid items/no issues, and diff whitespace check passed. These are new receipts for the rebase, superseding the earlier final-head receipts above.
 
+- Publication completed with the tested source snapshot via `PYTHONPATH=/tmp/improve-pr-check-publication/src .venv/bin/python -m coga.cli run open-pr improve-pr-check`. Verified PR #975 head/title/generated body against the current preparation; its entire previous unmarked body is preserved below the generated region. Stdout was exactly the PR URL. The checkout is on main, and the ticket remains at step 4 (owner review); no bump or closure was performed.
+
 ## PR
 
 ```yaml
