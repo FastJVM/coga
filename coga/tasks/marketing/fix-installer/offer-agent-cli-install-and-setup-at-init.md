@@ -62,3 +62,9 @@ Proposed defaults (for owner to accept/adjust): reuse #942's offer-and-confirm p
 - `coga build`: interactive build offers the same install/login via a shared helper (≥2 consumers → justifies core). Non-interactive (no TTY) never prompts in either.
 - Workflow: owner switching to `code/with-review`; implementation waits for the relaunch on that workflow. Nothing implemented yet.
 - Topics to update + twins: `coga/install`, `coga/init`, `coga/agents` (and `coga/build` onboarding if it documents the not-found path). Drop "Agent CLIs are not offered" from `coga/install`.
+
+## Dev
+
+branch: agent-cli-install-offer
+
+Plan (implement session 2026-10-06): shared core helper `coga.agent_cli_setup.offer_agent_cli(name)` (consumers: `coga init`, `coga launch` of the `coga-build` onboarding ticket) — brew cask on macOS, else `npm i -g`, else print URL; prints the command and requires yes; then offers login (`claude` / `codex login`). Init (interactive only) offers to pick + install an agent CLI and, behind a confirm, makes the chosen agent the default. Note: coga has no `[agent] default` key — the default is the first-declared `[agents.*]` table (`Config.default_agent`), so init reorders the scaffolded `[agents.*]` tables rather than inventing a new key.
