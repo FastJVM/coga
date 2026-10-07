@@ -17,15 +17,19 @@ only a recorded sandbox clone (`worktree:`, see `dev/checkouts`) is entered.
 
 from __future__ import annotations
 
+import hashlib
+import html
 import json
 import re
 import subprocess
 import sys
+import tempfile
+
+import yaml
 from pathlib import Path
 
 from coga.autoclose import parse_branch_name, parse_pr_url, parse_worktree_path
 from coga.blackboard import update_blackboard_under_barrier
-from coga.compose import _extract_section
 from coga.config import Config
 from coga.github_preflight import (
     _remote_host,
@@ -337,22 +341,260 @@ def _check_recorded_clone(
     )
 
 
-def _pr_body(ticket: Ticket, blackboard: str, above: str, slug: str) -> str:
-    """Assemble the PR body.
+_STATUSES = {"passed", "failed", "pending", "not-run"}
+_MANAGED_START = re.compile(
+    r"<!-- coga:pr:v1 title=([0-9a-f]{64}) body=([0-9a-f]{64}) -->\n"
+)
+_MANAGED_END = "<!-- /coga:pr -->"
 
-    Source priority (per the settled ticket decision — fall back to
-    `## Description`, never block the pipeline for a missing summary):
-      1. a `## PR` section the agent authored (blackboard first, then body),
-      2. else the ticket's `## Description`,
-      3. else the ticket title.
-    Always ends with a `Closes ticket:` line so the link is machine-findable.
-    """
-    body = _extract_section(blackboard, "PR").strip() or _extract_section(above, "PR").strip()
-    if not body:
-        body = _extract_section(above, "Description").strip()
-    if not body:
-        body = ticket.title or slug
-    return f"{body}\n\nCloses ticket: `{slug}`\n"
+
+def _sections(text: str) -> dict[str, str]:
+    """Return exact level-two sections, ignoring headings inside code fences."""
+    sections: dict[str, str] = {}
+    heading, start, offset = "", 0, 0
+    fence = ""
+    for line in text.splitlines(keepends=True):
+        marker = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line)
+        if marker:
+            run, tail = marker.groups()
+            if not fence:
+                fence = run
+            elif run[0] == fence[0] and len(run) >= len(fence) and not tail.strip():
+                fence = ""
+        elif not fence:
+            match = re.match(r"^##[ \t]+(.+?)[ \t]*\r?\n?$", line)
+            if match:
+                if heading:
+                    sections[heading] = text[start:offset]
+                heading, start = match[1].strip().lower(), offset
+        offset += len(line)
+    if heading:
+        sections[heading] = text[start:]
+    return sections
+
+
+def _preparation(blackboard: str, above: str) -> dict:
+    section = _sections(blackboard).get("pr") or _sections(above).get("pr", "")
+    content = section.partition("\n")[2].strip()
+    if not content.startswith("```yaml"):
+        return {}  # Legacy prose is not evidence of checks or review.
+    match = re.fullmatch(r"```yaml\s*\n(.*?)\n```", content, re.DOTALL)
+    if not match:
+        raise OpenPrError("PR presentation: use one complete fenced yaml mapping under ## PR.")
+    try:
+        data = yaml.safe_load(match[1])
+    except yaml.YAMLError as exc:
+        raise OpenPrError(f"PR presentation: invalid YAML under ## PR: {exc}") from exc
+    if not isinstance(data, dict):
+        raise OpenPrError("PR presentation: ## PR YAML must be a mapping.")
+    return data
+
+
+def _text(data: dict, key: str, default: str = "") -> str:
+    value = data.get(key, default)
+    if not isinstance(value, str):
+        raise OpenPrError(f"PR presentation: {key} must be a string.")
+    return value.strip()
+
+
+def _cell(value: str) -> str:
+    return html.escape(value).replace("|", "&#124;").replace("\n", "<br>")
+
+
+def _receipt(data: dict, head: str, base: str) -> tuple[str, str]:
+    status = _text(data, "status", "not-run")
+    if status not in _STATUSES:
+        raise OpenPrError(f"PR presentation: invalid status {status!r}.")
+    detail = _text(data, "detail")
+    if not detail:
+        return "not-run", "Missing result or reason; no usable evidence recorded."
+    if status != "not-run" and (data.get("head"), data.get("base")) != (head, base):
+        return "stale", (
+            f"Historical {status} at head {data.get('head', 'unknown')}, "
+            f"base {data.get('base', 'unknown')}: {detail}. "
+            "Not verified for the current diff."
+        )
+    return status, detail
+
+
+def _publication_diff(cwd: str, head_ref: str, base_ref: str) -> tuple[str, str, list[tuple[str, list[str]]]]:
+    def git_value(args: list[str]) -> str:
+        result = _git(args, cwd=cwd)
+        if result.returncode:
+            raise OpenPrError(f"PR presentation: git {' '.join(args)} failed: {result.stderr.strip()}")
+        return result.stdout.rstrip("\n")
+
+    head = git_value(["rev-parse", head_ref])
+    base = git_value(["merge-base", base_ref, head])
+    fields = git_value(["diff", "--name-status", "-z", "--find-renames", base, head]).split("\x00")
+    changes: list[tuple[str, list[str]]] = []
+    i = 0
+    while i < len(fields) and fields[i]:
+        status = fields[i]
+        count = 2 if status.startswith(("R", "C")) else 1
+        changes.append((status, fields[i + 1:i + count + 1]))
+        i += count + 1
+    return head, base, changes
+
+
+def _pr_body(ticket: Ticket, above: str, slug: str, content: str) -> str:
+    """Append the literal request snapshot, never frontmatter or blackboard."""
+    sections = _sections(above)
+    snapshot = f"# {ticket.title or slug}\n\n" + "".join(
+        sections.get(name, "") for name in ("description", "context")
+    )
+    fence = "`" * max(3, 1 + max((len(m[0]) for m in re.finditer(r"`+", snapshot)), default=0))
+    return (
+        f"{content}\n\n<details>\n<summary>Ticket as requested</summary>\n\n"
+        f"{fence}markdown\n{snapshot}" + ("" if snapshot.endswith("\n") else "\n")
+        + f"{fence}\n\n</details>\n\nCloses ticket: `{slug}`\n"
+    )
+
+
+def _pr_presentation(
+    ticket: Ticket, blackboard: str, above: str, slug: str, *,
+    head: str, base: str, changes: list[tuple[str, list[str]]],
+) -> tuple[str, str]:
+    data = _preparation(blackboard, above)
+    issues: list[str] = []
+    if not data:
+        issues.append("Missing structured preparation; legacy prose is not verification evidence.")
+    elif (data.get("head"), data.get("base")) != (head, base):
+        issues.append("Stale preparation: its head/base does not describe this diff; prepare it again.")
+        data = {}
+    title = _text(data, "title")
+    if not title:
+        issues.append("Actual-change title unavailable; using the ticket title.")
+        title = ticket.title or slug
+    title = " ".join(title.split())
+    author = _text(data, "author", "unknown")
+    authorship = _text(data, "author_evidence")
+    if not authorship or author == "unknown":
+        author, authorship = "unknown", "Actual author identity unavailable; no session evidence recorded."
+        issues.append(authorship)
+    if not re.fullmatch(r"[\w./-]{1,32}", author):
+        raise OpenPrError("PR presentation: author must be a compact identity (1–32 letters, digits, ./_-).")
+    review = data.get("review", {})
+    if not isinstance(review, dict):
+        raise OpenPrError("PR presentation: review must be a mapping.")
+    kind = _text(review, "kind", "none")
+    if kind not in {"independent", "self", "none"}:
+        raise OpenPrError("PR presentation: review kind must be independent, self, or none.")
+    reviewer = _text(review, "reviewer", "unknown")
+    if not re.fullmatch(r"[\w./-]{1,32}", reviewer):
+        raise OpenPrError("PR presentation: reviewer must be a compact identity.")
+    identified_reviewer = reviewer not in {"unknown", "none"}
+    review_status, review_detail = _receipt(review, head, base)
+    if kind == "none":
+        reviewer = "none" if review else "unknown"
+        review_status = "not-run"
+        review_detail = "No independent review performed. " + review_detail
+    elif kind == "self":
+        reviewer += "(self)"
+        review_detail = "Self-review; no independent review performed. " + review_detail
+    if review_status != "passed" or not identified_reviewer:
+        issues.append("No completed, identified review of the current diff.")
+    checks = data.get("checks", [])
+    if not isinstance(checks, list) or any(not isinstance(check, dict) for check in checks):
+        raise OpenPrError("PR presentation: checks must be a list of mappings.")
+    check_rows: list[str] = []
+    statuses: list[str] = []
+    for check in checks:
+        command = _text(check, "command")
+        if not command:
+            raise OpenPrError("PR presentation: each check needs its actual command.")
+        status, detail = _receipt(check, head, base)
+        statuses.append(status)
+        check_rows.append(f"| <code>{_cell(command)}</code> | {status} | {_cell(detail)} |")
+        if not _text(check, "detail"):
+            issues.append("A check has no recorded result or omission reason.")
+    if not checks:
+        issues.append("Checks not run or not recorded; commands, outcomes and omission reasons unavailable.")
+        check_rows.append("| Unknown | not-run | No check evidence or omission reason recorded. |")
+    if any(status in {"failed", "pending", "stale"} for status in statuses):
+        issues.append("Checks failed, remain pending, or do not verify this diff.")
+    files = data.get("files", {})
+    if not isinstance(files, dict) or any(not isinstance(k, str) or not isinstance(v, str) for k, v in files.items()):
+        raise OpenPrError("PR presentation: files must map paths to explanations.")
+    file_rows: list[str] = []
+    paths = {path for _, names in changes for path in names}
+    for status, names in changes:
+        for path in names:
+            reason = files.get(path, "").strip()
+            if not reason:
+                reason = "Explanation missing; inspect this change."
+                issues.append(f"Unexplained path: {path}")
+            file_rows.append(f"| <code>{_cell(path)}</code> | {status} | {_cell(reason)} |")
+    extras = sorted(set(files) - paths)
+    if extras:
+        issues.append("Prepared paths outside this diff: " + ", ".join(extras))
+    prose: dict[str, str] = {}
+    for key in ("rationale", "implementation", "deviations", "limitations"):
+        prose[key] = _text(data, key)
+        if not prose[key]:
+            prose[key] = "Not recorded; inspect the diff and request clarification."
+            issues.append(f"Missing {key} explanation.")
+    depth = _text(data, "depth", "deep")
+    if depth not in {"merge", "skim", "deep"}:
+        raise OpenPrError("PR presentation: depth must be merge, skim, or deep.")
+    if depth == "merge" and (kind != "independent" or "passed" not in statuses):
+        issues.append("Merge recommendation requires independent review and a passed applicable check.")
+    if issues:
+        depth = "deep"
+    title = f"[{depth} · A:{author} R:{reviewer}] {title}"
+    content = (
+        f"**Recommended review: {depth}** — advisory; the owner decides whether to merge.\n\n"
+        f"{prose['rationale']}\n\n"
+    )
+    if issues:
+        content += "Publication evidence gaps:\n" + "\n".join(f"- {issue}" for issue in issues) + "\n\n"
+    content += (
+        f"Author: **{author}**. {authorship}\n\n"
+        f"Review: **{reviewer}** ({kind}, {review_status}). {review_detail}\n\n"
+        f"Evidence scope: head `{head}`, diff base `{base}`.\n\n"
+        f"## Implementation\n\n{prose['implementation']}\n\n"
+        f"## Deviations and limitations\n\n{prose['deviations']}\n\n{prose['limitations']}\n\n"
+        "## Changed files\n\n| Path | Change | Why |\n| --- | --- | --- |\n"
+        + "\n".join(file_rows)
+        + "\n\n## Checks\n\n| Command | Outcome | Result / reason |\n| --- | --- | --- |\n"
+        + "\n".join(check_rows)
+    )
+    body = _pr_body(ticket, above, slug, content)
+    marker = f"<!-- coga:pr:v1 title={_digest(title)} body={_digest(body)} -->\n"
+    return title, marker + body + _MANAGED_END + "\n"
+
+
+def _digest(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _refresh_body(existing: dict, title: str, body: str, base: str) -> str:
+    """Replace only intact generated content; refuse human/legacy conflicts."""
+    if existing.get("baseRefName") != base:
+        raise OpenPrError("PR presentation: existing PR base differs or is unavailable; reconcile its base first.")
+    old_body = existing.get("body", "")
+    marker = _MANAGED_START.search(old_body)
+    if marker is None:
+        raise OpenPrError("PR presentation conflict: unmarked existing body; reconcile with the owner before replacing it.")
+    # Literal marker examples can occur inside the ticket snapshot. The stored
+    # digest identifies the actual end, without interpreting the snapshot.
+    ends = [
+        match.start() for match in re.finditer(re.escape(_MANAGED_END), old_body)
+        if match.start() >= marker.end()
+        and _digest(old_body[marker.end():match.start()]) == marker[2]
+    ]
+    if len(ends) != 1 or _digest(existing.get("title", "")) != marker[1]:
+        raise OpenPrError("PR presentation conflict: human edits or malformed generated title/body; preserve edits outside the markers and reconcile preparation before rerunning.")
+    end = ends[0]
+    # New body's trailing newline is formatting outside the region, not owned.
+    return old_body[:marker.start()] + body.rstrip("\n") + old_body[end + len(_MANAGED_END):]
+
+
+def _write_pr(args: list[str], title: str, body: str, *, cwd: str) -> subprocess.CompletedProcess[str]:
+    with tempfile.TemporaryDirectory(prefix="coga-pr-") as directory:
+        path = Path(directory) / "body.md"
+        path.write_text(body, encoding="utf-8")
+        return _run([*args, "--title", title, "--body-file", str(path)], cwd=cwd)
 
 
 def _open_pr_url(branch: str, cwd: str) -> dict | None:
@@ -363,7 +605,7 @@ def _open_pr_url(branch: str, cwd: str) -> dict | None:
     (merged/closed) is also treated as none so we open a fresh one.
     """
     result = _run(
-        ["gh", "pr", "view", branch, "--json", "url,state,isDraft,number"],
+        ["gh", "pr", "view", branch, "--json", "url,state,isDraft,number,title,body,baseRefName"],
         cwd=cwd,
     )
     if result.returncode != 0:
@@ -385,8 +627,8 @@ def open_pr(
 ) -> str:
     """Push the feature branch and open (or ready) its PR; return the PR URL.
 
-    Reads `branch:` (plus `worktree:` for a sandbox clone, and an optional
-    `## PR` body) from the ticket's `## Dev` blackboard section. Without a
+    Reads `branch:` (plus `worktree:` for a sandbox clone) from `## Dev`
+    and structured presentation evidence from `## PR` on the blackboard. Without a
     recorded clone the branch is checked by name in this checkout, which stays
     on the control branch: it must exist locally, be ahead of the base branch,
     and have no material stale drift from `<remote>/<base>`. With a recorded
@@ -520,12 +762,22 @@ def open_pr(
     if not gh_auth.ok:
         raise OpenPrError(gh_auth.detail)
 
+    head_oid, diff_base, changes = _publication_diff(cwd, head_ref, f"{remote}/{base}")
+    title, body = _pr_presentation(
+        ticket, blackboard, above, slug, head=head_oid, base=diff_base, changes=changes,
+    )
+    existing = _open_pr_url(branch, cwd)
+    if existing is not None:
+        _refresh_body(existing, title, body, base)  # Refuse conflicts before pushing.
+
     # --- push ----------------------------------------------------------------
     # A previous open-pr attempt may have pushed before `gh` failed. If the
     # operator then rebases as instructed, an ordinary retry is non-fast-forward.
     # Use an explicit lease against the OID observed immediately before push:
     # rewritten local history is publishable, but concurrent remote updates are
     # still rejected instead of overwritten.
+    if _git(["rev-parse", head_ref], cwd=cwd).stdout.strip() != head_oid:
+        raise OpenPrError("PR presentation: feature branch changed during preparation; retry.")
     remote_oid = _remote_branch_oid(remote, branch, cwd=cwd)
     push_args = ["push", "-u"]
     if remote_oid:
@@ -542,13 +794,21 @@ def open_pr(
             f"{push.stderr.strip() or 'no output'}\n{hint}"
         )
 
-    # --- open or ready the PR ------------------------------------------------
-    title = ticket.title or slug
-    body = _pr_body(ticket, blackboard, above, slug)
+    if _git(["rev-parse", head_ref], cwd=cwd).stdout.strip() != head_oid:
+        raise OpenPrError("PR presentation: feature branch changed during push; retry before publishing.")
 
-    existing = _open_pr_url(branch, cwd)
+    # --- open or ready the PR ------------------------------------------------
+    latest = _open_pr_url(branch, cwd)
+    if existing is not None and latest is None:
+        raise OpenPrError("PR presentation: existing PR became unavailable after push; retry before publishing.")
+    existing = latest
     if existing is not None:
         url = existing["url"]
+        refreshed = _refresh_body(existing, title, body, base)
+        if (existing.get("title"), existing.get("body")) != (title, refreshed):
+            edit = _write_pr(["gh", "pr", "edit", url], title, refreshed, cwd=cwd)
+            if edit.returncode:
+                raise OpenPrError(f"PR presentation: gh pr edit failed: {edit.stderr.strip() or 'no output'}")
         if existing.get("isDraft"):
             ready = _run(["gh", "pr", "ready", url], cwd=cwd)
             if ready.returncode != 0:
@@ -556,15 +816,9 @@ def open_pr(
                     f"`gh pr ready {url}` failed: {ready.stderr.strip() or 'no output'}"
                 )
     else:
-        create = _run(
-            [
-                "gh", "pr", "create",
-                "--base", base,
-                "--head", branch,
-                "--title", title,
-                "--body", body,
-            ],
-            cwd=cwd,
+        create = _write_pr(
+            ["gh", "pr", "create", "--base", base, "--head", branch],
+            title, body, cwd=cwd,
         )
         if create.returncode != 0:
             stderr = create.stderr.strip()

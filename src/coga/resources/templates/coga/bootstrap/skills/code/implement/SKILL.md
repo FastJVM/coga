@@ -113,7 +113,7 @@ later `code/open-pr` step does that, after review and fixes.
    ticket — no opportunistic refactors. If you find a real adjacent bug,
    note its symptom, affected code, evidence or reproduction, and any
    existing follow-up ticket reference for the blackboard (write it with the
-   handoff in step 10); don't fix it here.
+   handoff in step 11); don't fix it here.
    State what remains unresolved. `retro/done-ticket` owns carrying that
    finding into a durable context before deleting this ticket, so the
    blackboard is a handoff, not the bug's final home.
@@ -152,7 +152,25 @@ later `code/open-pr` step does that, after review and fixes.
    escalate — never discard unpublished state. In the
    sandbox clone layout, push from the clone; the launch checkout never left
    `main`.
-10. **Hand off and bump — this is what ends the step.** Under the launch
+10. **Prepare publication evidence.** Read [coga/internals/pr-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/SKILL.md),
+    “Presentation and review-depth rubric” and “Preparation record”. Before the
+    handoff, retain the actual implementing agent identity from this session
+    (including overrides), exact check commands/results/counts and omission
+    reasons, and the full tested head and merge-base OIDs. Do not substitute the
+    ticket's configured agent or a planned test command for execution evidence.
+    If tests ran on uncommitted changes, establish that the committed tree is
+    identical before associating that receipt with the commit. A rebase or later
+    fix needs fresh verification; never just change an old receipt's OID.
+
+    Write the structured `## PR` preparation on the live blackboard with the
+    handoff below: actual-change title, advisory depth and rationale,
+    implementation/deviations/limitations, reasons for every actual diff path,
+    and check/review receipts using that topic's schema. This is required even
+    when the workflow has no later code review. If review has not run, say so
+    and why; design approval does not count as code review. Later judgment
+    steps update this record after their fixes and completed reviews. Test
+    obligations remain those of this workflow (including step 5 above).
+11. **Hand off and bump — this is what ends the step.** Under the launch
    witness, write the handoff on the feature branch after loading control's
    copy of the ticket (`git fetch origin main && git restore
    --source=origin/main --worktree -- <task path>`, never staged;

@@ -57,8 +57,10 @@ recorded branch, opens (or readies) the PR, and writes `pr:` back under
 line exists.
 
 The command is deterministic and has no judgment of its own, which is why the
-preceding `self-qa` step is the one that authors the PR body and rebases the
-branch.
+preceding `self-qa` step prepares the evidence and advisory review depth under
+[coga/internals/pr-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/SKILL.md)
+and rebases the branch. Self-review is reported explicitly; a configured peer
+or a planned tool call is not evidence of independent review.
 
 ## review
 

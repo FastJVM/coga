@@ -55,7 +55,7 @@ gate, not your say-so.
    - pushes the branch by name (using an explicit force-with-lease when a safe
      retry follows a rebase),
    - opens the PR with `gh pr create` — or `gh pr ready` if a draft already
-     exists, or reuses an already-open PR (idempotent on re-run),
+     exists, or refreshes an already-open PR (idempotent on re-run),
    - writes `pr: <url>` back under `## Dev` in this checkout's ticket, which
      the command's exit sweep publishes to control.
 
@@ -65,11 +65,15 @@ gate, not your say-so.
    no empty PR), a stale branch, or a `git push` / `gh` auth failure *before*
    the PR exists.
 
-   **PR title** = the ticket title. **PR body** comes, in order, from: a `## PR`
-   section (blackboard first, then ticket body), else the ticket's
-   `## Description`, else the title; a `Closes ticket: <slug>` line is always
-   appended. So author a `## PR` section in the earlier steps if you want a
-   curated summary + test plan; omitting it is fine.
+   Read [coga/internals/pr-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/SKILL.md), “Preparation record” and
+   “Updating an existing PR”. The command formats the preceding judgment
+   step's `## PR` evidence, includes the literal ticket snapshot, and refreshes
+   intact generated title/body on reruns. Missing/stale evidence stays visible
+   as a conservative fallback, never as a passed test/review. This does not
+   waive any test or review the workflow requires. Do not invent receipts here.
+   If a generated title/region was edited by a human, reconcile with the owner
+   instead of overwriting it; notes outside the markers survive. An unmarked
+   legacy PR needs explicit approval to adopt the generated format.
 3. **Bump.** Once `coga open-pr` reports the URL and `pr:` is recorded under
    `## Dev`, run `coga bump <slug>` from `main` to hand off to the next step.
    The bump's `requires: pr` gate will pass because the URL is now recorded.
@@ -93,7 +97,10 @@ it can only refuse to publish. `code/self-qa` and the `with-review`
 can still be obeyed. What reaches this step is their durable evidence: a
 `## Self-QA` or `## Peer review` blackboard note stating which review form ran,
 that it **returned**, and what it found. Read that note before running
-`coga open-pr`. If it is absent, or records a review as started without
+`coga open-pr` when the workflow ordered a code review. A workflow without
+such a step (for example design-then-implement) instead reports that no code
+review was performed; design review is not a substitute. If a required code
+review note is absent, or records a review as started without
 recording that it returned, treat the review as still in flight and escalate per
 your launch mode instead of publishing.
 

@@ -16,6 +16,9 @@ from __future__ import annotations
 import json
 import os
 import stat
+import sys
+
+import yaml
 from pathlib import Path
 from textwrap import dedent
 
@@ -44,6 +47,7 @@ def _install_fake_gh(
     *,
     create_url: str = "https://github.com/acme/repo/pull/7",
     view_json: dict | None = None,
+    edit_error: bool = False,
 ) -> Path:
     """Put a fake `gh` on PATH and return the file it logs invocations to.
 
@@ -58,19 +62,38 @@ def _install_fake_gh(
     gh = bin_dir / "gh"
     gh.write_text(
         dedent(
-            f"""
-            #!/usr/bin/env bash
-            echo "$@" >> {str(log)!r}
-            case "$1 $2" in
-              "pr view")
-                if [ -f {str(view_file)!r} ]; then cat {str(view_file)!r}; exit 0; fi
-                exit 1 ;;
-              "pr create") echo {create_url!r}; exit 0 ;;
-              "pr ready") exit 0 ;;
-              *) exit 0 ;;
-            esac
+            f"""\
+            #!{sys.executable}
+            import json
+            import sys
+            from pathlib import Path
+            args = sys.argv[1:]
+            view = Path({str(view_file)!r})
+            body = ""
+            if "--body-file" in args:
+                body = Path(args[args.index("--body-file") + 1]).read_text()
+            elif "--body" in args:
+                body = args[args.index("--body") + 1]
+            with Path({str(log)!r}).open("a") as out:
+                out.write(" ".join(args) + "\\n" + body + "\\n")
+            if args[:2] == ["pr", "view"]:
+                if not view.exists():
+                    sys.exit(1)
+                print(view.read_text())
+            elif args[:2] in (["pr", "create"], ["pr", "edit"]):
+                if args[1] == "edit" and {edit_error!r}:
+                    print("edit refused", file=sys.stderr)
+                    sys.exit(1)
+                data = json.loads(view.read_text()) if view.exists() else {{
+                    "url": {create_url!r}, "state": "OPEN", "isDraft": False,
+                    "baseRefName": "main",
+                }}
+                data.update(title=args[args.index("--title") + 1], body=body)
+                view.write_text(json.dumps(data))
+                if args[1] == "create":
+                    print(data["url"])
             """
-        ).lstrip()
+        )
     )
     gh.chmod(gh.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
     monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ['PATH']}")
@@ -244,7 +267,7 @@ def test_open_pr_uses_annotated_quoted_dev_metadata(tmp_path, monkeypatch):
 
 
 def test_open_pr_body_falls_back_to_description(tmp_path, monkeypatch):
-    """No `## PR` section → the PR body is the ticket's `## Description`."""
+    """Missing preparation includes the request and makes evidence gaps explicit."""
     repo = init_git_repo(tmp_path)
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -262,25 +285,27 @@ def test_open_pr_body_falls_back_to_description(tmp_path, monkeypatch):
     calls = log.read_text()
     assert "DISTINCTIVE-DESCRIPTION-BODY" in calls
     assert "Closes ticket: `desc-body`" in calls
+    assert "[deep · A:unknown R:unknown]" in calls
+    assert "No check evidence or omission reason recorded" in calls
+    assert "No independent review performed" in calls
+    assert "Explanation missing" in calls
 
 
 def test_open_pr_readies_existing_draft(tmp_path, monkeypatch):
     repo = init_git_repo(tmp_path)
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
-    log = _install_fake_gh(
-        monkeypatch, bin_dir,
-        view_json={
-            "url": "https://github.com/acme/repo/pull/3",
-            "state": "OPEN",
-            "isDraft": True,
-            "number": 3,
-        },
-    )
+    log = _install_fake_gh(monkeypatch, bin_dir, create_url="https://github.com/acme/repo/pull/3")
     wt = _feature_worktree(repo, tmp_path, "feature-draft", commit=True)
     ticket = _write_ticket(repo.coga_os, "ready-draft", branch="feature-draft", worktree=wt)
 
     cfg = load_config(repo.coga_os)
+    open_pr(cfg, slug="ready-draft", blackboard_path=ticket)
+    view_file = bin_dir / "view.json"
+    data = json.loads(view_file.read_text())
+    data["isDraft"] = True
+    view_file.write_text(json.dumps(data))
+    log.write_text("")
     url = open_pr(cfg, slug="ready-draft", blackboard_path=ticket)
 
     assert url == "https://github.com/acme/repo/pull/3"
@@ -969,3 +994,336 @@ def test_open_pr_skill_has_no_executable_entrypoint() -> None:
     assert not (_LIVE_SKILL / "recipe.py").exists()
     assert not (_PACKAGED_SKILL / "run.py").exists()
     assert not (_PACKAGED_SKILL / "recipe.py").exists()
+
+
+# --- presentation evidence and safe refresh ----------------------------------
+
+
+def _preparation(repo, wt: Path, *, depth: str = "skim") -> dict:
+    head = repo.git("rev-parse", "HEAD", cwd=wt).strip()
+    base = repo.git("merge-base", "main", "HEAD", cwd=wt).strip()
+    return {
+        "title": "Explain the changed behavior", "author": "codex",
+        "author_evidence": "Codex implemented this change in the attended session.",
+        "head": head, "base": base, "depth": depth,
+        "rationale": "Bounded change with reviewed failure-path coverage.",
+        "implementation": "Make the requested behavior visible.",
+        "deviations": "None.", "limitations": "No live service check needed.",
+        "files": {"coga/change.txt": "Describe the new behavior."},
+        "review": {"reviewer": "claude", "kind": "independent", "status": "passed",
+                   "head": head, "base": base, "detail": "Returned; no findings."},
+        "checks": [{"command": "python -m pytest tests/test_change.py", "status": "passed",
+                    "head": head, "base": base, "detail": "3 passed."}],
+    }
+
+
+def _prepared_ticket(repo, wt: Path, preparation: dict) -> Path:
+    return _write_ticket(
+        repo.coga_os, "presentation", branch="presentation", worktree=wt,
+        pr_section="```yaml\n" + yaml.safe_dump(preparation, sort_keys=False) + "```",
+    )
+
+
+@pytest.mark.parametrize("depth", ["merge", "skim", "deep"])
+def test_open_pr_renders_prepared_depth_and_actual_identities(tmp_path, monkeypatch, depth):
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(monkeypatch, bin_dir)
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    ticket = _prepared_ticket(repo, wt, _preparation(repo, wt, depth=depth))
+    open_pr(load_config(repo.coga_os), slug="presentation", blackboard_path=ticket)
+    data = json.loads((bin_dir / "view.json").read_text())
+    assert data["title"] == f"[{depth} · A:codex R:claude] Explain the changed behavior"
+    assert "3 passed." in data["body"]
+    assert "Describe the new behavior." in data["body"]
+    assert "Ship the change" in data["body"]  # verbatim original title
+    assert "author_evidence:" not in data["body"]  # no recursive preparation
+
+
+def test_open_pr_invalidates_evidence_after_later_commit(tmp_path, monkeypatch):
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(monkeypatch, bin_dir)
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    prep = _preparation(repo, wt, depth="merge")
+    ticket = _prepared_ticket(repo, wt, prep)
+    (wt / "coga" / "change.txt").write_text("later untested behavior\n")
+    repo.git("add", "coga/change.txt", cwd=wt)
+    repo.git("commit", "-m", "Later edit", cwd=wt)
+    open_pr(load_config(repo.coga_os), slug="presentation", blackboard_path=ticket)
+    data = json.loads((bin_dir / "view.json").read_text())
+    assert data["title"].startswith("[deep · A:unknown R:unknown]")
+    assert "stale" in data["body"].lower()
+    assert "3 passed." not in data["body"]
+
+
+def test_open_pr_refreshes_generated_content_preserving_human_notes(tmp_path, monkeypatch):
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _install_fake_gh(monkeypatch, bin_dir)
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    prep = _preparation(repo, wt)
+    ticket = _prepared_ticket(repo, wt, prep)
+    cfg = load_config(repo.coga_os)
+    open_pr(cfg, slug="presentation", blackboard_path=ticket)
+    view_file = bin_dir / "view.json"
+    data = json.loads(view_file.read_text())
+    data["body"] = "Owner introduction.\n\n" + data["body"] + "\nOwner notes.\n"
+    view_file.write_text(json.dumps(data))
+    prep["title"] = "A more precise change title"
+    prep["rationale"] = "Updated explanation."
+    _prepared_ticket(repo, wt, prep)
+    ticket.write_text(ticket.read_text().replace("The change we are shipping.", "Updated literal request."))
+    open_pr(cfg, slug="presentation", blackboard_path=ticket)
+    data = json.loads(view_file.read_text())
+    assert data["title"].endswith("A more precise change title")
+    assert "Updated explanation." in data["body"]
+    assert "Updated literal request." in data["body"]
+    assert data["body"].startswith("Owner introduction.")
+    assert data["body"].endswith("Owner notes.\n")
+    log.write_text("")
+    open_pr(cfg, slug="presentation", blackboard_path=ticket)
+    assert "pr edit" not in log.read_text()
+
+
+@pytest.mark.parametrize("edit", ["title", "body", "legacy", "base"])
+def test_open_pr_refuses_human_edits_before_push(tmp_path, monkeypatch, edit):
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _install_fake_gh(monkeypatch, bin_dir)
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    ticket = _prepared_ticket(repo, wt, _preparation(repo, wt))
+    cfg = load_config(repo.coga_os)
+    open_pr(cfg, slug="presentation", blackboard_path=ticket)
+    view_file = bin_dir / "view.json"
+    data = json.loads(view_file.read_text())
+    if edit == "title":
+        data["title"] = "Human title"
+    elif edit == "body":
+        data["body"] = data["body"].replace("3 passed.", "Human correction.")
+    elif edit == "legacy":
+        data["body"] = "Legacy human description."
+    else:
+        data["baseRefName"] = "release"
+    view_file.write_text(json.dumps(data))
+    old_remote = repo.git("rev-parse", "refs/heads/presentation", cwd=repo.origin)
+    (wt / "coga/change.txt").write_text("later change\n")
+    repo.git("add", "coga/change.txt", cwd=wt)
+    repo.git("commit", "-m", "Later change", cwd=wt)
+    log.write_text("")
+    with pytest.raises(OpenPrError, match="presentation|base"):
+        open_pr(cfg, slug="presentation", blackboard_path=ticket)
+    assert repo.git("rev-parse", "refs/heads/presentation", cwd=repo.origin) == old_remote
+    assert "pr edit" not in log.read_text()
+    assert json.loads(view_file.read_text()) == data
+
+
+@pytest.mark.parametrize(
+    ("case", "label", "expected"),
+    [
+        ("no-review", "deep", "No independent review performed"),
+        ("self-review", "skim", "R:codex(self)"),
+        ("unknown-author", "deep", "A:unknown"),
+        ("unknown-reviewer", "deep", "R:unknown"),
+        ("unknown-self-reviewer", "deep", "R:unknown(self)"),
+        ("none-reviewer", "deep", "No completed, identified review"),
+        ("stale-review", "deep", "Historical passed"),
+        ("stale-check", "deep", "Historical passed"),
+        ("failed-check", "deep", "failed"),
+        ("pending-check", "deep", "pending"),
+        ("not-run", "skim", "Workflow permits focused checks"),
+        ("missing-reason", "deep", "no recorded result or omission reason"),
+        ("missing-checks", "deep", "No check evidence"),
+        ("missing-path", "deep", "Explanation missing"),
+        ("extra-path", "deep", "Prepared paths outside this diff"),
+        ("merge-self-review", "deep", "requires independent review"),
+    ],
+)
+def test_open_pr_discloses_verification_gaps(tmp_path, case, label, expected):
+    from coga.open_pr import _pr_presentation
+    from coga.taskfile import split_body
+
+    repo = init_git_repo(tmp_path)
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    prep = _preparation(repo, wt)
+    if case == "no-review":
+        prep["review"] = {"kind": "none", "status": "not-run", "detail": "Workflow has no code-review step."}
+    elif case in {"self-review", "merge-self-review"}:
+        prep["review"].update(kind="self", reviewer="codex")
+        if case == "merge-self-review":
+            prep["depth"] = "merge"
+    elif case == "unknown-author":
+        prep.pop("author_evidence")
+    elif case == "unknown-reviewer":
+        prep["review"].pop("reviewer")
+    elif case == "unknown-self-reviewer":
+        prep["review"].update(kind="self", reviewer="unknown")
+    elif case == "none-reviewer":
+        prep["review"]["reviewer"] = "none"
+    elif case == "stale-review":
+        prep["review"]["head"] = "0" * 40
+    elif case == "stale-check":
+        prep["checks"][0]["base"] = "0" * 40
+    elif case in {"failed-check", "pending-check"}:
+        prep["checks"][0]["status"] = case.split("-")[0]
+    elif case == "not-run":
+        prep["checks"].append({"command": "python -m pytest", "status": "not-run",
+                               "detail": "Workflow permits focused checks; no runtime change."})
+    elif case == "missing-reason":
+        prep["checks"][0].update(status="not-run", detail="")
+    elif case == "missing-checks":
+        prep["checks"] = []
+    elif case == "missing-path":
+        prep["files"] = {}
+    elif case == "extra-path":
+        prep["files"]["coga/not-changed.txt"] = "Old explanation."
+    ticket = Ticket.read(_prepared_ticket(repo, wt, prep))
+    above, blackboard = split_body(ticket.body)
+    title, body = _pr_presentation(ticket, blackboard, above, "presentation",
+                                   head=prep["head"], base=prep["base"],
+                                   changes=[("A", ["coga/change.txt"])])
+    assert title.startswith(f"[{label} ·")
+    assert expected in title + body
+
+
+def test_open_pr_snapshot_preserves_literal_sections_and_ignores_fenced_headings(tmp_path):
+    from coga.open_pr import _pr_presentation
+
+    repo = init_git_repo(tmp_path)
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    prep = _preparation(repo, wt)
+    ticket = Ticket.read(_prepared_ticket(repo, wt, prep))
+    description = "## Description\n\nExact  wording.  \n\n```markdown\n## PR\nNot preparation.\n```\n\n"
+    context = "## Context\n\n### Nested heading\nKeep [this](file.py) verbatim.\n\n"
+    above = description + "## Acceptance\nNot in the snapshot.\n\n" + context
+    title, body = _pr_presentation(ticket, "", above, "presentation",
+                                   head=prep["head"], base=prep["base"], changes=[])
+    assert description in body
+    assert context in body
+    assert "Not in the snapshot" not in body
+    assert "status: in_progress" not in body
+    assert "## Dev\n" not in body
+    assert "````markdown\n# Ship the change" in body
+    assert title.startswith("[deep · A:unknown R:unknown]")
+
+
+def test_open_pr_lists_add_delete_and_both_rename_paths(tmp_path, monkeypatch):
+    repo = init_git_repo(tmp_path)
+    (repo.coga_os / "old name.txt").write_text("stable rename content\n")
+    (repo.coga_os / "delete.txt").write_text("obsolete\n")
+    repo.git("add", "coga/old name.txt", "coga/delete.txt")
+    repo.git("commit", "-m", "Base files")
+    repo.git("push", "origin", "main")
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    repo.git("mv", "coga/old name.txt", "coga/new | name.txt", cwd=wt)
+    repo.git("rm", "coga/delete.txt", cwd=wt)
+    repo.git("commit", "-m", "Rename and delete", cwd=wt)
+    prep = _preparation(repo, wt)
+    prep["files"].update({"coga/old name.txt": "Rename the documented example.",
+                          "coga/new | name.txt": "Rename the documented example.",
+                          "coga/delete.txt": "Remove obsolete instructions."})
+    ticket = _prepared_ticket(repo, wt, prep)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(monkeypatch, bin_dir)
+    open_pr(load_config(repo.coga_os), slug="presentation", blackboard_path=ticket)
+    body = json.loads((bin_dir / "view.json").read_text())["body"]
+    assert "<code>coga/old name.txt</code> | R100 | Rename" in body
+    assert "<code>coga/new &#124; name.txt</code> | R100 | Rename" in body
+    assert "<code>coga/delete.txt</code> | D | Remove" in body
+    assert "<code>coga/change.txt</code> | A | Describe" in body
+
+
+@pytest.mark.parametrize("yaml_text", ["- item", "checks: [broken", "title: [wrong type]"])
+def test_open_pr_rejects_malformed_preparation(tmp_path, monkeypatch, yaml_text):
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _install_fake_gh(monkeypatch, bin_dir)
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    prep = _preparation(repo, wt)
+    # Matching revisions ensure field types, not freshness, are being checked.
+    prefix = f"head: {prep['head']}\nbase: {prep['base']}\n" if yaml_text.startswith("title:") else ""
+    ticket = _write_ticket(repo.coga_os, "presentation", branch="presentation", worktree=wt,
+                           pr_section="```yaml\n" + prefix + yaml_text + "\n```")
+    with pytest.raises(OpenPrError, match="PR presentation"):
+        open_pr(load_config(repo.coga_os), slug="presentation", blackboard_path=ticket)
+    assert "pr create" not in log.read_text()
+    assert repo.git("ls-remote", "--heads", "origin", "presentation").strip() == ""
+
+
+def test_open_pr_refuses_failed_refresh_without_readying_draft_or_recording(tmp_path, monkeypatch):
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _install_fake_gh(monkeypatch, bin_dir, edit_error=True)
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    prep = _preparation(repo, wt)
+    ticket = _prepared_ticket(repo, wt, prep)
+    cfg = load_config(repo.coga_os)
+    open_pr(cfg, slug="presentation", blackboard_path=ticket)
+    view_file = bin_dir / "view.json"
+    original = json.loads(view_file.read_text())
+    original["isDraft"] = True
+    view_file.write_text(json.dumps(original))
+    prep["title"] = "Updated title"
+    _prepared_ticket(repo, wt, prep)  # no pr: yet for this retry
+    log.write_text("")
+    with pytest.raises(OpenPrError, match="gh pr edit failed"):
+        open_pr(cfg, slug="presentation", blackboard_path=ticket)
+    assert "pr ready" not in log.read_text()
+    assert parse_pr_url(read_blackboard(ticket)) is None
+    assert json.loads(view_file.read_text()) == original
+
+
+def test_open_pr_rechecks_human_edits_after_push(tmp_path, monkeypatch):
+    import coga.open_pr as module
+
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _install_fake_gh(monkeypatch, bin_dir)
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    ticket = _prepared_ticket(repo, wt, _preparation(repo, wt))
+    cfg = load_config(repo.coga_os)
+    open_pr(cfg, slug="presentation", blackboard_path=ticket)
+    real_git = module._git
+
+    def edit_during_push(args, *, cwd):
+        result = real_git(args, cwd=cwd)
+        if args[0] == "push":
+            view_file = bin_dir / "view.json"
+            data = json.loads(view_file.read_text())
+            data["title"] = "Concurrent human edit"
+            view_file.write_text(json.dumps(data))
+        return result
+
+    monkeypatch.setattr(module, "_git", edit_during_push)
+    log.write_text("")
+    with pytest.raises(OpenPrError, match="presentation conflict"):
+        open_pr(cfg, slug="presentation", blackboard_path=ticket)
+    assert "pr edit" not in log.read_text()
+
+
+
+def test_open_pr_refresh_allows_literal_marker_examples_in_snapshot(tmp_path):
+    from coga.open_pr import _pr_presentation, _refresh_body
+    from coga.taskfile import split_body
+
+    repo = init_git_repo(tmp_path)
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    prep = _preparation(repo, wt)
+    ticket = Ticket.read(_prepared_ticket(repo, wt, prep))
+    above, blackboard = split_body(ticket.body)
+    above += "\n## Context\n\nLiteral closing marker: <!-- /coga:pr -->\n"
+    above += "<!-- coga:pr:v1 title=" + "0" * 64 + " body=" + "0" * 64 + " -->\n"
+    title, body = _pr_presentation(ticket, blackboard, above, "presentation",
+                                   head=prep["head"], base=prep["base"],
+                                   changes=[("A", ["coga/change.txt"])])
+    existing = {"title": title, "body": body, "baseRefName": "main"}
+    assert _refresh_body(existing, title, body, "main") == body
+    assert "Literal closing marker: <!-- /coga:pr -->" in body
