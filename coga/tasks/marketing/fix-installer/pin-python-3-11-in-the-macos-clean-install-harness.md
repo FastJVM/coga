@@ -1,6 +1,6 @@
 ---
 title: Pin Python 3.11 in the macOS clean-install harness
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:009a4925-56da-4370-8fd9-a207ef679970
 ---
 
 ## Description
