@@ -1,6 +1,6 @@
 ---
 title: Publish coga 1.0 as the final V1 step
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/releasing
@@ -19,6 +19,7 @@ workflow:
     assignee: agent
 step: 1 (agent-produces)
 agent: claude
+launch_generation: pending:569e1129-def2-4323-8b16-a76860ef952f
 ---
 
 ## Description
