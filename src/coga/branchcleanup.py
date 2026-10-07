@@ -60,7 +60,10 @@ Branch safety model:
     half this is a re-check rather than a lease: the atomic spelling
     (`git update-ref -d <ref> <old-oid>`) is plumbing and will happily delete a
     branch a linked worktree still holds, including the rebase/bisect states
-    branch sweep relies on `-D` to catch.
+    branch sweep relies on `-D` to catch. A tip already reachable from the
+    landed ref that `-d` still refuses on its own merge check — which measures
+    against the configured upstream, or HEAD when there is none, and either may
+    lag behind it — is re-checked and force-deleted the same way.
 
 `gh` missing/unauthed means the merge state can't be confirmed: the gated
 deletes are skipped and reported, never forced.
@@ -955,6 +958,18 @@ def delete_local_branch(
             return
         stderr = (safe.stderr + safe.stdout).strip()
         result.local_worktree_path = _worktree_path_from_delete_error(stderr)
+        if _merge_check_refusal(stderr):
+            _recheck_and_force_delete(
+                root,
+                branch,
+                tip,
+                f"landed on {landed_ref} but `git branch -d` refused on its "
+                "merge check",
+                echo,
+                result,
+                landed_ref=landed_ref,
+            )
+            return
         _note(result, echo, f"Branch cleanup: could not delete local {branch!r}: {stderr}")
         return
 
@@ -974,35 +989,74 @@ def delete_local_branch(
         )
         return
 
-    # Re-read the ref and drop out if it moved since the caller authorized it.
-    # `git update-ref -d <ref> <old-oid>` would make that check atomic, but it is
-    # plumbing: it deletes a branch a linked worktree still holds. `git branch -D`
-    # is the only spelling that refuses one, *including* the rebase/bisect states
-    # where the holding worktree reports as detached and the branch is invisible
-    # to both `git worktree list --porcelain` and `%(worktreepath)` — the hidden
-    # state branch sweep leans on this gate to catch. Keeping the porcelain and
-    # re-checking here trades an atomic compare-and-delete for a race window one
-    # exec wide, rather than trading away the worktree gate.
-    tip = _rev_parse(root, f"refs/heads/{branch}")
-    if expected_tip is not None and tip != expected_tip:
+    _recheck_and_force_delete(root, branch, tip, "PR merged", echo, result)
+
+
+def _merge_check_refusal(output: str) -> bool:
+    """True iff `git branch -d` refused only on its own merge check.
+
+    `-d` measures "merged" against the branch's configured upstream when it has
+    one, and against HEAD otherwise — never against the caller's landed ref. So
+    a tip that landed on control is refused when its `origin/<branch>` is an
+    older commit, or when it has no upstream and HEAD is not control ("is not
+    fully merged"). The caller has already proven ancestry into the landed ref,
+    which supersedes that check. A worktree refusal or any other error is not
+    this shape; `_git` pins `LC_ALL=C`, so the wording is stable.
+    """
+    return "is not fully merged" in output
+
+
+def _recheck_and_force_delete(
+    root: Path,
+    branch: str,
+    tip: str,
+    reason: str,
+    echo: Callable[[str], None],
+    result: BranchCleanupResult,
+    *,
+    landed_ref: str | None = None,
+) -> None:
+    """`-D` the local `branch` iff it still sits at the authorized `tip`.
+
+    Re-read the ref (and, given `landed_ref`, its ancestry) and drop out if
+    either changed since the caller authorized it. `git update-ref -d <ref>
+    <old-oid>` would make that check atomic, but it is plumbing: it deletes a
+    branch a linked worktree still holds. `git branch -D` is the only spelling
+    that refuses one, *including* the rebase/bisect states where the holding
+    worktree reports as detached and the branch is invisible to both `git
+    worktree list --porcelain` and `%(worktreepath)` — the hidden state branch
+    sweep leans on this gate to catch. Keeping the porcelain and re-checking
+    here trades an atomic compare-and-delete for a race window one exec wide,
+    rather than trading away the worktree gate. The tip SHA is logged so the
+    work stays recoverable from the reflog.
+    """
+    current = _rev_parse(root, f"refs/heads/{branch}")
+    if current != tip:
         _note(
             result,
             echo,
             f"Branch cleanup: local {branch!r} moved from the authorized tip "
-            f"{expected_tip[:12]} to {tip[:12] if tip else 'nothing'} since it "
+            f"{tip[:12]} to {current[:12] if current else 'nothing'} since it "
             "was checked — left in place.",
+        )
+        return
+    if landed_ref is not None and not local_branch_landed(root, branch, landed_ref):
+        _note(
+            result,
+            echo,
+            f"Branch cleanup: local {branch!r} is no longer reachable from "
+            f"{landed_ref} — left in place.",
         )
         return
 
     forced = _git(root, "branch", "-D", branch)
     if forced.returncode == 0:
         result.local_deleted = True
-        tip_note = f" (was {tip})" if tip else ""
         _note(
             result,
             echo,
-            f"Branch cleanup: force-deleted local {branch!r}{tip_note} — "
-            "PR merged; recover with `git checkout -b` from the reflog SHA.",
+            f"Branch cleanup: force-deleted local {branch!r} (was {tip}) — "
+            f"{reason}; recover with `git checkout -b` from the reflog SHA.",
         )
         return
     stderr = (forced.stderr + forced.stdout).strip()

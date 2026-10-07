@@ -33,7 +33,14 @@ A recorded worktree is removed only when:
 - the branch has landed on control or still equals the recorded merged PR head.
 
 Local cleanup precedes remote deletion; local deletion re-checks the authorized
-tip on both the ancestry and merged-PR paths. Remote deletion re-verifies the exact
+tip on both the ancestry and merged-PR paths. On the ancestry path, a tip already
+reachable from the landed ref that `git branch -d` still refuses only on its own
+merge check ("is not fully merged" — `-d` measures against the branch's
+configured upstream, or HEAD when there is none, and either may lag the landed
+ref) escalates to `git branch -D`, but only after re-reading the branch and
+requiring it to still equal the authorized tip and still be reachable from the
+landed ref; a worktree refusal or any other error is never forced, and the
+deleted tip SHA is logged for reflog recovery. Remote deletion re-verifies the exact
 head and uses force-with-lease, so a reused branch is never deleted on stale
 PR state.
 
