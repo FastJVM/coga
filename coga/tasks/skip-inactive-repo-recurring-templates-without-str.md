@@ -27,7 +27,7 @@ contexts:
 - coga/recurring/scheduling
 - coga/recurring/templates
 agent: claude
-launch_generation: pending:96d499d7-911f-4b2e-a65f-df977a9f7f50
+launch_generation: 96d499d7-911f-4b2e-a65f-df977a9f7f50
 ---
 
 ## Description
