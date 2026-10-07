@@ -1,6 +1,6 @@
 ---
 title: Match concurrent Codex sessions to their launch so usage stops undercounting
-status: in_progress
+status: done
 owner: nicktoper
 contexts:
 - dev/code
@@ -30,7 +30,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 
