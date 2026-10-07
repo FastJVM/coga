@@ -98,7 +98,9 @@ remain in force; publication adds no universal suite gate.
 The last judgment step reads this section and writes one fenced `yaml` mapping
 under `## PR` on the blackboard (ticket-body `## PR` is a legacy location).
 Implement records actual authorship and checks; the final review step refreshes
-it after fixes/rebases. Design approval is not code review. Do not copy a
+it after the final freshness/rebase pass, fixes, and required checks. Prepare
+the record last so its head/base and receipts describe the resulting revision.
+Design approval is not code review. Do not copy a
 configured identity, infer execution from a planned command, or re-stamp an old
 receipt. Resolve the full feature OID with `git rev-parse <branch>` and the
 reviewed diff base with `git merge-base origin/main <branch>`. Every executed

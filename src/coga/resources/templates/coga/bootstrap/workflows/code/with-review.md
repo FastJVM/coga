@@ -107,9 +107,18 @@ escalate per your launch mode instead of bumping on tests alone.
 is agent-owned, but its remit is only to run the deterministic command and bump,
 so anything needing review judgment must be done *here* before you bump:
 
+- **Make the branch fresh, not just conflict-free.** Don't wait for a
+  conflict: run `git fetch origin main && git rebase FETCH_HEAD` on the
+  feature branch unconditionally, resolve whatever surfaces, re-run
+  `python -m pytest`, commit, and push with `--force-with-lease`. `coga
+  open-pr` refuses unsafe material drift,
+  and the next step is intentionally mechanical — this step is the last one
+  that makes rebase decisions. If a conflict needs a call you can't make,
+  escalate per your launch mode — ask the attending human, or `coga block`
+  in a queue run.
 - **Prepare the PR presentation after the final fixes and rebase.** A review
   receipt covers only the head/base it read: rebasing or committing fixes
-  afterwards leaves it historical and forces `deep`. Freshen the branch (next
+  afterwards leaves it historical and forces `deep`. Freshen the branch (previous
   bullet) before the review when you can, and re-review the final head if
   fixes or a later rebase moved it, or record the receipt as covering the older
   revision. Read
@@ -122,15 +131,6 @@ so anything needing review judgment must be done *here* before you bump:
   it returned, and the head/base it covered. An override or peer configuration
   does not prove independence. Explain omissions; never re-stamp stale results
   after fixes. The workflow's existing tests and review obligations still apply.
-- **Make the branch fresh, not just conflict-free.** Don't wait for a
-  conflict: run `git fetch origin main && git rebase FETCH_HEAD` on the
-  feature branch unconditionally, resolve whatever surfaces, re-run
-  `python -m pytest`, commit, and push with `--force-with-lease`. `coga
-  open-pr` refuses unsafe material drift,
-  and the next step is intentionally mechanical — this step is the last one
-  that makes rebase decisions. If a conflict needs a call you can't make,
-  escalate per your launch mode — ask the attending human, or `coga block`
-  in a queue run.
 
 Leave the branch committed and pushed with commits ahead of `main`, and the
 checkout back on a clean `main`; `coga open-pr` refuses to publish an empty
