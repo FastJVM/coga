@@ -48,10 +48,17 @@ control's copy of the ticket ([dev/checkouts](../checkouts/SKILL.md)); `coga
 bump` publishes it. The implement step declares
 `requires: branch`, so `coga bump` refuses until that copy has `branch:`.
 
-Know the gate's limits. It checks presence, not freshness: on a retry the
-earlier attempt's lines pass while this attempt's write strands. And it is
-cheaply satisfiable by hand-copying the lines, which leaves the stranded write
-to resurface later.
+Know the gate's limits. It checks presence, not attempt freshness: an earlier
+attempt's branch record can still pass. Copying linkage lines also does not
+repair a stranded ticket write.
+
+Decision (2026-10-06, owner): do not add the proposed branch/worktree freshness
+guard at bump. Its cross-checkout premise predates ordinary tickets' move to
+the launch checkout. Branch existence cannot distinguish a wrong old branch
+from a legitimate resumed branch; `open-pr` already checks existence and
+commits ahead of the base. Revisit on a concrete wrong-branch handoff under
+the current ordinary-ticket workflow. Recurring worktrees are outside this
+decision.
 
 ## Stranded ticket writes
 
@@ -62,6 +69,14 @@ uncommitted ticket edit surfaces as `coga open-pr`'s "Recorded worktree has
 uncommitted changes" refusal, which names this ticket's file separately.
 The comparison is one-directional; a branch copy control already absorbed is
 silent.
+
+Decision (2026-10-06, owner): do not add a general cross-checkout detector for
+uncommitted blackboard prose. The remaining working-memory loss is rare and
+low stakes; missing checkout pointers, independent clones, detached worktrees,
+and normal control-ahead divergence make reliable detection disproportionate.
+Revisit if concrete lost-note incidents justify the complexity. Any future
+comparison should report content the control copy lacks, without automatically
+merging or overwriting either copy.
 
 Repair: inspect the branch copy, preserve anything still needed in the primary
 ticket, then restore the merge base's copy on the branch and commit:
