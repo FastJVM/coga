@@ -55,6 +55,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/976
 branch: owned-mac-clean-install
 
 Plan (implement, 2026-10-06): #943 merged (76ed1c43d), so build on main.
