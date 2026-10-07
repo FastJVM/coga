@@ -1,6 +1,6 @@
 ---
 title: Retire reconcile-recurring-wrapper-tty-admission-guidance
-status: in_progress
+status: done
 owner: nicktoper
 agent: claude
 workflow:
@@ -10,8 +10,6 @@ workflow:
     skills:
     - direct/body
     assignee: agent
-step: 1 (execute)
-launch_generation: 4741955f-fa24-4690-9d7c-5d2d3a7cecb6
 ---
 
 ## Description
@@ -156,4 +154,5 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Run 2026-10-06
 - Preconditions: source `reconcile-recurring-wrapper-tty-admission-guidance.md` is `status: done`, present on origin/main (199e6cd78).
 - Run dir: scratchpad/retire-run-jHZ7 (evidence/ read-only, progress.md). Isolated worktree: scratchpad/retro-wt on branch `retro-tmp/reconcile-recurring-wrapper-tty-admission-guidance` from origin/main; coga.local.toml copied.
-- Retro subagent delegated; awaiting result.
+- Retro outcome (verified): knowledge PR https://github.com/FastJVM/coga/pull/969 (branch codex/retro-reconcile-recurring-wrapper-tty-admission-guidance-knowledge pushed, OPEN). Adds rejected-alternatives rationale to coga/recurring/delegation context + packaged twin; records ## Retro marker and deletes source ticket in same PR. progress.md had `complete`. Slack FYI posted.
+- Cleanup: copied coga.local.toml removed, worktree + temp branch removed, run dir deleted.
