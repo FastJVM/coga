@@ -1,6 +1,6 @@
 ---
 title: Affordable macOS testing on owned Macs and per-minute CI
-status: paused
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -51,8 +51,10 @@ Outstanding AWS cleanup belongs to PR #943 and must not wait for this ticket: ho
 ### Owner hold — 2026-10-07
 
 The owner has not yet deployed a macOS test environment and wants to retain
-this work as a ticket rather than proceed with PR #976. Pause the ticket and
-close the PR without merging; preserve the implementation on
+this work as a ticket rather than proceed with PR #976. The owner explicitly
+requested blocked status (not paused) until the macOS test environment is
+deployed and SSH access is available. PR #976 is closed without merging;
+preserve the implementation on
 `owned-mac-clean-install` (reported PR head
 `812ff1b92a226ac3adf5aa98bed0d22589bde594`) and the existing test history.
 This is deferred work, not canceled or delivered work.
