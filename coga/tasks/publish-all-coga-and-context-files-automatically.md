@@ -100,3 +100,21 @@ here and reuse it there rather than adding an onboarding-specific publisher.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: publish-coga-roots
+
+## Plan (implement, 2026-10-07)
+
+- One shared membership helper in `src/coga/git.py` (`coga_root_paths`):
+  the Coga root plus the contexts root, nested roots deduplicated. Same set
+  `mark.stranded_product_paths` already excludes; reuse it there.
+- Sweep publishes those roots; checkout preparation/return and
+  `_local_control_subsumed` classify by them; assist-checkout alignment too.
+- Committed-path adoption from a non-control branch stays limited to
+  routine ticket/log/recurring state, so a reviewed code PR's committed
+  knowledge edits are not pushed to control ahead of review and their
+  packaged twins. Dirty files anywhere in the roots publish.
+- Authoring finalization publishes authored tasks plus changed root files in
+  one publish; a failure keeps the edits and exits non-zero.
