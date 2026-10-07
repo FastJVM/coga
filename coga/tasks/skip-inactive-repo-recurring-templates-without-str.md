@@ -22,12 +22,11 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 contexts:
 - coga/recurring/scheduling
 - coga/recurring/templates
 agent: claude
-launch_generation: 1828e01e-2a37-4d1c-9398-a6f610de4524
 ---
 
 ## Description
@@ -55,3 +54,38 @@ branch: inactive-lenient-template-skip
 Plan: in `recurring.scan_due`, on an inactive non-forced sweep call a new
 lenient reader (`recurring._read_inactivity_fields`) before `Template.load`;
 non-exempt → skip row, exempt → strict load as before.
+
+### Implement handoff
+
+Pushed `inactive-lenient-template-skip` (rebased on origin/main 4cb59f31c).
+
+- `recurring.scan_due`: on `inactive_since is not None and not force`, calls
+  new `recurring._read_inactivity_fields(path, now)` before `Template.load`.
+  Non-exempt → `inactivity_skips` row, no strict load, no error/alert. Exempt
+  → falls through to strict `Template.load` exactly as before.
+- Lenient reader still raises (template error) for: missing ticket.md, no
+  frontmatter, non-mapping frontmatter, non-bool `run_when_inactive` (the
+  exemption is undecidable; keeps `test_run_when_inactive_must_be_boolean`).
+- Decision: an invalid/missing schedule on a non-exempt inactive template is
+  also skipped; `DueScan.inactivity_skips` firing became `datetime | None`,
+  rendered as `-` in both `recurring_runner` scan table and
+  `recurring_autofix.scan_lines_for_record`.
+- Docs: `## Repo inactivity` in coga/recurring/scheduling and the
+  `run_when_inactive` bullet in coga/recurring/templates, canonical + bootstrap
+  twins updated identically.
+- Tests (tests/test_recurring.py): `test_inactive_sweep_skips_broken_template_without_strict_load`
+  (inactive rejected-key → skip row, run_recurring_scan exit 0, no notify;
+  inactive exempt → error; active → error),
+  `test_inactive_sweep_reports_unreadable_frontmatter`,
+  `test_inactive_sweep_skips_template_with_bad_schedule`.
+- Verification: full `python -m pytest` 3357 passed, 1 failed in
+  test_edge_distribution (inventory sort order) which also failed on main and
+  passes after rebasing onto #974 (pin-inventory-sort-collation);
+  re-ran test_recurring + test_packaging + test_edge_distribution after rebase: green.
+
+Adjacent bug (not fixed, no ticket): `Template.load` does not catch
+`yaml.YAMLError`, and `recurring._template_period_targets` calls it first
+inside `scan_due`, so a template with syntactically invalid YAML frontmatter
+raises out of the whole scan (active or inactive) instead of becoming one
+`## Template errors` entry. Repro: write `---\nschedule: [unclosed\n---\n`
+into recurring/<name>/ticket.md and call `scan_due`. Unresolved.
