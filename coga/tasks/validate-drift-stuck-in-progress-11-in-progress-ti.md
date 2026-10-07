@@ -1,7 +1,7 @@
 ---
 title: 'validate-drift: stuck-in-progress — 11 in_progress tickets idle past threshold
   need an owner verdict'
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: brief-for-human
@@ -16,6 +16,7 @@ workflow:
     skills: []
     assignee: agent
 step: 1 (brief-and-hand-off)
+agent: claude
 ---
 
 ## Description
