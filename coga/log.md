@@ -7796,3 +7796,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-07 15:38 [verify-dream-under-codex-on-the-real-repo-w40] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-07 15:38 [verify-dream-under-codex-on-the-real-repo-w40] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-07 15:38 [verify-dream-under-codex-on-the-real-repo-w40] [megalaunch] launched via coga megalaunch
+2026-10-07 15:39 [verify-dream-under-codex-on-the-real-repo-w40] [agent:claude] advanced to step 2 (human-executes) → nicktoper — Brief on blackboard: W40/W41 already ran under claude; target W42 (Mon 2026-10-12) — run coga dream --agent codex from /home/n/Code/coga on main before that week's sweep.

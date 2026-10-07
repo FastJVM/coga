@@ -14,9 +14,8 @@ workflow:
   - name: verify-read-only
     skills: []
     assignee: agent
-step: 1 (brief-and-hand-off)
+step: 2 (human-executes)
 agent: claude
-launch_generation: 929f6c47-8a42-492d-919a-f47a1d56ef07
 ---
 
 ## Description
@@ -62,3 +61,70 @@ Do not launch before `make-dream-run-correctly-under-codex` has merged.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Brief (brief-and-hand-off, 2026-10-07, read-only)
+
+**Goal.** Run one attended codex Dream on `FastJVM/coga` for the first
+period that has not been serviced since #891 merged, and confirm it matches
+the clean scratch run (parent ticket, iteration 2).
+
+**Which period: W42, not W40.** #891 merged 2026-09-25 (released in coga
+0.4.0, which is the installed `~/.local/bin/coga`). The scheduled sweep then
+took both available periods under claude:
+- W40 on 2026-09-29: 10 PRs (#920–#929), 11 drafts, 9 deletes, 119 turns;
+- W41 on 2026-10-05: 8 PRs (#953–#960), 3 drafts, 8 deletes, 80 turns.
+
+So the first open period is **2026-W42**, which starts Mon 2026-10-12. The
+slug still says w40; the body says "first period after merge, not a fixed
+week", so W42 qualifies. No cron runs the sweep: the only crontab line is a
+Monday 09:00 `uv tool upgrade coga`. The owner has been starting
+`coga recurring` by hand around 11:26 on Mondays. The owner just needs to
+run Dream before running that week's sweep.
+
+**State already in place (checked read-only):**
+- `/home/n/Code/coga/.codex/config.toml` matches the recipe in
+  `coga/testing` § "Codex sandbox grant". It has
+  `writable_roots = ["/home/n/Code/coga/.git"]`, which is the
+  `--git-common-dir` output. It is gitignored. Note: the ticket points at
+  `coga/codebase` `## Sandbox and cross-machine dev loop`; that section has
+  moved to `coga/testing`.
+- `~/.codex/config.toml` already marks `/home/n/Code/coga` as trusted.
+- codex-cli is 0.160.1; the scratch runs used 0.155.1.
+
+**Ordered steps (owner):**
+1. On or after Mon 2026-10-12, and **before** any `coga recurring` that week:
+   `cd /home/n/Code/coga`, be on `main` (clean, pulled), and confirm
+   `cat .codex/config.toml` still shows the grant. Run from this checkout
+   on `main`. On another branch, the named launch relays into a different
+   worktree on `main` (`coga/internals/recurring-control`), and that worktree
+   may not have the gitignored grant. W40 ran from `~/Code/claude/coga`; if
+   you use that checkout instead, apply the grant there with its own
+   common-dir path and trust it.
+2. `coga dream --agent codex` and stay attended. Watch the
+   agent-capability preflight line first. If it fails, stop and record why.
+3. Let it finish all six phases and close the task. Then run the normal
+   `coga recurring` sweep. Dream is already serviced for W42, so the sweep
+   skips it.
+4. Relaunch this ticket (it goes to `verify-read-only`).
+
+**Irreversible action.** Step 2 writes to the real repo, under the codex
+grant (network on, `.git` writable). It pushes branches, opens real PRs on
+`FastJVM/coga`, direct-deletes period tickets on `main` (Retro), creates
+draft tickets, posts to Slack, and marks W42 as serviced. That last one
+means there is no claude W42 run to compare against. The grant also applies
+to every other codex session in this checkout (accepted 2026-09-22).
+
+**Done check (verify-read-only step):**
+- the preflight passed, and all six phases (preflight, validate-drift,
+  knowledge scan, contract audit, Retro, execute/disposition) report results;
+- every reported PR exists on `FastJVM/coga`, and every draft and marker
+  exists;
+- the `recurring/dream` W42 run record in `coga/log.md` shows
+  `agent: codex` and `usage_status: ok`, with session = the parent id;
+- the summary goes here, next to the W39 claude baseline and scratch
+  iteration 2 (see the table on the parent ticket). W40 and W41 under claude
+  are extra comparison points;
+- watch for the known scratch issues. The knowledge scan went `partial`
+  because of oversized owner-search output, and actor attribution was wrong
+  (`[agent:claude]` on codex lines). Any new gap becomes a proposed ticket
+  with evidence, for the owner to file or reject.
