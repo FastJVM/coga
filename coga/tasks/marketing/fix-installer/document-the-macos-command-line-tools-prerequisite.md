@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: bf161e7e-7278-42d8-8ee7-9e6df997c59e
 ---
 
 ## Description
@@ -54,3 +53,21 @@ Decisions: docs only, no installer and no code change. README not touched: `mark
 Tests: `python -m pytest`: 3273 passed, 1 failed (`tests/test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`). It fails the same way on clean `main` (ordering of recurring `ticket.py` inventory). That is unrelated and already recorded in `marketing/fix-installer/offer-agent-cli-install-and-setup-at-init`. `test_packaging` twins pass. `git diff --check` is clean.
 
 Possible follow-up (not done here): `coga init` could detect the macOS CLT stub (for example, `xcode-select -p` failing) and print the CLT hint, instead of failing later at its first git call.
+
+## Peer review
+
+2026-10-06: `codex review --base main` **returned**, exit 0, with no findings. The initial attempt could not initialize its app-server in the read-only sandbox; the authorized unsandboxed retry completed. The reviewer checked the existing macOS runbook and init's Git checks and ran `.venv/bin/python -m pytest tests/test_packaging.py -q`: **23 passed**. No must-fix changes were needed.
+
+Rebased unconditionally with `git fetch origin main && git rebase FETCH_HEAD`; pushed `docs/macos-clt-prerequisite` with `--force-with-lease`. Final commit: `676dc06e4`. Returned to clean `main` with fetch, switch, and fast-forward check.
+
+Verification: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest`: **3274 passed** in 271.24s. The earlier legacy-adoption failure does not reproduce on this rebased branch. An initial `python -m pytest` attempt failed collection because the ambient interpreter lacks `tomlkit`; the repository venv run above is the complete test receipt. `git diff --check main...HEAD` on the feature branch and direct `cmp` of the install-topic twins both passed.
+
+Manual documentation review checked prerequisite ordering, both setup paths, the runbook link, and the explicit evidence caveat. Apple's [Command Line Tools installation documentation](https://developer.apple.com/documentation/xcode/installing-the-command-line-tools) and [TN2339](https://developer.apple.com/library/archive/technotes/tn2339/_index.html) support the graphical installation route. This is a documentation-only change with no changed terminal UI. No macOS session was available or newly exercised; the SSH reproduction remains the ticket's recorded evidence, and the GUI dialog remains untested. The ignored raw evidence files are absent from this checkout.
+
+## PR
+
+Fresh Macs can fail at their first Git invocation before Coga installation or initialization. Document the Command Line Tools prerequisite before the install steps, including the graphical installation prompt, an administrator's headless `softwareupdate` path, and verification with `git --version`. Explain why the Git shim bypasses init's missing-tool offer and remind users to use Python 3.11+.
+
+Keep the canonical install topic and packaged twin identical, link the existing macOS clean-install runbook, and distinguish the recorded SSH failure from the unexercised GUI path. README wording remains with `marketing/readme-top`; no installer or runtime behavior changes.
+
+Test plan: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest` — 3274 passed; `git diff --check main...HEAD` and install-topic twin `cmp` passed; Codex review returned with no findings. No new macOS execution.
