@@ -11,7 +11,7 @@ workflow:
     - direct/body
     assignee: agent
 step: 1 (execute)
-launch_generation: pending:4741955f-fa24-4690-9d7c-5d2d3a7cecb6
+launch_generation: 4741955f-fa24-4690-9d7c-5d2d3a7cecb6
 ---
 
 ## Description
