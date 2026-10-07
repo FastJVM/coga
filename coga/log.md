@@ -7725,3 +7725,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-06 22:24 [improve-pr-check] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-06 22:24 [improve-pr-check] [human:nicktoper] launched (operator=claude, launch_agent=codex, agent=codex)
 2026-10-06 22:26 [coga] [git] sync failed: push to origin/main failed: fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com; control could not be re-read: `git fetch --quiet origin +refs/heads/main:refs/remotes/origin/main` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com
+2026-10-06 22:35 [marketing/fix-installer/affordable-macos-testing-on-owned-macs-and-per-min] [human:nicktoper] advanced to step 3 (open-pr) → claude

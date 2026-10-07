@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 562c7535-e95a-4845-87f4-69fdab7d0600
 ---
 
 ## Description
@@ -133,3 +132,72 @@ Not done / open:
   record results here.
 - AWS host h-0833c01ac15e645ac release belongs to PR #943's ticket; not
   touched, no AWS resources allocated.
+
+## Peer review
+
+Completed 2026-10-06. `codex review --base main` **returned** with two
+must-fix findings: P1 cleanup could delete a pre-existing account after a
+rejected walk; P2 failed SSH checks could falsely record an account as deleted.
+The initial sandbox invocation could not initialize its app-server; the
+authorized unsandboxed retry returned normally. Review transcript:
+`/tmp/owned-mac-peer-review.txt` (local, ephemeral).
+
+Fixed both: attached runs give newly created accounts a per-run ownership
+tag; deletion requires a match and confirms absence on the Mac. Transport or
+account-check failures leave cleanup retryable. Added regressions for an
+existing account, changed ownership, failed walks after account creation,
+SSH failure, and account checks failing before or after deletion. Attached
+runs also own separate script directories; fresh users can read the copied
+wheel and execute the shared scripts. Owning topic and packaged twin updated.
+
+`codex review --uncommitted` **returned** after those fixes. Its one P2 finding
+was that mode 644 contradicted the documented direct script invocation;
+restored mode 755 and verified the focused suite again. No findings remain
+unaddressed. Follow-up transcript: `/tmp/owned-mac-fixes-review.txt`.
+
+Verification on the final branch:
+- `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q` -> **3285 passed**
+  in 258.52s after rebasing onto `c93ced159`. The earlier implementation
+  handoff's legacy-adoption failure did not recur. Receipt:
+  `/tmp/owned-mac-rebased-pytest.txt`.
+- `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_clean_install_harness.py tests/test_packaging.py -q`
+  -> **52 passed**.
+- `env -u SLACK_WEBHOOK_URL PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --task marketing/fix-installer/affordable-macos-testing-on-owned-macs-and-per-min --json`
+  -> **1 OK, no issues**.
+- `bash -n` individually for all six `scripts/clean-install/*.sh` files;
+  `git diff --check main...HEAD` -> clean.
+- `python3 /tmp/owned-mac-tty-check.py` in a real PTY at 80x24 and 120x40:
+  `owned-mac.sh ssh` retained terminal stdin/stdout, passed `-t` and the
+  attended `sudo -iu walk1` command, and did not pipe output to `host.txt`.
+  SSH was stubbed; this verifies local terminal forwarding only. No live Mac,
+  VM boot, agent login, or VNC claim is made without owner-supplied SSH access.
+
+Reconfirmed #943 merged and #968 remains open; the cleanup tag addition is
+above its uv/Python walk changes. GitHub and Buildkite pricing pages still
+support the comparison. No paid service, CI workflow, or AWS allocation added.
+
+Pushed `owned-mac-clean-install` with `--force-with-lease`, tip `941702e8e`
+(implementation `3014627ed`, review fixes `941702e8e`), two commits ahead of
+current main. Returned to clean `main` before writing this handoff.
+Live owned-Mac execution remains conditional on the owner supplying SSH access;
+the separate AWS release work remains outside this ticket.
+
+## PR
+
+Add an SSH driver for inexpensive macOS install testing: disposable Tart
+VMs on owned Apple Silicon Macs for fresh installs, and attached Intel Macs
+for compatibility checks. Reuse the AWS harness's PyPI/fetched-main wheel
+walk and evidence collection, confine reset and VNC password changes to
+designated disposable targets, and require per-run account ownership before
+attached-host cleanup. Failed cleanup checks remain retryable.
+
+Document setup, reset, attended continuation, cleanup, and the dated
+GitHub Actions/Buildkite/EC2 cost comparison in the testing topics and their
+packaged twins. Hosted CI remains a recommendation requiring an owner decision;
+this change adds no workflow or paid service. Live owned-Mac testing awaits
+owner-provided SSH access.
+
+Test plan: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q` (3285 passed);
+`PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_clean_install_harness.py tests/test_packaging.py -q`
+(52 passed); task-scoped source CLI validation (1 OK, no issues); shell syntax
+and diff checks; real PTY forwarding checks at 80x24 and 120x40 with stubbed SSH.
