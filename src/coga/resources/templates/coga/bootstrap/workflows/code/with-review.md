@@ -107,7 +107,12 @@ escalate per your launch mode instead of bumping on tests alone.
 is agent-owned, but its remit is only to run the deterministic command and bump,
 so anything needing review judgment must be done *here* before you bump:
 
-- **Prepare the PR presentation after the final fixes and rebase.** Read
+- **Prepare the PR presentation after the final fixes and rebase.** A review
+  receipt covers only the head/base it read: rebasing or committing fixes
+  afterwards leaves it historical and forces `deep`. Freshen the branch (next
+  bullet) before the review when you can, and re-review the final head if
+  fixes or a later rebase moved it, or record the receipt as covering the older
+  revision. Read
   [coga/internals/pr-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/SKILL.md),
   “Presentation and review-depth rubric” and “Preparation record”. Refresh
   `## PR` with the actual title, advisory recommendation and rationale,

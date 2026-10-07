@@ -151,11 +151,15 @@ blackboard and PR preparation. Snapshot extraction happens at publication.
 The closure marker remains machine-readable outside that snapshot.
 
 Missing/unstructured preparation publishes a `deep` fallback with unknown
-identity and explicit missing implementation, file, test and review evidence;
-legacy free-form `## PR` claims are not treated as verification. Malformed YAML
-or fields refuse with a repair message. A head/base mismatch invalidates the
-preparation; individual stale receipts are displayed as historical, not as
-verification of the current diff. Missing or stale evidence, unexplained paths,
+identity and explicit missing implementation, file, test and review evidence.
+Legacy free-form `## PR` prose is shown as unverified implementation text,
+never as check or review evidence. An empty blackboard `## PR` does not shadow
+a populated ticket-body one. Malformed YAML or fields refuse with a repair
+message. A top-level head/base mismatch is a visible stale-preparation gap that
+forces `deep` but keeps the prepared explanations; each receipt is judged
+against its own head/base, and stale ones are displayed as historical, not as
+verification of the current diff. An `independent` review whose reviewer equals
+the author is shown and judged as self-review. Missing or stale evidence, unexplained paths,
 and failed/pending checks force `deep`; `merge` also requires a passed independent
 review and at least one passed applicable check. Reasons for unrun checks stay
 visible; deciding applicability remains the preparation agent's job.
@@ -170,13 +174,20 @@ including the ticket snapshot and evidence, before a draft is readied or `pr:`
 is recorded. An unchanged rerun does not edit. An existing PR targeting another
 base refuses because the prepared comparison would not describe its diff.
 
-A modified title, modified/malformed generated region, or unmarked legacy PR
-refuses instead of silently keeping stale text or overwriting human edits.
-Reconcile with the owner: preserve wanted human prose outside the markers,
-move intended generated changes into `## PR`, and restore the last generated
-title/region before rerunning. For a legacy PR, explicitly approve replacing
-its presentation with the new format while preserving wanted human notes.
-There is no automatic adoption or force-overwrite flag. Resolve detected
+Line endings are normalized to LF before matching and digesting, because
+GitHub's web editor resubmits the body with CRLF; an edit outside the markers
+therefore stays a preserved note rather than a conflict.
+
+An unmarked PR from before the markers is adopted when its title is still the
+plain ticket title Coga used to publish: the generated region is placed first
+and the entire old body is kept below it as human-owned notes, so nothing is
+lost and later reruns refresh only the region. An unmarked PR whose title a
+human changed, a modified generated title, or a modified/malformed generated
+region refuses instead of silently keeping stale text or overwriting human
+edits. Reconcile with the owner: preserve wanted human prose outside the
+markers, move intended generated changes into `## PR`, and restore the last
+generated title/region (for an unmarked PR, the ticket title) before
+rerunning. There is no force-overwrite flag. Resolve detected
 conflicts before pushing; re-read after push to catch intervening edits before
 updating. GitHub has no atomic compare-and-set for these title/body edits, so
 a simultaneous edit after that last read can still race; avoid co-editing
