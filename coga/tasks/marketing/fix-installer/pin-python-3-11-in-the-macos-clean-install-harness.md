@@ -36,3 +36,12 @@ The macOS harness does not enforce the required Python 3.11 matrix, unlike Linux
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: pin-mac-python-311
+
+Plan: container.sh (shared Linux/macOS walk) refuses to run unless
+UV_PYTHON + UV_PYTHON_DOWNLOADS=never select a 3.11 interpreter, records it,
+and installs coga with that interpreter explicitly; macos-walk.sh provisions
+3.11 with `uv python install` and exports the pins. Runbook + twin updated.
