@@ -25,6 +25,7 @@ workflow:
     assignee: owner
 step: 2 (self-qa)
 agent: claude
+launch_generation: pending:919a4448-9f77-4f6e-8955-1b7a09227ac2
 ---
 
 ## Description
