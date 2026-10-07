@@ -39,6 +39,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/968
 branch: pin-mac-python-311
 
 Plan: container.sh (shared Linux/macOS walk) refuses to run unless
