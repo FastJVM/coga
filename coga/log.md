@@ -7783,3 +7783,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-07 15:23 [keep-multiline-audit-messages-on-one-log-line] [human:nicktoper] created (status=draft)
 2026-10-07 15:23 [prevent-duplicate-session-usage-records-from-infla] [human:nicktoper] created (status=draft)
 2026-10-07 15:24 [investigate-successful-codex-sessions-reported-as] [human:nicktoper] created (status=draft)
+2026-10-07 15:24 [correct-readme-claims-about-prompt-report-output] [human:nicktoper] created (status=draft)
