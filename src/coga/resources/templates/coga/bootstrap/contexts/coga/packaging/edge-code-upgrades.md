@@ -13,7 +13,7 @@ paused and blocked copies, not just the active recurring task.
 
 <!-- migration:inventory -->
 ```sh
-rg --files --hidden --no-ignore -g '*.py' coga/recurring coga/tasks | sort
+rg --files --hidden --no-ignore -g '*.py' coga/recurring coga/tasks | LC_ALL=C sort
 ```
 
 For a release removing recipe targets, also inventory their exact callers in
