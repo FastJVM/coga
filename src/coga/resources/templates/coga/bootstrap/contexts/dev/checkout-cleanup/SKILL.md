@@ -217,8 +217,13 @@ landed. Recover from the primary checkout after refreshing `main` from `origin`
 ## `coga retire <slug> [--agent <type>] [--no-launch]`
 
 Refuses unless the ticket is `status: done`. It first disposes of the
-checkout and branch under the proofs above (best-effort: a cleanup failure is
-reported, never aborts). Run it from a checkout on `[git].control_branch`:
+checkout and every owned branch under the proofs above. A worktree or owned
+branch the proofs kept is a bug: the ticket is its only owner record, so Retro
+must not delete it. Retire then skips the worklist discharge, creates the retire task
+already `blocked` with what it kept and why (which notifies the owner
+on Slack, as `coga block` does), launches nothing and exits 2. The owner fixes
+the checkout by hand, then runs `coga unblock` and `coga launch` on the retire
+task. Run it from a checkout on `[git].control_branch`:
 off control (or with `[git].enabled` false, or outside a git work tree) it
 skips disposal and says so (`Retire: checkout cleanup skipped ...`) rather
 than failing, leaving the checkout and branch to autoclose or `branch-sweep`.

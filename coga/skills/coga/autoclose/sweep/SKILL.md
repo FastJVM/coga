@@ -145,8 +145,8 @@ no checkout; the fourth is the durable worklist:
   entry: the failure mode is one listing too many, never a forgotten
   checkout. `coga retire <slug>` drops its own line by the same rule once its
   cleanup has really disposed of the checkout; a retire that *preserved* the
-  checkout keeps the line even though it goes on to delete the ticket, and the
-  next sweep re-judges that entry by head branch name. A worklist the sweep
+  checkout keeps the line and creates its retire task blocked, so the ticket
+  survives until the owner fixes the checkout by hand. A worklist the sweep
   cannot safely rewrite, including a filesystem or text encoding failure,
   fails the run (exit 2) only after the per-run report and Slack lines are
   emitted (its backlog is not walked that run). If the task blackboard also
