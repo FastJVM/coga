@@ -15,7 +15,7 @@ workflow:
   - name: verify-read-only
     skills: []
     assignee: agent
-step: 1 (brief-and-hand-off)
+step: 2 (human-executes)
 agent: claude
 ---
 
@@ -48,4 +48,28 @@ Filed by Dream 2026-W39, Phase 6 (validate-drift disposition). `coga validate --
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Decision and handoff — 2026-10-06
+
+The human accepted the proposed warning baseline and explicitly authorized
+the agent to override this step's read-only restriction for the context edits
+and checks. The standing decision, rationale, scope, and reopening condition
+now live in `docs/contexts/coga/workflows/SKILL.md`, under "Required at
+activation, not at draft", tagged `validate-drift: unfrozen-workflow`. Its
+packaged bootstrap twin has the identical change.
+
+The current source validator reports 14 members: 10 drafts and 4 canceled
+tickets, all within the accepted statuses. The original 11-member list above
+is historical; `coga/tasks/v2/README.md` no longer exists. No member ticket's
+lifecycle or workflow was changed.
+
+Verification:
+- `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src .venv/bin/python -B -m coga.cli validate --json`
+  (invoked through a read-only subprocess to count statuses): exit 0; all
+  14 unfrozen warnings covered. Other warning classes remain out of scope.
+  Used checkout source because the installed `coga` binary reports version skew.
+- `.venv/bin/python -m pytest tests/test_packaging.py`: 23 passed.
+- `git diff --check`: passed for the context edits.
+
+The acceptance decision is recorded and the documentation checks pass.
+Hand off to the human-owned step; do not skip its gate or close this ticket
+from the briefing step.
