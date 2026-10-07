@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (self-qa)
 agent: claude
-launch_generation: 707e5a27-c690-4b73-94e2-356fb18d42d1
 ---
 
 ## Description
@@ -111,3 +110,47 @@ Plan ("refuse it" option, per the multiply diagnosis):
 - Real `## Template errors` (load/ledger/create failures) count in `problems:`.
 - Reword `_control_worktree_agent_refusal` so it says "not run", not "serviced".
 - "No recurring tasks due." only when nothing was refused or errored.
+
+## Handoff (implement, 2026-10-06)
+
+Commit `5f1818141` on `recurring-control-worktree-refusal-rows`, pushed, rebased on
+`origin/main`. No PR yet.
+
+What changed:
+
+- `src/coga/recurring.py`: new `AgentUnavailableError(RecurringError)`, raised by
+  `create_template` wherever it refused an agent phase. `scan_due` catches it into
+  new `DueScan.agent_refusals` `(template, last_fire, reason)` plus
+  `DueScan.agent_refusal_label` (new `agent_unavailable_label` kwarg, default
+  `"agent needs a TTY"`); the forced-paused refusal path goes there too. These are
+  no longer in `scan.errors`.
+- `src/coga/recurring_runner.py`: `_control_worktree_agent_refusal` now reads
+  "agent phases are not run from a temporary control worktree: … Check out 'main'
+  in <host> …" (never "serviced"). `run_recurring_scan` passes label
+  `control branch not checked out` in a control-worktree run and adds each refusal
+  to `record.scan_problems` as "due but not run: …" → exit 2. Headless TTY skips
+  stay a non-problem row (documented warning). "No recurring tasks due." becomes
+  "No due recurring tasks could be launched." when refusals/errors exist.
+  `_print_table` and the Slack "scan skipped" alert include refusals.
+- `src/coga/recurring_autofix.py`: `RunRecord.problem_count` includes
+  `scan_errors`; `scan_lines_for_record` emits refusal rows.
+- Topics (canonical + packaged twins): `coga/recurring/scheduling`,
+  `coga/internals/recurring-temp-worktrees`.
+
+Decisions:
+
+- Genuine template errors count in `problems:` but do **not** change the exit code
+  (`test_bare_recurring_skips_malformed_schedule_and_continues` pins exit 0).
+- A control-worktree refusal does exit 2, so `coga recurring --all` lists that
+  repo as failed rather than "serviced from a temporary control worktree".
+  Deliberate: the period really didn't happen. Self-QA/review may want to weigh
+  that noise against honesty.
+
+Tests: `python -m pytest`: 3275 passed, 1 failed. The failure is
+`tests/test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`,
+which also fails on clean `main` (an ordering assertion on recurring `ticket.py`
+paths), so it isn't from this change. Updated TTY-refusal tests to read
+`agent_refusals`; strengthened
+`test_control_worktree_run_names_agent_templates_and_the_real_reason` (row,
+`problems: 1`, no "serviced", exit 2); added two `RunRecord` tests in
+`tests/test_recurring_autofix.py`.
