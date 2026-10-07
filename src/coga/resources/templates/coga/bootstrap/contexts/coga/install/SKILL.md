@@ -27,7 +27,8 @@ that, and offers to install missing external CLIs (see
 - **Git.** The only external tool `coga init` enforces
   (`src/coga/commands/init.py` `_require_init_tools`, driven by the
   `required_at_init` entries in `src/coga/dependencies.py`). Git is also
-  Coga's sync layer: state changes are commits.
+  Coga's sync layer: state changes are commits. On macOS, Git comes from
+  the Xcode Command Line Tools; install them first (below).
 - **An agent CLI**, installed and authenticated: Claude Code or Codex. Needed
   by anything that launches an agent (`coga launch`, `coga ticket`,
   `coga build`); `coga init` does not require one.
@@ -52,6 +53,43 @@ warning. Agent CLIs are not offered; init's next steps name them.
 > unprofessional install and churn. Interactive `coga init` now offers to
 > install missing external CLIs; it still installs no Python package or
 > skill, and never installs anything without a yes.
+
+### macOS: install the Command Line Tools first
+
+A fresh Mac has no real Git. `/usr/bin/git` is a stub that the Xcode
+Command Line Tools (CLT) replace, so the first `git` call, even
+`git --version`, triggers the CLT install instead of running Git. That call
+may be yours, a `git init`, or `coga init`'s. `coga init` cannot repair this:
+the stub is on PATH, so its missing-`git` check (`_require_init_tools` in
+`src/coga/commands/init.py`) passes and its install offer never runs. The
+Git command init runs next then fails. Install the CLT before installing
+Coga or running `git init` / `coga init`, and confirm `git --version` prints a
+version:
+
+- **At the Mac's screen**, run `xcode-select --install` (or any `git`
+  command) and click **Install** in the dialog. Wait for it to finish, then
+  re-run `git --version`.
+- **Over SSH or another headless session**, no dialog can open. `git` exits
+  1 with `xcode-select: error: No developer tools were found and no install
+  could be requested (possibly because there is no active GUI session)`.
+  Either finish the install once at the screen (or over screen sharing), or
+  install it headless with an administrator account:
+
+  ```sh
+  touch /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+  softwareupdate -l          # note the "Command Line Tools for Xcode" label
+  sudo softwareupdate -i "<that label>"
+  rm /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+  ```
+
+The CLT install is machine-wide, so one install covers every user. It
+provides Python 3.9 as `/usr/bin/python3`, which is below Coga's 3.11 floor.
+Install Python 3.11+ separately (`uv tool install` can manage its own Python).
+The 2026-10-01 clean-install walk reproduced the SSH error on a fresh
+macOS 27 host; the dialog path was not exercised. This topic owns the
+headless steps; the clean-install runbook,
+[coga/testing/clean-install/macos-aws](../testing/clean-install/macos-aws/SKILL.md),
+applies them to its walk host.
 
 Coga does not own your identity. It uses tools you already authenticate
 (`git`, your credential helper or `ssh-agent`, `gh`) and fails with an
