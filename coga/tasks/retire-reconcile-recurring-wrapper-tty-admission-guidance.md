@@ -152,3 +152,8 @@ Run these in order. Stop and ask if any precondition fails — do not improvise.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Run 2026-10-06
+- Preconditions: source `reconcile-recurring-wrapper-tty-admission-guidance.md` is `status: done`, present on origin/main (199e6cd78).
+- Run dir: scratchpad/retire-run-jHZ7 (evidence/ read-only, progress.md). Isolated worktree: scratchpad/retro-wt on branch `retro-tmp/reconcile-recurring-wrapper-tty-admission-guidance` from origin/main; coga.local.toml copied.
+- Retro subagent delegated; awaiting result.
