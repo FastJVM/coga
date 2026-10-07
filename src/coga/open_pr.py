@@ -374,10 +374,16 @@ def _sections(text: str) -> dict[str, str]:
 
 
 def _preparation(blackboard: str, above: str) -> dict:
-    section = _sections(blackboard).get("pr") or _sections(above).get("pr", "")
-    content = section.partition("\n")[2].strip()
+    content = ""
+    for text in (blackboard, above):
+        content = _sections(text).get("pr", "").partition("\n")[2].strip()
+        if content:
+            break
+    if not content:
+        return {}
     if not content.startswith("```yaml"):
-        return {}  # Legacy prose is not evidence of checks or review.
+        # Legacy prose is shown as unverified text, never as check/review evidence.
+        return {"legacy": content}
     match = re.fullmatch(r"```yaml\s*\n(.*?)\n```", content, re.DOTALL)
     if not match:
         raise OpenPrError("PR presentation: use one complete fenced yaml mapping under ## PR.")
@@ -457,11 +463,17 @@ def _pr_presentation(
 ) -> tuple[str, str]:
     data = _preparation(blackboard, above)
     issues: list[str] = []
-    if not data:
-        issues.append("Missing structured preparation; legacy prose is not verification evidence.")
+    legacy = data.pop("legacy", "")
+    if legacy:
+        issues.append("Unstructured legacy ## PR prose; shown below as unverified implementation text.")
+        data = {"implementation": legacy}
+    elif not data:
+        issues.append("Missing structured preparation; no implementation, review or check evidence recorded.")
     elif (data.get("head"), data.get("base")) != (head, base):
-        issues.append("Stale preparation: its head/base does not describe this diff; prepare it again.")
-        data = {}
+        issues.append(
+            "Stale preparation: its head/base does not describe this diff; explanations "
+            "may be outdated and receipts verify only their recorded revisions."
+        )
     title = _text(data, "title")
     if not title:
         issues.append("Actual-change title unavailable; using the ticket title.")
@@ -494,6 +506,10 @@ def _pr_presentation(
         review_detail = "Self-review; no independent review performed. " + review_detail
     if review_status != "passed" or not identified_reviewer:
         issues.append("No completed, identified review of the current diff.")
+    if kind == "independent" and author != "unknown" and reviewer == author:
+        kind = "self"
+        reviewer += "(self)"
+        issues.append("Review marked independent but the reviewer is the author; treated as self-review.")
     checks = data.get("checks", [])
     if not isinstance(checks, list) or any(not isinstance(check, dict) for check in checks):
         raise OpenPrError("PR presentation: checks must be a list of mappings.")
@@ -568,14 +584,29 @@ def _digest(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
-def _refresh_body(existing: dict, title: str, body: str, base: str) -> str:
-    """Replace only intact generated content; refuse human/legacy conflicts."""
+def _normalized(value: str | None) -> str:
+    # GitHub's web editor resubmits the body with CRLF line endings.
+    return (value or "").replace("\r\n", "\n")
+
+
+def _refresh_body(existing: dict, title: str, body: str, base: str, legacy_title: str) -> str:
+    """Replace only intact generated content; refuse human conflicts."""
     if existing.get("baseRefName") != base:
         raise OpenPrError("PR presentation: existing PR base differs or is unavailable; reconcile its base first.")
-    old_body = existing.get("body", "")
+    old_body = _normalized(existing.get("body"))
+    old_title = _normalized(existing.get("title"))
     marker = _MANAGED_START.search(old_body)
     if marker is None:
-        raise OpenPrError("PR presentation conflict: unmarked existing body; reconcile with the owner before replacing it.")
+        # A PR from before generated markers: adopt it only when its title is
+        # still the old generated ticket title, and keep its whole body as
+        # human-owned notes below the new generated region.
+        if old_title != legacy_title:
+            raise OpenPrError(
+                "PR presentation conflict: unmarked existing PR with a human-edited title; "
+                f"rename it to {legacy_title!r} to adopt the generated format (its body is kept), "
+                "or reconcile with the owner."
+            )
+        return body.rstrip("\n") + ("\n\n" + old_body if old_body.strip() else "\n")
     # Literal marker examples can occur inside the ticket snapshot. The stored
     # digest identifies the actual end, without interpreting the snapshot.
     ends = [
@@ -583,7 +614,7 @@ def _refresh_body(existing: dict, title: str, body: str, base: str) -> str:
         if match.start() >= marker.end()
         and _digest(old_body[marker.end():match.start()]) == marker[2]
     ]
-    if len(ends) != 1 or _digest(existing.get("title", "")) != marker[1]:
+    if len(ends) != 1 or _digest(old_title) != marker[1]:
         raise OpenPrError("PR presentation conflict: human edits or malformed generated title/body; preserve edits outside the markers and reconcile preparation before rerunning.")
     end = ends[0]
     # New body's trailing newline is formatting outside the region, not owned.
@@ -767,8 +798,9 @@ def open_pr(
         ticket, blackboard, above, slug, head=head_oid, base=diff_base, changes=changes,
     )
     existing = _open_pr_url(branch, cwd)
+    legacy_title = ticket.title or slug
     if existing is not None:
-        _refresh_body(existing, title, body, base)  # Refuse conflicts before pushing.
+        _refresh_body(existing, title, body, base, legacy_title)  # Refuse conflicts before pushing.
 
     # --- push ----------------------------------------------------------------
     # A previous open-pr attempt may have pushed before `gh` failed. If the
@@ -804,8 +836,8 @@ def open_pr(
     existing = latest
     if existing is not None:
         url = existing["url"]
-        refreshed = _refresh_body(existing, title, body, base)
-        if (existing.get("title"), existing.get("body")) != (title, refreshed):
+        refreshed = _refresh_body(existing, title, body, base, legacy_title)
+        if (_normalized(existing.get("title")), _normalized(existing.get("body"))) != (title, refreshed):
             edit = _write_pr(["gh", "pr", "edit", url], title, refreshed, cwd=cwd)
             if edit.returncode:
                 raise OpenPrError(f"PR presentation: gh pr edit failed: {edit.stderr.strip() or 'no output'}")

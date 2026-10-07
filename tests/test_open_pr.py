@@ -1054,9 +1054,12 @@ def test_open_pr_invalidates_evidence_after_later_commit(tmp_path, monkeypatch):
     repo.git("commit", "-m", "Later edit", cwd=wt)
     open_pr(load_config(repo.coga_os), slug="presentation", blackboard_path=ticket)
     data = json.loads((bin_dir / "view.json").read_text())
-    assert data["title"].startswith("[deep · A:unknown R:unknown]")
-    assert "stale" in data["body"].lower()
-    assert "3 passed." not in data["body"]
+    # Explanations survive; only the receipts stop verifying the current diff.
+    assert data["title"] == "[deep · A:codex R:claude] Explain the changed behavior"
+    assert "Stale preparation" in data["body"]
+    assert "Make the requested behavior visible." in data["body"]
+    assert "Historical passed" in data["body"]
+    assert "Not verified for the current diff." in data["body"]
 
 
 def test_open_pr_refreshes_generated_content_preserving_human_notes(tmp_path, monkeypatch):
@@ -1141,6 +1144,7 @@ def test_open_pr_refuses_human_edits_before_push(tmp_path, monkeypatch, edit):
         ("missing-path", "deep", "Explanation missing"),
         ("extra-path", "deep", "Prepared paths outside this diff"),
         ("merge-self-review", "deep", "requires independent review"),
+        ("independent-is-author", "deep", "R:codex(self)"),
     ],
 )
 def test_open_pr_discloses_verification_gaps(tmp_path, case, label, expected):
@@ -1181,6 +1185,8 @@ def test_open_pr_discloses_verification_gaps(tmp_path, case, label, expected):
         prep["files"] = {}
     elif case == "extra-path":
         prep["files"]["coga/not-changed.txt"] = "Old explanation."
+    elif case == "independent-is-author":
+        prep["review"]["reviewer"] = "codex"
     ticket = Ticket.read(_prepared_ticket(repo, wt, prep))
     above, blackboard = split_body(ticket.body)
     title, body = _pr_presentation(ticket, blackboard, above, "presentation",
@@ -1325,5 +1331,67 @@ def test_open_pr_refresh_allows_literal_marker_examples_in_snapshot(tmp_path):
                                    head=prep["head"], base=prep["base"],
                                    changes=[("A", ["coga/change.txt"])])
     existing = {"title": title, "body": body, "baseRefName": "main"}
-    assert _refresh_body(existing, title, body, "main") == body
+    assert _refresh_body(existing, title, body, "main", "Ship the change") == body
     assert "Literal closing marker: <!-- /coga:pr -->" in body
+
+
+def test_open_pr_shows_legacy_prose_as_unverified(tmp_path):
+    from coga.open_pr import _pr_presentation
+
+    repo = init_git_repo(tmp_path)
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    head = repo.git("rev-parse", "HEAD", cwd=wt).strip()
+    ticket = Ticket.read(_write_ticket(repo.coga_os, "presentation", branch="presentation",
+                                       worktree=wt))
+    above = "## Description\n\nRequest.\n\n## PR\n\nCurated summary.\n\nTests: all green.\n"
+    # An empty blackboard section must not shadow the populated ticket-body one.
+    title, body = _pr_presentation(ticket, "## PR\n\n", above, "presentation",
+                                   head=head, base=head, changes=[])
+    assert title.startswith("[deep · A:unknown R:unknown]")
+    assert "Curated summary." in body
+    assert "unverified" in body
+
+
+def test_open_pr_adopts_unmarked_legacy_pr_keeping_its_body(tmp_path, monkeypatch):
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _install_fake_gh(monkeypatch, bin_dir, view_json={
+        "url": "https://github.com/acme/repo/pull/7", "state": "OPEN", "isDraft": True,
+        "number": 7, "baseRefName": "main", "title": "Ship the change",
+        "body": "Legacy summary.\r\n\r\nCloses ticket: `presentation`\r\n",
+    })
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    ticket = _prepared_ticket(repo, wt, _preparation(repo, wt))
+    cfg = load_config(repo.coga_os)
+    open_pr(cfg, slug="presentation", blackboard_path=ticket)
+    data = json.loads((bin_dir / "view.json").read_text())
+    assert data["title"] == "[skim · A:codex R:claude] Explain the changed behavior"
+    assert data["body"].startswith("<!-- coga:pr:v1 ")
+    assert data["body"].endswith("Legacy summary.\n\nCloses ticket: `presentation`\n")
+    assert "pr ready" in log.read_text()
+    log.write_text("")
+    open_pr(cfg, slug="presentation", blackboard_path=ticket)
+    assert "pr edit" not in log.read_text()
+
+
+def test_open_pr_refresh_tolerates_web_editor_crlf(tmp_path, monkeypatch):
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(monkeypatch, bin_dir)
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    prep = _preparation(repo, wt)
+    ticket = _prepared_ticket(repo, wt, prep)
+    cfg = load_config(repo.coga_os)
+    open_pr(cfg, slug="presentation", blackboard_path=ticket)
+    view_file = bin_dir / "view.json"
+    data = json.loads(view_file.read_text())
+    data["body"] = (data["body"] + "\nOwner notes.\n").replace("\n", "\r\n")
+    view_file.write_text(json.dumps(data))
+    prep["rationale"] = "Updated explanation."
+    _prepared_ticket(repo, wt, prep)
+    open_pr(cfg, slug="presentation", blackboard_path=ticket)
+    body = json.loads(view_file.read_text())["body"]
+    assert "Updated explanation." in body
+    assert body.endswith("Owner notes.\n")

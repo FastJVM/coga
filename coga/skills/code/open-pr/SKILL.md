@@ -73,7 +73,8 @@ gate, not your say-so.
    waive any test or review the workflow requires. Do not invent receipts here.
    If a generated title/region was edited by a human, reconcile with the owner
    instead of overwriting it; notes outside the markers survive. An unmarked
-   legacy PR needs explicit approval to adopt the generated format.
+   legacy PR is adopted with its old body kept below the generated region
+   when its title is still the ticket title; a human-renamed one refuses.
 3. **Bump.** Once `coga open-pr` reports the URL and `pr:` is recorded under
    `## Dev`, run `coga bump <slug>` from `main` to hand off to the next step.
    The bump's `requires: pr` gate will pass because the URL is now recorded.
