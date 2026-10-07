@@ -63,7 +63,9 @@ reaches the transcript.
 ## The ticket is a three-region extract
 
 `_extract_section` takes one `##` heading (case-insensitive) up to the next
-`##`. Composition carries only `## Description`, `## Context`, and the
+unindented `##` line. A bare `##` is an empty heading and still ends the
+section. A `##` line inside a backtick or tilde fenced block is content, not a
+heading; an unclosed fence runs to the end of the body. Composition carries only `## Description`, `## Context`, and the
 blackboard region. Every other `##` section above the fence is dropped with no
 warning and no report line. `blackboard_for_prompt` replaces the exact
 `## Superseded designs` content with a short pointer to the ticket file and

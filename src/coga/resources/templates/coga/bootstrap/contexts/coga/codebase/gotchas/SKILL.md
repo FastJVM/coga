@@ -43,7 +43,8 @@ pitfalls live in [coga/testing](../../testing/SKILL.md); checkout hazards in
 - **`create_task` validates after it writes and logs.** It calls
   `git.write_ticket`, then `append_log`, then `assert_task_valid`, so a failed
   validation leaves the ticket and a `created` log line on disk. A `## ` line
-  in a description passes validation but truncates the composed Description.
+  outside a fenced block in a description passes validation but truncates the
+  composed Description.
   Only `commands/create.py`'s `_description_structure_problem` rejects both
   hazards, before `load_config`. Any caller forwarding agent- or user-authored
   text (for example `recurring_autofix.py`'s `analysis.body`) must apply the

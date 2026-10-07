@@ -264,6 +264,26 @@ def test_open_pr_body_falls_back_to_description(tmp_path, monkeypatch):
     assert "Closes ticket: `desc-body`" in calls
 
 
+def test_open_pr_body_keeps_level_two_lines_inside_fences(tmp_path, monkeypatch):
+    """A fenced `## ` line in `## PR` is content, not the end of the section."""
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _install_fake_gh(monkeypatch, bin_dir)
+
+    wt = _feature_worktree(repo, tmp_path, "feature-fence", commit=True)
+    ticket = _write_ticket(
+        repo.coga_os, "fenced-pr", branch="feature-fence", worktree=wt,
+        pr_section="PR-INTRO\n\n```markdown\n## Example\n```\n\nPR-AFTER-FENCE",
+    )
+    open_pr(load_config(repo.coga_os), slug="fenced-pr", blackboard_path=ticket)
+
+    calls = log.read_text()
+    assert "PR-INTRO" in calls
+    assert "## Example" in calls
+    assert "PR-AFTER-FENCE" in calls
+
+
 def test_open_pr_readies_existing_draft(tmp_path, monkeypatch):
     repo = init_git_repo(tmp_path)
     bin_dir = tmp_path / "bin"

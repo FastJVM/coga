@@ -43,7 +43,14 @@ class ComposeError(RuntimeError):
     """
 
 
-_SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
+# A body section heading: an unindented `##` line. A bare `##` is an empty
+# heading and still ends the section above it. Matched one line at a time, so a
+# heading never borrows its name from the next line.
+_SECTION_HEADING_RE = re.compile(r"^##(?:[ \t]+(.*?))?[ \t]*$")
+# Same fence rules as `blackboard._without_superseded_designs`: a backtick or
+# tilde run of three or more opens a block, closed by a bare run of the same
+# character at least as long. An unclosed block runs to the end of the text.
+_CODE_FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 
 
 LaunchContext = Literal["attended", "megalaunch", "recurring"]
@@ -387,14 +394,47 @@ def _section(title: str, body: str) -> str:
     return f"## {title}\n\n{body}"
 
 
+def _section_headings(body: str) -> list[tuple[str, int, int]]:
+    """`(name, start, end)` for each `##` heading line outside a fenced block.
+
+    `start` and `end` are the offsets of the heading line, newline excluded.
+    """
+    headings: list[tuple[str, int, int]] = []
+    fence_marker = ""
+    pos = 0
+    for line in body.split("\n"):
+        start = pos
+        pos += len(line) + 1
+        content = line.rstrip("\r")
+        fence = _CODE_FENCE_RE.match(content)
+        if fence_marker:
+            if (
+                fence
+                and fence.group(1)[0] == fence_marker[0]
+                and len(fence.group(1)) >= len(fence_marker)
+                and not fence.group(2).strip(" \t")
+            ):
+                fence_marker = ""
+        elif fence and (fence.group(1)[0] == "~" or "`" not in fence.group(2)):
+            fence_marker = fence.group(1)
+        else:
+            m = _SECTION_HEADING_RE.match(content)
+            if m:
+                headings.append((m.group(1) or "", start, start + len(content)))
+    return headings
+
+
 def _extract_section(body: str, heading: str) -> str:
-    """Extract the contents of `## <heading>` from a markdown body."""
-    matches = list(_SECTION_HEADING_RE.finditer(body))
-    for i, m in enumerate(matches):
-        if m.group(1).strip().lower() == heading.lower():
-            start = m.end()
-            end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
-            return body[start:end].strip()
+    """Extract the contents of `## <heading>` from a markdown body.
+
+    The section runs to the next `##` heading line. A `##` line inside a
+    fenced code block is content, not a heading.
+    """
+    headings = _section_headings(body)
+    for i, (name, _start, end) in enumerate(headings):
+        if name.strip().lower() == heading.lower():
+            stop = headings[i + 1][1] if i + 1 < len(headings) else len(body)
+            return body[end:stop].strip()
     return ""
 
 

@@ -39,8 +39,9 @@ from coga.taskfile import BLACKBOARD_FENCE, fence_count
 from coga.validate import TaskValidationError
 
 # The line shape compose reads as a body section heading (`_SECTION_HEADING_RE`
-# in compose.py): `##` then whitespace. A bare `##` line counts too, because
-# `\s+` there also matches the newline. `###` and deeper stay inside a section.
+# in compose.py): `##` then whitespace. A bare `##` line counts too: compose
+# reads it as an empty heading. `###` and deeper stay inside a section. Compose
+# skips `##` lines inside fenced blocks; this guard is stricter and rejects them.
 _SECTION_HEADING_LINE_RE = re.compile(r"^##(?:\s|$)", re.MULTILINE)
 
 

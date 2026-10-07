@@ -762,6 +762,57 @@ def test_compose_archive_only_blackboard_keeps_a_pointer(repo: Path, ending: str
     assert ref.ticket_path.read_bytes() == before
 
 
+def _write_ticket_body(ref, body: str) -> None:
+    """Replace the body above the blackboard fence, keeping frontmatter."""
+    text = ref.ticket_path.read_text()
+    head, _, rest = text.partition("\n---\n")
+    _, fence, blackboard = rest.partition("<!-- coga:blackboard -->")
+    ref.ticket_path.write_text(head + "\n---\n\n" + body + fence + blackboard)
+
+
+@pytest.mark.parametrize(
+    "fenced",
+    [
+        "```markdown\n## Dev\n##\n```\n",
+        "~~~\n## Dev\n~~~\n",
+        "````markdown\n```\n## Dev\n```\n````\n",
+    ],
+)
+def test_compose_sections_skip_level_two_lines_inside_fences(
+    repo: Path, fenced: str
+) -> None:
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Fenced example")
+    ref = list_tasks(cfg)[0]
+    _write_ticket_body(
+        ref,
+        "## Description\n\nBefore.\n\n" + fenced + "\nAfter the fence.\n\n"
+        "## Context\n\n" + fenced + "\nContext tail.\n\n",
+    )
+
+    report = compose_prompt_report(cfg, ref, read_ticket(ref))
+    layers = {layer.layer: layer.text for layer in report.layers}
+
+    assert "After the fence." in layers["task_description"]
+    assert "## Dev" in layers["task_description"]
+    assert "Context tail." in layers["task_context"]
+
+
+def test_compose_bare_level_two_line_ends_section_without_naming_one(
+    repo: Path,
+) -> None:
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Bare heading")
+    ref = list_tasks(cfg)[0]
+    _write_ticket_body(ref, "## Description\n\nKept.\n##\nContext\nNot context.\n\n")
+
+    report = compose_prompt_report(cfg, ref, read_ticket(ref))
+    layers = {layer.layer: layer.text for layer in report.layers}
+
+    assert layers["task_description"] == "Kept."
+    assert "task_context" not in layers
+
+
 def test_compose_omits_duplicate_archives_and_fenced_historical_headings(repo: Path) -> None:
     cfg = load_config(repo)
     _write_workflow_less_task(repo, title="Repeated archive")
