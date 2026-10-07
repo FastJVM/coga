@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: bd84e51e-1f13-4ebd-a456-0b74c3c7f9df
 ---
 
 ## Description
@@ -81,3 +80,46 @@ The failure was already there and is unrelated:
 `coga/recurring/_custom-phone-home/ticket.py` at index 0). It fails
 identically with this change stashed on main 9d9a87de3. No follow-up ticket
 filed.
+
+## Peer review
+
+2026-10-06: `codex review --base main` returned successfully with no
+actionable regressions. Its first invocation failed to initialize its app
+server on the sandbox's read-only filesystem; the escalated retry completed.
+No must-fix changes were needed.
+
+Rebased unconditionally with `git fetch origin main && git rebase FETCH_HEAD`
+onto main `5bb0890f32fe023ca87567d36697221346c771a7`. The feature commit is now
+`6029bf8c3`, pushed with `git push --force-with-lease origin pin-mac-python-311`.
+Returned to clean, current `main` before writing this handoff.
+
+Verification after rebase:
+
+- `PYTHONPATH=$PWD/src .venv/bin/python -m pytest`: 3278 passed in 240.18s.
+  The implementation handoff's unrelated ordering failure did not recur.
+- The returned reviewer ran `PYTHONPATH=$PWD/src .venv/bin/python -m pytest
+  tests/test_clean_install_harness.py tests/test_packaging.py -q`: 45 passed.
+- `bash -n scripts/clean-install/container.sh scripts/clean-install/macos-walk.sh`
+  and `git diff --check`: passed.
+- `UV_PYTHON_DOWNLOADS=never uv python find 3.11` resolved the locally
+  installed managed 3.11 interpreter. Actual macOS execution was not verified;
+  macOS provisioning and pin propagation are covered by command stubs. This
+  change does not alter the attended terminal flow or add a terminal UI.
+
+## PR
+
+The macOS clean-install walk could select Apple's Python 3.9.6 instead of the
+required 3.11 matrix. Provision Python 3.11 for each fresh macOS walk user and
+pin uv to it with automatic downloads disabled during the shared walk.
+
+The shared Linux/macOS script now requires explicit interpreter pins, records
+the selected interpreter's path and version, rejects versions outside 3.11
+before installing, and passes the Python selection to both PyPI and wheel
+installs. Update the harness tests and both runbooks with their packaged twins.
+The package Python floor is unchanged; no release is included.
+
+Test plan: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest` (3278 passed);
+`PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_clean_install_harness.py tests/test_packaging.py -q`
+(45 passed in returned Codex review); `bash -n scripts/clean-install/container.sh scripts/clean-install/macos-walk.sh`
+and `git diff --check` passed. A real EC2 Mac walk and attended first-ticket
+continuation were not run.
