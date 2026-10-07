@@ -147,17 +147,12 @@ which carries the do-not-merge and do-not-bump rules for that assist.
 After the human merges, the `autoclose-merged` recurring sweep marks the task
 `done` on its next run (≤24h); `coga bump` closes it immediately.
 
-`done` is not the end of the ticket. Its feature branch (and any leftover
-recorded worktree), recorded under `## Dev`, outlive the close: neither the sweep nor `coga bump` disposes
-of them, because destructive behavior is never implicit. The closing act is
-the owner's — once the ticket is `done`, run `coga retire <slug>`. Retire
-attempts a best-effort cleanup: it removes any recorded worktree and prunes
-the landed branch only after proving that is safe, and otherwise preserves
-them — a dirty, locked, missing or mismatched checkout, one shared with
-another live ticket, or a run made off the control branch all skip cleanup.
-Either way it then scaffolds and launches the `retro/done-ticket` task that
-carries what the ticket learned into the knowledge base and deletes the
-ticket, so a preserved checkout and branch can outlive the ticket and remain
-the owner's follow-up work. Until someone runs it, the `done` ticket and its
-stale checkout stay in the repo; see `coga retire` in the
-`dev/checkout-cleanup` context for what it proves and refuses.
+`done` is not the end of the ticket. When the sweep closes it, the sweep also
+disposes of the feature branch (and any leftover recorded worktree) recorded
+under `## Dev`, but only what the shared checkout proofs show is safe to
+remove; a `coga bump` close disposes of nothing. The closing act is still the
+owner's — once the ticket is `done`, run `coga retire <slug>`. Retire runs the
+same proofs on whatever checkout remains, then scaffolds and launches the
+`retro/done-ticket` task that carries what the ticket learned into the
+knowledge base and deletes the ticket. The `dev/checkout-cleanup` context owns
+what each path proves, preserves, and records for later sweeps.
