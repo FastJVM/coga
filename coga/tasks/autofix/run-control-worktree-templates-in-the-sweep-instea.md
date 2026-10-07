@@ -95,3 +95,19 @@ an agent at all, and `blocker-reminders` is affected too.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: recurring-control-worktree-refusal-rows
+
+Plan ("refuse it" option, per the multiply diagnosis):
+
+- `scan_due` records agent-unavailable refusals in a new `DueScan.agent_refusals`
+  (template, last firing, reason) instead of `errors`, so every template gets a
+  `## Scan` row: `skip (control branch not checked out)` in a control-worktree
+  run, `skip (agent needs a TTY)` headless.
+- Control-worktree refusals are counted in `problems:` (scan_problems, exit 2);
+  headless TTY skips stay a documented warning (scheduling topic), row only.
+- Real `## Template errors` (load/ledger/create failures) count in `problems:`.
+- Reword `_control_worktree_agent_refusal` so it says "not run", not "serviced".
+- "No recurring tasks due." only when nothing was refused or errored.
