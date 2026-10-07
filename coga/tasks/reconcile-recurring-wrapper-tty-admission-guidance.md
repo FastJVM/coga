@@ -1182,3 +1182,10 @@ and re-fetched GitHub state to confirm there are **zero unresolved threads**.
 The PR body now includes the review follow-up and the final **2112 passed**
 result. PR #725 remains open at the owner-controlled task review gate; no bump
 or close was performed. Posted the resolved-comments FYI through `coga slack`.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: why recurring delegation rejects ticket.py and in-session alternatives

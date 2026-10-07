@@ -22,6 +22,22 @@ the target in the operator's terminal — under the sweep's `--agent` override,
 queue session conduct and idle/max-session bounds — and keeps the period's
 lifecycle bookkeeping, with no wrapper session in between.
 
+The supervisor's TTY admission is real one level up and absent one level down:
+it guards the session `coga recurring` spawns, never a launch that session makes
+from its own tool shell. Two tempting replacements for `delegate:` were
+rejected for reasons that still hold:
+
+- **A `ticket.py` that launches the agent.** Deterministic periods are the
+  headless class, so a no-TTY sweep would create the period, run the script,
+  and only then hit launch's agent TTY refusal — a mid-run failure in place of
+  the clean pre-create skip. `recurring-scan` launching agents is no
+  precedent: it runs from the operator's shell and re-checks
+  `_interactive_stdio_has_tty()` itself.
+- **Running the bootstrap runbook inside the period's own session.** Bootstrap
+  targets are deliberately stateless (no task per run, no `coga bump` /
+  `coga mark`), which fights the period lifecycle, and would fork the runbook
+  away from the unchanged on-demand alias (for example `coga resolve-conflicts`).
+
 ## Rules
 
 - **Agent-backed on both ends.** A delegating template is in the agent
