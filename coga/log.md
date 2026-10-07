@@ -7716,3 +7716,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-06 22:07 [marketing/fix-installer/affordable-macos-testing-on-owned-macs-and-per-min] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-06 22:07 [marketing/fix-installer/affordable-macos-testing-on-owned-macs-and-per-min] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-06 22:07 [marketing/fix-installer/affordable-macos-testing-on-owned-macs-and-per-min] [megalaunch] launched via coga megalaunch
+2026-10-06 22:20 [marketing/fix-installer/affordable-macos-testing-on-owned-macs-and-per-min] [agent:claude] advanced to step 2 (peer-review) → codex
