@@ -1,6 +1,6 @@
 ---
 title: Affordable macOS testing on owned Macs and per-minute CI
-status: active
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -236,3 +236,9 @@ origin/main → tip `812ff1b92`, force-with-lease pushed. Full suite: 3284
 passed, 1 failed — `test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`,
 which fails identically on unmodified origin/main `a306c4b26` (pre-existing,
 unrelated). Opened https://github.com/FastJVM/coga/pull/976.
+
+---
+
+## Blockers
+
+- [ ] [2026-10-07 15:41] [agent:nicktoper] id=20261007T154144 Deploy the macOS test environment and provide its SSH target/access so the live install, reset, and cleanup checks can run. PR #976 is closed without merging; retain the owned-mac-clean-install branch until this prerequisite is available.
