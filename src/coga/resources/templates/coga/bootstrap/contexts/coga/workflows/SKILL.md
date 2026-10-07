@@ -86,6 +86,12 @@ using the prospective default agent for drafts. Agent configuration is
 
 ## Required at activation, not at draft
 
+**validate-drift: unfrozen-workflow.** Bare workflow references are accepted
+on drafts intentionally awaiting first activation and on canceled tickets.
+This preserves parked intent and terminal history without activating work
+merely to clear a warning. Revisit this decision if an affected ticket enters
+a nonterminal status other than draft; activation must freeze its workflow.
+
 A workflow-less draft is valid. `coga mark active` (and launch-time
 auto-activation) refuses a ticket without one, pointing at `--workflow` or
 `coga ticket`. `coga validate` reports a workflow-less `active`,
