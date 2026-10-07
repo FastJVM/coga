@@ -23,6 +23,9 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+contexts:
+  - coga/recurring/scheduling
+  - coga/recurring/templates
 ---
 
 ## Description
