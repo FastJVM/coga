@@ -1,6 +1,6 @@
 ---
 title: Detect stranded blackboard prose across checkouts
-status: draft
+status: canceled
 owner: nicktoper
 workflow: null
 ---
