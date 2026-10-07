@@ -50,9 +50,14 @@ not prove it completes the period, so the inner runner threads a **hard no-agent
 reason** through shared launch: if the script leaves its current or next
 agent-owned step open, launch returns before agent-only setup, keeps the
 script's output, and the runner **pauses that exact period** for a later
-launch from a durable checkout. Skipped agent templates and refused hybrid
-handoffs are named with the temporary-worktree reason (not "requires a TTY"),
-and the `--all` summary lists these repos separately.
+launch from a durable checkout. Refused hybrid handoffs are named with the
+temporary-worktree reason (not "requires a TTY"). A due agent-only template
+keeps its scan row as `skip (control branch not checked out)` and is named in
+`problems:` as "due but not run", so the inner scan exits 2: its period really
+did not happen, and only checking the control branch out in the operator's
+checkout lets a later sweep run it. The wording never says "serviced" for a
+refusal. The `--all` summary lists repos serviced cleanly this way separately;
+a repo with refused agent templates is listed with the failed repos.
 
 ## Cancellation and cleanup
 

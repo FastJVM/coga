@@ -191,6 +191,11 @@ class RunRecord:
     def problems(self) -> list[TaskOutcome]:
         return [o for o in self.outcomes if o.is_problem]
 
+    @property
+    def problem_count(self) -> int:
+        """Failed runs, unresolved failures, and templates that errored."""
+        return len(self.problems) + len(self.scan_problems) + len(self.scan_errors)
+
     def render(self) -> str:
         """The run record as the markdown the analyst reads."""
         mode = []
@@ -218,7 +223,7 @@ class RunRecord:
             lines.append(f"- templates scanned: {len(self.scan_lines)}")
         lines += [
             f"- tasks run: {len(self.outcomes)}",
-            f"- problems: {len(self.problems) + len(self.scan_problems)}",
+            f"- problems: {self.problem_count}",
             "",
         ]
 
@@ -964,4 +969,7 @@ def scan_lines_for_record(scan, *, force: bool = False) -> list[str]:
     for name, last_fire in scan.inactivity_skips:
         when = _firing_label(last_fire, now)
         lines.append(f"{name:<20} {when:<26} skip ({scan.inactivity_reason})")
+    for name, last_fire, _reason in scan.agent_refusals:
+        when = _firing_label(last_fire, now)
+        lines.append(f"{name:<20} {when:<26} skip ({scan.agent_refusal_label})")
     return lines

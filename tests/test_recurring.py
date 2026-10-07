@@ -86,6 +86,11 @@ def _write_recurring(company: Path, name: str, text: str) -> None:
     _write(company / "recurring" / name / "ticket.md", text)
 
 
+def _agent_refusals(scan) -> dict[str, str]:  # type: ignore[no-untyped-def]
+    """`{template: reason}` for each agent template the scan could not run."""
+    return {name: reason for name, _last_fire, reason in scan.agent_refusals}
+
+
 def _write_recurring_script(company: Path, name: str, text: str = "") -> Path:
     """Give a recurring template the reserved `ticket.py` deterministic half."""
     path = company / "recurring" / name / "ticket.py"
@@ -2629,7 +2634,8 @@ def test_script_template_bypasses_agent_tty_gate(repo: Path) -> None:
     task = next(task for task in scan.tasks if task.template == "script-check")
     assert task.status == "active"
     assert (task.ref.task_dir / "ticket.py").is_file()
-    assert any(name == "weekly-check" for name, _ in scan.errors)
+    assert "weekly-check" in _agent_refusals(scan)
+    assert scan.errors == []
 
 
 @pytest.mark.parametrize(
@@ -2669,7 +2675,7 @@ def test_headless_scan_classifies_existing_period_from_frozen_script(
     )
 
     assert all(task.template != "weekly-check" for task in scan.tasks)
-    assert dict(scan.errors)["weekly-check"] == reason
+    assert _agent_refusals(scan)["weekly-check"] == reason
     assert Ticket.read(outcome.ref.ticket_path).status == status
     assert "skipping weekly-check" in capsys.readouterr().err
 
@@ -3023,8 +3029,8 @@ def test_headless_scan_refuses_delegating_template_at_admission(
         cfg, now=datetime(2026, 4, 22, 10, 0, 0), allow_interactive=False
     )
 
-    errors = dict(scan.errors)
-    assert "an agent run requires a TTY" in errors["delegate-check"]
+    refusals = _agent_refusals(scan)
+    assert "an agent run requires a TTY" in refusals["delegate-check"]
     assert all(task.template != "delegate-check" for task in scan.tasks)
     assert not any(
         ref.id_slug == "recurring/delegate-check" for ref in list_tasks(cfg)
@@ -3069,8 +3075,8 @@ def test_headless_scan_skips_resumed_delegated_period_before_launch(
         cfg, now=datetime(2026, 4, 22, 10, 1, 0), allow_interactive=False
     )
 
-    errors = dict(scan.errors)
-    assert "an agent run requires a TTY" in errors["delegate-check"]
+    refusals = _agent_refusals(scan)
+    assert "an agent run requires a TTY" in refusals["delegate-check"]
     assert all(task.template != "delegate-check" for task in scan.tasks)
     assert [task.template for task in scan.due] == ["z-script-check"]
     assert Ticket.read(outcome.ref.ticket_path).status == starting_status
@@ -4727,9 +4733,9 @@ def test_scan_due_skips_interactive_template_without_tty(
     )
     assert len(scan.tasks) == 1
     assert scan.tasks[0].template == "z-script-check"
-    assert len(scan.errors) == 1
-    assert scan.errors[0][0] == "weekly-check"
-    assert "an agent run requires a TTY" in scan.errors[0][1]
+    assert scan.errors == []
+    assert list(_agent_refusals(scan)) == ["weekly-check"]
+    assert "an agent run requires a TTY" in _agent_refusals(scan)["weekly-check"]
     assert "skipping weekly-check" in capsys.readouterr().err
 
 
@@ -4846,9 +4852,7 @@ def test_template_deduction_unresolvable_workflow_is_agent(
     scan = scan_due(
         cfg, now=datetime(2026, 4, 22, 10, 0, 0), allow_interactive=False
     )
-    errored = {name for name, _ in scan.errors}
-    assert "ghost-workflow" in errored
-    detail = dict(scan.errors)["ghost-workflow"]
+    detail = _agent_refusals(scan)["ghost-workflow"]
     assert "an agent run requires a TTY" in detail
 
 
@@ -4940,7 +4944,7 @@ def test_scan_due_skips_paused_task(repo: Path) -> None:
     parked = first.tasks[0].ref.ticket_path.read_bytes()
     headless_force = scan_due(cfg, now=now, force=True, allow_interactive=False)
     assert headless_force.tasks == []
-    assert "requires a TTY" in headless_force.errors[0][1]
+    assert "requires a TTY" in _agent_refusals(headless_force)["weekly-check"]
     assert first.tasks[0].ref.ticket_path.read_bytes() == parked
 
 
@@ -5351,8 +5355,8 @@ def test_scan_due_stale_done_replacement_respects_tty_gate(
         cfg, now=datetime(2026, 4, 29, 10, 0, 0), allow_interactive=False
     )
     assert scan.tasks == []
-    assert len(scan.errors) == 1
-    assert "an agent run requires a TTY" in scan.errors[0][1]
+    assert scan.errors == []
+    assert "an agent run requires a TTY" in _agent_refusals(scan)["weekly-check"]
     assert Ticket.read(ref.path / "ticket.md").status == "done"
     assert read_serviced_period(
         repo / "recurring" / "weekly-check" / "ticket.md"
@@ -7105,7 +7109,7 @@ def test_forced_recurring_scan_reports_canceled_and_continues(
         ),
         delegate=None,
     )
-    scan = SimpleNamespace(forced=[canceled, later], due=[], tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[])
+    scan = SimpleNamespace(forced=[canceled, later], due=[], tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[], agent_refusals=[])
     launched: list[str] = []
 
     monkeypatch.setattr(
@@ -7183,7 +7187,7 @@ def test_forced_recurring_scan_prepares_then_launches_task(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[task], due=[], tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[]
+            forced=[task], due=[], tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[], agent_refusals=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -7273,7 +7277,7 @@ def test_recurring_scan_returns_failed_script_exit_without_unwinding(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[], due=[first, second], tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[]
+            forced=[], due=[first, second], tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[], agent_refusals=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -7365,7 +7369,7 @@ def test_recurring_scan_records_the_stopping_task(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[], due=due, tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[]
+            forced=[], due=due, tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[], agent_refusals=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -7457,7 +7461,7 @@ def test_recurring_scan_continues_past_an_unclassifiable_period(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[], due=[first, second, third], tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[]
+            forced=[], due=[first, second, third], tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[], agent_refusals=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -7554,7 +7558,7 @@ def test_recurring_scan_names_due_tasks_abandoned_through_a_delegated_launch(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[], due=due, tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[]
+            forced=[], due=due, tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[], agent_refusals=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -7636,7 +7640,7 @@ def test_recurring_scan_names_every_failed_template_in_the_run_record(
         recurring_cmd,
         "scan_due",
         lambda *args, **kwargs: SimpleNamespace(
-            forced=[], due=[first, second, third], tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[]
+            forced=[], due=[first, second, third], tasks=[], errors=[], admission_skips=[], inactivity_skips=[], sync_problems=[], agent_refusals=[]
         ),
     )
     monkeypatch.setattr(recurring_cmd, "_broadcast_scan", lambda *args, **kwargs: None)
@@ -12089,14 +12093,19 @@ def test_control_worktree_run_names_agent_templates_and_the_real_reason(
     monkeypatch.setattr(
         "coga.recurring_runner._interactive_stdio_has_tty", lambda: True
     )
+    records: list[recurring_cmd.RunRecord] = []
+    monkeypatch.setattr(
+        recurring_cmd, "run_autofix", lambda cfg, record, **kw: records.append(record)
+    )
 
     cfg = load_config(coga_os)
+    # The due period did not happen, so the run is not a success.
     assert recurring_cmd.run_recurring_scan(
         cfg,
         require_fresh_control=True,
         control_worktree=True,
         control_worktree_host="/home/op/project",
-    ) == 0
+    ) == 2
 
     combined = capsys.readouterr()
     reported = combined.out + combined.err
@@ -12104,7 +12113,23 @@ def test_control_worktree_run_names_agent_templates_and_the_real_reason(
     assert "temporary control worktree" in reported
     assert "/home/op/project" in reported
     assert "requires a TTY" not in reported
+    assert "No recurring tasks due." not in reported
     assert list_tasks(cfg) == []
+
+    # The refused template keeps its scan row and is counted as a problem,
+    # not filed as a template error under wording that reads like success.
+    [record] = records
+    rendered = record.render()
+    assert "- templates scanned: 1" in rendered
+    assert "- problems: 1" in rendered
+    assert re.search(
+        r"^agent-check +.+ skip \(control branch not checked out\)$",
+        rendered,
+        re.MULTILINE,
+    )
+    assert "## Template errors" not in rendered
+    assert "serviced" not in rendered
+    assert "`recurring/agent-check`: due but not run:" in rendered
 
 
 def test_control_worktree_parks_hybrid_before_its_agent_handoff(

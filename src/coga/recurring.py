@@ -57,6 +57,14 @@ class RecurringError(Exception):
     pass
 
 
+class AgentUnavailableError(RecurringError):
+    """An agent-backed period this run cannot spawn an agent for.
+
+    Not a template fault: `scan_due` gives it a scan row instead of filing it
+    with genuine template errors (see `DueScan.agent_refusals`).
+    """
+
+
 @dataclass(frozen=True)
 class PeriodLease:
     """Exact stable-path generation admitted for one recurring child.
@@ -606,6 +614,13 @@ class DueScan:
     # No DueTask exists for these skips: no creation, recovery or escalation.
     inactivity_skips: list[tuple[str, datetime]] = field(default_factory=list)
     inactive_since: str | None = None
+    # `(template, last_fire, reason)` for each due agent-backed template this
+    # run could not spawn an agent for. Not a template error: each gets a scan
+    # row reading `skip (<agent_refusal_label>)`, and the caller decides whether
+    # the refusal is a problem (a control-worktree run) or a documented warning
+    # (a headless sweep).
+    agent_refusals: list[tuple[str, datetime, str]] = field(default_factory=list)
+    agent_refusal_label: str = ""
 
     @property
     def inactivity_reason(self) -> str:
@@ -665,6 +680,7 @@ _AGENT_NEEDS_TTY = (
     f"periods require a `{SCRIPT_ENTRY_POINT}` deterministic half in the "
     "template; an existing period must already carry its frozen copy."
 )
+_AGENT_NEEDS_TTY_LABEL = "agent needs a TTY"
 
 
 def scan_due(
@@ -674,6 +690,7 @@ def scan_due(
     allow_interactive: bool = True,
     force: bool = False,
     agent_unavailable_reason: str | None = None,
+    agent_unavailable_label: str = _AGENT_NEEDS_TTY_LABEL,
     inactive_since: str | None = None,
 ) -> DueScan:
     """Scan every recurring template and get-or-create its current-period task.
@@ -695,10 +712,12 @@ def scan_due(
     every template dropped by `allow_interactive=False`. A caller that excludes
     agent templates for its own reason — a sweep running from a temporary
     control worktree, where a TTY may well exist — passes the true one so the
-    reported skip is not a lie. A frozen `ticket.py` admits only that
-    deterministic phase: it may be hybrid and leave agent work open, so the
-    caller must carry the same refusal through launch rather than treating file
-    presence as proof that the whole period is script-only.
+    reported skip is not a lie, and `agent_unavailable_label` the short scan-row
+    text. Each refused template lands in `DueScan.agent_refusals`, not
+    `errors`, so it keeps its row in the scan table. A frozen `ticket.py`
+    admits only that deterministic phase: it may be hybrid and leave agent
+    work open, so the caller must carry the same refusal through launch rather
+    than treating file presence as proof that the whole period is script-only.
     """
     # A non-None value is a local ISO date or "never" for machine-only history.
     now = now or datetime.now()
@@ -707,6 +726,7 @@ def scan_due(
         return DueScan(tasks=[], errors=[])
 
     inactivity_skips: list[tuple[str, datetime]] = []
+    agent_refusals: list[tuple[str, datetime, str]] = []
     tasks: list[DueTask] = []
     errors: list[tuple[str, str]] = []
     # One reverse log pass for every template in this scan, then kept current
@@ -816,6 +836,10 @@ def scan_due(
             )
             ticket = read_ticket(outcome.ref)
             delegate = frozen_task_delegate(outcome.ref, ticket)
+        except AgentUnavailableError as exc:
+            sys.stderr.write(f"[recurring] skipping {path.name}: {exc}\n")
+            agent_refusals.append((template.name, last_fire, str(exc)))
+            continue
         except RecurringError as exc:
             # Don't let one bad template block the rest. Stderr keeps an
             # interactive `coga recurring` honest; the command also posts a
@@ -857,12 +881,14 @@ def scan_due(
             else:
                 tasks.remove(task)
                 sys.stderr.write(f"[recurring] skipping {task.template}: {reason}\n")
-                errors.append((task.template, reason))
+                agent_refusals.append((task.template, task.last_fire, reason))
     return DueScan(
         tasks=tasks,
         errors=errors,
         inactivity_skips=inactivity_skips,
         inactive_since=inactive_since,
+        agent_refusals=agent_refusals,
+        agent_refusal_label=agent_unavailable_label,
         ledger_periods=ledger_periods_before_scan,
         ledger_errors=ledger_errors_before_scan,
         period_targets=period_targets,
@@ -973,7 +999,7 @@ def create_template(
     live = _live_task_for_template(cfg, template.name)
     if live is not None:
         if not allow_agent and resolve_script_entry_point(live) is None:
-            raise RecurringError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
+            raise AgentUnavailableError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
         return CreateOutcome(
             ref=live,
             created=False,
@@ -995,7 +1021,7 @@ def create_template(
             if template.delegate is not None:
                 assert_template_delegation(cfg, template)
             if not allow_agent and template.script_entry_point is None:
-                raise RecurringError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
+                raise AgentUnavailableError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
             # Delete only once the replacement is known to be creatable: a
             # template whose workflow no longer resolves must not orphan the
             # prior period by deleting its task and then failing to create.
@@ -1037,7 +1063,7 @@ def create_template(
             and not (retain_paused and ticket.status == "paused")
             and resolve_script_entry_point(existing) is None
         ):
-            raise RecurringError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
+            raise AgentUnavailableError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
         return CreateOutcome(
             ref=existing,
             created=False,
@@ -1048,7 +1074,7 @@ def create_template(
     if template.delegate is not None:
         assert_template_delegation(cfg, template)
     if not allow_agent and template.script_entry_point is None:
-        raise RecurringError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
+        raise AgentUnavailableError(agent_unavailable_reason or _AGENT_NEEDS_TTY)
     outcome = _create_at_slug(
         cfg,
         template,

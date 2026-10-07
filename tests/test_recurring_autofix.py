@@ -637,6 +637,34 @@ def test_record_renders_outcomes_and_flags_problems() -> None:
     assert "recurring/dream — completed" in text
 
 
+def test_record_counts_template_errors_as_problems() -> None:
+    """A non-empty `## Template errors` section must not read `problems: 0`."""
+    record = RunRecord(
+        started=datetime(2026, 8, 24, 9, 0, 0),
+        scan_errors=[("bad-cron", "`schedule` is not a valid cron expression")],
+    )
+    text = record.render()
+    assert "- problems: 1" in text
+    assert "## Template errors" in text
+
+
+def test_record_scan_gives_agent_refusals_a_row() -> None:
+    """A refused agent template is a scan row, not a vanished template."""
+    scan = DueScan(
+        tasks=[],
+        errors=[],
+        agent_refusals=[
+            ("autoclose-merged", datetime(2026, 8, 24, 8, 0, 0), "not run here")
+        ],
+        agent_refusal_label="control branch not checked out",
+    )
+
+    [line] = scan_lines_for_record(scan)
+
+    assert line.startswith("autoclose-merged ")
+    assert line.endswith("skip (control branch not checked out)")
+
+
 def test_record_strips_ansi_and_keeps_the_tail_of_a_long_blackboard() -> None:
     record = RunRecord(started=datetime(2026, 8, 24, 9, 0, 0))
     record.add(
