@@ -1,10 +1,8 @@
 ---
 title: Repair ticket referents when a referent is renamed or canceled
-status: draft
+status: active
 owner: nicktoper
 agent: claude
-contexts: []
-skills: []
 workflow:
   name: draft-for-human
   steps:
@@ -22,7 +20,6 @@ workflow:
   - name: report-to-coga
     skills: []
     assignee: agent
-secrets: null
 step: 1 (agent-produces)
 ---
 
