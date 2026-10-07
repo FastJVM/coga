@@ -124,14 +124,10 @@ No developer tools were found and no install could be requested (possibly
 because there is no active GUI session)`; a user at the Mac's screen gets the
 install dialog instead. That stop is the new-user finding. To continue, install
 the CLT: as a new user would, over VNC (below) by clicking **Install** in the
-dialog or accepting `xcode-select --install`; or headless over SSH:
-
-```sh
-touch /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
-softwareupdate -l          # note the "Command Line Tools for Xcode" label
-sudo softwareupdate -i "<that label>"
-rm /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
-```
+dialog or accepting `xcode-select --install`; or headless over SSH with the
+`softwareupdate` steps that
+[coga/install](../../../install/SKILL.md#macos-install-the-command-line-tools-first)
+owns.
 
 Then run a walk with a **new** macOS user. The CLT install is machine-wide;
 homes are not shared.

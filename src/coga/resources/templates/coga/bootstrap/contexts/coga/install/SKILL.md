@@ -86,9 +86,10 @@ The CLT install is machine-wide, so one install covers every user. It
 provides Python 3.9 as `/usr/bin/python3`, which is below Coga's 3.11 floor.
 Install Python 3.11+ separately (`uv tool install` can manage its own Python).
 The 2026-10-01 clean-install walk reproduced the SSH error on a fresh
-macOS 27 host; the dialog path was not exercised. The headless steps come
-from the clean-install runbook,
-[coga/testing/clean-install/macos-aws](../testing/clean-install/macos-aws/SKILL.md).
+macOS 27 host; the dialog path was not exercised. This topic owns the
+headless steps; the clean-install runbook,
+[coga/testing/clean-install/macos-aws](../testing/clean-install/macos-aws/SKILL.md),
+applies them to its walk host.
 
 Coga does not own your identity. It uses tools you already authenticate
 (`git`, your credential helper or `ssh-agent`, `gh`) and fails with an
