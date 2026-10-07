@@ -381,15 +381,7 @@ class Template:
 
     @classmethod
     def load(cls, path: Path, *, now: datetime | None = None) -> "Template":
-        ticket = path / "ticket.md"
-        if not ticket.is_file():
-            raise RecurringError("missing ticket.md")
-        match = _FM_RE.match(ticket.read_text())
-        if not match:
-            raise RecurringError("ticket.md missing YAML frontmatter")
-        fm = yaml.safe_load(match.group(1)) or {}
-        if not isinstance(fm, dict):
-            raise RecurringError("frontmatter must be a mapping")
+        fm, body = _read_template_source(path)
         rejected = sorted(set(fm) & REJECTED_TICKET_KEYS)
         if rejected:
             raise RecurringError(
@@ -425,7 +417,7 @@ class Template:
                 "`period_generation` is reserved for materialized period tasks; "
                 "remove it from the recurring template"
             )
-        return cls(path=path, name=path.name, frontmatter=fm, body=match.group(2))
+        return cls(path=path, name=path.name, frontmatter=fm, body=body)
 
     @property
     def runs_when_inactive(self) -> bool:
@@ -736,7 +728,9 @@ def scan_due(
     # a repeated same-period scan resolves from the tail. Malformed records
     # stay attached to their template so one bad high-water mark cannot hide
     # itself as "already serviced" or prevent healthy templates from running.
-    period_targets = _template_period_targets(root, now)
+    period_targets = _template_period_targets(
+        root, now, skip_inactive=inactive_since is not None and not force
+    )
     ledger = read_serviced_ledger(cfg, period_targets)
     # `_advance_serviced_period` mutates `ledger.periods` in place as this scan
     # creates tasks. Preserve the pre-create view separately: after a successful
@@ -1905,23 +1899,30 @@ def _recurring_slug(template_name: str) -> str:
     return f"recurring/{template_name}"
 
 
-def _read_inactivity_fields(path: Path, now: datetime) -> tuple[bool, datetime | None]:
-    """Leniently read `run_when_inactive` and the last firing for an inactive sweep.
-
-    Only frontmatter that cannot be read as a mapping, or an exemption flag
-    that is not a bool, raises: either leaves the exemption undecidable.
-    Every other template check is deferred to `Template.load`, which an
-    exempt template still runs.
-    """
+def _read_template_source(path: Path) -> tuple[dict[str, Any], str]:
+    """Read a template's mapping and body without validating its fields."""
     ticket = path / "ticket.md"
     if not ticket.is_file():
         raise RecurringError("missing ticket.md")
     match = _FM_RE.match(ticket.read_text())
     if not match:
         raise RecurringError("ticket.md missing YAML frontmatter")
-    fm = yaml.safe_load(match.group(1)) or {}
+    try:
+        fm = yaml.safe_load(match.group(1))
+    except yaml.YAMLError as exc:
+        raise RecurringError(f"invalid YAML frontmatter: {exc}") from exc
     if not isinstance(fm, dict):
         raise RecurringError("frontmatter must be a mapping")
+    return fm, match.group(2)
+
+
+def _read_inactivity_fields(path: Path, now: datetime) -> tuple[bool, datetime | None]:
+    """Read only the exemption and a best-effort firing for an inactive sweep.
+
+    Unreadable frontmatter or a non-boolean exemption remains a template error.
+    Other validation waits until the template is admitted through the gate.
+    """
+    fm, _ = _read_template_source(path)
     exempt = fm.get("run_when_inactive", False)
     if not isinstance(exempt, bool):
         raise RecurringError("`run_when_inactive` must be a bool")
@@ -1932,7 +1933,9 @@ def _read_inactivity_fields(path: Path, now: datetime) -> tuple[bool, datetime |
     return exempt, _last_firing(fm["schedule"], now)
 
 
-def _template_period_targets(root: Path, now: datetime) -> dict[str, str]:
+def _template_period_targets(
+    root: Path, now: datetime, *, skip_inactive: bool = False
+) -> dict[str, str]:
     """Map each valid live template to the period a scan is deciding now.
 
     Invalid templates are diagnosed by the ordinary scan/list loop. They have
@@ -1944,6 +1947,8 @@ def _template_period_targets(root: Path, now: datetime) -> dict[str, str]:
         if not path.is_dir() or path.name.startswith("_"):
             continue
         try:
+            if skip_inactive and not _read_inactivity_fields(path, now)[0]:
+                continue
             template = Template.load(path, now=now)
         except RecurringError:
             continue

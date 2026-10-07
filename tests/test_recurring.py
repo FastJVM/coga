@@ -13155,13 +13155,14 @@ def test_run_when_inactive_must_be_boolean(repo: Path, value: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "inactive_since, exempt, skipped",
-    [("2026-09-04", False, True), ("2026-09-04", True, False), (None, False, False)],
-    ids=["inactive", "inactive-exempt", "active"],
+    "inactive_since, exempt, force, skipped",
+    [("2026-09-04", False, False, True), ("2026-09-04", True, False, False),
+     (None, False, False, False), ("2026-09-04", False, True, False)],
+    ids=["inactive", "inactive-exempt", "active", "forced"],
 )
 def test_inactive_sweep_skips_broken_template_without_strict_load(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys,
-    inactive_since: str | None, exempt: bool, skipped: bool,
+    inactive_since: str | None, exempt: bool, force: bool, skipped: bool,
 ) -> None:
     from datetime import date
     from coga.recurring_activity import RepoActivity
@@ -13169,7 +13170,11 @@ def test_inactive_sweep_skips_broken_template_without_strict_load(
     path = repo / "recurring/weekly-check/ticket.md"
     extra = "assignee: agent\n" + ("run_when_inactive: true\n" if exempt else "")
     path.write_text(path.read_text().replace("schedule:", f"{extra}schedule:", 1))
-    scan = scan_due(load_config(repo), inactive_since=inactive_since)
+    if skipped:
+        monkeypatch.setattr(
+            Template, "load", lambda *a, **kw: pytest.fail("strict template load ran")
+        )
+    scan = scan_due(load_config(repo), inactive_since=inactive_since, force=force)
     if skipped:
         assert scan.errors == []
         assert [name for name, _ in scan.inactivity_skips] == ["weekly-check"]
@@ -13189,11 +13194,27 @@ def test_inactive_sweep_skips_broken_template_without_strict_load(
         assert "assignee" not in captured.out + captured.err
 
 
-def test_inactive_sweep_reports_unreadable_frontmatter(repo: Path) -> None:
-    (repo / "recurring/weekly-check/ticket.md").write_text("---\n- a list\n---\nbody\n")
+@pytest.mark.parametrize("frontmatter", ["- a list", "[]", "false", "0", "null"])
+def test_inactive_sweep_reports_unreadable_frontmatter(repo: Path, frontmatter: str) -> None:
+    (repo / "recurring/weekly-check/ticket.md").write_text(f"---\n{frontmatter}\n---\nbody\n")
     scan = scan_due(load_config(repo), inactive_since="2026-09-04")
     assert scan.inactivity_skips == []
     assert "mapping" in scan.errors[0][1]
+
+
+@pytest.mark.parametrize("inactive_since, force", [("never", False), (None, False), ("never", True)])
+def test_sweep_reports_malformed_yaml_and_continues(
+    repo: Path, inactive_since: str | None, force: bool,
+) -> None:
+    _write_recurring(repo, "broken", "---\nschedule: [unclosed\n---\n")
+    scan = scan_due(load_config(repo), inactive_since=inactive_since, force=force)
+    assert len(scan.errors) == 1
+    assert scan.errors[0][0] == "broken"
+    assert "invalid YAML frontmatter" in scan.errors[0][1]
+    if inactive_since is not None and not force:
+        assert [name for name, _ in scan.inactivity_skips] == ["weekly-check"]
+    else:
+        assert [task.template for task in scan.tasks] == ["weekly-check"]
 
 
 def test_inactive_sweep_skips_template_with_bad_schedule(repo: Path) -> None:
