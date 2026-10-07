@@ -1,6 +1,4 @@
-# Coga: don't don't think.
-
-**Stop repeating yourself to agents.**
+# Coga:stop repeating to agents
 
 Coga is a CLI that runs any agent from Markdown files in your Git
 repo. Every launch rebuilds the agent's prompt from those files, never from
@@ -10,8 +8,7 @@ every later run starts from the fix.
 Coga is built with Coga: see the tickets in [`coga/tasks/`](coga/tasks) and
 the full history in [`coga/log.md`](coga/log.md).
 
-## What is it
-
+## Key Ideas
 When you use coding agents a lot, they forget instructions, skip steps and
 drift off course. You end up babysitting them. Coga turns the instructions
 you keep repeating into a way of working that lives in your repo.
@@ -22,7 +19,7 @@ It is built around three ideas:
   reshape at any time. When a premise turns out wrong, rewind the ticket:
   what was learned stays, and abandoned designs stay on disk but out of the
   agent's prompt.
-- **Improvements compound.** Coga is full of feedback loops, at every scale:
+- **Improvements compound.** Coga is full of feedback loops, at every step:
   - **Within a ticket**, the blackboard carries what each step learned into
     the next one, and a second agent can review the first one's work.
   - **Across tickets**, what a finished ticket taught is folded into the
@@ -31,13 +28,14 @@ It is built around three ideas:
     the code, flag drift and keep skills up to date.
   - **From you**, any correction to a ticket, context or skill takes effect
     on the next launch.
-
-  Changes to the shared rules arrive as pull requests: nothing changes how
-  agents work until you merge it.
+  
 - **Everything is inspectable and hackable.** The base prompt, workflows,
   docs and skills are plain files, and you can change any of them.
   `coga launch --prompt-report` shows the exact prompt before anything runs.
-  You and your agents change the system as your ways of working evolve.
+  You and your agents change the system as your ways of working evolve. 
+  Changes to the shared rules arrive as pull requests: nothing changes how
+  agents work until you merge it.
+
 
 The trade-off: you specify more up front, and you stay the one who decides. In exchange, you stop babysitting your agents.
 
