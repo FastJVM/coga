@@ -111,11 +111,19 @@ Dream merges from unlisted branches count as human. These are accepted limits
 of subject-based classification; an ordinary commit or explicit override
 recovers from false inactivity.
 
-Inactive templates are loaded and validated, then skipped before period or
-ledger handling unless their template sets `run_when_inactive: true`. No
-period is created, resumed, re-launched or watchdog-escalated; existing bytes
-remain untouched. Exempt templates retain normal creation, resume, launch and
-watchdog escalation. The table prints one row per non-exempt template:
+On an inactive, non-forced sweep each template's frontmatter is read
+leniently for `run_when_inactive` and its schedule
+(`recurring._read_inactivity_fields`); a template not setting
+`run_when_inactive: true` is skipped before strict `Template.load`, period or
+ledger handling. A stale or rejected key on a non-exempt template therefore
+raises no template error and no alert while the repo is dormant; it surfaces
+when the repo wakes, under `--force`, or in `coga validate`. Frontmatter that is
+not a mapping, a missing `ticket.md`, or a non-boolean `run_when_inactive`
+leaves the exemption undecidable and is still a template error. An
+unparseable schedule gets the skip row with `-` as its firing. No period is
+created, resumed, re-launched or watchdog-escalated; existing bytes remain
+untouched. Exempt templates are fully validated and retain normal creation,
+resume, launch and watchdog escalation. The table prints one row per non-exempt template:
 `skip (repo inactive since YYYY-MM-DD)` (or `never`), after one header naming
 the last human date, days idle and configured window. Run-record scan lines
 carry the same rows.
