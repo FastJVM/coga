@@ -7743,3 +7743,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-07 11:07 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-10-07
 2026-10-07 11:07 [bootstrap/address-pr-comments] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-07 11:07 [recurring/address-pr-comments] [system] started (active → in_progress) via recurring delegation to bootstrap/address-pr-comments
+2026-10-07 11:08 [recurring/address-pr-comments] [system] launched delegated target bootstrap/address-pr-comments
