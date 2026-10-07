@@ -7619,3 +7619,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-06 17:10 [marketing/fix-installer/complete-the-authenticated-clean-install-audit] [system] blocked: unresolved blocker still open after resumed megalaunch pick exited
 2026-10-06 17:10 [autofix/run-control-worktree-templates-in-the-sweep-instea] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-06 17:10 [autofix/run-control-worktree-templates-in-the-sweep-instea] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-10-06 17:10 [autofix/run-control-worktree-templates-in-the-sweep-instea] [megalaunch] launched via coga megalaunch
