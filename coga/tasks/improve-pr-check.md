@@ -102,4 +102,13 @@ and explicit reporting when tests or an independent review were not performed.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: improve-pr-presentation
+
+## Implementation plan
+
+Owner approved the proposed convention in the attended session: `[merge|skim|deep · A:<actual author> R:<actual reviewer>] <actual change>`. Merge is advisory and needs small low-risk scope, completed independent review, applicable checks and no unresolved concerns; skim invites reading the rationale; deep covers risk or missing evidence. Self-review and unknown identities stay explicit.
+
+Keep extraction/formatting in `src/coga/open_pr.py` (`_pr_body`, `open_pr`) and judgment/prose in preparation instructions. Bind evidence to head/base revisions, list every diff path, retain a verbatim title/Description/Context snapshot, and make missing tests/review explicit. Mark and fingerprint generated title/body; refresh untouched content on reruns, preserve external human notes, and refuse conflicting edits. Preserve publication gates and URL-only stdout. Update owning topic, applicable skills/workflows and twins; focused tests, full suite required by this implementation step, and fixture validation.
+
+Actual implementing agent: Codex (session identity; ticket's configured `claude` is not evidence). No independent implementation review has run in this step.
