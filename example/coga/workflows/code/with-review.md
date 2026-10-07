@@ -23,7 +23,12 @@ From a clean `main`, create the feature branch, record it under `## Dev` as a
 present in the ticket copy of the checkout you bump from.
 
 ## pr
-Push the recorded branch and open a PR. Title the PR after the task title.
+Prepare `## PR` using the `coga/internals/pr-publication` topic's rubric and
+schema: actual authorship, review identity or absence, current head/base,
+implementation, per-file reasons, and checks with outcomes or omission reasons.
+Run `coga open-pr <slug>` to publish the presentation and verbatim ticket
+snapshot. It reports missing evidence honestly and preserves external human
+notes on reruns. Test obligations remain those selected by this workflow.
 
 ## approve
 Review the PR. If changes are needed, comment and wait. If approved, advance.
