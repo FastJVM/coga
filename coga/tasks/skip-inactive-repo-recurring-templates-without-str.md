@@ -1,6 +1,6 @@
 ---
 title: Skip inactive-repo recurring templates without strict validation
-status: draft
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,8 +24,9 @@ workflow:
     assignee: owner
 step: 1 (implement)
 contexts:
-  - coga/recurring/scheduling
-  - coga/recurring/templates
+- coga/recurring/scheduling
+- coga/recurring/templates
+agent: claude
 ---
 
 ## Description
