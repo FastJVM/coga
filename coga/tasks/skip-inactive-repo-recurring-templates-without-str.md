@@ -22,12 +22,11 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 contexts:
 - coga/recurring/scheduling
 - coga/recurring/templates
 agent: claude
-launch_generation: 96d499d7-911f-4b2e-a65f-df977a9f7f50
 ---
 
 ## Description
@@ -84,9 +83,56 @@ Pushed `inactive-lenient-template-skip` (rebased on origin/main 4cb59f31c).
   passes after rebasing onto #974 (pin-inventory-sort-collation);
   re-ran test_recurring + test_packaging + test_edge_distribution after rebase: green.
 
-Adjacent bug (not fixed, no ticket): `Template.load` does not catch
+Implementation finding (resolved during peer review below): `Template.load` does not catch
 `yaml.YAMLError`, and `recurring._template_period_targets` calls it first
 inside `scan_due`, so a template with syntactically invalid YAML frontmatter
 raises out of the whole scan (active or inactive) instead of becoming one
 `## Template errors` entry. Repro: write `---\nschedule: [unclosed\n---\n`
-into recurring/<name>/ticket.md and call `scan_due`. Unresolved.
+into recurring/<name>/ticket.md and call `scan_due`. Fixed in the review commit.
+
+
+## Peer review
+
+`codex review --base main` returned successfully. The first sandboxed attempt
+could not initialize its app-server; the unsandboxed retry completed. It found
+one P2: falsey non-mapping YAML (`[]`, `false`, `0`) was coerced to `{}` and
+silently skipped. Fixed by checking the decoded type before any fallback;
+regression coverage includes these values and `null`.
+
+Manual review also found the ledger pre-pass still strictly loaded dormant
+non-exempt templates. It now applies the inactivity gate first; the regression
+test fails if `Template.load` is called anywhere for that skipped template.
+The shared source reader now converts malformed YAML to `RecurringError`, so
+the sweep reports the template error and continues. Tests cover continued
+scanning on inactive, active and forced sweeps, plus strict validation of
+exempt and forced broken templates. Scheduling docs and the packaged twin
+include this behavior. No unresolved must-fix findings or design changes.
+
+No raw terminal loop, pager, prompt or Slack rendering changed. Captured scan
+output verifies the inactivity skip row and absence of notifications; the
+run-record test covers a bad schedule's missing firing. No interactive surface
+requires a separate terminal exercise.
+
+Rebased unconditionally with `git fetch origin main && git rebase FETCH_HEAD`.
+Pushed `inactive-lenient-template-skip` with `--force-with-lease` at
+`9bc1438f0` (two code commits ahead of control), then returned to clean `main`.
+
+Verification (Python 3.12.12):
+- `PYTHONPATH=$PWD/src .venv/bin/python -m pytest tests/test_recurring.py -q -k 'inactive or inactivity or malformed_yaml'`: 30 passed, 446 deselected.
+- After rebase, `PYTHONPATH=$PWD/src .venv/bin/python -m pytest`: 3366 passed in 347.26s, including packaging twins and edge distribution.
+- `git diff --check`: passed. Python 3.11 was not exercised.
+
+## PR
+
+Inactive repositories now skip non-exempt recurring templates before strict
+validation, including the ledger pre-pass. Stale rejected keys therefore
+produce the normal inactivity skip row without alerts. Active repositories,
+exempt templates and `--force` retain full validation; invalid schedules on
+skipped templates display `-` for their firing.
+
+Unreadable or non-mapping YAML and non-boolean exemption flags remain reported
+errors. Malformed YAML no longer aborts the whole sweep. Updated the recurring
+scheduling and template contracts and their packaged twins, with regressions
+for inactive, exempt, active, forced and malformed-frontmatter cases.
+
+Test plan: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest` — 3366 passed on Python 3.12.12; `git diff --check` passed.
