@@ -23,9 +23,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (self-qa)
+step: 3 (pr)
 agent: claude
-launch_generation: 919a4448-9f77-4f6e-8955-1b7a09227ac2
 ---
 
 ## Description
@@ -155,3 +154,39 @@ paths), so it isn't from this change. Updated TTY-refusal tests to read
 `test_control_worktree_run_names_agent_templates_and_the_real_reason` (row,
 `problems: 1`, no "serviced", exit 2); added two `RunRecord` tests in
 `tests/test_recurring_autofix.py`.
+
+## Self-QA (2026-10-06)
+
+Review form: `/code-review` (Skill tool, forked) against `main...branch`, plus a
+manual read of the diff. **The review returned** (8 findings); `/simplify` ran as
+4 parallel reviewers (reuse, simplification, efficiency, altitude), all returned.
+Commit `9d708a028`, pushed. No terminal-only surface touched.
+
+Fixed:
+
+- Must-fix: `create_template` refused a non-launchable current period (canceled,
+  blocked, ...) in a non-force scan, so a control-worktree sweep reported it
+  "due but not run" and exited 2 every sweep. Now non-force scans never refuse
+  in that branch (`not replace_done`); test
+  `test_headless_scan_does_not_refuse_unlaunchable_current_period`; scheduling
+  topic + twin updated.
+- "No due recurring tasks could be launched." no longer fires for template
+  errors alone (they may not be due) → "No recurring tasks launched; see
+  template errors."
+- Refusal reason and its scan-row label chosen in one `if/elif`.
+
+Left for the human reviewer (not fixed):
+
+- Implement decisions kept: control-worktree refusal exits 2 and `--all` lists
+  the repo as failed; `problems:` counts template errors without changing exit.
+- Forced control-worktree run counts done/paused periods as "due but not run"
+  (forced = asked-for, so a non-run is real; wording says "due").
+- Prior-period paused refusal row shows the current firing label (nit).
+- `/simplify` design suggestions skipped as out of scope: carry the label with
+  each refusal / merge skip kinds into one `DueScan` list, and dedupe the
+  skip-row loops shared by `_print_table` and `scan_lines_for_record` (the
+  duplication predates this branch).
+
+Tests: `.venv/bin/python -m pytest`: 3277 passed, 1 failed, and the failure is
+`test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`.
+It also fails on clean `main`. (System `python` lacks `tomlkit`; use `.venv`.)
