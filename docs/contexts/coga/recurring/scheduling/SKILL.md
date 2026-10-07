@@ -163,7 +163,9 @@ Agent-backed periods (including `delegate:`) need stdin and stdout TTYs; a
 headless sweep skips them with a warning, before creating a period or leaving a
 materialized one untouched, and continues. The skipped template keeps its scan
 row, `skip (agent needs a TTY)`, rather than a `## Template errors` entry; this
-headless skip is not counted in `problems:`. A `ticket.py` period runs headless
+headless skip is not counted in `problems:`. A current period that is not
+launchable (`canceled`, `blocked`, ...) is never refused: a durable checkout
+would not launch it either. A `ticket.py` period runs headless
 and is the shape for unattended schedulers.
 
 A scheduled agent run must reach `done` in one launch. When an agent launch

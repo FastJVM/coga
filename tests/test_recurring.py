@@ -2680,6 +2680,37 @@ def test_headless_scan_classifies_existing_period_from_frozen_script(
     assert "skipping weekly-check" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("status", ["canceled", "blocked"])
+def test_headless_scan_does_not_refuse_unlaunchable_current_period(
+    repo: Path, status: str
+) -> None:
+    """A period a durable checkout would not launch either is not refused.
+
+    Refusing it would report "due but not run" (exit 2 in a control-worktree
+    sweep) on every run for a period nothing was going to launch.
+    """
+    cfg = load_config(repo)
+    outcome = create_named(
+        cfg, "weekly-check", now=datetime(2026, 4, 22, 10, 0, 0)
+    )
+    ticket = Ticket.read(outcome.ref.ticket_path)
+    ticket.frontmatter["status"] = status
+    ticket.write(outcome.ref.ticket_path)
+
+    scan = scan_due(
+        cfg,
+        now=datetime(2026, 4, 22, 10, 1, 0),
+        allow_interactive=False,
+        agent_unavailable_reason="temporary control worktree",
+    )
+
+    assert "weekly-check" not in _agent_refusals(scan)
+    assert scan.errors == []
+    [task] = [task for task in scan.tasks if task.template == "weekly-check"]
+    assert task.status == status
+    assert task not in scan.due
+
+
 def test_local_period_lease_does_not_read_unbounded_global_log(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

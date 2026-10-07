@@ -1852,10 +1852,13 @@ def run_recurring_scan(
         return 2
     if not _valid_agent_override(cfg, agent_override):
         return 2
+    # The refusal and its scan-row label are chosen together so they agree.
+    agent_refusal_label = _AGENT_NEEDS_TTY_LABEL
     if control_worktree:
         agent_spawn_refusal = _control_worktree_agent_refusal(
             cfg, control_worktree_host
         )
+        agent_refusal_label = _CONTROL_WORKTREE_AGENT_LABEL
     elif not _interactive_stdio_has_tty():
         agent_spawn_refusal = _AGENT_NEEDS_TTY
     else:
@@ -1879,9 +1882,7 @@ def run_recurring_scan(
         force=force,
         inactive_since=activity.inactive_since,
         agent_unavailable_reason=agent_spawn_refusal,
-        agent_unavailable_label=(
-            _CONTROL_WORKTREE_AGENT_LABEL if control_worktree else _AGENT_NEEDS_TTY_LABEL
-        ),
+        agent_unavailable_label=agent_refusal_label,
     )
     _broadcast_scan(
         cfg,
@@ -1954,9 +1955,12 @@ def run_recurring_scan(
     if not due:
         if force:
             message = "No recurring templates to launch."
-        elif scan.agent_refusals or scan.errors:
+        elif scan.agent_refusals:
             # They were due; saying otherwise hid a refused period.
             message = "No due recurring tasks could be launched."
+        elif scan.errors:
+            # An errored template may or may not be due; don't claim either.
+            message = "No recurring tasks launched; see template errors."
         else:
             message = "No recurring tasks due."
         typer.echo(message)

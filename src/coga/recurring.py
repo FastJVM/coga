@@ -1053,12 +1053,15 @@ def create_template(
                 cfg, template, period_key, outcome, now, serviced
             )
             return outcome
-        # A done period reaching here under `replace_done` already serviced
-        # this firing, so nothing will launch: return it as `done` even when
-        # it predates its template's `ticket.py` and froze no copy.
+        # A live period returned above, so without `--force` (`replace_done`)
+        # this one is not launchable (done, canceled, blocked, ...): nothing
+        # will launch and no agent is refused. Return it with its status even
+        # when it predates its template's `ticket.py` and froze no copy;
+        # refusing it would report a period as "due but not run" when a
+        # durable checkout would not run it either.
         if (
             not allow_agent
-            and not (replace_done and ticket.status == "done")
+            and not replace_done
             and not (retain_canceled and ticket.status == "canceled")
             and not (retain_paused and ticket.status == "paused")
             and resolve_script_entry_point(existing) is None
