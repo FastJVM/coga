@@ -52,3 +52,21 @@ Outstanding AWS cleanup belongs to PR #943 and must not wait for this ticket: ho
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: owned-mac-clean-install
+
+Plan (implement, 2026-10-06): #943 merged (76ed1c43d), so build on main.
+#968 (Python 3.11 pin, open) edits only the `walk` hunk of macos-walk.sh and
+container.sh; stay out of those hunks so the owned path inherits the pin.
+- Factor aws-mac.sh's walk/evidence/vnc/ssh helpers into a sourced
+  `scripts/clean-install/mac-common.sh`; add `owned-mac.sh` (SSH driver):
+  `vm` = disposable Tart vanilla VM on Apple Silicon reached by ProxyJump
+  (vanilla image has no CLT, admin/admin, NOPASSWD sudo); `attach` = ordinary
+  host (Intel compat), never reset, needs a dedicated test account with
+  passwordless sudo; `cleanup` deletes VM or walk users.
+- Gate macos-walk.sh `reset` and `vnc` on a disposable marker that only a
+  driver-created target (EC2 instance, cloned VM) receives.
+- New topic coga/testing/clean-install/macos-owned (+ twin, packaging list):
+  setup/reset/cleanup, costs, hosted-CI comparison + recommendation.
