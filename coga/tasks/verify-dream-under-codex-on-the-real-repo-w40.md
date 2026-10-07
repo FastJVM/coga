@@ -1,6 +1,6 @@
 ---
 title: Verify Dream under codex on the real repo (first period after merge)
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: brief-for-human
@@ -16,6 +16,7 @@ workflow:
     assignee: agent
 step: 1 (brief-and-hand-off)
 agent: claude
+launch_generation: pending:929f6c47-8a42-492d-919a-f47a1d56ef07
 ---
 
 ## Description
