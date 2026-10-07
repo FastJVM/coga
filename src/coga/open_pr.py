@@ -342,8 +342,9 @@ def _check_recorded_clone(
 
 
 _STATUSES = {"passed", "failed", "pending", "not-run"}
+_TITLE_LIMIT = 256
 _MANAGED_START = re.compile(
-    r"<!-- coga:pr:v1 title=([0-9a-f]{64}) body=([0-9a-f]{64}) -->\n"
+    r"<!-- coga:pr:v1 title=([0-9a-f]{64}) body=([0-9a-f]{64}) -->\r?\n"
 )
 _MANAGED_END = "<!-- /coga:pr -->"
 
@@ -557,13 +558,21 @@ def _pr_presentation(
         issues.append("Merge recommendation requires independent review and a passed applicable check.")
     if issues:
         depth = "deep"
-    title = f"[{depth} · A:{author} R:{reviewer}] {title}"
+    prefix = f"[{depth} · A:{author} R:{reviewer}] "
+    full_change_title = title
+    budget = _TITLE_LIMIT - len(prefix)
+    shortened = len(title) > budget
+    if shortened:
+        title = title[:budget - 1].rstrip() + "…"
+    title = prefix + title
     content = (
         f"**Recommended review: {depth}** — advisory; the owner decides whether to merge.\n\n"
         f"{prose['rationale']}\n\n"
     )
     if issues:
         content += "Publication evidence gaps:\n" + "\n".join(f"- {issue}" for issue in issues) + "\n\n"
+    if shortened:
+        content += f"Full change title: {full_change_title}\n\n"
     content += (
         f"Author: **{author}**. {authorship}\n\n"
         f"Review: **{reviewer}** ({kind}, {review_status}). {review_detail}\n\n"
@@ -581,20 +590,16 @@ def _pr_presentation(
 
 
 def _digest(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
-def _normalized(value: str | None) -> str:
-    # GitHub's web editor resubmits the body with CRLF line endings.
-    return (value or "").replace("\r\n", "\n")
+    # Web-editor saves may change line endings without changing the prose.
+    return hashlib.sha256(value.replace("\r\n", "\n").encode("utf-8")).hexdigest()
 
 
 def _refresh_body(existing: dict, title: str, body: str, base: str, legacy_title: str) -> str:
     """Replace only intact generated content; refuse human conflicts."""
     if existing.get("baseRefName") != base:
         raise OpenPrError("PR presentation: existing PR base differs or is unavailable; reconcile its base first.")
-    old_body = _normalized(existing.get("body"))
-    old_title = _normalized(existing.get("title"))
+    old_body = existing.get("body") or ""
+    old_title = existing.get("title") or ""
     marker = _MANAGED_START.search(old_body)
     if marker is None:
         # A PR from before generated markers: adopt it only when its title is
@@ -617,8 +622,12 @@ def _refresh_body(existing: dict, title: str, body: str, base: str, legacy_title
     if len(ends) != 1 or _digest(old_title) != marker[1]:
         raise OpenPrError("PR presentation conflict: human edits or malformed generated title/body; preserve edits outside the markers and reconcile preparation before rerunning.")
     end = ends[0]
+    old_region = old_body[marker.start():end + len(_MANAGED_END)]
+    new_region = body.rstrip("\n")
+    if old_region.replace("\r\n", "\n") == new_region.replace("\r\n", "\n"):
+        return old_body
     # New body's trailing newline is formatting outside the region, not owned.
-    return old_body[:marker.start()] + body.rstrip("\n") + old_body[end + len(_MANAGED_END):]
+    return old_body[:marker.start()] + new_region + old_body[end + len(_MANAGED_END):]
 
 
 def _write_pr(args: list[str], title: str, body: str, *, cwd: str) -> subprocess.CompletedProcess[str]:
@@ -629,25 +638,31 @@ def _write_pr(args: list[str], title: str, body: str, *, cwd: str) -> subprocess
 
 
 def _open_pr_url(branch: str, cwd: str) -> dict | None:
-    """Return the OPEN PR for `branch` as a dict, or None.
-
-    `gh pr view <branch>` errors when no PR exists, which we treat as "none"
-    (the common first-open path) rather than a hard failure. A non-OPEN PR
-    (merged/closed) is also treated as none so we open a fresh one.
-    """
+    """Return the open PR, or confirmed absence; refuse lookup failures."""
     result = _run(
-        ["gh", "pr", "view", branch, "--json", "url,state,isDraft,number,title,body,baseRefName"],
+        ["gh", "pr", "view", branch, "--json",
+         "url,state,isDraft,number,title,body,baseRefName,isCrossRepository"],
         cwd=cwd,
     )
     if result.returncode != 0:
-        return None
+        # gh's branch finder excludes fork heads with the same bare branch name.
+        # Only its explicit not-found result proves absence; API/auth errors do not.
+        if (result.returncode == 1 and not result.stdout.strip()
+                and re.fullmatch(r'no pull requests found for branch ".+"', result.stderr.strip())):
+            return None
+        raise OpenPrError(f"PR lookup failed: {result.stderr.strip() or 'no output'}; retry before publishing.")
     try:
         data = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        return None
-    if str(data.get("state", "")).upper() != "OPEN":
-        return None
-    return data
+    except json.JSONDecodeError as exc:
+        raise OpenPrError("PR lookup returned invalid JSON; retry before publishing.") from exc
+    if (not isinstance(data, dict) or data.get("state") not in {"OPEN", "CLOSED", "MERGED"}
+            or any(not isinstance(data.get(key), str) for key in ("url", "title", "body", "baseRefName"))
+            or not data["url"] or not data["baseRefName"] or not isinstance(data.get("isDraft"), bool)
+            or not isinstance(data.get("isCrossRepository"), bool)):
+        raise OpenPrError("PR lookup returned incomplete presentation data; retry before publishing.")
+    if data["isCrossRepository"]:
+        raise OpenPrError("PR lookup returned a fork head instead of the published branch; reconcile before publishing.")
+    return data if data["state"] == "OPEN" else None
 
 
 def open_pr(
@@ -837,7 +852,7 @@ def open_pr(
     if existing is not None:
         url = existing["url"]
         refreshed = _refresh_body(existing, title, body, base, legacy_title)
-        if (_normalized(existing.get("title")), _normalized(existing.get("body"))) != (title, refreshed):
+        if (existing.get("title"), existing.get("body")) != (title, refreshed):
             edit = _write_pr(["gh", "pr", "edit", url], title, refreshed, cwd=cwd)
             if edit.returncode:
                 raise OpenPrError(f"PR presentation: gh pr edit failed: {edit.stderr.strip() or 'no output'}")

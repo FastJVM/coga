@@ -74,6 +74,9 @@ whether to merge. Titles use `[<depth> · A:<author> R:<reviewer>] <change>`.
 Use actual session/tool identities and receipts, never ticket assignments or
 the GitHub publisher. `unknown` means unavailable evidence, `none` means no
 review, and `<name>(self)` distinguishes self-review from independent review.
+The complete title stays within GitHub's 256-character limit: retain the
+prefix and shorten an oversized change title with an ellipsis. The full change
+title remains in the body, and the literal ticket snapshot stays unshortened.
 
 | Depth | Judgment and representative evidence | Example title |
 | --- | --- | --- |
@@ -168,15 +171,13 @@ visible; deciding applicability remains the preparation agent's job.
 
 New bodies wrap generated content in `coga:pr:v1` HTML comment markers with
 SHA-256 digests of the generated title and content. These are change detectors,
-not authentication. Human notes outside the marked region survive updates.
+not authentication. LF and CRLF line endings compare equally; other generated
+content edits still conflict. Human notes outside the marked region retain
+their exact bytes, including line endings, during updates.
 On reuse, title/body are fetched: unchanged generated content is refreshed,
 including the ticket snapshot and evidence, before a draft is readied or `pr:`
 is recorded. An unchanged rerun does not edit. An existing PR targeting another
 base refuses because the prepared comparison would not describe its diff.
-
-Line endings are normalized to LF before matching and digesting, because
-GitHub's web editor resubmits the body with CRLF; an edit outside the markers
-therefore stays a preserved note rather than a conflict.
 
 An unmarked PR from before the markers is adopted when its title is still the
 plain ticket title Coga used to publish: the generated region is placed first
@@ -188,7 +189,12 @@ edits. Reconcile with the owner: preserve wanted human prose outside the
 markers, move intended generated changes into `## PR`, and restore the last
 generated title/region (for an unmarked PR, the ticket title) before
 rerunning. There is no force-overwrite flag. Resolve detected
-conflicts before pushing; re-read after push to catch intervening edits before
-updating. GitHub has no atomic compare-and-set for these title/body edits, so
+conflicts before pushing. Lookup uses `gh pr view <branch>`, whose bare-branch
+finder excludes same-named fork heads. Only its explicit branch-not-found
+response or a valid closed/merged PR proves no open PR exists. API/auth errors,
+malformed or incomplete results, and cross-repository heads refuse before push.
+Re-read after
+push to catch intervening edits before updating. GitHub has no atomic
+compare-and-set for these title/body edits, so
 a simultaneous edit after that last read can still race; avoid co-editing
 presentation during publication. `gh` edit errors refuse without advancing.

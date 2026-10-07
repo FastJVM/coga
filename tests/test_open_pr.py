@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import stat
+import subprocess
 import sys
 
 import yaml
@@ -51,13 +52,14 @@ def _install_fake_gh(
 ) -> Path:
     """Put a fake `gh` on PATH and return the file it logs invocations to.
 
-    `pr view` exits 1 (no PR) unless `view_json` is given, in which case it
-    prints that JSON and exits 0; `pr create` prints `create_url`; `pr ready`
+    `pr view` returns the saved PR or gh's explicit branch-not-found error;
+    `pr create` prints `create_url`; `pr ready`
     exits 0. Every call is appended to the returned log file.
     """
     log = bin_dir / "gh-calls.log"
     view_file = bin_dir / "view.json"
     if view_json is not None:
+        view_json.setdefault("isCrossRepository", False)
         view_file.write_text(json.dumps(view_json))
     gh = bin_dir / "gh"
     gh.write_text(
@@ -71,13 +73,14 @@ def _install_fake_gh(
             view = Path({str(view_file)!r})
             body = ""
             if "--body-file" in args:
-                body = Path(args[args.index("--body-file") + 1]).read_text()
+                body = Path(args[args.index("--body-file") + 1]).read_bytes().decode("utf-8")
             elif "--body" in args:
                 body = args[args.index("--body") + 1]
             with Path({str(log)!r}).open("a") as out:
                 out.write(" ".join(args) + "\\n" + body + "\\n")
             if args[:2] == ["pr", "view"]:
                 if not view.exists():
+                    print('no pull requests found for branch "' + args[2] + '"', file=sys.stderr)
                     sys.exit(1)
                 print(view.read_text())
             elif args[:2] in (["pr", "create"], ["pr", "edit"]):
@@ -87,6 +90,7 @@ def _install_fake_gh(
                 data = json.loads(view.read_text()) if view.exists() else {{
                     "url": {create_url!r}, "state": "OPEN", "isDraft": False,
                     "baseRefName": "main",
+                    "isCrossRepository": False,
                 }}
                 data.update(title=args[args.index("--title") + 1], body=body)
                 view.write_text(json.dumps(data))
@@ -1368,7 +1372,7 @@ def test_open_pr_adopts_unmarked_legacy_pr_keeping_its_body(tmp_path, monkeypatc
     data = json.loads((bin_dir / "view.json").read_text())
     assert data["title"] == "[skim · A:codex R:claude] Explain the changed behavior"
     assert data["body"].startswith("<!-- coga:pr:v1 ")
-    assert data["body"].endswith("Legacy summary.\n\nCloses ticket: `presentation`\n")
+    assert data["body"].endswith("Legacy summary.\r\n\r\nCloses ticket: `presentation`\r\n")
     assert "pr ready" in log.read_text()
     log.write_text("")
     open_pr(cfg, slug="presentation", blackboard_path=ticket)
@@ -1394,4 +1398,109 @@ def test_open_pr_refresh_tolerates_web_editor_crlf(tmp_path, monkeypatch):
     open_pr(cfg, slug="presentation", blackboard_path=ticket)
     body = json.loads(view_file.read_text())["body"]
     assert "Updated explanation." in body
-    assert body.endswith("Owner notes.\n")
+    assert body.endswith("Owner notes.\r\n")
+
+
+@pytest.mark.parametrize("response", [
+    (1, "", "HTTP 502 Bad Gateway"),
+    (0, "not JSON", ""),
+    (0, "null", ""),
+    (0, "[{}]", ""),
+    (0, "[{}, {}]", ""),
+    (0, json.dumps({"state": "OPEN", "url": "https://github.com/acme/repo/pull/99",
+                    "title": "Ship the change", "body": "Fork owner's notes",
+                    "baseRefName": "main", "isDraft": False, "isCrossRepository": True}), ""),
+])
+def test_open_pr_lookup_errors_refuse_before_pushing(tmp_path, monkeypatch, response):
+    import coga.open_pr as module
+
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _install_fake_gh(monkeypatch, bin_dir)
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    ticket = _prepared_ticket(repo, wt, _preparation(repo, wt))
+    cfg = load_config(repo.coga_os)
+    open_pr(cfg, slug="presentation", blackboard_path=ticket)
+    view_file = bin_dir / "view.json"
+    original = json.loads(view_file.read_text())
+    original["title"] = "Human correction"
+    view_file.write_text(json.dumps(original))
+    remote_before = repo.git("rev-parse", "refs/heads/presentation", cwd=repo.origin)
+    (wt / "coga/change.txt").write_text("Later change\n")
+    repo.git("add", "coga/change.txt", cwd=wt)
+    repo.git("commit", "-m", "Later change", cwd=wt)
+    _prepared_ticket(repo, wt, _preparation(repo, wt))
+    real_run = module._run
+    lookups = 0
+
+    def fail_first_lookup(args, *, cwd=None):
+        nonlocal lookups
+        if args[:2] == ["gh", "pr"] and args[2] in {"view", "list"}:
+            lookups += 1
+            if lookups == 1:
+                return subprocess.CompletedProcess(args, *response)
+        return real_run(args, cwd=cwd)
+
+    monkeypatch.setattr(module, "_run", fail_first_lookup)
+    log.write_text("")
+    with pytest.raises(OpenPrError, match="PR lookup"):
+        open_pr(cfg, slug="presentation", blackboard_path=ticket)
+    assert lookups == 1
+    assert repo.git("rev-parse", "refs/heads/presentation", cwd=repo.origin) == remote_before
+    assert json.loads(view_file.read_text()) == original
+    assert parse_pr_url(read_blackboard(ticket)) is None
+    assert "pr edit" not in log.read_text()
+
+
+def test_open_pr_refresh_accepts_crlf_and_preserves_outside_bytes(tmp_path):
+    from coga.open_pr import _pr_presentation, _refresh_body
+    from coga.taskfile import split_body
+
+    repo = init_git_repo(tmp_path)
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    prep = _preparation(repo, wt)
+    ticket = Ticket.read(_prepared_ticket(repo, wt, prep))
+    above, blackboard = split_body(ticket.body)
+    kwargs = dict(head=prep["head"], base=prep["base"], changes=[("A", ["coga/change.txt"])])
+    title, body = _pr_presentation(ticket, blackboard, above, "presentation", **kwargs)
+    prefix, suffix = "Owner introduction.\r\n\r\n", "\r\nOwner notes.\r\n"
+    old_body = prefix + body.replace("\n", "\r\n") + suffix
+    existing = {"title": title, "body": old_body, "baseRefName": "main"}
+    assert _refresh_body(existing, title, body, "main", "Ship the change") == old_body
+    new_title, new_body = _pr_presentation(
+        ticket, blackboard.replace("Bounded change", "Updated rationale"), above,
+        "presentation", **kwargs,
+    )
+    refreshed = _refresh_body(existing, new_title, new_body, "main", "Ship the change")
+    assert refreshed.startswith(prefix)
+    assert refreshed.endswith("\r\n" + suffix)
+    assert "Updated rationale" in refreshed
+    existing["body"] = old_body.replace("3 passed.", "Human correction.")
+    with pytest.raises(OpenPrError, match="presentation conflict"):
+        _refresh_body(existing, new_title, new_body, "main", "Ship the change")
+
+
+@pytest.mark.parametrize("prepared", [False, True])
+def test_open_pr_limits_long_titles_without_losing_ticket(tmp_path, monkeypatch, prepared):
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh(monkeypatch, bin_dir)
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    prep = _preparation(repo, wt)
+    prep["title"] = "Detailed change " + "é" * 240
+    if prepared:
+        ticket = _prepared_ticket(repo, wt, prep)
+    else:
+        ticket = _write_ticket(repo.coga_os, "presentation", branch="presentation", worktree=wt)
+    original_title = "Original request " + "x" * 240
+    ticket.write_text(ticket.read_text().replace("title: Ship the change", "title: " + original_title))
+    open_pr(load_config(repo.coga_os), slug="presentation", blackboard_path=ticket)
+    data = json.loads((bin_dir / "view.json").read_text())
+    assert len(data["title"]) == 256
+    assert data["title"].endswith("…")
+    assert data["title"].startswith("[skim · A:codex R:claude] " if prepared else "[deep · A:unknown R:unknown] ")
+    assert original_title in data["body"]
+    if prepared:
+        assert prep["title"] in data["body"]
