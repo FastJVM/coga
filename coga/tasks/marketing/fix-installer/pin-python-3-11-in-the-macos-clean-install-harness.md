@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 009a4925-56da-4370-8fd9-a207ef679970
 ---
 
 ## Description
@@ -45,3 +44,39 @@ Plan: container.sh (shared Linux/macOS walk) refuses to run unless
 UV_PYTHON + UV_PYTHON_DOWNLOADS=never select a 3.11 interpreter, records it,
 and installs coga with that interpreter explicitly; macos-walk.sh provisions
 3.11 with `uv python install` and exports the pins. Runbook + twin updated.
+
+## Handoff (implement)
+
+Commit 384b769e1 on `pin-mac-python-311` (pushed):
+
+- `scripts/clean-install/container.sh` (shared Linux/macOS walk): before
+  creating evidence, refuses (exit 2) unless `UV_PYTHON` is set and
+  `UV_PYTHON_DOWNLOADS=never`. Replaces the bare `python3 --version` with
+  `uv python find "$UV_PYTHON"` + `check_python`, which records
+  `Python X.Y.Z at <path>` in the transcript and fails the step (exit 2, before
+  any install) unless it is 3.11.*. `uv tool install` now passes
+  `--python "$UV_PYTHON"` for both pypi and wheel modes. Note:
+  `uv python find` ignores the `UV_PYTHON` env var (verified locally with
+  uv 0.11), hence the explicit argument.
+- `scripts/clean-install/macos-walk.sh walk`: after the uv installer, runs
+  `uv python install 3.11` and exports `UV_PYTHON=3.11
+  UV_PYTHON_DOWNLOADS=never`. Dropped the ticket's workaround of putting
+  the managed interpreter's bin dir on PATH, because the walk no longer
+  reads `python3` from PATH. The Linux Dockerfile already sets both vars
+  (path form), so it needed no change.
+- Tests (`tests/test_clean_install_harness.py`): the fixture now has a stub
+  3.11 interpreter and pinned env. New tests cover the unpinned refusal (both
+  vars), the 3.9.6 refusal before install, and the macOS walk provisioning
+  and pinning (stubbed sudo/sysadminctl/uv).
+- Docs: macOS runbook "walk pins Python 3.11" paragraph and step list; Linux
+  parent topic notes the refusal. Packaged twins copied byte-identical.
+- Not verified on a real Mac (needs an approved EC2 host). Package Python
+  floor unchanged; no release.
+
+Verification: `.venv/bin/python -m pytest` gave 3277 passed, 1 failed.
+The failure was already there and is unrelated:
+`tests/test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`
+(ordering mismatch: `coga/recurring/autoclose-merged/ticket.py` vs
+`coga/recurring/_custom-phone-home/ticket.py` at index 0). It fails
+identically with this change stashed on main 9d9a87de3. No follow-up ticket
+filed.

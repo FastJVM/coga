@@ -7650,3 +7650,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-06 20:54 [marketing/fix-installer/pin-python-3-11-in-the-macos-clean-install-harness] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-06 20:54 [marketing/fix-installer/pin-python-3-11-in-the-macos-clean-install-harness] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-06 20:54 [marketing/fix-installer/pin-python-3-11-in-the-macos-clean-install-harness] [megalaunch] launched via coga megalaunch
+2026-10-06 21:02 [marketing/fix-installer/pin-python-3-11-in-the-macos-clean-install-harness] [agent:claude] advanced to step 2 (peer-review) → codex
