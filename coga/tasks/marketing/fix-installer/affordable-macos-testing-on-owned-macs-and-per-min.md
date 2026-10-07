@@ -70,3 +70,66 @@ container.sh; stay out of those hunks so the owned path inherits the pin.
   driver-created target (EC2 instance, cloned VM) receives.
 - New topic coga/testing/clean-install/macos-owned (+ twin, packaging list):
   setup/reset/cleanup, costs, hosted-CI comparison + recommendation.
+
+## Handoff (implement, 2026-10-06)
+
+Commit dcaedc01f on `owned-mac-clean-install` (pushed, rebased on origin/main).
+
+What changed:
+- `scripts/clean-install/owned-mac.sh` (new): `preflight SSH_HOST`;
+  `vm NAME SSH_HOST [IMAGE]` (arm64 only; `tart clone` of
+  `ghcr.io/cirruslabs/macos-tahoe-vanilla:latest` → `tart run --no-graphics`
+  → `tart ip`; admin/admin used once via SSH_ASKPASS to install a per-run
+  key; later calls ProxyJump through the Mac; designate-disposable + reset);
+  `attach NAME SSH_HOST` (ordinary Mac, needs `sudo -n`, baseline only, never
+  resets, no vnc); `walk`, `ssh`, `vnc` (VM only), `status`, `cleanup`
+  (VM: tart stop/delete; host: delete recorded walk users + /tmp scripts;
+  idempotent via resources.env).
+- `scripts/clean-install/mac-common.sh` (new, sourced): run/record/checksum/
+  mac/copy_walk_scripts/mac_walk/fetch_evidence/mac_vnc moved out of
+  aws-mac.sh unchanged in behavior; aws-mac.sh now sources it and calls
+  `designate-disposable` before `reset`.
+- `macos-walk.sh`: new `designate-disposable RUN` writes
+  `/etc/coga-disposable-test-mac`; `reset` and `vnc` refuse without it; vnc
+  sets the current user's password (was hardcoded ec2-user). Did NOT touch
+  the `walk` hunk that open PR #968 (Python 3.11 pin) edits — expect a clean
+  merge either order; owned path inherits the pin.
+- Docs: new topic `coga/testing/clean-install/macos-owned` (+ packaged twin,
+  added to REQUIRED_BOOTSTRAP_CONTEXT_REFS); links from coga/testing,
+  clean-install, macos-aws (+ twins); dated
+  `docs/evidence/macos-install-test-costs.md` (indexed in docs/README.md).
+
+Rates re-verified 2026-10-06: AWS price list (published 2026-09-25) mac2
+USD 0.65/h (24h min USD 15.60), mac1 Intel USD 1.083/h; GitHub standard
+macOS USD 0.062/min, free for public repos (FastJVM/coga is PUBLIC), labels
+macos-15/26 arm64 + macos-15-intel/26-intel, passwordless sudo, no built-in
+interactive access; Buildkite M4 Medium USD 0.12/min, needs Pro USD 30/active
+user/month (Free has no macOS), Apple silicon only, Xcode+Homebrew
+preinstalled, terminal/desktop access. Tart free ≤100 host cores/personal.
+Recommendation (in evidence page): owned Apple-silicon VM is the default for
+fresh-install + attended evidence; Intel attach for x86_64 compat only; EC2
+optional; hosted CI only for an automated install/init/validate smoke on
+GitHub Actions (free here) — needs explicit owner decision (no-CI posture);
+no workflow was added.
+
+Verification:
+- `PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q` → 1 failed, 3279
+  passed. The failure,
+  `tests/test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`,
+  fails identically on a clean origin/main worktree (index 0:
+  'coga/recurring/autoclose-merged/ticket.py' vs
+  'coga/recurring/_custom-phone-home/ticket.py' — looks dependent on the live
+  repo's coga/recurring listing). Pre-existing, unrelated; not fixed here.
+- `tests/test_packaging.py tests/test_clean_install_harness.py` → 47 passed
+  (5 new owned-Mac/marker regressions; AWS tests pass on the refactor).
+- `env -u SLACK_WEBHOOK_URL coga validate --json` → 0 errors (28 unrelated
+  warnings on other tickets).
+
+Not done / open:
+- No owned-Mac live run: the owner has not supplied SSH access to either
+  spare Mac. Untested live assumptions: `tart run` over SSH without a GUI
+  session, SSH_ASKPASS password bootstrap through ProxyJump, image download
+  size. Run `owned-mac.sh preflight/vm/walk/cleanup` when access exists and
+  record results here.
+- AWS host h-0833c01ac15e645ac release belongs to PR #943's ticket; not
+  touched, no AWS resources allocated.
