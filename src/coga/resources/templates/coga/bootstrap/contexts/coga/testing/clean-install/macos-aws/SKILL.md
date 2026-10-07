@@ -95,12 +95,14 @@ the CLT again.
 
 Each walk creates a new macOS user (`walk1`) with a fresh home and a random
 password, saved in `walks/<user>/password.txt`. In a login shell as that user,
-it installs uv with its official installer and then runs `container.sh`. The
-steps match the Linux container:
+it installs uv with its official installer, provisions Python 3.11 with
+`uv python install 3.11`, exports `UV_PYTHON=3.11` and
+`UV_PYTHON_DOWNLOADS=never`, and then runs `container.sh`. The steps match
+the Linux container:
 
 1. `id`, then `git --version`;
-2. `python3 --version` and `uv --version`;
-3. `uv tool install coga` (from PyPI or the wheel);
+2. `uv --version`, then `uv python find 3.11` and its version check;
+3. `uv tool install --python 3.11 coga` (from PyPI or the wheel);
 4. `coga --version` and `uv tool list`;
 5. `git init`, then `coga init --user <operator>`;
 6. `coga validate --json`.
@@ -108,15 +110,16 @@ steps match the Linux container:
 `main` mode builds the wheel on your machine from the fetched `origin/main`,
 not from your working tree, and copies only that wheel to the Mac.
 
-**The walk does not pin Python 3.11.** Step 2 only reports `python3`. After
-the CLT install, the Mac's default `/usr/bin/python3` is 3.9.6, which is
-below Coga's 3.11 floor. A result produced there is not evidence about a
-supported interpreter. On 2026-10-01 an earlier walk that resolved the PyPI
-`0.0.1` placeholder was set aside for this reason. Install and select 3.11 explicitly for the walk user,
-and record the interpreter in the evidence. The draft
-`marketing/fix-installer/pin-python-3-11-in-the-macos-clean-install-harness`
-owns the harness fix. It is unresolved on `main`: `container.sh` still runs a
-bare `python3 --version`.
+**The walk pins Python 3.11.** After the CLT install, the Mac's default
+`/usr/bin/python3` is 3.9.6, below Coga's 3.11 floor; a walk on it is not
+evidence about a supported interpreter (on 2026-10-01 an earlier walk that
+resolved the PyPI `0.0.1` placeholder was set aside for this reason). So the
+walk installs a uv-managed 3.11 for the walk user, and `container.sh` refuses
+to start unless `UV_PYTHON` and `UV_PYTHON_DOWNLOADS=never` are set, records
+the interpreter's path and version in the transcript, stops before the
+install if it is not 3.11, and installs Coga with that interpreter. The Linux
+image sets the same two variables, so both artifacts and both platforms test
+the same floor.
 
 **Expect the first walk to stop at `git --version`.** The shim exits non-zero.
 Over SSH no GUI session owns the walk user, so it prints `xcode-select: error:

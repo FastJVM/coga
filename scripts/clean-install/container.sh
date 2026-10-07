@@ -41,6 +41,14 @@ if [[ -e $work_root ]] || command -v coga >/dev/null 2>&1; then
     echo "This is not a clean install; start a new container" >&2
     exit 2
 fi
+# Both harnesses test the declared Python floor: the Linux image and the macOS
+# walk pin uv to 3.11. Refuse any other interpreter rather than record a walk
+# that silently ran on it.
+required_python=3.11
+if [[ -z ${UV_PYTHON:-} || ${UV_PYTHON_DOWNLOADS:-} != never ]]; then
+    echo "Pin uv to Python $required_python: set UV_PYTHON and UV_PYTHON_DOWNLOADS=never" >&2
+    exit 2
+fi
 mkdir -p "$evidence" "$repo"
 
 run() {
@@ -61,16 +69,27 @@ checksum() {
     if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi
 }
 
+check_python() {
+    local version
+    version=$("$1" -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])')
+    echo "Python $version at $1"
+    if [[ $version != "$required_python".* ]]; then
+        echo "Python $version is not the required $required_python" >&2
+        return 2
+    fi
+}
+
 run id
 # On a fresh Mac, this first git call is where the Command Line Tools prompt appears.
 run git --version
-run python3 --version
 run uv --version
+run uv python find "$UV_PYTHON"
+run check_python "$(uv python find "$UV_PYTHON")"
 if [[ $mode == pypi ]]; then
-    run uv tool install coga
+    run uv tool install --python "$UV_PYTHON" coga
 else
     run checksum "$3"
-    run uv tool install "$3"
+    run uv tool install --python "$UV_PYTHON" "$3"
 fi
 run coga --version
 run uv tool list

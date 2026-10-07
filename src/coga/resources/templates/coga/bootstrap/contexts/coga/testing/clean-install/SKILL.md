@@ -17,8 +17,11 @@ user on an EC2 Mac.
 The image starts from `python:3.11-slim-bookworm`, adds Git, TLS certificates
 and uv, and creates an empty non-root `coga` home. Coga, agent CLIs, `gh` and
 `op` are absent. uv is constrained to the image's Python 3.11 and cannot
-download a newer interpreter. No host home, credentials, source directory,
-editable install, or tool cache is mounted into an install run.
+download a newer interpreter. The walk script refuses to run without
+`UV_PYTHON` and `UV_PYTHON_DOWNLOADS=never`, records the selected
+interpreter, and stops before installing if it is not 3.11. No host home,
+credentials, source directory, editable install, or tool cache is mounted into
+an install run.
 
 ## Build and run
 

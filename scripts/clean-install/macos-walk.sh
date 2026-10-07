@@ -56,13 +56,18 @@ walk)
     id "$user" >/dev/null 2>&1 || fail "sysadminctl did not create $user"
     sudo createhomedir -c -u "$user" >/dev/null
     # Fresh login shell as the new user: install uv as its docs say, then run
-    # the same install/init walk the Linux container runs.
+    # the same install/init walk the Linux container runs. macOS ships
+    # /usr/bin/python3 3.9, below Coga's floor, so provision the 3.11 the
+    # Linux image pins and keep uv on it; container.sh refuses anything else.
     set -- "$here/container.sh" "$mode" "$operator" ${wheel:+"$wheel"}
     sudo -H -u "$user" /bin/zsh -lc '
         cd "$HOME"
         printf "\n+ curl -LsSf https://astral.sh/uv/install.sh | sh\n"
         curl -LsSf https://astral.sh/uv/install.sh | sh || exit
         export PATH="$HOME/.local/bin:$PATH"
+        printf "\n+ uv python install 3.11\n"
+        uv python install 3.11 || exit
+        export UV_PYTHON=3.11 UV_PYTHON_DOWNLOADS=never
         exec bash "$0" "$@"
     ' "$@"
     ;;
