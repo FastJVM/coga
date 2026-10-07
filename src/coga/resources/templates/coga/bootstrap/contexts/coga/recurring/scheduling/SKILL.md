@@ -166,7 +166,11 @@ ungated.
 
 Agent-backed periods (including `delegate:`) need stdin and stdout TTYs; a
 headless sweep skips them with a warning, before creating a period or leaving a
-materialized one untouched, and continues. A `ticket.py` period runs headless
+materialized one untouched, and continues. The skipped template keeps its scan
+row, `skip (agent needs a TTY)`, rather than a `## Template errors` entry; this
+headless skip is not counted in `problems:`. A current period that is not
+launchable (`canceled`, `blocked`, ...) is never refused: a durable checkout
+would not launch it either. A `ticket.py` period runs headless
 and is the shape for unattended schedulers.
 
 A scheduled agent run must reach `done` in one launch. When an agent launch
@@ -185,6 +189,10 @@ with `coga launch recurring/<name>` or `coga mark active recurring/<name>`.
 
 One template's failure never cancels the rest: the sweep records it, runs every
 later due template, names all failures, and exits with the first failing code.
+A template that cannot be scanned (`## Template errors`: unloadable, bad ledger
+record, failed create) is named on stderr, in the Slack alert, and in
+`problems:`; on its own it does not change the exit code. A sweep with any
+refused or errored template never reports "No recurring tasks due".
 Two exits stop immediately: **75** (`git.RETRY_WITHOUT_SWEEP_EXIT_CODE`,
 retained assist state needing reconciliation) and **≥ 128** (interrupt). Whatever
 stops the loop, `recurring_runner._record_abandoned_due` names the stopping task

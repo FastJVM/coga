@@ -41,6 +41,7 @@ from coga.paths import log_path
 from coga.taskfile import TaskFileError, read_blackboard, split_body
 from coga.recurring import (
     _AGENT_NEEDS_TTY,
+    _AGENT_NEEDS_TTY_LABEL,
     DueTask,
     DueScan,
     PeriodLease as _PeriodLease,
@@ -721,7 +722,9 @@ def run_recurring_all_repos(
         repo_word = "repo" if count == 1 else "repos"
         # Named, not just counted: only deterministic phases run in this mode,
         # so an operator needs to know which repos to put back on the control
-        # branch to run skipped templates or parked hybrid agent handoffs.
+        # branch to run parked hybrid agent handoffs. A due agent-only template
+        # refused there is a problem the child exits 2 on, so its repo is
+        # listed with the failed ones instead.
         listed = "\n".join(f"  {entry}" for entry in serviced_from_worktree)
         typer.secho(
             f"Serviced {count} {repo_word} from a temporary control worktree "
@@ -1533,13 +1536,23 @@ def _cleanup_control_worktree(
         pass
 
 
+# Scan-row label for an agent template a control-worktree run refused.
+_CONTROL_WORKTREE_AGENT_LABEL = "control branch not checked out"
+
+
 def _control_worktree_agent_refusal(cfg: Config, host: str) -> str:
-    """Why every agent phase is refused in a control-worktree run."""
+    """Why every agent phase is refused in a control-worktree run.
+
+    Says the phase did not run: the run record lists these refusals, and
+    "serviced" there read as success for work that never happened.
+    """
     where = host or "the host checkout"
+    control = cfg.git_control_branch
     return (
-        "serviced from a temporary control worktree because "
-        f"{where} does not have {cfg.git_control_branch!r} checked out; "
-        "agent phases need a durable checkout on the control branch."
+        "agent phases are not run from a temporary control worktree: "
+        f"{where} does not have {control!r} checked out, and agent phases "
+        f"need a durable checkout on the control branch. Check out {control!r} "
+        f"in {where} so a later sweep runs it."
     )
 
 
@@ -1839,10 +1852,13 @@ def run_recurring_scan(
         return 2
     if not _valid_agent_override(cfg, agent_override):
         return 2
+    # The refusal and its scan-row label are chosen together so they agree.
+    agent_refusal_label = _AGENT_NEEDS_TTY_LABEL
     if control_worktree:
         agent_spawn_refusal = _control_worktree_agent_refusal(
             cfg, control_worktree_host
         )
+        agent_refusal_label = _CONTROL_WORKTREE_AGENT_LABEL
     elif not _interactive_stdio_has_tty():
         agent_spawn_refusal = _AGENT_NEEDS_TTY
     else:
@@ -1866,6 +1882,7 @@ def run_recurring_scan(
         force=force,
         inactive_since=activity.inactive_since,
         agent_unavailable_reason=agent_spawn_refusal,
+        agent_unavailable_label=agent_refusal_label,
     )
     _broadcast_scan(
         cfg,
@@ -1890,6 +1907,14 @@ def run_recurring_scan(
         scan_errors=list(scan.errors),
         scan_problems=list(scan.sync_problems),
     )
+    if control_worktree:
+        # A headless sweep's TTY skip is a documented warning; this is not.
+        # The template was due, the operator's checkout is merely parked on
+        # another branch, and nothing else will run it this period.
+        record.scan_problems.extend(
+            (f"recurring/{name}", f"due but not run: {reason}")
+            for name, _last_fire, reason in scan.agent_refusals
+        )
     # Forced preparation mutates each DueTask's status. Remember admitted
     # watchdog recoveries so an unsuccessful retry cannot report success.
     watchdog_recoveries: set[str] = set()
@@ -1928,9 +1953,16 @@ def run_recurring_scan(
     # the bare sweep launches only the launchable (active/in_progress) ones.
     due = scan.forced if force else scan.due
     if not due:
-        message = (
-            "No recurring templates to launch." if force else "No recurring tasks due."
-        )
+        if force:
+            message = "No recurring templates to launch."
+        elif scan.agent_refusals:
+            # They were due; saying otherwise hid a refused period.
+            message = "No due recurring tasks could be launched."
+        elif scan.errors:
+            # An errored template may or may not be due; don't claim either.
+            message = "No recurring tasks launched; see template errors."
+        else:
+            message = "No recurring tasks due."
         typer.echo(message)
         record.note(message)
         _record_unlaunched_creates(scan, record)
@@ -5056,10 +5088,13 @@ def _broadcast_scan(
         elif task.created and created_on_control:
             typer.echo(f"Created {task.ref.id_slug}")
 
-    if scan.errors:
-        n = len(scan.errors)
+    skipped = scan.errors + [
+        (name, reason) for name, _last_fire, reason in scan.agent_refusals
+    ]
+    if skipped:
+        n = len(skipped)
         plural = "" if n == 1 else "s"
-        bullets = "\n".join(f"• {name}: {msg}" for name, msg in scan.errors)
+        bullets = "\n".join(f"• {name}: {msg}" for name, msg in skipped)
         # `fatal=False`: every skipped template above is already on stderr and
         # in the scan table, so this alert is a second channel for a report
         # that has already landed. It runs before the launch loop, so letting a
@@ -5128,7 +5163,13 @@ def _refresh_forced_status_from_control(cfg: Config, task: DueTask) -> None:
 
 def _print_table(scan: DueScan, *, force: bool = False) -> None:
     """Print a one-line-per-template scan summary."""
-    if not (scan.tasks or scan.errors or scan.admission_skips or scan.inactivity_skips):
+    if not (
+        scan.tasks
+        or scan.errors
+        or scan.admission_skips
+        or scan.inactivity_skips
+        or scan.agent_refusals
+    ):
         return
 
     now = datetime.now()
@@ -5171,6 +5212,13 @@ def _print_table(scan: DueScan, *, force: bool = False) -> None:
     for name, last_fire in scan.inactivity_skips:
         when = _firing_label(last_fire, now)
         skipped = typer.style(f"skip ({scan.inactivity_reason})", fg=typer.colors.BRIGHT_BLACK)
+        typer.echo(f"  {name:<20} {when:<26} {skipped}")
+
+    for name, last_fire, _reason in scan.agent_refusals:
+        when = _firing_label(last_fire, now)
+        skipped = typer.style(
+            f"skip ({scan.agent_refusal_label})", fg=typer.colors.YELLOW
+        )
         typer.echo(f"  {name:<20} {when:<26} {skipped}")
 
     for name, msg in scan.errors:
