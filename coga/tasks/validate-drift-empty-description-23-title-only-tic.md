@@ -14,9 +14,8 @@ workflow:
   - name: verify-read-only
     skills: []
     assignee: agent
-step: 1 (brief-and-hand-off)
+step: 2 (human-executes)
 agent: claude
-launch_generation: 54ed3938-41f8-40e4-8215-ca84ad3042de
 ---
 
 ## Description
@@ -63,3 +62,30 @@ Filed by Dream 2026-W39, Phase 6 (validate-drift disposition). `coga validate --
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Brief (brief-and-hand-off, 2026-10-06, read-only)
+
+**State vs. the filed snapshot.** The 23 members from 2026-09-21 are all gone from the class:
+- v2 half (17): resolved by decision, not per-stub verdicts. PR #863 merged 2026-09-22; `coga/tasks/v2/` is now the parked `coga/tasks/_v2/`, and `docs/contexts/coga/roadmap/SKILL.md` (~L40–48) records that parked wishes owe no verdict and that `empty-description` covers live tickets only. Part (b) of the decision is recorded in a context.
+- non-v2 (6): no longer flagged. `dream-should-be-able-to-use-codex…` and `where-have-code-review-disappeared` are drafts that now have descriptions; `some-recurring-tasks…` canceled; `stop-recurring-on-inactive-repo` done; `marketing/fix-installer` is now a directory of child tickets; `invert-command-line…` no longer exists under `coga/tasks/`.
+
+**Live class now (`coga validate --json`): 5 members, all new since filing, all `draft`, owner nicktoper:**
+1. `improve-pr-check` (created 2026-09-22)
+2. `autofix/name-cross-repo-retire-follow-ups-with-the-repo-th` (2026-09-24)
+3. `recurring-unblock-launch` (2026-09-28)
+4. `fix-the-commit-git-journal` (2026-09-29)
+5. `open-pr-becomes-detereminstici-mechanic-no-check` (2026-09-30)
+
+**Goal for the human step.** Give each of the 5 an author verdict: write the `## Description` in your own words, or `coga mark canceled` with a recorded reason if the intent is lost. Do not infer from slugs; do not cancel just to get validate green. A wish you don't want to own now can instead be `git mv`'d into `coga/tasks/_v2/`, per `coga/roadmap`.
+
+**Ordered steps.**
+1. `coga validate --json` and confirm the member list above is still current.
+2. For each member: open the ticket and write the description, or cancel it with a reason, or park it in `_v2/`.
+3. Commit the edits.
+4. Bump this ticket to `verify-read-only`.
+
+**Irreversible action.** Only `coga mark canceled` (a lifecycle change with a log entry). Description edits and `_v2/` moves are ordinary git changes.
+
+**Done check (for verify-read-only).** `coga validate --json` reports zero `empty-description` warnings, or every remaining warning has a recorded decision in a context. No new context edit is needed for the v2 scope: `coga/roadmap` already covers it.
+
+**Alternative.** If you would rather let Dream refile the 5 new members as their own class on its next run, close this ticket now. Its filed scope (the 23) is fully resolved.

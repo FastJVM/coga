@@ -7699,3 +7699,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-06 21:52 [validate-drift-empty-description-23-title-only-tic] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-06 21:53 [validate-drift-empty-description-23-title-only-tic] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-06 21:53 [validate-drift-empty-description-23-title-only-tic] [megalaunch] launched via coga megalaunch
+2026-10-06 21:53 [validate-drift-empty-description-23-title-only-tic] [agent:claude] advanced to step 2 (human-executes) → nicktoper — Original 23 resolved (v2 parked via #863, roadmap context); 5 new title-only drafts need your describe/cancel/park verdict — see blackboard brief
