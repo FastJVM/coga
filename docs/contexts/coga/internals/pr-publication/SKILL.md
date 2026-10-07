@@ -149,10 +149,14 @@ The formatter enumerates paths using Git's NUL-delimited rename-aware diff,
 then attaches explanations. Missing paths are visible as unexplained; extra
 prepared paths are reported as outside the current diff. The body starts with
 the recommendation/rationale, then authorship/review, implementation,
-deviations/limitations, every file, and actual check receipts. A separate
-collapsible fenced section reproduces the ticket title and the complete
-Description and Context sections, preserving their text, excluding frontmatter,
-blackboard and PR preparation. Snapshot extraction happens at publication.
+deviations/limitations, every file, and actual check receipts. Checks are a list:
+each result or omission reason comes first, with its command in a separate
+fenced shell block below, so long commands do not squeeze the explanations
+into table columns. A separate collapsible section renders the ticket title
+and the complete Description and Context as Markdown, preserving their source
+text, excluding frontmatter, blackboard and PR preparation. The snapshot has no
+outer code fence: its headings, lists, links and own code blocks render normally.
+Snapshot extraction happens at publication.
 The closure marker remains machine-readable outside that snapshot.
 
 Missing/unstructured preparation publishes a `deep` fallback with unknown

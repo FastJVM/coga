@@ -450,11 +450,10 @@ def _pr_body(ticket: Ticket, above: str, slug: str, content: str) -> str:
     snapshot = f"# {ticket.title or slug}\n\n" + "".join(
         sections.get(name, "") for name in ("description", "context")
     )
-    fence = "`" * max(3, 1 + max((len(m[0]) for m in re.finditer(r"`+", snapshot)), default=0))
     return (
         f"{content}\n\n<details>\n<summary>Ticket as requested</summary>\n\n"
-        f"{fence}markdown\n{snapshot}" + ("" if snapshot.endswith("\n") else "\n")
-        + f"{fence}\n\n</details>\n\nCloses ticket: `{slug}`\n"
+        f"{snapshot}" + ("" if snapshot.endswith("\n") else "\n")
+        + f"\n</details>\n\nCloses ticket: `{slug}`\n"
     )
 
 
@@ -514,7 +513,7 @@ def _pr_presentation(
     checks = data.get("checks", [])
     if not isinstance(checks, list) or any(not isinstance(check, dict) for check in checks):
         raise OpenPrError("PR presentation: checks must be a list of mappings.")
-    check_rows: list[str] = []
+    check_items: list[str] = []
     statuses: list[str] = []
     for check in checks:
         command = _text(check, "command")
@@ -522,12 +521,17 @@ def _pr_presentation(
             raise OpenPrError("PR presentation: each check needs its actual command.")
         status, detail = _receipt(check, head, base)
         statuses.append(status)
-        check_rows.append(f"| <code>{_cell(command)}</code> | {status} | {_cell(detail)} |")
+        fence = "`" * max(3, 1 + max((len(m[0]) for m in re.finditer(r"`+", command)), default=0))
+        command_block = "\n".join(f"  {line}" for line in command.split("\n"))
+        check_items.append(
+            f"- **{status}** — {_cell(detail)}\n\n"
+            f"  {fence}sh\n{command_block}\n  {fence}"
+        )
         if not _text(check, "detail"):
             issues.append("A check has no recorded result or omission reason.")
     if not checks:
         issues.append("Checks not run or not recorded; commands, outcomes and omission reasons unavailable.")
-        check_rows.append("| Unknown | not-run | No check evidence or omission reason recorded. |")
+        check_items.append("- **not-run** — No check evidence or omission reason recorded.")
     if any(status in {"failed", "pending", "stale"} for status in statuses):
         issues.append("Checks failed, remain pending, or do not verify this diff.")
     files = data.get("files", {})
@@ -581,8 +585,8 @@ def _pr_presentation(
         f"## Deviations and limitations\n\n{prose['deviations']}\n\n{prose['limitations']}\n\n"
         "## Changed files\n\n| Path | Change | Why |\n| --- | --- | --- |\n"
         + "\n".join(file_rows)
-        + "\n\n## Checks\n\n| Command | Outcome | Result / reason |\n| --- | --- | --- |\n"
-        + "\n".join(check_rows)
+        + "\n\n## Checks\n\n"
+        + "\n\n".join(check_items)
     )
     body = _pr_body(ticket, above, slug, content)
     marker = f"<!-- coga:pr:v1 title={_digest(title)} body={_digest(body)} -->\n"

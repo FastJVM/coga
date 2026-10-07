@@ -1198,6 +1198,35 @@ def test_open_pr_discloses_verification_gaps(tmp_path, case, label, expected):
                                    changes=[("A", ["coga/change.txt"])])
     assert title.startswith(f"[{label} ·")
     assert expected in title + body
+    if case == "missing-checks":
+        assert "## Checks\n\n- **not-run** — No check evidence" in body
+
+
+@pytest.mark.parametrize("command,fence", [
+    ("PYTHONPATH=/a/long/check-out/src python -m pytest tests/test_change.py -q", "```"),
+    ("printf 'first line'\nprintf 'second line'", "```"),
+    ("printf '```'", "````"),
+])
+def test_open_pr_checks_show_results_before_separate_command_blocks(tmp_path, command, fence):
+    from coga.open_pr import _pr_presentation
+    from coga.taskfile import split_body
+
+    repo = init_git_repo(tmp_path)
+    wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
+    prep = _preparation(repo, wt)
+    prep["checks"][0]["command"] = command
+    prep["checks"].append({"command": "python -m pytest", "status": "not-run",
+                           "detail": "Focused checks suffice for this example."})
+    ticket = Ticket.read(_prepared_ticket(repo, wt, prep))
+    above, blackboard = split_body(ticket.body)
+    _, body = _pr_presentation(ticket, blackboard, above, "presentation",
+                               head=prep["head"], base=prep["base"],
+                               changes=[("A", ["coga/change.txt"])])
+    checks = body.split("## Checks\n\n", 1)[1].split("<details>", 1)[0]
+    indented = "\n".join(f"  {line}" for line in command.split("\n"))
+    assert f"- **passed** — 3 passed.\n\n  {fence}sh\n{indented}\n  {fence}" in checks
+    assert "- **not-run** — Focused checks suffice for this example." in checks
+    assert "| Command |" not in checks
 
 
 def test_open_pr_snapshot_preserves_literal_sections_and_ignores_fenced_headings(tmp_path):
@@ -1207,7 +1236,7 @@ def test_open_pr_snapshot_preserves_literal_sections_and_ignores_fenced_headings
     wt = _feature_worktree(repo, tmp_path, "presentation", commit=True)
     prep = _preparation(repo, wt)
     ticket = Ticket.read(_prepared_ticket(repo, wt, prep))
-    description = "## Description\n\nExact  wording.  \n\n```markdown\n## PR\nNot preparation.\n```\n\n"
+    description = "## Description\n\nExact  wording.  \n\n- **First requirement.**\n\n```markdown\n## PR\nNot preparation.\n```\n\n"
     context = "## Context\n\n### Nested heading\nKeep [this](file.py) verbatim.\n\n"
     above = description + "## Acceptance\nNot in the snapshot.\n\n" + context
     title, body = _pr_presentation(ticket, "", above, "presentation",
@@ -1217,7 +1246,9 @@ def test_open_pr_snapshot_preserves_literal_sections_and_ignores_fenced_headings
     assert "Not in the snapshot" not in body
     assert "status: in_progress" not in body
     assert "## Dev\n" not in body
-    assert "````markdown\n# Ship the change" in body
+    assert "<summary>Ticket as requested</summary>\n\n# Ship the change" in body
+    assert "````markdown\n# Ship the change" not in body
+    assert context + "\n</details>" in body
     assert title.startswith("[deep · A:unknown R:unknown]")
 
 
