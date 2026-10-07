@@ -7694,3 +7694,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-06 21:42 [marketing/publish-coga-1-0-as-the-final-v1-step] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-06 21:42 [marketing/publish-coga-1-0-as-the-final-v1-step] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-06 21:42 [marketing/publish-coga-1-0-as-the-final-v1-step] [megalaunch] launched via coga megalaunch
+2026-10-06 21:50 [marketing/publish-coga-1-0-as-the-final-v1-step] [agent:claude] advanced to step 2 (human-owns-and-finishes) → nicktoper — Provisional 1.0 brief on blackboard: V1 work still open; dry-run gate 3273 pass / 1 locale-dependent test failure; README relative links break on PyPI. Nothing bumped or uploaded.
