@@ -499,10 +499,24 @@ it: a new or edited context or skill (step 4), an owner decision recorded
 in a topic, a packaged twin. Left on `main`, it makes the next
 `coga launch` refuse the checkout. So before exiting:
 
-1. `git switch -c <slug>-knowledge`, commit only those paths, and
-   `git switch main`, so the checkout is clean again.
-2. Ask the human whether to push the branch and open a PR now. Context and
+1. Record where the session started: `git branch --show-current`, or
+   `git rev-parse HEAD` when it prints nothing (detached). A bootstrap
+   session may start off `main`.
+2. Base the knowledge branch on `main`, never on the starting branch:
+   `git switch -c <slug>-knowledge main` carries the uncommitted edits
+   across. If Git refuses because they conflict with `main`, stop and ask
+   the human rather than forcing, stashing, or committing on the starting
+   branch.
+3. Commit only those paths, then return to the recorded start
+   (`git switch <branch>`, or `git switch --detach <sha>`), so the checkout
+   is clean again and the session ends where it began.
+4. Ask the human whether to push the branch and open a PR now. Context and
    skill changes land only through a reviewed PR.
-3. Name the branch (and PR, if opened) in your closing line.
+5. Name the branch (and PR, if opened) in your closing line. If the ticket
+   attaches a context or skill that exists only on that branch, the
+   closing line must not offer `coga launch <slug>` as the next action:
+   say to launch only after the knowledge PR is reviewed and merged, since
+   until then composition fails on a new ref or reads the old version of an
+   updated one.
 
 Then exit.
