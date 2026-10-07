@@ -23,8 +23,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 agent: claude
-step: 2 (peer-review)
-launch_generation: e5634a68-9153-4213-848a-bdb833ee711d
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -85,3 +84,24 @@ Decision: coga has no `[agent] default` key — the default is the first-declare
 Tests: new `tests/test_agent_cli_setup.py`; added init picker/reorder/full-init tests and launch build-offer tests; conftest stubs `_offer_agent_cli`. Full suite: 3294 passed, 1 failed — `tests/test_edge_distribution.py::test_documented_legacy_adoption_preserves_state_and_reconciles_callers`, which also fails on clean origin/main (pre-existing, unrelated; recurring ticket.py ordering assertion).
 
 For review: `claude` login runs the bare REPL (no reliable `claude auth` subcommand assumed); `npm -g` is not sudo-wrapped (fails with a printed hint on root-owned prefixes).
+
+## Peer review
+
+2026-10-06: `codex review --base main` **returned**, exit 0, with no actionable regressions. The first attempt could not initialize its app-server in the read-only sandbox; the permitted unsandboxed retry completed. Its focused run (`.venv/bin/python -m pytest -q tests/test_agent_cli_setup.py tests/test_init.py tests/test_launch.py tests/test_packaging.py`) passed 365 tests. No must-fix changes were needed.
+
+Freshness: ran `git fetch origin main && git rebase FETCH_HEAD`, then the full suite, and pushed `agent-cli-install-offer` with `--force-with-lease` at `a032595e9`. Returned to clean `main` and fast-forwarded it; the subsequent main changes were ticket/log state only.
+
+Verification:
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest` — **3295 passed**, 260.05s. The earlier edge-distribution failure did not recur. The ambient `python -m pytest` initially failed collection because that interpreter lacks `tomlkit`; the complete passing run used the repository virtualenv.
+- `git diff --check` — clean.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m coga.cli validate --task marketing/fix-installer/offer-agent-cli-install-and-setup-at-init --json` — 1 OK, no issues.
+- Ran actual fresh init in disposable Git repos through real PTYs at **80×24** and **40×12**, using `/tmp/agent-cli-tty.py`. Only external installer/login execution and unrelated optional-tool offers were simulated; the new prompts, scaffolding, commit, and config rewrite ran normally. Codex selection showed the command before install consent, then separate login and default-agent confirmations; config declaration order and onboarding `agent:` both became Codex. Claude at the narrow size showed its sign-in/exit instruction and continued after login was declined. Declining installation and having no installer both completed init with Claude still the default; the latter printed the official URL. Prompts remained readable and accepted input at both sizes.
+- The same harness with stdin `/dev/null` and redirected stdout completed without any agent prompts or installer calls. `env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json` in the generated Codex-default repo returned 1 OK, no issues. Real vendor installation and account authentication were not performed.
+
+## PR
+
+New users without an agent CLI currently hit a missing-binary error on their first build. Interactive init now offers Claude Code or Codex installation through a printed, confirmed Homebrew cask or npm command, followed by a separate login offer. The same installer helper handles a missing agent CLI during build onboarding; non-interactive calls never prompt.
+
+With explicit confirmation, fresh init makes the available agent the default by moving its existing `[agents.*]` table first and updating the delivered onboarding ticket. Clone setup preserves team config. Updated the install, init, agents, first-task, and codebase topics and their packaged twins, plus the README.
+
+Test plan: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest` (3295 passed); `git diff --check`; scoped task and generated-repo validation (no issues); real PTY init checks at 80×24 and 40×12 plus non-TTY checks, with installer/login subprocesses simulated. Codex review returned with no actionable findings.
