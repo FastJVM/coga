@@ -1,4 +1,4 @@
-# Coga:stop repeating to agents
+# Coga: Stop Repeating to Agents
 
 Coga is a CLI that runs any agent from Markdown files in your Git
 repo. Every launch rebuilds the agent's prompt from those files, never from
@@ -39,25 +39,32 @@ It is built around three ideas:
 
 The trade-off: you specify more up front, and you stay the one who decides. In exchange, you stop babysitting your agents.
 
-## Sample Project
-I want to add in Codex a plugin to pick the best model with the right "thinking" power (hard, etc.) asit would save quite a bit of money. 
+## Example
 
-Anyway, I typed
+I run Astra at max reasoning for everything, which wastes token on routine
+tasks. I wanted a Codex plugin that picks the model and reasoning level for
+each task automatically (say, Astra at xhigh for planning, something cheaper
+for a rename).
 
-sh' coga build to explain my project. Coga built a first plan using Jev.  (I asked about it)
-(screenshot of the plan + link to whole convo)
+I described the project to `coga build` in about ten minutes of focused
+conversation, and it turned that into a plan of tickets. Reading the first
+one, I saw the agent had assumed model routing was a solved problem. 
+But when reading the plan and asking about it, it clearly wasn't, and when asked, it admitted as much.
 
-I read the first ticket and I realized that Codex used as assumption that this is an "solved problem"; in the sense that there were well-known solution. I asked to explain how and why. "Yes you're absolutely I don't know what I'm doing" was basically Claude's answer; I subsequently put it to work on building a research and parking his current plan for when we'll know what to build. I came up with the key idea: use double request to actually compute the drift and use this infrastructure to evaluate different strategies. It came out with the plan and the limitations (we can know only for a given repository and we'll need to redo this periodically).
+So I parked the implementation tickets and opened a research ticket instead:
+[run each request twice, on X and Y, and measure the difference], then use
+that harness to compare routing strategies. The answer, for my repositories
+only: planning benefits from a frontier model at high reasoning, while
+implementation works on [cheaper models / any model]. Because it's
+repo-specific, the measurement has to be rerun periodically.
 
-(links to add: screnshot + comparison in video with Zed and Superset to show more autonomy/less work)
-Then it concluded: planning are better with frontier model but implementation any model would do. This is for my repositories, it's not a general results and it's simple enough to not consider Jev further. All of the results are recorded in context blocks so agents have them handy AND the experiment is archived (so accessed on demands by agents but not by default to save tokens)
+That finding now sits in a context block every future ticket starts from.
+The experiment itself is archived: agents can pull it up on request, but it
+stays out of the default prompt. When implementation resumed, it started
+from the research result instead of the original assumption.
 
-Altgoether competings tools were all able to build it but they built something different: it's only with Coga that we build this tesging infra, the other built direclty the ooling and I had to be more invovled in the day to day (because Coga forces you to specify more at the beginning)
-
-On my side the time was maube 10 min (of deep concentration) and it was able to figure ou the rest + execute it and MOST importantly carry all of that into the implemtnation phase direclty
-
-OPh and here's the plugin: do use it! 
-
+[Outcome: the plugin shipped, link / routing turned out simple enough that
+no plugin was needed.]
 
 ## Why
 
