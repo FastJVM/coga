@@ -1,10 +1,10 @@
 ---
 title: Publish coga 1.0 as the final V1 step
-status: draft
+status: active
 owner: nicktoper
 contexts:
-  - coga/releasing
-  - marketing/plan
+- coga/releasing
+- marketing/plan
 workflow:
   name: draft-for-human
   steps:
@@ -18,6 +18,7 @@ workflow:
     skills: []
     assignee: agent
 step: 1 (agent-produces)
+agent: claude
 ---
 
 ## Description
