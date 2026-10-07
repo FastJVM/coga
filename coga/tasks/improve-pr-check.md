@@ -145,45 +145,55 @@ Actual implementing agent: Codex (session identity; ticket's configured `claude`
 - No TTY or rendered surface was changed beyond PR markdown, which tests assert on. The rendered GitHub page was not driven live.
 - The recommendation stays **deep**: the fixes after review have no independent re-review.
 
+### Codex follow-up (2026-10-07)
+
+- Owner approved three follow-up fixes in this attended session: fail closed on PR lookup errors, tolerate LF/CRLF without changing outside notes, and cap the generated title while retaining its full text in the body.
+- The first `codex review --base main` returned those three P2 findings at `4b63afe49cd019b46ee97bd7492b1782df9fd052` / `e1c9fcac385930fb12a80700b13fb44f6676fb78`. Seven new regression cases failed before the fixes. An intermediate independent review returned clean, then a leased push refused because another Claude session had pushed `8856a848` and advanced the ticket to owner review. Preserved all of that session's changes and integrated this follow-up on top; no workflow transition was performed here.
+- A review of the combined branch caught a same-named fork regression in the proposed list lookup. Retained `gh pr view`'s existing bare-branch finder, accepting only its explicit not-found response as absence and refusing API/auth errors, malformed/incomplete results, and unexpected fork heads. Added a fork regression. CRLF checks now preserve outside bytes and skip newline-only edits; oversized titles keep the prefix and put the complete change title in the body. Updated owning topic and packaged twin.
+- Final independent tool: `codex review --base origin/main`, Codex / gpt-6-astra, separate review session `01a117ae-3494-7b43-b9ed-326141375d42`. It **returned**, exit 0, with no actionable regressions on head `dbe8ddf1fe8311962a72486bbca262cfdb066a05`, diff base `992ac36fc4320a2c84f05c2b247b1a0562c98b79`. Its focused publication/command/packaging run passed 119 tests. The compact reviewer tag `codex-review` denotes this separate review process, not the implementing session or ticket assignment.
+- Final verification: `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q` → **3320 passed in 333.91s (0:05:33)**. `env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python -m coga.cli validate --json` from `example/coga` → ok_count 4, no issues. `git diff --check origin/main...HEAD` → passed. These receipts cover the final head/base above. Earlier full-suite attempts were interrupted by the daemon restart or deliberately stopped when revisions changed; none is claimed as a pass.
+- Visual check: generated this ticket's PR markdown through GitHub's Markdown API, then inspected local Chromium previews at 1280px and 600px widths, plus the expanded ticket at 1280px. Rationale appeared first, all paths/checks were visible, and the literal ticket was isolated in the collapsible section. This was a local rendering of GitHub-produced HTML, not a live GitHub-page interaction. Initial previews predate the follow-up fixes. Re-rendered the final prepared body through GitHub’s Markdown API and inspected a 1280px Chromium capture: the current review/check receipts, all 15 paths and collapsed ticket are legible.
+- Final combined branch committed and pushed; checkout returned to main. Existing PR is #975. Recommendation remains **deep** because this changes publication evidence and overwrite behavior. Current ticket is already at the owner-controlled review gate; do not bump or close it without an explicit owner instruction.
+
 ## PR
 
 ```yaml
 title: Show PR review depth and preserve human edits on reruns
 author: codex
-author_evidence: Codex implemented the branch in the attended implement session; Claude (Opus 5.5) added the peer-review
-  fix commit. The ticket's configured agent was not used as evidence.
-head: 8856a848466588b780c65588b88853cdf5bcf4de
-base: f5da579aca6371a75d3422c1cb104096991ae318
+author_evidence: Codex implemented the feature and this follow-up; Claude Opus 5.5 supplied the concurrent
+  peer-review fixes, which were preserved. Identities come from the actual sessions, not ticket assignments.
+head: dbe8ddf1fe8311962a72486bbca262cfdb066a05
+base: 992ac36fc4320a2c84f05c2b247b1a0562c98b79
 depth: deep
-rationale: Changes publication evidence and PR overwrite behavior. Claude's independent review returned with findings
-  on an earlier revision; the fixes Claude applied afterwards have not been independently re-reviewed, and one locale-dependent
-  test outside this change fails under en_US. Read the diff before merging.
-implementation: 'Render a structured YAML preparation from ## PR into an advisory [merge|skim|deep · A:<author>
-  R:<reviewer>] title, rationale, implementation/deviations, per-file reasons, check receipts and a verbatim collapsible
-  ticket snapshot. Receipts are bound to the feature commit and merge base. On reruns, generated content inside
-  digest markers is refreshed, human notes outside it are kept, and conflicting edits are refused before push.'
-deviations: 'None in scope. Peer review added: CRLF normalization for web-edited bodies, adoption of unmarked legacy
-  PRs whose title is still the ticket title (old body kept below the region), stale top-level preparation keeps
-  explanations, legacy prose shown as unverified, and an ''independent'' review by the author treated as self-review.'
-limitations: 'No live GitHub PR was exercised; tests use real local Git and a fake gh. A human-renamed legacy PR
-  or edited generated region still needs owner reconciliation. GitHub has no atomic compare-and-set for title/body,
-  so an edit after the last read can still race. The review receipt is bound to the head OID, so any rebase makes
-  it historical. Not fixed: the duplicate section parser (_sections vs compose._extract_section) and minor redundant
-  git/parse calls.'
+rationale: Changes PR publication evidence and protection of human edits. A separate Codex review returned
+  with no actionable regressions on this revision and all 3320 tests passed; inspect the diff because publication
+  and overwrite behavior are consequential.
+implementation: Turn structured PR preparation into an advisory title showing review depth and actual authors/reviewers,
+  with the rationale, implementation, deviations, reasons for every changed file, check receipts and a verbatim
+  collapsible ticket snapshot. Bind receipts to the feature commit and merge base. Refresh intact generated
+  content on reruns while preserving outside human notes, refusing conflicting edits and uncertain PR lookups,
+  and keeping titles within GitHub’s limit.
+deviations: None in scope. Preserved the concurrent Claude fixes and added fail-closed lookup errors, fork-result
+  refusal, exact preservation of outside notes across CRLF normalization, and title-length budgeting. Workflow
+  test obligations are unchanged.
+limitations: 'GitHub has no atomic compare-and-set for title/body updates, so a simultaneous edit after the
+  final read can still race. Creation is covered with real local Git and fake gh; this follow-up refreshes
+  existing PR #975. Its previous unmarked description is retained below the generated region as historical
+  text for an older revision; the evidence in the generated region describes the current revision.'
 files:
-  coga/skills/code/implement/SKILL.md: Capture actual implementing identity, exact check receipts and initial PR
-    preparation, including workflows without code review.
-  coga/skills/code/open-pr/SKILL.md: Consume prepared evidence, explain safe refresh and conflicts, and apply the
-    review-in-flight gate only when the workflow ordered code review.
+  coga/skills/code/implement/SKILL.md: Capture actual implementing identity, exact check receipts and initial
+    PR preparation, including workflows without code review.
+  coga/skills/code/open-pr/SKILL.md: Consume prepared evidence, explain safe refresh and conflicts, and apply
+    the review-in-flight gate only when the workflow ordered code review.
   coga/skills/code/self-qa/SKILL.md: Refresh preparation after fixes and distinguish self-review from independent
     review on a particular revision.
-  docs/contexts/coga/internals/pr-publication/SKILL.md: Own the rubric, preparation schema, fallback behavior and
-    generated-content conflict contract while retaining publication guarantees.
+  docs/contexts/coga/internals/pr-publication/SKILL.md: Own the rubric, preparation schema, fallback behavior
+    and generated-content conflict contract while retaining publication guarantees.
   example/coga/workflows/code/with-review.md: Keep the example publication step representative of the structured
     preparation and deterministic command.
-  src/coga/open_pr.py: Format revision-bound preparation and the literal request; enumerate the actual diff; refresh
-    intact generated content (CRLF-normalized) while preserving human notes, adopting legacy PRs that still carry
-    the ticket title, and refusing conflicts.
+  src/coga/open_pr.py: Render revision-bound evidence and the literal request; preserve prior peer fixes, refuse
+    uncertain/fork lookups before push, preserve exact outside notes through newline normalization, and budget
+    the title prefix within 256 characters.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/pr-publication/SKILL.md: Ship the byte-identical
     owning publication topic and its rubric/schema.
   src/coga/resources/templates/coga/bootstrap/skills/code/implement/SKILL.md: Ship the byte-identical code/implement
@@ -192,44 +202,42 @@ files:
     skill so installed repositories receive the same preparation instructions.
   src/coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md: Ship the byte-identical code/self-qa
     skill so installed repositories receive the same preparation instructions.
-  src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md: Require implement-owned preparation
-    and explicitly distinguish design approval from code review.
-  src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md: Make the peer-review step prepare actual
-    review/check receipts after its final fixes and rebase, and explain that a review receipt covers only the revision
-    it read.
-  src/coga/resources/templates/coga/bootstrap/workflows/code/with-self-review.md: Point workflow framing at the
-    shared preparation contract and honest self-review reporting.
-  tests/test_open_pr.py: Exercise all three depths, actual identities, stale/missing/legacy evidence, snapshot boundaries,
-    added/deleted/renamed files, legacy adoption, CRLF web edits and safe PR refresh with real Git and fake gh.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md: Require implement-owned
+    preparation and explicitly distinguish design approval from code review.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md: Make the peer-review step prepare
+    actual review/check receipts after its final fixes and rebase, and explain that a review receipt covers
+    only the revision it read.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-self-review.md: Point workflow framing at
+    the shared preparation contract and honest self-review reporting.
+  tests/test_open_pr.py: Cover review depths, identities, stale/legacy evidence and safe refresh, plus regression
+    cases for failed/malformed/fork lookups, exact CRLF note preservation and long prepared/fallback titles.
+  tests/test_open_pr_command.py: Make the command fixture emit gh’s explicit branch-not-found response so command
+    and URL-only output tests exercise fail-closed lookup.
 review:
-  reviewer: claude
+  reviewer: codex-review
   kind: independent
-  status: failed
-  head: 4b63afe49cd019b46ee97bd7492b1782df9fd052
-  base: e1c9fcac385930fb12a80700b13fb44f6676fb78
-  detail: /code-review (default effort) returned 10 findings; 7 must-fix findings were then fixed by the same reviewer
-    in 8856a848 without independent re-review.
+  status: passed
+  head: dbe8ddf1fe8311962a72486bbca262cfdb066a05
+  base: 992ac36fc4320a2c84f05c2b247b1a0562c98b79
+  detail: 'Separate codex review --base origin/main process (gpt-6-astra, session 01a117ae-3494-7b43-b9ed-326141375d42)
+    returned, exit 0: no actionable regressions. This process did not implement the change; its targeted publication/command/packaging
+    run passed 119 tests.'
 checks:
-- command: .venv/bin/python -m pytest -q
-  status: failed
-  head: 8856a848466588b780c65588b88853cdf5bcf4de
-  base: f5da579aca6371a75d3422c1cb104096991ae318
-  detail: '3310 passed, 1 failed: test_edge_distribution::test_documented_legacy_adoption_preserves_state_and_reconciles_callers
-    depends on locale sort order under LANG=en_US.UTF-8. It also fails without this review''s edits, and this branch
-    does not touch it.'
-- command: LC_ALL=C .venv/bin/python -m pytest -q tests/test_edge_distribution.py
+- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q
   status: passed
-  head: 8856a848466588b780c65588b88853cdf5bcf4de
-  base: f5da579aca6371a75d3422c1cb104096991ae318
-  detail: 13 passed; confirms the single failure depends on locale.
-- command: env -u SLACK_WEBHOOK_URL ../../.venv/bin/python -m coga.cli validate --json
+  head: dbe8ddf1fe8311962a72486bbca262cfdb066a05
+  base: 992ac36fc4320a2c84f05c2b247b1a0562c98b79
+  detail: 3320 passed in 333.91s (0:05:33); includes publication, command, packaging twin and existing workflow
+    coverage.
+- command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python
+    -m coga.cli validate --json
   status: passed
-  head: 8856a848466588b780c65588b88853cdf5bcf4de
-  base: f5da579aca6371a75d3422c1cb104096991ae318
+  head: dbe8ddf1fe8311962a72486bbca262cfdb066a05
+  base: 992ac36fc4320a2c84f05c2b247b1a0562c98b79
   detail: 'Run from example/coga: ok_count 4, no issues.'
 - command: git diff --check origin/main...HEAD
   status: passed
-  head: 8856a848466588b780c65588b88853cdf5bcf4de
-  base: f5da579aca6371a75d3422c1cb104096991ae318
-  detail: No whitespace errors.
+  head: dbe8ddf1fe8311962a72486bbca262cfdb066a05
+  base: 992ac36fc4320a2c84f05c2b247b1a0562c98b79
+  detail: No whitespace errors on the final branch diff.
 ```
