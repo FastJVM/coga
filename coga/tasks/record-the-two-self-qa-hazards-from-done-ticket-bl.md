@@ -21,7 +21,7 @@ workflow:
     skills: []
     assignee: agent
 step: 1 (agent-produces)
-launch_generation: pending:7d9f9f34-7569-4e56-8159-d52a78d5b521
+launch_generation: 7d9f9f34-7569-4e56-8159-d52a78d5b521
 ---
 
 ## Description
