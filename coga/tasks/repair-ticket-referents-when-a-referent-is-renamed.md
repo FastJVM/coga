@@ -1,6 +1,6 @@
 ---
 title: Repair ticket referents when a referent is renamed or canceled
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 workflow:
@@ -21,6 +21,7 @@ workflow:
     skills: []
     assignee: agent
 step: 1 (agent-produces)
+launch_generation: pending:1f9182e0-2b1b-4e05-a7ac-24800017e898
 ---
 
 ## Description
