@@ -47,3 +47,11 @@ Out of scope (separate ticket if wanted): checking inactivity right after the fe
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: inactive-lenient-template-skip
+
+Plan: in `recurring.scan_due`, on an inactive non-forced sweep call a new
+lenient reader (`recurring._read_inactivity_fields`) before `Template.load`;
+non-exempt → skip row, exempt → strict load as before.
