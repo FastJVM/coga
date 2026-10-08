@@ -24,7 +24,7 @@ workflow:
     assignee: owner
 step: 2 (peer-review)
 agent: claude
-launch_generation: pending:0859fc65-65d4-4afc-ad36-851acb14a4db
+launch_generation: 0859fc65-65d4-4afc-ad36-851acb14a4db
 ---
 
 ## Description
