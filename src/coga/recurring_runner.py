@@ -37,7 +37,7 @@ from coga.config import (
 from coga.recurring_activity import RepoActivity, check_activity
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.logfile import append_log, ref_tag_for_path, retract_log_lines, task_log_lines
-from coga.paths import log_path
+from coga.paths import RepoResourceUnreadable, log_path
 from coga.taskfile import TaskFileError, read_blackboard, split_body
 from coga.recurring import (
     _AGENT_NEEDS_TTY,
@@ -3031,6 +3031,10 @@ def _run_delegated_task(
                     format_blackboard_synthesis_refusal(
                         ref.id_slug, action="launch", reason=exc.reason
                     )
+                ) from exc
+            except RepoResourceUnreadable as exc:
+                raise RecurringError(
+                    f"cannot activate delegated period {ref.id_slug}: {exc}"
                 ) from exc
             except MainAgentUnavailable as exc:
                 raise RecurringError(

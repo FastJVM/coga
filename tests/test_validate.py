@@ -98,6 +98,44 @@ def test_clean_repo_has_no_issues(repo: Path) -> None:
     assert report.ok_count == 1
 
 
+def test_unknown_repo_resource_override_is_a_warning(repo: Path) -> None:
+    """A misnamed override changes nothing, so validate warns instead of
+    letting the typo silently do nothing; README.md and dotfiles are ignored."""
+    _write(repo / "resources" / "prompt.md", "Repo base prompt.\n")
+    _write(repo / "resources" / "promt.md", "Typo.\n")
+    _write(repo / "resources" / "README.md", "Notes.\n")
+    _write(repo / "resources" / ".keep", "")
+    cfg = load_config(repo)
+
+    issues = [
+        issue for issue in run(cfg).issues
+        if issue.task == "(resources)"
+    ]
+
+    assert [(i.kind, i.severity) for i in issues] == [
+        ("unknown-resource-override", "warn"),
+    ]
+    assert "promt.md" in issues[0].message
+    assert "prompt.md" in issues[0].message
+
+
+def test_unreadable_repo_resource_override_is_an_error(repo: Path) -> None:
+    override = repo / "resources" / "blackboard.md"
+    override.parent.mkdir(parents=True)
+    override.write_bytes(b"\xff\xfe not utf-8")
+    cfg = load_config(repo)
+
+    issues = [
+        issue for issue in run(cfg).issues
+        if issue.task == "(resources)"
+    ]
+
+    assert [(i.kind, i.severity) for i in issues] == [
+        ("unreadable-resource-override", "error"),
+    ]
+    assert str(override) in issues[0].message
+
+
 def test_unresolvable_other_agent_step_is_an_error(repo: Path) -> None:
     toml = repo / "coga.toml"
     toml.write_text(

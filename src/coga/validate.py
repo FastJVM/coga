@@ -82,9 +82,13 @@ from coga.taskfile import (
 )
 from coga.period_state import read_snapshot, stale_keys
 from coga.paths import (
+    RESOURCE_NAMES,
+    RepoResourceUnreadable,
     context_resolution_paths,
+    load_resource,
     missing_skill_message,
     recurring_dir,
+    repo_resources_dir,
     resolve_context_path,
     resolve_skill_path,
     resolve_workflow_path,
@@ -256,6 +260,7 @@ def run(
     report.issues.extend(_check_task_numbering(refs))
     report.issues.extend(_check_recurring_templates(cfg))
     report.issues.extend(_check_shebang_executables(cfg))
+    report.issues.extend(_check_repo_resources(cfg))
 
     report.ok_count = _ok_count(refs, report.issues)
     return report
@@ -455,10 +460,15 @@ def _check_one_task(
     out.extend(_check_workflow_shape(cfg, task_label, ticket))
 
     if ticket.status == "draft" and fences == 1:
-        reason = prelaunch_blackboard_synthesis_reason(
-            ref.ticket_path,
-            blackboard_required=False,
-        )
+        try:
+            reason = prelaunch_blackboard_synthesis_reason(
+                ref.ticket_path,
+                blackboard_required=False,
+                cfg=cfg,
+            )
+        except RepoResourceUnreadable:
+            # Reported once, repo-wide, by `_check_repo_resources`.
+            reason = None
         if reason is not None:
             out.append(Issue(
                 kind="unsynthesized-draft-blackboard",
@@ -1199,6 +1209,46 @@ def _check_task_numbering(refs: list[TaskRef]) -> list[Issue]:
     return out
 
 
+def _check_repo_resources(cfg: Config) -> list[Issue]:
+    """Check `<coga root>/resources/` overrides of the packaged fixed text.
+
+    A file whose name matches no packaged resource is a warning, not an
+    error: it changes nothing, so a typo would otherwise silently do nothing.
+    `README.md` and dotfiles are ignored. An override that exists but can't be
+    read is an error — compose and create refuse rather than fall back.
+    """
+    root = repo_resources_dir(cfg)
+    if not root.is_dir():
+        return []
+    out: list[Issue] = []
+    known = ", ".join(sorted(RESOURCE_NAMES))
+    for path in sorted(root.iterdir()):
+        name = path.name
+        if name.startswith(".") or name == "README.md":
+            continue
+        if name not in RESOURCE_NAMES or not path.is_file():
+            out.append(Issue(
+                kind="unknown-resource-override",
+                task="(resources)",
+                message=(
+                    f"{path} matches no packaged resource and is ignored; "
+                    f"overridable names: {known}"
+                ),
+                severity="warn",
+            ))
+            continue
+        try:
+            load_resource(cfg, name)
+        except RepoResourceUnreadable as exc:
+            out.append(Issue(
+                kind="unreadable-resource-override",
+                task="(resources)",
+                message=str(exc),
+                severity="error",
+            ))
+    return out
+
+
 def _check_recurring_templates(cfg: Config) -> list[Issue]:
     """Check schedules, template frontmatter, and workflow-step skills."""
     # Imported here, not at module scope: `coga.recurring` imports this module
@@ -1812,7 +1862,7 @@ def apply_safe_fixes(cfg: Config, only: list[TaskRef] | None = None) -> list[Fix
                 + "\n\n"
                 + BLACKBOARD_FENCE
                 + "\n\n"
-                + render_blackboard(title).lstrip("\n")
+                + render_blackboard(title, cfg=cfg).lstrip("\n")
             )
             if not new.endswith("\n"):
                 new += "\n"

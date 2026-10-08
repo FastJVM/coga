@@ -272,7 +272,7 @@ def create_task(
         ticket_body = f"## Description\n\n{desc_body}\n\n## Context\n\n"
     # One file per task: body + fence + blackboard, no sibling blackboard.md /
     # log.md. The append-only history goes to the repo-global log.
-    full_body = join_task_body(ticket_body, render_blackboard(title))
+    full_body = join_task_body(ticket_body, render_blackboard(title, cfg=cfg))
     git.write_ticket(
         cfg,
         Ticket(frontmatter=fm, body=full_body),

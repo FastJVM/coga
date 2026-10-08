@@ -20,7 +20,7 @@ from coga.config import Config, ConfigError, load_config
 from coga.create import create_task
 from coga.git import GitError
 from coga.mark import mark_blocked
-from coga.paths import read_packaged_resource
+from coga.paths import RepoResourceUnreadable, load_resource
 from coga.retire_worklist import RetireWorklistError, discharge_slug
 from coga.slugify import slugify
 from coga.taskfile import TaskFileError, read_blackboard
@@ -128,10 +128,12 @@ def retire(
             agent=main_agent,
             status="active",
             slug_override=slug_override,
-            description=_retire_body(ref.id_slug, checkout, refusal),
+            description=_retire_body(cfg, ref.id_slug, checkout, refusal),
             created_by="retire",
         )
-    except (ConfigError, TaskValidationError, ValueError) as exc:
+    except (
+        ConfigError, TaskValidationError, ValueError, RepoResourceUnreadable,
+    ) as exc:
         _bail(str(exc))
 
     slug = result["slug"]
@@ -275,12 +277,24 @@ def _default_agent(cfg: Config) -> str:
 
 
 def _retire_body(
+    cfg: Config,
     target_slug: str,
     checkout: WorktreeCleanupResult | None = None,
     refusal: str | None = None,
 ) -> str:
-    template = read_packaged_resource("retire.md")
-    body = template.format(slug=target_slug).strip()
+    template, override = load_resource(cfg, "retire.md")
+    try:
+        body = template.format(slug=target_slug).strip()
+    except (KeyError, IndexError, ValueError) as exc:
+        if override is None:
+            raise
+        # `retire.md` renders with `str.format`, so a stray brace in a repo
+        # override must name the file rather than surface as a bare KeyError.
+        raise RepoResourceUnreadable(
+            f"repo resource override {override} is not a valid `retire.md` "
+            f"template ({type(exc).__name__}: {exc}); only `{{slug}}` is "
+            "substituted — double any literal brace as `{{` / `}}`"
+        ) from exc
     section = _checkout_cleanup_section(checkout)
     if section:
         body = f"{body}\n\n{section}"

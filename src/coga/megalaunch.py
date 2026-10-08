@@ -100,7 +100,7 @@ from coga.mark import (
     mark_in_progress,
     prepare_active,
 )
-from coga.paths import log_path
+from coga.paths import RepoResourceUnreadable, log_path
 from coga.repl_supervisor import build_supervised_step_env
 from coga.workflow import WorkflowError
 from coga.taskfile import (
@@ -1553,6 +1553,7 @@ _PREPARE_ACTIVE_ERRORS = (
     RequiredExtensionMissing,
     BlackboardNeedsSynthesis,
     MainAgentUnavailable,
+    RepoResourceUnreadable,
 )
 
 
