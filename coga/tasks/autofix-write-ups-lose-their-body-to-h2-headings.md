@@ -1,12 +1,32 @@
 ---
 title: Autofix tickets launch without their write-up when the analyst uses H2 headings
-status: draft
+status: active
 owner: nicktoper
 agent: codex
 contexts:
-  - coga/testing
-  - coga/packaging
-workflow: code/with-review
+- coga/testing
+- coga/packaging
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+    requires: branch
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+    requires: pr
+  - name: review
+    skills:
+    - code/address-pr-comments
+    assignee: owner
+step: 1 (implement)
 ---
 
 ## Description
