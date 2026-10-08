@@ -7819,3 +7819,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-07 17:03 [publish-all-coga-and-context-files-automatically] [megalaunch] launched via coga megalaunch
 2026-10-07 17:14 [overload-base-text-prompt-etc] [human:nicktoper] created (status=draft)
 2026-10-07 17:16 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-07 17:16 [move-coga-development-rules-out-of-the-shipped-bas] [human:nicktoper] created (status=draft)
