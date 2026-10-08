@@ -1142,7 +1142,7 @@ def test_authoring_keeps_newly_ignored_files_local_without_blocking_publication(
     scratch.write_text("local scratch\n")
     before = snapshot_authoring_state(cfg)
     ignore = cfg.repo_root / ".gitignore"
-    ignore.write_text(ignore.read_text() + "\nscratch.txt\n")
+    ignore.write_text("scratch.txt\n")
     context = cfg.contexts_root / "team" / "SKILL.md"
     context.parent.mkdir(parents=True)
     context.write_text("authored knowledge\n")
