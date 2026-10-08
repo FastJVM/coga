@@ -1,6 +1,6 @@
 ---
 title: Publish all Coga and context files automatically
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
