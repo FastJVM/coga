@@ -1,6 +1,6 @@
 ---
 title: Document Quick Start for empty and existing repositories
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: docs/with-review
@@ -20,7 +20,6 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
-launch_generation: cffc3524-9315-4339-acf4-a5e343d06d80
 ---
 
 ## Description
@@ -60,3 +59,26 @@ Verified at authoring time (2026-10-08): `init.init` prints "Skipped the onboard
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+- 2026-10-08 implement: not started — no branch created, no README edits. The
+  ticket's hold note says do not start until the owner's README rewrite lands
+  and to confirm the scope with the owner. README on `main` is still mid-rewrite:
+  latest README commit is f5da579ac/db830202c (2026-10-07). It still has the
+  empty skeleton `## Install` and `## Quick Start` (`### Existing repo` / `### New repo`),
+  the `## Licnence` heading holding draft build/status/ticket/launch prose with
+  an unclosed fence, and the older complete second `## Install`.
+- Asked the owner, via block: (1) has the rewrite landed, or should this proceed
+  against the current WIP skeleton? (2) Should the draft build prose under `Licnence`
+  and the old `## Install` block move into the skeleton Install/Quick Start (and
+  be removed from their old places), or stay where they are?
+- Once unblocked: follow the plan in the ticket context. Run init in temporary
+  empty and non-empty git repos, check each command against `--help`, and summarize
+  and link coga/install and coga/first-task.
+
+---
+
+## Blockers
+
+- [ ] [2026-10-08 12:08] [agent:claude] id=20261008T120827 Ticket is on hold until your README rewrite lands. README on main is still mid-rewrite: the skeleton Install/Quick Start is empty, draft build prose sits under 'Licnence' with an unclosed fence, and there is a duplicate old Install. Please confirm: (1) is the rewrite done, or should I write Quick Start into the current WIP skeleton now? (2) Should I move the draft build prose and the old Install block into the skeleton Install/Quick Start and delete the old copies, or leave them where they are?
