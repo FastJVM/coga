@@ -1,6 +1,6 @@
 ---
 title: overload base text; prompt, etc.
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:8a40712c-9736-49c7-9d8e-15e015325444
 ---
 
 ## Description
