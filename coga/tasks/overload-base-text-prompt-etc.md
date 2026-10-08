@@ -124,3 +124,15 @@ Done means:
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: repo-resource-overrides
+
+Plan: one resolver in `coga.paths` (`resolve_resource_path` / `read_resource`)
+that prefers `<cfg.repo_root>/resources/<name>` over the packaged copy, with a
+sibling `RepoResourceUnreadable` exception. Thread `cfg` through
+`compose._resource`, `blackboard.render_blackboard`,
+`blackboard._is_stock_blackboard` (+ prelaunch reason helpers),
+`commands/retire._retire_body`, `validate`, `create`, `mark`. Prompt report
+uses `PromptLayer.path` for overrides. Validate warns on unknown names.
