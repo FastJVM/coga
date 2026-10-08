@@ -97,6 +97,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/979
 branch: base-prompt-coga-rules
 
 Plan: move the "Keep Coga small and legible" section into coga/context.md
