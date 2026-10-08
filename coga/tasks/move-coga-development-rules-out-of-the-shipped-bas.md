@@ -94,3 +94,11 @@ Done means:
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: base-prompt-coga-rules
+
+Plan: move the "Keep Coga small and legible" section into coga/context.md
+(rewritten as repo context), mark the coga/context.md twin intentionally
+divergent, add a test that packaged prompt layers carry no Coga-source paths.
