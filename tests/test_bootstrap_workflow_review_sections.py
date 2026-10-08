@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from coga.workflow import _parse_inline_sections
+
 BOOTSTRAP_WORKFLOWS = (
     Path(__file__).resolve().parents[1]
     / "src/coga/resources/templates/coga/bootstrap/workflows"
@@ -15,6 +17,12 @@ CHECKOUT_BEARING_WORKFLOWS = (
     "code/with-review.md",
     "code/with-self-review.md",
     "code/design-then-implement.md",
+    "docs/with-review.md",
+)
+
+# Packaged workflows with an `other-agent` peer-review step.
+PEER_REVIEW_WORKFLOWS = (
+    "code/with-review.md",
     "docs/with-review.md",
 )
 
@@ -36,3 +44,14 @@ def test_review_section_names_coga_retire_as_the_closing_act(name: str) -> None:
     assert "run `coga retire <slug>`" in review
     assert "`done` is not the end of the ticket" in review
     assert "`retro/done-ticket`" in review
+
+
+@pytest.mark.parametrize("name", PEER_REVIEW_WORKFLOWS)
+def test_peer_review_section_carries_the_authorship_caveat(name: str) -> None:
+    text = (BOOTSTRAP_WORKFLOWS / name).read_text()
+    sections = _parse_inline_sections(text, {"peer-review"})
+
+    # Only step-named sections are composed, so the caveat must live in the
+    # step body itself, not in the workflow preamble the reviewer never sees.
+    peer_review = " ".join(sections["peer-review"].split())
+    assert "does not prove independent authorship" in peer_review
