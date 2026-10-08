@@ -7889,3 +7889,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-08 10:25 [marketing/fix-installer/offer-agent-cli-install-and-setup-at-init] [human:nicktoper] auto-bumped on merge of PR #970 → done
 2026-10-08 10:25 [marketing/fix-installer/pin-python-3-11-in-the-macos-clean-install-harness] [human:nicktoper] auto-bumped on merge of PR #968 → done
 2026-10-08 10:25 [record-the-owner-s-decline-of-a-pytest-ci-gate-in] [human:nicktoper] auto-bumped on merge of PR #964 → done
+2026-10-08 10:26 [recurring/autoclose-merged] [system] task done
