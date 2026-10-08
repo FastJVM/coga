@@ -1,7 +1,7 @@
 ---
 title: 'validate-drift: blackboard hygiene — two oversized blackboards and one unsynthesized
   draft blackboard'
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
