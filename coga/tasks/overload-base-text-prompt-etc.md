@@ -30,10 +30,12 @@ Done means:
 - a repo-local `coga/resources/prompt.md` (and likewise each other resource)
   changes what `coga launch` composes and what the blackboard and retire paths
   render;
-- `coga launch <slug> --prompt-report` shows whether each fixed layer came
-  from `repo` or `packaged`;
-- `coga validate` warns about a file in the repo `resources/` directory that
-  matches no known resource name, so a typo can't silently do nothing;
+- `coga launch <slug> --prompt-report` shows when a fixed layer came from a
+  repo override, by setting the existing `PromptLayer.path` to the override
+  file (unset means packaged; no new field);
+- `coga validate` emits a **warning, not an error**, for a file in the repo
+  `resources/` directory that matches no known resource name, so a typo can't
+  silently do nothing (`README.md` and dotfiles are ignored);
 - tests cover override and fallback for at least the base prompt, one conduct
   variant and `blackboard.md`;
 - the `coga/prompt-composition` topic (and any other owning topic the change
@@ -51,18 +53,30 @@ Done means:
   `commands/retire.py` (`retire.md`). Prefer one resolver in `paths` (shared
   infra with several consumers, so it belongs in core) over per-caller
   lookups.
+- **Callers that must newly receive `cfg`** (the real threading work): the
+  cfg-free wrappers `blackboard.render_blackboard` (called from
+  `commands/create.py` and `validate.py`) and `blackboard._is_stock_blackboard`
+  (reached via `prelaunch_blackboard_synthesis_reason[_text]` from
+  `validate.py` and `commands/mark.py`). Overrides apply to bootstrap
+  (`BootstrapRef`) launches too.
 - **Gotcha: stock-blackboard detection.** `_is_stock_blackboard` compares a
   ticket's blackboard to the stock template to decide that it is untouched.
   With an overridden `blackboard.md`, tickets created before the override
-  still carry the packaged stub. Detection should accept both the effective
-  (override) and the packaged stub, or authoring cleanup and prelaunch checks
-  will treat old stubs as real content. Also note that `render_blackboard`
-  substitutes `{task_title}`.
+  still carry the packaged stub. Detection compares against the *raw*
+  template, but `render_blackboard` substitutes `{task_title}`, so an override
+  using it would never match. Treat a blackboard as stock if it matches the
+  packaged stub, the raw override, or the title-rendered override.
+- **Brace semantics:** `retire.md` is rendered with `str.format(slug=...)`
+  while `blackboard.md` uses `.replace`. A `retire.md` override containing
+  stray `{`/`}` must produce a clean error naming the override file, not a raw
+  `KeyError`/`ValueError`.
 - **Precedent:** workflows and skills already resolve local-before-bundled
   with the same ref (`paths.resolve_workflow_path`, `resolve_skill_path`).
   Mirror that naming and error style. A missing packaged resource still raises
-  `PackagedResourceMissing` → `ComposeError`; an unreadable repo override
-  should fail the same loud, catchable way rather than silently falling back.
+  `PackagedResourceMissing` → `ComposeError`. An unreadable repo override fails
+  loud and catchable (never a silent fallback) via a **sibling exception**
+  whose message names the repo file. Don't reuse `PackagedResourceMissing`,
+  whose message says to reinstall Coga.
 - **Prompt report:** layer metadata is carried on the composed result
   (`compose.py`, the dataclass documented as "Composed prompt plus layer
   metadata for prompt-scope reporting"). The `session_conduct` layer already
@@ -70,8 +84,10 @@ Done means:
   it.
 - **Docs to edit (read, don't attach):**
   `docs/contexts/coga/prompt-composition/SKILL.md` (sections "Layer order" and
-  "What each layer reads"), and `docs/contexts/coga/session-conduct/SKILL.md`
-  if it states that conduct text is package-fixed. Check for a packaged twin
+  "What each layer reads"), `docs/contexts/coga/blackboard/SKILL.md` (stock
+  placeholder / `_is_stock_blackboard` text), and
+  `docs/contexts/coga/session-conduct/SKILL.md` if it states that conduct text
+  is package-fixed. Check for a packaged twin
   under `src/coga/resources/templates/coga/bootstrap/contexts/`, since
   `tests/test_packaging.py` enforces byte identity.
 - **Out of scope:** append/patch overrides, overriding files under
@@ -79,7 +95,9 @@ Done means:
   their own local-override paths), and any config key to relocate the override
   directory.
 - No `coga/resources/` directory exists in this repo today, so there's no
-  collision.
+  collision. Check `example/coga/` too.
+- The shipped base prompt is ~47% of a composed launch prompt. Trimming it is
+  a separate ticket; this feature lets repos trim it locally.
 
 <!-- coga:blackboard -->
 
