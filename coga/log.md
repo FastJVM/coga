@@ -7820,3 +7820,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-07 17:14 [overload-base-text-prompt-etc] [human:nicktoper] created (status=draft)
 2026-10-07 17:16 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-07 17:16 [move-coga-development-rules-out-of-the-shipped-bas] [human:nicktoper] created (status=draft)
+2026-10-07 17:22 [publish-all-coga-and-context-files-automatically] [agent:codex] blocked: Publish the newer local edits to move-coga-development-rules-out-of-the-shipped-bas, then return the shared checkout to clean main. Its untracked ticket differs from origin/main, so dev/checkouts forbids discarding it or switching over it. Peer review returned, all findings are fixed, 3374 tests pass, branch publish-coga-roots is pushed at 204d20400, and the PR body is recorded; only checkout return and bump to open-pr remain.

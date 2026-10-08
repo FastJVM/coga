@@ -1,6 +1,6 @@
 ---
 title: Publish all Coga and context files automatically
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,7 +24,6 @@ workflow:
     assignee: owner
 step: 2 (peer-review)
 agent: claude
-launch_generation: 0859fc65-65d4-4afc-ad36-851acb14a4db
 ---
 
 ## Description
@@ -185,3 +184,90 @@ Not done / follow-ups:
   publish-build-vision-before-handing-off-starter-ti. With this change,
   bump's sweep and the launch boundary publish the vision.
 - PRs #973/#972 untouched.
+
+
+## Peer review
+
+`codex review --base main` **returned** on 2026-10-07. Its sandboxed first
+attempt could not initialize the app server; the approved unsandboxed retry
+completed. It reproduced a symlink escaping authoring's roots and a dirty
+submodule being mistaken for deletion, then confirmed those fixes during the
+review. Its final P2 finding was stale configuration during context relocation.
+All three findings are fixed in pushed commit `204d20400` on
+`publish-coga-roots`:
+
+- Authoring never follows symlinks into publication targets outside its roots.
+- Publication refuses submodules identified in HEAD, control, or the index,
+  including dirty, updated, removed, and newly staged gitlinks.
+- Finalization reloads and validates configuration before file discovery and
+  ticket validation, retaining the original snapshot so a context move's
+  deletion, destination, and config land in one guarded publication. Invalid
+  config preserves every edit and fails before publication.
+- Principles now consistently describe visible Git publication. Retro's
+  deliberate reviewed-PR policy is scoped to Retro, with an explicit warning
+  to commit review-bound knowledge before running sweeping commands. Owning
+  contracts and packaged twins were updated.
+
+The configured root-layout interpretation is intentional: when the Coga root
+is the checkout root, all eligible checkout files fall inside it. The narrow
+committed-feature adoption exception protects reviewed code/topic/twin changes;
+dirty managed-root files still publish from feature checkouts. No raw-terminal,
+pager, TTY prompt, or rendered-notification surface changed in this diff.
+
+Verification (Python 3.12.12):
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest` after all fixes:
+  **3374 passed in 294.09s**, including packaging twin checks.
+- `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest tests/test_git.py tests/test_authoring.py tests/test_ticket.py -q`:
+  **217 passed**, including the relocation and invalid-config cases.
+- Earlier focused Git/authoring/layout/packaging check: **218 passed** after
+  symlink/submodule fixes.
+- From `example/coga`:
+  `env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python -m coga.cli validate --json`:
+  **0 issues**.
+- `git diff --check`: clean. Ambient `python -m pytest` initially failed
+  collection because that interpreter lacks `tomlkit`; all receipts above use
+  the repository's dependency-complete venv. No Python 3.11 run was made.
+
+The branch was fetched/rebased unconditionally and force-pushed with lease.
+Later remote changes are routine ticket/log publications only. PRs #973/#972
+were not modified.
+
+## Checkout return blocker
+
+Code/review/testing and PR-body authoring are complete, but no bump occurred.
+The shared checkout remains on `publish-coga-roots`: another session created
+and then further edited `move-coga-development-rules-out-of-the-shipped-bas`.
+At return, its untracked file differed from the published origin/main copy.
+The required dev/checkouts proof therefore failed. Those edits and the local
+audit log were preserved; no stash, forced checkout, or discard was attempted.
+A final rebase attempt refused before modifying HEAD. The reviewed branch is
+already pushed at `204d20400`.
+
+Resume after that task's edits are published: run the checkout return proof,
+return to clean main, confirm the branch remains safely fresh against control,
+and bump once to open-pr. The review has returned; do not confuse this
+checkout blocker with an in-flight review.
+
+## PR
+
+Publish eligible files throughout the configured Coga workspace and contexts
+root through guarded state publication, including contexts, skills, workflows,
+and shared config. Guided authoring publishes its changed tickets and knowledge
+together; checkout preparation, return, recovery, and unpublished-work detection
+use the same directory membership. Ignored files stay local, provenance and
+concurrent-update guards remain, and committed feature-branch knowledge stays
+with its reviewed PR.
+
+Protect that broader boundary against symlinks and submodules, and publish
+context relocations atomically after reloading configuration. Update the owning
+contracts, authoring/checkout instructions, and packaged twins.
+
+Test plan: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest` —
+3374 passed (including packaging); example validation — 0 issues;
+`git diff --check` — clean.
+
+---
+
+## Blockers
+
+- [ ] [2026-10-07 17:22] [agent:codex] id=20261007T172201 Publish the newer local edits to move-coga-development-rules-out-of-the-shipped-bas, then return the shared checkout to clean main. Its untracked ticket differs from origin/main, so dev/checkouts forbids discarding it or switching over it. Peer review returned, all findings are fixed, 3374 tests pass, branch publish-coga-roots is pushed at 204d20400, and the PR body is recorded; only checkout return and bump to open-pr remain.
