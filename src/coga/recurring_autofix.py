@@ -967,7 +967,7 @@ def scan_lines_for_record(scan, *, force: bool = False) -> list[str]:
         when = _firing_label(task.last_fire, now)
         lines.append(f"{task.template:<20} {when:<26} skip ({reason})")
     for name, last_fire in scan.inactivity_skips:
-        when = _firing_label(last_fire, now)
+        when = "-" if last_fire is None else _firing_label(last_fire, now)
         lines.append(f"{name:<20} {when:<26} skip ({scan.inactivity_reason})")
     for name, last_fire, _reason in scan.agent_refusals:
         when = _firing_label(last_fire, now)

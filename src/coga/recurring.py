@@ -381,15 +381,7 @@ class Template:
 
     @classmethod
     def load(cls, path: Path, *, now: datetime | None = None) -> "Template":
-        ticket = path / "ticket.md"
-        if not ticket.is_file():
-            raise RecurringError("missing ticket.md")
-        match = _FM_RE.match(ticket.read_text())
-        if not match:
-            raise RecurringError("ticket.md missing YAML frontmatter")
-        fm = yaml.safe_load(match.group(1)) or {}
-        if not isinstance(fm, dict):
-            raise RecurringError("frontmatter must be a mapping")
+        fm, body = _read_template_source(path)
         rejected = sorted(set(fm) & REJECTED_TICKET_KEYS)
         if rejected:
             raise RecurringError(
@@ -425,7 +417,7 @@ class Template:
                 "`period_generation` is reserved for materialized period tasks; "
                 "remove it from the recurring template"
             )
-        return cls(path=path, name=path.name, frontmatter=fm, body=match.group(2))
+        return cls(path=path, name=path.name, frontmatter=fm, body=body)
 
     @property
     def runs_when_inactive(self) -> bool:
@@ -612,7 +604,8 @@ class DueScan:
     )
 
     # No DueTask exists for these skips: no creation, recovery or escalation.
-    inactivity_skips: list[tuple[str, datetime]] = field(default_factory=list)
+    # The firing is None when the unvalidated schedule yields none.
+    inactivity_skips: list[tuple[str, datetime | None]] = field(default_factory=list)
     inactive_since: str | None = None
     # `(template, last_fire, reason)` for each due agent-backed template this
     # run could not spawn an agent for. Not a template error: each gets a scan
@@ -725,7 +718,7 @@ def scan_due(
     if not root.is_dir():
         return DueScan(tasks=[], errors=[])
 
-    inactivity_skips: list[tuple[str, datetime]] = []
+    inactivity_skips: list[tuple[str, datetime | None]] = []
     agent_refusals: list[tuple[str, datetime, str]] = []
     tasks: list[DueTask] = []
     errors: list[tuple[str, str]] = []
@@ -735,7 +728,9 @@ def scan_due(
     # a repeated same-period scan resolves from the tail. Malformed records
     # stay attached to their template so one bad high-water mark cannot hide
     # itself as "already serviced" or prevent healthy templates from running.
-    period_targets = _template_period_targets(root, now)
+    period_targets = _template_period_targets(
+        root, now, skip_inactive=inactive_since is not None and not force
+    )
     ledger = read_serviced_ledger(cfg, period_targets)
     # `_advance_serviced_period` mutates `ledger.periods` in place as this scan
     # creates tasks. Preserve the pre-create view separately: after a successful
@@ -762,14 +757,18 @@ def scan_due(
                 errors.append((path.name, msg))
             continue
         try:
+            if inactive_since is not None and not force:
+                # A dormant repo's non-exempt template is skipped without
+                # strict validation, so a stale key cannot alert for a repo
+                # nobody works on; it surfaces when the repo wakes.
+                exempt, skipped_fire = _read_inactivity_fields(path, now)
+                if not exempt:
+                    inactivity_skips.append((path.name, skipped_fire))
+                    continue
             template = Template.load(path, now=now)
         except RecurringError as exc:
             sys.stderr.write(f"[recurring] skipping {path.name}: {exc}\n")
             errors.append((path.name, str(exc)))
-            continue
-
-        if inactive_since is not None and not force and not template.runs_when_inactive:
-            inactivity_skips.append((template.name, _last_firing(template.schedule, now)))
             continue
 
         ledger_error = ledger.errors.get(_recurring_slug(template.name))
@@ -1900,7 +1899,43 @@ def _recurring_slug(template_name: str) -> str:
     return f"recurring/{template_name}"
 
 
-def _template_period_targets(root: Path, now: datetime) -> dict[str, str]:
+def _read_template_source(path: Path) -> tuple[dict[str, Any], str]:
+    """Read a template's mapping and body without validating its fields."""
+    ticket = path / "ticket.md"
+    if not ticket.is_file():
+        raise RecurringError("missing ticket.md")
+    match = _FM_RE.match(ticket.read_text())
+    if not match:
+        raise RecurringError("ticket.md missing YAML frontmatter")
+    try:
+        fm = yaml.safe_load(match.group(1))
+    except yaml.YAMLError as exc:
+        raise RecurringError(f"invalid YAML frontmatter: {exc}") from exc
+    if not isinstance(fm, dict):
+        raise RecurringError("frontmatter must be a mapping")
+    return fm, match.group(2)
+
+
+def _read_inactivity_fields(path: Path, now: datetime) -> tuple[bool, datetime | None]:
+    """Read only the exemption and a best-effort firing for an inactive sweep.
+
+    Unreadable frontmatter or a non-boolean exemption remains a template error.
+    Other validation waits until the template is admitted through the gate.
+    """
+    fm, _ = _read_template_source(path)
+    exempt = fm.get("run_when_inactive", False)
+    if not isinstance(exempt, bool):
+        raise RecurringError("`run_when_inactive` must be a bool")
+    try:
+        _validate_schedule(fm.get("schedule"), now)
+    except RecurringError:
+        return exempt, None
+    return exempt, _last_firing(fm["schedule"], now)
+
+
+def _template_period_targets(
+    root: Path, now: datetime, *, skip_inactive: bool = False
+) -> dict[str, str]:
     """Map each valid live template to the period a scan is deciding now.
 
     Invalid templates are diagnosed by the ordinary scan/list loop. They have
@@ -1912,6 +1947,8 @@ def _template_period_targets(root: Path, now: datetime) -> dict[str, str]:
         if not path.is_dir() or path.name.startswith("_"):
             continue
         try:
+            if skip_inactive and not _read_inactivity_fields(path, now)[0]:
+                continue
             template = Template.load(path, now=now)
         except RecurringError:
             continue

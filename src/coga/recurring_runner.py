@@ -5210,7 +5210,7 @@ def _print_table(scan: DueScan, *, force: bool = False) -> None:
         typer.echo(f"  {task.template:<20} {when:<26} {skipped}")
 
     for name, last_fire in scan.inactivity_skips:
-        when = _firing_label(last_fire, now)
+        when = "-" if last_fire is None else _firing_label(last_fire, now)
         skipped = typer.style(f"skip ({scan.inactivity_reason})", fg=typer.colors.BRIGHT_BLACK)
         typer.echo(f"  {name:<20} {when:<26} {skipped}")
 
