@@ -2,7 +2,7 @@
 title: Investigate successful Codex sessions reported as failed
 status: draft
 owner: nicktoper
-workflow: null
+workflow: code/design-then-implement
 ---
 
 ## Description
