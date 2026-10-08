@@ -1,6 +1,6 @@
 ---
 title: webhook for slack is public
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: maintenance/with-approval
@@ -16,6 +16,7 @@ workflow:
     assignee: agent
 step: 1 (inventory)
 agent: claude
+launch_generation: pending:c6f3ab63-cddc-4963-9bbe-63bbb88d7706
 ---
 
 ## Description
