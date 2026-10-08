@@ -2549,13 +2549,18 @@ class _CheckoutBoundary:
         if _git_destination(refreshed) != self._destination:
             self._stop("coga.toml changed the Git destination during the launch")
             return False
+        previous_contexts_root = cfg.contexts_root
         cfg = refreshed
         # The end-of-command sweep, run before the switch rather than after
         # it: routine state a session or ticket.py wrote without publishing
         # lands now, and only what publication could not land blocks.
-        git.sync_coga_state(cfg, message="Sync coga state before checkout return")
+        git.sync_coga_state(
+            cfg, message="Sync coga state before checkout return",
+            previous_contexts_root=previous_contexts_root,
+        )
         outcome = git.prepare_control_checkout(
-            cfg, require_remote_control=self._remote_expected
+            cfg, require_remote_control=self._remote_expected,
+            previous_contexts_root=previous_contexts_root,
         )
         if outcome.kind in {"prepared", "exempt"}:
             return True

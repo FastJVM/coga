@@ -213,7 +213,10 @@ def sync_log(cfg: Config, *, message: str) -> bool:
         return False
 
 
-def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
+def sync_coga_state(
+    cfg: Config, *, message: str = "Sync coga state",
+    previous_contexts_root: Path | None = None,
+) -> None:
     """The catch-all sweep: publish eligible files under the Coga roots.
 
     Runs at the CLI dispatch boundary and is the retry for every earlier miss.
@@ -229,7 +232,7 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
         root = _publishable_root(cfg, message)
         if root is None:
             return
-        publish(cfg, coga_root_paths(cfg), message)
+        publish(cfg, coga_root_paths(cfg, previous_contexts_root), message)
     except StateRegressionError as exc:
         sys.stderr.write(f"[git] sync refused: {exc}. Message was: {message}\n")
     except GitError as exc:
@@ -237,7 +240,9 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
         append_log(cfg, ref_tag_for_path(cfg, cfg.repo_root), "git", f"sync failed: {exc}")
 
 
-def coga_root_paths(cfg: Config) -> tuple[Path, ...]:
+def coga_root_paths(
+    cfg: Config, previous_contexts_root: Path | None = None,
+) -> tuple[Path, ...]:
     """The directories whose eligible files Coga publishes on its own.
 
     The Coga root and the contexts root (`Config.contexts_root`, which
@@ -250,7 +255,10 @@ def coga_root_paths(cfg: Config) -> tuple[Path, ...]:
     honors `.gitignore`.
     """
     roots: list[Path] = []
-    for path in (cfg.repo_root, cfg.contexts_root):
+    paths = (cfg.repo_root, cfg.contexts_root)
+    if previous_contexts_root is not None:
+        paths += (previous_contexts_root,)
+    for path in paths:
         resolved = path.resolve(strict=False)
         if any(resolved == kept or kept in resolved.parents for kept in roots):
             continue
@@ -995,7 +1003,8 @@ class _Subsumption:
 
 
 def prepare_control_checkout(
-    cfg: Config, *, require_remote_control: bool = False
+    cfg: Config, *, require_remote_control: bool = False,
+    previous_contexts_root: Path | None = None,
 ) -> CheckoutPreparation:
     """Bring the invoking checkout to a clean control branch at the fetched tip.
 
@@ -1046,13 +1055,13 @@ def prepare_control_checkout(
             return CheckoutPreparation("exempt", f"{remote}/{control} does not exist")
         pinned = run_git(root, "rev-parse", remote_ref).strip()
         with state_lock(cfg):
-            plan = _plan_preparation(cfg, root, pinned)
+            plan = _plan_preparation(cfg, root, pinned, previous_contexts_root)
             if isinstance(plan, CheckoutPreparation):
                 return plan
             # Re-observe immediately before mutating: a concurrent edit,
             # stage, or branch move between the checks and the first write
             # refuses instead of being discarded on stale evidence.
-            again = _plan_preparation(cfg, root, pinned)
+            again = _plan_preparation(cfg, root, pinned, previous_contexts_root)
             if isinstance(again, CheckoutPreparation):
                 return again
             if again.evidence != plan.evidence:
@@ -1060,13 +1069,13 @@ def prepare_control_checkout(
                     "refused",
                     "the checkout changed while it was being examined; retry",
                 )
-            return _apply_preparation(cfg, root, pinned, plan)
+            return _apply_preparation(cfg, root, pinned, plan, previous_contexts_root)
     except GitError as exc:
         return CheckoutPreparation("refused", f"could not inspect the checkout: {exc}")
 
 
 def _plan_preparation(
-    cfg: Config, root: Path, pinned: str
+    cfg: Config, root: Path, pinned: str, previous_contexts_root: Path | None = None,
 ) -> _PreparationPlan | CheckoutPreparation:
     """Every check `prepare_control_checkout` makes before its first write."""
     remote, control = cfg.git_remote, cfg.git_control_branch
@@ -1097,7 +1106,7 @@ def _plan_preparation(
     local = run_git(root, "rev-parse", control_ref).strip()
     realign: _Subsumption | None = None
     if local != pinned and not _is_ancestor(root, local, pinned):
-        realign = _local_control_subsumed(cfg, root, local, pinned)
+        realign = _local_control_subsumed(cfg, root, local, pinned, previous_contexts_root)
         if realign.kind != "ok":
             return CheckoutPreparation(
                 "refused",
@@ -1118,7 +1127,7 @@ def _plan_preparation(
         "status", "--porcelain=v2", "-z", "--untracked-files=all",
         "--no-renames", "--ignore-submodules=none",
     )
-    areas = _state_areas(cfg, root)
+    areas = _state_areas(cfg, root, previous_contexts_root)
     union = set()
     restore: list[str] = []
     remove: list[str] = []
@@ -1201,7 +1210,8 @@ def _plan_preparation(
 
 
 def _apply_preparation(
-    cfg: Config, root: Path, pinned: str, plan: _PreparationPlan
+    cfg: Config, root: Path, pinned: str, plan: _PreparationPlan,
+    previous_contexts_root: Path | None = None,
 ) -> CheckoutPreparation:
     """Mutate in order; on an unexpected failure, say where it stopped."""
     control = cfg.git_control_branch
@@ -1214,7 +1224,7 @@ def _apply_preparation(
                 "--", *plan.restore, env=literal,
             )
         stage = "removing published untracked Coga state"
-        areas = _state_areas(cfg, root)
+        areas = _state_areas(cfg, root, previous_contexts_root)
         for rel in plan.remove:
             run_git(
                 root, "rm", "--cached", "--quiet", "--ignore-unmatch", "--", rel,
@@ -1280,13 +1290,15 @@ def _status_v2_entries(out: str) -> list[tuple[str, list[str], str]]:
     return entries
 
 
-def _state_areas(cfg: Config, root: Path) -> tuple[tuple[str, ...], tuple[str, ...]]:
+def _state_areas(
+    cfg: Config, root: Path, previous_contexts_root: Path | None = None,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """(directory prefixes, exact files) of `coga_root_paths` in this checkout.
 
     The empty prefix is the whole checkout (the root layout).
     """
     dirs = []
-    for path in coga_root_paths(cfg):
+    for path in coga_root_paths(cfg, previous_contexts_root):
         rel = relative_to_root(root, path).rstrip("/")
         dirs.append("" if rel == "." else rel + "/")
     return tuple(dirs), ()
@@ -1385,7 +1397,10 @@ def _operation_in_progress(root: Path) -> str | None:
     return None
 
 
-def _local_control_subsumed(cfg: Config, root: Path, local: str, target: str) -> _Subsumption:
+def _local_control_subsumed(
+    cfg: Config, root: Path, local: str, target: str,
+    previous_contexts_root: Path | None = None,
+) -> _Subsumption:
     """Whether moving local control from `local` to `target` loses nothing.
 
     `ok` only when `local` and `target` have exactly one merge base, every
@@ -1422,7 +1437,7 @@ def _local_control_subsumed(cfg: Config, root: Path, local: str, target: str) ->
             ).splitlines()
             if line
         )
-        areas = _state_areas(cfg, root)
+        areas = _state_areas(cfg, root, previous_contexts_root)
         foreign: list[str] = []
         offenders: list[str] = []
         for commit, subject in dropped:

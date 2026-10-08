@@ -28,7 +28,9 @@ ticket to compose, run `ticket.py`, or activate, and returns it after every
 agent session or `ticket.py` phase and at teardown. Where the boundary sits in
 dispatch and chaining is owned by [coga/launch](../../coga/launch/SKILL.md).
 On return, reload and validate the on-disk configuration before publishing or
-preparing the checkout, so a session's new contexts root is included. Invalid
+preparing the checkout, so a session's new contexts root is included. Keep the
+previous contexts root in that return's publication and cleanup membership
+too, so a relocation publishes both sides together. Invalid
 configuration or a changed Git destination stops the return and withholds the
 final sweep, preserving the session's edits. Each time it:
 

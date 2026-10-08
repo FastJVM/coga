@@ -8,6 +8,7 @@ import sys
 
 import typer
 
+from coga import git
 from coga.authoring import (
     AUTHORING_AGENT_ENV,
     AuthoringError,
@@ -339,6 +340,9 @@ def _run_authoring_session(
     try:
         finalize_authored(cfg, before_snapshot=before_authoring, ref=ref)
     except (AuthoringError, TaskValidationError) as exc:
+        # A retry sweep would separate an authored ticket from knowledge its
+        # guarded transaction refused, potentially publishing broken refs.
+        git.state_sweep_withheld.set(True)
         _bail(str(exc))
 
 

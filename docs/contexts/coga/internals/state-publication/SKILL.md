@@ -51,6 +51,11 @@ preparation and return (`dev/checkouts`), state-only commit recovery
 (`_local_control_subsumed`), the recorded assist-checkout alignment, and the
 `mark done` stranding guard all read it.
 
+During launch checkout return, this helper also accepts the pre-session
+contexts root. Both publication and cleanup retain it for that return, so a
+move between two relocated roots includes the old-path deletions together
+with the destination and config. Subsequent commands use only the new roots.
+
 **Eligible** means a regular file Git does not ignore. Every consumer asks Git
 (`status`, `ls-files --exclude-standard`), so `coga.local.toml`, `.coga/` run
 records, generated agent-skill views, caches, and other ignored artifacts stay
@@ -151,7 +156,7 @@ checkout return, so routine state lands before the checkout moves
   `show`, `validate`, `usage`, `init`, `uninstall`), `secret`, `recurring
   --all`, `bump --backward`/`--to`, or `skill`/`mark`/`recurring` subcommands
   outside their sweeping sets;
-- is skipped when a launch's checkout return refused or stopped part-way
+- is skipped when authoring finalization failed, or a launch's checkout return refused or stopped part-way
   (`git.state_sweep_withheld`, reset per `cli.main` invocation, so it also
   covers an in-process `coga recurring` run): the preserved dirt is what the
   sweep must not publish, the command's exit status is unchanged, and the
@@ -198,8 +203,10 @@ that only writes a context still publishes it, so the next ticket launch finds
 it on control with no extra branch. Validation errors propagate before
 anything is published. A refused or failed publish keeps every edit on disk,
 exactly as authored, and raises `AuthoringError` — `coga ticket` exits
-non-zero rather than reporting a completed handoff — and the state sweep
-retries it. A successful publish names the non-task files it carried on
+non-zero rather than reporting a completed handoff. That invocation withholds
+its final sweep so it cannot publish a task separately from the knowledge the
+authoring transaction refused; a later command may retry eligible dirty files.
+A successful publish names the non-task files it carried on
 stderr. The boundary is identical with or without launch metadata, on control
 and feature checkouts.
 
