@@ -366,9 +366,11 @@ def _publish_locked(
         for rel in required:
             if rel in rels:
                 continue
-            data = _working_tree_bytes(root, rel)
-            oid = None if data is None else _hash_blob(root, data, rel)
-            if oid != _blob_oid(root, base, rel):
+            _working_tree_bytes(root, rel)  # refuses a symlinked path
+            working = _regular_working_file(root, rel)
+            entry = (working[0], _hash_blob(root, working[1], rel)) if working else None
+            # Mode counts too: a mode-only edit control lacks is not on control.
+            if entry != _tree_entry(root, base, rel):
                 raise GitError(
                     f"{rel}: required authored file is excluded from publication "
                     "and differs from control; merge its reviewed change before "

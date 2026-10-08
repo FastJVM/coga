@@ -122,13 +122,19 @@ def snapshot_authoring_state(cfg: Config) -> AuthoringSnapshot:
 
 
 def snapshot_authoring_files(cfg: Config) -> dict[Path, str]:
-    """Hash files the authoring interview is allowed to create or modify."""
+    """Fingerprint files the authoring interview is allowed to create or modify.
+
+    Each entry is the Git file mode plus a content hash, so a mode-only edit
+    (making a skill script executable) is a change publication must carry.
+    """
     snapshot: dict[Path, str] = {}
     for path in _authoring_files(cfg):
         # Never turn a link in an authoring root into an explicit publication
         # request for its target (which may be source outside these roots).
         if git.symlink_component(path) is None and path.is_file():
-            snapshot[path.absolute()] = sha256(path.read_bytes()).hexdigest()
+            mode = "100755" if path.stat().st_mode & 0o111 else "100644"
+            digest = sha256(path.read_bytes()).hexdigest()
+            snapshot[path.absolute()] = f"{mode}:{digest}"
     return snapshot
 
 
@@ -210,6 +216,10 @@ def support_paths(cfg: Config, changed_paths: set[Path]) -> list[Path]:
     return sorted(support)
 
 
+def _git_destination(cfg: Config) -> tuple[object, ...]:
+    return (cfg.git_enabled, cfg.git_remote, cfg.git_control_branch)
+
+
 def authoring_sync_message(authored_refs: list[TaskRef]) -> str:
     """Commit message for a guided authoring sync."""
     if not authored_refs:
@@ -254,10 +264,21 @@ def finalize_authored(
     `AuthoringError`, so the interview never reports a completed handoff it
     could not make durable.
     """
+    destination = _git_destination(cfg)
     try:
         cfg = load_config(cfg.repo_root, require_user=False)
     except ConfigError as exc:
         raise AuthoringError(f"Authored configuration is invalid: {exc}") from exc
+    # The handoff publishes to the destination the interview started under. An
+    # authored `[git]` change would retarget it, so the old control branch
+    # would never learn its destination moved; refuse, as launch does.
+    if _git_destination(cfg) != destination:
+        raise AuthoringError(
+            "Authored configuration changes the Git destination ([git] enabled, "
+            "remote, or control_branch); ticket authoring cannot publish under a "
+            "new destination. Land that change through review first. Edits are "
+            "kept on disk."
+        )
     # Use the new roots for discovery and validation, but keep the original
     # snapshot so a relocation publishes its old-path deletions atomically
     # with the new files and configuration.

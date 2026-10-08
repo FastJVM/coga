@@ -937,7 +937,7 @@ def test_authoring_refused_over_a_concurrent_context_edit_keeps_everything(git_r
     assert "authored" in ticket.read_text()
 
 
-@pytest.mark.parametrize("change", ["add", "modify", "delete"])
+@pytest.mark.parametrize("change", ["add", "modify", "delete", "mode"])
 @pytest.mark.parametrize("already_published", [False, True])
 def test_authoring_requires_committed_knowledge_to_be_on_control(
     git_repo, capsys, change, already_published,
@@ -958,6 +958,8 @@ def test_authoring_requires_committed_knowledge_to_be_on_control(
     before = snapshot_authoring_state(cfg)
     if change == "delete":
         context.unlink()
+    elif change == "mode":
+        context.chmod(0o755)
     else:
         context.write_text("authored knowledge\n")
     git_repo.git("add", "coga/contexts")
@@ -977,7 +979,9 @@ def test_authoring_requires_committed_knowledge_to_be_on_control(
         assert "Published these knowledge edits" not in capsys.readouterr().err
     assert "authored task" in ticket.read_text()
     assert context.exists() == (change != "delete")
-    if context.exists():
+    if change == "mode":
+        assert context.read_text() == "original\n"
+    elif context.exists():
         assert context.read_text() == "authored knowledge\n"
 
 

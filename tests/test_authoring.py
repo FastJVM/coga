@@ -458,6 +458,47 @@ def test_finalize_authored_keeps_edits_and_fails_without_a_completed_handoff(
     assert "Authored detail." in ref.ticket_path.read_text()
 
 
+@pytest.mark.parametrize(
+    "setting", ['remote = "upstream"', 'control_branch = "trunk"', "enabled = false"],
+)
+def test_finalize_authored_refuses_an_authored_git_destination_change(
+    repo, monkeypatch, setting
+):
+    cfg = load_config(repo)
+    ref = _create_task(repo, "Destination")
+    before = snapshot_authoring_state(cfg)
+    config = repo / "coga.toml"
+    with config.open("a") as f:
+        f.write(f"[git]\n{setting}\n")
+    authored_config = config.read_text()
+    calls = []
+    monkeypatch.setattr("coga.authoring.git.publish", lambda *args, **kwargs: calls.append(args))
+
+    with pytest.raises(AuthoringError, match="changes the Git destination"):
+        finalize_authored(cfg, before_snapshot=before, ref=ref)
+    assert calls == []
+    assert config.read_text() == authored_config
+
+
+def test_finalize_authored_publishes_a_mode_only_change(repo, monkeypatch):
+    cfg = load_config(repo)
+    ref = _create_task(repo, "Mode")
+    script = repo / "skills" / "team" / "run.sh"
+    _write(script, "echo hi\n")
+    script.chmod(0o644)
+    before = snapshot_authoring_state(cfg)
+    script.chmod(0o755)
+    calls = []
+    monkeypatch.setattr(
+        "coga.authoring.git.publish",
+        lambda cfg, paths, message, **kwargs: calls.append((paths, kwargs["require_paths"])),
+    )
+
+    finalize_authored(cfg, before_snapshot=before, ref=ref)
+
+    assert calls == [([script.absolute()], [script.absolute()])]
+
+
 @pytest.mark.parametrize("change", ["new", "edited", "deleted"])
 def test_finalize_authored_publishes_attachment_changes(repo, monkeypatch, change):
     cfg = load_config(repo)
