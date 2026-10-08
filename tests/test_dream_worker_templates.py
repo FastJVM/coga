@@ -433,7 +433,7 @@ def test_dream_shards_and_reconciles_the_scan_phases() -> None:
     assert "### Decide-half scan mechanics (Phases 2 and 3)" in text
     assert "bounded shards writing durable findings to disk" in norm
     assert "`bootstrap/dream/scan/scan-protocol`" in text
-    assert "mktemp -d" in text
+    assert ".coga/dream-scans/<run-id>/<phase>" in text
     assert "manifest.md" in text and "index.md" in text
     assert "Immediately create all four as empty regular files" in norm
     assert (
@@ -457,6 +457,32 @@ def test_dream_shards_and_reconciles_the_scan_phases() -> None:
     # A sharded scan still covers the whole corpus before Phase 4 deletes
     # done-ticket evidence.
     assert "sharded corpus read; classifies every finding" in text
+
+
+def test_dream_roots_scan_directories_in_gitignored_coga_state() -> None:
+    """A scan directory under `/tmp` was reaped mid-run, which empties a live
+    scan into a false `no-op` and leaves a `partial` result's recorded path
+    pointing at nothing. Template and protocol agree it lives under `.coga/`."""
+    text = DREAM_PROMPT.read_text()
+    norm = " ".join(text.replace("**", "").split())
+    protocol = (SCAN_TEMPLATES / "scan-protocol" / "SKILL.md").read_text()
+    protocol_norm = " ".join(protocol.split())
+
+    assert "`mkdir .coga/dream-scans/<run-id>/<phase>`" in norm
+    assert "never under `/tmp`, `mktemp -d`, or `$TMPDIR`" in norm
+    assert "`mktemp -d` one directory per phase" not in norm
+    assert "record its absolute path, the unread paths" in norm
+    assert "nothing else removes it" in norm
+    assert "Remove the `<run-id>` directory once it is empty" in norm
+
+    assert "`.coga/dream-scans/<run-id>/<phase>/`" in protocol_norm
+    assert "never under `/tmp`, `mktemp -d`, or `$TMPDIR`" in protocol_norm
+    assert "empty `findings.md` that reads as a clean `no-op`" in protocol_norm
+    assert "the directory is kept, not deleted" in protocol_norm
+
+    # `.coga/` is the state the packaged gitignore already keeps out of git.
+    gitignore = (RESOURCES / "templates" / "coga" / ".gitignore").read_text()
+    assert ".coga/" in gitignore.splitlines()
 
 
 def test_dream_sharding_updates_the_dream_contract() -> None:

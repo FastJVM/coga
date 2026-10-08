@@ -140,8 +140,16 @@ nothing is indistinguishable from a clean repo. Run each scan like this:
    list; a non-zero exit is a failed run of both scans (`partial`, with the
    block's stderr and a `human-needed` line in the run summary), never an
    empty owned set.
-1. **Create the scan directory.** `mktemp -d` one directory per phase and keep
-   its absolute path. Both scans and the shard subagents follow
+1. **Create the scan directory** under this Coga workspace's gitignored
+   `.coga/`, never under `/tmp`, `mktemp -d`, or `$TMPDIR`. Pick one run id per
+   Dream run (`date -u +%Y%m%dT%H%M%SZ`), then create one directory per phase —
+   `mkdir -p .coga/dream-scans/<run-id>` and
+   `mkdir .coga/dream-scans/<run-id>/<phase>` with the phase's scan skill name
+   (`knowledge-scan`, `contract-audit`), resolved from the directory holding
+   `coga.toml` — and keep its absolute path. Temporary storage is reaped
+   underneath long runs by the OS, the agent harness, or the sandbox, which
+   silently empties a live scan and leaves a `partial` result pointing at
+   nothing. Both scans and the shard subagents follow
    `bootstrap/dream/scan/scan-protocol`, which defines the directory's
    `manifest.md`, `index.md`, `findings.md`, and `progress.md`. Immediately
    create all four as empty regular files before indexing or launching any
@@ -196,8 +204,9 @@ nothing is indistinguishable from a clean repo. Run each scan like this:
    smaller attempt-2 child rows and retry those leaves once, in waves as in
    step 3. If an attempt-2
    leaf still does not complete, the phase result is `partial`: keep the scan
-   directory, and record its path, the unread paths, and a `human-needed` line
-   in the run summary.
+   directory, and record its absolute path, the unread paths, and a
+   `human-needed` line in the run summary. The path must still resolve when a
+   human reads the summary days later; that is why it lives under `.coga/`.
 6. **Merge into the blackboard.** Read `findings.md` and merge it into this
    task's `## Findings`, de-duplicating across shards — two shards may describe
    one underlying issue from different evidence; re-read a named file when you
@@ -205,7 +214,9 @@ nothing is indistinguishable from a clean repo. Run each scan like this:
    the context/skill area they touch.
 
 Delete the scan directory only after its findings are merged into the
-blackboard, and only when the phase completed. Report each scan's result as
+blackboard, and only when the phase completed; nothing else removes it. Remove
+the `<run-id>` directory once it is empty, so a surviving one always means a
+`partial` phase a human still has to read. Report each scan's result as
 `reported` with the shard and merged finding counts, `no-op` when every active
 leaf completed and the de-duplicated findings across all attempts total zero,
 or `partial` when any active leaf did not complete. Superseding a shard changes
