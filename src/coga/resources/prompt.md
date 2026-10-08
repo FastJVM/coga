@@ -95,25 +95,6 @@ State transitions notify on their own. Add a one-line FYI only when useful:
 
 Neither replaces `coga block`. Put longer detail on the blackboard.
 
-## Keep Coga small and legible
-
-When changing Coga itself, preserve its microkernel boundary. `src/coga/`
-contains only:
-
-1. shared infrastructure with at least two real consumers; and
-2. genuine command implementations that need Python logic and cannot be an
-   alias, including the fixed functions registered in `runner.RECIPES` behind
-   `coga run`.
-
-Everything else stays at the edge: process knowledge and reusable recipes in
-skills, ticket-owned deterministic work in its exact sibling `ticket.py`
-(which may call a wheel-owned edge module; see `coga/packaging`), and
-launch-target spellings as aliases. Backing a CLI spelling is not by itself a
-pass into core — a launch-target command is an argv rewrite in `[aliases]`,
-whereas a registered `coga run` name is a real package implementation with a
-stable argv, stdout, and exit contract. Prefer plain markdown, Python, git,
-and shell operations over hidden state or new machinery.
-
 ## Boundaries
 
 - Do not run `coga launch` from inside an agent launch. Use a subagent or edit

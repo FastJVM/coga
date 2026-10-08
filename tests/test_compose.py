@@ -308,6 +308,41 @@ def test_queue_conduct_resources_share_their_invariants() -> None:
         assert "does not release the queue" in normalized
 
 
+_PACKAGED_PROMPT_LAYERS = (
+    "prompt.md",
+    "prompt-blocker-resolution.md",
+    *SESSION_CONDUCT_RESOURCES.values(),
+)
+
+
+@pytest.mark.parametrize("resource", _PACKAGED_PROMPT_LAYERS)
+def test_packaged_prompt_layers_carry_no_coga_source_rules(resource: str) -> None:
+    """Every repo composes these layers from the installed package, so a rule
+    about Coga's own source tree belongs in this repo's `coga/context.md`."""
+    text = files("coga.resources").joinpath(resource).read_text()
+
+    for marker in (
+        "src/coga",
+        "coga_edge",
+        "runner.RECIPES",
+        "microkernel",
+        "When changing Coga itself",
+    ):
+        assert marker not in text, (resource, marker)
+
+
+def test_coga_repo_context_carries_the_minimal_core_boundary() -> None:
+    """The rule moved out of `prompt.md` still reaches Coga's own tickets."""
+    repo_root = Path(__file__).resolve().parents[1]
+    text = " ".join((repo_root / "coga" / "context.md").read_text().split())
+
+    assert "## Keep Coga small and legible" in text
+    assert "shared infrastructure with at least two real consumers" in text
+    assert "registered in `runner.RECIPES` behind" in text
+    assert "argv rewrite in `[aliases]`" in text
+    assert "When changing Coga itself" not in text
+
+
 @pytest.mark.parametrize(
     "workflow_name",
     [
@@ -601,14 +636,10 @@ def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:
     assert "continue that next step in this same session" not in prompt
     assert "On the final step, `coga bump` marks" in prompt
     assert "the task `done`" in prompt
-    # The every-launch contract carries the minimal-core boundary without
-    # requiring a task to attach the longer coga/extension-model context.
-    assert "shared infrastructure with at least two real consumers" in prompt
-    assert "genuine command implementations" in prompt
-    assert "Everything else stays at the edge" in prompt
-    assert "registered in `runner.RECIPES` behind" in prompt
-    assert "pass into core" in prompt
-    assert "argv rewrite in `[aliases]`" in prompt
+    # Coga's own minimal-core boundary is this repo's `coga/context.md`, not
+    # the shipped base prompt every other repo composes.
+    assert "Keep Coga small and legible" not in prompt
+    assert "registered in `runner.RECIPES` behind" not in prompt
     # `coga bump` exposes human-only `--to`/`--backward`; the prompt says so.
     assert "`--to` and `--backward`" in prompt
     assert "are human-only" in prompt
