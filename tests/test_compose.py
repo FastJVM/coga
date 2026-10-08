@@ -339,6 +339,8 @@ def test_coga_repo_context_carries_the_minimal_core_boundary() -> None:
     assert "## Keep Coga small and legible" in text
     assert "shared infrastructure with at least two real consumers" in text
     assert "registered in `runner.RECIPES` behind" in text
+    assert "reviewed, co-versioned command contracts" in text
+    assert "Python logic or inability to use an alias does not establish a core home" in text
     assert "argv rewrite in `[aliases]`" in text
     assert "When changing Coga itself" not in text
 

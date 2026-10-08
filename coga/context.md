@@ -9,9 +9,11 @@ resources, and the canonical topic library under `docs/contexts/`. Root
 Preserve Coga's microkernel boundary. `src/coga/` contains only:
 
 1. shared infrastructure with at least two real consumers; and
-2. genuine command implementations that need Python logic and cannot be an
-   alias, including the fixed functions registered in `runner.RECIPES` behind
-   `coga run`.
+2. reviewed, co-versioned command contracts: the fixed functions registered
+   in `runner.RECIPES` behind `coga run`, or commands whose contracts name a
+   package-private invariant or atomic transaction that an edge implementation
+   using stable CLI and filesystem interfaces could not preserve. Python
+   logic or inability to use an alias does not establish a core home.
 
 Everything else stays at the edge: process knowledge and reusable recipes in
 skills, ticket-owned deterministic work in its exact sibling `ticket.py`
