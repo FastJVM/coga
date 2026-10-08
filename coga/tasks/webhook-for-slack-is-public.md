@@ -1,8 +1,21 @@
 ---
 title: webhook for slack is public
-status: draft
+status: active
 owner: nicktoper
-workflow: maintenance/with-approval
+workflow:
+  name: maintenance/with-approval
+  steps:
+  - name: inventory
+    skills: []
+    assignee: agent
+  - name: approve
+    skills: []
+    assignee: owner
+  - name: cleanup-and-verify
+    skills: []
+    assignee: agent
+step: 1 (inventory)
+agent: claude
 ---
 
 ## Description
