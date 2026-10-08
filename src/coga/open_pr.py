@@ -541,11 +541,9 @@ def _pr_presentation(
     paths = {path for _, names in changes for path in names}
     for status, names in changes:
         for path in names:
-            reason = files.get(path, "").strip()
-            if not reason:
-                reason = "Explanation missing; inspect this change."
+            if not files.get(path, "").strip():
                 issues.append(f"Unexplained path: {path}")
-            file_rows.append(f"| <code>{_cell(path)}</code> | {status} | {_cell(reason)} |")
+            file_rows.append(f"| <code>{_cell(path)}</code> | {status} |")
     extras = sorted(set(files) - paths)
     if extras:
         issues.append("Prepared paths outside this diff: " + ", ".join(extras))
@@ -583,7 +581,7 @@ def _pr_presentation(
         f"Evidence scope: head `{head}`, diff base `{base}`.\n\n"
         f"## Implementation\n\n{prose['implementation']}\n\n"
         f"## Deviations and limitations\n\n{prose['deviations']}\n\n{prose['limitations']}\n\n"
-        "## Changed files\n\n| Path | Change | Why |\n| --- | --- | --- |\n"
+        "## Changed files\n\n| Path | Change |\n| --- | --- |\n"
         + "\n".join(file_rows)
         + "\n\n## Checks\n\n"
         + "\n\n".join(check_items)

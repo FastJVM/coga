@@ -145,9 +145,12 @@ is `passed`, `failed`, `pending`, or `not-run`. Every receipt needs a detail
 (result/counts or reason for omission). With no independent review, use self
 or none and explain why; do not turn an absent tool into a passed review.
 
-The formatter enumerates paths using Git's NUL-delimited rename-aware diff,
-then attaches explanations. Missing paths are visible as unexplained; extra
-prepared paths are reported as outside the current diff. The body starts with
+The formatter enumerates paths using Git's NUL-delimited rename-aware diff.
+The file table shows only each path and its change type (`M`, `A`, `D`, or the
+rename/copy status). Per-file explanations stay in preparation as coverage
+evidence; they are not repeated in a Why column. Missing preparation paths
+are reported as unexplained; extra prepared paths are reported as outside
+the current diff. The body starts with
 the recommendation/rationale, then authorship/review, implementation,
 deviations/limitations, every file, and actual check receipts. Checks are a list:
 each result or omission reason comes first, with its command in a separate

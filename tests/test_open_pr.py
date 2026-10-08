@@ -292,7 +292,7 @@ def test_open_pr_body_falls_back_to_description(tmp_path, monkeypatch):
     assert "[deep · A:unknown R:unknown]" in calls
     assert "No check evidence or omission reason recorded" in calls
     assert "No independent review performed" in calls
-    assert "Explanation missing" in calls
+    assert "Unexplained path" in calls
 
 
 def test_open_pr_readies_existing_draft(tmp_path, monkeypatch):
@@ -1040,7 +1040,8 @@ def test_open_pr_renders_prepared_depth_and_actual_identities(tmp_path, monkeypa
     data = json.loads((bin_dir / "view.json").read_text())
     assert data["title"] == f"[{depth} · A:codex R:claude] Explain the changed behavior"
     assert "3 passed." in data["body"]
-    assert "Describe the new behavior." in data["body"]
+    assert "<code>coga/change.txt</code> | A |" in data["body"]
+    assert "Describe the new behavior." not in data["body"]
     assert "Ship the change" in data["body"]  # verbatim original title
     assert "author_evidence:" not in data["body"]  # no recursive preparation
 
@@ -1145,7 +1146,7 @@ def test_open_pr_refuses_human_edits_before_push(tmp_path, monkeypatch, edit):
         ("not-run", "skim", "Workflow permits focused checks"),
         ("missing-reason", "deep", "no recorded result or omission reason"),
         ("missing-checks", "deep", "No check evidence"),
-        ("missing-path", "deep", "Explanation missing"),
+        ("missing-path", "deep", "Unexplained path"),
         ("extra-path", "deep", "Prepared paths outside this diff"),
         ("merge-self-review", "deep", "requires independent review"),
         ("independent-is-author", "deep", "R:codex(self)"),
@@ -1273,10 +1274,13 @@ def test_open_pr_lists_add_delete_and_both_rename_paths(tmp_path, monkeypatch):
     _install_fake_gh(monkeypatch, bin_dir)
     open_pr(load_config(repo.coga_os), slug="presentation", blackboard_path=ticket)
     body = json.loads((bin_dir / "view.json").read_text())["body"]
-    assert "<code>coga/old name.txt</code> | R100 | Rename" in body
-    assert "<code>coga/new &#124; name.txt</code> | R100 | Rename" in body
-    assert "<code>coga/delete.txt</code> | D | Remove" in body
-    assert "<code>coga/change.txt</code> | A | Describe" in body
+    assert "<code>coga/old name.txt</code> | R100 |\n" in body
+    assert "<code>coga/new &#124; name.txt</code> | R100 |\n" in body
+    assert "<code>coga/delete.txt</code> | D |\n" in body
+    assert "<code>coga/change.txt</code> | A |\n" in body
+    assert "| Path | Change |\n| --- | --- |" in body
+    assert "| Why |" not in body
+    assert "Rename the documented example." not in body
 
 
 @pytest.mark.parametrize("yaml_text", ["- item", "checks: [broken", "title: [wrong type]"])
