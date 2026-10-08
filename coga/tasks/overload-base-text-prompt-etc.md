@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 3e2da5a1-cef6-4a5d-87f6-a77af667d840
 ---
 
 ## Description
@@ -185,57 +184,141 @@ Not done / for review: no `coga/resources/README.md` scaffold shipped (out of
 scope). The packaged stub is still always treated as stock even after an
 override, by design (pre-override tickets).
 
+## Peer review
+
+Codex peer review completed on 2026-10-08. Started on clean main, fetched
+origin/main, and rebased the feature branch unconditionally onto e11ea75e1147a6d7cc0a7cde83aa622030dc069d.
+Original author: Claude Code (claude-opus-5-5); review fixes: this Codex session.
+
+- `codex review --base main` returned on 6a58a21a00d032d330102a9c26a44a046dd5c82f
+  with three P2 findings: directory allocation before override read, uncaught
+  creation failures, and silent fallback for broken links. Fixed in f24e20ac0.
+- The same command returned on f24e20ac04c9fa32a8ba95afcc7b5d0daa51931c
+  with two P2 findings (asymmetric archive filtering and unreadable-directory
+  validation) and one P3 formatting TypeError. All fixed in e7c93dc76.
+- The final command returned on e7c93dc76a8823b65cb7d6e424ee432ee4c54e0d, base e11ea75e1147a6d7cc0a7cde83aa622030dc069d,
+  with no actionable findings. The initial review was independent of Claude;
+  the final review is self-review of Codex fixes. All three used Codex CLI
+  v0.160.1 / gpt-6-astra. The first sandboxed invocation could not initialize
+  its app server; successful reviews used the approved unsandboxed retry.
+
+Historical checks: 3415 passed in 255.57s on 6a58a21a0; 3423 passed in
+374.68s on f24e20ac0. These receipts are not evidence for the final head.
+Final suite: 3426 passed in 355.48s (0:05:55); exact final commands and scope are in PR preparation.
+No unresolved findings. The branch is committed and pushed. At return, main
+advanced to d69bafec061181faa55a2069d8c0798cde3e433c through unrelated
+ticket/log state only; all 13 drift paths are outside the feature diff and this
+ticket. The reviewed code base remains e11ea75e1; no later rebase changed the head.
+
+Human-facing check: drove `launch bootstrap/orient --prompt-report` in a real
+PTY at 80x24 and 120x40 against an isolated copy of example. Both override
+paths were visible and complete (long paths wrap normally); no cursor or pager
+state is involved. A typo override produced an unknown-resource-override
+warning with exit 0. Example validation otherwise returned no issues.
+
 ## PR
 
 ```yaml
 title: Let repos override Coga's fixed text resources
-author: claude
-author_evidence: Implement step session ran as Claude Code (claude-opus-5-5); this handoff.
-head: a6afb07af437e90d8c0e17df1a8b339d0909404e
-base: e7d7f720664bac5019279a20de31ccd9d0e0d92b
+author: claude/codex
+author_evidence: Claude Code (claude-opus-5-5) implemented a6afb07; this Codex peer-review session authored
+  fixes f24e20ac0 and e7c93dc76. Rebase carried the original implementation as 6a58a21a0.
+head: e7c93dc76a8823b65cb7d6e424ee432ee4c54e0d
+base: e11ea75e1147a6d7cc0a7cde83aa622030dc069d
 depth: deep
-rationale: Touches every launch prompt's fixed layers, draft-activation readiness, and several activation error paths; no code review has run yet.
-implementation: One repo-first resolver (paths.load_resource) for the seven top-level resources, threaded through compose, blackboard, create, validate, mark, and retire; prompt report shows overrides via PromptLayer.path; validate warns on unknown names.
-deviations: Ticket context mentioned a repo/packaged source marker next to the conduct ref; followed the Done criterion instead (PromptLayer.path, no new field). cfg is keyword-optional on blackboard text helpers (None = packaged only).
-limitations: Replace-only by design; overridden files stop receiving upstream edits. Unreadable-override handling for activation was added at each existing BlackboardNeedsSynthesis handler rather than a shared mechanism.
+rationale: Inspect the shared prompt-loading and failure paths. All checks pass and the final Codex review
+  returned, but Codex also authored review fixes, so the final receipt is self-review rather than independent
+  verification of every change.
+implementation: A shared repo-first resolver wholly replaces any of seven fixed resources when coga/resources/<name>
+  exists. Prompt reports expose override paths; validation warns on typos and reports unreadable overrides.
+  Blackboard creation preflights text before allocating a task path; recurring failures stay per-template;
+  stock detection compares both sides after archive projection; invalid retire formats name the override.
+deviations: Ticket context mentioned a repo/packaged source marker next to the conduct ref; followed the
+  Done criterion instead (PromptLayer.path, no new field). cfg is keyword-optional on blackboard text
+  helpers (None = packaged only).
+limitations: 'Replace-only: repo overrides stop receiving upstream edits until manually merged. No templates/
+  overrides, relocation option, or README scaffold. Verified on Python 3.12.12; no Python 3.11 run. Final
+  review is self-review of the Codex-authored fixes.'
 files:
-  docs/contexts/coga/blackboard/SKILL.md: Document the overridable stock placeholder and three-way stock detection.
-  docs/contexts/coga/prompt-composition/SKILL.md: Own the resource override rule and the prompt-report override listing.
+  docs/contexts/coga/blackboard/SKILL.md: Document the overridable stock placeholder and three-way stock
+    detection.
+  docs/contexts/coga/prompt-composition/SKILL.md: Own the resource override rule and the prompt-report
+    override listing.
   docs/contexts/coga/session-conduct/SKILL.md: Point conduct overrides at the owning rule.
-  src/coga/blackboard.py: Read blackboard.md via the resolver; stock detection accepts packaged, raw, and title-rendered override.
-  src/coga/commands/launch.py: Report repo overrides; refuse launch cleanly on an unreadable override during activation.
+  src/coga/blackboard.py: Render overrides and recognize packaged, raw, and title-rendered stock forms
+    with symmetric archive projection.
+  src/coga/commands/launch.py: Report repo overrides; refuse launch cleanly on an unreadable override
+    during activation.
   src/coga/commands/mark.py: Refuse activation cleanly on an unreadable override.
   src/coga/commands/retire.py: Render retire.md via the resolver; name the override file on a bad template.
   src/coga/compose.py: Fixed layers read via the resolver and carry the override path.
-  src/coga/create.py: Render the repo blackboard override for new tickets.
+  src/coga/create.py: Render blackboard overrides before allocating a task directory so failed recurring
+    creation is retryable.
   src/coga/dream_validate_drift.py: Classify the two new validator kinds as human-needed.
   src/coga/mark.py: Pass cfg into draft-blackboard readiness.
   src/coga/megalaunch.py: Treat an unreadable override as a per-task activation failure.
-  src/coga/paths.py: Add RESOURCE_NAMES, the repo-first resolver, and RepoResourceUnreadable.
+  src/coga/paths.py: Centralize repo-first reads and reject unreadable files, broken links, and non-file
+    known paths without fallback.
   src/coga/recurring_runner.py: Map an unreadable override to RecurringError for delegated activation.
   src/coga/resources/templates/coga/bootstrap/contexts/coga/blackboard/SKILL.md: Packaged twin of coga/blackboard.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: Packaged twin of coga/prompt-composition.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/session-conduct/SKILL.md: Packaged twin of coga/session-conduct.
-  src/coga/validate.py: Check resources/ for unknown and unreadable overrides; pass cfg to blackboard helpers.
-  tests/test_blackboard.py: Cover override render, fallback, and stock detection forms.
-  tests/test_compose.py: Cover base prompt, conduct variant, bootstrap override, fallback, and unreadable override.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: Packaged twin
+    of coga/prompt-composition.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/session-conduct/SKILL.md: Packaged twin of
+    coga/session-conduct.
+  src/coga/validate.py: Warn on unknown names; report unreadable files/directories and failed readiness;
+    leave unsafe fence repairs untouched.
+  tests/test_blackboard.py: Cover override/fallback and all stock forms, including archived template sections.
+  tests/test_compose.py: Cover base prompt, conduct variant, bootstrap override, fallback, and unreadable
+    override.
   tests/test_launch.py: Cover the prompt-report override listing.
-  tests/test_retire.py: Cover retire.md override and stray-brace error.
-  tests/test_validate.py: Cover unknown-name warning and unreadable-override error.
+  tests/test_retire.py: Cover override rendering and malformed brace, attribute, and index placeholders.
+  tests/test_validate.py: Cover typo warnings, unreadable files/directories, broken links, scoped readiness,
+    and safe-fix refusal.
+  src/coga/commands/create.py: Report unreadable blackboard overrides as a clean CLI error, including
+    guided ticket creation.
+  src/coga/recurring.py: Translate creation override errors to per-template RecurringError so the sweep
+    continues.
+  tests/test_create.py: Verify the create CLI names a bad override and creates no ticket.
+  tests/test_recurring.py: Prove a bad blackboard leaves existing periods runnable and permits creation
+    after repair.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement step does not review; code review belongs to a later workflow step.
+  reviewer: codex
+  kind: self
+  status: passed
+  head: e7c93dc76a8823b65cb7d6e424ee432ee4c54e0d
+  base: e11ea75e1147a6d7cc0a7cde83aa622030dc069d
+  detail: codex review --base main returned on the final head with no actionable findings; its affected-area
+    tests passed 1,215 tests. Original Claude implementation was reviewed independently by Codex; subsequent
+    fixes were authored by Codex and the final Codex review is conservatively recorded as self-review.
 checks:
-  - command: .venv/bin/python -m pytest -q
-    status: passed
-    head: a6afb07af437e90d8c0e17df1a8b339d0909404e
-    base: e7d7f720664bac5019279a20de31ccd9d0e0d92b
-    detail: 3415 passed in 257s; run on the working tree that was then committed unchanged as a6afb07 (rebase was a no-op).
-  - command: (cd example && env -u SLACK_WEBHOOK_URL ../.venv/bin/coga validate --json)
-    status: passed
-    head: a6afb07af437e90d8c0e17df1a8b339d0909404e
-    base: e7d7f720664bac5019279a20de31ccd9d0e0d92b
-    detail: 0 issues, ok_count 4; with a temporary resources/promt.md it reported one unknown-resource-override warn.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q
+  status: passed
+  head: e7c93dc76a8823b65cb7d6e424ee432ee4c54e0d
+  base: e11ea75e1147a6d7cc0a7cde83aa622030dc069d
+  detail: 3426 passed in 355.48s (0:05:55); Python 3.12.12, final committed tree.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_blackboard.py tests/test_validate.py
+    tests/test_retire.py tests/test_packaging.py
+  status: passed
+  head: e7c93dc76a8823b65cb7d6e424ee432ee4c54e0d
+  base: e11ea75e1147a6d7cc0a7cde83aa622030dc069d
+  detail: 200 passed in 13.85s; working tree committed unchanged as e7c93dc76.
+- command: cd example && env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/coga/src /home/n/Code/coga/.venv/bin/python
+    -m coga.cli validate --json
+  status: passed
+  head: e7c93dc76a8823b65cb7d6e424ee432ee4c54e0d
+  base: e11ea75e1147a6d7cc0a7cde83aa622030dc069d
+  detail: 0 issues, ok_count 4.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/overload-resource-smoke.py
+  status: passed
+  head: e7c93dc76a8823b65cb7d6e424ee432ee4c54e0d
+  base: e11ea75e1147a6d7cc0a7cde83aa622030dc069d
+  detail: 'Real PTY at 80x24 and 120x40; temporary copy of example with launch-owned env and SLACK_WEBHOOK_URL
+    removed. Ran launch bootstrap/orient --prompt-report: both base and attended override paths visible;
+    ordinary line wrapping preserves full paths. validate --json with resources/promt.md returned only
+    a warning and exit 0. No raw-terminal loop or pager changed.'
+- command: git diff --check main...repo-resource-overrides
+  status: passed
+  head: e7c93dc76a8823b65cb7d6e424ee432ee4c54e0d
+  base: e11ea75e1147a6d7cc0a7cde83aa622030dc069d
+  detail: No whitespace errors.
 ```
