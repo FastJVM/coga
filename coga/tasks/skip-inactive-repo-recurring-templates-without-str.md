@@ -22,12 +22,11 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 contexts:
 - coga/recurring/scheduling
 - coga/recurring/templates
 agent: claude
-launch_generation: 40bf9a7d-a72d-4810-b669-11be7319d9cc
 ---
 
 ## Description
