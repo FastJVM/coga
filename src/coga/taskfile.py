@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from collections.abc import Iterator
 from pathlib import Path
 
 from coga.atomicio import atomic_write_text
@@ -223,6 +224,116 @@ def upsert_blackboard(path: Path, new_blackboard: str) -> None:
     atomic_write_text(path, new_text)
 
 
+# The `##` sections above the fence that compose into launch prompts
+# (`coga/tickets`, Body regions). `## PR` is the one deliberately separate
+# operational section: legacy PR preparation `open_pr` reads, never intent.
+COMPOSED_SECTIONS = ("description", "context")
+OPERATIONAL_SECTIONS = ("pr",)
+
+# A level-2 ATX heading line, bare `##` included (it still ends a section).
+_SECTION_HEADING_LINE_RE = re.compile(r"^##(?:[ \t]+(.*?))?[ \t]*$")
+_CODE_FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+
+
+@dataclass(frozen=True)
+class BodySection:
+    """One `## <heading>` section of a markdown body, as offsets into it."""
+
+    heading: str
+    start: int
+    content_start: int
+    end: int
+
+    @property
+    def key(self) -> str:
+        return self.heading.lower()
+
+
+def markdown_lines(text: str) -> Iterator[tuple[str, bool]]:
+    """Yield each line of `text` (ends kept) with whether it is code-fenced.
+
+    Fence marker lines count as fenced. A backtick or tilde run of three or
+    more opens a fence (a backtick opener's info string may not contain a
+    backtick) and the same character, at least as long, with nothing after it
+    closes it; an unclosed fence runs to EOF.
+    """
+    fence = ""
+    for line in text.splitlines(keepends=True):
+        marker = _CODE_FENCE_RE.match(line.rstrip("\r\n"))
+        if fence:
+            if (
+                marker
+                and marker.group(1)[0] == fence[0]
+                and len(marker.group(1)) >= len(fence)
+                and not marker.group(2).strip(" \t")
+            ):
+                fence = ""
+            yield line, True
+        elif marker and (marker.group(1)[0] == "~" or "`" not in marker.group(2)):
+            fence = marker.group(1)
+            yield line, True
+        else:
+            yield line, False
+
+
+def body_sections(text: str) -> list[BodySection]:
+    """Every level-2 section of `text`, in order, skipping code-fenced lines.
+
+    The one section parser for ticket bodies: compose, validate, `open_pr` and
+    create-time description checks all read it, so a heading inside a backtick
+    or tilde fenced example is text to every one of them. A section runs from
+    its heading line to the next one or EOF; `###` and deeper stay inside it.
+    Callers split off the blackboard first (`split_body`) when they mean the
+    ticket body above the fence.
+    """
+    sections: list[BodySection] = []
+    heading: str | None = None
+    start = content_start = offset = 0
+    for line, fenced in markdown_lines(text):
+        match = None if fenced else _SECTION_HEADING_LINE_RE.match(line.rstrip("\r\n"))
+        if match:
+            if heading is not None:
+                sections.append(BodySection(heading, start, content_start, offset))
+            heading = (match.group(1) or "").strip()
+            start, content_start = offset, offset + len(line)
+        offset += len(line)
+    if heading is not None:
+        sections.append(BodySection(heading, start, content_start, len(text)))
+    return sections
+
+
+def uncomposed_sections(body_above: str) -> list[str]:
+    """Headings of `##` sections above the fence that no launch prompt carries.
+
+    Excludes the composed sections and the operational `## PR`. Returned as
+    written, in order, so a warning can name each one.
+    """
+    allowed = COMPOSED_SECTIONS + OPERATIONAL_SECTIONS
+    return [s.heading for s in body_sections(body_above) if s.key not in allowed]
+
+
+def uncomposed_sections_message(headings: list[str]) -> str:
+    """The shared validate/launch wording for `uncomposed_sections` output."""
+    named = ", ".join(f"`## {h}`" if h else "a bare `##`" for h in headings)
+    return (
+        f"ticket body has sections no launch prompt carries: {named}. Only "
+        "`## Description` and `## Context` above the blackboard fence are "
+        "composed, and each section ends at the next `##` heading. Demote "
+        "each heading to `###` under `## Description` or `## Context`, or "
+        "move working notes below the blackboard fence"
+    )
+
+
+def uncomposed_sections_warning(ticket_path: Path) -> str | None:
+    """`uncomposed_sections_message` for a ticket file, or None when clean."""
+    try:
+        body = read_task_file(ticket_path).body
+    except (FileNotFoundError, TaskFileError):
+        return None
+    headings = uncomposed_sections(body)
+    return uncomposed_sections_message(headings) if headings else None
+
+
 def join_task_body(body_above: str, blackboard_text: str) -> str:
     """Build a full ticket body: body-above-fence + fence + blackboard region.
 
@@ -246,4 +357,12 @@ __all__ = [
     "replace_blackboard",
     "upsert_blackboard",
     "join_task_body",
+    "COMPOSED_SECTIONS",
+    "OPERATIONAL_SECTIONS",
+    "BodySection",
+    "body_sections",
+    "markdown_lines",
+    "uncomposed_sections",
+    "uncomposed_sections_message",
+    "uncomposed_sections_warning",
 ]

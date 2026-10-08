@@ -42,7 +42,7 @@ from coga.github_preflight import (
 )
 from coga.git import GitError
 from coga.lifecycle import TERMINAL_STATUSES
-from coga.taskfile import split_body
+from coga.taskfile import body_sections, split_body
 from coga.tasks import TaskNotFoundError, read_ticket, resolve_task
 from coga.ticket import Ticket
 
@@ -350,28 +350,14 @@ _MANAGED_END = "<!-- /coga:pr -->"
 
 
 def _sections(text: str) -> dict[str, str]:
-    """Return exact level-two sections, ignoring headings inside code fences."""
-    sections: dict[str, str] = {}
-    heading, start, offset = "", 0, 0
-    fence = ""
-    for line in text.splitlines(keepends=True):
-        marker = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line)
-        if marker:
-            run, tail = marker.groups()
-            if not fence:
-                fence = run
-            elif run[0] == fence[0] and len(run) >= len(fence) and not tail.strip():
-                fence = ""
-        elif not fence:
-            match = re.match(r"^##[ \t]+(.+?)[ \t]*\r?\n?$", line)
-            if match:
-                if heading:
-                    sections[heading] = text[start:offset]
-                heading, start = match[1].strip().lower(), offset
-        offset += len(line)
-    if heading:
-        sections[heading] = text[start:]
-    return sections
+    """Return exact level-two sections, heading line included, by lowercase name.
+
+    Parsed by the shared fence-aware `taskfile.body_sections`, the same one
+    compose and validate read, so the PR's request snapshot matches the prompt.
+    """
+    return {
+        s.key: text[s.start:s.end] for s in body_sections(text) if s.heading
+    }
 
 
 def _preparation(blackboard: str, above: str) -> dict:

@@ -38,7 +38,12 @@ The console output is unchanged.
    ticket a night.
 3. **A `problem` becomes an `active` ticket** under `coga/tasks/autofix/` on the
    `code/with-self-review` workflow, with the run record committed beside it as
-   `run-log.md`. The next `coga megalaunch` picks it up; the human gate is the
+   `run-log.md`. The analyst's body becomes the ticket's `## Description`;
+   `parse_analysis` demotes its headings so the shallowest is `###`
+   (`demote_headings`, fenced code untouched), because a `##` would end that
+   section and drop the rest of the write-up from every launch prompt
+   ([coga/tickets](../../tickets/SKILL.md), Body regions). The next
+   `coga megalaunch` picks it up; the human gate is the
    workflow's owner PR review, and a transient finding closes through the
    already-satisfied path.
 

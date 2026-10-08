@@ -72,7 +72,14 @@ from coga.lifecycle import (
     TERMINAL_STATUSES,
     VALID_STATUSES,
 )
-from coga.taskfile import BLACKBOARD_FENCE, TaskFileError, fence_count, split_body
+from coga.taskfile import (
+    BLACKBOARD_FENCE,
+    TaskFileError,
+    fence_count,
+    split_body,
+    uncomposed_sections,
+    uncomposed_sections_message,
+)
 from coga.period_state import read_snapshot, stale_keys
 from coga.paths import (
     context_resolution_paths,
@@ -473,17 +480,36 @@ def _check_one_task(
     # (`_`-prefixed) directory, which discovery never reaches (`coga/tickets`).
     if fences == 1 and ticket.status not in TERMINAL_STATUSES:
         above, _ = split_body(ticket.body, blackboard_required=False)
+        # A section that does not compose is the silent half of the same loss:
+        # it can follow Description prose, or cut Description off entirely.
+        headings = uncomposed_sections(above)
         if not _extract_section(above, "Description"):
-            out.append(Issue(
-                kind="empty-description",
-                task=task_label,
-                message=(
+            if headings:
+                message = (
+                    "`## Description` is empty, but the ticket body has "
+                    "uncomposed `##` sections (see `uncomposed-section`); "
+                    "the write-up is probably there. Demote those headings "
+                    "to `###` under `## Description` rather than cancelling"
+                )
+            else:
+                message = (
                     "`## Description` is empty — a title-only ticket whose "
                     "intent is unrecoverable from the repo; write the "
                     "description down, or cancel with a recorded reason when "
                     "the author confirms it is lost. Do not cancel it just to "
                     "clear this warning"
-                ),
+                )
+            out.append(Issue(
+                kind="empty-description",
+                task=task_label,
+                message=message,
+                severity="warn",
+            ))
+        if headings:
+            out.append(Issue(
+                kind="uncomposed-section",
+                task=task_label,
+                message=uncomposed_sections_message(headings),
                 severity="warn",
             ))
 

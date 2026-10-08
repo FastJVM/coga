@@ -63,9 +63,13 @@ reaches the transcript.
 ## The ticket is a three-region extract
 
 `_extract_section` takes one `##` heading (case-insensitive) up to the next
-`##`. Composition carries only `## Description`, `## Context`, and the
-blackboard region. Every other `##` section above the fence is dropped with no
-warning and no report line. `blackboard_for_prompt` replaces the exact
+`##`, using the shared fence-aware `taskfile.body_sections`, so a `##` line
+inside a code fence does not end a section. Composition carries only
+`## Description`, `## Context`, and the blackboard region. Every other `##`
+section above the fence is uncomposed: it reaches no layer, but launch and
+`--prompt-report` print an `uncomposed-section` warning naming it, as
+`coga validate` does. Where that material belongs is owned by
+[coga/tickets](../tickets/SKILL.md) (Body regions). `blackboard_for_prompt` replaces the exact
 `## Superseded designs` content with a short pointer to the ticket file and
 archive heading; the stored ticket is unchanged. The same projection feeds the
 blocker preamble, the report's blackboard size, and the size warning.

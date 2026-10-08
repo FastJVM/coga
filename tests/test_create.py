@@ -1063,6 +1063,38 @@ def test_cli_create_description_allows_subheadings_and_inline_fence_mention(
     assert f"## Description\n\n{description}\n\n## Context\n" in t.body
 
 
+def test_cli_create_description_allows_a_fenced_level_2_example(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `##` line inside a fenced example is text to every section reader
+    (`taskfile.body_sections`), so it cannot split `## Description`."""
+    monkeypatch.chdir(repo)
+    description = "Show the shape:\n\n```markdown\n## Acceptance Criteria\n```"
+    result = CliRunner().invoke(
+        app, ["create", "Fenced example", "--description", description]
+    )
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(repo / "tasks" / "fenced-example.md")
+    assert f"## Description\n\n{description}\n\n## Context\n" in t.body
+
+
+def test_create_task_rejects_a_level_2_heading_from_any_caller(repo: Path) -> None:
+    """Programmatic creators (autofix, retire) get the CLI's guard too, before
+    anything is written."""
+    cfg = load_config(repo)
+    with pytest.raises(ValueError, match="level-2 heading"):
+        create_task(
+            cfg=cfg,
+            title="Generated",
+            workflow_name=None,
+            contexts=[],
+            owner="marc",
+            status="draft",
+            description="Intro.\n\n## Evidence\n\nLost.",
+        )
+    assert not list(repo.glob("tasks/**/*.md"))
+
+
 # --- workflow always required ------------------------------------------------
 
 

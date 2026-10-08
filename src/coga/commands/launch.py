@@ -96,7 +96,7 @@ from coga.repl_supervisor import (
 )
 from coga.recurring import PeriodLease, local_period_lease, same_period_lease
 from coga.task_env import apply_task_env
-from coga.taskfile import TaskFileError, split_body
+from coga.taskfile import TaskFileError, split_body, uncomposed_sections_warning
 from coga.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -1068,6 +1068,9 @@ def _launch(
             _bail(str(exc))
         typer.echo(_format_prompt_report(ref.id_slug, composition))
         warning = blackboard_size_warning(ref.ticket_path)
+        if warning:
+            typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
+        warning = uncomposed_sections_warning(ref.ticket_path)
         if warning:
             typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
         return
@@ -3025,6 +3028,9 @@ def spawn_agent_session(
 
     if warn_blackboard:
         warning = blackboard_size_warning(ref.ticket_path)
+        if warning:
+            typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
+        warning = uncomposed_sections_warning(ref.ticket_path)
         if warning:
             typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
 

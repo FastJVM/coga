@@ -46,6 +46,29 @@ def test_parses_a_clean_problem_reply() -> None:
     assert "---" not in analysis.body
 
 
+def test_parse_demotes_analyst_headings_below_the_description() -> None:
+    """The body becomes `## Description`; an analyst `##` would end it there."""
+    analysis = parse_analysis(
+        "VERDICT: problem\n"
+        "TITLE: Fix the sweep crash\n"
+        "---\n"
+        "## What broke\n\nIt crashed.\n\n"
+        "### Detail\n\n```markdown\n## Not a heading\n```\n\n"
+        "## What a fix has to do\n\nCatch it.\n"
+    )
+    assert analysis.body == (
+        "### What broke\n\nIt crashed.\n\n"
+        "#### Detail\n\n```markdown\n## Not a heading\n```\n\n"
+        "### What a fix has to do\n\nCatch it."
+    )
+
+
+def test_parse_leaves_shallow_enough_headings_alone() -> None:
+    body = "Prose.\n\n### Evidence\n\n#### Log\n\nLine."
+    analysis = parse_analysis(f"VERDICT: problem\nTITLE: T\n---\n{body}\n")
+    assert analysis.body == body
+
+
 def test_parses_ok_and_duplicate_verdicts() -> None:
     assert parse_analysis("VERDICT: ok\n").verdict == "ok"
     dup = parse_analysis("VERDICT: duplicate\nDUPLICATE: autofix/branch-sweep-tz\n")
@@ -1052,6 +1075,41 @@ def test_run_autofix_creates_an_active_ticket_in_the_autofix_directory(
     # The run that produced the finding travels with the ticket.
     assert "ZoneInfoNotFoundError" in (created[0] / "run-log.md").read_text()
     assert posts and "autofix created" in posts[0]
+
+
+def test_run_autofix_composes_an_h2_headed_write_up_in_full(
+    cfg_repo, monkeypatch: pytest.MonkeyPatch, autofix_enabled
+) -> None:
+    """Whatever headings the analyst picks, the whole write-up reaches the
+    `task_description` layer `coga launch --prompt-report` sizes."""
+    from coga.compose import compose_prompt_report
+    from coga.tasks import list_tasks, read_ticket
+
+    _fake_agent_reply(
+        monkeypatch,
+        "VERDICT: problem\n"
+        "TITLE: Fix the branch-sweep recipe timezone crash\n"
+        "---\n"
+        "## What broke\n\n`branch-sweep` exited 1.\n\n"
+        "## Evidence\n\nZoneInfoNotFoundError in the record.\n\n"
+        "## What a fix has to do\n\nLoad tzdata.\n",
+    )
+    monkeypatch.setattr(autofix, "post", lambda cfg, msg, **kw: None)
+
+    autofix.run_autofix(cfg_repo, _record())
+
+    ref = next(t for t in list_tasks(cfg_repo) if t.directory == "autofix")
+    report = compose_prompt_report(cfg_repo, ref, read_ticket(ref))
+    description = next(
+        layer.text for layer in report.layers if layer.layer == "task_description"
+    )
+    for part in (
+        "### What broke\n\n`branch-sweep` exited 1.",
+        "### Evidence\n\nZoneInfoNotFoundError in the record.",
+        "### What a fix has to do\n\nLoad tzdata.",
+        "not a verified diagnosis",
+    ):
+        assert part in description
 
 
 def test_run_autofix_creates_nothing_on_an_ok_verdict(

@@ -20,7 +20,13 @@ from coga.paths import (
     tasks_dir,
 )
 from coga.slugify import slugify
-from coga.taskfile import join_task_body, split_body
+from coga.taskfile import (
+    BLACKBOARD_FENCE,
+    body_sections,
+    fence_count,
+    join_task_body,
+    split_body,
+)
 from coga.tasks import TaskRef, list_tasks
 from coga.ticket import Ticket
 from coga.workflow import Workflow
@@ -31,6 +37,31 @@ from coga.workflow import Workflow
 # positional split misread as a directory prefix. One leading `_` marks a
 # parked directory.
 _DIR_SEGMENT_RE = re.compile(r"^_?[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def description_structure_problem(description: str) -> str | None:
+    """Why `description` would break the ticket's structure, or None.
+
+    Pass the stripped description, as written under `## Description`. A level-2
+    heading line (`taskfile.body_sections`, so not one inside a fenced example)
+    would end that section early and leave the rest uncomposed, and a
+    blackboard fence on its own line would split the body from the blackboard
+    — `split_body` then sees two fences. An inline mention of the fence string
+    is harmless and allowed, as are `###` subheadings.
+    """
+    if body_sections(description):
+        return (
+            "description cannot contain a level-2 heading line ('## ...'): "
+            "it would end the ticket's '## Description' section, and the text "
+            "after it would never reach a launch prompt. Use '###' or deeper."
+        )
+    if fence_count(description):
+        return (
+            f"description cannot contain the blackboard fence line "
+            f"({BLACKBOARD_FENCE!r}): it would split the ticket body from its "
+            "blackboard."
+        )
+    return None
 
 
 def create_task(
@@ -78,6 +109,14 @@ def create_task(
     slug.)
     """
     from coga.validate import assert_task_valid
+
+    if body is None and description is not None:
+        # Every creation path, not just the CLI: autofix and retire forward
+        # generated text here, and a structural problem must fail before any
+        # write rather than leave a truncated ticket on disk.
+        problem = description_structure_problem(description.strip())
+        if problem:
+            raise ValueError(problem)
 
     owner = owner or cfg.current_user
     status = status or cfg.default_status
@@ -226,7 +265,7 @@ def create_task(
         # template, not copied into each run).
         above, _ = split_body(body, blackboard_required=False)
         ticket_body = above.rstrip() + "\n"
-        if not re.search(r"(?m)^##\s+Context\s*$", ticket_body):
+        if not any(s.key == "context" for s in body_sections(ticket_body)):
             ticket_body += "\n## Context\n\n"
     else:
         desc_body = (description or "").strip()

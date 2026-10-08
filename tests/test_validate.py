@@ -1750,6 +1750,105 @@ def test_described_ticket_has_no_empty_description_issue(repo: Path) -> None:
     assert not [i for i in report.issues if i.kind == "empty-description"]
 
 
+def _write_spec_ticket(repo: Path, body: str, *, status: str = "draft") -> None:
+    _write(
+        repo / "tasks" / "spec.md",
+        "---\ntitle: Spec\nstatus: " + status + "\nowner: marc\n"
+        "workflow: null\n---\n\n" + body,
+    )
+
+
+def test_uncomposed_section_names_each_heading_and_the_repair(repo: Path) -> None:
+    """Description opens with prose, so `empty-description` stays quiet, but
+    every `##` that no prompt carries is named. Fenced examples, the
+    blackboard, and the operational `## PR` are not sections to report."""
+    cfg = load_config(repo)
+    _write_spec_ticket(
+        repo,
+        dedent(
+            """
+            ## Description
+
+            Introductory prose.
+
+            ~~~markdown
+            ## Fenced example
+            ~~~
+
+            ## Notes
+
+            Cut off.
+
+            ## Context
+
+            ## Acceptance Criteria
+
+            - One.
+
+            ## Proposed Shape
+
+            ## PR
+
+            Legacy preparation prose.
+
+            <!-- coga:blackboard -->
+
+            ## Dev
+
+            branch: spec
+            """
+        ),
+    )
+
+    report = run(cfg)
+
+    issues = [i for i in report.issues if i.task == "spec"]
+    assert [i.kind for i in issues] == ["uncomposed-section"]
+    message = issues[0].message
+    assert issues[0].severity == "warn"
+    assert (
+        "`## Notes`, `## Acceptance Criteria`, `## Proposed Shape`." in message
+    )
+    for absent in ("Fenced example", "`## PR`", "`## Dev`"):
+        assert absent not in message
+    assert "Demote each heading to `###`" in message
+    assert report.ok_count == 1
+
+
+def test_empty_description_points_at_uncomposed_sections(repo: Path) -> None:
+    """The autofix shape: the write-up sits under H2s right after
+    `## Description`. It is not title-only, so do not tell anyone to cancel."""
+    cfg = load_config(repo)
+    _write_spec_ticket(
+        repo,
+        "## Description\n\n## What broke\n\nThe sweep crashed.\n\n"
+        "## Context\n\n<!-- coga:blackboard -->\n",
+        status="active",
+    )
+
+    report = run(cfg)
+
+    issues = {i.kind: i for i in report.issues if i.task == "spec"}
+    assert "`## What broke`" in issues["uncomposed-section"].message
+    empty = issues["empty-description"].message
+    assert "uncomposed-section" in empty
+    assert "title-only" not in empty
+
+
+def test_uncomposed_section_is_silent_on_terminal_tickets(repo: Path) -> None:
+    cfg = load_config(repo)
+    _write_spec_ticket(
+        repo,
+        "## Description\n\nDone.\n\n## Outcome\n\nShipped.\n\n"
+        "<!-- coga:blackboard -->\n",
+        status="done",
+    )
+
+    report = run(cfg)
+
+    assert not [i for i in report.issues if i.kind == "uncomposed-section"]
+
+
 class _FakeResponse:
     def __init__(self, status_code: int, text: str = "") -> None:
         self.status_code = status_code

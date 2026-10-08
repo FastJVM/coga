@@ -39,7 +39,9 @@ compose their section, so those bodies are load-bearing.
 ## review-design
 
 Owner reviews the spec the `design` step wrote into `ticket.md` —
-Description, Acceptance Criteria, Proposed Shape, Out of Scope — and answers
+`## Description` with its Acceptance criteria, Proposed shape, and Out of
+scope `###` subsections (a separate `##` for any of them never composes) — and
+answers
 anything under `## Open Questions` on the blackboard. If an
 `## Evaluator review` section is present, resolve every must-fix finding; record
 a disposition when one is intentionally rejected. Edit the ticket directly to

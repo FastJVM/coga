@@ -37,8 +37,8 @@ build, and it should not have to re-derive intent.
    Composition takes one `##` heading and stops at the next one, so a
    sibling `## Acceptance Criteria`, `## Proposed Shape`, or
    `## Out of Scope` is legible to a human reading the file and
-   invisible to the implement agent. Replace or extend the body so it
-   has:
+   invisible to the implement agent (`coga validate` warns
+   `uncomposed-section`). Replace or extend the body so it has:
    - `## Description` — the problem and why it matters, in prose,
      followed by the spec itself as `###` subsections beneath it:
      - *Acceptance criteria* — a checklist an implementer and a

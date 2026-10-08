@@ -42,12 +42,13 @@ pitfalls live in [coga/testing](../../testing/SKILL.md); checkout hazards in
   ends at the fence with no newline, start your content with a newline.
 - **`create_task` validates after it writes and logs.** It calls
   `git.write_ticket`, then `append_log`, then `assert_task_valid`, so a failed
-  validation leaves the ticket and a `created` log line on disk. A `## ` line
-  in a description passes validation but truncates the composed Description.
-  Only `commands/create.py`'s `_description_structure_problem` rejects both
-  hazards, before `load_config`. Any caller forwarding agent- or user-authored
-  text (for example `recurring_autofix.py`'s `analysis.body`) must apply the
-  same guard or accept the failure modes.
+  validation leaves the ticket and a `created` log line on disk. For the
+  `description` argument, `create.description_structure_problem` rejects a
+  `##` line outside a code fence and an own-line blackboard fence before
+  anything is written, for every caller; generated text such as the autofix
+  analyst's body must be fitted first (`recurring_autofix.demote_headings`).
+  The verbatim `body` argument has no such guard: an extra `##` there only
+  earns validate's `uncomposed-section` warning.
 - **Recipes report to the repo under test.** Pass the discovered root to
   `task_env.blackboard_from_env(coga_os_root)`; it refuses a blackboard
   outside that root's `tasks/` tree and fails closed to stdout.

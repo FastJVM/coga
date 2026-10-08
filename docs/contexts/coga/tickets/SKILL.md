@@ -131,10 +131,28 @@ explicit exception. `coga/log.md` is written only by CLI commands.
 ## Body regions
 
 Only `## Description`, `## Context`, and the live blackboard reach the agent
-([coga/prompt-composition](../prompt-composition/SKILL.md)). Any other `##`
-section above the fence, such as `## Acceptance Criteria`, is silently dropped
-from prompts: put what later steps must read under those two headings or on
-the blackboard.
+([coga/prompt-composition](../prompt-composition/SKILL.md)). Each section runs
+to the next `##` line, so any other `##` above the fence is **uncomposed**: a
+`## Acceptance Criteria` or `## Proposed Shape`, and equally a `## What broke`
+written after Description prose, which also cuts that Description short.
+
+The contract is relocate, not compose. Spec material (acceptance criteria,
+proposed shape, out of scope, evidence) goes as `###` subsections under
+`## Description`, background under `## Context`, and working notes below the
+fence. Coga deliberately does not compose extra `##` sections: an allowlist of
+intent names would drop the next unlisted one, and composing every heading
+would pull operational material into intent. `## PR` is the one operational
+section allowed above the fence (legacy PR preparation read by `open_pr`,
+never composed).
+
+The drop is not silent. `coga validate` warns `uncomposed-section` on every
+non-terminal ticket, naming each heading and the repair; `coga launch` and
+`--prompt-report` print the same warning; an `empty-description` whose body
+has uncomposed sections points at them instead of calling the ticket
+title-only. Compose, validate, `open_pr`'s request snapshot and create-time
+checks share one parser, `taskfile.body_sections`: a `##` inside a backtick
+or tilde code fence is text, and the region below the blackboard fence is
+never read as body sections.
 
 ## Creating, authoring, showing
 
@@ -145,8 +163,9 @@ the blackboard.
   prefix component (a literal slash in a title); a `_`-prefixed segment makes
   the target parked.
   `--workflow` is optional in draft ([coga/workflows](../workflows/SKILL.md)).
-  `--description` fills `## Description` and rejects a `##` line or an
-  own-line fence; blank capture is intended only in a parked directory, and
+  `--description` fills `## Description` and rejects a `##` line outside a
+  code fence or an own-line fence (`create_task` applies the same guard for
+  every programmatic caller); blank capture is intended only in a parked directory, and
   `coga validate` warns `empty-description` on non-terminal tickets. `--owner` overrides the local
   `user`; empty fails.
 - `coga ticket [title|ref]` runs the guided `bootstrap/ticket` interview on a

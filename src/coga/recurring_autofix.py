@@ -57,7 +57,7 @@ from coga.config import AgentType, Config, ConfigError, scrub_op_auth_env
 from coga.create import create_task
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.notification import post
-from coga.taskfile import TaskFileError, read_blackboard
+from coga.taskfile import TaskFileError, markdown_lines, read_blackboard
 from coga.tasks import TaskRef, list_tasks, read_ticket
 from coga.text import strip_ansi
 from coga.ticket import TicketError
@@ -573,7 +573,8 @@ TITLE: <one imperative line, at most 70 characters, naming the fix>
 <markdown body: what broke, the evidence from the record above, where in the
 repo it most likely lives, and what a fix would have to do. Write it as the
 Description of a ticket an engineer will pick up cold — no greeting, no
-sign-off.>
+sign-off. Use `###` or deeper for any headings: the body sits under the
+ticket's `## Description`, and a `##` heading would end that section.>
 """
 
 
@@ -615,7 +616,7 @@ def parse_analysis(raw: str) -> Analysis:
         after_title = text
 
     body = re.sub(r"^\s*-{3,}\s*\n", "", after_title.lstrip("\n"), count=1)
-    body = body.strip()
+    body = demote_headings(body.strip())
     if not title:
         title = "Recurring sweep reported a problem"
     return Analysis(
@@ -717,6 +718,36 @@ def analyze_record(
     if not (result.stdout or "").strip():
         raise AutofixUnavailable(f"{agent.cli} returned an empty analysis")
     return parse_analysis(result.stdout)
+
+
+_ATX_HEADING_RE = re.compile(r"^( {0,3})(#{1,6})(?=[ \t]|\r?\n|$)")
+
+
+def demote_headings(body: str) -> str:
+    """Shift every heading so the shallowest is `###`, keeping relative depth.
+
+    The analyst's body becomes the ticket's `## Description`; any `#`/`##`
+    heading in it would end that section and drop everything after it from
+    launch prompts. Instructions alone do not hold the analyst to `###`, so
+    the depth is fixed here. Fenced code is left alone; depth caps at six.
+    """
+    lines = list(markdown_lines(body))
+    levels = [
+        len(m.group(2))
+        for line, fenced in lines
+        if not fenced and (m := _ATX_HEADING_RE.match(line))
+    ]
+    shift = 3 - min(levels) if levels else 0
+    if shift <= 0:
+        return body
+    out = []
+    for line, fenced in lines:
+        m = None if fenced else _ATX_HEADING_RE.match(line)
+        if m:
+            hashes = "#" * min(6, len(m.group(2)) + shift)
+            line = m.group(1) + hashes + line[m.end():]
+        out.append(line)
+    return "".join(out)
 
 
 # --- ticketing the finding ----------------------------------------------------

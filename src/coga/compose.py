@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime
@@ -26,7 +25,7 @@ from coga.paths import (
     resolve_skill_path,
     resolve_workflow_path,
 )
-from coga.taskfile import split_body
+from coga.taskfile import body_sections, split_body
 from coga.tasks import BootstrapRef, TargetRef
 from coga.ticket import Ticket
 from coga.workflow import Workflow
@@ -41,9 +40,6 @@ class ComposeError(RuntimeError):
     this and refuses to start the task. `coga validate` catches the same
     condition statically.
     """
-
-
-_SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
 
 
 LaunchContext = Literal["attended", "megalaunch", "recurring"]
@@ -388,13 +384,14 @@ def _section(title: str, body: str) -> str:
 
 
 def _extract_section(body: str, heading: str) -> str:
-    """Extract the contents of `## <heading>` from a markdown body."""
-    matches = list(_SECTION_HEADING_RE.finditer(body))
-    for i, m in enumerate(matches):
-        if m.group(1).strip().lower() == heading.lower():
-            start = m.end()
-            end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
-            return body[start:end].strip()
+    """Extract the contents of `## <heading>` from a markdown body.
+
+    Sections come from the shared fence-aware `taskfile.body_sections`, so a
+    `##` line inside a fenced example does not end the section.
+    """
+    for section in body_sections(body):
+        if section.key == heading.lower():
+            return body[section.content_start:section.end].strip()
     return ""
 
 
