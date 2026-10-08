@@ -30,9 +30,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: 6fd877de-c80d-493b-800e-6b434a947421
 ---
 
 ## Description
@@ -258,4 +257,84 @@ The blackboard is a notepad to be written to often as the human and agent works 
    (a human aborting real work)? The spec says yes: the human chose to stop
    it, which matches the schema's meaning. Say so if you want mid-work
    aborts to stay `failed`. The record cannot tell the two apart.
+
+## Evaluator review
+
+Cold review, 2026-10-08 (Codex). **Needs owner resolution before
+implementation.** The narrow mapping change is implementable and belongs in
+the existing shared spawn infrastructure. It preserves caller exit behavior;
+the remaining issues are the evidence requirement and the proposed definition.
+This is not owner approval of either outcome or the optional schema fields.
+
+### Must resolve before implementation
+
+1. **High — the required lifecycle reproduction is incomplete, and the
+   acceptance criteria do not carry the missing work forward.** Description
+   requires a real bootstrap launch followed by an ordinary ticket step,
+   capturing raw status, supervisor kind, sentinel, persisted activity label,
+   and expected workflow progress. The Finding / How to reproduce sections
+   instead describe a direct `run_with_done_marker([cli], ...,
+   session_id="probe")` invocation with no model turn. That helper neither
+   launches a bootstrap target nor writes an activity record:
+   `src/coga/commands/launch.py::spawn_agent_session` performs the latter in
+   its `finally`. The table's label is therefore supported by the mapping
+   code, not a demonstrated capture through this probe. The blackboard also
+   explicitly records the missing ordinary step. The historical record for
+   `01a10dfa-c7d1-7062-b33d-94413f67a6c1` in `coga/log.md` confirms the reported
+   symptom but contains no exit evidence. Before handing off, either retain
+   the original requirement as an explicit outstanding implementation
+   acceptance criterion with those evidence fields, or explicitly accept the
+   narrower supervisor reproduction and revise the scope. Do not present the
+   required end-to-end investigation as already complete.
+
+2. **Medium — scope the documented interrupt definition to the actual
+   predicate, without inferring signal sender.** The proposed documentation
+   says an agent killed by SIGINT is `interrupted`, while the acceptance
+   criteria require every non-zero `natural` result to remain `failed`.
+   `src/coga/repl_supervisor.py::run_with_done_marker`'s non-TTY fallback
+   returns `ReplOutcome(-signal.SIGINT, "natural")` for a SIGINT death (both
+   the subprocess and gated-fork routes), so that case stays `failed` under
+   this design. Also, `_classify_exit` retains the signal number, not its
+   sender: externally sent SIGINT and a terminal Ctrl-C are indistinguishable
+   once represented as `130 crash`. Keep the narrow implementation, but
+   define `interrupted` as launcher `KeyboardInterrupt` or the exact
+   `crash` / `128 + SIGINT` result; describe human Ctrl-C as the observed
+   example, not provenance proved by the record. Explicitly preserve the
+   fallback's non-zero-natural behavior. This avoids expanding the fix into
+   the out-of-scope supervisor contract.
+
+### Optional recommendations and owner decisions
+
+- Resolve Open Questions 1 and 2 at the owner gate. If Q1 is accepted, name
+  `exit_code` / `exit_kind` as **normalized supervisor results**, not raw
+  child wait status. `repl_supervisor._classify_exit` deliberately reports 0
+  for done teardown and 124 for timeout, including after child signal death.
+  These fields explain the activity mapping but cannot reconstruct raw
+  termination or identify the signal sender.
+- If adding those fields, extend the spawn capture assertions as well as
+  `UsageRecord` round-trip tests: assert code/kind reach capture unchanged
+  for returned outcomes and remain null when the supervisor raises. A
+  serialization-only test would miss omitted launch-to-capture wiring.
+  In `test_spawn_captures_failed_and_timed_out_sessions`, also assert
+  `result.termination_kind == repl_outcome.kind`; today it checks exit code
+  and reason but not kind.
+
+### Verification and scope
+
+- Checked the named launch mapping, exception paths, `AgentSessionResult`,
+  `ReplOutcome`, `_classify_exit`, `usage.UsageRecord.from_json` /
+  `capture_session`, launch and usage fixtures, and packaging twin discovery.
+  The named edit points exist. Launch and megalaunch consume exit code/kind
+  independently of the activity label, consistent with the proposed boundary.
+- Read product vision, activity-capture, agent-spawn, extension-model,
+  knowledge, and testing topics. The activity-capture twin paths are correct;
+  cited topics and the frozen evaluate-design → owner review-design workflow
+  fit this work. The packaged workflow is
+  `src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md`.
+- Baseline checks (no implementation changes):
+  `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_repl_supervisor.py -k classify_exit tests/test_launch.py::test_spawn_captures_failed_and_timed_out_sessions tests/test_launch.py::test_spawn_captures_interrupted_session`
+  → 4 passed, 31 deselected (the filter selects only classifier tests).
+  `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_launch.py::test_spawn_captures_failed_and_timed_out_sessions tests/test_launch.py::test_spawn_captures_interrupted_session`
+  → 3 passed. No fresh live Codex reproduction was performed in this review.
+- Only this blackboard was edited; no ticket-body edits, branch, code, or PR.
 
