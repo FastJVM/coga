@@ -62,7 +62,8 @@ Remaining before close: the reconcile warning, which clears when the retire task
 
 ## Blockers
 
-- [ ] [2026-10-06 16:54] [agent:claude] id=20261006T165439 Waiting on task retire-reconcile-recurring-wrapper-tty-admission-guidance (created by coga retire --no-launch): launching it retires the 54 KiB reconcile-recurring-wrapper-tty-admission-guidance blackboard, the last large-blackboard member this ticket owns. The launch-locks members are fixed. recurring/dream is handed off to draft dream-s-own-blackboard-trips-large-blackboard-ever. Once the retire task finishes, close this ticket with coga mark done.
+- [x] [2026-10-06 16:54] [agent:claude] id=20261006T165439 Waiting on task retire-reconcile-recurring-wrapper-tty-admission-guidance (created by coga retire --no-launch): launching it retires the 54 KiB reconcile-recurring-wrapper-tty-admission-guidance blackboard, the last large-blackboard member this ticket owns. The launch-locks members are fixed. recurring/dream is handed off to draft dream-s-own-blackboard-trips-large-blackboard-ever. Once the retire task finishes, close this ticket with coga mark done.
+  resolved: [2026-10-08 11:22] [human:nicktoper] Retire task retire-reconcile-recurring-wrapper-tty-admission-guidance is done and the reconcile ticket is deleted; coga validate --json (2026-10-08) shows only recurring/dream under large-blackboard, owned by draft dream-s-own-blackboard-trips-large-blackboard-ever. Close this ticket.
 
 ---
 

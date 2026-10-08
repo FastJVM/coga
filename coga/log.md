@@ -7918,3 +7918,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-08 11:22 [validate-drift-blackboard-hygiene-two-oversized-bl] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-10-08 11:22 [validate-drift-blackboard-hygiene-two-oversized-bl] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-08 11:22 [validate-drift-blackboard-hygiene-two-oversized-bl] [megalaunch] launched via coga megalaunch
+2026-10-08 11:22 [validate-drift-blackboard-hygiene-two-oversized-bl] [human:nicktoper] unblocked (asks resolved, still in_progress): Retire task retire-reconcile-recurring-wrapper-tty-admission-guidance is done and the reconcile ticket is deleted; coga validate --json (2026-10-08) shows only recurring/dream under large-blackboard, owned by draft dream-s-own-blackboard-trips-large-blackboard-ever. Close this ticket.
