@@ -10,7 +10,7 @@ from hashlib import sha256
 from pathlib import Path
 
 from coga import git
-from coga.config import Config, ConfigError, find_checkout_root
+from coga.config import Config, ConfigError, find_checkout_root, load_config
 from coga.logfile import log_path
 from coga.paths import tasks_dir
 from coga.tasks import (
@@ -125,8 +125,10 @@ def snapshot_authoring_files(cfg: Config) -> dict[Path, str]:
     """Hash files the authoring interview is allowed to create or modify."""
     snapshot: dict[Path, str] = {}
     for path in _authoring_files(cfg):
-        if path.is_file():
-            snapshot[path.resolve(strict=False)] = sha256(path.read_bytes()).hexdigest()
+        # Never turn a link in an authoring root into an explicit publication
+        # request for its target (which may be source outside these roots).
+        if path.resolve(strict=False) == path.absolute() and path.is_file():
+            snapshot[path.absolute()] = sha256(path.read_bytes()).hexdigest()
     return snapshot
 
 
@@ -246,6 +248,13 @@ def finalize_authored(
     `AuthoringError`, so the interview never reports a completed handoff it
     could not make durable.
     """
+    try:
+        cfg = load_config(cfg.repo_root, require_user=False)
+    except ConfigError as exc:
+        raise AuthoringError(f"Authored configuration is invalid: {exc}") from exc
+    # Use the new roots for discovery and validation, but keep the original
+    # snapshot so a relocation publishes its old-path deletions atomically
+    # with the new files and configuration.
     changed_paths = changed_authoring_paths(before_snapshot.files, cfg)
     support = support_paths(cfg, changed_paths)
 

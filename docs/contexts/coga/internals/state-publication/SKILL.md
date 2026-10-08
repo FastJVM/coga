@@ -54,7 +54,11 @@ preparation and return (`dev/checkouts`), state-only commit recovery
 **Eligible** means a regular file Git does not ignore. Every consumer asks Git
 (`status`, `ls-files --exclude-standard`), so `coga.local.toml`, `.coga/` run
 records, generated agent-skill views, caches, and other ignored artifacts stay
-local and are never force-added. Symlinks are refused by the guard. Source
+local and are never force-added. Untracked symlinks discovered through a
+directory pathspec are skipped; explicitly named or tracked symlinks are
+refused by the guard. Submodules are refused, including a dirty, staged, or
+removed gitlink; a directory is never published as a submodule deletion.
+Source
 outside the roots, including the packaged copies under `src/`, is ordinary
 code: it reaches control only through a branch and reviewed PR.
 
@@ -170,8 +174,12 @@ checkout return, so routine state lands before the checkout moves
 `coga ticket` guided authoring (`authoring.finalize_authored`) hashes the
 eligible files under the Coga roots before the interview
 (`authoring_sync_roots` is `coga_root_paths`; Git lists the files, so ignored
-ones are never hashed). After it, the changed set is every file created,
-changed, or deleted there. An existing target is validated even when
+ones are never hashed, and symlinks are never followed). After it, finalization
+reloads and validates configuration before discovering files or validating
+tickets. The changed set compares the original snapshot with the new roots,
+so a context relocation carries the old-path deletions, destination files,
+and layout config in the same publication. Invalid configuration refuses
+before publication and keeps the edits. An existing target is validated even when
 unchanged, but its task path is selected only when its ticket or attachments
 changed; file-to-directory conversions include both paths; a deleted target
 is skipped. Bootstrap interviews discover and validate changed or new tasks.

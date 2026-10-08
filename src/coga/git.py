@@ -529,8 +529,25 @@ def _guard(
     refusals: list[str] = []
     landed: dict[str, bytes | None] = dict(working)
     tickets = set(_ticket_rels(cfg, root, rels))
+    # Git status names a dirty submodule by its directory. Reading that as
+    # bytes returns None, which must never be interpreted as its deletion.
+    gitlinks: set[str] = set()
+    for rev in ("HEAD", base):
+        entries = run_git(root, "ls-tree", "-r", "-z", rev)
+        gitlinks.update(
+            record.partition("\t")[2]
+            for record in entries.split("\x00") if record.startswith("160000 ")
+        )
+    staged = run_git(root, "ls-files", "--stage", "-z")
+    gitlinks.update(
+        record.partition("\t")[2]
+        for record in staged.split("\x00") if record.startswith("160000 ")
+    )
     for rel in rels:
         data = working[rel]
+        if rel in gitlinks:
+            refusals.append(f"{rel}: is a submodule; publish its changes through Git review")
+            continue
         if (root / rel).is_symlink():
             # `_working_tree_bytes` follows links, so publishing one would land
             # its target's bytes — possibly from outside the repo — as a
