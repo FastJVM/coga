@@ -2,7 +2,11 @@
 title: Autofix tickets launch without their write-up when the analyst uses H2 headings
 status: draft
 owner: nicktoper
-workflow: null
+agent: codex
+contexts:
+  - coga/testing
+  - coga/packaging
+workflow: code/with-review
 ---
 
 ## Description
@@ -68,6 +72,26 @@ coga/prompt-composition (`docs/contexts/coga/prompt-composition/SKILL.md`), cite
 rather than attached because they are editing targets. The original options
 below describe the narrower September autofix proposal; they are insufficient
 on their own for the expanded scope and do not waive the validator warning.
+
+This ticket runs `code/with-review`, which has no design step. The `implement`
+step therefore makes the compose-vs-relocate contract decision itself. Record
+the choice and its reasons on the blackboard before writing code, and spell it
+out in the PR so the `peer-review` step and the owner can check it.
+
+The authoring instructions that currently name the extra sections as
+first-class spec regions all need reconciling with whatever contract is chosen:
+
+- `code/design` (`coga/skills/code/design/SKILL.md` and its packaged twin):
+  already says to put the spec as `###` subsections under Description.
+- `code/review-design` (`coga/skills/code/review-design/SKILL.md` and twin):
+  reviews "Description, Acceptance Criteria, Proposed Shape, and Out of Scope"
+  as if they were sections.
+- The bundled `code/design-then-implement` workflow's `review-design` section
+  (`src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md`)
+  lists the same four names.
+- `bootstrap/ticket` already forbids a separate `## Acceptance Criteria` section.
+- `docs/contexts/coga/tickets/SKILL.md` already documents the silent drop
+  (search "Acceptance Criteria"). It owns this contract.
 
 ### Mechanism (verified against `origin/main` c2268b05, 2026-09-22)
 
