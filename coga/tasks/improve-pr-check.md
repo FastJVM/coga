@@ -159,89 +159,110 @@ Actual implementing agent: Codex (session identity; ticket's configured `claude`
 
 - Publication completed with the tested source snapshot via `PYTHONPATH=/tmp/improve-pr-check-publication/src .venv/bin/python -m coga.cli run open-pr improve-pr-check`. Verified PR #975 head/title/generated body against the current preparation; its entire previous unmarked body is preserved below the generated region. Stdout was exactly the PR URL. The checkout is on main, and the ticket remains at step 4 (owner review); no bump or closure was performed.
 
+### Owner presentation follow-up — 2026-10-07
+
+- Owner approved rendered Markdown for the collapsible ticket, result-first check
+  lists with separate command blocks, and a file table containing only paths
+  and change types. The original ticket snapshot remains verbatim; these later
+  presentation choices are explicit owner amendments to its formatting request.
+- Pushed commits b444336d6 (ticket/check rendering) and 69911fa51 (compact file
+  table). PR #975 was refreshed and read back to verify the head, title and full
+  body. Removed the recognized legacy YAML tail and duplicate closure line at
+  the owner's request; normal refresh still preserves human notes.
+- Final head: 69911fa51ca44b43f2d6c89c9c070047d358870d; diff base:
+  0ff6bf7d43673ec7f1485d2fe400871a255d5c7c. Full suite:
+  `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q`
+  → 3327 passed in 282.27s (0:04:42). Focused publication/command/packaging:
+  `PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest tests/test_open_pr.py tests/test_open_pr_command.py tests/test_packaging.py -q --disable-warnings`
+  → 122 passed in 20.80s. `git diff --check origin/main...HEAD` passed.
+- GitHub Markdown API output inspected in local Chromium at 1200px and 600px.
+  The ticket renders headings/lists; file-table headers are Path and Change.
+  This is an HTML preview, not a live GitHub browser check. No independent
+  re-review after these follow-ups; the preparation states that explicitly.
+- Initial focused runs exposed a missing import in a new test and older
+  assertions requiring the now-removed Why text; corrected before the passing
+  checks above. No workflow advancement or merge performed.
+
 ## PR
 
 ```yaml
 title: Show PR review depth and preserve human edits on reruns
 author: codex
-author_evidence: Codex implemented the feature and this follow-up; Claude Opus 5.5 supplied the concurrent
-  peer-review fixes, which were preserved. Identities come from the actual sessions, not ticket assignments.
-head: b94e40e6d91322b545a72976830d04ab8705dcda
+author_evidence: Implemented by Codex, with peer-review fixes from Claude Opus 5.5.
+head: 69911fa51ca44b43f2d6c89c9c070047d358870d
 base: 0ff6bf7d43673ec7f1485d2fe400871a255d5c7c
 depth: deep
-rationale: Changes PR publication evidence and protection of human edits. A separate Codex review returned
-  with no actionable regressions on this revision and all 3324 tests passed; inspect the diff because publication
-  and overwrite behavior are consequential.
-implementation: Turn structured PR preparation into an advisory title showing review depth and actual authors/reviewers,
-  with the rationale, implementation, deviations, reasons for every changed file, check receipts and a verbatim
-  collapsible ticket snapshot. Bind receipts to the feature commit and merge base. Refresh intact generated
-  content on reruns while preserving outside human notes, refusing conflicting edits and uncertain PR lookups,
-  and keeping titles within GitHub’s limit.
-deviations: None in scope. Preserved the concurrent Claude fixes and added fail-closed lookup errors, fork-result
-  refusal, exact preservation of outside notes across CRLF normalization, and title-length budgeting. Workflow
-  test obligations are unchanged.
-limitations: 'GitHub has no atomic compare-and-set for title/body updates, so a simultaneous edit after the
-  final read can still race. Creation is covered with real local Git and fake gh; this follow-up refreshes
-  existing PR #975. Its previous unmarked description is retained below the generated region as historical
-  text for an older revision; the evidence in the generated region describes the current revision.'
+rationale: Review the publication gates and protection of human edits. This changes how Coga creates and
+  refreshes PR titles and descriptions.
+implementation: '- Show recommended review depth and actual author/reviewer identities in the title.
+
+  - Generate the description from revision-bound preparation and the actual diff.
+
+  - Refresh generated content safely while preserving human notes and refusing conflicts.
+
+  - Display a compact file list, check results with separate commands, and the original ticket as collapsible
+  Markdown.'
+deviations: The file table lists paths and change types only, as requested during owner review.
+limitations: GitHub provides no atomic title/body update; a simultaneous edit after the final read can
+  still race.
 files:
-  coga/skills/code/implement/SKILL.md: Capture actual implementing identity, exact check receipts and initial
-    PR preparation, including workflows without code review.
-  coga/skills/code/open-pr/SKILL.md: Consume prepared evidence, explain safe refresh and conflicts, and apply
-    the review-in-flight gate only when the workflow ordered code review.
-  coga/skills/code/self-qa/SKILL.md: Refresh preparation after fixes and distinguish self-review from independent
-    review on a particular revision.
+  coga/skills/code/implement/SKILL.md: Capture actual implementing identity, exact check receipts and
+    initial PR preparation, including workflows without code review.
+  coga/skills/code/open-pr/SKILL.md: Consume prepared evidence, explain safe refresh and conflicts, and
+    apply the review-in-flight gate only when the workflow ordered code review.
+  coga/skills/code/self-qa/SKILL.md: Refresh preparation after fixes and distinguish self-review from
+    independent review on a particular revision.
   docs/contexts/coga/internals/pr-publication/SKILL.md: Own the rubric, preparation schema, fallback behavior
-    and generated-content conflict contract while retaining publication guarantees.
-  example/coga/workflows/code/with-review.md: Keep the example publication step representative of the structured
-    preparation and deterministic command.
-  src/coga/open_pr.py: Render revision-bound evidence and the literal request; preserve prior peer fixes, refuse
-    uncertain/fork lookups before push, preserve exact outside notes through newline normalization, and budget
-    the title prefix within 256 characters.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/pr-publication/SKILL.md: Ship the byte-identical
-    owning publication topic and its rubric/schema.
-  src/coga/resources/templates/coga/bootstrap/skills/code/implement/SKILL.md: Ship the byte-identical code/implement
-    skill so installed repositories receive the same preparation instructions.
+    and generated-content conflict contract while retaining publication guarantees. Specify Markdown ticket
+    rendering and result-first check lists.
+  example/coga/workflows/code/with-review.md: Keep the example publication step representative of the
+    structured preparation and deterministic command.
+  src/coga/open_pr.py: Render revision-bound evidence and the literal request; preserve prior peer fixes,
+    refuse uncertain/fork lookups before push, preserve exact outside notes through newline normalization,
+    and budget the title prefix within 256 characters. Render the ticket as Markdown and check results
+    as a list with separate command blocks.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/pr-publication/SKILL.md: Ship the
+    byte-identical owning publication topic and its rubric/schema. Specify Markdown ticket rendering and
+    result-first check lists.
+  src/coga/resources/templates/coga/bootstrap/skills/code/implement/SKILL.md: Ship the byte-identical
+    code/implement skill so installed repositories receive the same preparation instructions.
   src/coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md: Ship the byte-identical code/open-pr
     skill so installed repositories receive the same preparation instructions.
   src/coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md: Ship the byte-identical code/self-qa
     skill so installed repositories receive the same preparation instructions.
   src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md: Require implement-owned
     preparation and explicitly distinguish design approval from code review.
-  src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md: Make the peer-review step prepare
-    actual review/check receipts after its final fixes and rebase, and explain that a review receipt covers
-    only the revision it read.
-  src/coga/resources/templates/coga/bootstrap/workflows/code/with-self-review.md: Point workflow framing at
-    the shared preparation contract and honest self-review reporting.
-  tests/test_open_pr.py: Cover review depths, identities, stale/legacy evidence and safe refresh, plus regression
-    cases for failed/malformed/fork lookups, exact CRLF note preservation and long prepared/fallback titles.
-  tests/test_open_pr_command.py: Make the command fixture emit gh’s explicit branch-not-found response so command
-    and URL-only output tests exercise fail-closed lookup.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-review.md: Make the peer-review step
+    prepare actual review/check receipts after its final fixes and rebase, and explain that a review receipt
+    covers only the revision it read.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/with-self-review.md: Point workflow framing
+    at the shared preparation contract and honest self-review reporting.
+  tests/test_open_pr.py: Cover review depths, identities, stale/legacy evidence and safe refresh, plus
+    regression cases for failed/malformed/fork lookups, exact CRLF note preservation and long prepared/fallback
+    titles. Verify rendered-ticket source preservation and check command blocks, including multiline commands
+    and literal backticks.
+  tests/test_open_pr_command.py: Make the command fixture emit gh’s explicit branch-not-found response
+    so command and URL-only output tests exercise fail-closed lookup.
 review:
   reviewer: codex-review
   kind: independent
-  status: passed
-  head: b94e40e6d91322b545a72976830d04ab8705dcda
-  base: 0ff6bf7d43673ec7f1485d2fe400871a255d5c7c
-  detail: 'Separate codex review --base origin/main process (gpt-6-astra, session 01a117c1-3c1e-7271-83a5-51a2e0bb779f)
-    returned, exit 0: no actionable regressions. This process did not implement the change; its focused publication/command/packaging
-    run passed 119 tests.'
+  status: not-run
+  detail: Previous independent review passed at b94e40e6; not rerun after the follow-up edits.
 checks:
 - command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest -q
   status: passed
-  head: b94e40e6d91322b545a72976830d04ab8705dcda
+  head: 69911fa51ca44b43f2d6c89c9c070047d358870d
   base: 0ff6bf7d43673ec7f1485d2fe400871a255d5c7c
-  detail: 3324 passed in 348.91s (0:05:48); includes publication, command, packaging twin and existing workflow
-    coverage after rebasing onto the newly merged branch-cleanup changes.
-- command: env -u SLACK_WEBHOOK_URL PYTHONPATH=/home/n/Code/codex/coga/src /home/n/Code/codex/coga/.venv/bin/python
-    -m coga.cli validate --json
+  detail: 3327 passed in 282.27s (0:04:42).
+- command: PYTHONPATH=/home/n/Code/codex/coga/src .venv/bin/python -m pytest tests/test_open_pr.py tests/test_open_pr_command.py
+    tests/test_packaging.py -q --disable-warnings
   status: passed
-  head: b94e40e6d91322b545a72976830d04ab8705dcda
+  head: 69911fa51ca44b43f2d6c89c9c070047d358870d
   base: 0ff6bf7d43673ec7f1485d2fe400871a255d5c7c
-  detail: 'Run from example/coga: ok_count 4, no issues.'
+  detail: 122 passed in 20.80s.
 - command: git diff --check origin/main...HEAD
   status: passed
-  head: b94e40e6d91322b545a72976830d04ab8705dcda
+  head: 69911fa51ca44b43f2d6c89c9c070047d358870d
   base: 0ff6bf7d43673ec7f1485d2fe400871a255d5c7c
-  detail: No whitespace errors on the final branch diff.
+  detail: No whitespace errors.
 ```
