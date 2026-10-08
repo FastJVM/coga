@@ -95,13 +95,14 @@ def test_retire_uses_repo_retire_template_override(
     assert "Retire the done ticket" not in body
 
 
+@pytest.mark.parametrize("placeholder", ["{json: true}", "{slug.missing}", "{"])
 def test_retire_override_with_stray_brace_names_the_file(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+    repo: Path, monkeypatch: pytest.MonkeyPatch, placeholder: str,
 ) -> None:
     monkeypatch.chdir(repo)
     _seed_done_task(repo, "fix-retry-logic")
     override = repo / "resources" / "retire.md"
-    _write(override, "Retire {slug} using {json: true}.\n")
+    _write(override, "Retire {slug} using " + placeholder + ".\n")
 
     result = CliRunner().invoke(app, ["retire", "fix-retry-logic", "--no-launch"])
 

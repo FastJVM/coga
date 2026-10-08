@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from importlib.resources import files
 from pathlib import Path
+import stat
 
 from coga.config import Config, find_checkout_root, require_context_artifact
 
@@ -86,9 +87,20 @@ def resolve_resource_path(cfg: Config | None, name: str) -> Path | None:
     if cfg is None:
         return None
     local = resource_override_path(cfg, name)
-    if local.is_file():
-        return local
-    return None
+    try:
+        mode = local.lstat().st_mode
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise RepoResourceUnreadable(
+            f"repo resource override {local} could not be inspected ({exc})"
+        ) from exc
+    if not (stat.S_ISREG(mode) or stat.S_ISLNK(mode)):
+        raise RepoResourceUnreadable(
+            f"repo resource override {local} is not a file"
+        )
+    # Keep dangling links: reading them must fail, never select packaged text.
+    return local
 
 
 def load_resource(cfg: Config | None, name: str) -> tuple[str, Path | None]:

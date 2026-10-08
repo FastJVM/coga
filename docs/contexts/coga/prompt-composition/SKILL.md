@@ -66,7 +66,11 @@ reaches the transcript.
   paths ([coga/packaging](../packaging/SKILL.md)). An override that exists but
   cannot be read, or a `retire.md` override that is not a valid template,
   raises `RepoResourceUnreadable` naming the repo file, never a silent
-  fallback; compose reports it as a `ComposeError`. `coga validate` warns
+  fallback; broken symlinks and non-file entries at known names also refuse.
+  Compose reports it as a `ComposeError`. Task creation reads the blackboard
+  before allocating its destination so repairing an override permits retry;
+  recurring creation reports the error per template and continues the sweep.
+  `coga validate` warns
   (`unknown-resource-override`) on a file in `resources/` that matches no
   resource name, ignoring `README.md` and dotfiles, so a typo cannot silently
   do nothing, and errors on an unreadable override.

@@ -28,6 +28,7 @@ from coga.logfile import (
     iter_log_messages_reverse,
 )
 from coga.paths import (
+    RepoResourceUnreadable,
     log_path,
     missing_skill_message,
     recurring_dir,
@@ -1526,7 +1527,10 @@ def _create_at_slug(
             force_directory=True,
             created_by="system",
         )
-    except (TaskValidationError, ValueError, WorkflowError, ConfigError) as exc:
+    except (
+        TaskValidationError, ValueError, WorkflowError, ConfigError,
+        RepoResourceUnreadable,
+    ) as exc:
         # create_task fails with TaskValidationError post-write, plain
         # ValueError pre-write (unknown contexts, slug collision, missing step
         # skill, ...), WorkflowError when `workflow:` itself does not load,

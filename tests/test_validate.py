@@ -2933,3 +2933,35 @@ def test_validate_accepts_a_draft_with_no_optional_declarations(repo: Path) -> N
     )
 
     assert not [issue for issue in run(cfg).issues if issue.task == "minimal"]
+
+
+def test_broken_resource_link_is_an_error(repo: Path) -> None:
+    override = repo / 'resources' / 'prompt.md'
+    override.parent.mkdir()
+    override.symlink_to('missing.md')
+    report = run(load_config(repo))
+    issue = next(i for i in report.issues if i.kind == 'unreadable-resource-override')
+    assert issue.severity == 'error'
+    assert str(override) in issue.message
+
+
+def test_validate_bad_blackboard_does_not_hide_readiness_or_repair(repo: Path) -> None:
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg, title='X', workflow_name=None, contexts=[],
+        owner='marc', status='draft', description='Work.',
+    )
+    path = Path(created['path'])
+    path.write_text(path.read_text() + '\nCustom working notes.\n')
+    override = repo / 'resources' / 'blackboard.md'
+    override.parent.mkdir()
+    override.write_bytes(b'\xff')
+    report = validate_task(cfg, created['slug'])
+    assert any(i.kind == 'unreadable-resource-override' for i in report.issues)
+
+    path.write_text(path.read_text().replace('<!-- coga:blackboard -->', ''))
+    before = path.read_bytes()
+    report = run(cfg, fix=True)
+    assert path.read_bytes() == before
+    assert any(i.kind == 'unreadable-resource-override' for i in report.issues)
+    assert any(i.kind == 'blackboard-fence' for i in report.issues)

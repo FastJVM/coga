@@ -1197,3 +1197,19 @@ def test_compose_unreadable_repo_override_raises_compose_error(
     msg = str(exc.value)
     assert str(override) in msg
     assert "installed Coga package" not in msg
+
+
+@pytest.mark.parametrize('kind', ['broken-link', 'directory'])
+def test_compose_rejects_unusable_override_path(repo: Path, kind: str) -> None:
+    override = repo / 'resources' / 'prompt.md'
+    override.parent.mkdir()
+    if kind == 'broken-link':
+        override.symlink_to('missing.md')
+    else:
+        override.mkdir()
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title='Unusable override')
+    ref = list_tasks(cfg)[0]
+
+    with pytest.raises(ComposeError, match=str(override)):
+        compose_prompt(cfg, ref, read_ticket(ref))

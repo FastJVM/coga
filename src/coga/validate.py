@@ -466,8 +466,15 @@ def _check_one_task(
                 blackboard_required=False,
                 cfg=cfg,
             )
-        except RepoResourceUnreadable:
-            # Reported once, repo-wide, by `_check_repo_resources`.
+        except RepoResourceUnreadable as exc:
+            # Task-scoped validation must not report success when readiness
+            # could not be checked (it does not run the repo-wide checks).
+            out.append(Issue(
+                kind="unreadable-resource-override",
+                task=task_label,
+                message=str(exc),
+                severity="error",
+            ))
             reason = None
         if reason is not None:
             out.append(Issue(
@@ -1226,7 +1233,7 @@ def _check_repo_resources(cfg: Config) -> list[Issue]:
         name = path.name
         if name.startswith(".") or name == "README.md":
             continue
-        if name not in RESOURCE_NAMES or not path.is_file():
+        if name not in RESOURCE_NAMES:
             out.append(Issue(
                 kind="unknown-resource-override",
                 task="(resources)",
@@ -1857,12 +1864,18 @@ def apply_safe_fixes(cfg: Config, only: list[TaskRef] | None = None) -> list[Fix
                 title = Ticket.read(ticket_path).title or ref.id_slug
             except (TicketError, FileNotFoundError):
                 pass
+            try:
+                blackboard = render_blackboard(title, cfg=cfg)
+            except RepoResourceUnreadable:
+                # Leave the missing fence for validation to report; an
+                # unavailable template cannot safely repair this ticket.
+                continue
             new = (
                 text.rstrip("\n")
                 + "\n\n"
                 + BLACKBOARD_FENCE
                 + "\n\n"
-                + render_blackboard(title, cfg=cfg).lstrip("\n")
+                + blackboard.lstrip("\n")
             )
             if not new.endswith("\n"):
                 new += "\n"
