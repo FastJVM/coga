@@ -15,6 +15,8 @@ If the code and the init messages turn out to disagree with each other or the te
 
 ## Context
 
+**On hold (2026-10-08):** the owner is rewriting README.md. Do not start until that rewrite lands. Then re-check the scope boundaries below against the new README, and confirm with the owner whether the draft build prose and the old Install block should be moved into Quick Start or left in place.
+
 ### Report relayed by the owner — 2026-10-07
 
 Another AI reports that coga init in an existing repository says “coga build is unavailable here,” while the README sends readers to build. Intake confirms the corresponding init message and empty-repo-only packaged onboarding contract. README currently has empty Existing repo and New repo subsections; complete those paths rather than adding another competing Quick Start.
