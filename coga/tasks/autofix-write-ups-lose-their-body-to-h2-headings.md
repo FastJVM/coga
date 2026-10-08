@@ -27,7 +27,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 2 (peer-review)
-launch_generation: pending:229ad6a3-cd64-4bbe-872e-73eaa3604610
+launch_generation: 229ad6a3-cd64-4bbe-872e-73eaa3604610
 ---
 
 ## Description
