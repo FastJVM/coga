@@ -1,6 +1,6 @@
 ---
 title: Run control-worktree templates in the sweep instead of dropping them
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-self-review
@@ -23,7 +23,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 
