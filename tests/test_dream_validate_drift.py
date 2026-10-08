@@ -197,6 +197,20 @@ def test_classifies_broken_refs_as_pr_proposal() -> None:
     assert "Open a small PR" in classified.remediation
 
 
+def test_classifies_uncomposed_section_as_pr_proposal() -> None:
+    classified = classify_issue(
+        ValidationIssue(
+            kind="uncomposed-section",
+            task="autofix/sweep-crash",
+            message="ticket body has sections no launch prompt carries: `## What broke`",
+            severity="warn",
+        )
+    )
+
+    assert classified.action == ACTION_PR_PROPOSAL
+    assert "demoting each named `##` heading to `###`" in classified.remediation
+
+
 def test_packaged_script_mode_failure_needs_package_remediation() -> None:
     classified = classify_issue(
         ValidationIssue(

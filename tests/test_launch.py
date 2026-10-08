@@ -4296,6 +4296,27 @@ def test_launch_warns_for_large_blackboard(
     assert "blackboard region is" in (result.output + (result.stderr or ""))
 
 
+def test_launch_prompt_report_warns_for_uncomposed_sections(
+    active_task: Path,
+) -> None:
+    """The report sizes only composed layers, so it names the `##` sections it
+    left out rather than letting them vanish silently."""
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    text = ref.ticket_path.read_text()
+    ref.ticket_path.write_text(text.replace(
+        "\n<!-- coga:blackboard -->",
+        "\n## Acceptance Criteria\n\n- Done.\n\n<!-- coga:blackboard -->",
+        1,
+    ))
+
+    result = CliRunner().invoke(app, ["launch", ref.id_slug, "--prompt-report"])
+
+    assert result.exit_code == 0, result.output
+    combined = result.output + (result.stderr or "")
+    assert "sections no launch prompt carries: `## Acceptance Criteria`" in combined
+
+
 def test_launch_prompt_report_prints_layers_without_launching(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -347,12 +347,27 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
+    if kind == "uncomposed-section":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_PR_PROPOSAL,
+            remediation=(
+                "Propose demoting each named `##` heading to `###` under "
+                "`## Description` (intent, acceptance, shape) or "
+                "`## Context` (background), keeping its text verbatim; move "
+                "working notes below the blackboard fence instead. Do not "
+                "delete or summarize the section."
+            ),
+        )
+
     if kind == "empty-description":
         return ClassifiedIssue(
             issue=issue,
             action=ACTION_HUMAN_NEEDED,
             remediation=(
-                "A title-only ticket: only its author can say what the title "
+                "A title-only ticket (validate reports `uncomposed-section` "
+                "instead when the write-up sits under extra `##` headings): "
+                "only its author can say what the title "
                 "meant. Ask the owner to write the description in their own "
                 "words, or to cancel it with a recorded reason when the intent "
                 "is lost. Do not infer a description from the slug, and never "

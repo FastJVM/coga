@@ -27,21 +27,14 @@ would break the ticket's section/fence structure.
 
 from __future__ import annotations
 
-import re
 import sys
 
 import typer
 
 from coga import git
 from coga.config import ConfigError, load_config
-from coga.create import create_task
-from coga.taskfile import BLACKBOARD_FENCE, fence_count
+from coga.create import create_task, description_structure_problem
 from coga.validate import TaskValidationError
-
-# The line shape compose reads as a body section heading (`_SECTION_HEADING_RE`
-# in compose.py): `##` then whitespace. A bare `##` line counts too, because
-# `\s+` there also matches the newline. `###` and deeper stay inside a section.
-_SECTION_HEADING_LINE_RE = re.compile(r"^##(?:\s|$)", re.MULTILINE)
 
 
 def create(
@@ -130,7 +123,7 @@ def create_draft(
         # Check exactly what `create_task` writes: it strips the description,
         # which would turn an indented first line into a real heading or fence.
         description = description.strip()
-        problem = _description_structure_problem(description)
+        problem = description_structure_problem(description)
         if problem:
             _bail(problem)
 
@@ -157,31 +150,6 @@ def create_draft(
     typer.echo(f"{slug}: created (draft)")
     git.sync_task_state(cfg, result["path"], message=f"Ticket: {slug} — created")
     return result
-
-
-def _description_structure_problem(description: str) -> str | None:
-    """Why `description` would break the ticket's structure, or None.
-
-    Pass the stripped description, as written under `## Description`. A level-2
-    heading line would end that section early (compose would read the rest as
-    another section), and a blackboard fence on its own line would split the
-    body from the blackboard — `split_body` then sees two fences. An inline
-    mention of the fence string is harmless and allowed, as are `###`
-    subheadings.
-    """
-    if _SECTION_HEADING_LINE_RE.search(description):
-        return (
-            "description cannot contain a level-2 heading line ('## ...'): "
-            "it would split the ticket's '## Description' section. Use '###' "
-            "or deeper, or edit the ticket body after create."
-        )
-    if fence_count(description):
-        return (
-            f"description cannot contain the blackboard fence line "
-            f"({BLACKBOARD_FENCE!r}): it would split the ticket body from its "
-            "blackboard."
-        )
-    return None
 
 
 def _split_create_path(positional: str) -> tuple[str | None, str]:

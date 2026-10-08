@@ -1063,6 +1063,38 @@ def test_cli_create_description_allows_subheadings_and_inline_fence_mention(
     assert f"## Description\n\n{description}\n\n## Context\n" in t.body
 
 
+def test_cli_create_description_allows_a_fenced_level_2_example(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `##` line inside a fenced example is text to every section reader
+    (`taskfile.body_sections`), so it cannot split `## Description`."""
+    monkeypatch.chdir(repo)
+    description = "Show the shape:\n\n```markdown\n## Acceptance Criteria\n```"
+    result = CliRunner().invoke(
+        app, ["create", "Fenced example", "--description", description]
+    )
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(repo / "tasks" / "fenced-example.md")
+    assert f"## Description\n\n{description}\n\n## Context\n" in t.body
+
+
+def test_create_task_rejects_a_level_2_heading_from_any_caller(repo: Path) -> None:
+    """Programmatic creators (autofix, retire) get the CLI's guard too, before
+    anything is written."""
+    cfg = load_config(repo)
+    with pytest.raises(ValueError, match="level-2 heading"):
+        create_task(
+            cfg=cfg,
+            title="Generated",
+            workflow_name=None,
+            contexts=[],
+            owner="marc",
+            status="draft",
+            description="Intro.\n\n## Evidence\n\nLost.",
+        )
+    assert not list(repo.glob("tasks/**/*.md"))
+
+
 # --- workflow always required ------------------------------------------------
 
 
@@ -1272,3 +1304,26 @@ def test_resolve_task_accepts_path_qualified_ref(repo: Path) -> None:
     assert resolve_task(cfg, "v2/build-the-flow").id_slug == "v2/build-the-flow"
     # A unique path prefix resolves too (git-short-SHA style).
     assert resolve_task(cfg, "v2/build").id_slug == "v2/build-the-flow"
+
+
+def test_create_task_unclosed_fence_keeps_a_real_context_section(
+    repo: Path,
+) -> None:
+    """An unclosed fence in a generated description must not swallow the
+    `## Context` heading create appends after it."""
+    from coga.compose import _extract_section
+    from coga.taskfile import body_sections, split_body
+
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Unclosed fence",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        status="draft",
+        description="Repro:\n\n```python\nx = 1",
+    )
+    above, _ = split_body(Ticket.read(repo / "tasks" / "unclosed-fence.md").body)
+    assert _extract_section(above, "Description") == "Repro:\n\n```python\nx = 1"
+    assert [s.key for s in body_sections(above)] == ["description", "context"]

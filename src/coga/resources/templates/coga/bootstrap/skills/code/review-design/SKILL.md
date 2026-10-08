@@ -13,8 +13,11 @@ on the owner's behalf.
 ## Order of operations
 
 1. **Test the ticket on its own terms.** Read the ticket body first. Treat its
-   Description, Acceptance Criteria, Proposed Shape, and Out of Scope as the
-   complete statement of intent. Record ambiguities before using blackboard
+   Description, with its Acceptance criteria, Proposed shape, and Out of scope
+   `###` subsections, plus `## Context`, as the complete statement of intent.
+   Any of those written as its own `##` section never reaches the implement
+   agent (`coga/tickets`, Body regions): report it as a must-fix to demote
+   under `## Description`. Record ambiguities before using blackboard
    notes to explain them away; an implementer must not need the author's hidden
    reasoning.
 2. **Verify rather than infer.** Read the attached contexts and inspect the

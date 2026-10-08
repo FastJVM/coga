@@ -1021,3 +1021,84 @@ def test_compose_missing_packaged_resource_raises_compose_error(
     msg = str(exc.value)
     assert "prompt.md" in msg
     assert "installed Coga package" in msg
+
+
+_MANUAL_SPEC_BODY = """\
+## Description
+
+Introductory prose that the agent must read.
+
+```markdown
+## Fenced example
+Still part of the description.
+```
+
+## Notes
+
+Lost after the prose.
+
+## Context
+
+Context text.
+
+## Acceptance Criteria
+
+- Criterion one.
+
+## Proposed Shape
+
+Shape text.
+"""
+
+
+def _write_manual_spec_task(repo: Path, body: str) -> object:
+    slug = _write_workflow_less_task(repo, title="Manual spec")
+    path = repo / "tasks" / slug / "ticket.md"
+    head, _, tail = path.read_text().partition("## Description")
+    _, _, blackboard = tail.partition("<!-- coga:blackboard -->")
+    path.write_text(
+        head + body + "\n<!-- coga:blackboard -->"
+        + blackboard + "\n## Notes\n\nBlackboard heading stays.\n"
+    )
+    cfg = load_config(repo)
+    return cfg, list_tasks(cfg)[0]
+
+
+def test_compose_carries_only_description_and_context_of_a_manual_spec(
+    repo: Path,
+) -> None:
+    """Only `## Description` and `## Context` compose; any other `##` above the
+    fence is uncomposed (coga/tickets, Body regions), and a fenced `##` example
+    is text, not a section boundary."""
+    cfg, ref = _write_manual_spec_task(repo, _MANUAL_SPEC_BODY)
+
+    report = compose_prompt_report(cfg, ref, read_ticket(ref))
+    text = {layer.layer: layer.text for layer in report.layers}
+
+    assert text["task_description"] == (
+        "Introductory prose that the agent must read.\n\n"
+        "```markdown\n## Fenced example\nStill part of the description.\n```"
+    )
+    assert text["task_context"] == "Context text."
+    assert "## Notes\n\nBlackboard heading stays." in text["blackboard"]
+    prompt = report.prompt
+    for dropped in ("Lost after the prose", "Criterion one", "Shape text"):
+        assert dropped not in prompt
+
+
+def test_compose_carries_a_manual_spec_written_as_subsections(repo: Path) -> None:
+    """The documented repair: the same spec with `###` subsections composes."""
+    body = (
+        _MANUAL_SPEC_BODY.replace("## Notes", "### Notes")
+        .replace("## Acceptance Criteria", "### Acceptance Criteria")
+        .replace("## Proposed Shape", "### Proposed Shape")
+    )
+    cfg, ref = _write_manual_spec_task(repo, body)
+
+    report = compose_prompt_report(cfg, ref, read_ticket(ref))
+    text = {layer.layer: layer.text for layer in report.layers}
+
+    assert "### Notes\n\nLost after the prose." in text["task_description"]
+    assert text["task_context"].startswith("Context text.")
+    assert "### Acceptance Criteria\n\n- Criterion one." in text["task_context"]
+    assert "### Proposed Shape\n\nShape text." in text["task_context"]
