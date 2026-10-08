@@ -65,7 +65,7 @@ code: it reaches control only through a branch and reviewed PR.
 ## `publish` and its wrappers
 
 `git.publish(cfg, paths, message, *, expect=None, guard=None,
-fast_forward=True)` returns `True` (pushed), `False` (control already held
+fast_forward=True, require_paths=())` returns `True` (pushed), `False` (control already held
 the tree), or `None` (soft-skipped). Soft-skips write one stderr line and
 nothing else: `[git].enabled = false`, not a git repo, git unavailable, or the
 control branch missing locally and on the remote
@@ -82,6 +82,10 @@ control branch missing locally and on the remote
    ahead of any packaged twin). A clean file merely behind control — HEAD's
    copy unchanged since the merge base, even when control holds a copy this
    worktree published — is not a write.
+   Each file in `require_paths` must be selected or already match control;
+   otherwise publication refuses before writing anything. This check repeats
+   against each retry's base, so authoring cannot report a completed handoff
+   when committed feature-branch knowledge was excluded from its transaction.
 2. **Base**: `refs/remotes/<remote>/<control>` without a fetch on the hot
    path; local `<control>` when there is no remote or no tracking ref yet.
 3. **Guard** (`_guard`): the provenance and generation checks; any refusal
@@ -186,7 +190,10 @@ is skipped. Bootstrap interviews discover and validate changed or new tasks.
 
 After validation, the authored task paths and every changed file outside the
 tasks directory (contexts, skills, workflows, config; the log is left to its
-writers and the sweep) land in **one** guarded publish. A bootstrap interview
+writers and the sweep) land in **one** guarded publish. Finalization
+requires its changed knowledge files through `require_paths`: committed
+feature-branch edits must already be on control or finalization fails with a
+review/merge remedy before publishing the task. A bootstrap interview
 that only writes a context still publishes it, so the next ticket launch finds
 it on control with no extra branch. Validation errors propagate before
 anything is published. A refused or failed publish keeps every edit on disk,

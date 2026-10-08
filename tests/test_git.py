@@ -937,6 +937,50 @@ def test_authoring_refused_over_a_concurrent_context_edit_keeps_everything(git_r
     assert "authored" in ticket.read_text()
 
 
+@pytest.mark.parametrize("change", ["add", "modify", "delete"])
+@pytest.mark.parametrize("already_published", [False, True])
+def test_authoring_requires_committed_knowledge_to_be_on_control(
+    git_repo, capsys, change, already_published,
+):
+    from coga.authoring import AuthoringError, finalize_authored, snapshot_authoring_state
+    from coga.tasks import resolve_bootstrap
+
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    context = cfg.contexts_root / "team" / "SKILL.md"
+    context.parent.mkdir(parents=True)
+    if change != "add":
+        context.write_text("original\n")
+        git_repo.git("add", "coga/contexts")
+        git_repo.git("commit", "-m", "seed context")
+        git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/interview")
+    before = snapshot_authoring_state(cfg)
+    if change == "delete":
+        context.unlink()
+    else:
+        context.write_text("authored knowledge\n")
+    git_repo.git("add", "coga/contexts")
+    git_repo.git("commit", "-m", "authored knowledge for review")
+    if already_published:
+        git_repo.git("push", "origin", "HEAD:main")
+    ticket.write_text(_ticket_text(blackboard="authored task\n"))
+    tip = _origin_tip(git_repo)
+
+    if already_published:
+        finalize_authored(cfg, before_snapshot=before, ref=resolve_bootstrap(cfg, "ticket"))
+        assert "authored task" in _control(git_repo, "coga/tasks/demo.md")
+    else:
+        with pytest.raises(AuthoringError, match="excluded from publication"):
+            finalize_authored(cfg, before_snapshot=before, ref=resolve_bootstrap(cfg, "ticket"))
+        assert _origin_tip(git_repo) == tip
+        assert "Published these knowledge edits" not in capsys.readouterr().err
+    assert "authored task" in ticket.read_text()
+    assert context.exists() == (change != "delete")
+    if context.exists():
+        assert context.read_text() == "authored knowledge\n"
+
+
 def test_sweep_leaves_knowledge_committed_on_a_feature_branch_for_its_pr(git_repo):
     """A commit on a feature branch is review work: a code PR's committed
     context edit (and its packaged twin) waits for the merge, while routine
@@ -1036,6 +1080,60 @@ def test_authoring_reloads_config_and_publishes_context_relocation_atomically(
         ).read_text()
         assert git_repo.git("rev-parse", "origin/main^").strip() == tip
     assert (destination / "team" / "note" / "SKILL.md").is_file()
+
+
+@pytest.mark.parametrize("feature", [False, True])
+@pytest.mark.parametrize("config_change", ["relocate", "invalid", "destination"])
+def test_checkout_return_reloads_config_before_publishing(
+    git_repo, feature, config_change,
+):
+    from coga.commands.launch import _CheckoutBoundary
+
+    cfg = load_config(git_repo.coga_os)
+    context = cfg.contexts_root / "team" / "SKILL.md"
+    context.parent.mkdir(parents=True)
+    context.write_text("---\nname: team\ndescription: Team.\n---\nKnowledge.\n")
+    git_repo.git("add", "coga/contexts")
+    git_repo.git("commit", "-m", "seed context")
+    git_repo.git("push", "origin", "main")
+    boundary = _CheckoutBoundary()
+    boundary.enter(cfg, "demo")
+    if feature:
+        git_repo.checkout_branch("feature/interview")
+    tip = _origin_tip(git_repo)
+    destination = git_repo.root / "docs" / "contexts"
+    destination.parent.mkdir()
+    cfg.contexts_root.rename(destination)
+    config_path = cfg.repo_root / "coga.toml"
+    config = config_path.read_text() + '\n[layout]\ncontexts = "docs/contexts"\n'
+    if config_change == "invalid":
+        config = config.replace("version = 1", "version = 999")
+    elif config_change == "destination":
+        config += '\n[git]\ncontrol_branch = "other"\n'
+    config_path.write_text(config)
+    token = git.state_sweep_withheld.set(False)
+    try:
+        settled = boundary.settle(cfg, subject="context relocation")
+        if config_change == "relocate":
+            assert settled
+            assert git_repo.git("status", "--porcelain").strip() == ""
+            assert git_repo.git("branch", "--show-current").strip() == "main"
+            assert _control(git_repo, "docs/contexts/team/SKILL.md") == (
+                destination / "team" / "SKILL.md"
+            ).read_text()
+            assert _control(git_repo, "coga/contexts/team/SKILL.md") is None
+            assert _control(git_repo, "coga/coga.toml") == config
+            assert git_repo.git("rev-parse", "origin/main^").strip() == tip
+            assert load_config(cfg.repo_root).contexts_root == destination
+        else:
+            assert not settled
+            assert boundary.stopped
+            assert git.state_sweep_withheld.get()
+            assert _origin_tip(git_repo) == tip
+            assert config_path.read_text() == config
+            assert (destination / "team" / "SKILL.md").is_file()
+    finally:
+        git.state_sweep_withheld.reset(token)
 
 
 @pytest.mark.parametrize("change", ["dirty", "committed", "deleted", "added"])

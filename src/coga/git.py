@@ -270,6 +270,7 @@ def publish(
     expect: Mapping[Path, bytes | None] | None = None,
     guard: Callable[[str], None] | None = None,
     fast_forward: bool = True,
+    require_paths: Iterable[Path] = (),
 ) -> bool | None:
     """Land the dirty files under `paths` on the control branch.
 
@@ -284,6 +285,9 @@ def publish(
     refuse every unrelated concurrent append. `fast_forward=False` leaves the
     local control checkout untouched after a successful push (Retro's
     isolated delete).
+    `require_paths` names files which must either be selected for this publish
+    or already match control. It refuses before any write when a required
+    authored file is excluded as committed feature-branch review work.
     """
     root = _publishable_root(cfg, message)
     if root is None:
@@ -300,7 +304,8 @@ def publish(
         for path, data in (expect or {}).items()
     }
     with state_lock(cfg):
-        return _publish_locked(cfg, root, pathspecs, message, expected, guard, fast_forward)
+        required = [relative_to_root(root, path) for path in require_paths]
+        return _publish_locked(cfg, root, pathspecs, message, expected, guard, fast_forward, required)
 
 
 def _publishable_root(cfg: Config, message: str) -> Path | None:
@@ -327,6 +332,7 @@ def _publish_locked(
     expected: Mapping[str, str | None],
     guard: Callable[[str], None] | None,
     fast_forward: bool,
+    required: list[str],
 ) -> bool:
     remote, control = cfg.git_remote, cfg.git_control_branch
     have_remote = remote_configured(root, remote)
@@ -347,6 +353,17 @@ def _publish_locked(
             guard(base)
         ancestor = _run(["git", "-C", str(root), "merge-base", "HEAD", base]).stdout.decode().strip() or None
         rels = _candidates(root, pathspecs, base, ancestor, adopt_only)
+        for rel in required:
+            if rel in rels:
+                continue
+            data = _working_tree_bytes(root, rel)
+            oid = None if data is None else _hash_blob(root, data, rel)
+            if oid != _blob_oid(root, base, rel):
+                raise GitError(
+                    f"{rel}: required authored file is excluded from publication "
+                    "and differs from control; merge its reviewed change before "
+                    "completing the authoring handoff"
+                )
         if not rels:
             return False
         if not have_remote and _attempt == 0:

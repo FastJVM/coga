@@ -27,7 +27,10 @@ An ordinary ticket launch prepares the invoking checkout before it reads the
 ticket to compose, run `ticket.py`, or activate, and returns it after every
 agent session or `ticket.py` phase and at teardown. Where the boundary sits in
 dispatch and chaining is owned by [coga/launch](../../coga/launch/SKILL.md).
-Each time it:
+On return, reload and validate the on-disk configuration before publishing or
+preparing the checkout, so a session's new contexts root is included. Invalid
+configuration or a changed Git destination stops the return and withholds the
+final sweep, preserving the session's edits. Each time it:
 
 1. **Publishes Coga state.** The ordinary state sweep (`sync_coga_state`)
    lands any dirty file under the Coga roots — tickets, log, recurring

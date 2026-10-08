@@ -301,7 +301,9 @@ def finalize_authored(
     if not sync_paths:
         return
     try:
-        published = git.publish(cfg, sync_paths, authoring_sync_message(authored_refs))
+        published = git.publish(
+            cfg, sync_paths, authoring_sync_message(authored_refs), require_paths=support,
+        )
     except git.GitError as exc:
         raise AuthoringError(
             f"Authored changes were not published: {exc}. They are kept on "

@@ -155,7 +155,7 @@ def test_finalize_authored_publishes_task_and_knowledge_together(
     calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
         "coga.authoring.git.publish",
-        lambda cfg, paths, message: calls.append((list(paths), message)) or True,
+        lambda cfg, paths, message, **kwargs: calls.append((list(paths), message)) or True,
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=ref)
@@ -207,7 +207,7 @@ def test_finalize_authored_publishes_relocated_contexts_dir(
     calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
         "coga.authoring.git.publish",
-        lambda cfg, paths, message: calls.append((list(paths), message)),
+        lambda cfg, paths, message, **kwargs: calls.append((list(paths), message)),
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=ref)
@@ -237,7 +237,7 @@ def test_finalize_authored_skips_deleted_ticket(
     calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
         "coga.authoring.git.publish",
-        lambda cfg, paths, message: calls.append((list(paths), message)),
+        lambda cfg, paths, message, **kwargs: calls.append((list(paths), message)),
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=ref)
@@ -267,7 +267,7 @@ def test_finalize_authored_re_resolves_file_task_promoted_for_attachment(
     calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
         "coga.authoring.git.publish",
-        lambda cfg, paths, message: calls.append((list(paths), message)),
+        lambda cfg, paths, message, **kwargs: calls.append((list(paths), message)),
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=original_ref)
@@ -293,7 +293,7 @@ def test_finalize_authored_discovers_new_task_from_bootstrap_interview(
     calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
         "coga.authoring.git.publish",
-        lambda cfg, paths, message: calls.append((list(paths), message)),
+        lambda cfg, paths, message, **kwargs: calls.append((list(paths), message)),
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=bootstrap_ref)
@@ -328,7 +328,7 @@ def test_finalize_authored_publishes_support_only_from_bootstrap_interview(
     calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
         "coga.authoring.git.publish",
-        lambda cfg, paths, message: calls.append((list(paths), message)) or True,
+        lambda cfg, paths, message, **kwargs: calls.append((list(paths), message)) or True,
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=bootstrap_ref)
@@ -360,7 +360,7 @@ def test_finalize_authored_publishes_deleted_support_only(
     calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
         "coga.authoring.git.publish",
-        lambda cfg, paths, message: calls.append((list(paths), message)),
+        lambda cfg, paths, message, **kwargs: calls.append((list(paths), message)),
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=bootstrap_ref)
@@ -406,7 +406,7 @@ def test_finalize_authored_support_only_validates_and_skips_unchanged_task(
     calls = []
     monkeypatch.setattr(
         "coga.authoring.git.publish",
-        lambda cfg, paths, message: calls.append(list(paths)) or True,
+        lambda cfg, paths, message, **kwargs: calls.append(list(paths)) or True,
     )
     finalize_authored(cfg, before_snapshot=before, ref=ref)
     assert validated == [ref]
@@ -442,7 +442,7 @@ def test_finalize_authored_keeps_edits_and_fails_without_a_completed_handoff(
         ticket.frontmatter["contexts"] = ["missing/context"]
     ticket.write(ref.ticket_path)
 
-    def publish(*args):
+    def publish(*args, **kwargs):
         assert failure == "publication"
         raise git.GitError("test push failure")
 
@@ -475,7 +475,7 @@ def test_finalize_authored_publishes_attachment_changes(repo, monkeypatch, chang
     else:
         attachment.write_text("after\n")
     calls = []
-    monkeypatch.setattr("coga.authoring.git.publish", lambda cfg, paths, message: calls.append(paths))
+    monkeypatch.setattr("coga.authoring.git.publish", lambda cfg, paths, message, **kwargs: calls.append(paths))
     finalize_authored(cfg, before_snapshot=before, ref=ref)
     assert calls == [[ref.path]]
 
@@ -503,7 +503,7 @@ def test_finalize_authored_publishes_contexts_nested_in_task_directory(repo, mon
     context.write_text("after\n")
     attachment.write_text("notes\n")
     calls = []
-    monkeypatch.setattr("coga.authoring.git.publish", lambda cfg, paths, message: calls.append(paths))
+    monkeypatch.setattr("coga.authoring.git.publish", lambda cfg, paths, message, **kwargs: calls.append(paths))
     finalize_authored(cfg, before_snapshot=before, ref=ref)
     # The task directory pathspec carries the nested context; it is listed once.
     assert calls == [[ref.path]]

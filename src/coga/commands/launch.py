@@ -2541,6 +2541,15 @@ class _CheckoutBoundary:
             return True
         if self.stopped:
             return False
+        try:
+            refreshed = load_config(cfg.repo_root)
+        except ConfigError as exc:
+            self._stop(f"config reload before checkout return failed: {exc}")
+            return False
+        if _git_destination(refreshed) != self._destination:
+            self._stop("coga.toml changed the Git destination during the launch")
+            return False
+        cfg = refreshed
         # The end-of-command sweep, run before the switch rather than after
         # it: routine state a session or ticket.py wrote without publishing
         # lands now, and only what publication could not land blocks.
