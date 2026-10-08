@@ -163,7 +163,13 @@ def changed_authoring_paths(
     """Return created, changed, and deleted authoring-owned paths."""
     after = snapshot_authoring_files(cfg)
     changed = {path for path, digest in after.items() if before.get(path) != digest}
-    changed.update(path for path in before if path not in after)
+    # Disappearing from the eligible inventory is not always a deletion: an
+    # existing regular file may now be ignored or outside relocated roots.
+    # Keep link replacements visible so finalization refuses their targets.
+    changed.update(
+        path for path in before if path not in after
+        and (git.symlink_component(path) is not None or not path.is_file())
+    )
     return changed
 
 

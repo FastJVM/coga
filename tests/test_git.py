@@ -1131,6 +1131,32 @@ def test_publication_refuses_a_skill_directory_replaced_by_a_symlink(
     assert skill.is_symlink()
 
 
+def test_authoring_keeps_newly_ignored_files_local_without_blocking_publication(
+    git_repo, capsys,
+):
+    from coga.authoring import finalize_authored, snapshot_authoring_state
+    from coga.tasks import resolve_bootstrap
+
+    cfg = load_config(git_repo.coga_os)
+    scratch = cfg.repo_root / "scratch.txt"
+    scratch.write_text("local scratch\n")
+    before = snapshot_authoring_state(cfg)
+    ignore = cfg.repo_root / ".gitignore"
+    ignore.write_text(ignore.read_text() + "\nscratch.txt\n")
+    context = cfg.contexts_root / "team" / "SKILL.md"
+    context.parent.mkdir(parents=True)
+    context.write_text("authored knowledge\n")
+
+    finalize_authored(cfg, before_snapshot=before, ref=resolve_bootstrap(cfg, "ticket"))
+
+    assert scratch.read_text() == "local scratch\n"
+    assert not git_repo.origin_tracks("coga/scratch.txt")
+    assert "scratch.txt" not in capsys.readouterr().err
+    assert _control(git_repo, "coga/.gitignore") == ignore.read_text()
+    assert _control(git_repo, "coga/contexts/team/SKILL.md") == "authored knowledge\n"
+    assert git_repo.git("status", "--porcelain").strip() == ""
+
+
 def test_default_context_symlink_does_not_expand_publication_roots(git_repo):
     cfg = load_config(git_repo.coga_os)
     source = git_repo.root / "source"

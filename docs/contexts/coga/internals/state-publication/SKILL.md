@@ -190,7 +190,9 @@ ones are never hashed, and symlinks are never followed). After it, finalization
 reloads and validates configuration before discovering files or validating
 tickets. The changed set compares the original snapshot with the new roots,
 so a context relocation carries the old-path deletions, destination files,
-and layout config in the same publication. If a previously snapshotted path
+and layout config in the same publication. A regular file still on disk but
+excluded from the new eligible inventory (for example by a new ignore rule)
+stays local; it is not a deletion or a required publication path. If a previously snapshotted path
 now has a symlinked ancestor, finalization refuses instead of treating it as
 a deletion and following its new target. Invalid configuration refuses
 before publication and keeps the edits. An existing target is validated even when
