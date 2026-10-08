@@ -1,7 +1,7 @@
 ---
 title: 'validate-drift: blackboard hygiene — two oversized blackboards and one unsynthesized
   draft blackboard'
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -23,9 +23,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
 agent: claude
-launch_generation: 06f7a7de-2203-44a5-940a-6c65ccb000c9
 ---
 
 ## Description
@@ -57,6 +55,13 @@ State-only ticket: every change is Coga state on `main`, so no feature branch, n
 - **recurring/dream**: not trimmed. It holds Dream's per-run report, its phase writers replace those sections every firing, and coga/period-task says to own only your keys. Filed draft `dream-s-own-blackboard-trips-large-blackboard-ever` for the owner decision (attachment vs exemption vs accepted warning). Consider that member handed off.
 
 Remaining before close: the reconcile warning, which clears when the retire task runs. Blocked on that task.
+
+## Already satisfied (close, 2026-10-08)
+
+- reconcile-recurring-wrapper-tty-admission-guidance: the retire task is `done` and the ticket is deleted. It is no longer flagged.
+- launch-locks/ticket-ownership-lock and checkout-exclusivity-lock: not flagged (fixed 2026-10-06).
+- marketing/readme-top: `unsynthesized-draft-blackboard` is empty.
+- Remaining `large-blackboard` member: recurring/dream (51.5 KiB). It is an accepted residual handed off to draft `dream-s-own-blackboard-trips-large-blackboard-ever`, which owns the attachment/exemption/accept decision. Dream rewrites its own report sections every run, so trimming it here would just be overwritten.
 
 ---
 
