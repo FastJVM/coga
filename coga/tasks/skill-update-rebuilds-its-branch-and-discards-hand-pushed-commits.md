@@ -11,8 +11,10 @@ workflow: null
 branch on every run, then force-pushes it. If someone pushes a fix by hand
 onto the open skill-update PR, the next weekly run overwrites the branch and
 the fix is gone. Nothing rejects the push and nothing reports it. The explicit
-`--force-with-lease` that #734 added cannot catch this: the lease is resolved
-moments before the push, so it always matches.
+`--force-with-lease` that #734 added cannot catch a hand-pushed commit already
+on the branch: the lease is resolved moments before the push and accepts the
+tip it just observed. It can reject only a concurrent change after that
+observation.
 
 The ask: when the remote branch carries commits the job did not make, carry
 them forward or refuse to overwrite them. Do not discard them.
@@ -36,8 +38,9 @@ Every symbol below was checked on `origin/main` `9203c3b66` (2026-10-08).
 - `open_or_update_pr` takes its lease from `_remote_branch_oid`, which runs
   `ls-remote` against the push URLs at push time. It then pushes with
   `--force-with-lease=refs/heads/<branch>:<that oid>`. Nothing ran in between
-  that could move the remote, so the lease names the current tip and always
-  passes. With no remote branch, it pushes with no lease.
+  inside the job that could move the remote, so a hand-pushed tip already
+  present is accepted. Only a concurrent push after the observation can make
+  the lease fail. With no remote branch, it pushes with no lease.
 
 **Where this was agreed.** When #734
 (`autofix/fix-skill-update-push-rejected-by-stale-force-with`, merged
