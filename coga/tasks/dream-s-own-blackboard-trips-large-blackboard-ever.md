@@ -47,7 +47,3 @@ The design step lays out the options with their tradeoffs and recommends one. If
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Evaluator review
-
-Verdict: not ready as written. The central premise was wrong about which file is oversized. Fixed: the flagged file is the W41 period task (`done`, per-run scratch), not the template `coga/recurring/dream/ticket.md` (39.6 KiB, byte-identical to its packaged twin). `## Findings` and `## Dream Run Summary` are written by the Dream agent following the template body (step 6 "Merge into the blackboard"; Phase 6 append), not by the scan skills, which write `findings.md`. Citations `validate._check_one_task`, `blackboard_size_warning`, `BLACKBOARD_WARN_BYTES`, `classify_issue`, and the dream_* renderers are correct. Added option: skip `large-blackboard` on `done` period tasks (likely the cheapest, most principled fix). Done criteria for an exemption should require a test plus a `coga validate --json` run. Workflow `code/design-then-implement` fits. Attach `coga/period-task`, and keep `coga/blackboard`/`coga/recurring` cited. No prompt layer is over 40% (coga/dream 34%, base 33%).
