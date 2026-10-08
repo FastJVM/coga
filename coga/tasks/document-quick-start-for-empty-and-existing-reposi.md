@@ -1,6 +1,6 @@
 ---
 title: Document Quick Start for empty and existing repositories
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: docs/with-review
@@ -20,6 +20,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:cffc3524-9315-4339-acf4-a5e343d06d80
 ---
 
 ## Description
