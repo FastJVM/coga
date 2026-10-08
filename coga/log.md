@@ -7886,3 +7886,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-08 10:25 [correct-the-code-workflows-review-section-autoclos] [human:nicktoper] auto-bumped on merge of PR #965 → done
 2026-10-08 10:25 [improve-pr-check] [human:nicktoper] auto-bumped on merge of PR #975 → done
 2026-10-08 10:25 [marketing/fix-installer/document-the-macos-command-line-tools-prerequisite] [human:nicktoper] auto-bumped on merge of PR #971 → done
+2026-10-08 10:25 [marketing/fix-installer/offer-agent-cli-install-and-setup-at-init] [human:nicktoper] auto-bumped on merge of PR #970 → done

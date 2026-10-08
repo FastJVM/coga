@@ -1,6 +1,6 @@
 ---
 title: Offer agent CLI install and setup at init
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -23,7 +23,6 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 agent: claude
-step: 4 (review)
 ---
 
 ## Description
