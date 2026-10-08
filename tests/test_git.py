@@ -1083,6 +1083,103 @@ def test_authoring_does_not_publish_source_reached_through_a_symlink(git_repo, e
     assert link.is_symlink()
 
 
+@pytest.mark.parametrize("mode", ["authoring", "sweep", "explicit"])
+@pytest.mark.parametrize("target_location", ["inside", "outside", "missing"])
+def test_publication_refuses_a_skill_directory_replaced_by_a_symlink(
+    git_repo, tmp_path, capsys, mode, target_location,
+):
+    from coga.authoring import AuthoringError, finalize_authored, snapshot_authoring_state
+    from coga.tasks import resolve_bootstrap
+
+    cfg = load_config(git_repo.coga_os)
+    skill = cfg.repo_root / "skills" / "team"
+    skill.mkdir(parents=True)
+    child = skill / "helper.py"
+    child.write_text("original skill\n")
+    source = (git_repo.root if target_location == "inside" else tmp_path) / "source"
+    source.mkdir()
+    source_child = source / "helper.py"
+    source_child.write_text("reviewed source\n")
+    git_repo.git("add", "coga/skills")
+    if target_location == "inside":
+        git_repo.git("add", "source")
+    git_repo.git("commit", "-m", "seed skill and source")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/interview")
+    before = snapshot_authoring_state(cfg)
+    tip = _origin_tip(git_repo)
+    child.unlink()
+    skill.rmdir()
+    skill.symlink_to(source if target_location != "missing" else tmp_path / "missing")
+    source_child.write_text("unreviewed source\n")
+
+    if mode == "authoring":
+        with pytest.raises(AuthoringError, match="symlinked ancestor"):
+            finalize_authored(cfg, before_snapshot=before, ref=resolve_bootstrap(cfg, "ticket"))
+    elif mode == "explicit":
+        with pytest.raises(git.StateRegressionError, match="symlinked ancestor"):
+            git.publish(cfg, [child], "Publish skill")
+    else:
+        git.sync_coga_state(cfg)
+        assert "symlinked ancestor" in capsys.readouterr().err
+
+    assert _origin_tip(git_repo) == tip
+    assert _control(git_repo, "coga/skills/team/helper.py") == "original skill\n"
+    if target_location == "inside":
+        assert _control(git_repo, "source/helper.py") == "reviewed source\n"
+    assert source_child.read_text() == "unreviewed source\n"
+    assert skill.is_symlink()
+
+
+def test_default_context_symlink_does_not_expand_publication_roots(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    source = git_repo.root / "source"
+    source.mkdir()
+    child = source / "helper.py"
+    child.write_text("reviewed source\n")
+    git_repo.git("add", "source")
+    git_repo.git("commit", "-m", "seed source")
+    git_repo.git("push", "origin", "main")
+    cfg.contexts_root.symlink_to(source, target_is_directory=True)
+    child.write_text("unreviewed source\n")
+    tip = _origin_tip(git_repo)
+
+    assert git.coga_root_paths(cfg) == (cfg.repo_root,)
+    git.sync_coga_state(cfg)
+
+    assert _origin_tip(git_repo) == tip
+    assert _control(git_repo, "source/helper.py") == "reviewed source\n"
+
+
+def test_checkout_return_refuses_symlinked_ancestors_even_with_published_bytes(
+    git_repo, tmp_path,
+):
+    cfg = load_config(git_repo.coga_os)
+    skill = cfg.repo_root / "skills" / "team"
+    skill.mkdir(parents=True)
+    child = skill / "helper.py"
+    child.write_text("published\n")
+    git_repo.git("add", "coga/skills")
+    git_repo.git("commit", "-m", "seed skill")
+    git_repo.git("push", "origin", "main")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "helper.py").write_text("published\n")
+    child.unlink()
+    skill.rmdir()
+    skill.symlink_to(outside, target_is_directory=True)
+    # Hide the untracked directory link, leaving only the tracked child's
+    # apparent deletion for the cleanup proof to examine.
+    (git_repo.root / ".git" / "info" / "exclude").write_text("coga/skills/team\n")
+
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert any("coga/skills/team/helper.py" in item for item in outcome.blocking)
+    assert skill.is_symlink()
+    assert (outside / "helper.py").read_text() == "published\n"
+
+
 @pytest.mark.parametrize("feature", [False, True])
 @pytest.mark.parametrize("invalid_config", [False, True])
 def test_authoring_reloads_config_and_publishes_context_relocation_atomically(

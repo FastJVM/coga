@@ -127,7 +127,7 @@ def snapshot_authoring_files(cfg: Config) -> dict[Path, str]:
     for path in _authoring_files(cfg):
         # Never turn a link in an authoring root into an explicit publication
         # request for its target (which may be source outside these roots).
-        if path.resolve(strict=False) == path.absolute() and path.is_file():
+        if git.symlink_component(path) is None and path.is_file():
             snapshot[path.absolute()] = sha256(path.read_bytes()).hexdigest()
     return snapshot
 
@@ -256,6 +256,12 @@ def finalize_authored(
     # snapshot so a relocation publishes its old-path deletions atomically
     # with the new files and configuration.
     changed_paths = changed_authoring_paths(before_snapshot.files, cfg)
+    for path in sorted(changed_paths):
+        if git.symlink_component(path) is not None:
+            raise AuthoringError(
+                f"Authored path {path} is a symlink or has a symlinked ancestor; "
+                "replace it with regular files before publication. Edits are kept on disk."
+            )
     support = support_paths(cfg, changed_paths)
 
     task_sync_paths: list[Path]

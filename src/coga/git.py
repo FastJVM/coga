@@ -259,7 +259,9 @@ def coga_root_paths(
     if previous_contexts_root is not None:
         paths += (previous_contexts_root,)
     for path in paths:
-        resolved = path.resolve(strict=False)
+        # Membership is lexical: a link under these roots never expands the
+        # publication boundary to its target (including a former root).
+        resolved = Path(os.path.abspath(path))
         if any(resolved == kept or kept in resolved.parents for kept in roots):
             continue
         roots = [kept for kept in roots if resolved not in kept.parents]
@@ -573,13 +575,13 @@ def _guard(
         if rel in gitlinks:
             refusals.append(f"{rel}: is a submodule; publish its changes through Git review")
             continue
-        if (root / rel).is_symlink():
+        if symlink_component(root / rel) is not None:
             # `_working_tree_bytes` follows links, so publishing one would land
             # its target's bytes — possibly from outside the repo — as a
             # regular file on control. Coga state is plain files only.
             refusals.append(
-                f"{rel}: is a symlink; replace it with a regular file before it "
-                "can be published"
+                f"{rel}: is a symlink or has a symlinked ancestor; "
+                "replace it with regular files before publication"
             )
             continue
         if rel in union:
@@ -1325,6 +1327,8 @@ def _in_areas(rel: str, areas: tuple[tuple[str, ...], tuple[str, ...]]) -> bool:
 def _regular_working_file(root: Path, rel: str) -> tuple[str, bytes] | None | Literal[False]:
     """`(mode, bytes)` of a regular working file, `None` when absent, `False` otherwise."""
     path = root / rel
+    if symlink_component(path) is not None:
+        return False
     try:
         info = os.lstat(path)
     except FileNotFoundError:
@@ -1952,12 +1956,19 @@ def control_branch_mismatch_message(cfg: Config, root: Path) -> str:
 
 
 def relative_to_root(root: Path, path: Path) -> str:
-    """`path` relative to the git root, without following a final symlink."""
-    lexical = path.parent.resolve() / path.name
+    """`path` relative to the git root, without following any symlink."""
+    lexical = Path(os.path.abspath(path))
     try:
         return str(lexical.relative_to(root.resolve()))
     except ValueError:
         return str(lexical)
+
+
+def symlink_component(path: Path) -> Path | None:
+    """Return a symlink in this lexical path, including missing-target links."""
+    return next(
+        (part for part in (path, *path.parents) if part.is_symlink()), None,
+    )
 
 
 def tree_bytes(root: Path, rev: str, rel: str) -> bytes | None:
@@ -2011,6 +2022,11 @@ def _is_ancestor(root: Path, old: str, new: str) -> bool:
 
 
 def _working_tree_bytes(root: Path, rel: str) -> bytes | None:
+    if symlink_component(root / rel) is not None:
+        raise StateRegressionError(
+            f"{rel}: is a symlink or has a symlinked ancestor; "
+            "replace it with regular files before publication"
+        )
     try:
         return (root / rel).read_bytes()
     except (FileNotFoundError, IsADirectoryError, NotADirectoryError):

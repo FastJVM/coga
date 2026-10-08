@@ -60,8 +60,11 @@ with the destination and config. Subsequent commands use only the new roots.
 (`status`, `ls-files --exclude-standard`), so `coga.local.toml`, `.coga/` run
 records, generated agent-skill views, caches, and other ignored artifacts stay
 local and are never force-added. Untracked symlinks discovered through a
-directory pathspec are skipped; explicitly named or tracked symlinks are
-refused by the guard. Submodules are refused, including a dirty, staged, or
+directory pathspec are skipped; explicitly named or tracked symlinks and paths
+with symlinked ancestors are refused before reading their working bytes. Root
+membership and Git path conversion are lexical: a directory link never adds
+its target to the publication scope. Checkout cleanup rejects the same links.
+Submodules are refused, including a dirty, staged, or
 removed gitlink; a directory is never published as a submodule deletion.
 Source
 outside the roots, including the packaged copies under `src/`, is ordinary
@@ -187,7 +190,9 @@ ones are never hashed, and symlinks are never followed). After it, finalization
 reloads and validates configuration before discovering files or validating
 tickets. The changed set compares the original snapshot with the new roots,
 so a context relocation carries the old-path deletions, destination files,
-and layout config in the same publication. Invalid configuration refuses
+and layout config in the same publication. If a previously snapshotted path
+now has a symlinked ancestor, finalization refuses instead of treating it as
+a deletion and following its new target. Invalid configuration refuses
 before publication and keeps the edits. An existing target is validated even when
 unchanged, but its task path is selected only when its ticket or attachments
 changed; file-to-directory conversions include both paths; a deleted target
