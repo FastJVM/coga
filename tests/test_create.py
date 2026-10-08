@@ -1272,3 +1272,18 @@ def test_resolve_task_accepts_path_qualified_ref(repo: Path) -> None:
     assert resolve_task(cfg, "v2/build-the-flow").id_slug == "v2/build-the-flow"
     # A unique path prefix resolves too (git-short-SHA style).
     assert resolve_task(cfg, "v2/build").id_slug == "v2/build-the-flow"
+
+
+def test_create_unreadable_blackboard_names_override(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(repo)
+    override = repo / 'resources' / 'blackboard.md'
+    override.parent.mkdir()
+    override.write_bytes(b'\xff')
+
+    result = CliRunner().invoke(app, ['create', 'Broken override'])
+
+    assert result.exit_code == 2
+    assert str(override) in result.output
+    assert not (repo / 'tasks' / 'broken-override.md').exists()

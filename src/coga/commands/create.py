@@ -35,6 +35,7 @@ import typer
 from coga import git
 from coga.config import ConfigError, load_config
 from coga.create import create_task
+from coga.paths import RepoResourceUnreadable
 from coga.taskfile import BLACKBOARD_FENCE, fence_count
 from coga.validate import TaskValidationError
 
@@ -150,7 +151,7 @@ def create_draft(
             directory=directory,
             description=description,
         )
-    except (TaskValidationError, ValueError) as exc:
+    except (TaskValidationError, ValueError, RepoResourceUnreadable) as exc:
         _bail(str(exc))
 
     slug = result["slug"]
