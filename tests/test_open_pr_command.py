@@ -53,7 +53,7 @@ def _install_fake_gh(
             #!/usr/bin/env bash
             echo "$@" >> {str(log)!r}
             case "$1 $2" in
-              "pr view") exit 1 ;;
+              "pr view") echo 'no pull requests found for branch "missing"' >&2; exit 1 ;;
               "pr create") echo {create_url!r}; exit 0 ;;
               "pr ready") exit 0 ;;
               *) exit 0 ;;

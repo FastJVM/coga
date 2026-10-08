@@ -107,10 +107,6 @@ escalate per your launch mode instead of bumping on tests alone.
 is agent-owned, but its remit is only to run the deterministic command and bump,
 so anything needing review judgment must be done *here* before you bump:
 
-- **Author the PR body.** Add a `## PR` section on the blackboard with the
-  summary and a one-line test plan. The `coga open-pr` command uses it as the PR
-  body (falling back to `## Description` if you skip it), so this is where the
-  human-facing description is written.
 - **Make the branch fresh, not just conflict-free.** Don't wait for a
   conflict: run `git fetch origin main && git rebase FETCH_HEAD` on the
   feature branch unconditionally, resolve whatever surfaces, re-run
@@ -120,6 +116,21 @@ so anything needing review judgment must be done *here* before you bump:
   that makes rebase decisions. If a conflict needs a call you can't make,
   escalate per your launch mode — ask the attending human, or `coga block`
   in a queue run.
+- **Prepare the PR presentation after the final fixes and rebase.** A review
+  receipt covers only the head/base it read: rebasing or committing fixes
+  afterwards leaves it historical and forces `deep`. Freshen the branch (previous
+  bullet) before the review when you can, and re-review the final head if
+  fixes or a later rebase moved it, or record the receipt as covering the older
+  revision. Read
+  [coga/internals/pr-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/SKILL.md),
+  “Presentation and review-depth rubric” and “Preparation record”. Refresh
+  `## PR` with the actual title, advisory recommendation and rationale,
+  implementation/deviations/limitations, reasons for every current diff path,
+  and exact check/review receipts. Preserve actual implementing identities;
+  record who really reviewed, whether it was independent or self-review, that
+  it returned, and the head/base it covered. An override or peer configuration
+  does not prove independence. Explain omissions; never re-stamp stale results
+  after fixes. The workflow's existing tests and review obligations still apply.
 
 Leave the branch committed and pushed with commits ahead of `main`, and the
 checkout back on a clean `main`; `coga open-pr` refuses to publish an empty

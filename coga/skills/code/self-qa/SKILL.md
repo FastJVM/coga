@@ -90,6 +90,17 @@ this step just makes sure the diff they see is already clean.
    it — `code/open-pr` carries the matching refusal, but only this step can
    actually wait.
 
+   After all fixes and any rebase, read [coga/internals/pr-publication](https://github.com/FastJVM/coga/blob/main/docs/contexts/coga/internals/pr-publication/SKILL.md),
+   “Presentation and review-depth rubric” and “Preparation record”, and refresh
+   `## PR` in the live blackboard with the handoff. Preserve actual authorship;
+   record the actual reviewing agent/tool, whether review was independent or
+   self-review, that it returned, and the exact reviewed head/base. Do not
+   present your own inspection as independent review. Include commands,
+   outcomes/counts and reasons for unrun checks, each tied to the revision it
+   verified. Explain every current diff path, deviations and limitations; choose
+   the advisory depth from the rubric. Fixes after review invalidate that
+   review's coverage until reviewed again. Never re-stamp an old receipt.
+
    Then record the outcome (below) in the `## Self-QA` note as
    durable evidence: which
    review form ran, that it **returned**, and what it found. A fresh session
