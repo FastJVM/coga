@@ -137,3 +137,12 @@ scheduling and template contracts and their packaged twins, with regressions
 for inactive, exempt, active, forced and malformed-frontmatter cases.
 
 Test plan: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest` — 3366 passed on Python 3.12.12; `git diff --check` passed.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `skip-inactive-repo-recurring-templates-without-str`
+Recorded: 2026-10-08T03:26:46+00:00
+
+    Branch 'inactive-lenient-template-skip' is not safe to publish. refs/heads/inactive-lenient-template-skip does not contain latest origin/main. Rebase or merge before opening a PR, e.g. `git fetch origin main` then `git rebase origin/main`. Reconcile it and relaunch, or `coga block --task skip-inactive-repo-recurring-templates-without-str`.
