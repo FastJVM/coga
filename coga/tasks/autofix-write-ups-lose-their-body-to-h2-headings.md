@@ -99,13 +99,26 @@ first-class spec regions all need reconciling with whatever contract is chosen:
   (`^##\s+(.+?)\s*$`) and ends a section at the next match. `_template/ticket.md`
   states the contract: only `## Description` and `## Context` carry over, and
   any other heading above the fence is not composed.
-- `_extract_section` has three consumers, and each one loses the content:
+- Each surface that reads body sections loses the content:
   - `compose`: the `task_description` and `task_context` layers.
     The agent's prompt loses the write-up.
   - `validate`: the `empty-description` check. Title-only is reported only
     when the body opens with an H2.
-  - `open_pr`: when there is no `## PR` section it falls back to the
-    Description, so a PR body opened from such a ticket is truncated too.
+  - `open_pr`: in the HEAD 4f52ff407 re-check, `open_pr` was found to have its
+    own `open_pr._sections` parser, which skips headings inside code fences.
+    `compose._extract_section` does not skip them. `open_pr._pr_body` always
+    adds a "Ticket as requested" snapshot built from Description and Context.
+    That snapshot is truncated by H2s the same way, through the second parser.
+- `commands/create.py` already rejects `## ` lines in `--description`
+  (`_SECTION_HEADING_LINE_RE`). That makes a third heading parser. "All
+  creation paths" includes it.
+- Because there are several divergent parsers, the fenced-Markdown acceptance
+  criterion depends on them. Decide whether compose, validate and open_pr share
+  one fence-aware section parser, and say so in the PR. Define the intended
+  behaviour for each of these cases and pin it in tests:
+  - a heading inside a code fence;
+  - a heading below the blackboard fence;
+  - a legacy `## PR` section above the fence.
 - `recurring_autofix`'s analyst prompt asks for a free-form
   "markdown body … Write it as the Description of a ticket". It gives no
   constraint on heading level. `parse_analysis` strips the `---` separator and
@@ -117,7 +130,10 @@ first-class spec regions all need reconciling with whatever contract is chosen:
 
 ### Evidence
 
-- Upstream `origin/main`: `report-per-skill-outcomes-from-gh-skill-update-in`
+- Re-counted at HEAD 4f52ff407 (2026-10-07): a naive count (one that does not
+  skip code fences) finds H2s inside Description in all 8 tickets under
+  `coga/tasks/autofix/`.
+- Original report, upstream `origin/main` 2026-09-22: `report-per-skill-outcomes-from-gh-skill-update-in`
   (4 H2s inside Description), `stop-one-failing-ticket-py-from-starving-the-rest`
   (3), `treat-non-requestexception-slack-send-errors-as-de` (3).
 - Downstream: Dream 2026-W39's validate-drift flagged two active autofix tickets
@@ -127,9 +143,12 @@ first-class spec regions all need reconciling with whatever contract is chosen:
   `empty-description`, and `--prompt-report` showed a 4.9–5.4 KiB
   `task_description` layer for each ticket.
 
-### Fix options
+### Fix options (historical, September autofix-only proposal)
 
-- **(a) Recommended: normalise headings in `parse_analysis`.** Shift the whole
+These options predate the 2026-10-07 scope expansion. They are input, not the
+plan: (a) on its own does not satisfy the acceptance criteria above.
+
+- **(a) Originally recommended: normalise headings in `parse_analysis`.** Shift the whole
   body's headings down so the shallowest one is `###`, keeping their relative
   depth. Skip fenced code blocks. Also tell the analyst prompt to use `###`
   or deeper, but do not rely on that alone, because the analyst does not always
@@ -145,7 +164,20 @@ first-class spec regions all need reconciling with whatever contract is chosen:
 Existing tickets are not rewritten by (a). Demoting the H2s inside
 Description of non-terminal autofix tickets to `###` fixes them. That is a
 one-line-per-heading edit, and the downstream repo has done it for its own.
-Upstream's three are yours to decide.
+Upstream's are yours to decide. Repairing existing tickets was not settled at
+authoring time. If the implementer leaves it out, name it in the PR as a
+follow-up for the owner, not a silent omission.
+
+### Authoring review notes
+
+The cold review flagged risks that the owner accepted at authoring:
+
+- `code/with-review` has no owner gate before code is written.
+- The scope could be split into three tickets: the section contract plus
+  validator, the autofix analyst body, and repair of existing tickets.
+
+Because of that, keep the change focused, and make the contract decision and
+its tradeoffs prominent in the PR so peer-review and the owner can judge them.
 
 Filed from the downstream admin repo
 (`admin/validate-drift-empty-description-two-cli-created-a`).
