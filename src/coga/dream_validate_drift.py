@@ -365,9 +365,9 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             issue=issue,
             action=ACTION_HUMAN_NEEDED,
             remediation=(
-                "When the same ticket also reports `uncomposed-section`, the "
-                "write-up is under those headings: fix that instead. "
-                "Otherwise a title-only ticket: only its author can say what the title "
+                "A title-only ticket (validate reports `uncomposed-section` "
+                "instead when the write-up sits under extra `##` headings): "
+                "only its author can say what the title "
                 "meant. Ask the owner to write the description in their own "
                 "words, or to cancel it with a recorded reason when the intent "
                 "is lost. Do not infer a description from the slug, and never "

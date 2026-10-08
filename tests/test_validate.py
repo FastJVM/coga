@@ -1815,7 +1815,7 @@ def test_uncomposed_section_names_each_heading_and_the_repair(repo: Path) -> Non
     assert report.ok_count == 1
 
 
-def test_empty_description_points_at_uncomposed_sections(repo: Path) -> None:
+def test_uncomposed_sections_replace_empty_description(repo: Path) -> None:
     """The autofix shape: the write-up sits under H2s right after
     `## Description`. It is not title-only, so do not tell anyone to cancel."""
     cfg = load_config(repo)
@@ -1830,9 +1830,8 @@ def test_empty_description_points_at_uncomposed_sections(repo: Path) -> None:
 
     issues = {i.kind: i for i in report.issues if i.task == "spec"}
     assert "`## What broke`" in issues["uncomposed-section"].message
-    empty = issues["empty-description"].message
-    assert "uncomposed-section" in empty
-    assert "title-only" not in empty
+    # Not title-only: no empty-description asking a human to rewrite it.
+    assert "empty-description" not in issues
 
 
 def test_uncomposed_section_is_silent_on_terminal_tickets(repo: Path) -> None:

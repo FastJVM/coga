@@ -483,26 +483,21 @@ def _check_one_task(
         # A section that does not compose is the silent half of the same loss:
         # it can follow Description prose, or cut Description off entirely.
         headings = uncomposed_sections(above)
-        if not _extract_section(above, "Description"):
-            if headings:
-                message = (
-                    "`## Description` is empty, but the ticket body has "
-                    "uncomposed `##` sections (see `uncomposed-section`); "
-                    "the write-up is probably there. Demote those headings "
-                    "to `###` under `## Description` rather than cancelling"
-                )
-            else:
-                message = (
+        # With uncomposed sections the write-up is probably under them, and
+        # `uncomposed-section` names the repair; a separate empty-description
+        # would only ask a human to rewrite what a heading demotion restores.
+        # Once the headings are demoted, a truly empty Description shows here.
+        if not headings and not _extract_section(above, "Description"):
+            out.append(Issue(
+                kind="empty-description",
+                task=task_label,
+                message=(
                     "`## Description` is empty — a title-only ticket whose "
                     "intent is unrecoverable from the repo; write the "
                     "description down, or cancel with a recorded reason when "
                     "the author confirms it is lost. Do not cancel it just to "
                     "clear this warning"
-                )
-            out.append(Issue(
-                kind="empty-description",
-                task=task_label,
-                message=message,
+                ),
                 severity="warn",
             ))
         if headings:

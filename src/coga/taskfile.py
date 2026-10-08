@@ -231,7 +231,11 @@ COMPOSED_SECTIONS = ("description", "context")
 OPERATIONAL_SECTIONS = ("pr",)
 
 # A level-2 ATX heading line, bare `##` included (it still ends a section).
-_SECTION_HEADING_LINE_RE = re.compile(r"^##(?:[ \t]+(.*?))?[ \t]*$")
+# CommonMark: up to three spaces of indent, and an optional closing `#` run
+# that follows whitespace (`## Description ##`) is not part of the text.
+_SECTION_HEADING_LINE_RE = re.compile(
+    r"^ {0,3}##(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$"
+)
 _CODE_FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 
 
@@ -255,10 +259,26 @@ def markdown_lines(text: str) -> Iterator[tuple[str, bool]]:
     Fence marker lines count as fenced. A backtick or tilde run of three or
     more opens a fence (a backtick opener's info string may not contain a
     backtick) and the same character, at least as long, with nothing after it
-    closes it; an unclosed fence runs to EOF.
+    closes it. An opener never closed is plain text, not a fence to EOF: a
+    stray or truncated example must not hide the `## Context` heading below it.
     """
-    fence = ""
-    for line in text.splitlines(keepends=True):
+    lines = text.splitlines(keepends=True)
+    unclosed: set[int] = set()
+    while True:
+        flags, opener = _fence_flags(lines, unclosed)
+        if opener is None:
+            yield from zip(lines, flags)
+            return
+        unclosed.add(opener)
+
+
+def _fence_flags(
+    lines: list[str], unclosed: set[int]
+) -> tuple[list[bool], int | None]:
+    """Fenced flags per line, and the index of a fence left open at EOF."""
+    flags: list[bool] = []
+    fence, opener = "", None
+    for i, line in enumerate(lines):
         marker = _CODE_FENCE_RE.match(line.rstrip("\r\n"))
         if fence:
             if (
@@ -268,12 +288,17 @@ def markdown_lines(text: str) -> Iterator[tuple[str, bool]]:
                 and not marker.group(2).strip(" \t")
             ):
                 fence = ""
-            yield line, True
-        elif marker and (marker.group(1)[0] == "~" or "`" not in marker.group(2)):
-            fence = marker.group(1)
-            yield line, True
+            flags.append(True)
+        elif (
+            marker
+            and i not in unclosed
+            and (marker.group(1)[0] == "~" or "`" not in marker.group(2))
+        ):
+            fence, opener = marker.group(1), i
+            flags.append(True)
         else:
-            yield line, False
+            flags.append(False)
+    return flags, opener if fence else None
 
 
 def body_sections(text: str) -> list[BodySection]:

@@ -1304,3 +1304,26 @@ def test_resolve_task_accepts_path_qualified_ref(repo: Path) -> None:
     assert resolve_task(cfg, "v2/build-the-flow").id_slug == "v2/build-the-flow"
     # A unique path prefix resolves too (git-short-SHA style).
     assert resolve_task(cfg, "v2/build").id_slug == "v2/build-the-flow"
+
+
+def test_create_task_unclosed_fence_keeps_a_real_context_section(
+    repo: Path,
+) -> None:
+    """An unclosed fence in a generated description must not swallow the
+    `## Context` heading create appends after it."""
+    from coga.compose import _extract_section
+    from coga.taskfile import body_sections, split_body
+
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Unclosed fence",
+        workflow_name=None,
+        contexts=[],
+        owner="marc",
+        status="draft",
+        description="Repro:\n\n```python\nx = 1",
+    )
+    above, _ = split_body(Ticket.read(repo / "tasks" / "unclosed-fence.md").body)
+    assert _extract_section(above, "Description") == "Repro:\n\n```python\nx = 1"
+    assert [s.key for s in body_sections(above)] == ["description", "context"]

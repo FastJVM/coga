@@ -147,12 +147,14 @@ never composed).
 
 The drop is not silent. `coga validate` warns `uncomposed-section` on every
 non-terminal ticket, naming each heading and the repair; `coga launch` and
-`--prompt-report` print the same warning; an `empty-description` whose body
-has uncomposed sections points at them instead of calling the ticket
-title-only. Compose, validate, `open_pr`'s request snapshot and create-time
-checks share one parser, `taskfile.body_sections`: a `##` inside a backtick
-or tilde code fence is text, and the region below the blackboard fence is
-never read as body sections.
+`--prompt-report` print the same warning; while a body has uncomposed
+sections, validate reports them instead of `empty-description`, because the
+write-up is probably under them. Compose, validate, `open_pr`'s request
+snapshot and create-time checks share one parser, `taskfile.body_sections`:
+a `##` inside a backtick or tilde code fence is text, a fence never closed is
+not a fence, a heading may be indented up to three spaces and carry a closing
+`#` run, and the region below the blackboard fence is never read as body
+sections.
 
 ## Creating, authoring, showing
 
