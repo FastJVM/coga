@@ -7841,3 +7841,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-07 20:32 [move-coga-development-rules-out-of-the-shipped-bas] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-07 20:32 [move-coga-development-rules-out-of-the-shipped-bas] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-07 20:32 [move-coga-development-rules-out-of-the-shipped-bas] [megalaunch] launched via coga megalaunch
+2026-10-07 20:43 [move-coga-development-rules-out-of-the-shipped-bas] [agent:claude] advanced to step 2 (peer-review) → codex
