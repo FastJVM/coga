@@ -69,6 +69,9 @@ fills with `{task_title}`; a repo may replace it under
 reads"). Tickets created before an override keep the packaged stub, so
 `_is_stock_blackboard` counts the packaged stub, the raw override, and the
 title-rendered override all as stock.
+Stock comparisons exclude the `## Superseded designs` section from both
+the ticket and the template, so an untouched template with an archive still
+counts as stock.
 
 On first activation (`mark active` or launch auto-activation) Coga refuses a
 draft whose blackboard holds `PRELAUNCH_AUTHORING_HEADINGS` sections or a

@@ -268,3 +268,13 @@ def test_prelaunch_blackboard_treats_every_stock_form_as_empty(
     assert prelaunch_blackboard_synthesis_reason_text(
         render_blackboard("Work", cfg=cfg)
     ) is not None
+
+
+def test_stock_override_projects_archived_designs_on_both_sides(tmp_path: Path) -> None:
+    template = '## Evaluator review\n\nFor {task_title}\n\n## Superseded designs\n\n'
+    cfg = _cfg_with_blackboard_override(tmp_path, template)
+    rendered = render_blackboard('Work', cfg=cfg)
+    for text in (template, rendered, rendered + 'An archived decision.\n'):
+        assert prelaunch_blackboard_synthesis_reason_text(text, cfg=cfg) is None
+    edited = rendered.replace('For Work', 'New authoring notes')
+    assert prelaunch_blackboard_synthesis_reason_text(edited, cfg=cfg) is not None

@@ -252,7 +252,11 @@ def _is_stock_blackboard(text: str, *, cfg: Config | None = None) -> bool:
         return True
     if cfg is None:
         return False
-    override = read_resource(cfg, "blackboard.md").strip()
+    # Readiness compares the live region, with archived designs excluded.
+    # Apply the same projection to the template so untouched stubs still match.
+    override = _without_superseded_designs(
+        read_resource(cfg, "blackboard.md")
+    ).strip()
     if stripped == override:
         return True
     if "{task_title}" not in override:
