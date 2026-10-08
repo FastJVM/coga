@@ -214,25 +214,49 @@ def sync_log(cfg: Config, *, message: str) -> bool:
 
 
 def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
-    """The catch-all sweep: publish eligible task, log, and recurring state.
+    """The catch-all sweep: publish eligible files under the Coga roots.
 
     Runs at the CLI dispatch boundary and is the retry for every earlier miss.
-    The whole configured state areas go to `publish`, so `_candidates` selects
-    committed state this checkout derived (a hand commit on local control) as
-    well as dirty state; clean state merely behind control is not a write.
-    Hand-authored contexts, skills, and workflows are review work and are left
-    alone.
+    The whole of `coga_root_paths` — the Coga root and the contexts root —
+    goes to `publish`, so tickets, the log, recurring templates, skills,
+    workflows, shared config, and contexts all land through the same guarded
+    path. `_candidates` selects every dirty, unignored file there plus
+    committed state this checkout derived (a hand commit on local control, or
+    routine task state committed on a feature branch); clean state merely
+    behind control is not a write.
     """
     try:
         root = _publishable_root(cfg, message)
         if root is None:
             return
-        publish(cfg, [tasks_dir(cfg), log_path(cfg), recurring_dir(cfg)], message)
+        publish(cfg, coga_root_paths(cfg), message)
     except StateRegressionError as exc:
         sys.stderr.write(f"[git] sync refused: {exc}. Message was: {message}\n")
     except GitError as exc:
         sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
         append_log(cfg, ref_tag_for_path(cfg, cfg.repo_root), "git", f"sync failed: {exc}")
+
+
+def coga_root_paths(cfg: Config) -> tuple[Path, ...]:
+    """The directories whose eligible files Coga publishes on its own.
+
+    The Coga root and the contexts root (`Config.contexts_root`, which
+    `[layout] contexts` may move outside it). This is the one membership
+    definition shared by the sweep, guided authoring, checkout preparation
+    and return, state-only commit recovery, and the `mark done` stranding
+    guard. A root nested in another (the default `coga/contexts/`) is not
+    listed twice. In the root layout the Coga root is the checkout itself.
+    Ignored files are never candidates: every consumer asks Git, which
+    honors `.gitignore`.
+    """
+    roots: list[Path] = []
+    for path in (cfg.repo_root, cfg.contexts_root):
+        resolved = path.resolve(strict=False)
+        if any(resolved == kept or kept in resolved.parents for kept in roots):
+            continue
+        roots = [kept for kept in roots if resolved not in kept.parents]
+        roots.append(resolved)
+    return tuple(roots)
 
 
 # --- publish ------------------------------------------------------------------
@@ -307,6 +331,10 @@ def _publish_locked(
     remote, control = cfg.git_remote, cfg.git_control_branch
     have_remote = remote_configured(root, remote)
     fetched = False
+    # A commit on a feature or detached checkout is review work: only routine
+    # task, log, and recurring state is adopted from it, so a code PR's
+    # committed knowledge edits wait for their merge.
+    adopt_only = None if symbolic_head(root) == control else _routine_state_areas(cfg, root)
     for _attempt in range(MAX_PUBLISH_ATTEMPTS):
         base = _control_base(root, remote, control, have_remote, fetched=fetched)
         if base is None:
@@ -318,7 +346,7 @@ def _publish_locked(
         if guard is not None:
             guard(base)
         ancestor = _run(["git", "-C", str(root), "merge-base", "HEAD", base]).stdout.decode().strip() or None
-        rels = _candidates(root, pathspecs, base, ancestor)
+        rels = _candidates(root, pathspecs, base, ancestor, adopt_only)
         if not rels:
             return False
         if not have_remote and _attempt == 0:
@@ -435,20 +463,39 @@ def fetch_control(cfg: Config, root: Path) -> str:
     return base
 
 
-def _candidates(root: Path, pathspecs: list[str], base: str, ancestor: str | None) -> list[str]:
+def _candidates(
+    root: Path,
+    pathspecs: list[str],
+    base: str,
+    ancestor: str | None,
+    adopt_only: tuple[tuple[str, ...], tuple[str, ...]] | None = None,
+) -> list[str]:
     """The files under `pathspecs` this publish carries.
 
     Every path dirty against HEAD (a write no commit holds yet), plus a
     clean path whose HEAD copy moved past control from a copy this checkout
     derived from — a feature branch that committed Coga state it had itself
-    published, or a hand commit on local control. A clean path that is merely
-    *behind* control — HEAD's copy unchanged since the merge base, even when
-    control holds a copy this worktree published — is not a write and is left
-    alone.
+    published, or a hand commit on local control — restricted to `adopt_only`
+    areas when given. A clean path that is merely *behind* control — HEAD's copy
+    unchanged since the merge base, even when control holds a copy this
+    worktree published — is not a write and is left alone.
+
+    An untracked symlink found under a directory pathspec is not eligible and
+    is skipped, so a generated agent-skill view in a repo missing its ignore
+    rule cannot stall every publish behind the guard's symlink refusal. One
+    named explicitly, or replacing a tracked file, still reaches the guard.
     """
-    rels = _dirty_paths(root, pathspecs)
+    rels = [
+        rel for rel in _dirty_paths(root, pathspecs)
+        if rel in pathspecs
+        or not (root / rel).is_symlink()
+        or _blob_oid(root, "HEAD", rel) is not None
+    ]
     committed = run_git(root, "diff", "-z", "--name-only", base, "HEAD", "--", *pathspecs)
-    for rel in (rel for rel in committed.split("\x00") if rel and rel not in rels):
+    for rel in (
+        rel for rel in committed.split("\x00")
+        if rel and rel not in rels and (adopt_only is None or _in_areas(rel, adopt_only))
+    ):
         head_oid = _blob_oid(root, "HEAD", rel)
         if ancestor is not None and head_oid == _blob_oid(root, ancestor, rel):
             continue
@@ -925,8 +972,8 @@ def prepare_control_checkout(
     on the pinned tip (it is then realigned, not merged); a detached HEAD, an
     in-progress Git operation, or control checked out in another worktree
     refuses. Every staged, tracked, and untracked change in
-    the checkout is examined: only files under the tasks directory, the
-    recurring directory, and the log may be cleaned, and only when their
+    the checkout is examined: only files under `coga_root_paths` (the Coga
+    root and the contexts root) may be cleaned, and only when their
     existence, mode, and content already match the pinned tree (a
     `merge=union` file when union-merging it onto that tree changes nothing),
     with any staged copy equal to HEAD's or the published one. Ignored files
@@ -1051,7 +1098,7 @@ def _plan_preparation(
         if kind == "u" or kind == "2":
             blocking.append(f"{rel} (unmerged or renamed index entry)")
             continue
-        if not _in_state_area(rel, areas):
+        if not _in_areas(rel, areas):
             blocking.append(f"{rel} (not Coga state)")
             continue
         working = _regular_working_file(root, rel)
@@ -1200,7 +1247,23 @@ def _status_v2_entries(out: str) -> list[tuple[str, list[str], str]]:
 
 
 def _state_areas(cfg: Config, root: Path) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """(directory prefixes, exact files) Coga state may occupy in this checkout."""
+    """(directory prefixes, exact files) of `coga_root_paths` in this checkout.
+
+    The empty prefix is the whole checkout (the root layout).
+    """
+    dirs = []
+    for path in coga_root_paths(cfg):
+        rel = relative_to_root(root, path).rstrip("/")
+        dirs.append("" if rel == "." else rel + "/")
+    return tuple(dirs), ()
+
+
+def _routine_state_areas(cfg: Config, root: Path) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """The tasks and recurring directories and the log: state Coga itself writes.
+
+    Only `_candidates`' committed-path adoption on a non-control checkout
+    reads this narrower set; membership everywhere else is `_state_areas`.
+    """
     dirs = tuple(
         relative_to_root(root, path).rstrip("/") + "/"
         for path in (tasks_dir(cfg), recurring_dir(cfg))
@@ -1208,7 +1271,7 @@ def _state_areas(cfg: Config, root: Path) -> tuple[tuple[str, ...], tuple[str, .
     return dirs, (relative_to_root(root, log_path(cfg)),)
 
 
-def _in_state_area(rel: str, areas: tuple[tuple[str, ...], tuple[str, ...]]) -> bool:
+def _in_areas(rel: str, areas: tuple[tuple[str, ...], tuple[str, ...]]) -> bool:
     dirs, files = areas
     return rel in files or any(rel.startswith(prefix) for prefix in dirs)
 
@@ -1334,7 +1397,7 @@ def _local_control_subsumed(cfg: Config, root: Path, local: str, target: str) ->
                 root, "diff-tree", "-r", "-z", "-m", "--root", "--no-commit-id",
                 "--no-renames", "--name-only", commit,
             )
-            outside = sorted({rel for rel in touched.split("\x00") if rel and not _in_state_area(rel, areas)})
+            outside = sorted({rel for rel in touched.split("\x00") if rel and not _in_areas(rel, areas)})
             if outside:
                 offenders.append(f"{commit[:12]} {subject!r} touches {', '.join(outside)}")
                 foreign.extend(rel for rel in outside if rel not in foreign)

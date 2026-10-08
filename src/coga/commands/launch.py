@@ -71,7 +71,6 @@ from coga import pr_assist
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.launch_script import run_script_chain, script_entry_point
 from coga.logfile import append_log, log_path
-from coga.paths import recurring_dir, tasks_dir
 from coga.mark import (
     MainAgentUnavailable,
     BlackboardNeedsSynthesis,
@@ -2728,8 +2727,8 @@ def _align_recorded_assist_checkout(
 ) -> tuple[bool, str]:
     """Fast-forward a verified recorded assist checkout before launch derivation.
 
-    Returns whether HEAD moved plus the exact fetched remote OID. Only Coga's
-    own live state (task, log, recurring) may be dirty; a merely-behind
+    Returns whether HEAD moved plus the exact fetched remote OID. Only files
+    under the Coga roots (`git.coga_root_paths`) may be dirty; a merely-behind
     checkout with other dirt, a missing remote branch, or an ahead/diverged
     tip raises instead of composing from stale files.
     """
@@ -2758,7 +2757,7 @@ def _align_recorded_assist_checkout(
         )
     excludes = [
         f":(exclude){git.relative_to_root(root, path)}"
-        for path in (tasks_dir(cfg), log_path(cfg), recurring_dir(cfg))
+        for path in git.coga_root_paths(cfg)
     ]
     dirt = git.run_git(root, "status", "--porcelain", "--", ".", *excludes).strip()
     if dirt:

@@ -6,8 +6,8 @@ fast-forwards; an offline write stays dirty and is retried by the sweep; a
 stale same-ticket write is refused with the `git checkout origin/main -- …`
 hint while different tickets from one base both land; `coga/log.md` is
 union-merged; a pending megalaunch claim is sealed; `refresh` fast-forwards a
-control checkout and leaves a feature checkout alone; the sweep touches only
-task, log, and recurring state.
+control checkout and leaves a feature checkout alone; the sweep publishes
+every eligible file under the Coga and contexts roots and nothing else.
 
 Real git throughout, via the `git_repo` fixture in conftest (a working tree
 with a bare `origin`); `real_git` opts a non-repo test out of the suite-wide
@@ -28,7 +28,7 @@ from typer.testing import CliRunner
 from coga import git
 from coga.cli import app
 from coga.config import Config, ConfigError, load_config
-from coga.logfile import append_log
+from coga.logfile import append_log, log_path
 from coga.ticket import Ticket
 
 from conftest import init_git_repo
@@ -768,9 +768,13 @@ def test_no_private_fetch_refs_are_left_behind(git_repo):
 @pytest.mark.parametrize("layout", ["nested", "root", "relocated"])
 @pytest.mark.parametrize("feature", [False, True])
 @pytest.mark.parametrize("finalize", [False, True])
-def test_sweep_publishes_only_task_log_and_recurring_state(
+def test_sweep_publishes_every_eligible_file_under_the_coga_roots(
     git_repo, monkeypatch, capsys, layout, feature, finalize,
 ):
+    """Owner decision 2026-10-07: tickets, log, recurring templates, contexts,
+    skills, workflows, and shared config all publish — added, modified,
+    deleted, or renamed — while ignored files and source outside the roots
+    stay local."""
     from coga.authoring import finalize_authored, snapshot_authoring_state
     from coga.tasks import resolve_task
 
@@ -780,7 +784,7 @@ def test_sweep_publishes_only_task_log_and_recurring_state(
             path.rename(git_repo.root / path.name)
         git_repo.coga_os.rmdir()
         git_repo.coga_os = git_repo.root
-        (git_repo.root / ".gitignore").write_text("coga.local.toml\n")
+        (git_repo.root / ".gitignore").write_text("coga.local.toml\n.agent-skills/\n")
         monkeypatch.chdir(git_repo.root)
     elif layout == "relocated":
         contexts = git_repo.root / "docs" / "contexts"
@@ -790,8 +794,9 @@ def test_sweep_publishes_only_task_log_and_recurring_state(
             stream.write('[layout]\ncontexts = "docs/contexts"\n')
     cfg = load_config(git_repo.coga_os)
     context = cfg.contexts_root / "team" / "SKILL.md"
+    moved_from = cfg.contexts_root / "old" / "SKILL.md"
     skill = git_repo.coga_os / "skills" / "team" / "SKILL.md"
-    for path in (context, skill):
+    for path in (context, moved_from, skill):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("---\nname: team\ndescription: team.\n---\noriginal\n")
     git_repo.git("add", "-A")
@@ -809,23 +814,34 @@ def test_sweep_publishes_only_task_log_and_recurring_state(
     recurring = git_repo.coga_os / "recurring" / "weekly" / "ticket.md"
     recurring.parent.mkdir(parents=True)
     recurring.write_text("---\ntitle: weekly\n---\n")
-    context.write_text(context.read_text() + "review me\n")
+    context.write_text(context.read_text() + "owner decision\n")
+    moved_to = cfg.contexts_root / "renamed" / "SKILL.md"
+    moved_to.parent.mkdir(parents=True)
+    moved_from.rename(moved_to)
     skill.unlink()
     new_skill = skill.parent / "notes.md"
     new_skill.write_text("new knowledge\n")
     workflow = git_repo.coga_os / "workflows" / "code.md"
     workflow.write_text(workflow.read_text() + "\nEdited workflow prose.\n")
     config = git_repo.coga_os / "coga.toml"
-    config.write_text(config.read_text() + "\n# review config\n")
-    review_paths = (context, skill, new_skill, workflow, config)
-    local = {path: path.read_bytes() if path.exists() else None for path in review_paths}
-    control = {path: _control(git_repo, path.relative_to(git_repo.root).as_posix())
-               for path in review_paths}
+    config.write_text(config.read_text() + "\n# shared config\n")
+    published = (context, moved_from, moved_to, skill, new_skill, workflow, config)
+    local_config = git_repo.coga_os / "coga.local.toml"
+    local_config.write_text(local_config.read_text() + "# machine-local\n")
+    view = git_repo.coga_os / ".agent-skills" / "team" / "SKILL.md"
+    view.parent.mkdir(parents=True)
+    view.write_text("generated view\n")
+    unrelated = git_repo.root / "src.py"
+    if layout != "root":
+        unrelated.write_text("code under review\n")
 
     if finalize:
         finalize_authored(cfg, before_snapshot=before, ref=ref)
         assert "status: blocked" in _control(git_repo, ticket.relative_to(git_repo.root).as_posix())
-        assert str(context) in capsys.readouterr().err
+        assert _control(git_repo, context.relative_to(git_repo.root).as_posix()) == context.read_text()
+        err = capsys.readouterr().err
+        assert str(context) in err
+        assert str(log_path(cfg)) not in err and str(local_config) not in err
     git.sync_coga_state(cfg)
 
     def landed(path):
@@ -834,9 +850,147 @@ def test_sweep_publishes_only_task_log_and_recurring_state(
     assert "status: blocked" in landed(ticket)
     assert "hand edit" in landed(git_repo.coga_os / "log.md")
     assert landed(recurring) == recurring.read_text()
-    for path in review_paths:
-        assert landed(path) == control[path]
-        assert (path.read_bytes() if path.exists() else None) == local[path]
+    for path in published:
+        assert landed(path) == (path.read_text() if path.exists() else None)
+    for path in (local_config, view):
+        assert landed(path) is None
+    if layout != "root":
+        assert not git_repo.origin_tracks("src.py")
+    if not feature:
+        assert _dirty(git_repo) <= {"src.py"}
+
+
+def test_sweep_publishes_knowledge_once_when_the_roots_overlap(git_repo):
+    """The default `coga/contexts/` sits inside the Coga root: one pathspec."""
+    cfg = load_config(git_repo.coga_os)
+    assert git.coga_root_paths(cfg) == (git_repo.coga_os.resolve(),)
+    context = cfg.contexts_root / "team" / "SKILL.md"
+    context.parent.mkdir(parents=True)
+    context.write_text("---\nname: team\ndescription: team.\n---\nbody\n")
+    before = _origin_tip(git_repo)
+
+    git.sync_coga_state(cfg)
+
+    assert _control(git_repo, "coga/contexts/team/SKILL.md") == context.read_text()
+    assert git_repo.git("rev-list", "--count", f"{before}..{_origin_tip(git_repo)}").strip() == "1"
+
+
+def test_coga_root_paths_lists_a_relocated_contexts_root_separately(git_repo):
+    contexts = git_repo.root / "docs" / "contexts"
+    contexts.mkdir(parents=True)
+    (contexts / ".gitkeep").write_text("")
+    with (git_repo.coga_os / "coga.toml").open("a") as stream:
+        stream.write('[layout]\ncontexts = "docs/contexts"\n')
+
+    cfg = load_config(git_repo.coga_os)
+
+    assert git.coga_root_paths(cfg) == (git_repo.coga_os.resolve(), contexts.resolve())
+
+
+def test_sweep_skips_an_untracked_symlink_and_still_publishes_the_rest(git_repo, tmp_path):
+    """A generated view of symlinks in a repo missing its ignore rule must not
+    stall every publish behind the guard's symlink refusal."""
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    target = tmp_path / "skill"
+    target.mkdir()
+    (target / "SKILL.md").write_text("outside\n")
+    link = git_repo.coga_os / "views" / "skill"
+    link.parent.mkdir()
+    link.symlink_to(target, target_is_directory=True)
+    ticket.write_text(_ticket_text(status="blocked"))
+
+    git.sync_coga_state(cfg)
+
+    assert "status: blocked" in _control(git_repo, "coga/tasks/demo.md")
+    assert not git_repo.origin_tracks("coga/views/skill")
+    assert link.is_symlink()
+
+
+def test_authoring_refused_over_a_concurrent_context_edit_keeps_everything(git_repo):
+    """A context a peer changed on control while the interview ran is refused
+    with the authored ticket: nothing lands, every edit stays on disk, and
+    the interview fails instead of claiming a completed handoff."""
+    from coga.authoring import AuthoringError, finalize_authored, snapshot_authoring_state
+    from coga.tasks import resolve_bootstrap
+
+    cfg = load_config(git_repo.coga_os)
+    ticket = _seed_ticket(git_repo)
+    context = cfg.contexts_root / "product" / "vision" / "SKILL.md"
+    context.parent.mkdir(parents=True)
+    context.write_text("original\n")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed vision")
+    git_repo.git("push", "origin", "main")
+    before = snapshot_authoring_state(cfg)
+    git_repo.push_competing_commit("coga/contexts/product/vision/SKILL.md", "peer\n")
+    git_repo.git("fetch", "origin")
+    context.write_text("agreed vision\n")
+    ticket.write_text(_ticket_text(blackboard="authored\n"))
+    tip = _origin_tip(git_repo)
+
+    with pytest.raises(AuthoringError, match="not published"):
+        finalize_authored(cfg, before_snapshot=before, ref=resolve_bootstrap(cfg, "ticket"))
+
+    assert _origin_tip(git_repo) == tip
+    assert context.read_text() == "agreed vision\n"
+    assert "authored" in ticket.read_text()
+
+
+def test_sweep_leaves_knowledge_committed_on_a_feature_branch_for_its_pr(git_repo):
+    """A commit on a feature branch is review work: a code PR's committed
+    context edit (and its packaged twin) waits for the merge, while routine
+    ticket state committed beside it is still adopted."""
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    context = cfg.contexts_root / "team" / "SKILL.md"
+    context.parent.mkdir(parents=True)
+    context.write_text("original\n")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed context")
+    git_repo.git("push", "origin", "main")
+    git_repo.checkout_branch("feature/x")
+    context.write_text("reviewed in the PR\n")
+    git_repo.git("add", "--", "coga/contexts/team/SKILL.md")
+    _hand_commit(git_repo, "coga/tasks/demo.md", _ticket_text(blackboard="handoff\n"))
+
+    git.sync_coga_state(cfg)
+
+    assert _control(git_repo, "coga/contexts/team/SKILL.md") == "original\n"
+    assert "handoff" in _control(git_repo, "coga/tasks/demo.md")
+
+
+def test_sweep_publishes_a_hand_committed_skill_from_a_clean_control_checkout(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    tip = _hand_commit(git_repo, "coga/skills/team/SKILL.md", "hand skill\n")
+
+    git.sync_coga_state(cfg)
+
+    assert _control(git_repo, "coga/skills/team/SKILL.md") == "hand skill\n"
+    assert _head(git_repo) == ("main", _origin_tip(git_repo))
+    assert tip in git_repo.git("reflog", "--format=%H", "main")
+    assert _dirty(git_repo) == set()
+
+
+def test_sweep_refuses_a_stale_context_overwrite(git_repo, capsys):
+    """Compare-and-swap covers knowledge too: a context a peer changed on
+    control since this checkout read it is refused, not overwritten."""
+    cfg = load_config(git_repo.coga_os)
+    context = cfg.contexts_root / "team" / "SKILL.md"
+    context.parent.mkdir(parents=True)
+    context.write_text("original\n")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed context")
+    git_repo.git("push", "origin", "main")
+    git_repo.push_competing_commit("coga/contexts/team/SKILL.md", "peer edit\n")
+    git_repo.git("fetch", "origin")
+    context.write_text("local edit\n")
+
+    git.sync_coga_state(cfg)
+
+    assert "sync refused" in capsys.readouterr().err
+    assert _control(git_repo, "coga/contexts/team/SKILL.md") == "peer edit\n"
+    assert context.read_text() == "local edit\n"
 
 
 def test_sweep_leaves_a_stale_ticket_refused_but_converges_a_fresh_one(git_repo, capsys):
@@ -1463,6 +1617,60 @@ def test_prepare_cleans_a_published_ticket_edit_from_a_feature_checkout(git_repo
 
     _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
     assert "handoff" in ticket.read_text()
+
+
+@pytest.mark.parametrize("relocated", [False, True])
+def test_prepare_cleans_a_published_context_and_skill_from_a_feature_checkout(
+    git_repo, relocated
+):
+    """Checkout return reads the publication roots: a context or skill the
+    sweep landed is proven and cleaned, not refused as foreign dirt."""
+    if relocated:
+        contexts = git_repo.root / "docs" / "contexts"
+        contexts.mkdir(parents=True)
+        (contexts / ".gitkeep").write_text("")
+        with (git_repo.coga_os / "coga.toml").open("a") as stream:
+            stream.write('[layout]\ncontexts = "docs/contexts"\n')
+        git_repo.git("add", "-A")
+        git_repo.git("commit", "-m", "relocate contexts")
+        git_repo.git("push", "origin", "main")
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    context = cfg.contexts_root / "team" / "SKILL.md"
+    skill = git_repo.coga_os / "skills" / "team" / "SKILL.md"
+    for path in (context, skill):
+        path.parent.mkdir(parents=True)
+        path.write_text("authored on the branch\n")
+
+    git.sync_coga_state(cfg)
+
+    _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
+    assert context.read_text() == skill.read_text() == "authored on the branch\n"
+
+
+def test_prepare_still_refuses_dirty_source_outside_the_coga_roots(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    (git_repo.root / "src.py").write_text("unreviewed code\n")
+
+    git.sync_coga_state(cfg)
+    outcome = git.prepare_control_checkout(cfg)
+
+    assert outcome.kind == "refused"
+    assert outcome.blocking == ("src.py (not Coga state)",)
+    assert not git_repo.origin_tracks("src.py")
+
+
+def test_prepare_realigns_over_a_hand_committed_context_already_on_control(git_repo, capsys):
+    """State-only commit recovery uses the same roots: a local commit of a
+    context control already carries is realigned, not refused as foreign."""
+    cfg = load_config(git_repo.coga_os)
+    tip = _hand_commit(git_repo, "coga/contexts/team/SKILL.md", "decision\n")
+    git_repo.push_competing_commit("coga/contexts/team/SKILL.md", "decision\n")
+
+    _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
+    assert tip[:12] in capsys.readouterr().err
 
 
 def test_a_crlf_working_copy_publishes_the_blob_git_add_stages(git_repo):

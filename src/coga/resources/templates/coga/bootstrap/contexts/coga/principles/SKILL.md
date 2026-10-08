@@ -65,10 +65,13 @@ hidden store. The system may find drift and **propose** a fix; the human
 disposes.
 
 **Forbids:** opaque, learned or auto-curated memory; the system changing its own
-behavior on `main` without a human merge gate; silent knowledge updates.
+behavior out of sight; silent knowledge updates.
 
-**Receipt:** Automatic state publication leaves context and skill edits for a
-branch and human-reviewed PR
+**Receipt:** Every knowledge edit is a visible Git commit. Owner decision
+(2026-10-07): edits inside the Coga root and the contexts root publish
+automatically through the guarded state path, with no separate knowledge PR;
+Git history is the record and the correction mechanism, and source outside
+those roots keeps its PR gate
 ([publication contract](../internals/state-publication/SKILL.md)). Dream
 proposes knowledge changes as reviewable PRs
 ([`coga/dream`](../dream/SKILL.md)). Sessions are stateless: the prompt is a

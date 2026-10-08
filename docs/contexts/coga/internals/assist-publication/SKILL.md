@@ -31,7 +31,9 @@ plus whatever `coga open-pr` pushes
 ## Consequences
 
 - The single checkout keeps Coga's live task, log, and recurring state dirty
-  by design. Assist alignment tolerates those three paths and nothing else.
+  by design. Assist alignment tolerates dirt under the Coga roots
+  (`git.coga_root_paths`, the same membership publication uses) and nothing
+  else.
   `coga open-pr` has no such carve-out: it runs only from a checkout on the
   control branch, and a recorded clone with any dirt refuses
   ([PR publication](../pr-publication/SKILL.md)).
