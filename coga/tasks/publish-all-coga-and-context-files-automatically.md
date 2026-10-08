@@ -100,6 +100,7 @@ here and reuse it there rather than adding an onboarding-specific publisher.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/977
 branch: publish-coga-roots
 
 ## Implementation
