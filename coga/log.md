@@ -7924,3 +7924,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-08 11:22 [marketing/fix-installer/complete-the-authenticated-clean-install-audit] [megalaunch] activated (blocked → active) — explicit megalaunch pick
 2026-10-08 11:22 [marketing/fix-installer/complete-the-authenticated-clean-install-audit] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-08 11:22 [marketing/fix-installer/complete-the-authenticated-clean-install-audit] [megalaunch] launched via coga megalaunch
+2026-10-08 11:24 [marketing/fix-installer/complete-the-authenticated-clean-install-audit] [human:nicktoper] unblocked (asks resolved, still in_progress): Fix tickets landed on main (agent-CLI init offer, macOS CLT prerequisite docs, Python 3.11 harness pin). Owned-Mac SSH access still unavailable; owner chose to re-block on that alone.

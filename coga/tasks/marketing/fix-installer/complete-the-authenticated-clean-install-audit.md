@@ -62,9 +62,15 @@ Asked owner: proceed now vs wait for fixes; Mac route + spend; agent choice; fir
 
 ---
 
+### Resume check — 2026-10-08 (attended, claude)
+- Fixes **landed** on origin/main: offer-agent-cli-install-and-setup-at-init (`src/coga/agent_cli_setup.py`, wired into `commands/init.py`), document-the-macos-command-line-tools-prerequisite (`coga/install` + macos-aws topic), pin-python-3-11-in-the-macos-clean-install-harness (`container.sh` requires 3.11; `macos-walk.sh` provisions 3.11). All three tickets `done`.
+- Owned-Mac route **still unavailable**: `affordable-macos-testing-on-owned-macs-and-per-min` is blocked (2026-10-07) on deploying the Mac test env + SSH target; PR #976 closed unmerged, branch `owned-mac-clean-install` retained.
+- Owner decision: re-block on Mac SSH access only; run all four environments together once it exists (no Linux-only partial run, no AWS spend). No environments created this session.
+
 ## Blockers
 
-- [ ] [2026-10-05 16:28] [agent:claude] id=20261005T162853 Waiting on fixes to land before the 4-run matrix: offer-agent-cli-install-and-setup-at-init, document-the-macos-command-line-tools-prerequisite, pin-python-3-11-in-the-macos-clean-install-harness merged; plus owner SSH access to the spare Mac (owned-Mac route). Unblock and relaunch when ready.
+- [x] [2026-10-05 16:28] [agent:claude] id=20261005T162853 Waiting on fixes to land before the 4-run matrix: offer-agent-cli-install-and-setup-at-init, document-the-macos-command-line-tools-prerequisite, pin-python-3-11-in-the-macos-clean-install-harness merged; plus owner SSH access to the spare Mac (owned-Mac route). Unblock and relaunch when ready.
+  resolved: [2026-10-08 11:24] [human:nicktoper] Fix tickets landed on main (agent-CLI init offer, macOS CLT prerequisite docs, Python 3.11 harness pin). Owned-Mac SSH access still unavailable; owner chose to re-block on that alone.
 
 ---
 
