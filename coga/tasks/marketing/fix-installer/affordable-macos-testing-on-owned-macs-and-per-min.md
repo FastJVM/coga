@@ -242,3 +242,9 @@ unrelated). Opened https://github.com/FastJVM/coga/pull/976.
 ## Blockers
 
 - [ ] [2026-10-07 15:41] [agent:nicktoper] id=20261007T154144 Deploy the macOS test environment and provide its SSH target/access so the live install, reset, and cleanup checks can run. PR #976 is closed without merging; retain the owned-mac-clean-install branch until this prerequisite is available.
+
+---
+
+## Blocker reminders
+
+- 48e4974d28bf last_reminded: 2026-10-08 10:26
