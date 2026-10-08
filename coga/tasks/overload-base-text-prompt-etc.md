@@ -127,6 +127,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/981
 branch: repo-resource-overrides
 
 Plan: one resolver in `coga.paths` (`resolve_resource_path` / `read_resource`)
