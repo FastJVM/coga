@@ -14,9 +14,8 @@ workflow:
   - name: cleanup-and-verify
     skills: []
     assignee: agent
-step: 1 (inventory)
+step: 2 (approve)
 agent: claude
-launch_generation: c6f3ab63-cddc-4963-9bbe-63bbb88d7706
 ---
 
 ## Description
@@ -91,3 +90,52 @@ Done means all of the following:
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Inventory (step: inventory, 2026-10-08)
+
+All checks were read-only and printed only counts and booleans. No URL value was printed or recorded.
+
+### Exporters of `SLACK_WEBHOOK_URL` on this machine
+- `~/.bashrc:150` `export SLACK_WEBHOOK_URL=...` is the **only** exporter found. It still holds the leaked id (`still-old` in a fresh login shell and an interactive shell). `~/.profile` sources `~/.bashrc`.
+- `~/.bashrc:151` exports `COGA_IMPORTANT_WEBHOOK_URL`. It is a *different* hook, not the leaked id, and appears in no log. Out of scope.
+- No other exporters: `~/.profile`, `~/.bash_profile`, `~/.zshrc`, `~/.bash_aliases`, `/etc/environment`, `~/.config/environment.d`, systemd user units and crontab hold nothing. The `~/.config` tree has no copy of the id.
+- `coga.local.toml` in coga and thinkpick has no Slack keys. `tablet/coga/coga.local.toml` sets `webhook = "env:SLACK_WEBHOOK_URL"` (no literal), but tablet `coga.toml` has `channels = []`, so it is inert.
+
+### Consumers (all read the env var; none store a literal)
+- `coga/coga.toml` and `thinkpick/coga/coga.toml`: `webhook = "env:SLACK_WEBHOOK_URL"`. Both repos are PUBLIC and the in-scope validate targets.
+- **Also found:** `xpllm/coga/coga.toml` (FastJVM/xpllm, PRIVATE) and `magicator/coga/coga.toml` (manycore-com/magicator2, PRIVATE, `channels=["slack"]`) use the same env var. They pick up the new URL from `~/.bashrc` automatically.
+- tablet: the local toml points at the var but the channel is disabled.
+
+### GitHub Actions secrets (names only)
+- FastJVM/coga: none. FastJVM/thinkpick: none. FastJVM/xpllm: none.
+- **manycore-com/magicator2: `SLACK_WEBHOOK_URL` (set 2026-02-26).** The value is unreadable. It may be the leaked hook, so the owner must confirm.
+- FastJVM org secrets: 403 (needs an org admin). The owner should check.
+
+### Exposure (where the full secret sits; out of scope to redact)
+- FastJVM/coga (PUBLIC) `coga/log.md`: 24 lines with the full URL, all hook `B0B0KD0BTQB`, with no other hook ids. Same count on `origin/main`. The local clones `~/Code/claude/coga`, `~/Code/codex/coga` and `.coga/worktrees/build-week-readme.*` mirror it.
+- **Additional exposure, not in the ticket:** FastJVM/xpllm `coga/log.md` (16 lines, plus 13 in each of 2 coga worktrees) and manycore-com/magicator2 `coga/log.md` (14 lines). Both repos are private, but anyone with read access can see the URL. Revocation neutralizes all of these, so no extra action is proposed beyond noting it.
+- About 182 Codex and 8 Claude session transcripts under `~/.codex` and `~/.claude/projects` contain the id. They are local only and become dead once revoked.
+- thinkpick and tablet: no tracked copies.
+- Tracked-file scan in coga: besides `log.md`, the hits are this ticket's prose (pattern only, no secret), `docs/.../notifications/failures/SKILL.md` and its packaged twin, and tests. All of them are fake `TFAKE/BFAKE` or placeholder URLs, and 0 contain the leaked id.
+
+### Proposed action list (each item can be approved separately)
+Owner actions are marked [O] and agent verification is marked [A]. Run them in order.
+1. [O] Create a new incoming webhook in Slack for the same state-transition channel. Do not paste it anywhere in chat or the ticket.
+2. [O] Replace the value at `~/.bashrc:150` with the new URL. Leave line 151 (`COGA_IMPORTANT_WEBHOOK_URL`) untouched.
+3. [O] If the magicator2 Actions secret `SLACK_WEBHOOK_URL` is the old hook (the owner knows; the agent can't read it), run `gh secret set SLACK_WEBHOOK_URL -R manycore-com/magicator2` and paste interactively. If it is a different hook, leave it alone.
+4. [O] Confirm other exporters the agent cannot see: other machines or laptops, 1Password items, FastJVM org-level secrets (the agent got a 403), and any CI or cron elsewhere. Update every one that holds the old URL.
+5. [A] In a fresh login shell, confirm `bash -lc '[[ $SLACK_WEBHOOK_URL == *B0B0KD0BTQB* ]] && echo still-old || echo rotated'` prints `rotated`.
+6. [A] `bash -lc 'cd /home/n/Code/coga && coga validate --check-slack --json'` and the same in `/home/n/Code/thinkpick`. Judge only the `slack-revoked`, `slack-unreachable` and `slack-misconfigured` issue codes, not the exit code. Optionally run the same in xpllm and magicator as a sanity check.
+7. [O] Revoke the old webhook (`B0B0KD0BTQB`) in Slack app settings. Do this only after step 6 passes, so there is no notification gap.
+8. [A] Probe the old URL with a script that rebuilds it from a `coga/log.md` line in memory, POSTs `{}`, and prints only `classify_slack_response(status, body)`. The expected result is `revoked` (404 / `no_service`).
+9. [A] Re-run the tracked-file pattern scan and confirm no hits beyond the 24 historical `log.md` lines, the fake test and doc URLs, and this ticket's prose.
+
+### Preservation decisions
+- Do not edit `coga/log.md` (append-only) and do not rewrite history in any repo, including xpllm and magicator2. Revocation makes every copy dead.
+- No code changes. Redaction is already in `slack_response` (PR #629).
+- Leave `COGA_IMPORTANT_WEBHOOK_URL` and the tablet local toml unchanged.
+- Moving the URL to 1Password with an `op://` reference is optional. `op` is installed. Not proposed unless the owner wants it.
+
+### Open questions for the owner (approve step)
+- Is the magicator2 `SLACK_WEBHOOK_URL` Actions secret the leaked hook?
+- Are there other machines, 1Password items or FastJVM org secrets that export the old URL?
