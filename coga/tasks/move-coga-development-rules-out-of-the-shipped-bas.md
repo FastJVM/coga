@@ -22,12 +22,11 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 contexts:
 - coga/prompt-composition
 - coga/packaging
 agent: claude
-launch_generation: 2d7693fd-1a45-4298-9ec6-b5c5c089ed13
 ---
 
 ## Description
@@ -144,40 +143,102 @@ repo, with "Keep Coga small", "microkernel boundary" and `src/coga/` all
 absent. Composed this ticket in this repo, with all three present (via
 `coga/context.md`).
 
+## Peer review
+
+Codex peer-review session rebased the feature branch onto `9ddcd7498ac5448b33be695b89ebbc59a7b76979` and
+corrected one must-fix issue: the moved text retained the obsolete claim that
+Python logic and inability to use an alias justify core placement. It now
+summarizes the reviewed/co-versioned contract in `coga/extension-model`, with
+a regression assertion. Original implementation was Claude; this correction
+was Codex.
+
+`codex review --base main` **returned** on final head `a8bf85ba0b9376679aac7594a57b7b14f421391a`,
+base `9ddcd7498ac5448b33be695b89ebbc59a7b76979`, with no actionable regressions. This was a
+separate review process, independent of the implementing conversation (the
+small Codex correction received same-tool-family review). The sandboxed
+invocation could not initialize its app server; the permitted unsandboxed
+retry completed. Its 86 focused composition/packaging tests passed.
+
+Full check: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest`
+— 3408 passed in 384.22s (0:06:24), Python 3.12.12. The initial ambient
+`python -m pytest` failed collection with 33 missing-dependency errors
+(`tomlkit`); the complete venv run supersedes that environment failure.
+
+Fresh-init smoke: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python
+/tmp/verify-coga-prompt-boundary.py` passed. The relocated section is absent
+from the fresh repo's full prompt, and present in this repo's `repo_context`
+layer. Correction to the implement handoff: the fresh active design-step
+prompt does contain a `src/coga/git.py` citation example from `code/design`;
+base/conduct/repo-context layers contain no such path. That generic example
+is outside this ticket's base/conduct scope and imposes no source-tree rule.
+
+Read all five base/conduct/blocker resources: the remaining instructions
+operate Coga in any repository; the implement handoff's keep rationales hold.
+No interactive UI changed; composed text was inspected directly. No terminal
+rendering check applies. `git diff --check` and the changed topic's twin
+comparison passed. Final branch committed and pushed with force-with-lease;
+returned to clean `main` before this handoff. No unresolved findings.
+
 ## PR
 
 ```yaml
 title: Move Coga-development rules out of the shipped base prompt
 author: claude
-author_evidence: Implement session ran Claude Code (claude-opus-5-5) under megalaunch.
-head: 32d67513d7eda2c4409be3ac88135011e473bdc0
-base: 2338765f9858f77eea537a5ca88f9bbcde064946
+author_evidence: Implement session ran Claude Code (claude-opus-5-5) under megalaunch. Codex peer-review
+  session corrected the moved summary to match the current extension-model contract; original implementation
+  remains Claude-authored.
+head: a8bf85ba0b9376679aac7594a57b7b14f421391a
+base: 9ddcd7498ac5448b33be695b89ebbc59a7b76979
 depth: skim
-rationale: Moves one prose section from the shipped prompt into this repo's context and adds guard tests. No runtime logic changes.
-implementation: Deletes the "Keep Coga small and legible" section from prompt.md, restates it as repo context in coga/context.md, marks that file an intentionally divergent twin of the init stub, and adds tests keeping Coga-source references out of the packaged prompt layers.
-deviations: Also updated the coga/codebase/gotchas topic (both twins) so the owning topic records the new boundary.
-limitations: Repo-level override of prompt.md stays out of scope (overload-base-text-prompt-etc).
+rationale: Bounded prompt relocation with no runtime code changes. A separate Codex review returned on
+  the final diff, the full suite and fresh-init composition smoke passed. Skim the corrected microkernel
+  wording and the intentional repo/template divergence.
+implementation: 'Deletes the "Keep Coga small and legible" section from prompt.md, restates it as repo
+  context in coga/context.md, marks that file an intentionally divergent twin of the init stub, and adds
+  tests keeping Coga-source references out of the packaged prompt layers. The moved summary now follows
+  the owning extension-model contract: Python logic alone does not justify a core command.'
+deviations: Also updated the coga/codebase/gotchas topic (both twins) so the owning topic records the
+  new boundary. Peer review corrected the inherited, outdated command-placement criterion instead of copying
+  it unchanged.
+limitations: Repo-level prompt overrides remain out of scope. A generic source-citation example in the
+  bundled code/design skill still mentions src/coga/git.py; it is not a Coga-development rule in a packaged
+  base/conduct layer. Tests ran on Python 3.12.12, not Python 3.11. No terminal UI behavior changed, so
+  terminal interaction checks were inapplicable.
 files:
   src/coga/resources/prompt.md: Remove the Coga-only section from the shipped base prompt.
   coga/context.md: Carry the section as this repo's context, replacing the init stub.
   tests/test_packaging.py: Declare coga/context.md an intentionally divergent twin of the stub.
-  tests/test_compose.py: Guard the packaged layers against Coga-source rules; pin the rule in this repo's context; invert the old presence assertions.
+  tests/test_compose.py: Guard the packaged layers against Coga-source rules; pin the rule in this repo's
+    context; invert the old presence assertions.
   docs/contexts/coga/codebase/gotchas/SKILL.md: Record where Coga-source rules belong.
-  src/coga/resources/templates/coga/bootstrap/contexts/coga/codebase/gotchas/SKILL.md: Packaged twin of the gotchas edit.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/codebase/gotchas/SKILL.md: Packaged twin of
+    the gotchas edit.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: The peer-review step comes next in the workflow and has not run yet.
+  reviewer: codex
+  kind: independent
+  status: passed
+  head: a8bf85ba0b9376679aac7594a57b7b14f421391a
+  base: 9ddcd7498ac5448b33be695b89ebbc59a7b76979
+  detail: A separate codex review --base main process returned with no actionable regressions after the
+    rebase and wording correction. It reviewed the committed diff without the implementing conversation;
+    its focused venv run passed 86 composition/packaging tests. The root Codex session made the wording
+    fix, so that correction also received same-tool-family review.
 checks:
-  - command: python -m pytest
-    status: passed
-    head: 32d67513d7eda2c4409be3ac88135011e473bdc0
-    base: 2338765f9858f77eea537a5ca88f9bbcde064946
-    detail: 3408 passed in 347.95s, run on the committed, rebased head.
-  - command: compose_prompt on a fresh coga init repo (code/design-then-implement) and on this ticket in this repo
-    status: passed
-    head: 32d67513d7eda2c4409be3ac88135011e473bdc0
-    base: 2338765f9858f77eea537a5ca88f9bbcde064946
-    detail: Fresh repo has no section or src/coga/; this repo has both.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
+  status: passed
+  head: a8bf85ba0b9376679aac7594a57b7b14f421391a
+  base: 9ddcd7498ac5448b33be695b89ebbc59a7b76979
+  detail: 3408 passed in 384.22s (0:06:24); Python 3.12.12.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python /tmp/verify-coga-prompt-boundary.py
+  status: passed
+  head: a8bf85ba0b9376679aac7594a57b7b14f421391a
+  base: 9ddcd7498ac5448b33be695b89ebbc59a7b76979
+  detail: Initialized a fresh Git/Coga repo with code/design-then-implement; no moved section in its composed
+    prompt and no src/coga/ in its base/conduct/repo-context layers. Coga repo_context explicitly contains
+    the section and source boundary. Script and fresh repo are temporary verification artifacts.
+- command: git diff --check && cmp docs/contexts/coga/codebase/gotchas/SKILL.md src/coga/resources/templates/coga/bootstrap/contexts/coga/codebase/gotchas/SKILL.md
+  status: passed
+  head: a8bf85ba0b9376679aac7594a57b7b14f421391a
+  base: 9ddcd7498ac5448b33be695b89ebbc59a7b76979
+  detail: No whitespace errors; canonical and packaged gotchas twins remain byte-identical after rebase.
 ```
