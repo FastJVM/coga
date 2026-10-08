@@ -21,7 +21,18 @@ ends by stating how many it found — including zero.
 ## The scan directory
 
 Dream creates one scan directory per phase and passes its absolute path to every
-shard subagent along with that shard's assignment. It holds four files:
+shard subagent along with that shard's assignment. The directory lives at
+`.coga/dream-scans/<run-id>/<phase>/` under the Coga workspace root (the
+directory holding `coga.toml`), which is gitignored machine-local state — never
+under `/tmp`, `mktemp -d`, or `$TMPDIR`. Temporary storage can be reaped
+underneath a running scan by the OS, the agent harness, or the sandbox, and a
+reap between the shards' writes and Dream's merge turns real findings into an
+empty `findings.md` that reads as a clean `no-op`. The directory is deleted only
+where this protocol says: after a completed phase's findings are merged. A
+`partial` phase keeps it, so the path in the run summary still resolves when a
+human reads it.
+
+It holds four files:
 
 - `manifest.md` — a Dream-written, append-only assignment log. A shard row
   records its id, attempt number, exact owned paths, any duplicated evidence
@@ -344,7 +355,8 @@ superseded. Supersession changes coverage expectations, never delivery:
   file merely needs a fresh attempt. A superseded parent's late completion does
   not satisfy or invalidate its children. If any attempt-2 leaf still does not
   complete, the phase result is `partial` and the unread paths and the scan
-  directory path go into the run summary as `human-needed`.
+  directory's absolute path go into the run summary as `human-needed`; the
+  directory is kept, not deleted.
 
 ### Two rules that make reconciliation mean what it says
 
