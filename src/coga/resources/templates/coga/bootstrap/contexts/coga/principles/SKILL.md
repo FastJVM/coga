@@ -58,23 +58,26 @@ what `mkdir`, `mv`, `rm` or `git` already do.
 composition are plain file reads; task directories nest and move like any
 directory ([`coga/tickets`](../tickets/SKILL.md)).
 
-## 4. Memory via PR — compounding, human-gated, never opaque
+## 4. Memory via Git — visible, correctable, never opaque
 
-Knowledge accumulates through human-reviewed diffs, not learned weights or a
-hidden store. The system may find drift and **propose** a fix; the human
-disposes.
+Knowledge accumulates in inspectable files and Git diffs. The operator owns
+the instructions and can inspect and correct every update; publication follows
+the directory boundary in the state-publication contract.
 
 **Forbids:** opaque, learned or auto-curated memory; the system changing its own
-behavior on `main` without a human merge gate; silent knowledge updates.
+behavior out of sight; silent knowledge updates.
 
-**Receipt:** Automatic state publication leaves context and skill edits for a
-branch and human-reviewed PR
+**Receipt:** Every knowledge edit is a visible Git commit. Owner decision
+(2026-10-07): edits inside the Coga root and the contexts root publish
+automatically through the guarded state path, with no separate knowledge PR;
+Git history is the record and the correction mechanism, and source outside
+those roots keeps its PR gate
 ([publication contract](../internals/state-publication/SKILL.md)). Dream
 proposes knowledge changes as reviewable PRs
 ([`coga/dream`](../dream/SKILL.md)). Sessions are stateless: the prompt is a
 function of the files on disk now, so an edit between runs takes full,
 inspectable effect. The blackboard is working memory; contexts are long-term
-memory, merged by hand.
+memory, maintained as visible files.
 
 ## 5. Yours — own the substrate, swap the vendors
 

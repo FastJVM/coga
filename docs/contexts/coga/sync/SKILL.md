@@ -12,10 +12,11 @@ each layer only reports or publishes it.
 - **Notifications** tell humans what changed, live, via the configured
   channel (Slack today). Only outcomes, urgent exceptions, and explicit FYIs
   post; routine lifecycle churn stays in `coga/log.md` and git.
-- **Git** makes task state durable and shared. Coga publishes `coga/tasks/**`,
-  `coga/log.md`, and `coga/recurring/**` onto the control branch
-  (`origin/main` by default) without committing on a local branch, stashing,
-  or rebasing. The local control branch only fast-forwards, or realigns over
+- **Git** makes Coga state durable and shared. Coga publishes every eligible
+  (unignored) file under the Coga root and the configured contexts root —
+  tickets, the log, recurring templates, skills, workflows, shared config,
+  and contexts — onto the control branch (`origin/main` by default) without
+  committing on a local branch, stashing, or rebasing. The local control branch only fast-forwards, or realigns over
   its own commits once they are proven to be Coga state control already
   carries.
 
@@ -38,14 +39,15 @@ transition.
   it from origin and blocks launch. Prevention in the prompt would let agents
   hide the divergence; the remedy belongs in a deterministic CLI guard that
   detects it. Reopen only if such a guard proves insufficient.
-- The end-of-command sweep publishes every dirty task, log, and recurring
-  path, plus eligible committed state there (through the same provenance
-  checks), from **whichever checkout you ran the command in** — including a
-  hand edit to ticket prose or a recurring template on a feature branch,
-  committed or not. Contexts,
-  skills, workflows, and config are review work and are never swept. Guided
-  authoring also keeps knowledge edits local and reports them for a branch
-  and human-reviewed PR; see the
+- The end-of-command sweep publishes every dirty file under those roots,
+  plus eligible committed state there (through the same provenance checks),
+  from **whichever checkout you ran the command in** — including a hand edit
+  to ticket prose, a recurring template, a skill, or a context on a feature
+  branch. From a feature branch only routine task, log, and recurring state
+  is adopted once committed; a committed knowledge edit there stays with the
+  branch's PR. Owner decision (2026-10-07): files inside the roots need no
+  separate knowledge PR; guided authoring publishes its knowledge edits with
+  its tickets, and source outside the roots keeps normal PR review. See the
   [publication contract](../internals/state-publication/SKILL.md).
 
 ## Where the detail lives

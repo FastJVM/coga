@@ -21,9 +21,9 @@ One deterministic guard shared by `fast_forward_control` and
 
 - `git merge-base --all local target` yields exactly one base;
 - every commit in `target..local`, checked on its own (merges against every
-  parent, renames off), touches only the tasks directory, the recurring
-  directory, or `coga/log.md` — a commit that touched code and a later one
-  that reverted it still fails;
+  parent, renames off), touches only the Coga roots (`git.coga_root_paths`:
+  the Coga root and the contexts root) — a commit that touched code and a
+  later one that reverted it still fails;
 - every path in the net `base..local` diff is already on `target`: same
   existence, mode, and bytes, or for a `merge=union` path, union-merging the
   local copy onto `target` with the merge base as the three-way base changes

@@ -92,8 +92,8 @@ def stranded_product_paths(cfg: Config, anchor_path: Path) -> list[str]:
 
     The detection half of the `direct/body` stranding guard (the 2026-07-06
     DaCapo incident). A merge-base (three-dot) `--name-only` diff of HEAD
-    against the control branch, restricted to paths outside the Coga OS-state
-    subtree (and a relocated `[layout] contexts` root), so an independently
+    against the control branch, restricted to paths outside the Coga roots
+    (`git.coga_root_paths`: the Coga root and the contexts root), so an independently
     advanced control branch is not mistaken for stranded work and a HEAD level
     with control is a fast `[]`. Only tracked, committed files appear.
 
@@ -114,7 +114,7 @@ def stranded_product_paths(cfg: Config, anchor_path: Path) -> list[str]:
             return []
         excludes = [
             f":(exclude){git.relative_to_root(root, path)}"
-            for path in {cfg.repo_root, cfg.contexts_root}
+            for path in git.coga_root_paths(cfg)
         ]
         # `-z` (NUL-delimited, no path quoting) so a product file with
         # non-ASCII characters is named verbatim in the `mark done` error.

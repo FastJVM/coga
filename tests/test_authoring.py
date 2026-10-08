@@ -119,7 +119,7 @@ def test_validate_authored_task_reports_schema_errors(repo: Path) -> None:
     assert "missing/context" in str(exc.value)
 
 
-def test_finalize_authored_syncs_task_and_reports_support_paths(
+def test_finalize_authored_publishes_task_and_knowledge_together(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -155,27 +155,26 @@ def test_finalize_authored_syncs_task_and_reports_support_paths(
     calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
         "coga.authoring.git.publish",
-        lambda cfg, paths, message: calls.append((list(paths), message)),
+        lambda cfg, paths, message, **kwargs: calls.append((list(paths), message)) or True,
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=ref)
 
     assert calls == [
         (
-            [ref.path],
+            [ref.path, context_path, skill_path],
             "Ticket: sync-support — authored",
         )
     ]
     assert capsys.readouterr().err == (
-        "[ticket] Coga did not publish these context/skill changes; "
-        "carry them through a branch and human-reviewed PR:\n"
+        "[ticket] Published these knowledge edits with the authored tickets:\n"
         f"  {context_path}\n  {skill_path}\n"
     )
     assert context_path.exists()
     assert skill_path.exists()
 
 
-def test_finalize_authored_reports_relocated_contexts_dir(
+def test_finalize_authored_publishes_relocated_contexts_dir(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -208,13 +207,12 @@ def test_finalize_authored_reports_relocated_contexts_dir(
     calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
         "coga.authoring.git.publish",
-        lambda cfg, paths, message: calls.append((list(paths), message)),
+        lambda cfg, paths, message, **kwargs: calls.append((list(paths), message)),
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=ref)
 
-    assert calls == []
-    assert str(context_path) in capsys.readouterr().err
+    assert calls == [([context_path], "Ticket: relocated-contexts — authored")]
 
 
 def test_finalize_authored_skips_deleted_ticket(
@@ -239,7 +237,7 @@ def test_finalize_authored_skips_deleted_ticket(
     calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
         "coga.authoring.git.publish",
-        lambda cfg, paths, message: calls.append((list(paths), message)),
+        lambda cfg, paths, message, **kwargs: calls.append((list(paths), message)),
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=ref)
@@ -269,7 +267,7 @@ def test_finalize_authored_re_resolves_file_task_promoted_for_attachment(
     calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
         "coga.authoring.git.publish",
-        lambda cfg, paths, message: calls.append((list(paths), message)),
+        lambda cfg, paths, message, **kwargs: calls.append((list(paths), message)),
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=original_ref)
@@ -295,7 +293,7 @@ def test_finalize_authored_discovers_new_task_from_bootstrap_interview(
     calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
         "coga.authoring.git.publish",
-        lambda cfg, paths, message: calls.append((list(paths), message)),
+        lambda cfg, paths, message, **kwargs: calls.append((list(paths), message)),
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=bootstrap_ref)
@@ -308,7 +306,7 @@ def test_finalize_authored_discovers_new_task_from_bootstrap_interview(
     ]
 
 
-def test_finalize_authored_reports_support_only_from_bootstrap_interview(
+def test_finalize_authored_publishes_support_only_from_bootstrap_interview(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -330,16 +328,16 @@ def test_finalize_authored_reports_support_only_from_bootstrap_interview(
     calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
         "coga.authoring.git.publish",
-        lambda cfg, paths, message: calls.append((list(paths), message)),
+        lambda cfg, paths, message, **kwargs: calls.append((list(paths), message)) or True,
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=bootstrap_ref)
 
-    assert calls == []
+    assert calls == [([context_path], "Ticket authoring — knowledge edits")]
     assert str(context_path) in capsys.readouterr().err
 
 
-def test_finalize_authored_reports_deleted_support_only(
+def test_finalize_authored_publishes_deleted_support_only(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -362,13 +360,13 @@ def test_finalize_authored_reports_deleted_support_only(
     calls: list[tuple[list[Path], str]] = []
     monkeypatch.setattr(
         "coga.authoring.git.publish",
-        lambda cfg, paths, message: calls.append((list(paths), message)),
+        lambda cfg, paths, message, **kwargs: calls.append((list(paths), message)),
     )
 
     finalize_authored(cfg, before_snapshot=before, ref=bootstrap_ref)
 
-    assert calls == []
-    assert str(context_path) in capsys.readouterr().err
+    assert calls == [([context_path], "Ticket authoring — knowledge edits")]
+    assert not context_path.exists()
 
 
 def test_ticket_finalize_skill_is_documentation_only() -> None:
@@ -380,7 +378,7 @@ def test_ticket_finalize_skill_is_documentation_only() -> None:
 
 @pytest.mark.parametrize("launched", [False, True])
 @pytest.mark.parametrize("change", ["new", "edited", "deleted", "unchanged"])
-def test_finalize_authored_support_only_validates_unchanged_task(
+def test_finalize_authored_support_only_validates_and_skips_unchanged_task(
     repo, monkeypatch, capsys, launched, change,
 ):
     cfg = load_config(repo)
@@ -405,17 +403,20 @@ def test_finalize_authored_support_only_validates_unchanged_task(
         validate_authored_task(cfg, ref)
 
     monkeypatch.setattr("coga.authoring.validate_authored_task", validate)
+    calls = []
     monkeypatch.setattr(
         "coga.authoring.git.publish",
-        lambda *args: pytest.fail("unchanged task must not be published"),
+        lambda cfg, paths, message, **kwargs: calls.append(list(paths)) or True,
     )
     finalize_authored(cfg, before_snapshot=before, ref=ref)
     assert validated == [ref]
     err = capsys.readouterr().err
     if change == "unchanged":
+        assert calls == []
         assert err == ""
     else:
-        assert "human-reviewed PR" in err
+        # The unchanged task is validated but not selected for publication.
+        assert calls == [paths]
         assert [line.strip() for line in err.splitlines()[1:]] == list(map(str, paths))
     for path in paths:
         if change == "deleted":
@@ -425,7 +426,9 @@ def test_finalize_authored_support_only_validates_unchanged_task(
 
 
 @pytest.mark.parametrize("failure", ["validation", "publication"])
-def test_finalize_authored_reports_support_before_failure(repo, monkeypatch, capsys, failure):
+def test_finalize_authored_keeps_edits_and_fails_without_a_completed_handoff(
+    repo, monkeypatch, capsys, failure
+):
     from coga import git
 
     cfg = load_config(repo)
@@ -439,20 +442,61 @@ def test_finalize_authored_reports_support_before_failure(repo, monkeypatch, cap
         ticket.frontmatter["contexts"] = ["missing/context"]
     ticket.write(ref.ticket_path)
 
-    def publish(*args):
+    def publish(*args, **kwargs):
         assert failure == "publication"
-        assert str(context) in capsys.readouterr().err
         raise git.GitError("test push failure")
 
     monkeypatch.setattr("coga.authoring.git.publish", publish)
     if failure == "validation":
         with pytest.raises(TaskValidationError):
             finalize_authored(cfg, before_snapshot=before, ref=ref)
-        assert str(context) in capsys.readouterr().err
     else:
-        finalize_authored(cfg, before_snapshot=before, ref=ref)
-        assert "[git] sync failed: test push failure" in capsys.readouterr().err
+        with pytest.raises(AuthoringError, match="not published: test push failure"):
+            finalize_authored(cfg, before_snapshot=before, ref=ref)
+    assert "Published these knowledge edits" not in capsys.readouterr().err
     assert context.read_text() == "knowledge\n"
+    assert "Authored detail." in ref.ticket_path.read_text()
+
+
+@pytest.mark.parametrize(
+    "setting", ['remote = "upstream"', 'control_branch = "trunk"', "enabled = false"],
+)
+def test_finalize_authored_refuses_an_authored_git_destination_change(
+    repo, monkeypatch, setting
+):
+    cfg = load_config(repo)
+    ref = _create_task(repo, "Destination")
+    before = snapshot_authoring_state(cfg)
+    config = repo / "coga.toml"
+    with config.open("a") as f:
+        f.write(f"[git]\n{setting}\n")
+    authored_config = config.read_text()
+    calls = []
+    monkeypatch.setattr("coga.authoring.git.publish", lambda *args, **kwargs: calls.append(args))
+
+    with pytest.raises(AuthoringError, match="changes the Git destination"):
+        finalize_authored(cfg, before_snapshot=before, ref=ref)
+    assert calls == []
+    assert config.read_text() == authored_config
+
+
+def test_finalize_authored_publishes_a_mode_only_change(repo, monkeypatch):
+    cfg = load_config(repo)
+    ref = _create_task(repo, "Mode")
+    script = repo / "skills" / "team" / "run.sh"
+    _write(script, "echo hi\n")
+    script.chmod(0o644)
+    before = snapshot_authoring_state(cfg)
+    script.chmod(0o755)
+    calls = []
+    monkeypatch.setattr(
+        "coga.authoring.git.publish",
+        lambda cfg, paths, message, **kwargs: calls.append((paths, kwargs["require_paths"])),
+    )
+
+    finalize_authored(cfg, before_snapshot=before, ref=ref)
+
+    assert calls == [([script.absolute()], [script.absolute()])]
 
 
 @pytest.mark.parametrize("change", ["new", "edited", "deleted"])
@@ -472,12 +516,12 @@ def test_finalize_authored_publishes_attachment_changes(repo, monkeypatch, chang
     else:
         attachment.write_text("after\n")
     calls = []
-    monkeypatch.setattr("coga.authoring.git.publish", lambda cfg, paths, message: calls.append(paths))
+    monkeypatch.setattr("coga.authoring.git.publish", lambda cfg, paths, message, **kwargs: calls.append(paths))
     finalize_authored(cfg, before_snapshot=before, ref=ref)
     assert calls == [[ref.path]]
 
 
-def test_finalize_authored_excludes_contexts_nested_in_task_directory(repo, monkeypatch, capsys):
+def test_finalize_authored_publishes_contexts_nested_in_task_directory(repo, monkeypatch, capsys):
     checkout = repo.parent
     subprocess.run(
         ["git", "init", "-b", "main", str(checkout)],
@@ -500,7 +544,7 @@ def test_finalize_authored_excludes_contexts_nested_in_task_directory(repo, monk
     context.write_text("after\n")
     attachment.write_text("notes\n")
     calls = []
-    monkeypatch.setattr("coga.authoring.git.publish", lambda cfg, paths, message: calls.append(paths))
+    monkeypatch.setattr("coga.authoring.git.publish", lambda cfg, paths, message, **kwargs: calls.append(paths))
     finalize_authored(cfg, before_snapshot=before, ref=ref)
-    assert calls == [[attachment.resolve()]]
-    assert str(context.resolve()) in capsys.readouterr().err
+    # The task directory pathspec carries the nested context; it is listed once.
+    assert calls == [[ref.path]]

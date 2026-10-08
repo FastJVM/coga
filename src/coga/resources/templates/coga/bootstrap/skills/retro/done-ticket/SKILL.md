@@ -61,8 +61,12 @@ checkout.
   a no-durable-knowledge ticket deleted directly via `coga delete`.
 - Action: `pr-required` for knowledge edits and the source-task deletions
   bundled with them; `direct-delete` for no-durable-knowledge source tasks.
-  Every knowledge edit lands in a reviewable PR; nothing in the knowledge base
-  is changed on the working tree.
+  Every Retro knowledge edit lands in a reviewable PR; the caller's knowledge
+  files stay unchanged. This is Retro's deliberate review policy, not a
+  general requirement for files inside the automatically published Coga roots
+  (see `coga/internals/state-publication`). Commit each knowledge batch before
+  invoking any sweeping Coga command in its checkout: dirty knowledge files
+  publish directly even on a feature branch.
 - Idempotency: for each source task, the task directory is gone, or an open PR
   is adding its `## Retro` marker and deleting the source task directory. A
   no-durable-knowledge ticket is direct-deleted during the run, so afterward its

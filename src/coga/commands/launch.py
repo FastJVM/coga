@@ -71,7 +71,6 @@ from coga import pr_assist
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.launch_script import run_script_chain, script_entry_point
 from coga.logfile import append_log, log_path
-from coga.paths import recurring_dir, tasks_dir
 from coga.mark import (
     MainAgentUnavailable,
     BlackboardNeedsSynthesis,
@@ -2491,6 +2490,7 @@ class _CheckoutBoundary:
         self.stopped = False
         self._remote_expected = False
         self._destination: tuple[object, ...] | None = None
+        self._contexts_root: Path | None = None
 
     def enter(self, cfg: Config, target: str) -> Config:
         self.entered = True
@@ -2519,6 +2519,7 @@ class _CheckoutBoundary:
                 "No work was started.",
                 exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
             )
+        self._contexts_root = refreshed.contexts_root
         return refreshed
 
     def admit(self, cfg: Config) -> None:
@@ -2535,6 +2536,7 @@ class _CheckoutBoundary:
             return
         self.armed = True
         self._destination = _git_destination(cfg)
+        self._contexts_root = cfg.contexts_root
 
     def settle(self, cfg: Config, *, subject: str) -> bool:
         """Return the checkout; False means stop chaining (already reported)."""
@@ -2542,14 +2544,32 @@ class _CheckoutBoundary:
             return True
         if self.stopped:
             return False
+        try:
+            refreshed = load_config(cfg.repo_root)
+        except ConfigError as exc:
+            self._stop(f"config reload before checkout return failed: {exc}")
+            return False
+        if _git_destination(refreshed) != self._destination:
+            self._stop("coga.toml changed the Git destination during the launch")
+            return False
+        # ticket.py reloads config before its return callback. Keep the root
+        # captured at admission/the preceding return, not the callback's
+        # already-refreshed view of a relocation.
+        previous_contexts_root = self._contexts_root or cfg.contexts_root
+        cfg = refreshed
         # The end-of-command sweep, run before the switch rather than after
         # it: routine state a session or ticket.py wrote without publishing
         # lands now, and only what publication could not land blocks.
-        git.sync_coga_state(cfg, message="Sync coga state before checkout return")
+        git.sync_coga_state(
+            cfg, message="Sync coga state before checkout return",
+            previous_contexts_root=previous_contexts_root,
+        )
         outcome = git.prepare_control_checkout(
-            cfg, require_remote_control=self._remote_expected
+            cfg, require_remote_control=self._remote_expected,
+            previous_contexts_root=previous_contexts_root,
         )
         if outcome.kind in {"prepared", "exempt"}:
+            self._contexts_root = cfg.contexts_root
             return True
         self.stopped = True
         git.state_sweep_withheld.set(True)
@@ -2580,6 +2600,7 @@ class _CheckoutBoundary:
         if _git_destination(refreshed) != self._destination:
             self._stop("coga.toml changed the Git destination during the launch")
             return cfg, ref
+        self._contexts_root = refreshed.contexts_root
         try:
             current = resolve_target(refreshed, ref.id_slug)
         except TaskNotFoundError:
@@ -2728,8 +2749,8 @@ def _align_recorded_assist_checkout(
 ) -> tuple[bool, str]:
     """Fast-forward a verified recorded assist checkout before launch derivation.
 
-    Returns whether HEAD moved plus the exact fetched remote OID. Only Coga's
-    own live state (task, log, recurring) may be dirty; a merely-behind
+    Returns whether HEAD moved plus the exact fetched remote OID. Only files
+    under the Coga roots (`git.coga_root_paths`) may be dirty; a merely-behind
     checkout with other dirt, a missing remote branch, or an ahead/diverged
     tip raises instead of composing from stale files.
     """
@@ -2758,7 +2779,7 @@ def _align_recorded_assist_checkout(
         )
     excludes = [
         f":(exclude){git.relative_to_root(root, path)}"
-        for path in (tasks_dir(cfg), log_path(cfg), recurring_dir(cfg))
+        for path in git.coga_root_paths(cfg)
     ]
     dirt = git.run_git(root, "status", "--porcelain", "--", ".", *excludes).strip()
     if dirt:

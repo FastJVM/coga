@@ -150,9 +150,18 @@ def test_relocated_contexts_resolve_compose_validate_and_sync(
     report = validate_task(cfg, "fix-retry-logic")
     assert [i for i in report.issues if i.kind == "broken-context"] == []
 
-    # sync — the created task reaches origin; an edit to a relocated context
-    # is review work, not machine state, and the sweep leaves it dirty.
+    # sync — the created task reaches origin, and so do an edit to a relocated
+    # context and a new one (build's product/vision shape): the contexts root
+    # is a Coga root, published by the sweep without a knowledge branch.
     resolved.write_text(resolved.read_text() + "\nRetry-After is authoritative.\n")
+    vision = checkout / "docs" / "contexts" / "product" / "vision" / "SKILL.md"
+    vision.parent.mkdir(parents=True)
+    vision.write_text(
+        "---\nname: product/vision\ndescription: What we build.\n---\n\nA retry service.\n"
+    )
+    ticket = read_ticket(ref)
+    ticket.frontmatter["contexts"] = ["email/payment-flow", "product/vision"]
+    ticket.write(ref.ticket_path)
     git.sync_coga_state(cfg, message="Sync coga state")
 
     tracked = _git(
@@ -164,8 +173,8 @@ def test_relocated_contexts_resolve_compose_validate_and_sync(
     committed = _git(
         tmp_origin, "show", "main:docs/contexts/email/payment-flow/SKILL.md"
     )
-    assert "Retry-After is authoritative." not in committed
-    assert "Retry-After is authoritative." in resolved.read_text()
+    assert "Retry-After is authoritative." in committed
+    assert "docs/contexts/product/vision/SKILL.md" in tracked
 
     clone = checkout.parent / "fresh-clone"
     _git(checkout.parent, "clone", "--branch", "main", str(tmp_origin), str(clone))
@@ -173,9 +182,10 @@ def test_relocated_contexts_resolve_compose_validate_and_sync(
     clone_ref = resolve_task(clone_cfg, "fix-retry-logic")
     clone_prompt = compose_prompt(clone_cfg, clone_ref, read_ticket(clone_ref))
     assert "Stripe retries on 429." in clone_prompt
-    # The unpublished edit is review work the sweep left dirty above, so a
-    # fresh clone composes the committed context, not this checkout's copy.
-    assert "Retry-After is authoritative." not in clone_prompt
+    assert "Retry-After is authoritative." in clone_prompt
+    assert "A retry service." in clone_prompt
+    clone_report = validate_task(clone_cfg, "fix-retry-logic")
+    assert [i for i in clone_report.issues if i.kind == "broken-context"] == []
 
 
 def test_default_layout_still_resolves_inside_coga_root(tmp_path: Path) -> None:

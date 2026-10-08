@@ -16,7 +16,10 @@ The one alternative checkout is the sandbox clone fallback below.
 
 `origin` and `main` stand for the configured `[git].remote` and
 `[git].control_branch`; `coga/tasks/`, `coga/recurring/`, and `coga/log.md`
-for the configured workspace's task, recurring, and log paths.
+for the configured workspace's task, recurring, and log paths. **The Coga
+roots** are the Coga root plus the configured contexts root
+(`git.coga_root_paths`); every eligible (unignored) file there is Coga state
+that publication carries ([coga/internals/state-publication](../../coga/internals/state-publication/SKILL.md)).
 
 ## The launch boundary
 
@@ -24,13 +27,21 @@ An ordinary ticket launch prepares the invoking checkout before it reads the
 ticket to compose, run `ticket.py`, or activate, and returns it after every
 agent session or `ticket.py` phase and at teardown. Where the boundary sits in
 dispatch and chaining is owned by [coga/launch](../../coga/launch/SKILL.md).
-Each time it:
+On return, reload and validate the on-disk configuration before publishing or
+preparing the checkout, so a session's new contexts root is included. Keep the
+previous contexts root in that return's publication and cleanup membership
+too, so a relocation publishes both sides together. The boundary captures that
+root at admission and each successful return; a script's own config reload
+before its return callback cannot replace it. Invalid
+configuration or a changed Git destination stops the return and withholds the
+final sweep, preserving the session's edits. Each time it:
 
-1. **Publishes routine state.** The ordinary state sweep (`sync_coga_state`)
-   lands any dirty `coga/tasks/`, `coga/recurring/`, and `coga/log.md` path
-   the session or script did not publish, plus eligible committed state such
-   as a hand commit of a ticket on local `main` whose control copy has not
-   moved since. Only what publication cannot land stays dirty or unpublished.
+1. **Publishes Coga state.** The ordinary state sweep (`sync_coga_state`)
+   lands any dirty file under the Coga roots — tickets, log, recurring
+   templates, contexts, skills, workflows, config — that the session or
+   script did not publish, plus eligible committed state such as a hand
+   commit on local `main` whose control copy has not moved since. Only what
+   publication cannot land stays dirty or unpublished.
 2. **Pins control.** `git fetch origin main` and pin that commit. Local
    `main` must exist and be equal to or behind it, or carry only commits of
    Coga state whose content is already on the pinned commit (proved commit
@@ -45,8 +56,8 @@ Each time it:
    origin main` and push); otherwise `git worktree remove <path>`, or finish
    or abort the operation.
 3. **Proves every change.** Staged, tracked, and untracked changes anywhere
-   in the checkout are examined. Only Coga state may be discarded, and only
-   when already on the pinned `origin/main`: the same existence, file mode,
+   in the checkout are examined. Only files under the Coga roots may be
+   discarded, and only when already on the pinned `origin/main`: the same existence, file mode,
    and bytes, or, for a `merge=union` file such as `coga/log.md`, every working
    line already on control (union-merging it onto control changes nothing).
    A staged copy must equal HEAD's or the published one. Deletions and both
@@ -95,8 +106,11 @@ it prepared the checkout and will return it.
    queue run.
 2. **Work.** Record `branch:` on `main` and publish it (below), then switch to
    the feature branch and change code there. Commit only code: stage paths by
-   name, never `git add -A` or `commit -a` over Coga state. Test, commit,
-   rebase onto `origin/main`, push.
+   name, never `git add -A` or `commit -a` over Coga state. A context, skill,
+   or workflow edit that belongs to the code PR (a canonical topic with a
+   packaged twin, say) is committed with it before any sweeping Coga command
+   runs in this checkout; left dirty, the sweep publishes it directly. Test,
+   commit, rebase onto `origin/main`, push.
 3. **Hand off from the branch.** The branch's copy of the ticket predates
    what was published on control, so load control's copy first:
    `git fetch origin main && git restore --source=origin/main --worktree --
@@ -127,8 +141,8 @@ Without the witness, the agent performs both moves:
 3. **End.** Commit, push the branch (`git push -u origin <branch>`, or
    `--force-with-lease` after a rebase), then return:
    - `git fetch origin main`;
-   - for every dirty path under `coga/tasks/`, `coga/log.md`, and
-     `coga/recurring/`, verify it is already on `origin/main` by the rules of
+   - for every dirty path under the Coga roots, verify it is already on
+     `origin/main` by the rules of
      the launch boundary above (`git diff --quiet origin/main -- <path>`;
      for `coga/log.md`, every added line is on `origin/main`) and discard it
      (`git restore --source=HEAD --staged --worktree -- <path>`). `git diff`
@@ -137,8 +151,8 @@ Without the witness, the agent performs both moves:
      identical;
    - `git switch main`, then `git merge --ff-only origin/main`.
 
-   If any dirty Coga-state path is *not* already on `origin/main`, or any
-   other path is dirty, stop and escalate. Never discard unpublished state.
+   If any dirty path under the Coga roots is *not* already on `origin/main`,
+   or any other path is dirty, stop and escalate. Never discard unpublished state.
    Then write the step's handoff (`## Dev`, blackboard notes) on `main` and
    run `coga bump`, which publishes it. The session leaves the checkout on
    `main`, clean.
@@ -235,11 +249,12 @@ links are ignored, non-regenerable state, so they make it preserve the checkout.
 ## Which checkout you invoke Coga from
 
 - **Mutating commands publish from wherever they run.** The exit sweep
-  (`sync_coga_state`) publishes every dirty path under `coga/tasks/`,
-  `coga/log.md`, and `coga/recurring/`, plus eligible committed state there,
-  to control, even after a config
-  failure; contexts, skills, workflows, and config are never swept. Write
-  deliberate ticket prose on `main`, not on a feature branch. Which
+  (`sync_coga_state`) publishes every dirty file under the Coga roots, plus
+  eligible committed state there (only routine task, log, and recurring
+  state from a feature branch), to control, even after a config failure.
+  Write deliberate ticket prose and knowledge edits on `main`; commit a
+  knowledge edit that belongs to a code PR before running a sweeping command
+  on its branch. Which
   invocations sweep is owned by
   [coga/sync](../../coga/sync/SKILL.md).
 - **`coga launch <target> --prompt-report` writes.** It sweeps like any launch

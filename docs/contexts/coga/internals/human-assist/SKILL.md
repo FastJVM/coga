@@ -42,7 +42,7 @@ derivation, for draft, active, in_progress, paused, and blocked tickets:
 3. `_align_recorded_assist_checkout` fetches the branch into its
    remote-tracking ref; that OID must equal the PR head. A behind checkout is
    fast-forwarded (`merge --ff-only`); an ahead or diverged tip refuses, as
-   does dirt other than Coga's live task, log, and recurring state.
+   does dirt outside the Coga roots (`git.coga_root_paths`).
 4. After a move, config and target reload (the slug resolved from the user's
    prefix must still resolve to the same task) and the loop repeats; three
    consecutive moves refuse ("retry once the PR branch is stable").

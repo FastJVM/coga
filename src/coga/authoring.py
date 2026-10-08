@@ -10,7 +10,9 @@ from hashlib import sha256
 from pathlib import Path
 
 from coga import git
-from coga.config import Config, ConfigError
+from coga.config import Config, ConfigError, find_checkout_root, load_config
+from coga.logfile import log_path
+from coga.paths import tasks_dir
 from coga.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -22,8 +24,6 @@ from coga.tasks import (
 from coga.ticket import Ticket
 from coga.validate import assert_task_valid
 
-
-AUTHORING_SYNC_DIRS = ("tasks", "contexts", "skills")
 
 # Session-length override for the authoring interview's agent — e.g.
 # `export COGA_AUTHORING_AGENT=codex` while a Claude quota is exhausted. Read
@@ -94,15 +94,11 @@ def resolve_authoring_agent(
 def authoring_sync_roots(cfg: Config) -> tuple[Path, ...]:
     """Absolute roots the authoring interview may create or modify files under.
 
-    Resolved off config rather than joined onto `cfg.repo_root`, because
-    `[layout] contexts` can move the contexts directory outside the coga root
-    entirely. A hardcoded join would leave a relocated context edited during
-    authoring unhashed before the session and therefore unreported after it.
+    The same Coga and contexts roots the state sweep publishes
+    (`git.coga_root_paths`), resolved off config because `[layout] contexts`
+    can move the contexts directory outside the coga root entirely.
     """
-    return tuple(
-        cfg.contexts_root if name == "contexts" else cfg.repo_root / name
-        for name in AUTHORING_SYNC_DIRS
-    )
+    return git.coga_root_paths(cfg)
 
 
 class AuthoringError(Exception):
@@ -126,17 +122,44 @@ def snapshot_authoring_state(cfg: Config) -> AuthoringSnapshot:
 
 
 def snapshot_authoring_files(cfg: Config) -> dict[Path, str]:
-    """Hash files the authoring interview is allowed to create or modify."""
+    """Fingerprint files the authoring interview is allowed to create or modify.
+
+    Each entry is the Git file mode plus a content hash, so a mode-only edit
+    (making a skill script executable) is a change publication must carry.
+    """
     snapshot: dict[Path, str] = {}
-    for root in authoring_sync_roots(cfg):
-        if not root.is_dir():
-            continue
-        for path in sorted(root.rglob("*")):
-            if path.is_file():
-                snapshot[path.resolve(strict=False)] = sha256(
-                    path.read_bytes()
-                ).hexdigest()
+    for path in _authoring_files(cfg):
+        # Never turn a link in an authoring root into an explicit publication
+        # request for its target (which may be source outside these roots).
+        if git.symlink_component(path) is None and path.is_file():
+            mode = "100755" if path.stat().st_mode & 0o111 else "100644"
+            digest = sha256(path.read_bytes()).hexdigest()
+            snapshot[path.absolute()] = f"{mode}:{digest}"
     return snapshot
+
+
+def _authoring_files(cfg: Config) -> list[Path]:
+    """Files under the authoring roots that publication could carry.
+
+    In a Git checkout, Git lists them (tracked plus unignored untracked), so
+    ignored local files such as `coga.local.toml` and generated agent views
+    are never hashed, reported, or published. Outside one, every file.
+    """
+    roots = [root for root in authoring_sync_roots(cfg) if root.is_dir()]
+    if not roots:
+        return []
+    try:
+        top = git.toplevel(cfg.repo_root) if find_checkout_root(cfg.repo_root) else None
+        if top is not None:
+            out = git.run_git(
+                top, "ls-files", "-z", "--cached", "--others", "--exclude-standard",
+                "--", *(git.relative_to_root(top, root) for root in roots),
+                env={"GIT_LITERAL_PATHSPECS": "1"},
+            )
+            return [top / rel for rel in sorted(set(out.split("\x00"))) if rel]
+    except git.GitError:
+        pass
+    return [path for root in roots for path in sorted(root.rglob("*"))]
 
 
 def changed_authoring_paths(
@@ -146,7 +169,13 @@ def changed_authoring_paths(
     """Return created, changed, and deleted authoring-owned paths."""
     after = snapshot_authoring_files(cfg)
     changed = {path for path, digest in after.items() if before.get(path) != digest}
-    changed.update(path for path in before if path not in after)
+    # Disappearing from the eligible inventory is not always a deletion: an
+    # existing regular file may now be ignored or outside relocated roots.
+    # Keep link replacements visible so finalization refuses their targets.
+    changed.update(
+        path for path in before if path not in after
+        and (git.symlink_component(path) is not None or not path.is_file())
+    )
     return changed
 
 
@@ -171,55 +200,30 @@ def authored_task_refs(
 
 
 def support_paths(cfg: Config, changed_paths: set[Path]) -> list[Path]:
-    """Return changed non-task support files authored by the interview."""
+    """Changed files outside the tasks directory: contexts, skills, workflows, config.
+
+    The audit log is excluded: launch and lifecycle writers own it, and the
+    state sweep publishes it.
+    """
+    tasks_root = tasks_dir(cfg).resolve(strict=False)
+    log = log_path(cfg).resolve(strict=False)
     support: list[Path] = []
-    for support_root in (cfg.contexts_root, cfg.repo_root / "skills"):
-        root = support_root.resolve(strict=False)
-        for path in changed_paths:
-            try:
-                path.resolve(strict=False).relative_to(root)
-            except ValueError:
-                continue
-            support.append(path)
+    for path in changed_paths:
+        resolved = path.resolve(strict=False)
+        if resolved == log or resolved == tasks_root or tasks_root in resolved.parents:
+            continue
+        support.append(path)
     return sorted(support)
 
 
-def exclude_support_paths(
-    task_paths: list[Path],
-    changed_paths: set[Path],
-    support: list[Path],
-) -> list[Path]:
-    """Keep reported support paths out of task publication pathspecs.
-
-    Publication expands a directory pathspec recursively, so a context or
-    skill root nested inside a directory-form task would otherwise ride along
-    with the task. Such a task directory is replaced by its changed non-support
-    paths, listed explicitly.
-    """
-    excluded = {path.resolve(strict=False) for path in support}
-    if not excluded:
-        return task_paths
-    kept: list[Path] = []
-    for task_path in task_paths:
-        root = task_path.resolve(strict=False)
-        if root not in excluded and not any(
-            root in path.parents for path in excluded
-        ):
-            kept.append(task_path)
-            continue
-        kept.extend(
-            sorted(
-                path
-                for path in changed_paths
-                if (resolved := path.resolve(strict=False)) not in excluded
-                and (resolved == root or root in resolved.parents)
-            )
-        )
-    return kept
+def _git_destination(cfg: Config) -> tuple[object, ...]:
+    return (cfg.git_enabled, cfg.git_remote, cfg.git_control_branch)
 
 
 def authoring_sync_message(authored_refs: list[TaskRef]) -> str:
     """Commit message for a guided authoring sync."""
+    if not authored_refs:
+        return "Ticket authoring — knowledge edits"
     if len(authored_refs) == 1:
         return f"Ticket: {authored_refs[0].id_slug} — authored"
     slugs = ", ".join(ref.id_slug for ref in authored_refs)
@@ -252,15 +256,40 @@ def finalize_authored(
     before_snapshot: AuthoringSnapshot,
     ref: TaskRef | BootstrapRef,
 ) -> None:
-    """Run post-authoring validation and sync for a completed interview."""
-    changed_paths = changed_authoring_paths(before_snapshot.files, cfg)
-    support = support_paths(cfg, changed_paths)
-    if support:
-        sys.stderr.write(
-            "[ticket] Coga did not publish these context/skill changes; "
-            "carry them through a branch and human-reviewed PR:\n"
-            + "".join(f"  {path}\n" for path in support)
+    """Validate a completed interview, then publish what it authored.
+
+    Authored task paths and every changed file under the Coga and contexts
+    roots outside the tasks directory land together in one guarded publish.
+    A refused or failed publish keeps every edit on disk and raises
+    `AuthoringError`, so the interview never reports a completed handoff it
+    could not make durable.
+    """
+    destination = _git_destination(cfg)
+    try:
+        cfg = load_config(cfg.repo_root, require_user=False)
+    except ConfigError as exc:
+        raise AuthoringError(f"Authored configuration is invalid: {exc}") from exc
+    # The handoff publishes to the destination the interview started under. An
+    # authored `[git]` change would retarget it, so the old control branch
+    # would never learn its destination moved; refuse, as launch does.
+    if _git_destination(cfg) != destination:
+        raise AuthoringError(
+            "Authored configuration changes the Git destination ([git] enabled, "
+            "remote, or control_branch); ticket authoring cannot publish under a "
+            "new destination. Land that change through review first. Edits are "
+            "kept on disk."
         )
+    # Use the new roots for discovery and validation, but keep the original
+    # snapshot so a relocation publishes its old-path deletions atomically
+    # with the new files and configuration.
+    changed_paths = changed_authoring_paths(before_snapshot.files, cfg)
+    for path in sorted(changed_paths):
+        if git.symlink_component(path) is not None:
+            raise AuthoringError(
+                f"Authored path {path} is a symlink or has a symlinked ancestor; "
+                "replace it with regular files before publication. Edits are kept on disk."
+            )
+    support = support_paths(cfg, changed_paths)
 
     task_sync_paths: list[Path]
     if isinstance(ref, TaskRef):
@@ -298,13 +327,23 @@ def finalize_authored(
         )
         task_sync_paths = [authored_ref.path for authored_ref in authored_refs]
 
-    task_sync_paths = exclude_support_paths(task_sync_paths, changed_paths, support)
-
     for authored_ref in authored_refs:
         validate_authored_task(cfg, authored_ref)
 
-    if task_sync_paths:
-        try:
-            git.publish(cfg, task_sync_paths, authoring_sync_message(authored_refs))
-        except git.GitError as exc:
-            sys.stderr.write(f"[git] sync failed: {exc}\n")
+    sync_paths = [*task_sync_paths, *support]
+    if not sync_paths:
+        return
+    try:
+        published = git.publish(
+            cfg, sync_paths, authoring_sync_message(authored_refs), require_paths=support,
+        )
+    except git.GitError as exc:
+        raise AuthoringError(
+            f"Authored changes were not published: {exc}. They are kept on "
+            "disk as written; the next Coga command's state sweep retries them."
+        ) from exc
+    if support and published is not None:
+        sys.stderr.write(
+            "[ticket] Published these knowledge edits with the authored tickets:\n"
+            + "".join(f"  {path}\n" for path in support)
+        )

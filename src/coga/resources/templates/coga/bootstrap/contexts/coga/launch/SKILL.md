@@ -28,10 +28,10 @@ Trailing positional arguments reach an agent prompt as an ordered JSON
 
 An ordinary task launch runs from a clean, current control checkout. Target
 resolution and the recorded-checkout test only classify; then launch
-publishes routine Coga state and prepares the invoking checkout
-(`git.prepare_control_checkout`) before the delegation read, recorded-assist
-alignment, script discovery, activation, the agent-skill view, or prompt
-composition. It then reloads config (a changed Git destination refuses
+publishes Coga state (the sweep over the Coga roots) and prepares the
+invoking checkout (`git.prepare_control_checkout`) before the delegation
+read, recorded-assist alignment, script discovery, activation, the
+agent-skill view, or prompt composition. It then reloads config (a changed Git destination refuses
 with 75) and re-resolves the same canonical ref. It never selects a
 different prefix match. A spelling that does not resolve locally, and is not
 `bootstrap/` or `recurring/`, is resolved again after preparation, so a

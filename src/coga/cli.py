@@ -137,11 +137,10 @@ _SWEEPING_MARK_SUBCOMMANDS = frozenset(
 
 
 def _sweep_coga_state(cfg: Config | None) -> None:
-    """Catch-all: publish any task, log, or recurring state still dirty after a
-    mutating command, so machine side-effects and earlier offline misses
-    converge on control at the next invocation (the "no daemon" alternative to
-    instant commits). Hand-authored contexts, skills, and workflows are review
-    work and are not swept.
+    """Catch-all: publish any file still dirty under the Coga and contexts
+    roots after a mutating command, so machine side-effects, authored
+    knowledge, and earlier offline misses converge on control at the next
+    invocation (the "no daemon" alternative to instant commits).
 
     Wired only to mutating commands via `_NON_SWEEPING_COMMANDS` and the
     option/`--help` guards: a bare `coga`, `--version`, or any `--help` is not a
