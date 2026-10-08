@@ -285,7 +285,7 @@ def _retire_body(
     template, override = load_resource(cfg, "retire.md")
     try:
         body = template.format(slug=target_slug).strip()
-    except (KeyError, IndexError, ValueError, AttributeError) as exc:
+    except (KeyError, IndexError, ValueError, AttributeError, TypeError) as exc:
         if override is None:
             raise
         # `retire.md` renders with `str.format`, so a stray brace in a repo

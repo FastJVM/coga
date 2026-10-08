@@ -2965,3 +2965,22 @@ def test_validate_bad_blackboard_does_not_hide_readiness_or_repair(repo: Path) -
     assert path.read_bytes() == before
     assert any(i.kind == 'unreadable-resource-override' for i in report.issues)
     assert any(i.kind == 'blackboard-fence' for i in report.issues)
+
+
+def test_validate_reports_inaccessible_resource_directory(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = repo / 'resources'
+    root.mkdir()
+    original = Path.iterdir
+
+    def inaccessible(path: Path):
+        if path == root:
+            raise PermissionError('Permission denied')
+        return original(path)
+
+    monkeypatch.setattr(Path, 'iterdir', inaccessible)
+    report = run(load_config(repo))
+    issue = next(i for i in report.issues if i.kind == 'unreadable-resource-override')
+    assert issue.severity == 'error'
+    assert str(root) in issue.message

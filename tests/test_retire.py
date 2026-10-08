@@ -95,7 +95,9 @@ def test_retire_uses_repo_retire_template_override(
     assert "Retire the done ticket" not in body
 
 
-@pytest.mark.parametrize("placeholder", ["{json: true}", "{slug.missing}", "{"])
+@pytest.mark.parametrize(
+    "placeholder", ["{json: true}", "{slug.missing}", "{slug[foo]}", "{"],
+)
 def test_retire_override_with_stray_brace_names_the_file(
     repo: Path, monkeypatch: pytest.MonkeyPatch, placeholder: str,
 ) -> None:

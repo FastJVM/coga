@@ -1225,11 +1225,20 @@ def _check_repo_resources(cfg: Config) -> list[Issue]:
     read is an error — compose and create refuse rather than fall back.
     """
     root = repo_resources_dir(cfg)
-    if not root.is_dir():
-        return []
+    try:
+        if not root.is_dir():
+            return []
+        paths = sorted(root.iterdir())
+    except OSError as exc:
+        return [Issue(
+            kind="unreadable-resource-override",
+            task="(resources)",
+            message=f"repo resource directory {root} could not be inspected ({exc})",
+            severity="error",
+        )]
     out: list[Issue] = []
     known = ", ".join(sorted(RESOURCE_NAMES))
-    for path in sorted(root.iterdir()):
+    for path in paths:
         name = path.name
         if name.startswith(".") or name == "README.md":
             continue
