@@ -50,6 +50,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/978
 branch: inactive-lenient-template-skip
 
 Plan: in `recurring.scan_due`, on an inactive non-forced sweep call a new
