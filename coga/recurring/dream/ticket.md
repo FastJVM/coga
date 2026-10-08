@@ -142,11 +142,12 @@ nothing is indistinguishable from a clean repo. Run each scan like this:
    empty owned set.
 1. **Create the scan directory** under this Coga workspace's gitignored
    `.coga/`, never under `/tmp`, `mktemp -d`, or `$TMPDIR`. Pick one run id per
-   Dream run (`date -u +%Y%m%dT%H%M%SZ`), then create one directory per phase —
-   `mkdir -p .coga/dream-scans/<run-id>` and
-   `mkdir .coga/dream-scans/<run-id>/<phase>` with the phase's scan skill name
-   (`knowledge-scan`, `contract-audit`), resolved from the directory holding
-   `coga.toml` — and keep its absolute path. Temporary storage is reaped
+   Dream run (`date -u +%Y%m%dT%H%M%SZ`). From the directory holding
+   `coga.toml`, create one directory per phase, named for the phase's scan
+   skill (`knowledge-scan`, `contract-audit`):
+   `mkdir -p .coga/dream-scans/<run-id>`, then
+   `mkdir .coga/dream-scans/<run-id>/<phase>`. Keep its absolute path.
+   Temporary storage is reaped
    underneath long runs by the OS, the agent harness, or the sandbox, which
    silently empties a live scan and leaves a `partial` result pointing at
    nothing. Both scans and the shard subagents follow
