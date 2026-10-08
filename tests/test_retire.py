@@ -80,6 +80,37 @@ def _seed_done_task(repo: Path, slug: str = "fix-retry-logic") -> Path:
     return task_dir
 
 
+def test_retire_uses_repo_retire_template_override(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+    _seed_done_task(repo, "fix-retry-logic")
+    _write(repo / "resources" / "retire.md", "Repo retire pass for `{slug}`.\n")
+
+    result = CliRunner().invoke(app, ["retire", "fix-retry-logic", "--no-launch"])
+
+    assert result.exit_code == 0, result.output
+    body = Ticket.read(repo / "tasks" / "retire-fix-retry-logic.md").body
+    assert "Repo retire pass for `fix-retry-logic`." in body
+    assert "Retire the done ticket" not in body
+
+
+def test_retire_override_with_stray_brace_names_the_file(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+    _seed_done_task(repo, "fix-retry-logic")
+    override = repo / "resources" / "retire.md"
+    _write(override, "Retire {slug} using {json: true}.\n")
+
+    result = CliRunner().invoke(app, ["retire", "fix-retry-logic", "--no-launch"])
+
+    assert result.exit_code == 2
+    assert str(override) in result.output
+    assert "Traceback" not in result.output
+    assert not (repo / "tasks" / "retire-fix-retry-logic.md").exists()
+
+
 def test_retire_no_launch_creates_task_with_target_slug(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

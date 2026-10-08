@@ -71,7 +71,12 @@ from coga import pr_assist
 from coga.lifecycle import TERMINAL_STATUSES
 from coga.launch_script import run_script_chain, script_entry_point
 from coga.logfile import append_log, log_path
-from coga.paths import recurring_dir, tasks_dir
+from coga.paths import (
+    RESOURCE_NAMES,
+    RepoResourceUnreadable,
+    recurring_dir,
+    tasks_dir,
+)
 from coga.mark import (
     MainAgentUnavailable,
     BlackboardNeedsSynthesis,
@@ -2175,6 +2180,8 @@ def _prospective_assist_ticket(
                     reason=exc.reason,
                 )
             ) from exc
+        except RepoResourceUnreadable as exc:
+            raise ComposeError(f"Cannot launch {ref.id_slug}: {exc}") from exc
         except MainAgentUnavailable as exc:
             raise ComposeError(
                 f"Cannot launch {ref.id_slug}: {exc}"
@@ -2263,6 +2270,8 @@ def _prepare_auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
                 ref.id_slug, action="launch", reason=exc.reason
             )
         )
+    except RepoResourceUnreadable as exc:
+        _bail(f"Cannot launch {ref.id_slug}: {exc}")
     except MainAgentUnavailable as exc:
         _bail(f"Cannot launch {ref.id_slug}: {exc}")
 
@@ -3450,6 +3459,17 @@ def _format_prompt_report(id_slug: str, composition: PromptComposition) -> str:
         f"Total composed prompt: {format_bytes(composition.byte_count)} "
         f"(~{composition.approx_tokens} tokens)",
     ])
+    # Fixed layers read packaged text unless the repo overrides it under
+    # `<coga root>/resources/`; the override is the layer's `path`.
+    overrides = [
+        layer for layer in composition.layers
+        if layer.ref in RESOURCE_NAMES and layer.path
+    ]
+    if overrides:
+        lines.extend(["", "Repo resource overrides:"])
+        lines.extend(
+            f"  {layer.layer}: {layer.ref} <- {layer.path}" for layer in overrides
+        )
     return "\n".join(lines)
 
 

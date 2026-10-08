@@ -27,6 +27,11 @@ It is never ticket frontmatter, config, or a user flag on an ordinary launch.
 An unknown context or a missing resource is a `ComposeError` at the same
 preflight boundary as any missing layer, before `in_progress` or spawn.
 `--prompt-report` names the selected resource on its `session_conduct` line.
+A repo may replace any of the three resources by name under
+`<coga root>/resources/`; selection is unchanged, and an override replaces
+only its own context's text
+([coga/prompt-composition](../prompt-composition/SKILL.md), "What each layer
+reads").
 
 ## Postures
 

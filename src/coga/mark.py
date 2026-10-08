@@ -504,7 +504,7 @@ def _missing_required_extensions(cfg: Config, ticket: Ticket) -> list[str]:
 
 
 def _refuse_unsynthesized_draft_blackboard(
-    ref: TaskRef, prior_status: str | None
+    cfg: Config, ref: TaskRef, prior_status: str | None
 ) -> None:
     """Refuse the first launch boundary when authoring notes remain."""
     if prior_status != "draft":
@@ -512,6 +512,7 @@ def _refuse_unsynthesized_draft_blackboard(
     reason = prelaunch_blackboard_synthesis_reason(
         ref.ticket_path,
         blackboard_required=False,
+        cfg=cfg,
     )
     if reason is not None:
         raise BlackboardNeedsSynthesis(reason)
@@ -537,7 +538,7 @@ def prepare_active(
     prior_status = ticket.status
     if prior_status == "canceled":
         raise CancellationError("a canceled ticket cannot be reactivated")
-    _refuse_unsynthesized_draft_blackboard(ref, prior_status)
+    _refuse_unsynthesized_draft_blackboard(cfg, ref, prior_status)
 
     if not _has_workflow(ticket):
         raise WorkflowMissing()

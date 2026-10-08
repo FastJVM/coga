@@ -18,7 +18,7 @@ from pathlib import Path
 from coga import git
 from coga.atomicio import atomic_write_text
 from coga.config import Config
-from coga.paths import read_packaged_resource
+from coga.paths import read_packaged_resource, read_resource
 from coga.taskfile import (
     TaskFileError,
     fence_count,
@@ -128,9 +128,13 @@ def append_blackboard_report(
         return rendered.encode("utf-8")
 
 
-def render_blackboard(task_title: str) -> str:
-    """Render the default blackboard template with task metadata filled in."""
-    template = read_packaged_resource("blackboard.md")
+def render_blackboard(task_title: str, *, cfg: Config | None = None) -> str:
+    """Render the default blackboard template with task metadata filled in.
+
+    The repo's `resources/blackboard.md` override, when `cfg` has one, wholly
+    replaces the packaged template; `cfg=None` renders the packaged copy.
+    """
+    template = read_resource(cfg, "blackboard.md")
     return template.replace("{task_title}", task_title)
 
 
@@ -234,9 +238,33 @@ def _section_headings(text: str) -> list[str]:
     return headings
 
 
-def _is_stock_blackboard(text: str) -> bool:
-    stock = read_packaged_resource("blackboard.md")
-    return text.strip() in {"", stock.strip()}
+def _is_stock_blackboard(text: str, *, cfg: Config | None = None) -> bool:
+    """Whether a blackboard region is an untouched stock placeholder.
+
+    Tickets created before a repo overrode `blackboard.md` still carry the
+    packaged stub, and `render_blackboard` substitutes `{task_title}` into an
+    override, so any of the packaged stub, the raw override, or the
+    title-rendered override counts as stock. The title rendering is recognized
+    by matching the override's text around each `{task_title}` placeholder.
+    """
+    stripped = text.strip()
+    if stripped in {"", read_packaged_resource("blackboard.md").strip()}:
+        return True
+    if cfg is None:
+        return False
+    override = read_resource(cfg, "blackboard.md").strip()
+    if stripped == override:
+        return True
+    if "{task_title}" not in override:
+        return False
+    pattern = "(.+?)".join(
+        re.escape(part) for part in override.split("{task_title}")
+    )
+    match = re.fullmatch(pattern, stripped, flags=re.DOTALL)
+    if match is None:
+        return False
+    titles = set(match.groups())
+    return len(titles) == 1 and all("\n" not in title for title in titles)
 
 
 def _is_prelaunch_authoring_heading(heading: str) -> bool:
@@ -251,7 +279,9 @@ def _is_prelaunch_authoring_heading(heading: str) -> bool:
     return False
 
 
-def prelaunch_blackboard_synthesis_reason_text(text: str) -> str | None:
+def prelaunch_blackboard_synthesis_reason_text(
+    text: str, *, cfg: Config | None = None
+) -> str | None:
     """Return why a draft blackboard must be synthesized before launch.
 
     A draft ticket's stock placeholder is empty authoring space. A
@@ -263,7 +293,7 @@ def prelaunch_blackboard_synthesis_reason_text(text: str) -> str | None:
     text = _without_superseded_designs(text)
     if _has_section(text, PRODUCTION_NOTES_HEADING):
         return None
-    if _is_stock_blackboard(text):
+    if _is_stock_blackboard(text, cfg=cfg):
         return None
 
     headings = [
@@ -307,6 +337,7 @@ def prelaunch_blackboard_synthesis_reason(
     ticket_path: Path,
     *,
     blackboard_required: bool = True,
+    cfg: Config | None = None,
 ) -> str | None:
     """Return why a ticket blackboard must be synthesized before first launch."""
     if (
@@ -315,7 +346,7 @@ def prelaunch_blackboard_synthesis_reason(
     ):
         return None
     region = read_blackboard(ticket_path, blackboard_required=blackboard_required)
-    return prelaunch_blackboard_synthesis_reason_text(region)
+    return prelaunch_blackboard_synthesis_reason_text(region, cfg=cfg)
 
 
 @dataclass(frozen=True)
