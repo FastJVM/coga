@@ -248,25 +248,150 @@ frontmatter. Resume this ticket normally, confirm entry on clean main, and
 bump once to open-pr. Peer review has returned, all findings are fixed, the
 branch is pushed, and the PR body below is ready; no review remains in flight.
 
+## Peer review continuation — 2026-10-07, not ready to advance
+
+This section supersedes the earlier ready-to-bump handoff. The fresh launch
+found material PR-publication changes on main, rebased, and reran native review.
+Both new `codex review` runs **returned**; none is in flight.
+
+- `codex review --base main` at head `65bdab663b932ab464f16a43dae37ae0c48a7f99`,
+  base `356a9220965a0eb68615a10c4084d97067353b3c`, returned P1 stale return config
+  and P2 falsely reported publication of committed feature knowledge.
+- Owner approved both fixes in the attended session. `git.publish(require_paths=...)`
+  now requires each authored support file to be selected or already match control;
+  checkout return reloads config and refuses an invalid config/changed destination.
+- `codex review --base origin/main` at head `263bd2c663036058aaa86601c7a7b629dd06bb43`,
+  base `1533d528c374c1ac292f57d1a9ef9d4685a41066`, returned three findings:
+  P1 symlinked ancestors escape authoring roots; P2 CLI exit sweep bypasses an
+  authoring refusal; P2 relocation between external roots loses old deletions.
+- The two P2 follow-through fixes are committed and pushed at
+  `46da7290f0e3c6c7f4f4f80864273defac9360db`: ticket finalization failure withholds
+  its invocation's exit sweep; checkout return carries the prior contexts root
+  through the shared root helper for publication, preparation, and recovery.
+  The owner already approved these handoff/relocation fixes.
+- **Still open: P1 symlinked ancestors.** Reproducer: seed tracked
+  `coga/skills/team/helper.py`, snapshot authoring, replace the `team` directory
+  with a symlink to `src`, and edit `src/helper.py`. The old snapshot child
+  appears deleted; `git.relative_to_root` resolves its parent link and publishes
+  the dirty source outside the roots. Proposed fix: reject linked ancestors
+  before explicit authoring publication and in the publication guard; add
+  regression coverage for source inside/outside the checkout. The attending
+  owner was asked for approval and has not answered yet. Do not infer approval
+  from elapsed time. The session's substantive-change confirmation rule is the
+  reason for waiting; do not block the ticket or bump while this remains open.
+
+Validation: latest committed tree passed
+`PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest tests/test_git.py tests/test_authoring.py tests/test_ticket.py tests/test_launch.py tests/test_launch_script.py tests/test_packaging.py -q`
+(**484 passed in 67.70s**), including 14 focused return/failure cases. Earlier
+full run at the preceding revision reported **3435 passed**, but is historical
+and does not cover the last follow-through changes. Run the full suite again
+after all remaining fixes. No new terminal or rendering surface is involved.
+
+Branch is committed/pushed; checkout returned to main. No workflow transition
+was made. Finish the symlink fix after approval, verify/review the final diff,
+refresh the structured PR record below, return clean main, then bump once.
+Initial implementation was Claude (commit coauthor evidence); Codex implemented
+review fixes. Codex reviews are conservatively labeled self-review of the mixed
+Claude/Codex implementation, not independent review of Codex's own fixes.
+
 ## PR
 
-Publish eligible files throughout the configured Coga workspace and contexts
-root through guarded state publication, including contexts, skills, workflows,
-and shared config. Guided authoring publishes its changed tickets and knowledge
-together; checkout preparation, return, recovery, and unpublished-work detection
-use the same directory membership. Ignored files stay local, provenance and
-concurrent-update guards remain, and committed feature-branch knowledge stays
-with its reviewed PR.
-
-Protect that broader boundary against symlinks and submodules, and publish
-context relocations atomically after reloading configuration. Update the owning
-contracts, authoring/checkout instructions, and packaged twins.
-
-Test plan: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest` —
-3374 passed (including packaging); example validation — 0 issues;
-`git diff --check` — clean.
-
----
+```yaml
+title: Publish all eligible files under configured Coga and context roots
+author: claude/codex
+author_evidence: Initial implementation commit credits Claude Opus 5.5; Codex peer-review sessions implemented
+  the subsequent fixes, as recorded above.
+head: 46da7290f0e3c6c7f4f4f80864273defac9360db
+base: 1533d528c374c1ac292f57d1a9ef9d4685a41066
+depth: deep
+rationale: Significant expansion of automatic instruction/config publication; a reproduced symlink escape
+  is still unresolved. Do not open or merge until it is fixed and final verification is recorded.
+implementation: Use shared configured-root membership for state sweeps, authoring, checkout preparation/return,
+  recovery, and unpublished-work warnings. Publish authored tickets and knowledge together, withhold failed-authoring
+  exit sweeps, and retain both context roots during launch-return relocation.
+deviations: Committed feature-branch knowledge stays review-bound; dirty managed-root files publish directly.
+  In the root layout, the workspace is the entire checkout. Retro deliberately retains its reviewed-PR
+  policy.
+limitations: Unresolved symlinked-ancestor escape awaits owner approval to fix. Final full-suite and review
+  receipts must be refreshed after remaining fixes. No Python 3.11 run; no interactive rendering surface
+  changed.
+files:
+  coga/skills/coga/ticket/finalize/SKILL.md: Describe joint guarded publication of authored tickets and
+    knowledge, including failure retention.
+  docs/contexts/coga/context-layout/SKILL.md: Make relocated contexts part of the automatic publication
+    boundary.
+  docs/contexts/coga/internals/assist-publication/SKILL.md: Apply the configured roots consistently to
+    assist checkout publication.
+  docs/contexts/coga/internals/git-refresh/SKILL.md: Use root membership for recovery of already published
+    state commits.
+  docs/contexts/coga/internals/human-assist/SKILL.md: Align recorded assist dirt classification with publication
+    roots.
+  docs/contexts/coga/internals/state-publication/SKILL.md: Own the broader publication policy, committed-feature
+    exception, guarded authoring requirements, symlink and submodule safeguards.
+  docs/contexts/coga/launch/SKILL.md: Describe root-wide publication at the launch boundary.
+  docs/contexts/coga/principles/SKILL.md: Record the approved visible Git correction policy without requiring
+    every knowledge edit to use a PR.
+  docs/contexts/coga/sync/SKILL.md: Document root-wide sweeps and the review boundary for committed feature
+    changes.
+  docs/contexts/dev/checkouts/SKILL.md: Align checkout entry, return, and recovery instructions; require
+    config reload before return publication.
+  src/coga/authoring.py: Discover eligible root files, reload authored config, publish tasks and knowledge
+    together, and reject incomplete handoffs.
+  src/coga/cli.py: Update sweep documentation to match root-wide eligibility.
+  src/coga/commands/launch.py: Reload and validate return configuration, retain the previous context root
+    for relocation, and reuse root membership for assist alignment.
+  src/coga/commands/ticket.py: Withhold the CLI exit sweep after finalization failure so refused knowledge
+    cannot leave separately published task references.
+  src/coga/git.py: Share root membership across publication and recovery, retain committed-feature review
+    protection, refuse submodules, and require authored paths to participate or already match control.
+  src/coga/mark.py: Reuse shared root membership for unpublished product-work detection.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/context-layout/SKILL.md: Keep the packaged
+    twin byte-identical to docs/contexts/coga/context-layout/SKILL.md.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/assist-publication/SKILL.md: Keep
+    the packaged twin byte-identical to docs/contexts/coga/internals/assist-publication/SKILL.md.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/git-refresh/SKILL.md: Keep the packaged
+    twin byte-identical to docs/contexts/coga/internals/git-refresh/SKILL.md.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/human-assist/SKILL.md: Keep the
+    packaged twin byte-identical to docs/contexts/coga/internals/human-assist/SKILL.md.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/state-publication/SKILL.md: Keep
+    the packaged twin byte-identical to docs/contexts/coga/internals/state-publication/SKILL.md.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/launch/SKILL.md: Keep the packaged twin byte-identical
+    to docs/contexts/coga/launch/SKILL.md.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/principles/SKILL.md: Keep the packaged twin
+    byte-identical to docs/contexts/coga/principles/SKILL.md.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md: Keep the packaged twin byte-identical
+    to docs/contexts/coga/sync/SKILL.md.
+  src/coga/resources/templates/coga/bootstrap/contexts/dev/checkouts/SKILL.md: Keep the packaged twin
+    byte-identical to docs/contexts/dev/checkouts/SKILL.md.
+  src/coga/resources/templates/coga/bootstrap/skills/coga/ticket/finalize/SKILL.md: Keep the packaged
+    twin byte-identical to coga/skills/coga/ticket/finalize/SKILL.md.
+  src/coga/resources/templates/coga/bootstrap/skills/retro/done-ticket/SKILL.md: Scope reviewed knowledge
+    PRs to Retro and require committing review-bound edits before sweeping commands.
+  tests/test_authoring.py: Assert joint publication, changed-knowledge selection, and failure propagation.
+  tests/test_git.py: Exercise both layouts, publication and return safeguards, concurrent failures, symlinks,
+    submodules, and committed-feature authoring refusals.
+  tests/test_layout_contexts.py: Verify relocated authored contexts and product vision survive publication
+    and fresh-clone composition.
+review:
+  reviewer: codex
+  kind: self
+  status: failed
+  head: 263bd2c663036058aaa86601c7a7b629dd06bb43
+  base: 1533d528c374c1ac292f57d1a9ef9d4685a41066
+  detail: codex review --base origin/main returned three findings. Two P2 findings are fixed in the current
+    head; P1 symlinked ancestors still escape publication roots. Historical review, not verification of
+    current head. Codex also authored fixes; independence is not claimed.
+checks:
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest tests/test_git.py tests/test_authoring.py
+    tests/test_ticket.py tests/test_launch.py tests/test_launch_script.py tests/test_packaging.py -q
+  status: passed
+  head: 46da7290f0e3c6c7f4f4f80864273defac9360db
+  base: 1533d528c374c1ac292f57d1a9ef9d4685a41066
+  detail: 484 passed in 67.70s on the exact working tree subsequently committed as this head.
+- command: PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest
+  status: not-run
+  detail: Final-head full run pending the remaining symlink fix; previous revision reported 3435 passed.
+```
 
 ## Blockers
 
