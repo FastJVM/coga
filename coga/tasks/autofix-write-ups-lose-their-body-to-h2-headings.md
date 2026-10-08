@@ -26,8 +26,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
-launch_generation: a3228ae8-a0f7-48d8-89ca-913b9ef700e6
+step: 4 (review)
 ---
 
 ## Description
@@ -378,3 +377,9 @@ supported review kind `self` and status `failed` for the historical review
 that returned eight findings; its later fixes and final-head review limits
 remain explicit. Quoted YAML scalar values to preserve literal heading and
 finding markers. No new review or test execution is claimed by this step.
+
+Opened and verified https://github.com/FastJVM/coga/pull/980 against `main`
+from `ticket-body-sections`; `pr:` is recorded under Dev. The generated PR
+retains the full ticket snapshot, prior check receipts, and historical
+self-review limitations with a deep-review recommendation. Ready for the
+owner review gate.
