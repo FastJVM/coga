@@ -18,9 +18,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 0eaec1f5-715c-41a9-92ff-b72203272422
 ---
 
 ## Description
@@ -62,3 +61,11 @@ branch: docs/correct-prompt-report-readme (pushed; commit "Correct README descri
 - New wording: "`coga launch <slug> --prompt-report` lists the prompt layers a ticket launch would compose, with each layer's size and approximate token count, then exits without launching an agent." It says "a ticket launch" so it doesn't claim script (`ticket.py`) targets, and it mentions no full-text output.
 - Verified write-free against `compose.compose_prompt_report` + `launch._format_prompt_report` on this ticket (no CLI run in the shared checkout). The output is a "Prompt report for <slug>" header, a table of layer/ref/bytes/approx_tokens (characters / 4), and a total line. No prompt text appears. This matches the `--help` text.
 - Process note: the auto-mode classifier denied the pre-branch `sync_coga_state` publish because it pushes to origin/main. The tree was clean, so I switched without it and recorded `branch:` here after returning to main. This entry is published by `coga bump`.
+
+## Peer review
+
+- Reviewed `2263875d6` on `docs/correct-prompt-report-readme` from clean `main`, without switching. No must-fix findings; the one-sentence README correction satisfies the ticket and makes no full-prompt-output or write-free claim.
+- Checked `git diff main...docs/correct-prompt-report-readme -- '*.md'` and `--stat`: README prose only. No links changed, no context/template twins affected. `git diff main...docs/correct-prompt-report-readme --check` passed. No pytest run, as required for this prose-only step.
+- Verified `coga launch --help`, the report return and script-target refusal in `src/coga/commands/launch.py`, `_format_prompt_report`, and byte/token calculations in `src/coga/compose.py` against the prompt-composition and launch topics. The example supplies the required target and promises layer metadata, not prompt text.
+- Independently rendered this ticket through `compose_prompt_report` and `_format_prompt_report`, using `PYTHONPATH=/home/n/Code/coga/src /home/n/.local/share/uv/tools/coga/bin/python` with `load_config`, `resolve_task`, and `read_ticket`. Output contained layer/ref/bytes/approx_tokens columns and a total, with no prompt text. The ambient `python` lacked Coga; the CLI interpreter succeeded. No report-mode CLI launch was run in the shared checkout.
+- Ready for the open-pr step; no branch edits needed.
