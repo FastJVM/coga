@@ -1,6 +1,6 @@
 ---
 title: Publish all Coga and context files automatically
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -270,4 +270,5 @@ Test plan: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest` —
 
 ## Blockers
 
-- [ ] [2026-10-07 17:22] [agent:codex] id=20261007T172201 Publish the newer local edits to move-coga-development-rules-out-of-the-shipped-bas, then return the shared checkout to clean main. Its untracked ticket differs from origin/main, so dev/checkouts forbids discarding it or switching over it. Peer review returned, all findings are fixed, 3374 tests pass, branch publish-coga-roots is pushed at 204d20400, and the PR body is recorded; only checkout return and bump to open-pr remain.
+- [x] [2026-10-07 17:22] [agent:codex] id=20261007T172201 Publish the newer local edits to move-coga-development-rules-out-of-the-shipped-bas, then return the shared checkout to clean main. Its untracked ticket differs from origin/main, so dev/checkouts forbids discarding it or switching over it. Peer review returned, all findings are fixed, 3374 tests pass, branch publish-coga-roots is pushed at 204d20400, and the PR body is recorded; only checkout return and bump to open-pr remain.
+  resolved: [2026-10-07 17:24] [human:nicktoper] Owner confirmed the concurrent edits are fixed. Verified the remaining local ticket/log changes are already published, returned to clean main, and confirmed the remote feature branch is still 204d20400. Control has advanced only in task/log state; reviewed source and test changes are unchanged.
