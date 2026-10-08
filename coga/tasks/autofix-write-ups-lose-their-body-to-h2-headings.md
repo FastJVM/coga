@@ -206,3 +206,34 @@ Filed from the downstream admin repo
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: ticket-body-sections
+
+## Contract decision (implement, 2026-10-08)
+
+**Relocate, not compose.** Only `## Description` and `## Context` compose; any
+other `##` above the fence is *uncomposed* and must move under one of them as
+`###` (or below the fence). Reasons: it is already the documented contract
+(coga/tickets, `_template/ticket.md`, `bootstrap/ticket`, `code/design`); an
+allowlist of "intent" names (Acceptance Criteria, Proposed Shape, Out of
+Scope, ...) would need a growing vocabulary (the live tree uses ~40 distinct
+H2s above the fence) and still drop the next new one; composing every H2
+would pull operational material (`## PR`) into intent. Tradeoff: existing
+tickets need a one-line-per-heading demote; the new warning names each one.
+
+Making the drop non-silent:
+- One shared fence-aware parser `taskfile.body_sections` used by compose,
+  validate, `open_pr` (replaces `open_pr._sections`) and the create-time
+  description check. Headings inside backtick/tilde code fences are text;
+  below the blackboard fence is never inspected (split_body first).
+- `coga validate` warns `uncomposed-section` (warn, non-terminal tickets),
+  naming every heading and the repair. `## PR` is exempt (legacy
+  operational PR preparation read by `open_pr`).
+- `coga launch` (spawn + `--prompt-report`) prints the same warning.
+- `create_task` rejects a section heading in `description` (all callers), not
+  only the CLI.
+- Autofix: `parse_analysis` shifts analyst headings so the shallowest is
+  `###` (fence-aware), plus a prompt instruction.
+- Existing upstream tickets are NOT rewritten here: follow-up for the owner.
