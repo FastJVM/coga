@@ -1,6 +1,6 @@
 ---
 title: Investigate successful Codex sessions reported as failed
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -32,6 +32,7 @@ workflow:
     assignee: owner
 step: 1 (design)
 agent: claude
+launch_generation: pending:3d879f98-9b0d-4ab1-8d91-0cfe1583f005
 ---
 
 ## Description
