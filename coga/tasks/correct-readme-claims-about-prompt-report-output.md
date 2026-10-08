@@ -17,14 +17,17 @@ Correct that README sentence so it describes what `--prompt-report` actually sho
 
 Another AI reports that --prompt-report lists layers and token estimates, and found no full-text output option. Intake confirms README.md claims it “shows the exact prompt before anything runs.” Verify the current command surface before deciding whether any existing way to inspect full text can be documented.
 
-Read coga/prompt-composition (`docs/contexts/coga/prompt-composition/SKILL.md`) and coga/launch (`docs/contexts/coga/launch/SKILL.md`), cited rather than attached; inspect the report contract. Start with README.md, `src/coga/commands/launch.py`, `src/coga/compose.py`, and CLI help. Use an isolated fixture if invoking report mode can mutate generated views or sweep state. This ticket does not fix body-section omission, which belongs to autofix-write-ups-lose-their-body-to-h2-headings.
+Read coga/prompt-composition (`docs/contexts/coga/prompt-composition/SKILL.md`) and coga/launch (`docs/contexts/coga/launch/SKILL.md`), cited rather than attached; inspect the report contract. Start with README.md, `src/coga/commands/launch.py`, `src/coga/compose.py`, and CLI help. This ticket does not fix body-section omission, which belongs to autofix-write-ups-lose-their-body-to-h2-headings.
 
 ### Verified at authoring — 2026-10-08
 
 - The claim is the `--prompt-report` sentence in README.md's "Everything is inspectable and hackable" bullet (near line 34 as of this writing).
 - `coga launch --help` describes the flag as "Print composed prompt layers and approximate token counts, then exit without launching." Match that contract; the option is defined in `commands/launch.py` and rendered by `_format_prompt_report` over `compose.compose_prompt_report`.
 - No other `launch` flag or top-level command prints the full composed prompt text.
-- Re-verify both facts against the tree you work from before editing.
+- `--prompt-report` is not write-free. On 2026-10-08 it swept state, committed "Sync coga state", and pushed to origin/main from a draft ticket (`dev/checkouts` documents the sweep and the `.agent-skills/` regeneration). Do not run it in the shared checkout. To get a representative invocation, use an isolated fixture repo or call `compose.compose_prompt_report` directly, which `dev/checkouts` names as the write-free view.
+- `--prompt-report` refuses script targets (`ticket.py`). The replacement wording must not imply it works on every target.
+- Already-correct wording to stay consistent with: `docs/contexts/coga/first-task/SKILL.md` and the `--prompt-report` passage in `docs/contexts/coga/launch/SKILL.md`.
+- Re-verify these facts against the tree you work from before editing.
 - Out of scope: adding a full-prompt output option; editing contexts or the packaged templates unless they repeat the same false claim (grep for "exact prompt" to check).
 
 <!-- coga:blackboard -->
