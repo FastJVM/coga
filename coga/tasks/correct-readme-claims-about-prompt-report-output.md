@@ -2,14 +2,14 @@
 title: Correct README claims about prompt report output
 status: draft
 owner: nicktoper
-workflow: null
+workflow: docs/with-review
 ---
 
 ## Description
 
-Correct the README claim that coga launch --prompt-report shows the exact prompt. The reported behavior is a layer and token-count report, not full prompt text.
+The README says `coga launch --prompt-report` "shows the exact prompt before anything runs." That is false: the flag prints a table of composed prompt layers with byte sizes and approximate token counts, then exits without launching. It does not print prompt text.
 
-Verify installed help and current source, then make the README accurately describe the existing inspection surface with a runnable target-specific example. If full prompt output is desired, explicitly scope that option and its behavior before implementing it; the default scope here is the factual documentation correction. Done when documented output matches a representative invocation and does not claim unavailable functionality.
+Correct that README sentence so it describes what `--prompt-report` actually shows, with a runnable, target-specific example (e.g. `coga launch <slug> --prompt-report`). Scope is the factual documentation correction only, decided with the owner on 2026-10-08: do not add a full-prompt output option. If no existing command prints full prompt text, say nothing that implies one exists. Done when the README wording matches the output of a representative invocation and claims no unavailable functionality.
 
 ## Context
 
@@ -18,6 +18,14 @@ Verify installed help and current source, then make the README accurately descri
 Another AI reports that --prompt-report lists layers and token estimates, and found no full-text output option. Intake confirms README.md claims it “shows the exact prompt before anything runs.” Verify the current command surface before deciding whether any existing way to inspect full text can be documented.
 
 Read coga/prompt-composition (`docs/contexts/coga/prompt-composition/SKILL.md`) and coga/launch (`docs/contexts/coga/launch/SKILL.md`), cited rather than attached; inspect the report contract. Start with README.md, `src/coga/commands/launch.py`, `src/coga/compose.py`, and CLI help. Use an isolated fixture if invoking report mode can mutate generated views or sweep state. This ticket does not fix body-section omission, which belongs to autofix-write-ups-lose-their-body-to-h2-headings.
+
+### Verified at authoring — 2026-10-08
+
+- The claim is the `--prompt-report` sentence in README.md's "Everything is inspectable and hackable" bullet (near line 34 as of this writing).
+- `coga launch --help` describes the flag as "Print composed prompt layers and approximate token counts, then exit without launching." Match that contract; the option is defined in `commands/launch.py` and rendered by `_format_prompt_report` over `compose.compose_prompt_report`.
+- No other `launch` flag or top-level command prints the full composed prompt text.
+- Re-verify both facts against the tree you work from before editing.
+- Out of scope: adding a full-prompt output option; editing contexts or the packaged templates unless they repeat the same false claim (grep for "exact prompt" to check).
 
 <!-- coga:blackboard -->
 
