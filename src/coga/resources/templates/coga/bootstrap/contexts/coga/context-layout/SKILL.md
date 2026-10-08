@@ -95,8 +95,9 @@ not, by hand or during guided ticket authoring — publish automatically to
 the control branch with no separate knowledge PR. The publication contract is
 owned by
 [coga/internals/state-publication](../internals/state-publication/SKILL.md).
-Moving an existing tree is an ordinary reviewed commit: move the files and
-set the key together.
+Move an existing tree and set the key together. Guided authoring and launch
+checkout return carry the old-path deletions, destination files, and config
+through the same guarded publication, as defined by that contract.
 
 `coga init` relocates its scaffold only when the template's `coga.toml` sets
 the key ([coga/init](../init/SKILL.md)). The whole configured root is
