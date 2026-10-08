@@ -1,6 +1,6 @@
 ---
 title: Move Coga-development rules out of the shipped base prompt
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -27,6 +27,7 @@ contexts:
 - coga/prompt-composition
 - coga/packaging
 agent: claude
+launch_generation: pending:33d51b84-d1f0-4581-8fb6-0830063377d9
 ---
 
 ## Description
