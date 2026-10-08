@@ -27,7 +27,7 @@ contexts:
 - coga/prompt-composition
 - coga/packaging
 agent: claude
-launch_generation: pending:2d7693fd-1a45-4298-9ec6-b5c5c089ed13
+launch_generation: 2d7693fd-1a45-4298-9ec6-b5c5c089ed13
 ---
 
 ## Description
