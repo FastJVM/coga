@@ -7954,3 +7954,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-08 12:08 [investigate-successful-codex-sessions-reported-as] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-08 12:08 [investigate-successful-codex-sessions-reported-as] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-08 12:08 [investigate-successful-codex-sessions-reported-as] [megalaunch] launched via coga megalaunch
+2026-10-08 12:29 [investigate-successful-codex-sessions-reported-as] [agent:claude] advanced to step 2 (evaluate-design) → codex — Repro'd: fast Codex double Ctrl-C = SIGINT death (130 crash) → failed; spec maps it to interrupted. 2 open questions.
