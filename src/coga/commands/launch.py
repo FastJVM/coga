@@ -2490,6 +2490,7 @@ class _CheckoutBoundary:
         self.stopped = False
         self._remote_expected = False
         self._destination: tuple[object, ...] | None = None
+        self._contexts_root: Path | None = None
 
     def enter(self, cfg: Config, target: str) -> Config:
         self.entered = True
@@ -2518,6 +2519,7 @@ class _CheckoutBoundary:
                 "No work was started.",
                 exit_code=git.RETRY_WITHOUT_SWEEP_EXIT_CODE,
             )
+        self._contexts_root = refreshed.contexts_root
         return refreshed
 
     def admit(self, cfg: Config) -> None:
@@ -2534,6 +2536,7 @@ class _CheckoutBoundary:
             return
         self.armed = True
         self._destination = _git_destination(cfg)
+        self._contexts_root = cfg.contexts_root
 
     def settle(self, cfg: Config, *, subject: str) -> bool:
         """Return the checkout; False means stop chaining (already reported)."""
@@ -2549,7 +2552,10 @@ class _CheckoutBoundary:
         if _git_destination(refreshed) != self._destination:
             self._stop("coga.toml changed the Git destination during the launch")
             return False
-        previous_contexts_root = cfg.contexts_root
+        # ticket.py reloads config before its return callback. Keep the root
+        # captured at admission/the preceding return, not the callback's
+        # already-refreshed view of a relocation.
+        previous_contexts_root = self._contexts_root or cfg.contexts_root
         cfg = refreshed
         # The end-of-command sweep, run before the switch rather than after
         # it: routine state a session or ticket.py wrote without publishing
@@ -2563,6 +2569,7 @@ class _CheckoutBoundary:
             previous_contexts_root=previous_contexts_root,
         )
         if outcome.kind in {"prepared", "exempt"}:
+            self._contexts_root = cfg.contexts_root
             return True
         self.stopped = True
         git.state_sweep_withheld.set(True)
@@ -2593,6 +2600,7 @@ class _CheckoutBoundary:
         if _git_destination(refreshed) != self._destination:
             self._stop("coga.toml changed the Git destination during the launch")
             return cfg, ref
+        self._contexts_root = refreshed.contexts_root
         try:
             current = resolve_target(refreshed, ref.id_slug)
         except TaskNotFoundError:

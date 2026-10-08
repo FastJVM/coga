@@ -1557,6 +1557,56 @@ def test_bootstrap_script_is_stateless_and_keeps_stdout_machine_readable(
     assert not (script_repo / "log.md").exists()
 
 
+@pytest.mark.parametrize("admission", ["enter", "admit"])
+def test_script_chain_preserves_the_pre_phase_contexts_root(git_repo, monkeypatch, admission):
+    monkeypatch.chdir(git_repo.coga_os)
+    (git_repo.coga_os / "coga.local.toml").write_text(
+        'user = "marc"\n[notification.slack]\nenabled = false\n'
+    )
+    seed_direct_body_workflow(git_repo.coga_os)
+    ref = _create_script_task(
+        git_repo.coga_os,
+        """
+        from pathlib import Path
+        config = Path('coga/coga.toml')
+        config.write_text(config.read_text().replace('docs/contexts', 'docs/topics'))
+        Path('docs/contexts').rename('docs/topics')
+        """,
+    )
+    old_root = git_repo.root / "docs" / "contexts"
+    _write(old_root / "team" / "SKILL.md", "---\nname: team\ndescription: Team.\n---\nKnowledge.\n")
+    config = git_repo.coga_os / "coga.toml"
+    config.write_text(config.read_text() + '\n[layout]\ncontexts = "docs/contexts"\n')
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed script relocation")
+    git_repo.git("push", "origin", "main")
+    cfg = load_config(git_repo.coga_os)
+    boundary = launch_module._CheckoutBoundary()
+    if admission == "enter":
+        cfg = boundary.enter(cfg, ref.id_slug)
+    else:
+        boundary.admit(cfg)
+    destination = git_repo.root / "docs" / "topics"
+
+    def between_phases(phase_cfg, phase_ref):
+        # Exercise the real script runner's early configuration reload.
+        assert phase_cfg.contexts_root == destination
+        assert boundary.settle(phase_cfg, subject="script relocation")
+        return boundary.reload(phase_cfg, phase_ref)
+
+    outcome = run_script_chain(
+        cfg, ref, Ticket.read(ref.ticket_path), set(), between_phases=between_phases,
+    )
+
+    assert outcome.exit_code == 0
+    assert not boundary.stopped
+    assert not git_repo.origin_tracks("docs/contexts/team/SKILL.md")
+    assert git_repo.origin_tracks("docs/topics/team/SKILL.md")
+    assert git_repo.git("status", "--porcelain").strip() == ""
+    assert load_config(git_repo.coga_os).contexts_root == destination
+    assert boundary._contexts_root == destination
+
+
 def test_script_chain_returns_the_checkout_between_real_git_phases(
     git_repo, monkeypatch: pytest.MonkeyPatch, capfd: pytest.CaptureFixture[str]
 ) -> None:

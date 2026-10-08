@@ -30,7 +30,9 @@ dispatch and chaining is owned by [coga/launch](../../coga/launch/SKILL.md).
 On return, reload and validate the on-disk configuration before publishing or
 preparing the checkout, so a session's new contexts root is included. Keep the
 previous contexts root in that return's publication and cleanup membership
-too, so a relocation publishes both sides together. Invalid
+too, so a relocation publishes both sides together. The boundary captures that
+root at admission and each successful return; a script's own config reload
+before its return callback cannot replace it. Invalid
 configuration or a changed Git destination stops the return and withholds the
 final sweep, preserving the session's edits. Each time it:
 
