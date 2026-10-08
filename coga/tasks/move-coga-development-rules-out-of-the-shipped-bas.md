@@ -22,12 +22,11 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 contexts:
 - coga/prompt-composition
 - coga/packaging
 agent: claude
-launch_generation: 63010f22-0a3b-4d46-922e-3bb312f799c5
 ---
 
 ## Description
