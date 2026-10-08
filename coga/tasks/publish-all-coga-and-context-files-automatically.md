@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 727c5e15-28d5-4f06-9fe4-ccdfc2309f90
 ---
 
 ## Description
@@ -118,3 +117,70 @@ branch: publish-coga-roots
   packaged twins. Dirty files anywhere in the roots publish.
 - Authoring finalization publishes authored tasks plus changed root files in
   one publish; a failure keeps the edits and exits non-zero.
+
+## Handoff (implement → peer-review)
+
+Branch `publish-coga-roots` pushed (commit cb068c8a4, rebased on origin/main).
+
+What changed:
+- `src/coga/git.py`: new `coga_root_paths(cfg)`, the shared membership
+  definition (Coga root + `Config.contexts_root`, nested roots listed once).
+  `sync_coga_state` publishes it; `_state_areas` (prepare/return,
+  `_local_control_subsumed`) is built from it. `mark.stranded_product_paths`
+  and `launch._align_recorded_assist_checkout` now use it too.
+- Decision: `_candidates` adopts *committed* paths from a non-control
+  (feature/detached) HEAD only inside routine state (`_routine_state_areas`:
+  tasks, recurring, log). Otherwise a witness-launch `coga bump` on a
+  feature branch would push a code PR's committed `docs/contexts` edits to
+  main ahead of review and ahead of their `src/` twins (breaking
+  test_packaging on main). Dirty files anywhere in the roots publish from
+  any checkout (the accepted tradeoff).
+- Decision: an untracked symlink found under a directory pathspec is
+  skipped, not refused. Without this, an `.agent-skills/` symlink view in a
+  repo missing its ignore rule would make the guard refuse every sweep,
+  stalling ticket state too. Explicitly named or tracked symlinks are still
+  refused.
+- Root layout (coga.toml at the checkout root): the Coga root is the whole
+  checkout, as the existing mark-done guard already treated it. Reviewers
+  may want to confirm this literal reading of the owner decision.
+- `src/coga/authoring.py`: the snapshot covers the roots (Git `ls-files`,
+  so ignored files are never hashed; filesystem fallback outside a
+  checkout). Finalize publishes authored tasks + changed non-task files
+  (log excluded) in one publish. A failure raises `AuthoringError`, so
+  `coga ticket` exits 2 with edits kept. The "carry them through a PR"
+  notice is gone; a success lists the published knowledge files.
+  `exclude_support_paths` was removed.
+- Docs + twins: state-publication (new "The Coga roots" section, rewritten
+  authoring section), sync, dev/checkouts, context-layout, git-refresh,
+  assist-publication, human-assist, launch, principles #4 (Forbids/Receipt
+  reworded to the owner decision; please review), coga/ticket/finalize skill.
+
+Tests: new or rewritten in tests/test_git.py (nested/root/relocated ×
+feature × finalize covering add/modify/delete/rename, ignored
+coga.local.toml and .agent-skills, unrelated src.py; overlap dedupe;
+untracked symlink; committed knowledge on a feature branch stays for its
+PR; hand-committed skill on control; stale context CAS refusal; authoring
+refused over a concurrent context edit; prepare cleans a published
+context/skill; prepare still refuses dirty source; realign over a
+hand-committed context). tests/test_authoring.py was updated to the new
+contract. tests/test_layout_contexts.py: a relocated context edit and a new
+product/vision publish, and a fresh clone composes and validates them.
+Full `python -m pytest`: 3338 passed. The only failures were the 26
+test_ticket.py cases, from a subprocess stub hit by the new git call. Fixed
+by skipping Git outside a checkout (`find_checkout_root`), then re-ran
+test_git/layout/packaging/ticket/authoring/mark/cli: 353 passed.
+`coga validate --json` on example/coga: 0 issues.
+
+Not done / follow-ups:
+- Retro/Dream still describe knowledge PRs (retro/done-ticket,
+  coga/dream, current-direction). Left unchanged: retro deliberately
+  proposes reviewable PRs. Risk: a sweeping `coga delete` inside a retro
+  worktree with *uncommitted* knowledge edits would now publish them
+  directly. Worth checking in review or a follow-up.
+- `github_preflight.is_coga_state_path` (open-pr/branch-sweep drift
+  carve-out, tasks+log only) is unchanged. That one is PR scope, not
+  publication.
+- Build onboarding's explicit failed-publication handoff stays with
+  publish-build-vision-before-handing-off-starter-ti. With this change,
+  bump's sweep and the launch boundary publish the vision.
+- PRs #973/#972 untouched.
