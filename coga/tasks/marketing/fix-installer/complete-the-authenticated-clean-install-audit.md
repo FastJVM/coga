@@ -1,6 +1,6 @@
 ---
 title: Complete the authenticated clean-install audit
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: direct/body
@@ -11,7 +11,6 @@ workflow:
     assignee: agent
 step: 1 (execute)
 agent: claude
-launch_generation: 71c0140c-177c-4395-8872-9e653f65b523
 ---
 
 ## Description
@@ -71,6 +70,9 @@ Asked owner: proceed now vs wait for fixes; Mac route + spend; agent choice; fir
 
 - [x] [2026-10-05 16:28] [agent:claude] id=20261005T162853 Waiting on fixes to land before the 4-run matrix: offer-agent-cli-install-and-setup-at-init, document-the-macos-command-line-tools-prerequisite, pin-python-3-11-in-the-macos-clean-install-harness merged; plus owner SSH access to the spare Mac (owned-Mac route). Unblock and relaunch when ready.
   resolved: [2026-10-08 11:24] [human:nicktoper] Fix tickets landed on main (agent-CLI init offer, macOS CLT prerequisite docs, Python 3.11 harness pin). Owned-Mac SSH access still unavailable; owner chose to re-block on that alone.
+
+- [ ] [2026-10-08 11:24] [agent:claude] id=20261008T112407 Needs owner SSH access to the spare Mac (owned-Mac route) before the 4-run matrix can start; depends on marketing/fix-installer/affordable-macos-testing-on-owned-macs-and-per-min. Fix tickets have already landed on main. Unblock and relaunch when the Mac SSH target is available.
+
 
 ---
 
