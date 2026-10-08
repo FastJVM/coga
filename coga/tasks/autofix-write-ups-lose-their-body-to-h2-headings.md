@@ -1,6 +1,6 @@
 ---
 title: Autofix tickets launch without their write-up when the analyst uses H2 headings
-status: active
+status: in_progress
 owner: nicktoper
 agent: codex
 contexts:
@@ -27,6 +27,7 @@ workflow:
     - code/address-pr-comments
     assignee: owner
 step: 1 (implement)
+launch_generation: pending:3af3b48d-d587-40ea-b6e7-91ba56a54b15
 ---
 
 ## Description
