@@ -209,6 +209,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/980
 branch: ticket-body-sections
 
 ## Contract decision (implement, 2026-10-08)
@@ -347,12 +348,12 @@ files:
   tests/test_launch.py: "--prompt-report prints the uncomposed-section warning."
   tests/test_dream_validate_drift.py: "uncomposed-section classified as pr-proposal."
 review:
-  reviewer: "Claude Code /code-review (claude-opus-5-5, forked agent)"
+  reviewer: "claude"
   kind: "self"
   status: "failed"
   head: "41201ccb03834458e248770bd3a414285b6cedb4"
   base: "86f073660a107948b0a527d88f5f088b31796e8d"
-  detail: "Review returned with findings at the recorded historical head (failed); 8 findings; #1/#2/#5/#6 fixed in 939c4813fc4eed5161be591e8c880b1623f2ee59; #3/#4/#7/#8 left as nits/follow-ups. The receipt covers 41201ccb0, not the final head; the fix delta was self-reviewed in-session only."
+  detail: "Claude Code /code-review (claude-opus-5-5, forked agent, same model as implementer). Review returned with findings at the recorded historical head (failed); 8 findings; #1/#2/#5/#6 fixed in 939c4813fc4eed5161be591e8c880b1623f2ee59; #3/#4/#7/#8 left as nits/follow-ups. The receipt covers 41201ccb0, not the final head; the fix delta was self-reviewed in-session only."
 checks:
   - command: "PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -p no:cacheprovider  (Python 3.12.12)"
     status: "passed"
