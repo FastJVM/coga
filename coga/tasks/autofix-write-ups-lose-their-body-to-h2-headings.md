@@ -26,8 +26,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
-launch_generation: 3af3b48d-d587-40ea-b6e7-91ba56a54b15
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -237,3 +236,98 @@ Making the drop non-silent:
 - Autofix: `parse_analysis` shifts analyst headings so the shallowest is
   `###` (fence-aware), plus a prompt instruction.
 - Existing upstream tickets are NOT rewritten here: follow-up for the owner.
+
+## Implement handoff (2026-10-08)
+
+Pushed `ticket-body-sections` (5ab6c9cdd on 7d7ff3309). Implemented the plan
+above as recorded; no deviations from the contract decision.
+
+- Shared parser: `taskfile.body_sections` / `markdown_lines` (fence rules match
+  `blackboard._without_superseded_designs`: backtick opener info may not hold a
+  backtick; closer is same char, >= length, no tail). Replaces
+  `compose._SECTION_HEADING_RE`, `open_pr._sections`' own loop (now a thin
+  wrapper; last duplicate still wins there, first wins in compose as before),
+  `commands/create._SECTION_HEADING_LINE_RE`, and `create_task`'s
+  `## Context` regex. Behavior deltas: a fenced `##` in `--description` is now
+  allowed; a bare `##` line ends an `open_pr` section (it already did in
+  compose).
+- Cases pinned: fenced heading = text (compose, validate, create tests);
+  below-fence heading never a body section (compose blackboard + validate
+  `## Dev`); legacy `## PR` above the fence exempt from the warning and still
+  read by `open_pr` (existing open_pr tests unchanged/green).
+- `empty-description` now says "see `uncomposed-section`" instead of
+  "title-only / cancel" when the body has uncomposed sections; Dream
+  validate-drift classifies `uncomposed-section` as pr-proposal (demote) and
+  tells the `empty-description` handler to check for it first.
+- Existing tickets NOT rewritten (follow-up for owner). At this head, repo
+  `coga validate` flags one live ticket:
+  `autofix/name-cross-repo-retire-follow-ups-with-the-repo-th`.
+- Not done: text *before* the first `##` above the fence is also uncomposed and
+  still unwarned; left out to keep scope.
+- 3.11 gap: `python3.11` exists here but has no deps (no yaml/pytest), so all
+  receipts are 3.12.12.
+
+## PR
+
+```yaml
+title: Warn on and stop losing ticket sections at H2 boundaries
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5) under megalaunch; see implement handoff.
+head: 5ab6c9cddae1783538da254b2e24a03710ddd270
+base: 7d7ff3309d67f627b84060feedec3796313d3955
+depth: deep
+rationale: Changes a core ticket contract surface (compose, validate, open_pr snapshot, create guard, launch warning) and makes the relocate-vs-compose decision; peer-review and the owner should check that decision and the shared fence-aware parser.
+implementation: Keeps the two-section compose contract (relocate, not compose) and makes the drop loud. One fence-aware parser taskfile.body_sections feeds compose, validate, open_pr and create. coga validate warns uncomposed-section naming each extra `##` above the fence (## PR exempt as operational); launch and --prompt-report print it; empty-description points at those sections instead of calling the ticket title-only. create_task rejects a `##` description line for every caller. Autofix parse_analysis demotes analyst headings so the shallowest is ### (fenced code untouched) and the analyst prompt asks for ###.
+deviations: None from the blackboard contract decision. Relocate was chosen over composing extra sections because an allowlist of intent names drops the next unlisted heading and composing all H2s would pull operational sections into intent.
+limitations: Existing tickets are not rewritten (one live ticket, autofix/name-cross-repo-retire-follow-ups-with-the-repo-th, now warns; owner follow-up). Prose before the first `##` heading is also uncomposed but is not warned. No Python 3.11 run (interpreter present without dependencies).
+files:
+  src/coga/taskfile.py: Shared fence-aware body_sections/markdown_lines parser plus uncomposed-section helpers and wording.
+  src/coga/compose.py: _extract_section reads the shared parser; drops its own regex.
+  src/coga/validate.py: New uncomposed-section warning; empty-description points at it when sections exist.
+  src/coga/open_pr.py: _sections delegates to the shared parser so the PR snapshot matches the prompt.
+  src/coga/create.py: description_structure_problem guard moved into create_task for every caller; Context detection via shared parser.
+  src/coga/commands/create.py: CLI reuses the moved guard.
+  src/coga/commands/launch.py: Prints the uncomposed-section warning at spawn and --prompt-report.
+  src/coga/recurring_autofix.py: demote_headings in parse_analysis and an analyst prompt instruction to use ###.
+  src/coga/dream_validate_drift.py: Classify uncomposed-section; empty-description remediation checks for it first.
+  docs/contexts/coga/tickets/SKILL.md: Owns the relocate contract, the warning, and the shared parser.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/tickets/SKILL.md: Packaged twin.
+  docs/contexts/coga/prompt-composition/SKILL.md: Composition reads the fence-aware parser and warns instead of dropping silently.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/prompt-composition/SKILL.md: Packaged twin.
+  docs/contexts/coga/codebase/gotchas/SKILL.md: create_task now guards description for every caller.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/codebase/gotchas/SKILL.md: Packaged twin.
+  docs/contexts/coga/recurring/autofix/SKILL.md: Documents analyst heading demotion.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/recurring/autofix/SKILL.md: Packaged twin.
+  coga/skills/code/design/SKILL.md: Names the validate warning for sibling spec sections.
+  src/coga/resources/templates/coga/bootstrap/skills/code/design/SKILL.md: Packaged twin.
+  coga/skills/code/review-design/SKILL.md: Reviews spec as ### subsections under Description; separate ## is a must-fix.
+  src/coga/resources/templates/coga/bootstrap/skills/code/review-design/SKILL.md: Packaged twin.
+  src/coga/resources/templates/coga/bootstrap/workflows/code/design-then-implement.md: review-design section names spec subsections, not sections.
+  coga/tasks/_template/ticket.md: Template explains ### subsections and the warning.
+  src/coga/resources/templates/coga/tasks/_template/ticket.md: Packaged twin.
+  tests/test_compose.py: Manual spec ticket composes exact Description/Context text, fenced ## kept, extra sections excluded; ### repair composes.
+  tests/test_validate.py: uncomposed-section names each heading, ignores fenced/blackboard/## PR; empty-description redirect; terminal silence.
+  tests/test_create.py: Fenced ## allowed in --description; create_task rejects ## for programmatic callers.
+  tests/test_recurring_autofix.py: parse_analysis demotion; H2-headed analyst reply composes in full into task_description.
+  tests/test_launch.py: --prompt-report prints the uncomposed-section warning.
+  tests/test_dream_validate_drift.py: uncomposed-section classified as pr-proposal.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; the workflow's peer-review step reviews next.
+checks:
+  - command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest -q -x -p no:cacheprovider  (Python 3.12.12)
+    status: passed
+    head: 5ab6c9cddae1783538da254b2e24a03710ddd270
+    base: 7d7ff3309d67f627b84060feedec3796313d3955
+    detail: 3414 passed in 373.94s; run on the working tree that was then committed unchanged (git diff empty after commit).
+  - command: cd example/coga && env -u SLACK_WEBHOOK_URL coga validate --json  (PYTHONPATH=$PWD/src)
+    status: passed
+    head: 5ab6c9cddae1783538da254b2e24a03710ddd270
+    base: 7d7ff3309d67f627b84060feedec3796313d3955
+    detail: ok_count 4, no issues.
+  - command: python3.11 -m pytest
+    status: not-run
+    detail: python3.11 is installed but has no yaml/pytest; no 3.11 environment available.
+```

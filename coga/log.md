@@ -7905,3 +7905,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-08 10:50 [autofix-write-ups-lose-their-body-to-h2-headings] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-08 10:50 [autofix-write-ups-lose-their-body-to-h2-headings] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-08 10:50 [autofix-write-ups-lose-their-body-to-h2-headings] [megalaunch] launched via coga megalaunch
+2026-10-08 11:04 [autofix-write-ups-lose-their-body-to-h2-headings] [agent:codex] advanced to step 2 (peer-review) → claude
