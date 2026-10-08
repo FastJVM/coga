@@ -86,7 +86,10 @@ pitfalls live in [coga/testing](../../testing/SKILL.md); checkout hazards in
   never halfway (an abridgement once dropped the `runner.RECIPES` exception).
   When a guard spans two resources, pin both halves in
   `tests/test_compose.py` and grep the other resources before calling a
-  sentence redundant.
+  sentence redundant. They compose into every repo's launches, not only
+  this one's, so a rule about Coga's own source tree (`src/coga/`, the
+  microkernel boundary) belongs in this repo's `coga/context.md` instead;
+  `test_packaged_prompt_layers_carry_no_coga_source_rules` pins that.
 - **Every `files("coga.<pkg>")` anchor must be a regular package.** On a
   directory without `__init__.py`, `importlib.resources.files` returns a
   `MultiplexedPath`; before 3.12 its `joinpath` takes one segment and it has

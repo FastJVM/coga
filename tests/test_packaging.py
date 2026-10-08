@@ -176,6 +176,11 @@ INTENTIONALLY_DIVERGENT_TWINS = {
         "and notification wiring); the packaged copy is the commented seed a "
         "fresh repo starts from."
     ),
+    "coga/context.md": (
+        "The live copy is this repo's real repo context, including the Coga "
+        "source-tree rules moved out of the shipped base prompt; the packaged "
+        "copy is the stub a fresh repo starts from."
+    ),
     "coga/log.md": (
         "The live copy is this repo's append-only audit trail; the packaged "
         "copy is the empty log a fresh repo starts with."
