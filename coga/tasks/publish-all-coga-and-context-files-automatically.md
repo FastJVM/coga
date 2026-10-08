@@ -232,21 +232,21 @@ The branch was fetched/rebased unconditionally and force-pushed with lease.
 Later remote changes are routine ticket/log publications only. PRs #973/#972
 were not modified.
 
-## Checkout return blocker
+## Checkout return resolved
 
-Code/review/testing and PR-body authoring are complete, but no bump occurred.
-The shared checkout remains on `publish-coga-roots`: another session created
-and then further edited `move-coga-development-rules-out-of-the-shipped-bas`.
-At return, its untracked file differed from the published origin/main copy.
-The required dev/checkouts proof therefore failed. Those edits and the local
-audit log were preserved; no stash, forced checkout, or discard was attempted.
-A final rebase attempt refused before modifying HEAD. The reviewed branch is
-already pushed at `204d20400`.
+The owner confirmed the concurrent edits were fixed. Verified the remaining
+local ticket bytes match origin/main and all local audit lines are published;
+restored only those proven copies and returned to clean main. The feature
+branch and its remote both remain `204d20400`. Control advanced only in
+`coga/tasks/` and `coga/log.md`; the reviewed source and tests are unchanged,
+so the 3374-test receipt above remains applicable.
 
-Resume after that task's edits are published: run the checkout return proof,
-return to clean main, confirm the branch remains safely fresh against control,
-and bump once to open-pr. The review has returned; do not confuse this
-checkout blocker with an in-flight review.
+`coga unblock` recorded the answer and restored status to active. Lifecycle
+requires a fresh `coga launch` to move active to in_progress before a bare
+bump can advance; this continuation must not launch itself or edit lifecycle
+frontmatter. Resume this ticket normally, confirm entry on clean main, and
+bump once to open-pr. Peer review has returned, all findings are fixed, the
+branch is pushed, and the PR body below is ready; no review remains in flight.
 
 ## PR
 
