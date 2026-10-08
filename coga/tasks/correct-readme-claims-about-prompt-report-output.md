@@ -18,9 +18,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: 16f4620f-d064-4e83-a7f4-114471a8382c
 ---
 
 ## Description
@@ -51,3 +50,14 @@ Read coga/prompt-composition (`docs/contexts/coga/prompt-composition/SKILL.md`) 
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: docs/correct-prompt-report-readme (pushed; commit "Correct README description of --prompt-report output")
+
+## Findings (implement)
+
+- Docs-only. The sole false claim was README.md:34. The other "exact prompt" grep hit (`coga/internals/launch-claims`, both twins) describes the real launch preflight materializing the prompt, which is accurate, so it stays untouched. README has no packaged twin.
+- New wording: "`coga launch <slug> --prompt-report` lists the prompt layers a ticket launch would compose, with each layer's size and approximate token count, then exits without launching an agent." It says "a ticket launch" so it doesn't claim script (`ticket.py`) targets, and it mentions no full-text output.
+- Verified write-free against `compose.compose_prompt_report` + `launch._format_prompt_report` on this ticket (no CLI run in the shared checkout). The output is a "Prompt report for <slug>" header, a table of layer/ref/bytes/approx_tokens (characters / 4), and a total line. No prompt text appears. This matches the `--help` text.
+- Process note: the auto-mode classifier denied the pre-branch `sync_coga_state` publish because it pushes to origin/main. The tree was clean, so I switched without it and recorded `branch:` here after returning to main. This entry is published by `coga bump`.
