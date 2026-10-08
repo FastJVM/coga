@@ -2984,3 +2984,53 @@ def test_validate_reports_inaccessible_resource_directory(
     issue = next(i for i in report.issues if i.kind == 'unreadable-resource-override')
     assert issue.severity == 'error'
     assert str(root) in issue.message
+
+
+@pytest.mark.parametrize("root_kind", ["file", "file-link", "broken-link", "loop-link"])
+def test_validate_rejects_non_directory_resource_root(repo: Path, root_kind: str) -> None:
+    root = repo / "resources"
+    if root_kind == "file":
+        root.write_text("Not a directory.")
+    elif root_kind == "file-link":
+        target = repo / "resource-file"
+        target.write_text("Not a directory.")
+        root.symlink_to(target)
+    elif root_kind == "broken-link":
+        root.symlink_to("missing-resources")
+    else:
+        root.symlink_to("resources")
+
+    report = run(load_config(repo))
+
+    issue = next(i for i in report.issues if i.kind == "unreadable-resource-override")
+    assert issue.severity == "error"
+    assert issue.task == "(resources)"
+    assert str(root) in issue.message
+
+
+def test_validate_reports_uninspectable_resource_root(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = repo / "resources"
+    root.mkdir()
+    original = Path.lstat
+
+    def inaccessible(path: Path) -> os.stat_result:
+        if path == root:
+            raise PermissionError("Permission denied")
+        return original(path)
+
+    monkeypatch.setattr(Path, "lstat", inaccessible)
+    report = run(load_config(repo))
+
+    issue = next(i for i in report.issues if i.kind == "unreadable-resource-override")
+    assert issue.severity == "error"
+    assert str(root) in issue.message
+
+
+def test_validate_accepts_absent_resource_root(repo: Path) -> None:
+    assert not (repo / "resources").exists()
+
+    report = run(load_config(repo))
+
+    assert not [i for i in report.issues if i.kind == "unreadable-resource-override"]

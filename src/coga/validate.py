@@ -1226,7 +1226,9 @@ def _check_repo_resources(cfg: Config) -> list[Issue]:
     """
     root = repo_resources_dir(cfg)
     try:
-        if not root.is_dir():
+        try:
+            root.lstat()
+        except FileNotFoundError:
             return []
         paths = sorted(root.iterdir())
     except OSError as exc:

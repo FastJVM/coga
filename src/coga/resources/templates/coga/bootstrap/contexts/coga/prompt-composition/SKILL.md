@@ -73,7 +73,9 @@ reaches the transcript.
   `coga validate` warns
   (`unknown-resource-override`) on a file in `resources/` that matches no
   resource name, ignoring `README.md` and dotfiles, so a typo cannot silently
-  do nothing, and errors on an unreadable override.
+  do nothing, and errors (`unreadable-resource-override`) on an unreadable
+  override or an existing `resources` root that cannot be inspected or listed
+  as a directory. A missing root is allowed; a broken symlink is an error.
 - Contexts and skills resolve local-first, then the package bootstrap copy
   (`paths.resolve_context_path`, `resolve_skill_path`), and are read **whole**:
   `SKILL.md` frontmatter (`name`, `description`) is included in the prompt.
