@@ -55,3 +55,15 @@ PR #977 (sibling ticket `publish-all-coga-and-context-files-automatically`, merg
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: onboarding-publish-before-handoff
+
+Plan: add a registered `coga run publish-state [--message M] [PATH...]` recipe
+(strict wrapper over `git.publish(cfg, coga_root_paths(cfg), …,
+require_paths=PATHS)`; exit 0 only when every named path is confirmed on
+control) and make `build/onboarding` generate-batch run it before presenting
+the launch command. Failure: non-zero exit, `runner` appends `## Recipe
+Failure` to the onboarding blackboard automatically; agent also notes it,
+does not bump.
