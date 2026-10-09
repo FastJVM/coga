@@ -32,7 +32,7 @@ workflow:
     assignee: owner
 step: 2 (evaluate-design)
 agent: claude
-launch_generation: pending:7e5efbc2-ae30-417d-bf15-8af89bc9ac84
+launch_generation: 7e5efbc2-ae30-417d-bf15-8af89bc9ac84
 ---
 
 ## Description
