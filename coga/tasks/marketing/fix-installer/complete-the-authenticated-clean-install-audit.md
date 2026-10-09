@@ -79,3 +79,5 @@ Asked owner: proceed now vs wait for fixes; Mac route + spend; agent choice; fir
 ## Blocker reminders
 
 - 9c1da4d0e822 last_reminded: 2026-10-06 10:36
+
+- 5ea8dbecc3c8 last_reminded: 2026-10-09 13:48
