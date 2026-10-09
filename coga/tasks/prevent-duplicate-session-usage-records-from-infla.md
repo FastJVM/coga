@@ -1,6 +1,6 @@
 ---
 title: Prevent duplicate session usage records from inflating totals
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/design-then-implement
@@ -32,6 +32,7 @@ workflow:
     assignee: owner
 step: 1 (design)
 agent: claude
+launch_generation: pending:a89c6a8c-c583-42ec-b189-3ecb7ffa2a43
 ---
 
 ## Description
