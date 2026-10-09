@@ -83,6 +83,35 @@ After each non-interactive create, add `product/vision` to `contexts:` and write
 its thin what+why body. Do not leave any starter ticket with `workflow: null`:
 such a draft cannot be activated or launched.
 
-End in chat (no separate approval step): present the flat list, get the user's
-approval, then hand over the generic launch command — e.g. "Here's your starter
-batch — launch any one with `coga launch <ticket-slug>`." Then `coga bump`.
+End in chat (no separate approval step): present the flat list and get the
+user's approval. Do **not** show a launch command yet — a starter ticket is
+launchable only once its vision context is on the published branch, or a fresh
+clone gets tickets whose `product/vision` is missing.
+
+After approval, publish the vision and the batch explicitly and confirm it
+landed:
+
+```sh
+coga run publish-state --message "Publish build vision and starter tickets" \
+  <contexts-dir>/product/vision/SKILL.md <each starter ticket file>
+```
+
+Name every file: the vision `SKILL.md` and each ticket path `coga create`
+printed. The recipe runs the same publication as Coga's end-of-command sweep,
+but exits 0 only when every named file is confirmed on the control branch.
+
+- **Exit 0:** hand over the generic launch command — e.g. "Here's your starter
+  batch — launch any one with `coga launch <ticket-slug>`." Then `coga bump`.
+  (If it reports `[git].enabled = false`, there is no published branch: say
+  the batch is launchable from this checkout only, then hand over and bump.)
+- **Non-zero exit:** the handoff is unfinished. Do **not** present launch
+  commands as ready and do **not** `coga bump`; the files stay on disk as
+  written. Tell the user in chat that the handoff is unfinished, quote the
+  failure the recipe printed, and say how to retry: fix the cause (for
+  example a rejected or unreachable push), then rerun the same
+  `coga run publish-state` command, or rerun `coga build` to resume this
+  step. Record the same — failure, files left on disk, retry command — on
+  this ticket's blackboard under `## Unfinished handoff` (the recipe also
+  appends its own `## Recipe Failure` section there). Stay in the chat so the
+  user can fix it and you can retry; only an exit 0 lets you hand over and
+  bump.
