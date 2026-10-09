@@ -116,11 +116,11 @@ interpreter).
 ```yaml
 title: Publish build vision before handing off starter tickets
 author: claude
-author_evidence: Implement session ran as Claude Code (claude-opus-5-5) under coga megalaunch; this handoff.
-head: 336d5b00a39f290e8261ff78d0cef80268dc496a
-base: 8078e71a34b0341035dbb34d21f19953608b7560
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5) under coga megalaunch; this handoff. Recovery commit 3210d12d7 credits Claude Opus 5.5; the interrupted session identity was not independently verified.
+head: 7ec148c2e42168f42e1da06a7294a5b1d37cb65b
+base: e4b297bd235d8060b10f65074380776e6c7ae867
 depth: deep
-rationale: Adds a new registered `coga run` recipe (a reviewed kernel surface) and changes the onboarding handoff contract; no independent code review yet.
+rationale: New registered publication recipe and handoff contract; Codex review returned one unresolved P2 failure-before-dispatch finding. Do not publish the PR until corrected and re-reviewed.
 implementation: New `publish-state` recipe wraps `git.publish(cfg, coga_root_paths(cfg), msg, require_paths=PATHS)` with an exit-coded contract; `build/onboarding` generate-batch runs it on the vision and starter tickets after approval and hands over `coga launch` and bumps only on exit 0, otherwise reports the unfinished handoff in chat and on its blackboard.
 deviations: Placement is a registered recipe (kernel class 2) rather than an existing command, because no existing command reports publication failure; justified in the state-publication topic and handoff.
 limitations: The onboarding agent's chat behavior is prose-only; tests cover the recipe end to end (empty repo via real `coga init`, bare origin, fresh clone, relocated contexts root, forced failure) but not an agent following the template. `[git].enabled = false` exits 0 as local-only by design.
@@ -141,25 +141,30 @@ files:
   src/coga/runner.py: Register `publish-state` in `RECIPES`.
   tests/test_runner.py: Expected fixed registry includes `publish-state`.
   tests/test_publish_state.py: End-to-end onboarding publish-then-handoff tests (default and relocated contexts, forced failure, refusals, git disabled).
+  src/coga/cli.py: Generalize the withheld-sweep diagnostic to include strict publication failures.
 review:
-  reviewer: none
-  kind: none
-  status: not-run
-  detail: Implement step; independent review is the next workflow step (peer-review).
+  reviewer: codex
+  kind: independent
+  status: failed
+  head: 7ec148c2e42168f42e1da06a7294a5b1d37cb65b
+  base: e4b297bd235d8060b10f65074380776e6c7ae867
+  detail: 'codex review --base main returned. Separate Codex review of the Claude implementation found P2: missing user fails config loading before the recipe guard, then the CLI exit sweep can publish dirty tickets without a committed feature-branch vision. Recovery-session authorship is not independently verified. Full log: /tmp/coga-onboarding-review.log.'
 checks:
-  - command: python -m pytest
-    status: passed
-    head: f6e711dda617500f74a846049edde896dcac66b7
-    base: 406c74461a1e44736e9a1080015975d67adef555
-    detail: 3535 passed in 322.69s, on the pre-rebase commit's identical tree (.venv editable install). Rebase onto 8078e71a3 brought only a README.md change.
-  - command: python -m pytest tests/test_publish_state.py tests/test_runner.py tests/test_packaging.py tests/test_layout_contexts.py
-    status: passed
-    head: 336d5b00a39f290e8261ff78d0cef80268dc496a
-    base: 8078e71a34b0341035dbb34d21f19953608b7560
-    detail: 89 passed in 6.33s after the rebase.
-  - command: coga validate --json
-    status: not-run
-    detail: Validation behavior unchanged; the new test runs `validate.run` on a fresh clone instead.
+- command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest
+  status: passed
+  head: 7ec148c2e42168f42e1da06a7294a5b1d37cb65b
+  base: e4b297bd235d8060b10f65074380776e6c7ae867
+  detail: 3539 passed in 294.77s on Python 3.12.12.
+- command: PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --json
+  status: passed
+  head: 7ec148c2e42168f42e1da06a7294a5b1d37cb65b
+  base: e4b297bd235d8060b10f65074380776e6c7ae867
+  detail: 237 valid tickets, zero errors, 26 warnings.
+- command: git diff --check
+  status: passed
+  head: 7ec148c2e42168f42e1da06a7294a5b1d37cb65b
+  base: e4b297bd235d8060b10f65074380776e6c7ae867
+  detail: No whitespace errors.
 ```
 
 ### Recovery note (2026-10-09, orient session)
@@ -170,3 +175,33 @@ pushed: publish-state fetches control before publishing and withholds the CLI
 exit sweep on failure (topic + twin + tests updated). Only
 `tests/test_publish_state.py` was run (9 passed). Review this commit as part of
 peer-review; the full suite is still owed.
+
+
+## Peer review
+
+2026-10-09, Codex. Start check passed on clean main; fetched origin/main and
+unconditionally rebased the feature branch. Pushed rebased head
+`7ec148c2e42168f42e1da06a7294a5b1d37cb65b`, base
+`e4b297bd235d8060b10f65074380776e6c7ae867`; returned to clean main before this note.
+
+`codex review --base main` **returned**, with one must-fix P2: a missing
+`user` in coga.local.toml makes commands.run fail before the recipe can
+withhold the exit sweep. The generic sweep can then publish dirty starter
+tickets without a required vision committed on a feature branch. The review
+reproduced this. Initial sandbox attempt could not initialize the app-server;
+the escalated run completed. No code was edited in this session.
+
+Proposed correction, awaiting attending human confirmation: exclude
+`run publish-state` from the generic CLI sweep, including pre-dispatch
+failures; keep publication inside the explicit recipe. Add a subprocess
+missing-user regression and update the publication topic/twin. Tradeoff:
+successful calls also get no redundant exit sweep. Re-run full suite and
+review after fixing. This confirmation follows the attended-session rule to
+discuss substantive changes before code edits. Do not bump yet.
+
+Checks on the reviewed revision: full suite 3539 passed (294.77s), validation
+237 valid tickets / 0 errors / 26 warnings, diff whitespace clean. Exact
+commands and revision receipts are in ## PR. Plain stdout/stderr only; no
+raw-terminal, pager, TTY, or rendered-message surface changed. Tests exercise
+CLI subprocess output; onboarding chat/no-bump instructions remain prose,
+not an automated agent execution, as disclosed in the PR limitations.
