@@ -52,7 +52,7 @@ one, I saw the agent had assumed model routing was a solved problem.
 But when reading the plan and asking about it, it clearly wasn't, and when asked, it admitted as much.
 
 So I parked the implementation tickets and split the decision into
-evidence-first tickets, run in order:
+evidence-first tickets, run in order and written by Claude (and implemented by Codex):
 
 1. **State of the art:** is picking a reasoning level from a task description
    already a solved problem?
