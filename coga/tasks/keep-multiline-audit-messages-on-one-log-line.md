@@ -68,3 +68,15 @@ Coordinate with fix-coga-git-sync-failures-that-leave-main-diverge, which owns t
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: `one-line-audit-events`
+
+Plan: `append_log` escapes `\` → `\\`, LF → `\n`, CR → `\r`; a shared
+`logfile.decode_log_message` inverts it. Readers split physical lines on LF
+only (not `str.splitlines`, which also breaks on VT/FF/U+2028…), decode
+messages, and skip legacy continuation lines (`task_log_lines` keeps them
+attached to their event for `coga show`). `retract_log_lines` matches the
+parsed `[ref]` tag (not a substring) and drops continuation lines that follow
+a retracted event.
