@@ -8011,3 +8011,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-08 22:05 [publish-build-vision-before-handing-off-starter-ti] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-08 22:05 [publish-build-vision-before-handing-off-starter-ti] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-08 22:05 [publish-build-vision-before-handing-off-starter-ti] [megalaunch] launched via coga megalaunch
+2026-10-08 22:17 [publish-build-vision-before-handing-off-starter-ti] [agent:claude] advanced to step 2 (peer-review) → codex

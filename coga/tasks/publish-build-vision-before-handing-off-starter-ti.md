@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 agent: claude
-launch_generation: bfd85d8a-0195-4e7b-aa8d-b23c730a33ec
 ---
 
 ## Description
@@ -67,3 +66,97 @@ control) and make `build/onboarding` generate-batch run it before presenting
 the launch command. Failure: non-zero exit, `runner` appends `## Recipe
 Failure` to the onboarding blackboard automatically; agent also notes it,
 does not bump.
+
+## Implement handoff (2026-10-08, claude)
+
+Branch `onboarding-publish-before-handoff` pushed (336d5b00a, on origin/main 8078e71a3). No PR yet.
+
+What changed:
+- New registered recipe `publish-state` (`src/coga/publish_state.py`,
+  `publish_state.run_publish_state_recipe`, added to `runner.RECIPES`).
+  `coga run publish-state [--message M] [PATH...]` = one `git.publish` over
+  `git.coga_root_paths(cfg)` with PATHs as `require_paths`. Exit 0: every named
+  file confirmed on control (stdout lists them), or `[git].enabled = false`
+  (stdout says local-only). Exit 1: refused / failed / uncertain / not a repo /
+  no control branch; files stay on disk; `runner.run_reported` appends
+  `## Recipe Failure` to an inherited `COGA_TASK_BLACKBOARD`. Exit 2: bad argv,
+  or a named path outside the Coga roots / not a regular file (pre-write).
+- `build/onboarding` generate-batch (both twins, byte-identical): no launch
+  command until after approval *and* `coga run publish-state <vision> <tickets>`
+  exits 0; non-zero → no handoff, no bump, tell user failure + retry, write
+  `## Unfinished handoff` on its blackboard.
+- Docs: `coga/internals/state-publication` new "Strict publication on demand"
+  section (owner of the contract); recipe lists in `coga/extension-model`,
+  `coga/cli`, CLAUDE.md/AGENTS.md; `coga/first-task` one clause. Packaged
+  bootstrap twins updated. `coga/init` unchanged (it only covers seeding).
+
+Decisions:
+- Placement: registered recipe rather than core command or command ticket.
+  It is a repository-independent deterministic command whose exit code *is*
+  the contract (the sweep swallows failures, so no existing command can
+  report one); a bootstrap `ticket.py` command ticket would need nested
+  `coga launch` machinery inside the onboarding session for a 1-call wrapper.
+  No new publication policy — reuses #977's `publish`/`coga_root_paths`.
+- `[git].enabled = false` exits 0 with an explicit local-only message, so a
+  git-disabled repo can still finish onboarding; template tells the agent to
+  say the batch is launchable from this checkout only.
+- `require_paths` alone accepts a file missing both on disk and control, so the
+  recipe checks each named path is a regular file first.
+
+Follow-up candidate (not done here): `dev/checkouts` "Publish pre-branch
+ticket edits" uses `python -c '...sync_coga_state...'` + a porcelain check
+because the sweep can't report failure; `coga run publish-state <ticket>`
+would be a direct fit (and a second consumer). Also the python one-liner fails
+when the shell's `python` lacks coga (hit this session: used the uv tool's
+interpreter).
+
+## PR
+
+```yaml
+title: Publish build vision before handing off starter tickets
+author: claude
+author_evidence: Implement session ran as Claude Code (claude-opus-5-5) under coga megalaunch; this handoff.
+head: 336d5b00a39f290e8261ff78d0cef80268dc496a
+base: 8078e71a34b0341035dbb34d21f19953608b7560
+depth: deep
+rationale: Adds a new registered `coga run` recipe (a reviewed kernel surface) and changes the onboarding handoff contract; no independent code review yet.
+implementation: New `publish-state` recipe wraps `git.publish(cfg, coga_root_paths(cfg), msg, require_paths=PATHS)` with an exit-coded contract; `build/onboarding` generate-batch runs it on the vision and starter tickets after approval and hands over `coga launch` and bumps only on exit 0, otherwise reports the unfinished handoff in chat and on its blackboard.
+deviations: Placement is a registered recipe (kernel class 2) rather than an existing command, because no existing command reports publication failure; justified in the state-publication topic and handoff.
+limitations: The onboarding agent's chat behavior is prose-only; tests cover the recipe end to end (empty repo via real `coga init`, bare origin, fresh clone, relocated contexts root, forced failure) but not an agent following the template. `[git].enabled = false` exits 0 as local-only by design.
+files:
+  AGENTS.md: Add `publish-state` to the fixed recipe registry list.
+  CLAUDE.md: Add `publish-state` to the fixed recipe registry list.
+  coga/workflows/build/onboarding.md: Publish vision and tickets via `coga run publish-state` before the launch handoff; failure path with no bump.
+  src/coga/resources/templates/coga/workflows/build/onboarding.md: Packaged twin of the onboarding workflow (byte-identical).
+  docs/contexts/coga/internals/state-publication/SKILL.md: Own the `publish-state` contract (strict publication on demand).
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/state-publication/SKILL.md: Packaged twin.
+  docs/contexts/coga/extension-model/SKILL.md: Add `publish-state` to the closed `RECIPES` list with a pointer to its contract.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/extension-model/SKILL.md: Packaged twin.
+  docs/contexts/coga/cli/SKILL.md: Add `publish-state` to the `coga run` names.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/cli/SKILL.md: Packaged twin.
+  docs/contexts/coga/first-task/SKILL.md: Note starter tickets are offered only once published.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/first-task/SKILL.md: Packaged twin.
+  src/coga/publish_state.py: The recipe implementation.
+  src/coga/runner.py: Register `publish-state` in `RECIPES`.
+  tests/test_runner.py: Expected fixed registry includes `publish-state`.
+  tests/test_publish_state.py: End-to-end onboarding publish-then-handoff tests (default and relocated contexts, forced failure, refusals, git disabled).
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; independent review is the next workflow step (peer-review).
+checks:
+  - command: python -m pytest
+    status: passed
+    head: f6e711dda617500f74a846049edde896dcac66b7
+    base: 406c74461a1e44736e9a1080015975d67adef555
+    detail: 3535 passed in 322.69s, on the pre-rebase commit's identical tree (.venv editable install). Rebase onto 8078e71a3 brought only a README.md change.
+  - command: python -m pytest tests/test_publish_state.py tests/test_runner.py tests/test_packaging.py tests/test_layout_contexts.py
+    status: passed
+    head: 336d5b00a39f290e8261ff78d0cef80268dc496a
+    base: 8078e71a34b0341035dbb34d21f19953608b7560
+    detail: 89 passed in 6.33s after the rebase.
+  - command: coga validate --json
+    status: not-run
+    detail: Validation behavior unchanged; the new test runs `validate.run` on a fresh clone instead.
+```
