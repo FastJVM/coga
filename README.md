@@ -51,15 +51,24 @@ conversation, and it turned that into a plan of tickets. Reading the first
 one, I saw the agent had assumed model routing was a solved problem. 
 But when reading the plan and asking about it, it clearly wasn't, and when asked, it admitted as much.
 
-So I parked the implementation tickets and opened a research ticket instead:
-[run each request twice, on X and Y, and measure the difference and check if Jev would give the best answer], then use
-that harness to compare routing strategies. 
+So I parked the implementation tickets and split the decision into
+evidence-first tickets, run in order:
 
-Once we got the answer, it will sit in a context block every future ticket starts from.
+1. **State of the art:** is picking a reasoning level from a task description
+   already a solved problem?
+2. **Head-to-head ground truth:** run real tasks at low, medium and high, and
+   judge blind pairs: was the cheaper answer good enough? That gives the ground
+   truth nobody had.
+3. **Evaluate Jev:** does Jev, the trendy classifier model, already do the
+   job? Scored against that ground truth.
+4. **Score candidates:** an always-medium baseline, a simple heuristic, and a
+   cheap LLM call, scored on the same data.
+5. **Decide:** build, buy, or stop, from the four reports.
 
-The experiment itself is archived: agents can pull it up on request, but it
-stays out of the default prompt. When implementation resumed, it started
-from the research result instead of the original assumption.
+Once we have the answer, it will sit in a context block every future ticket
+starts from. The experiments will be archived: agents can pull them up on
+request, but they stay out of the default prompt. When implementation resumes,
+it starts from the research result instead of the original assumption.
 
 
 
