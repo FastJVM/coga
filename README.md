@@ -53,16 +53,11 @@ But when reading the plan and asking about it, it clearly wasn't, and when asked
 So through a coga ticket discussion, we split the decision into
 evidence-first tickets, run in order and written by Claude (and implemented by Codex):
 
-1. **State of the art:** is picking a reasoning level from a task description
-   already a solved problem?
-2. **Head-to-head ground truth:** run real tasks at low, medium and high, and
-   judge blind pairs: was the cheaper answer good enough? That gives the ground
-   truth nobody had.
-3. **Evaluate Jev:** does Jev, the trendy classifier model, already do the
-   job? Scored against that ground truth.
-4. **Score candidates:** an always-medium baseline, a simple heuristic, and a
-   cheap LLM call, scored on the same data.
-5. **Decide:** build, buy, or stop, from the four reports.
+1. [State of the art review](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/state-of-the-art-review.md)
+2. [Head-to-head ground truth](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/head-to-head-ground-truth.md)
+3. [Evaluate Jev](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/evaluate-jev.md)
+4. [Score candidates](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/score-candidates.md)
+5. [Decide classifier approach](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/decide-classifier-approach.md)
 
 Once we have the answer, it will sit in a context block every future ticket
 starts from. The experiments will be archived: agents can pull them up on
