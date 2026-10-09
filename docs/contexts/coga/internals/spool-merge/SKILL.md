@@ -39,7 +39,7 @@ union merge — which is also why adding the wrong file is the mistake to avoid.
 
 Union merging, retraction (`logfile.retract_log_lines`), and every log reader
 work on physical lines, so each `coga/log.md` event must be exactly one
-LF-terminated line: `YYYY-MM-DD HH:MM [<ref>] [<actor>] <message>`.
+LF-terminated line: `YYYY-MM-DD HH:MM v1 [<ref>] [<actor>] <message>`.
 `logfile.append_log` guarantees this centrally; callers pass raw text,
 multiline Git stderr included, and never sanitize. It escapes `\` as `\\`
 first, then writes LF and CR as the literal two-character text `\n` and
@@ -47,7 +47,9 @@ first, then writes LF and CR as the literal two-character text `\n` and
 a line break, so `logfile.decode_log_message` recovers the exact message.
 Other control characters, such as tabs and ANSI escapes, pass through
 unchanged. Readers therefore split on LF only (`logfile.log_lines`), never on
-the wider `str.splitlines` set, and decode a message before parsing it. The
+the wider `str.splitlines` set, and decode only v1-marked messages before
+parsing them. The marker precedes the ref tag so it cannot be confused with
+legacy message text. The
 returned line bytes are exactly what was appended, which is what an exact-byte
 retraction removes.
 
@@ -56,10 +58,8 @@ encoding are not rewritten. A message that contained a line break left one or
 more continuation lines with no leading timestamp, sometimes starting with a
 `[<ref>]`-looking prefix. Readers skip such a line rather than misparse it,
 and `coga show` (`logfile.task_log_lines`) prints it with the event it
-follows. The decode is applied to legacy lines too. It can alter the free text
-of an old line that held a literal `\\`, `\n`, or `\r`, so a reader that
-needs exact legacy text falls back to the raw message when the decoded one
-does not parse (`usage.load_records`). Retraction removes the tagged event and
+follows. Unmarked legacy messages are read raw, preserving literal backslashes
+without guessing the format from parse success. Retraction removes the tagged event and
 any continuation lines that follow it, and matches the `[<ref>]` field rather
 than a substring, so a peer event that mentions the tag stays. That
 whole-event guarantee covers events written under this encoding; an

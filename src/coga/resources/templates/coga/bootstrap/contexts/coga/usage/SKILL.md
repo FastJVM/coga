@@ -47,9 +47,8 @@ YYYY-MM-DD HH:MM [<task-ref>] [system] {"schema": 2, ...}
 transcripts. `load_records` reads `coga/log.md` and keeps only lines whose
 message parses as a schema 1 or 2 record; every other line is skipped, not an
 error. `append_log` doubles the JSON's backslashes like any message
-(`coga/internals/spool-merge`), so the message is decoded before parsing, and
-a line written before that encoding is read raw when the decoded text does
-not parse.
+(`coga/internals/spool-merge`), so v1-marked messages are decoded before JSON
+parsing. Unmarked legacy messages are parsed raw.
 
 - `--by task|model|agent|step` groups rows (default `task`); a record with no
   value for the key groups under `(unknown)`. Any other value exits 2.

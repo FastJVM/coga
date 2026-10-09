@@ -3,7 +3,7 @@
 Coga keeps one audit log per repo at `coga/log.md` (not one per task). Each
 line is tagged with the task ref it belongs to::
 
-    YYYY-MM-DD HH:MM [<task-ref>] [<actor>] <message>
+    YYYY-MM-DD HH:MM v1 [<task-ref>] [<actor>] <message>
 
 so a single task's history is reconstructable by filtering on its ref. `actor`
 is conventionally `agent:<nickname>`, `human:<name>`, `git`, `slack`, or
@@ -13,7 +13,8 @@ One event is exactly one LF-terminated physical line. `append_log` encodes the
 message centrally — `\\` becomes `\\\\`, then LF and CR become the literal
 two-character text `\\n` / `\\r` — so multiline Git stderr cannot split an
 event, and `decode_log_message` recovers the original text. Readers split on
-LF only. Lines written before the encoding existed may be followed by
+LF only. Only v1-marked messages are decoded; unmarked messages stay raw.
+Lines written before the encoding existed may be followed by
 untagged continuation lines (no timestamp); readers skip them, and
 `task_log_lines` keeps them attached to the event they follow.
 `coga/internals/spool-merge` owns this rule.
@@ -39,12 +40,13 @@ from coga.config import Config
 from coga.paths import log_path, recurring_dir, tasks_dir
 
 # `YYYY-MM-DD HH:MM [<ref>] ...` — captures the timestamp and the ref tag.
-_LINE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) \[([^\]]*)\]")
+_LINE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) (?:v1 )?\[([^\]]*)\]")
 # The same line with its actor and message — `... [<ref>] [<actor>] <message>`.
 _ENTRY_RE = re.compile(
-    r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \[([^\]]*)\] \[([^\]]*)\] (.*)$"
+    r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} (?P<version>v1 )?"
+    r"\[(?P<ref>[^\]]*)\] \[[^\]]*\] (?P<message>.*)$"
 )
-_LINE_BYTES_RE = re.compile(rb"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \[([^\]]*)\]")
+_LINE_BYTES_RE = re.compile(rb"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} (?:v1 )?\[([^\]]*)\]")
 _ESCAPES = {"\\": "\\\\", "\n": "\\n", "\r": "\\r"}
 _ESCAPE_RE = re.compile(r"[\\\n\r]")
 _UNESCAPES = {"\\": "\\", "n": "\n", "r": "\r"}
@@ -82,7 +84,7 @@ def append_log(cfg: Config, task_ref: str, actor: str, message: str) -> bytes:
     path = log_path(cfg)
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     encoded = encode_log_message(message)
-    line = f"{timestamp} [{task_ref}] [{actor}] {encoded}\n".encode("utf-8")
+    line = f"{timestamp} v1 [{task_ref}] [{actor}] {encoded}\n".encode("utf-8")
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("ab") as f:
         f.write(line)
@@ -233,7 +235,10 @@ def iter_log_messages(cfg: Config) -> Iterator[tuple[str, str]]:
     for line in log_lines(text):
         match = _ENTRY_RE.match(line)
         if match:
-            yield match.group(1), decode_log_message(match.group(3))
+            yield match.group("ref"), (
+                decode_log_message(match.group("message"))
+                if match.group("version") else match.group("message")
+            )
 
 
 def iter_log_messages_reverse(
@@ -282,7 +287,10 @@ def iter_log_messages_reverse(
                     continue
                 match = _ENTRY_RE.match(line)
                 if match:
-                    yield match.group(1), decode_log_message(match.group(3))
+                    yield match.group("ref"), (
+                        decode_log_message(match.group("message"))
+                        if match.group("version") else match.group("message")
+                    )
 
 
 def task_log_lines(cfg: Config, task_ref: str) -> list[str]:

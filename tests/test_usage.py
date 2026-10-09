@@ -641,7 +641,9 @@ def test_load_records_reads_encoded_and_legacy_backslash_records(
         usage_status="ok",
         outcome='Said "done"\nsee C:\\repo\\n',
     )
-    legacy = dataclasses.replace(record, session_id="legacy")
+    legacy = dataclasses.replace(
+        record, session_id="legacy", outcome=r"C:\temp\file literal \n and \\"
+    )
     log = coga_os / "log.md"
     log.write_text(
         f"2026-06-23 11:00 [work] [system] {legacy.to_json()}\n", encoding="utf-8"

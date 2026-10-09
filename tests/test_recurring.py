@@ -13445,3 +13445,19 @@ def test_scan_bad_blackboard_keeps_existing_period_and_allows_retry(repo: Path) 
     retried = scan_due(cfg, now=now)
     assert retried.errors == []
     assert {task.template for task in retried.due} == {'new-job', 'weekly-check'}
+
+
+@pytest.mark.parametrize("marker", ["", "v1 "])
+def test_watchdog_pause_reader_accepts_both_header_formats(repo: Path, marker: str) -> None:
+    from coga.recurring import _watchdog_pauses
+
+    cfg = load_config(repo)
+    log_path(cfg).write_text(
+        f"2026-06-01 10:00 {marker}[alpha] [system:watchdog] paused (timeout)\n"
+        "legacy continuation\n"
+        "2026-06-01 10:01 [beta] [system:watchdog] paused (timeout)\n"
+        "2026-06-01 10:02 v1 [beta] [human:marc] created anew\n"
+    )
+    pauses = _watchdog_pauses(cfg, {"alpha", "beta"})
+    assert set(pauses) == {"alpha"}
+    assert "paused (timeout)" in pauses["alpha"]

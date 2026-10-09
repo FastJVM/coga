@@ -4300,7 +4300,10 @@ def _control_serviced_period_cached(
             match = _CONTROL_LOG_ENTRY_RE.match(line[1:])
             if match is not None:
                 entries.append(
-                    (match.group("ref"), decode_log_message(match.group("message")))
+                    (match.group("ref"), (
+                        decode_log_message(match.group("message"))
+                        if match.group("version") else match.group("message")
+                    ))
                 )
         changed = parse_serviced_period_entries(entries)
         for changed_ref in changed.periods.keys() | changed.errors.keys():
@@ -4545,7 +4548,7 @@ class _ControlLedgerChanged(RecurringError):
         self.revision = revision
 
 _CONTROL_LOG_ENTRY_RE = re.compile(
-    r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \[(?P<ref>[^\]]*)\] \[[^\]]*\] "
+    r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} (?P<version>v1 )?\[(?P<ref>[^\]]*)\] \[[^\]]*\] "
     r"(?P<message>.*)$"
 )
 
@@ -4604,7 +4607,10 @@ def _read_control_ledger(
         for line in source:
             match = _CONTROL_LOG_ENTRY_RE.match(line)
             if match is not None:
-                yield match.group("ref"), decode_log_message(match.group("message"))
+                yield match.group("ref"), (
+                    decode_log_message(match.group("message"))
+                    if match.group("version") else match.group("message")
+                )
 
     ledger = (
         parse_serviced_period_entries(entries(iter(lines)))

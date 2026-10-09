@@ -248,3 +248,21 @@ def test_retract_log_lines_keeps_peer_event_mentioning_the_tag(
     retract_log_lines(cfg, "alpha", before)
 
     assert log_path(cfg).read_bytes() == before + peer
+
+
+def test_version_marker_preserves_legacy_text_and_distinguishes_new_events(repo: Path) -> None:
+    cfg = load_config(repo)
+    message = r'v1 C:\temp\file literal \n and \\ and \r'
+    legacy = f"2026-06-01 10:00 [alpha] [system] {message}\n"
+    log_path(cfg).write_text(legacy)
+    written = append_log(cfg, "alpha", "system", message)
+    assert b" v1 [alpha] [system] " in written
+    assert log_path(cfg).read_bytes().startswith(legacy.encode())
+    expected = [("alpha", message), ("alpha", message)]
+    assert list(iter_log_messages(cfg)) == expected
+    assert list(iter_log_messages_reverse(cfg, block_size=3)) == expected[::-1]
+    assert first_activity(cfg, "alpha") == datetime(2026, 6, 1, 10, 0)
+    assert last_activity_map(cfg)["alpha"] == datetime.strptime(
+        written.decode()[:16], "%Y-%m-%d %H:%M"
+    )
+    assert task_log_lines(cfg, "alpha") == [legacy.rstrip("\n"), written.decode().rstrip("\n")]
