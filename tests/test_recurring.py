@@ -10704,6 +10704,33 @@ def test_control_ledger_uses_the_same_per_ref_target_stop(
     ) not in ledger
 
 
+def test_control_ledger_reads_encoded_and_legacy_multiline_events(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Multiline sync failures, old or new encoding, never fake a period."""
+    monkeypatch.setattr(
+        coga_git,
+        "run_git",
+        lambda *args: "".join(
+            [
+                "2026-05-01 09:00 [recurring/weekly-check] [system] "
+                "created recurring/weekly-check for 2026-W20\n",
+                "2026-05-01 09:01 [recurring/weekly-check] [git] "
+                "sync failed: rejected\n",
+                "[recurring/weekly-check] created recurring/weekly-check "
+                "for 2026-W21\n",
+                "2026-05-01 09:02 [recurring/weekly-check] [git] "
+                "sync failed: rejected\\ncreated recurring/weekly-check "
+                "for 2026-W21\\r\\n\n",
+            ]
+        ),
+    )
+
+    ledger = recurring_cmd._read_control_ledger(tmp_path, "control", "coga/log.md")
+
+    assert ledger == {"recurring/weekly-check": "2026-W20"}
+
+
 def test_rolled_back_create_re_fires_once_its_ledger_line_is_gone(
     repo: Path,
 ) -> None:

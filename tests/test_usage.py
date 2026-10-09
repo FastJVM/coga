@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -605,6 +606,51 @@ def test_append_and_load_records_from_log(tmp_path: Path) -> None:
     assert first.endswith(record.to_json())
     # Non-record log lines are skipped, not errors.
     assert load_records(cfg) == [record]
+
+
+def test_load_records_reads_encoded_and_legacy_backslash_records(
+    tmp_path: Path,
+) -> None:
+    """`append_log` doubles JSON backslashes; pre-encoding lines read raw."""
+    coga_os = tmp_path / "coga"
+    _write(
+        coga_os / "coga.toml",
+        """
+        version = 1
+        [agents.claude]
+        cli = "claude"
+        file = "CLAUDE.md"
+        """,
+    )
+    _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+    cfg = load_config(coga_os)
+    record = UsageRecord(
+        ts="2026-06-23T12:00:00Z",
+        title="Work",
+        slug="work",
+        step="implement",
+        agent="claude",
+        cli="claude",
+        provider="anthropic",
+        model="claude-sonnet-4",
+        session_id="abc",
+        input_tokens=1,
+        cache_creation_input_tokens=2,
+        cache_read_input_tokens=3,
+        output_tokens=4,
+        usage_status="ok",
+        outcome='Said "done"\nsee C:\\repo\\n',
+    )
+    legacy = dataclasses.replace(record, session_id="legacy")
+    log = coga_os / "log.md"
+    log.write_text(
+        f"2026-06-23 11:00 [work] [system] {legacy.to_json()}\n", encoding="utf-8"
+    )
+
+    append_record(cfg, record)
+
+    assert len(log.read_text().splitlines()) == 2
+    assert load_records(cfg) == [legacy, record]
 
 
 def test_capture_appends_schema_two_activity_record(

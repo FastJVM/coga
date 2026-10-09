@@ -36,7 +36,14 @@ from coga.config import (
 )
 from coga.recurring_activity import RepoActivity, check_activity
 from coga.lifecycle import TERMINAL_STATUSES
-from coga.logfile import append_log, ref_tag_for_path, retract_log_lines, task_log_lines
+from coga.logfile import (
+    append_log,
+    decode_log_message,
+    log_lines,
+    ref_tag_for_path,
+    retract_log_lines,
+    task_log_lines,
+)
 from coga.paths import RepoResourceUnreadable, log_path
 from coga.taskfile import TaskFileError, read_blackboard, split_body
 from coga.recurring import (
@@ -4287,12 +4294,14 @@ def _control_serviced_period_cached(
                 ref, f"cannot verify control ledger: {exc}"
             ) from exc
         entries: list[tuple[str, str]] = []
-        for line in diff.splitlines():
+        for line in log_lines(diff):
             if not line.startswith(("+", "-")):
                 continue
             match = _CONTROL_LOG_ENTRY_RE.match(line[1:])
             if match is not None:
-                entries.append((match.group("ref"), match.group("message")))
+                entries.append(
+                    (match.group("ref"), decode_log_message(match.group("message")))
+                )
         changed = parse_serviced_period_entries(entries)
         for changed_ref in changed.periods.keys() | changed.errors.keys():
             control_ledger[f"{_LEDGER_REFUSAL_PREFIX}{changed_ref}"] = ref
@@ -4589,13 +4598,13 @@ def _read_control_ledger(
     if not text:
         return {}
 
-    lines = text.splitlines()
+    lines = log_lines(text)
 
     def entries(source: Iterable[str]) -> Iterable[tuple[str, str]]:
         for line in source:
             match = _CONTROL_LOG_ENTRY_RE.match(line)
             if match is not None:
-                yield match.group("ref"), match.group("message")
+                yield match.group("ref"), decode_log_message(match.group("message"))
 
     ledger = (
         parse_serviced_period_entries(entries(iter(lines)))

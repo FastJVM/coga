@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Literal
 
 from coga.config import Config
-from coga.logfile import append_log
+from coga.logfile import append_log, decode_log_message, log_lines
 from coga.paths import log_path
 
 
@@ -358,7 +358,9 @@ def load_records(cfg: Config) -> list[UsageRecord]:
 
     A usage line is an ordinary tagged log line whose message is the record's
     JSON object; every other line (state transitions, FYIs) fails the record
-    parse and is skipped.
+    parse and is skipped. The message is decoded first (`append_log` doubles
+    the JSON's backslashes); a line written before that encoding existed
+    fails the decoded parse and is read raw instead.
     """
     path = log_path(cfg)
     if not path.is_file():
@@ -368,14 +370,17 @@ def load_records(cfg: Config) -> list[UsageRecord]:
     except OSError:
         return []
     records: list[UsageRecord] = []
-    for line in text.splitlines():
+    for line in log_lines(text):
         match = _LOG_LINE_RE.match(line)
         if not match:
             continue
-        try:
-            records.append(UsageRecord.from_json(match.group(1)))
-        except ValueError:
-            continue
+        raw = match.group(1)
+        for message in (decode_log_message(raw), raw):
+            try:
+                records.append(UsageRecord.from_json(message))
+            except ValueError:
+                continue
+            break
     return records
 
 
