@@ -30,9 +30,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: 7e5efbc2-ae30-417d-bf15-8af89bc9ac84
 ---
 
 ## Description
@@ -160,3 +159,27 @@ The mechanism is `git._build_tree`'s union merge with `ancestor = merge-base HEA
 
 1. Should I file the publish-path follow-up ticket above now, with the owner choosing priority? Or does the owner want the root-cause fix folded into this ticket? I recommend a separate ticket: it changes the state-publication contract and touches every log line, not just usage.
 2. The `scripts/human_minutes.py` fix changes `usage_sessions` and token totals only for windows that contain distinct records sharing a `session_id`. Only one such pair (2026-08-18) exists in this repo. Is it acceptable that a re-run of a published ledger covering 2026-08-18 could shift slightly? If not, I'll move that fix to its own ticket.
+
+## Evaluator review
+
+Cold review, 2026-10-08. **One must-fix before implementation; the shared-reader approach is otherwise ready for owner review.** The ticket body independently supplies the identity, scope, implementation shape, and testable acceptance criteria. Its headings compose correctly. The frozen workflow matches the packaged `code/design-then-implement` workflow and correctly hands this review to the owner next.
+
+### Must fix
+
+1. **P2 — Apply the pinned message identity to the independent human-minutes reader too.** Proposed shape item 2 removes `seen_usage_sessions` but leaves only `seen_lines` in `scripts/human_minutes.py::parse_log`. That handles union copies but not the ticket's other explicit case: appending an identical `UsageRecord` twice. `src/coga/logfile.py::append_log` generates a fresh minute-level prefix on each append. Two appends across a minute boundary therefore have identical JSON messages but different whole lines. The proposed `usage.load_records` counts one; the proposed human-minutes reader counts two. With a non-null session ID this also regresses the current script, which counts one. A temporary fixture with identical valid record JSON at `12:00` and `12:01` confirmed the current script returns one record, whole-line identity yields two, and message identity yields one. No such differing-prefix duplicate exists in the current repo log; this is a contract/regression gap, not a claim about the observed union copies. Replace session-ID deduplication with exact-message deduplication for accepted usage records while preserving whole-line deduplication for audit events. Add a regression covering this case alongside the distinct-records/shared-session case. Alternatively, explicitly scope this consumer exception out and name its follow-up; leaving the two identities implicit is not sufficient.
+
+### Optional recommendations
+
+- Add a loader regression where two messages parse to the same `UsageRecord` but differ in JSON whitespace or key order, and both remain counted. The proposed schema-1/schema-2 case does not catch accidental deduplication by parsed value, since `UsageRecord.schema` itself differs. Also assert first-occurrence ordering and identical messages under differing prefixes.
+- Qualify “two distinct launches never produce identical text” in the identity rationale. `usage._format_ts` preserves datetime precision, but neither it nor `capture_session` enforces globally unique timestamps, and the launch UUID is not stored in the record. Exact text is a conservative, practical legacy identity supported by the observed records, not a mathematical uniqueness guarantee. This does not require a schema or writer change in this PR.
+
+### Verified evidence and scope
+
+- `commands/launch.py::spawn_agent_session` has one capture call in `finally`; `usage.capture_session` constructs one record and calls `append_record` once. `git._build_tree` union-merges the control, merge-base, and working bytes. Running the real `_merge_union_bytes(current=b'A\nX\nY\n', base=b'A\n', other=b'A\nZ\nX\n')` returned `A X Y Z X` as separate lines. Commit `c8a3cdfda` adds the cited prior orient record during a later resolve-conflicts log publication. These checks support reader deduplication and the separate publication follow-up; I did not repeat the full four-repository blame survey.
+- `commands/usage.py` and `coga/recurring/usage-report/{report.py,ticket.py}` use `load_records` and `rollup`; the report is live-only. The shared loader has two real consumers and satisfies the microkernel rule. `phone_home._movement` accepts movement messages rather than usage JSON; `docs/evidence/velocity.md` counts task sets. The three named topic twins exist and currently match byte-for-byte.
+- Current `coga usage --json --by task`: **1,108 sessions, 115 unknown, 6,488,526,008 tokens**. Applying exact-message deduplication in memory to the same log: **1,091 sessions, 114 unknown, 6,428,167,938 tokens**. The difference is still 17 sessions, one unknown, and 60,358,070 tokens. The additional launch since design explains the changed baselines; no log was rewritten.
+- Baseline verification: `.venv/bin/python -m pytest -q tests/test_usage.py tests/test_usage_report.py tests/test_human_minutes_script.py tests/test_packaging.py` — **83 passed**. The CLI regression belongs in `tests/test_usage.py::test_usage_command_outputs_json`; existing loader, report, and ledger fixtures support the proposed additions. This is baseline evidence, not implementation validation or a full-suite run.
+
+### Owner handoff
+
+Resolve the must-fix and the existing Open Questions at `review-design`: retain the separate publish-path follow-up and arrange its filing, and confirm the intended correction to historical human-minutes totals. The body already chooses the separate publication scope and includes the script fix; align the remaining questions with the accepted disposition. No ticket-body edits, implementation, branch, or PR were produced in this step.
