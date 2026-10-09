@@ -161,3 +161,12 @@ checks:
     status: not-run
     detail: Validation behavior unchanged; the new test runs `validate.run` on a fresh clone instead.
 ```
+
+### Recovery note (2026-10-09, orient session)
+
+The 22:17 peer-review session died without bumping. Its uncommitted fixes were
+committed unreviewed as `3210d12d7` on `onboarding-publish-before-handoff` and
+pushed: publish-state fetches control before publishing and withholds the CLI
+exit sweep on failure (topic + twin + tests updated). Only
+`tests/test_publish_state.py` was run (9 passed). Review this commit as part of
+peer-review; the full suite is still owed.
