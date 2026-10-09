@@ -41,30 +41,19 @@ The trade-off: you specify more up front, and you stay the one who decides. In e
 
 ## Example
 
-I run Astra at max reasoning for everything, which wastes token on routine
-tasks. I wanted a Codex plugin that picks the model and reasoning level for
-each task automatically (say, Astra at xhigh for planning, Terra-medium for a rename).
+I wanted a plugin that picks the model and reasoning level per task, instead
+of running Astra at max reasoning for everything. `coga build` turned ten
+minutes of conversation into a plan of tickets, but the plan assumed routing
+was a solved problem. It isn't.
 
-I described the project to `coga build` in about ten minutes of focused
-conversation, and it turned that into a plan of tickets. Reading the first
-one, I saw the agent was persuaded that model routing was a solved problem. 
-But when reading the plan and asking about it, it clearly wasn't, and when asked, it admitted as much.
-
-So through a coga ticket discussion, we split the decision into
-evidence-first tickets, run in order and written by Claude (and implemented by Codex):
-
-1. [State of the art review](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/state-of-the-art-review.md)
-2. [Head-to-head ground truth](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/head-to-head-ground-truth.md)
-3. [Evaluate Jev](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/evaluate-jev.md)
-4. [Score candidates](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/score-candidates.md)
-5. [Decide classifier approach](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/decide-classifier-approach.md)
-
-Once we have the answer, it will sit in a context block every future ticket
-starts from. The experiments will be archived: agents can pull them up on
-request, but they stay out of the default prompt. When implementation resumes,
-it starts from the research result instead of the original assumption.
-
-
+So we split the decision into evidence-first tickets (written with Claude, run
+by Codex): [state of the art](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/state-of-the-art-review.md),
+[head-to-head ground truth](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/head-to-head-ground-truth.md),
+[Jev](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/evaluate-jev.md),
+[candidate scoring](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/score-candidates.md), then the
+[decision](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/decide-classifier-approach.md). The answer becomes a context
+every later ticket starts from. Browse the whole example in
+[thinkpick's tasks](https://github.com/FastJVM/thinkpick/tree/main/coga/tasks).
 
 ## Install
 
