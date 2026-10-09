@@ -185,15 +185,18 @@ checkout return, so routine state lands before the checkout moves
 
 The sweep cannot tell its caller whether a file landed. A handoff that hands
 files to someone else's fresh clone runs `coga run publish-state [--message M]
-[PATH...]` (`publish_state.run_publish_state_recipe`) instead: one `publish`
-over `coga_root_paths` with the named files as `require_paths`. Exit 0 means
+[PATH...]` (`publish_state.run_publish_state_recipe`) instead: first fetch the
+configured remote control branch (a missing branch or unreachable remote fails),
+then one `publish` over `coga_root_paths` with the named files as `require_paths`. Exit 0 means
 every named file is on control (landed now or already matching), listed on
 stdout, or that `[git].enabled = false` leaves no control branch (stdout says
 so). Exit 1 means refused, failed, uncertain, not a repository, or no control
 branch; files stay as written, stderr names the cause, and `runner` appends a
 `## Recipe Failure` section to an inherited task blackboard. Exit 2 means bad
 argv or a named path that is not a regular file inside the Coga roots, before
-any write. `build/onboarding` runs it before offering `coga launch` for its
+any publication write. Every failed invocation withholds the CLI exit sweep,
+so it cannot publish tickets separately from a required context the strict
+transaction refused. `build/onboarding` runs it before offering `coga launch` for its
 starter tickets and neither hands over nor bumps on a non-zero exit.
 
 ## Guided authoring

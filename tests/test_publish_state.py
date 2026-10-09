@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -39,6 +40,15 @@ def _git(cwd: Path, *args: str) -> str:
         ["git", "-C", str(cwd), *args],
         check=True, capture_output=True, text=True,
     ).stdout
+
+
+
+def _publish_cli(*args: str) -> subprocess.CompletedProcess[str]:
+    """Exercise cli.main too: its final sweep must respect refusals."""
+    return subprocess.run(
+        [sys.executable, "-m", "coga.cli", "run", "publish-state", *args],
+        capture_output=True, text=True,
+    )
 
 
 def _origin_files(origin: Path) -> list[str]:
@@ -116,9 +126,9 @@ def test_onboarding_publish_then_handoff_from_empty_repo(
     checkout, origin, files = _onboarded_repo(tmp_path, monkeypatch, contexts)
     rels = [path.relative_to(checkout).as_posix() for path in files]
 
-    result = CliRunner().invoke(app, ["run", "publish-state", *rels])
+    result = _publish_cli(*rels)
 
-    assert result.exit_code == 0, result.output
+    assert result.returncode == 0, result.stdout + result.stderr
     assert "publish-state: published to origin/main" in result.stdout
     for rel in rels:
         assert f"  {rel}\n" in result.stdout
@@ -150,9 +160,9 @@ def test_onboarding_publish_failure_leaves_unfinished_handoff(
     monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(onboarding))
     monkeypatch.setenv("COGA_TASK_SLUG", ONBOARDING_TASK)
 
-    result = CliRunner().invoke(app, ["run", "publish-state", *rels])
+    result = _publish_cli(*rels)
 
-    assert result.exit_code == 1, result.output
+    assert result.returncode == 1, result.stdout + result.stderr
     assert "publish-state: publication" in result.stderr
     assert "published to" not in result.stdout
     # Recoverable: every file is still on disk exactly where onboarding wrote it.
@@ -177,14 +187,12 @@ def test_publish_state_refuses_paths_outside_the_coga_roots(
     source.write_text("print('hi')\n")
     before = _origin_files(origin)
 
-    outside = CliRunner().invoke(app, ["run", "publish-state", "app.py"])
-    missing = CliRunner().invoke(
-        app, ["run", "publish-state", "coga/contexts/product/missing/SKILL.md"]
-    )
+    outside = _publish_cli("app.py")
+    missing = _publish_cli("coga/contexts/product/missing/SKILL.md")
 
-    assert outside.exit_code == 2
+    assert outside.returncode == 2
     assert "outside the Coga roots" in outside.stderr
-    assert missing.exit_code == 2
+    assert missing.returncode == 2
     assert "not a regular file" in missing.stderr
     assert _origin_files(origin) == before
 
@@ -196,9 +204,55 @@ def test_publish_state_disabled_git_reports_local_only(
     toml = checkout / "coga" / "coga.toml"
     toml.write_text(toml.read_text() + "\n[git]\nenabled = false\n")
 
-    result = CliRunner().invoke(
-        app, ["run", "publish-state", files[0].relative_to(checkout).as_posix()]
-    )
+    result = _publish_cli(files[0].relative_to(checkout).as_posix())
 
-    assert result.exit_code == 0, result.output
+    assert result.returncode == 0, result.stdout + result.stderr
     assert "[git].enabled = false" in result.stdout
+
+
+@pytest.mark.parametrize("remote_change", ["unreachable", "deleted-vision", "deleted-branch"])
+def test_publish_state_rechecks_control_on_unchanged_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, real_git, remote_change: str,
+) -> None:
+    checkout, origin, files = _onboarded_repo(tmp_path, monkeypatch, None)
+    rels = [path.relative_to(checkout).as_posix() for path in files]
+    first = _publish_cli(*rels)
+    assert first.returncode == 0, first.stderr
+    before = [path.read_bytes() for path in files]
+    if remote_change == "unreachable":
+        shutil.move(origin, tmp_path / "gone.git")
+    elif remote_change == "deleted-branch":
+        _git(origin, "update-ref", "-d", "refs/heads/main")
+    else:
+        other = tmp_path / "other"
+        _git(tmp_path, "clone", "-q", "-b", "main", str(origin), str(other))
+        _git(other, "config", "user.email", "test@example.com")
+        _git(other, "config", "user.name", "Coga Test")
+        _git(other, "config", "commit.gpgsign", "false")
+        _git(other, "rm", rels[0])
+        _git(other, "commit", "-qm", "Remove vision")
+        _git(other, "push", "-q", "origin", "main")
+
+    retry = _publish_cli(*rels)
+
+    assert retry.returncode == 1, retry.stdout + retry.stderr
+    assert "already on" not in retry.stdout
+    assert [path.read_bytes() for path in files] == before
+
+
+def test_publish_state_refusal_does_not_sweep_tickets_without_their_vision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, real_git,
+) -> None:
+    checkout, origin, files = _onboarded_repo(tmp_path, monkeypatch, None)
+    rels = [path.relative_to(checkout).as_posix() for path in files]
+    _git(checkout, "switch", "-c", "feature")
+    _git(checkout, "add", rels[0])
+    _git(checkout, "commit", "-qm", "Vision pending review")
+    published_before = _origin_files(origin)
+
+    result = _publish_cli(*rels)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "excluded from publication" in result.stderr
+    assert _origin_files(origin) == published_before
+    assert all(path.is_file() for path in files)

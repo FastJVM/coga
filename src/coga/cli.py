@@ -152,8 +152,8 @@ def _sweep_coga_state(cfg: Config | None) -> None:
         return
     if git.state_sweep_withheld.get():
         typer.secho(
-            "[git] state sweep withheld: the launch checkout return was refused "
-            "and its remaining changes were preserved unpublished.",
+            "[git] state sweep withheld: the command preserved local changes "
+            "after a refused or failed publication or checkout return.",
             fg=typer.colors.YELLOW,
             err=True,
         )

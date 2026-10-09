@@ -63,6 +63,18 @@ def run_publish_state_recipe(cfg: Config, argv: list[str]) -> int:
     confirmed; the files stay on disk as written and stderr names the cause.
     Exit 2: argv or a named path is invalid; nothing was published.
     """
+    try:
+        code = _publish_state(cfg, argv)
+    except BaseException:
+        git.state_sweep_withheld.set(True)
+        raise
+    if code:
+        # Do not let cli.main retry without the required-file guard.
+        git.state_sweep_withheld.set(True)
+    return code
+
+
+def _publish_state(cfg: Config, argv: list[str]) -> int:
     args = recipe_parser().parse_args(argv)
     roots = git.coga_root_paths(cfg)
     required: list[Path] = []
@@ -93,6 +105,15 @@ def run_publish_state_recipe(cfg: Config, argv: list[str]) -> int:
         return _refuse(f"not published: {cfg.repo_root} is not in a git repository")
 
     try:
+        if git.remote_configured(root, cfg.git_remote):
+            # A no-op publish trusts the cached ref. This strict handoff must
+            # contact control even when nothing is dirty, and fail if it was
+            # deleted (fetch_control deliberately tolerates a missing ref).
+            git.run_git(
+                root, "fetch", "--quiet", cfg.git_remote,
+                f"+refs/heads/{cfg.git_control_branch}:refs/remotes/"
+                f"{cfg.git_remote}/{cfg.git_control_branch}",
+            )
         landed = git.publish(cfg, roots, args.message, require_paths=required)
     except git.UncertainPublishError as exc:
         return _refuse(f"publication unconfirmed: {exc}")
