@@ -8016,3 +8016,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-08 22:17 [publish-build-vision-before-handing-off-starter-ti] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-10-08 22:17 [publish-build-vision-before-handing-off-starter-ti] [megalaunch] launched via coga megalaunch
 2026-10-08 22:38 [keep-multiline-audit-messages-on-one-log-line] [megalaunch] activated (blocked → active) — explicit megalaunch pick
+2026-10-08 22:38 [keep-multiline-audit-messages-on-one-log-line] [megalaunch] started (active → in_progress) via coga megalaunch

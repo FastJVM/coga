@@ -1,6 +1,6 @@
 ---
 title: Keep multiline audit messages on one log line
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 2 (peer-review)
 agent: claude
+launch_generation: pending:688f21f9-6da5-45d2-922c-586624e11bbf
 ---
 
 ## Description
