@@ -46,7 +46,7 @@ of running Astra at max reasoning for everything. `coga build` turned ten
 minutes of conversation into a plan of tickets, but the plan assumed routing
 was a solved problem. It isn't.
 
-So we split the decision into evidence-first tickets (written with Claude, run
+So we think harder, backtrack and build a research plan in tickets (written with Claude, run
 by Codex): [state of the art](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/state-of-the-art-review.md),
 [head-to-head ground truth](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/head-to-head-ground-truth.md),
 [Jev](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/evaluate-jev.md),
