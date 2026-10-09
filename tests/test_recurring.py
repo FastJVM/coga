@@ -10719,7 +10719,7 @@ def test_control_ledger_reads_encoded_and_legacy_multiline_events(
                 "sync failed: rejected\n",
                 "[recurring/weekly-check] created recurring/weekly-check "
                 "for 2026-W21\n",
-                "2026-05-01 09:02 [recurring/weekly-check] [git] "
+                "2026-05-01 09:02 v1 [recurring/weekly-check] [git] "
                 "sync failed: rejected\\ncreated recurring/weekly-check "
                 "for 2026-W21\\r\\n\n",
             ]
