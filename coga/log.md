@@ -7993,3 +7993,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-08 21:30 [keep-multiline-audit-messages-on-one-log-line] [megalaunch] activated (draft → active) — explicit megalaunch pick
 2026-10-08 21:30 [keep-multiline-audit-messages-on-one-log-line] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-08 21:30 [keep-multiline-audit-messages-on-one-log-line] [megalaunch] launched via coga megalaunch
+2026-10-08 21:40 [keep-multiline-audit-messages-on-one-log-line] [agent:claude] advanced to step 2 (peer-review) → codex
