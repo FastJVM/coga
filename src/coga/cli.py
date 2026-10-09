@@ -223,6 +223,10 @@ def _should_sweep_coga_state(argv: list[str]) -> bool:
     command = args[0]
     if command.startswith("-") or command in _NON_SWEEPING_COMMANDS:
         return False
+    if args[:2] == ["run", "publish-state"]:
+        # The recipe owns the required-file transaction. A generic sweep
+        # would bypass it even when config loading fails before dispatch.
+        return False
     if command == "bump" and any(
         arg in {"--backward", "--to"} or arg.startswith("--to=")
         for arg in args[1:]

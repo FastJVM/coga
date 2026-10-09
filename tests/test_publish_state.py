@@ -256,3 +256,23 @@ def test_publish_state_refusal_does_not_sweep_tickets_without_their_vision(
     assert "excluded from publication" in result.stderr
     assert _origin_files(origin) == published_before
     assert all(path.is_file() for path in files)
+
+
+def test_publish_state_missing_user_does_not_sweep_before_recipe_dispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, real_git,
+) -> None:
+    checkout, origin, files = _onboarded_repo(tmp_path, monkeypatch, None)
+    rels = [path.relative_to(checkout).as_posix() for path in files]
+    _git(checkout, "switch", "-c", "feature")
+    _git(checkout, "add", rels[0])
+    _git(checkout, "commit", "-qm", "Vision pending review")
+    (checkout / "coga" / "coga.local.toml").write_text("")
+    published_before = _git(origin, "rev-parse", "main")
+    bytes_before = [path.read_bytes() for path in files]
+
+    result = _publish_cli(*rels)
+
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "user" in result.stderr
+    assert _git(origin, "rev-parse", "main") == published_before
+    assert [path.read_bytes() for path in files] == bytes_before

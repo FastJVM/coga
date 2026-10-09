@@ -157,7 +157,7 @@ checkout return, so routine state lands before the checkout moves
 - runs only when `cli._should_sweep_coga_state(argv)` is true: never for a
   bare `coga`, an option, `--help`/`-h`, `_NON_SWEEPING_COMMANDS` (`status`,
   `show`, `validate`, `usage`, `init`, `uninstall`), `secret`, `recurring
-  --all`, `bump --backward`/`--to`, or `skill`/`mark`/`recurring` subcommands
+  --all`, `run publish-state`, `bump --backward`/`--to`, or `skill`/`mark`/`recurring` subcommands
   outside their sweeping sets;
 - is skipped when authoring finalization failed, or a launch's checkout return refused or stopped part-way
   (`git.state_sweep_withheld`, reset per `cli.main` invocation, so it also
@@ -194,9 +194,11 @@ so). Exit 1 means refused, failed, uncertain, not a repository, or no control
 branch; files stay as written, stderr names the cause, and `runner` appends a
 `## Recipe Failure` section to an inherited task blackboard. Exit 2 means bad
 argv or a named path that is not a regular file inside the Coga roots, before
-any publication write. Every failed invocation withholds the CLI exit sweep,
-so it cannot publish tickets separately from a required context the strict
-transaction refused. `build/onboarding` runs it before offering `coga launch` for its
+any publication write. The CLI excludes `run publish-state` from its exit
+sweep, even on success or a configuration failure before recipe dispatch.
+Only the explicit recipe publishes, so no fallback can publish tickets
+separately from a required context the strict transaction refused.
+`build/onboarding` runs it before offering `coga launch` for its
 starter tickets and neither hands over nor bumps on a non-zero exit.
 
 ## Guided authoring
