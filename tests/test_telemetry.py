@@ -142,8 +142,15 @@ def test_invalid_inventory_preserves_cursor_identity_but_advances_run(repo, monk
     ("launched", False), ("task paused", False), ("blocked", False),
     ("unblocked", False), ("prose task done", False),
 ])
-def test_movement_grammar(message, expected):
-    assert t._movement(_line(message).rstrip(b"\n")) is expected
+@pytest.mark.parametrize("versioned", [False, True])
+def test_movement_grammar(message, expected, versioned):
+    from coga.logfile import encode_log_message
+
+    if versioned:
+        line = _line(encode_log_message(message)).replace(b"07:00 [", b"07:00 v1 [", 1)
+    else:
+        line = _line(message)
+    assert t._movement(line.rstrip(b"\n")) is expected
 
 
 def test_movement_counts_real_bumps_with_spaced_names_and_parentheses(repo, monkeypatch):
@@ -485,3 +492,11 @@ def test_main_bumps_once_only_after_success_and_propagates_failure(repo, monkeyp
     monkeypatch.setattr(t.subprocess, "run", bump)
     assert t.main() == (run_code or bump_code)
     assert calls == ([] if run_code else [[sys.executable, "-m", "coga.cli", "bump", "recurring/phone-home"]])
+
+
+def test_movement_counts_versioned_multiline_fyi():
+    from coga.logfile import encode_log_message
+
+    message = "task done — first\nsecond\r\nthird\r"
+    line = _line(encode_log_message(message)).replace(b"07:00 [", b"07:00 v1 [", 1)
+    assert t._movement(line.rstrip(b"\n"))
