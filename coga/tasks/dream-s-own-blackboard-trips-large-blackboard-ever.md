@@ -1,6 +1,6 @@
 ---
 title: Dream's own blackboard trips large-blackboard every run
-status: active
+status: in_progress
 owner: nicktoper
 contexts:
 - coga/dream
@@ -35,6 +35,7 @@ workflow:
     assignee: owner
 step: 1 (design)
 agent: claude
+launch_generation: pending:e02cd156-1267-4230-84be-37d4aa5efe13
 ---
 
 ## Description
