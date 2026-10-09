@@ -8019,3 +8019,12 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-08 22:38 [keep-multiline-audit-messages-on-one-log-line] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-10-08 22:38 [keep-multiline-audit-messages-on-one-log-line] [megalaunch] launched via coga megalaunch
 2026-10-08 22:38 [keep-multiline-audit-messages-on-one-log-line] [human:nicktoper] unblocked (asks resolved, still in_progress): Owner approved the versioned audit header: new events are written as 'YYYY-MM-DD HH:MM v1 [ref] [actor] <escaped-message>'; only v1-marked messages are unescaped, unmarked legacy lines are read raw (legacy continuation tolerance stays), historical bytes unchanged. Update every anchored reader together (logfile, usage, recurring_runner, scripts/human_minutes.py), the spool-merge topic and twins, and tests; fix both Codex P2 findings with regressions.
+2026-10-09 13:46 [recurring/address-pr-comments] [system] created (status=active)
+2026-10-09 13:46 [recurring/address-pr-comments] [system] deleted completed prior-period task before 2026-10-09
+2026-10-09 13:46 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-10-09
+2026-10-09 13:46 [recurring/autoclose-merged] [system] created (status=active)
+2026-10-09 13:46 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-10-09
+2026-10-09 13:46 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-10-09
+2026-10-09 13:46 [recurring/blocker-reminders] [system] created (status=active)
+2026-10-09 13:46 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-10-09
+2026-10-09 13:46 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-10-09
