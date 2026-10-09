@@ -43,15 +43,14 @@ The trade-off: you specify more up front, and you stay the one who decides. In e
 
 I run Astra at max reasoning for everything, which wastes token on routine
 tasks. I wanted a Codex plugin that picks the model and reasoning level for
-each task automatically (say, Astra at xhigh for planning, something cheaper
-for a rename).
+each task automatically (say, Astra at xhigh for planning, Terra-medium for a rename).
 
 I described the project to `coga build` in about ten minutes of focused
 conversation, and it turned that into a plan of tickets. Reading the first
-one, I saw the agent had assumed model routing was a solved problem. 
+one, I saw the agent was persuaded that model routing was a solved problem. 
 But when reading the plan and asking about it, it clearly wasn't, and when asked, it admitted as much.
 
-So I parked the implementation tickets and split the decision into
+So through a coga ticket discussion, we split the decision into
 evidence-first tickets, run in order and written by Claude (and implemented by Codex):
 
 1. **State of the art:** is picking a reasoning level from a task description
