@@ -1,6 +1,6 @@
 ---
 title: Publish build vision before handing off starter tickets
-status: active
+status: in_progress
 owner: nicktoper
 workflow:
   name: code/with-review
@@ -24,6 +24,7 @@ workflow:
     assignee: owner
 step: 1 (implement)
 agent: claude
+launch_generation: pending:bfd85d8a-0195-4e7b-aa8d-b23c730a33ec
 ---
 
 ## Description
