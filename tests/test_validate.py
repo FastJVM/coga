@@ -98,6 +98,44 @@ def test_clean_repo_has_no_issues(repo: Path) -> None:
     assert report.ok_count == 1
 
 
+def test_unknown_repo_resource_override_is_a_warning(repo: Path) -> None:
+    """A misnamed override changes nothing, so validate warns instead of
+    letting the typo silently do nothing; README.md and dotfiles are ignored."""
+    _write(repo / "resources" / "prompt.md", "Repo base prompt.\n")
+    _write(repo / "resources" / "promt.md", "Typo.\n")
+    _write(repo / "resources" / "README.md", "Notes.\n")
+    _write(repo / "resources" / ".keep", "")
+    cfg = load_config(repo)
+
+    issues = [
+        issue for issue in run(cfg).issues
+        if issue.task == "(resources)"
+    ]
+
+    assert [(i.kind, i.severity) for i in issues] == [
+        ("unknown-resource-override", "warn"),
+    ]
+    assert "promt.md" in issues[0].message
+    assert "prompt.md" in issues[0].message
+
+
+def test_unreadable_repo_resource_override_is_an_error(repo: Path) -> None:
+    override = repo / "resources" / "blackboard.md"
+    override.parent.mkdir(parents=True)
+    override.write_bytes(b"\xff\xfe not utf-8")
+    cfg = load_config(repo)
+
+    issues = [
+        issue for issue in run(cfg).issues
+        if issue.task == "(resources)"
+    ]
+
+    assert [(i.kind, i.severity) for i in issues] == [
+        ("unreadable-resource-override", "error"),
+    ]
+    assert str(override) in issues[0].message
+
+
 def test_unresolvable_other_agent_step_is_an_error(repo: Path) -> None:
     toml = repo / "coga.toml"
     toml.write_text(
@@ -2895,3 +2933,104 @@ def test_validate_accepts_a_draft_with_no_optional_declarations(repo: Path) -> N
     )
 
     assert not [issue for issue in run(cfg).issues if issue.task == "minimal"]
+
+
+def test_broken_resource_link_is_an_error(repo: Path) -> None:
+    override = repo / 'resources' / 'prompt.md'
+    override.parent.mkdir()
+    override.symlink_to('missing.md')
+    report = run(load_config(repo))
+    issue = next(i for i in report.issues if i.kind == 'unreadable-resource-override')
+    assert issue.severity == 'error'
+    assert str(override) in issue.message
+
+
+def test_validate_bad_blackboard_does_not_hide_readiness_or_repair(repo: Path) -> None:
+    cfg = load_config(repo)
+    created = create_task(
+        cfg=cfg, title='X', workflow_name=None, contexts=[],
+        owner='marc', status='draft', description='Work.',
+    )
+    path = Path(created['path'])
+    path.write_text(path.read_text() + '\nCustom working notes.\n')
+    override = repo / 'resources' / 'blackboard.md'
+    override.parent.mkdir()
+    override.write_bytes(b'\xff')
+    report = validate_task(cfg, created['slug'])
+    assert any(i.kind == 'unreadable-resource-override' for i in report.issues)
+
+    path.write_text(path.read_text().replace('<!-- coga:blackboard -->', ''))
+    before = path.read_bytes()
+    report = run(cfg, fix=True)
+    assert path.read_bytes() == before
+    assert any(i.kind == 'unreadable-resource-override' for i in report.issues)
+    assert any(i.kind == 'blackboard-fence' for i in report.issues)
+
+
+def test_validate_reports_inaccessible_resource_directory(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = repo / 'resources'
+    root.mkdir()
+    original = Path.iterdir
+
+    def inaccessible(path: Path):
+        if path == root:
+            raise PermissionError('Permission denied')
+        return original(path)
+
+    monkeypatch.setattr(Path, 'iterdir', inaccessible)
+    report = run(load_config(repo))
+    issue = next(i for i in report.issues if i.kind == 'unreadable-resource-override')
+    assert issue.severity == 'error'
+    assert str(root) in issue.message
+
+
+@pytest.mark.parametrize("root_kind", ["file", "file-link", "broken-link", "loop-link"])
+def test_validate_rejects_non_directory_resource_root(repo: Path, root_kind: str) -> None:
+    root = repo / "resources"
+    if root_kind == "file":
+        root.write_text("Not a directory.")
+    elif root_kind == "file-link":
+        target = repo / "resource-file"
+        target.write_text("Not a directory.")
+        root.symlink_to(target)
+    elif root_kind == "broken-link":
+        root.symlink_to("missing-resources")
+    else:
+        root.symlink_to("resources")
+
+    report = run(load_config(repo))
+
+    issue = next(i for i in report.issues if i.kind == "unreadable-resource-override")
+    assert issue.severity == "error"
+    assert issue.task == "(resources)"
+    assert str(root) in issue.message
+
+
+def test_validate_reports_uninspectable_resource_root(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = repo / "resources"
+    root.mkdir()
+    original = Path.lstat
+
+    def inaccessible(path: Path) -> os.stat_result:
+        if path == root:
+            raise PermissionError("Permission denied")
+        return original(path)
+
+    monkeypatch.setattr(Path, "lstat", inaccessible)
+    report = run(load_config(repo))
+
+    issue = next(i for i in report.issues if i.kind == "unreadable-resource-override")
+    assert issue.severity == "error"
+    assert str(root) in issue.message
+
+
+def test_validate_accepts_absent_resource_root(repo: Path) -> None:
+    assert not (repo / "resources").exists()
+
+    report = run(load_config(repo))
+
+    assert not [i for i in report.issues if i.kind == "unreadable-resource-override"]

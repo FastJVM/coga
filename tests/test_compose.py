@@ -1102,3 +1102,114 @@ def test_compose_carries_a_manual_spec_written_as_subsections(repo: Path) -> Non
     assert text["task_context"].startswith("Context text.")
     assert "### Acceptance Criteria\n\n- Criterion one." in text["task_context"]
     assert "### Proposed Shape\n\nShape text." in text["task_context"]
+
+
+def test_compose_uses_repo_base_prompt_override(repo: Path) -> None:
+    """A repo `resources/prompt.md` wholly replaces the packaged base prompt,
+    and the report names the override file as the layer's path."""
+    _write(repo / "resources" / "prompt.md", "Repo base prompt marker.\n")
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Overridden base")
+    ref = list_tasks(cfg)[0]
+
+    composition = compose_prompt_report(cfg, ref, read_ticket(ref))
+
+    base = next(l for l in composition.layers if l.layer == "base_prompt")
+    assert base.text == "Repo base prompt marker.\n"
+    assert base.ref == "prompt.md"
+    assert base.path == str(repo / "resources" / "prompt.md")
+    assert "Repo base prompt marker." in composition.prompt
+    assert "You are an agent working on a ticket inside Coga" not in (
+        composition.prompt
+    )
+
+
+def test_compose_falls_back_to_packaged_resources(repo: Path) -> None:
+    """Without an override the packaged text is composed and `path` is unset."""
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Stock base")
+    ref = list_tasks(cfg)[0]
+
+    composition = compose_prompt_report(cfg, ref, read_ticket(ref))
+
+    fixed = {
+        l.layer: l for l in composition.layers
+        if l.layer in {"base_prompt", "session_conduct"}
+    }
+    assert fixed["base_prompt"].text == (
+        files("coga.resources").joinpath("prompt.md").read_text()
+    )
+    assert fixed["base_prompt"].path is None
+    assert fixed["session_conduct"].path is None
+
+
+def test_compose_uses_repo_conduct_override_for_its_context_only(
+    repo: Path,
+) -> None:
+    """Overriding one conduct variant changes only that launch context."""
+    _write(
+        repo / "resources" / "prompt-megalaunch.md",
+        "## Session conduct — megalaunch\n\nRepo queue conduct marker.\n",
+    )
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Overridden conduct")
+    ref = list_tasks(cfg)[0]
+    ticket = read_ticket(ref)
+
+    queued = compose_prompt_report(cfg, ref, ticket, launch_context="megalaunch")
+    conduct = next(l for l in queued.layers if l.layer == "session_conduct")
+    assert conduct.ref == "prompt-megalaunch.md"
+    assert conduct.path == str(repo / "resources" / "prompt-megalaunch.md")
+    assert "Repo queue conduct marker." in queued.prompt
+
+    attended = compose_prompt_report(cfg, ref, ticket, launch_context="attended")
+    conduct = next(l for l in attended.layers if l.layer == "session_conduct")
+    assert conduct.path is None
+    assert "Repo queue conduct marker." not in attended.prompt
+
+
+def test_compose_applies_repo_overrides_to_bootstrap_launches(repo: Path) -> None:
+    _write(repo / "resources" / "prompt.md", "Repo base prompt marker.\n")
+    cfg = load_config(repo)
+    ref = resolve_bootstrap(cfg, "browser-automation")
+
+    composition = compose_prompt_report(cfg, ref, read_ticket(ref))
+
+    base = next(l for l in composition.layers if l.layer == "base_prompt")
+    assert base.path == str(repo / "resources" / "prompt.md")
+    assert "Repo base prompt marker." in composition.prompt
+
+
+def test_compose_unreadable_repo_override_raises_compose_error(
+    repo: Path,
+) -> None:
+    """An override that exists but can't be read refuses the compose, naming
+    the repo file — it never silently falls back to the packaged text."""
+    override = repo / "resources" / "prompt.md"
+    override.parent.mkdir(parents=True)
+    override.write_bytes(b"\xff\xfe not utf-8")
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Broken override")
+    ref = list_tasks(cfg)[0]
+
+    with pytest.raises(ComposeError) as exc:
+        compose_prompt(cfg, ref, read_ticket(ref))
+    msg = str(exc.value)
+    assert str(override) in msg
+    assert "installed Coga package" not in msg
+
+
+@pytest.mark.parametrize('kind', ['broken-link', 'directory'])
+def test_compose_rejects_unusable_override_path(repo: Path, kind: str) -> None:
+    override = repo / 'resources' / 'prompt.md'
+    override.parent.mkdir()
+    if kind == 'broken-link':
+        override.symlink_to('missing.md')
+    else:
+        override.mkdir()
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title='Unusable override')
+    ref = list_tasks(cfg)[0]
+
+    with pytest.raises(ComposeError, match=str(override)):
+        compose_prompt(cfg, ref, read_ticket(ref))

@@ -34,6 +34,7 @@ from coga.mark import mark_canceled as _mark_canceled
 from coga.mark import mark_done as _mark_done
 from coga.mark import mark_paused as _mark_paused
 from coga.repl_supervisor import emit_done_marker
+from coga.paths import RepoResourceUnreadable
 from coga.notification import preflight_post
 from coga.tasks import TaskNotFoundError, TaskRef, read_ticket, resolve_task
 from coga.validate import TaskValidationError
@@ -105,6 +106,8 @@ def active(
                 ref.id_slug, action="activate", reason=exc.reason
             )
         )
+    except RepoResourceUnreadable as exc:
+        _bail(f"Cannot activate {ref.id_slug}: {exc}")
     except TaskValidationError as exc:
         _bail(str(exc))
 

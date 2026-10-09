@@ -177,6 +177,9 @@ def create_task(
         n += 1
 
     base_dir = tasks_dir(cfg) if directory is None else tasks_dir(cfg) / directory
+    # Resolve user-controlled text before allocating a directory. A failed
+    # override must not strand a fixed recurring slug and prevent its retry.
+    blackboard = render_blackboard(title, cfg=cfg)
 
     # A task is a single `tasks/<slug>.md` file unless a caller explicitly
     # needs siblings (recurring period tasks carry a `.state-snapshot.json`).
@@ -272,7 +275,7 @@ def create_task(
         ticket_body = f"## Description\n\n{desc_body}\n\n## Context\n\n"
     # One file per task: body + fence + blackboard, no sibling blackboard.md /
     # log.md. The append-only history goes to the repo-global log.
-    full_body = join_task_body(ticket_body, render_blackboard(title))
+    full_body = join_task_body(ticket_body, blackboard)
     git.write_ticket(
         cfg,
         Ticket(frontmatter=fm, body=full_body),

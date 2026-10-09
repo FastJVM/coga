@@ -1327,3 +1327,18 @@ def test_create_task_unclosed_fence_keeps_a_real_context_section(
     above, _ = split_body(Ticket.read(repo / "tasks" / "unclosed-fence.md").body)
     assert _extract_section(above, "Description") == "Repro:\n\n```python\nx = 1"
     assert [s.key for s in body_sections(above)] == ["description", "context"]
+
+
+def test_create_unreadable_blackboard_names_override(
+    repo: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(repo)
+    override = repo / 'resources' / 'blackboard.md'
+    override.parent.mkdir()
+    override.write_bytes(b'\xff')
+
+    result = CliRunner().invoke(app, ['create', 'Broken override'])
+
+    assert result.exit_code == 2
+    assert str(override) in result.output
+    assert not (repo / 'tasks' / 'broken-override.md').exists()

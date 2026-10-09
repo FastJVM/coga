@@ -1,6 +1,6 @@
 ---
 name: coga/prompt-composition
-description: How `coga launch` builds an agent prompt — the exact layer order, what each layer reads, the three-region ticket extract, the blocker preamble and authoring projection, failure on missing refs, what never composes, `--prompt-report`, and oversized-prompt delivery.
+description: How `coga launch` builds an agent prompt — the exact layer order, what each layer reads (including repo overrides of the fixed text resources), the three-region ticket extract, the blocker preamble and authoring projection, failure on missing refs, what never composes, `--prompt-report`, and oversized-prompt delivery.
 ---
 
 # Prompt composition
@@ -17,8 +17,8 @@ file takes full effect on the next launch. There is no follow-up loading.
 Each layer is a `PromptLayer`; in order:
 
 1. **Header**: task ref, title, exact task directory, status.
-2. **Base prompt** (package resource `prompt.md`): the operating loop; neutral
-   on conduct.
+2. **Base prompt** (resource `prompt.md`): the operating loop; neutral on
+   conduct.
 3. **Session conduct**: exactly one resource chosen by launch context
    ([coga/session-conduct](../session-conduct/SKILL.md)).
 4. **Blocker preamble** (`prompt-blocker-resolution.md`), only when the
@@ -50,6 +50,32 @@ reaches the transcript.
 
 ## What each layer reads
 
+- The fixed text layers read top-level resources, repo override first
+  (`paths.load_resource`): `<coga root>/resources/<name>` (the directory
+  `cfg.repo_root` names, `coga/resources/` by default) wholly replaces the
+  packaged `src/coga/resources/<name>`; otherwise the packaged copy is read.
+  The overridable names are `paths.RESOURCE_NAMES`: `prompt.md`, the three
+  conduct resources, `prompt-blocker-resolution.md`, and two non-prompt
+  resources rendered by other commands, `blackboard.md` (the stock placeholder
+  `coga create` writes; [coga/blackboard](../blackboard/SKILL.md)) and
+  `retire.md` (the `coga retire` task body, rendered with `str.format(slug=...)`,
+  so a literal brace is doubled). Bootstrap launches use the same overrides.
+  Override is **replace-only**: there is no append or patch mode, so an
+  overridden file stops receiving upstream edits until someone merges them by
+  hand. `templates/` is not part of this rule; it has its own local-override
+  paths ([coga/packaging](../packaging/SKILL.md)). An override that exists but
+  cannot be read, or a `retire.md` override that is not a valid template,
+  raises `RepoResourceUnreadable` naming the repo file, never a silent
+  fallback; broken symlinks and non-file entries at known names also refuse.
+  Compose reports it as a `ComposeError`. Task creation reads the blackboard
+  before allocating its destination so repairing an override permits retry;
+  recurring creation reports the error per template and continues the sweep.
+  `coga validate` warns
+  (`unknown-resource-override`) on a file in `resources/` that matches no
+  resource name, ignoring `README.md` and dotfiles, so a typo cannot silently
+  do nothing, and errors (`unreadable-resource-override`) on an unreadable
+  override or an existing `resources` root that cannot be inspected or listed
+  as a directory. A missing root is allowed; a broken symlink is an error.
 - Contexts and skills resolve local-first, then the package bootstrap copy
   (`paths.resolve_context_path`, `resolve_skill_path`), and are read **whole**:
   `SKILL.md` frontmatter (`name`, `description`) is included in the prompt.
@@ -100,7 +126,10 @@ workflow position.
 
 `coga launch <ref> --prompt-report` prints one line per layer (layer id, ref,
 bytes, `approx_tokens` = ceil(chars/4)) and the total; the `session_conduct`
-line names the selected resource, and the ticket's regions stay separate lines so an oversized blackboard is visible. It
+line names the selected resource, and the ticket's regions stay separate lines so an oversized blackboard is visible.
+A fixed layer read from a repo override carries the override file as its
+`PromptLayer.path` (unset means packaged), and the report lists those layers
+under `Repo resource overrides:`. It
 works on drafts but runs the normal state sweep; for a read-only comparison
 call `compose_prompt_report` on an in-memory ticket copy.
 

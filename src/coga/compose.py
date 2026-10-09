@@ -17,9 +17,10 @@ from coga.blackboard import (
 from coga.config import Config, ConfigError
 from coga.paths import (
     PackagedResourceMissing,
+    RepoResourceUnreadable,
     context_resolution_paths,
+    load_resource,
     missing_skill_message,
-    read_packaged_resource,
     repo_context_path,
     resolve_context_path,
     resolve_skill_path,
@@ -190,11 +191,13 @@ def compose_prompt_report(
 
     # 1. Base prompt — neutral on conduct. It cross-references the selected
     # layer below rather than carrying a default that a later layer overrides.
+    base_text, base_path = _resource(cfg, "prompt.md")
     layers.append(PromptLayer(
         "base_prompt",
         "Coga base prompt",
-        _resource("prompt.md"),
+        base_text,
         ref="prompt.md",
+        path=_override_path(base_path),
     ))
 
     # 2. Session conduct, selected by launch context. Exactly one, immediately
@@ -210,11 +213,13 @@ def compose_prompt_report(
     # `raw` so the resource's own `## Session conduct — <context>` heading is
     # the section heading: the selected context stays visible to the agent
     # instead of being flattened into one generic title.
+    conduct_text, conduct_path = _resource(cfg, conduct_resource)
     layers.append(PromptLayer(
         "session_conduct",
         "Session conduct",
-        _resource(conduct_resource),
+        conduct_text,
         ref=conduct_resource,
+        path=_override_path(conduct_path),
         raw=True,
     ))
 
@@ -233,11 +238,15 @@ def compose_prompt_report(
             if not b.resolved
         ]
         if open_asks:
+            preamble, preamble_path = _blocker_preamble(
+                cfg, task_ref.id_slug, open_asks
+            )
             layers.append(PromptLayer(
                 "blocker_preamble",
                 "Resolve the open blocker first",
-                _blocker_preamble(task_ref.id_slug, open_asks),
+                preamble,
                 ref="prompt-blocker-resolution.md",
+                path=_override_path(preamble_path),
             ))
 
     # 3. repo context.md
@@ -334,19 +343,25 @@ def write_prompt_file(prompt: str, task_ref: TargetRef, dest_dir: Path | None = 
 # --- helpers ------------------------------------------------------------------
 
 
-def _resource(name: str) -> str:
-    """Read a packaged prompt layer, as a ComposeError when it can't be read.
+def _resource(cfg: Config, name: str) -> tuple[str, Path | None]:
+    """Read a fixed prompt layer, as a ComposeError when it can't be read.
 
-    Same shape as a missing context or skill: the layer the human expected is
+    The repo's `resources/<name>` override wins over the packaged copy; the
+    returned path is that override, or `None` for the packaged text. Same
+    shape as a missing context or skill: the layer the human expected is
     absent, so refuse rather than compose a prompt without it. Sharing
     `ComposeError` also keeps it inside the per-task `except` that `coga
     launch` and the megalaunch sweep already have, so one unreadable resource
     fails that task instead of unwinding the whole queue.
     """
     try:
-        return read_packaged_resource(name)
-    except PackagedResourceMissing as exc:
+        return load_resource(cfg, name)
+    except (PackagedResourceMissing, RepoResourceUnreadable) as exc:
         raise ComposeError(str(exc)) from exc
+
+
+def _override_path(path: Path | None) -> str | None:
+    return str(path) if path is not None else None
 
 
 def _task_path_for_prompt(cfg: Config, task_ref: TargetRef) -> str:
@@ -360,7 +375,9 @@ def _task_path_for_prompt(cfg: Config, task_ref: TargetRef) -> str:
     return str(Path(cfg.repo_root.name) / rel)
 
 
-def _blocker_preamble(slug: str, open_asks: list[Blocker]) -> str:
+def _blocker_preamble(
+    cfg: Config, slug: str, open_asks: list[Blocker]
+) -> tuple[str, Path | None]:
     """Render the resolve-or-re-block preamble for a ticket with open asks.
 
     The asks are listed verbatim (stale and junk ones included) so the human
@@ -374,8 +391,9 @@ def _blocker_preamble(slug: str, open_asks: list[Blocker]) -> str:
             else "unknown time"
         )
         lines.append(f"- [{ts}] [{blocker.actor}] {blocker.reason}")
-    template = _resource("prompt-blocker-resolution.md")
-    return template.replace("{slug}", slug).replace("{blockers}", "\n".join(lines))
+    template, path = _resource(cfg, "prompt-blocker-resolution.md")
+    rendered = template.replace("{slug}", slug).replace("{blockers}", "\n".join(lines))
+    return rendered, path
 
 
 def _section(title: str, body: str) -> str:

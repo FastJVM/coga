@@ -13385,3 +13385,36 @@ def test_inactive_sweep_reads_real_control_history(repo: Path, monkeypatch: pyte
     assert recurring_cmd.run_recurring_scan(load_config(repo)) == 0
     assert not (repo / "tasks/recurring/weekly-check").exists()
     assert "skip (repo inactive since 2026-01-01)" in capsys.readouterr().out
+
+
+def test_scan_bad_blackboard_keeps_existing_period_and_allows_retry(repo: Path) -> None:
+    cfg = load_config(repo)
+    now = datetime(2026, 4, 22, 10, 0, 0)
+    first = scan_due(cfg, now=now)
+    assert [task.template for task in first.due] == ['weekly-check']
+    _write_recurring(repo, 'new-job', '''
+        ---
+        schedule: "0 9 * * 1"
+        title: New job
+        owner: marc
+        ---
+
+        ## Description
+
+        Do the work.
+    ''')
+    override = repo / 'resources' / 'blackboard.md'
+    override.parent.mkdir()
+    override.write_bytes(b'\xff')
+
+    failed = scan_due(cfg, now=now)
+
+    assert [name for name, _ in failed.errors] == ['new-job']
+    assert str(override) in failed.errors[0][1]
+    assert [task.template for task in failed.due] == ['weekly-check']
+    assert not (repo / 'tasks' / 'recurring' / 'new-job').exists()
+
+    override.write_text('Fresh notes.\n')
+    retried = scan_due(cfg, now=now)
+    assert retried.errors == []
+    assert {task.template for task in retried.due} == {'new-job', 'weekly-check'}

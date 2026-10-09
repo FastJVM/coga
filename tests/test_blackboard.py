@@ -15,6 +15,7 @@ from coga.blackboard import (
     prelaunch_blackboard_synthesis_reason_text,
     render_blackboard,
 )
+from coga.config import Config, load_config
 
 
 def test_prelaunch_blackboard_treats_stock_placeholder_as_empty() -> None:
@@ -213,3 +214,67 @@ def test_prelaunch_blackboard_ignores_missing_optional_blackboard(
 
     assert reason is None
     assert ticket.read_text() == before
+
+
+def _cfg_with_blackboard_override(tmp_path: Path, template: str | None) -> Config:
+    root = tmp_path / "coga"
+    root.mkdir()
+    (root / "coga.toml").write_text(
+        'version = 1\n[agents.claude]\ncli = "claude"\nfile = "CLAUDE.md"\n'
+    )
+    (root / "coga.local.toml").write_text('user = "marc"\n')
+    if template is not None:
+        (root / "resources").mkdir()
+        (root / "resources" / "blackboard.md").write_text(template)
+    return load_config(root)
+
+
+def test_render_blackboard_uses_repo_override(tmp_path: Path) -> None:
+    cfg = _cfg_with_blackboard_override(
+        tmp_path, "## Working notes for {task_title}\n\nRepo stub.\n"
+    )
+
+    assert render_blackboard("Work", cfg=cfg) == (
+        "## Working notes for Work\n\nRepo stub.\n"
+    )
+
+
+def test_render_blackboard_falls_back_to_packaged_template(tmp_path: Path) -> None:
+    cfg = _cfg_with_blackboard_override(tmp_path, None)
+
+    assert render_blackboard("Work", cfg=cfg) == render_blackboard("Work")
+
+
+def test_prelaunch_blackboard_treats_every_stock_form_as_empty(
+    tmp_path: Path,
+) -> None:
+    """With an override, the packaged stub (tickets created before it), the
+    raw override, and the title-rendered override all count as stock."""
+    template = "## Working notes for {task_title}\n\n" + "Repo stub. " * 60 + "\n"
+    cfg = _cfg_with_blackboard_override(tmp_path, template)
+
+    for text in (
+        render_blackboard("Work"),
+        template,
+        render_blackboard("Fix retry logic", cfg=cfg),
+    ):
+        assert prelaunch_blackboard_synthesis_reason_text(text, cfg=cfg) is None
+
+    edited = render_blackboard("Work", cfg=cfg) + "\n## Evaluator review\n\nx\n"
+    assert prelaunch_blackboard_synthesis_reason_text(edited, cfg=cfg) == (
+        "authoring section(s): ## Evaluator review"
+    )
+    # Without the repo config the long override is just non-placeholder text.
+    assert prelaunch_blackboard_synthesis_reason_text(
+        render_blackboard("Work", cfg=cfg)
+    ) is not None
+
+
+def test_stock_override_projects_archived_designs_on_both_sides(tmp_path: Path) -> None:
+    template = '## Evaluator review\n\nFor {task_title}\n\n## Superseded designs\n\n'
+    cfg = _cfg_with_blackboard_override(tmp_path, template)
+    rendered = render_blackboard('Work', cfg=cfg)
+    for text in (template, rendered, rendered + 'An archived decision.\n'):
+        assert prelaunch_blackboard_synthesis_reason_text(text, cfg=cfg) is None
+    edited = rendered.replace('For Work', 'New authoring notes')
+    assert prelaunch_blackboard_synthesis_reason_text(edited, cfg=cfg) is not None

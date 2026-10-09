@@ -419,6 +419,18 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
+    if kind in {"unknown-resource-override", "unreadable-resource-override"}:
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_HUMAN_NEEDED,
+            remediation=(
+                "A repo override under `resources/` is misnamed or unreadable. "
+                "Ask the owner whether to rename, repair, or remove it; the "
+                "intended override text is theirs to decide, so Dream does not "
+                "guess a name or rewrite it."
+            ),
+        )
+
     if kind in {"missing-user", "unset-secret-env"}:
         return ClassifiedIssue(
             issue=issue,

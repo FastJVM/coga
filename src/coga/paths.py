@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from importlib.resources import files
 from pathlib import Path
+import stat
 
 from coga.config import Config, find_checkout_root, require_context_artifact
 
@@ -29,6 +30,33 @@ class PackagedResourceMissing(RuntimeError):
     """
 
 
+class RepoResourceUnreadable(RuntimeError):
+    """A repo override under `<coga root>/resources/` exists but can't be used.
+
+    Sibling of `PackagedResourceMissing` rather than a reuse of it: the fix is
+    to repair the named repo file, not to reinstall Coga. An override that
+    exists but cannot be read never falls back to the packaged copy silently —
+    the repo asked for different text, so composing the stock text instead
+    would be confidently wrong.
+    """
+
+
+RESOURCE_NAMES: frozenset[str] = frozenset({
+    "blackboard.md",
+    "prompt-attended.md",
+    "prompt-blocker-resolution.md",
+    "prompt-megalaunch.md",
+    "prompt-queue.md",
+    "prompt.md",
+    "retire.md",
+})
+"""Top-level packaged resources a repo may override by name.
+
+Only these names are read from `<coga root>/resources/`; `templates/` has its
+own local-override paths and is not part of this rule.
+"""
+
+
 def read_packaged_resource(name: str) -> str:
     """Read a top-level `coga/resources/` file, failing loud but catchably."""
     try:
@@ -39,6 +67,63 @@ def read_packaged_resource(name: str) -> str:
             "(reinstall or upgrade `coga`); if a sweep is running, its CLI "
             "was replaced mid-run — rerun it"
         ) from exc
+
+
+def repo_resources_dir(cfg: Config) -> Path:
+    return cfg.repo_root / "resources"
+
+
+def resource_override_path(cfg: Config, name: str) -> Path:
+    return repo_resources_dir(cfg) / name
+
+
+def resolve_resource_path(cfg: Config | None, name: str) -> Path | None:
+    """Return the repo override for a top-level resource, if one exists.
+
+    Mirrors `resolve_skill_path`: the repo's `resources/<name>` wins over the
+    packaged copy of the same name. `None` means the packaged copy applies
+    (also when no repo config is in hand).
+    """
+    if cfg is None:
+        return None
+    local = resource_override_path(cfg, name)
+    try:
+        mode = local.lstat().st_mode
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise RepoResourceUnreadable(
+            f"repo resource override {local} could not be inspected ({exc})"
+        ) from exc
+    if not (stat.S_ISREG(mode) or stat.S_ISLNK(mode)):
+        raise RepoResourceUnreadable(
+            f"repo resource override {local} is not a file"
+        )
+    # Keep dangling links: reading them must fail, never select packaged text.
+    return local
+
+
+def load_resource(cfg: Config | None, name: str) -> tuple[str, Path | None]:
+    """Read a top-level resource, repo override first, plus its override path.
+
+    Replace-only: an override wholly replaces the packaged text. The returned
+    path is the override file, or `None` when the packaged copy was read.
+    """
+    local = resolve_resource_path(cfg, name)
+    if local is None:
+        return read_packaged_resource(name), None
+    try:
+        return local.read_text(encoding="utf-8"), local
+    except (OSError, UnicodeError) as exc:
+        raise RepoResourceUnreadable(
+            f"repo resource override {local} could not be read ({exc}); "
+            f"fix or remove it to use the packaged {name}"
+        ) from exc
+
+
+def read_resource(cfg: Config | None, name: str) -> str:
+    """Read a top-level resource, preferring the repo override."""
+    return load_resource(cfg, name)[0]
 
 
 def packaged_template_path(*parts: str) -> Path:

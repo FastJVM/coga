@@ -4380,6 +4380,56 @@ def test_launch_prompt_report_prints_layers_without_launching(
     assert "launched in agent mode" not in _read_log(active_task)
 
 
+def test_launch_prompt_report_names_repo_resource_overrides(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fixed layer read from `<coga root>/resources/` reports its override
+    file; packaged layers stay unlisted."""
+    _write(active_task / "resources" / "prompt.md", "Repo base prompt.\n")
+    _write(
+        active_task / "workflows" / "code" / "measure.md",
+        """
+        ---
+        name: code/measure
+        description: Measure prompt scope.
+        steps:
+          - name: implement
+            skills:
+              - code/implement
+            assignee: agent
+        ---
+        """,
+    )
+    _write_skill(active_task, "code/implement", "Implement the change.")
+    cfg = load_config(active_task)
+    ref = create_task(
+        cfg=cfg,
+        title="Measure overrides",
+        workflow_name="code/measure",
+        contexts=[],
+        owner="marc",
+        agent="claude",
+        status="draft",
+    )
+
+    def fail_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        raise AssertionError("prompt report must not spawn an agent")
+
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fail_run)
+    monkeypatch.setattr("coga.commands.launch._interactive_stdio_has_tty", lambda: False)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: None)
+
+    result = CliRunner().invoke(app, ["launch", str(ref["slug"]), "--prompt-report"])
+    assert result.exit_code == 0, result.output
+    assert "Repo resource overrides:" in result.output
+    assert (
+        f"base_prompt: prompt.md <- {active_task / 'resources' / 'prompt.md'}"
+        in result.output
+    )
+    assert "session_conduct: " not in result.output
+
+
 # --- bootstrap tickets ---------------------------------------------------------
 
 
