@@ -46,6 +46,8 @@ of running Astra at max reasoning for everything. `coga build` turned ten
 minutes of conversation into a plan of tickets, but the plan assumed routing
 was a solved problem. It isn't.
 
+Claude correctly prompted would say it's not a solved problem, but it's easy for Claude to amplify your hidden bias and assumptions (or the ones of the world). Building a plan, surfaces them and then you can fix them. Together.
+
 So we think harder, backtrack and build a research plan in tickets (written with Claude, run
 by Codex): [state of the art](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/state-of-the-art-review.md),
 [head-to-head ground truth](https://github.com/FastJVM/thinkpick/blob/main/coga/tasks/classifier/head-to-head-ground-truth.md),
