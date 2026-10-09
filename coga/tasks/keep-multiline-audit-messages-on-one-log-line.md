@@ -1,6 +1,6 @@
 ---
 title: Keep multiline audit messages on one log line
-status: blocked
+status: active
 owner: nicktoper
 workflow:
   name: code/with-review
