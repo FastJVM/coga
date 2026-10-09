@@ -8056,3 +8056,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-09 13:50 [run-launched-agents-in-a-resource-limited-systemd] [human:nicktoper] created (status=draft)
 2026-10-09 14:02 [correct-readme-claims-about-prompt-report-output] [megalaunch] claimed in_progress resume via coga megalaunch
 2026-10-09 14:02 [correct-readme-claims-about-prompt-report-output] [megalaunch] launched via coga megalaunch
+2026-10-09 14:02 [correct-readme-claims-about-prompt-report-output] [agent:claude] advanced to step 4 (review) → nicktoper

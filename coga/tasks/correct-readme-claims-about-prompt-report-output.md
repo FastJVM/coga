@@ -18,9 +18,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
-launch_generation: 7c2008d2-c33c-4e5a-9398-605ac66c5a73
 ---
 
 ## Description
@@ -48,6 +47,10 @@ Read coga/prompt-composition (`docs/contexts/coga/prompt-composition/SKILL.md`) 
 - Re-verify these facts against the tree you work from before editing.
 - Out of scope: adding a full-prompt output option; editing contexts or the packaged templates unless they repeat the same false claim (grep for "exact prompt" to check).
 
+## PR
+
+https://github.com/FastJVM/coga/pull/984
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
@@ -55,6 +58,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: docs/correct-prompt-report-readme (pushed; commit "Correct README description of --prompt-report output")
+pr: https://github.com/FastJVM/coga/pull/984 (MERGEABLE / CLEAN at open)
 
 ## Findings (implement)
 
