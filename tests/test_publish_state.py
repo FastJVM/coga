@@ -258,8 +258,9 @@ def test_publish_state_refusal_does_not_sweep_tickets_without_their_vision(
     assert all(path.is_file() for path in files)
 
 
+@pytest.mark.parametrize("separator", [[], ["--"]])
 def test_publish_state_missing_user_does_not_sweep_before_recipe_dispatch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, real_git,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, real_git, separator: list[str],
 ) -> None:
     checkout, origin, files = _onboarded_repo(tmp_path, monkeypatch, None)
     rels = [path.relative_to(checkout).as_posix() for path in files]
@@ -270,7 +271,10 @@ def test_publish_state_missing_user_does_not_sweep_before_recipe_dispatch(
     published_before = _git(origin, "rev-parse", "main")
     bytes_before = [path.read_bytes() for path in files]
 
-    result = _publish_cli(*rels)
+    result = subprocess.run(
+        [sys.executable, "-m", "coga.cli", "run", *separator, "publish-state", *rels],
+        capture_output=True, text=True,
+    )
 
     assert result.returncode == 2, result.stdout + result.stderr
     assert "user" in result.stderr
