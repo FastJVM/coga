@@ -33,9 +33,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
-launch_generation: efc69610-ea8d-4405-84fd-0a214bbde350
 ---
 
 ## Description
@@ -224,3 +223,70 @@ The blackboard is a notepad to be written to often as the human and agent works 
   scanner keeps them, `--force` refuses them until a human deletes them, and
   they may deserve attention anyway. They are still never launched, though,
   so exempting them would also be defensible.
+
+## Evaluator review
+
+Cold review, 2026-10-08. **Ready for owner review: option 2 is implementable as
+specified; no must-fix design defects.** This is not owner approval of the
+option. Acceptance criteria and Proposed shape agree on a validation-only
+exemption for done tasks with a generation witness. The body sections compose
+correctly, and the frozen workflow correctly hands this review to the owner.
+
+### Must resolve before implementation
+
+None beyond the already explicit owner choice of option. Keeping paused and
+canceled periods outside the exemption is a coherent, bounded decision.
+
+### Optional recommendations
+
+1. **Correct the causal explanation, without expanding the implementation.**
+   The introduction and Options weighed say Dream's Phase 1 reports itself
+   every run. Normal replacement deletes the old report before Phase 1:
+   `src/coga/recurring.py:create_template` (`replace_done` branch), pinned by
+   `tests/test_recurring.py::test_scan_due_replaces_prior_period_done_task`.
+   The current period's `## Dream Skill: validate-drift` lists two oversized
+   *other* tasks, not `recurring/dream`; its summary files the originating
+   hygiene ticket for those two. Validation now does report Dream after it
+   finished. Describe the fix as removing post-completion validation noise.
+   A forced or resumed oversized live Dream can still report itself, by
+   design; the proposed in-progress regression test preserves that behavior.
+2. **Strengthen the boundary tests.** Add cases for paused/canceled periods
+   and done tickets with absent, empty, whitespace-only, or non-string
+   generation values. Use the existing nonblank convention (`value.strip()`)
+   in `validate._check_period_generation_owner` / `_check_frontmatter_schema`.
+   The proposed non-empty-string predicate is otherwise clear. A
+   `validate_task_dir(..., ticket_override=...)` case would also protect the
+   explicitly named override path.
+3. **Avoid addressing this ordinary ticket as a period task.** The attached
+   `coga/period-task` context instructs its reader to write parent state and
+   identifies its own directory as recurring scratch. This ticket is an
+   ordinary file-form task with no parent. Consider citing its relevant
+   sections in `## Context` instead, and link its planned one-sentence
+   exemption summary to the owning `coga/blackboard` topic, as already required
+   for Dream by the spec and by `coga/knowledge`.
+
+### Evidence and verification
+
+- `validate._check_one_task` measures before parsing, has the specified
+  `bad-frontmatter` early return and `ticket_override` path, and independently
+  invokes `_check_period_generation_owner`. `Ticket.status` exists. Preserving
+  the pre-parse measurement retains malformed-YAML warnings because
+  `taskfile.read_blackboard` does not parse YAML.
+- `blackboard.blackboard_size_warning` measures composed blackboard bytes;
+  both `commands/launch.py` warning sites call it directly. No shared helper
+  or Dream-specific core rule is needed. This fits the existing validation
+  infrastructure and one coherent PR.
+- All three named context twins and the Dream template twin are byte-identical.
+  The named validator tests and recurring replacement fixture exist.
+- `coga validate --json` reproduced the 51.5 KiB warning for done
+  `recurring/dream`. It reported installed/source version skew, so a second
+  read-only `PYTHONPATH=src` call to `validate.run(load_config(.../coga))`
+  independently confirmed the same warning against current source.
+- Attempted `python -m pytest -q
+  tests/test_validate.py::test_large_blackboard_warns
+  tests/test_validate.py::test_validate_rejects_an_empty_period_generation
+  tests/test_validate.py::test_validate_rejects_period_generation_on_an_ordinary_task
+  tests/test_recurring.py::test_scan_due_replaces_prior_period_done_task
+  tests/test_recurring.py::test_scan_due_keeps_current_period_done_task_finished`.
+  Collection failed because this Python environment lacks `tomlkit`; no test
+  pass is claimed. Source and fixture inspection supports the review.
