@@ -52,31 +52,14 @@ one, I saw the agent had assumed model routing was a solved problem.
 But when reading the plan and asking about it, it clearly wasn't, and when asked, it admitted as much.
 
 So I parked the implementation tickets and opened a research ticket instead:
-[run each request twice, on X and Y, and measure the difference], then use
-that harness to compare routing strategies. The answer, for my repositories
-only: planning benefits from a frontier model at high reasoning, while
-implementation works on [cheaper models / any model]. Because it's
-repo-specific, the measurement has to be rerun periodically.
+[run each request twice, on X and Y, and measure the difference and check if Jev would give the best answer], then use
+that harness to compare routing strategies. 
 
-That finding now sits in a context block every future ticket starts from.
+Once we got the answer, it will sit in a context block every future ticket starts from.
+
 The experiment itself is archived: agents can pull it up on request, but it
 stays out of the default prompt. When implementation resumed, it started
 from the research result instead of the original assumption.
-
-[Outcome: the plugin shipped, link / routing turned out simple enough that
-no plugin was needed.]
-
-## Why
-
-To delegate work to agents, you need to give them context: the task, how the system works, and how the work should be done. Together, these make up the **whole context**. Today, that context is scattered across a ticket tracker, `AGENTS.md`, documentation, and code. This works—up to a point.
-
-You start noticing the limits when you keep adding instructions in the chat box: "Push this one directly to main." "Run the full test suite." "Have another agent review this change before opening a PR." You are repeatedly supplying distinctions that your work system leaves implicit. Even a simple project contains several types of work: straightforward bug fixes, research, implementation, and maintenance. They each need different context, procedures, and human decisions.
-
-I built Coga to make those differences explicit.
-
-In Coga, tickets describe the work, workflows define its steps, context blocks hold the knowledge, and skills provide reusable procedures. These all live in Git as Markdown files. For instance, an investigation can have a workflow for running experiments and discussing results; an implementation task can have one for coding, testing, and review.
-
-Coga uses agent conventions, including `SKILL.md`, so humans and agents can read and change the same material directly. The system is meant to be hacked by you and your agent: you can edit the instructions, reshape a workflow, or add a new way of working as the project evolves.
 
 
 
