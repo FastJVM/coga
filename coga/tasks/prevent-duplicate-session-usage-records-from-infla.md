@@ -153,12 +153,13 @@ The mechanism is `git._build_tree`'s union merge with `ancestor = merge-base HEA
 
 - Identity is the exact record JSON message text. Dedupe happens in the reader, in `load_records`. No writer change. Reasons are in the Description.
 - Consumers: `coga usage` and usage-report are covered through `load_records`. `scripts/human_minutes.py` has its own reader and the fix is trivial (drop the `session_id` collapse), so it is in scope. phone-home and the velocity evidence script are unaffected.
-- **Proposed follow-up ticket (not yet filed):** "Stop `publish` union merges from re-adding log lines already on control". Scope: `git._build_tree` / `_merge_union_bytes` base selection for `merge=union` paths when HEAD lags control. It also affects duplicated audit lines (e.g., `launched`). Owner: `coga/internals/spool-merge` and `coga/internals/state-publication`. The related ticket `tell-agents-never-to-git-commit-coga-task-and-log` covers the squash-PR variant (#732).
+- **Follow-up ticket (filed 2026-10-09 as draft `stop-publish-union-merges-from-re-adding-log-lines`):** "Stop `publish` union merges from re-adding log lines already on control". Scope: `git._build_tree` / `_merge_union_bytes` base selection for `merge=union` paths when HEAD lags control. It also affects duplicated audit lines (e.g., `launched`). Owner: `coga/internals/spool-merge` and `coga/internals/state-publication`. The related ticket `tell-agents-never-to-git-commit-coga-task-and-log` covers the squash-PR variant (#732).
 
-## Open Questions
+## Owner decisions (review-design, 2026-10-09)
 
-1. Should I file the publish-path follow-up ticket above now, with the owner choosing priority? Or does the owner want the root-cause fix folded into this ticket? I recommend a separate ticket: it changes the state-publication contract and touches every log line, not just usage.
-2. The `scripts/human_minutes.py` fix changes `usage_sessions` and token totals only for windows that contain distinct records sharing a `session_id`. Only one such pair (2026-08-18) exists in this repo. Is it acceptable that a re-run of a published ledger covering 2026-08-18 could shift slightly? If not, I'll move that fix to its own ticket.
+1. Publish-path root cause stays out of this ticket. Filed as the draft `stop-publish-union-merges-from-re-adding-log-lines`.
+2. A small shift in re-run human-minutes ledgers covering 2026-08-18 is accepted.
+3. Evaluator must-fix accepted: `human_minutes.parse_log` uses exact-message identity for usage records. Folded into the Description's acceptance criteria and proposed shape, along with both optional recommendations and the refreshed baselines.
 
 ## Evaluator review
 
