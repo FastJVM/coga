@@ -71,6 +71,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/985
 branch: `one-line-audit-events`
 
 Implemented: new headers include `v1` before `[ref]`; only marked messages
@@ -157,7 +158,7 @@ tickets; neither is a prerequisite for this approved format change.
 
 ```yaml
 title: Keep multiline audit messages on one log line
-author: claude+codex
+author: claude/codex
 author_evidence: Claude implemented the original change; Codex implemented the owner-approved v1 discriminator
   and peer-review fixes in this session.
 head: 55e6a6d75fbc403f68c93d765cb75427e0d551a0
