@@ -1614,6 +1614,21 @@ def test_last_commit_times_keys_paths_under_tasks(git_repo):
     assert list(times) == ["demo.md"]
 
 
+def test_last_commit_times_narrows_to_requested_paths(git_repo, monkeypatch):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo, "demo")
+    _seed_ticket(git_repo, "other")
+
+    assert list(git.last_commit_times(cfg, ["other.md"])) == ["other.md"]
+
+    # Every task covered by the log: nothing to ask, so git never runs.
+    def fail(*args, **kwargs):
+        raise AssertionError("git should not run for an empty path list")
+
+    monkeypatch.setattr(git, "run_git", fail)
+    assert git.last_commit_times(cfg, []) == {}
+
+
 def test_is_linked_worktree(git_repo, tmp_path):
     assert git.is_linked_worktree(git_repo.root) is False
     worktree = tmp_path / "linked"

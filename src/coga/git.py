@@ -1650,24 +1650,40 @@ def _parse_ticket(data: bytes | None) -> Ticket | None:
         return None
 
 
-def last_commit_times(cfg: Config) -> dict[str, datetime]:
+# Past this many uncovered tasks, one walk of all of `tasks/` beats a long
+# pathspec list (and stays clear of argv limits).
+_COMMIT_TIMES_MAX_PATHSPECS = 200
+
+
+def last_commit_times(
+    cfg: Config, paths: list[str] | None = None
+) -> dict[str, datetime]:
     """Map each path under `tasks/` to the commit time it was last touched.
 
     Keys are posix paths relative to `tasks/`. The fallback source for
     `coga status`'s `Updated` column when the log has no line for a task
-    (moved directory, hand-authored ticket). Read-only; `{}` on any failure.
+    (moved directory, hand-authored ticket). `paths` (relative to `tasks/`)
+    narrows the history walk to those entries; `[]` asks nothing and skips
+    git. Read-only; `{}` on any failure.
     """
-    if not cfg.git_enabled:
+    if not cfg.git_enabled or paths == []:
         return {}
     root = toplevel(tasks_dir(cfg))
     if root is None:
         return {}
     rel = relative_to_root(root, tasks_dir(cfg))
+    prefix = rel.rstrip("/") + "/"
+    if paths is None or len(paths) > _COMMIT_TIMES_MAX_PATHSPECS:
+        pathspecs = [rel]
+    else:
+        pathspecs = [prefix + path for path in paths]
     try:
-        out = run_git(root, "log", "--format=%ct", "--name-only", "--", rel)
+        out = run_git(
+            root, "--literal-pathspecs", "log", "--format=%ct", "--name-only",
+            "--", *pathspecs,
+        )
     except GitError:
         return {}
-    prefix = rel.rstrip("/") + "/"
     times: dict[str, datetime] = {}
     stamp: datetime | None = None
     for line in out.splitlines():

@@ -191,7 +191,15 @@ def last_updated_map(cfg: Config, refs: list[TaskRef]) -> dict[str, datetime]:
     clock.
     """
     activity = last_activity_map(cfg)
-    git_updated = _git_updated_by_slug(refs, last_commit_times(cfg))
+    # Only tasks the log is silent on need git's history, and usually there
+    # are none or a handful — walking every commit under `tasks/` for them
+    # dominated `coga status` on a long-lived repo.
+    uncovered = [
+        f"{ref.id_slug}.md" if ref.file_form else ref.id_slug
+        for ref in refs
+        if ref.id_slug not in activity
+    ]
+    git_updated = _git_updated_by_slug(refs, last_commit_times(cfg, uncovered))
     out: dict[str, datetime] = {}
     for ref in refs:
         stamp = activity.get(ref.id_slug) or git_updated.get(ref.id_slug)

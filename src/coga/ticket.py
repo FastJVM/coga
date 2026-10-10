@@ -26,6 +26,11 @@ class TicketNotFoundError(TicketError, FileNotFoundError):
 
 _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
 
+# libyaml's safe loader parses frontmatter ~8x faster than the pure-Python one
+# and builds the same values (same SafeConstructor); fall back when the C
+# extension isn't compiled in.
+_SafeLoader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
 
 # Canonical ticket frontmatter key set. Anything outside this is a repo
 # extension (declared via `[ticket.fields.<name>]` in `coga.toml`) and is
@@ -138,7 +143,7 @@ class Ticket:
             raise TicketError("ticket.md must begin with YAML frontmatter between --- lines")
         fm_text, body = match.group(1), match.group(2)
         try:
-            fm = yaml.safe_load(fm_text) or {}
+            fm = yaml.load(fm_text, Loader=_SafeLoader) or {}
         except yaml.YAMLError as exc:
             raise TicketError(f"Invalid YAML frontmatter: {exc}") from exc
         if not isinstance(fm, dict):
