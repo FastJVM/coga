@@ -250,3 +250,13 @@ Recorded: 2026-10-10T01:16:51+00:00
 
     [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
     PR presentation: use one complete fenced yaml mapping under ## PR.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `keep-multiline-audit-messages-on-one-log-line`
+Recorded: 2026-10-10T01:16:58+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: use one complete fenced yaml mapping under ## PR.
