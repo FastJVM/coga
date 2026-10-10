@@ -8086,3 +8086,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-09 20:58 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-09 21:37 [stop-publish-union-merges-from-re-adding-log-lines] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
 2026-10-09 22:08 [stop-publish-union-merges-from-re-adding-log-lines] [human:nicktoper] activated (draft → active) — auto on launch
+2026-10-09 22:08 [stop-publish-union-merges-from-re-adding-log-lines] [human:nicktoper] started (active → in_progress) via coga launch
