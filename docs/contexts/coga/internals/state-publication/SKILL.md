@@ -157,7 +157,7 @@ checkout return, so routine state lands before the checkout moves
 - runs only when `cli._should_sweep_coga_state(argv)` is true: never for a
   bare `coga`, an option, `--help`/`-h`, `_NON_SWEEPING_COMMANDS` (`status`,
   `show`, `validate`, `usage`, `init`, `uninstall`), `secret`, `recurring
-  --all`, `bump --backward`/`--to`, or `skill`/`mark`/`recurring` subcommands
+  --all`, `run publish-state`, `bump --backward`/`--to`, or `skill`/`mark`/`recurring` subcommands
   outside their sweeping sets;
 - is skipped when authoring finalization failed, or a launch's checkout return refused or stopped part-way
   (`git.state_sweep_withheld`, reset per `cli.main` invocation, so it also
@@ -180,6 +180,26 @@ checkout return, so routine state lands before the checkout moves
   path whose control copy moved beyond its provenance stays unselected until
   the operator rebases. Overlapping roots are one pathspec, so nothing is
   examined twice.
+
+## Strict publication on demand
+
+The sweep cannot tell its caller whether a file landed. A handoff that hands
+files to someone else's fresh clone runs `coga run publish-state [--message M]
+[PATH...]` (`publish_state.run_publish_state_recipe`) instead: first fetch the
+configured remote control branch (a missing branch or unreachable remote fails),
+then one `publish` over `coga_root_paths` with the named files as `require_paths`. Exit 0 means
+every named file is on control (landed now or already matching), listed on
+stdout, or that `[git].enabled = false` leaves no control branch (stdout says
+so). Exit 1 means refused, failed, uncertain, not a repository, or no control
+branch; files stay as written, stderr names the cause, and `runner` appends a
+`## Recipe Failure` section to an inherited task blackboard. Exit 2 means bad
+argv or a named path that is not a regular file inside the Coga roots, before
+any publication write. The CLI excludes `run publish-state` from its exit
+sweep, even on success or a configuration failure before recipe dispatch.
+Only the explicit recipe publishes, so no fallback can publish tickets
+separately from a required context the strict transaction refused.
+`build/onboarding` runs it before offering `coga launch` for its
+starter tickets and neither hands over nor bumps on a non-zero exit.
 
 ## Guided authoring
 

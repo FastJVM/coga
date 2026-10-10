@@ -152,8 +152,8 @@ def _sweep_coga_state(cfg: Config | None) -> None:
         return
     if git.state_sweep_withheld.get():
         typer.secho(
-            "[git] state sweep withheld: the launch checkout return was refused "
-            "and its remaining changes were preserved unpublished.",
+            "[git] state sweep withheld: the command preserved local changes "
+            "after a refused or failed publication or checkout return.",
             fg=typer.colors.YELLOW,
             err=True,
         )
@@ -222,6 +222,11 @@ def _should_sweep_coga_state(argv: list[str]) -> bool:
         return False
     command = args[0]
     if command.startswith("-") or command in _NON_SWEEPING_COMMANDS:
+        return False
+    recipe_args = args[2:] if args[1:2] == ["--"] else args[1:]
+    if command == "run" and recipe_args[:1] == ["publish-state"]:
+        # The recipe owns the required-file transaction. A generic sweep
+        # would bypass it even when config loading fails before dispatch.
         return False
     if command == "bump" and any(
         arg in {"--backward", "--to"} or arg.startswith("--to=")
