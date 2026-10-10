@@ -58,6 +58,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/986
 branch: onboarding-publish-before-handoff
 
 Plan: add a registered `coga run publish-state [--message M] [PATH...]` recipe
