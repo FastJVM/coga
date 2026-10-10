@@ -1,6 +1,6 @@
 ---
 title: Complete the authenticated clean-install audit
-status: in_progress
+status: blocked
 owner: nicktoper
 workflow:
   name: direct/body
@@ -72,6 +72,8 @@ Asked owner: proceed now vs wait for fixes; Mac route + spend; agent choice; fir
   resolved: [2026-10-08 11:24] [human:nicktoper] Fix tickets landed on main (agent-CLI init offer, macOS CLT prerequisite docs, Python 3.11 harness pin). Owned-Mac SSH access still unavailable; owner chose to re-block on that alone.
 
 - [ ] [2026-10-08 11:24] [agent:claude] id=20261008T112407 Needs owner SSH access to the spare Mac (owned-Mac route) before the 4-run matrix can start; depends on marketing/fix-installer/affordable-macos-testing-on-owned-macs-and-per-min. Fix tickets have already landed on main. Unblock and relaunch when the Mac SSH target is available.
+
+- [ ] [2026-10-09 20:36] [agent:claude] id=20261009T203619 Still waiting on owner SSH access to the spare Mac (owned-Mac route); depends on marketing/fix-installer/affordable-macos-testing-on-owned-macs-and-per-min, itself blocked on deploying the Mac test env + SSH target (PR #976 closed, branch owned-mac-clean-install retained). Fix tickets already on main. Re-checked 2026-10-09: no change. Unblock and relaunch when the Mac SSH target exists; all four environments run together, no AWS spend.
 
 
 ---
