@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 agent: claude
-launch_generation: fd38580c-e547-4b51-8b98-e6ae576aaa53
 ---
 
 ## Description
@@ -234,6 +233,14 @@ checks:
     and escaped CR/LF/backslashes were legible; legacy alpha continuation stayed attached; beta event/continuation
     were excluded. Existing Rich tag consumption predates this change.
 ```
+
+## Open PR
+
+Opened https://github.com/FastJVM/coga/pull/985 from head `55e6a6d` (2026-10-09).
+`coga open-pr` first refused the `## PR` block twice. A stray `---` rule after the
+yaml fence broke the single-fence match, and `author: claude+codex` failed the
+compact-identity grammar. I removed the rule and changed the author to
+`claude/codex`; nothing else in the evidence changed.
 
 ## Blockers
 
