@@ -240,3 +240,13 @@ checks:
 
 - [x] [2026-10-08 21:55] [agent:codex] id=20261008T215527 Approve a versioned audit header for new events: YYYY-MM-DD HH:MM v1 [ref] [actor] <escaped-message>, with unmarked legacy messages read raw and historical bytes unchanged, or specify another unambiguous discriminator. Returned Codex review found legacy JSON backslash corruption and dropped records in scripts/human_minutes.py; both need format-aware readers. Full suite: 3538 passed. Findings, proposal, and exact receipts are on the blackboard; branch 17808f2d2 is pushed.
   resolved: [2026-10-08 22:38] [human:nicktoper] Owner approved the versioned audit header: new events are written as 'YYYY-MM-DD HH:MM v1 [ref] [actor] <escaped-message>'; only v1-marked messages are unescaped, unmarked legacy lines are read raw (legacy continuation tolerance stays), historical bytes unchanged. Update every anchored reader together (logfile, usage, recurring_runner, scripts/human_minutes.py), the spool-merge topic and twins, and tests; fix both Codex P2 findings with regressions.
+
+## Recipe Failure
+
+Recipe: `open-pr`
+Exit: 2
+Task: `keep-multiline-audit-messages-on-one-log-line`
+Recorded: 2026-10-10T01:16:51+00:00
+
+    [open-pr] origin/main advanced only through non-overlapping Coga task/log state; branch is safe to publish
+    PR presentation: use one complete fenced yaml mapping under ## PR.
