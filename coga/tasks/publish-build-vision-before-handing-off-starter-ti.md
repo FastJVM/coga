@@ -22,9 +22,8 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 agent: claude
-launch_generation: 04fa14fc-b161-40cc-873b-c0588e5ba7e2
 ---
 
 ## Description
@@ -115,15 +114,15 @@ interpreter).
 
 ```yaml
 title: Publish build vision before handing off starter tickets
-author: claude
-author_evidence: Implement session ran as Claude Code (claude-opus-5-5) under coga megalaunch; this handoff. Recovery commit 3210d12d7 credits Claude Opus 5.5; the interrupted session identity was not independently verified.
-head: 7ec148c2e42168f42e1da06a7294a5b1d37cb65b
-base: e4b297bd235d8060b10f65074380776e6c7ae867
+author: claude/codex
+author_evidence: 'Original implementation: Claude Code, per implement handoff. Recovery commit 3210d12d7 credits Claude Opus 5.5, but interrupted-session identity was not independently verified. Codex authored peer-review fixes f408bd760 and b1ad4596b in this attended session.'
+head: b1ad4596ba50e456a0df476643e9f29ce230ea59
+base: 7e3d2b880a50a49c37fe28d09990511ff873dd48
 depth: deep
-rationale: New registered publication recipe and handoff contract; Codex review returned one unresolved P2 failure-before-dispatch finding. Do not publish the PR until corrected and re-reviewed.
-implementation: New `publish-state` recipe wraps `git.publish(cfg, coga_root_paths(cfg), msg, require_paths=PATHS)` with an exit-coded contract; `build/onboarding` generate-batch runs it on the vision and starter tickets after approval and hands over `coga launch` and bumps only on exit 0, otherwise reports the unfinished handoff in chat and on its blackboard.
+rationale: New registered publication recipe and onboarding handoff contract deserve owner inspection. Full suite and final Codex review passed; final review is conservatively self-review because Codex authored the follow-up fixes. Agent chat and no-bump compliance remain prose instructions.
+implementation: The publish-state recipe fetches control and calls git.publish over coga_root_paths with every named file required. Onboarding publishes the vision and approved starter tickets before handing over launch commands; on failure it reports an unfinished handoff and does not bump. CLI dispatch excludes publish-state from the generic exit sweep, including missing-user failures and the optional -- separator.
 deviations: Placement is a registered recipe (kernel class 2) rather than an existing command, because no existing command reports publication failure; justified in the state-publication topic and handoff.
-limitations: The onboarding agent's chat behavior is prose-only; tests cover the recipe end to end (empty repo via real `coga init`, bare origin, fresh clone, relocated contexts root, forced failure) but not an agent following the template. `[git].enabled = false` exits 0 as local-only by design.
+limitations: Tests cover publication end to end, fresh-clone context resolution and validation for default/relocated layouts, recoverable failures and the Recipe Failure blackboard record. They do not execute an agent following the chat/no-bump/Unfinished handoff instructions. Git-disabled repositories remain local-only by design. Verification used Python 3.12.12, not 3.11.
 files:
   AGENTS.md: Add `publish-state` to the fixed recipe registry list.
   CLAUDE.md: Add `publish-state` to the fixed recipe registry list.
@@ -140,34 +139,34 @@ files:
   src/coga/publish_state.py: The recipe implementation.
   src/coga/runner.py: Register `publish-state` in `RECIPES`.
   tests/test_runner.py: Expected fixed registry includes `publish-state`.
-  tests/test_publish_state.py: End-to-end onboarding publish-then-handoff tests (default and relocated contexts, forced failure, refusals, git disabled).
-  src/coga/cli.py: Generalize the withheld-sweep diagnostic to include strict publication failures.
+  tests/test_publish_state.py: End-to-end publication and fresh-clone checks, refusals, stale control, git-disabled behavior, and missing-user regressions with and without the option separator.
+  src/coga/cli.py: Exclude publish-state from the exit sweep before recipe dispatch, normalize the optional -- separator, and generalize the withheld-sweep diagnostic.
 review:
   reviewer: codex
-  kind: independent
-  status: failed
-  head: 7ec148c2e42168f42e1da06a7294a5b1d37cb65b
-  base: e4b297bd235d8060b10f65074380776e6c7ae867
-  detail: 'codex review --base main returned. Separate Codex review of the Claude implementation found P2: missing user fails config loading before the recipe guard, then the CLI exit sweep can publish dirty tickets without a committed feature-branch vision. Recovery-session authorship is not independently verified. Full log: /tmp/coga-onboarding-review.log.'
+  kind: self
+  status: passed
+  head: b1ad4596ba50e456a0df476643e9f29ce230ea59
+  base: 7e3d2b880a50a49c37fe28d09990511ff873dd48
+  detail: 'codex review --base main returned on the final head with no actionable regressions; its 66 publication/runner/packaging checks passed. Separate review invocation, conservatively classified as self-review because Codex authored the fixes. Previous returned reviews found pre-dispatch and option-separator sweep bypasses; both are corrected. Log: /tmp/coga-onboarding-review-verified.log.'
 checks:
 - command: PYTHONPATH=$PWD/src .venv/bin/python -m pytest
   status: passed
-  head: 7ec148c2e42168f42e1da06a7294a5b1d37cb65b
-  base: e4b297bd235d8060b10f65074380776e6c7ae867
-  detail: 3539 passed in 294.77s on Python 3.12.12.
+  head: b1ad4596ba50e456a0df476643e9f29ce230ea59
+  base: 7e3d2b880a50a49c37fe28d09990511ff873dd48
+  detail: 3541 passed in 285.63s on Python 3.12.12; /tmp/coga-onboarding-pytest-verified.log.
 - command: PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli validate --json
   status: passed
-  head: 7ec148c2e42168f42e1da06a7294a5b1d37cb65b
-  base: e4b297bd235d8060b10f65074380776e6c7ae867
-  detail: 237 valid tickets, zero errors, 26 warnings.
+  head: b1ad4596ba50e456a0df476643e9f29ce230ea59
+  base: 7e3d2b880a50a49c37fe28d09990511ff873dd48
+  detail: 237 valid tickets, zero errors, 27 warnings; /tmp/coga-onboarding-validate-verified.json.
 - command: git diff --check
   status: passed
-  head: 7ec148c2e42168f42e1da06a7294a5b1d37cb65b
-  base: e4b297bd235d8060b10f65074380776e6c7ae867
+  head: b1ad4596ba50e456a0df476643e9f29ce230ea59
+  base: 7e3d2b880a50a49c37fe28d09990511ff873dd48
   detail: No whitespace errors.
 ```
 
-### Recovery note (2026-10-09, orient session)
+## Recovery note (2026-10-09, orient session)
 
 The 22:17 peer-review session died without bumping. Its uncommitted fixes were
 committed unreviewed as `3210d12d7` on `onboarding-publish-before-handoff` and
@@ -179,29 +178,35 @@ peer-review; the full suite is still owed.
 
 ## Peer review
 
-2026-10-09, Codex. Start check passed on clean main; fetched origin/main and
-unconditionally rebased the feature branch. Pushed rebased head
-`7ec148c2e42168f42e1da06a7294a5b1d37cb65b`, base
-`e4b297bd235d8060b10f65074380776e6c7ae867`; returned to clean main before this note.
+2026-10-09, Codex. Complete. Final `codex review --base main` **returned**
+with no actionable findings on head `b1ad4596ba50e456a0df476643e9f29ce230ea59`,
+base `7e3d2b880a50a49c37fe28d09990511ff873dd48`.
+The review ran as a separate Codex invocation; final review is conservatively
+self-review because Codex authored the follow-up fixes. Original implementation
+was Claude; recovery-session identity is not independently verified.
 
-`codex review --base main` **returned**, with one must-fix P2: a missing
-`user` in coga.local.toml makes commands.run fail before the recipe can
-withhold the exit sweep. The generic sweep can then publish dirty starter
-tickets without a required vision committed on a feature branch. The review
-reproduced this. Initial sandbox attempt could not initialize the app-server;
-the escalated run completed. No code was edited in this session.
+Two earlier returned reviews exposed the same publication boundary failure:
+missing-user configuration refused before the recipe guard, and the valid
+`run -- publish-state` spelling bypassed the first CLI exclusion. The owner
+approved excluding publish-state from the generic sweep. Commits f408bd760
+and b1ad4596b implement that exclusion, including the optional separator, and
+add subprocess regressions. The new regression failed before the fix because
+the remote advanced despite exit 2; both spellings now preserve remote and
+local file bytes. Publication topic and packaged twin updated.
 
-Proposed correction, awaiting attending human confirmation: exclude
-`run publish-state` from the generic CLI sweep, including pre-dispatch
-failures; keep publication inside the explicit recipe. Add a subprocess
-missing-user regression and update the publication topic/twin. Tradeoff:
-successful calls also get no redundant exit sweep. Re-run full suite and
-review after fixing. This confirmation follows the attended-session rule to
-discuss substantive changes before code edits. Do not bump yet.
+Final checks: `PYTHONPATH=$PWD/src .venv/bin/python -m pytest` -> 3541 passed
+in 285.63s (Python 3.12.12); `PYTHONPATH=$PWD/src .venv/bin/python -m coga.cli
+validate --json` -> 237 valid, 0 errors, 27 warnings; `git diff --check` clean.
+The review's own targeted publication/runner/packaging run passed 66 tests.
+Exact revision receipts and every diff-path reason are in ## PR. Logs are
+/tmp/coga-onboarding-{review,pytest,validate}-verified.{log,json} as applicable.
+Earlier runs are superseded, not claimed as verification of the final head.
 
-Checks on the reviewed revision: full suite 3539 passed (294.77s), validation
-237 valid tickets / 0 errors / 26 warnings, diff whitespace clean. Exact
-commands and revision receipts are in ## PR. Plain stdout/stderr only; no
-raw-terminal, pager, TTY, or rendered-message surface changed. Tests exercise
-CLI subprocess output; onboarding chat/no-bump instructions remain prose,
-not an automated agent execution, as disclosed in the PR limitations.
+Plain stdout/stderr only: no raw-terminal, pager, TTY or rendered-message
+surface changed. CLI subprocess output is exercised. Agent chat/no-bump and
+Unfinished handoff instructions remain prose, not an automated agent run;
+that limitation is explicit in the PR preparation. Advisory depth: deep.
+
+Fetched/rebased before the fixes and verification, force-with-lease pushed
+final head, then fetched and returned to clean main. No material control
+drift remained. Peer-review work is complete; bump once to open-pr, then stop.
