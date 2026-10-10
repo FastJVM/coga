@@ -3,11 +3,21 @@
 Coga keeps one audit log per repo at `coga/log.md` (not one per task). Each
 line is tagged with the task ref it belongs to::
 
-    YYYY-MM-DD HH:MM [<task-ref>] [<actor>] <message>
+    YYYY-MM-DD HH:MM v1 [<task-ref>] [<actor>] <message>
 
 so a single task's history is reconstructable by filtering on its ref. `actor`
 is conventionally `agent:<nickname>`, `human:<name>`, `git`, `slack`, or
 `system`.
+
+One event is exactly one LF-terminated physical line. `append_log` encodes the
+message centrally — `\\` becomes `\\\\`, then LF and CR become the literal
+two-character text `\\n` / `\\r` — so multiline Git stderr cannot split an
+event, and `decode_log_message` recovers the original text. Readers split on
+LF only. Only v1-marked messages are decoded; unmarked messages stay raw.
+Lines written before the encoding existed may be followed by
+untagged continuation lines (no timestamp); readers skip them, and
+`task_log_lines` keeps them attached to the event they follow.
+`coga/internals/spool-merge` owns this rule.
 
 Why global rather than per-task: the log is the one thing that grows without
 bound, and it is deliberately **never** a prompt-composition layer. Pulling it
@@ -30,18 +40,51 @@ from coga.config import Config
 from coga.paths import log_path, recurring_dir, tasks_dir
 
 # `YYYY-MM-DD HH:MM [<ref>] ...` — captures the timestamp and the ref tag.
-_LINE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) \[([^\]]*)\]")
+_LINE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) (?:v1 )?\[([^\]]*)\]")
 # The same line with its actor and message — `... [<ref>] [<actor>] <message>`.
 _ENTRY_RE = re.compile(
-    r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \[([^\]]*)\] \[([^\]]*)\] (.*)$"
+    r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} (?P<version>v1 )?"
+    r"\[(?P<ref>[^\]]*)\] \[[^\]]*\] (?P<message>.*)$"
 )
+_LINE_BYTES_RE = re.compile(rb"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} (?:v1 )?\[([^\]]*)\]")
+_ESCAPES = {"\\": "\\\\", "\n": "\\n", "\r": "\\r"}
+_ESCAPE_RE = re.compile(r"[\\\n\r]")
+_UNESCAPES = {"\\": "\\", "n": "\n", "r": "\r"}
+_UNESCAPE_RE = re.compile(r"\\([\\nr])")
+
+
+def encode_log_message(message: str) -> str:
+    """Escape `\\`, LF, and CR so `message` fits on one physical log line."""
+    return _ESCAPE_RE.sub(lambda m: _ESCAPES[m.group(0)], message)
+
+
+def decode_log_message(message: str) -> str:
+    """Invert `encode_log_message`; other backslash sequences pass through."""
+    return _UNESCAPE_RE.sub(lambda m: _UNESCAPES[m.group(1)], message)
+
+
+def log_lines(text: str) -> list[str]:
+    """Split log text into physical lines on LF only.
+
+    `str.splitlines` also breaks on VT, FF, U+2028 and friends, which the
+    encoding passes through unchanged inside one event.
+    """
+    lines = text.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    return lines
 
 
 def append_log(cfg: Config, task_ref: str, actor: str, message: str) -> bytes:
-    """Append and return one exact encoded repo-global audit-log line."""
+    """Append and return one exact encoded repo-global audit-log line.
+
+    `message` is encoded here (`encode_log_message`), so callers pass raw text
+    such as multiline Git stderr and still produce exactly one line.
+    """
     path = log_path(cfg)
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-    line = f"{timestamp} [{task_ref}] [{actor}] {message}\n".encode("utf-8")
+    encoded = encode_log_message(message)
+    line = f"{timestamp} v1 [{task_ref}] [{actor}] {encoded}\n".encode("utf-8")
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("ab") as f:
         f.write(line)
@@ -54,9 +97,11 @@ def retract_log_lines(cfg: Config, task_ref: str, before: bytes | None) -> None:
     The undo for a lifecycle write whose publication was definitely refused
     (`git.StateRegressionError`): the ticket goes back to its pre-write bytes,
     and the audit lines that write appended would otherwise describe a
-    transition that never happened. Only lines tagged `[task_ref]` after the
-    `before` prefix are removed; a log that no longer starts with `before`
-    (rewritten meanwhile) is left alone.
+    transition that never happened. Only events whose `[ref]` tag field is
+    `task_ref` after the `before` prefix are removed — a peer event that merely
+    mentions the tag in its message stays — together with any untagged
+    continuation lines that follow a removed event. A log that no longer starts
+    with `before` (rewritten meanwhile) is left alone.
     """
     path = log_path(cfg)
     current = path.read_bytes() if path.is_file() else None
@@ -64,12 +109,19 @@ def retract_log_lines(cfg: Config, task_ref: str, before: bytes | None) -> None:
         return
     if not current.startswith(before):
         return
-    tag = f"[{task_ref}]".encode("utf-8")
-    kept = [
-        line
-        for line in current[len(before):].splitlines(keepends=True)
-        if tag not in line
-    ]
+    tag = task_ref.encode("utf-8")
+    parts = current[len(before):].split(b"\n")
+    lines = [part + b"\n" for part in parts[:-1]]
+    if parts[-1]:
+        lines.append(parts[-1])
+    kept: list[bytes] = []
+    dropping = False
+    for line in lines:
+        match = _LINE_BYTES_RE.match(line)
+        if match:
+            dropping = match.group(1) == tag
+        if not dropping:
+            kept.append(line)
     path.write_bytes(before + b"".join(kept))
 
 
@@ -110,7 +162,7 @@ def last_activity_map(cfg: Config) -> dict[str, datetime]:
         text = path.read_text()
     except OSError:
         return out
-    for line in text.splitlines():
+    for line in log_lines(text):
         match = _LINE_RE.match(line)
         if not match:
             continue
@@ -145,7 +197,7 @@ def first_activity_map(cfg: Config) -> dict[str, datetime]:
         text = path.read_text()
     except OSError:
         return out
-    for line in text.splitlines():
+    for line in log_lines(text):
         match = _LINE_RE.match(line)
         if not match:
             continue
@@ -166,7 +218,7 @@ def first_activity(cfg: Config, task_ref: str) -> datetime | None:
 
 
 def iter_log_messages(cfg: Config) -> Iterator[tuple[str, str]]:
-    """Yield `(task_ref, message)` for every parseable line, in file order.
+    """Yield `(task_ref, decoded message)` for every parseable line, in order.
 
     One pass over the whole log for callers that need to reconstruct state for
     *many* refs at once — reading it once per ref would re-scan the one file
@@ -180,10 +232,13 @@ def iter_log_messages(cfg: Config) -> Iterator[tuple[str, str]]:
         text = path.read_text()
     except OSError:
         return
-    for line in text.splitlines():
+    for line in log_lines(text):
         match = _ENTRY_RE.match(line)
         if match:
-            yield match.group(1), match.group(3)
+            yield match.group("ref"), (
+                decode_log_message(match.group("message"))
+                if match.group("version") else match.group("message")
+            )
 
 
 def iter_log_messages_reverse(
@@ -232,22 +287,30 @@ def iter_log_messages_reverse(
                     continue
                 match = _ENTRY_RE.match(line)
                 if match:
-                    yield match.group(1), match.group(3)
+                    yield match.group("ref"), (
+                        decode_log_message(match.group("message"))
+                        if match.group("version") else match.group("message")
+                    )
 
 
 def task_log_lines(cfg: Config, task_ref: str) -> list[str]:
     """Return the global log's lines for `task_ref`, in file order.
 
     Filters the global log on the `[<task-ref>]` tag. Used by `coga show` to
-    reconstruct a single task's history.
+    reconstruct a single task's history. Lines are returned as written (still
+    encoded); a legacy untagged continuation line is kept with the event it
+    follows.
     """
     path = log_path(cfg)
     if not path.is_file():
         return []
     out: list[str] = []
-    for line in path.read_text().splitlines():
+    keeping = False
+    for line in log_lines(path.read_text()):
         match = _LINE_RE.match(line)
-        if match and match.group(2) == task_ref:
+        if match:
+            keeping = match.group(2) == task_ref
+        if keeping:
             out.append(line)
     return out
 
@@ -255,6 +318,9 @@ def task_log_lines(cfg: Config, task_ref: str) -> list[str]:
 __all__ = [
     "retract_log_lines",
     "append_log",
+    "decode_log_message",
+    "encode_log_message",
+    "log_lines",
     "ref_tag_for_path",
     "first_activity_map",
     "first_activity",

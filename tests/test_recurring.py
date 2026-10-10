@@ -10704,6 +10704,33 @@ def test_control_ledger_uses_the_same_per_ref_target_stop(
     ) not in ledger
 
 
+def test_control_ledger_reads_encoded_and_legacy_multiline_events(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Multiline sync failures, old or new encoding, never fake a period."""
+    monkeypatch.setattr(
+        coga_git,
+        "run_git",
+        lambda *args: "".join(
+            [
+                "2026-05-01 09:00 [recurring/weekly-check] [system] "
+                "created recurring/weekly-check for 2026-W20\n",
+                "2026-05-01 09:01 [recurring/weekly-check] [git] "
+                "sync failed: rejected\n",
+                "[recurring/weekly-check] created recurring/weekly-check "
+                "for 2026-W21\n",
+                "2026-05-01 09:02 v1 [recurring/weekly-check] [git] "
+                "sync failed: rejected\\ncreated recurring/weekly-check "
+                "for 2026-W21\\r\\n\n",
+            ]
+        ),
+    )
+
+    ledger = recurring_cmd._read_control_ledger(tmp_path, "control", "coga/log.md")
+
+    assert ledger == {"recurring/weekly-check": "2026-W20"}
+
+
 def test_rolled_back_create_re_fires_once_its_ledger_line_is_gone(
     repo: Path,
 ) -> None:
@@ -13418,3 +13445,19 @@ def test_scan_bad_blackboard_keeps_existing_period_and_allows_retry(repo: Path) 
     retried = scan_due(cfg, now=now)
     assert retried.errors == []
     assert {task.template for task in retried.due} == {'new-job', 'weekly-check'}
+
+
+@pytest.mark.parametrize("marker", ["", "v1 "])
+def test_watchdog_pause_reader_accepts_both_header_formats(repo: Path, marker: str) -> None:
+    from coga.recurring import _watchdog_pauses
+
+    cfg = load_config(repo)
+    log_path(cfg).write_text(
+        f"2026-06-01 10:00 {marker}[alpha] [system:watchdog] paused (timeout)\n"
+        "legacy continuation\n"
+        "2026-06-01 10:01 [beta] [system:watchdog] paused (timeout)\n"
+        "2026-06-01 10:02 v1 [beta] [human:marc] created anew\n"
+    )
+    pauses = _watchdog_pauses(cfg, {"alpha", "beta"})
+    assert set(pauses) == {"alpha"}
+    assert "paused (timeout)" in pauses["alpha"]
