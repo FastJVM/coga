@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 2 (evaluate-design)
+step: 3 (review-design)
 agent: claude
 ---
 
@@ -124,3 +124,26 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Open Questions
 
 - None outstanding. Both design choices were answered by the owner in-session (approach, deletion contract).
+
+## Evaluator review
+
+Cold review by Codex, 2026-10-09. **Not ready for implementation:** resolve the two must-fix findings below at owner review. No ticket-body, source, tests, branch, or PR changes were made.
+
+### Must fix
+
+1. **P1 — The proposed alignment can delete pre-existing control lines when neither side deleted anything.** `SequenceMatcher` equal blocks are not reliable provenance and need not cover control even when the raw merge contains all of it in order. Reproduced with the actual `src/coga/git.py::_merge_union_bytes` and an in-memory transcription of Proposed shape step 2 (each token is one newline-terminated line): base `A C A C`, control `A C A C A`, working `A C B A C`. Git returns `A C B A C A`, preserving every control line and adding only `B`. The proposed matcher instead aligns control's first `A C A` with the final `A C A`, labels the leading `A C B` an insertion, and labels control's final `C A` a deletion. Filtering its inserted `A C` returns `B A C A`, losing one existing `A` and one existing `C`. This violates the no-historical-dedupe scope, unchanged deletion behavior, and control-subsequence acceptance criterion. Repeated lines are explicitly supported (and historical duplicates remain on disk). Revise the alignment/filter specification to preserve surviving control occurrences, and require this exact regression to return the raw `A C B A C A`. The optional prefix fast path does not cover this example.
+
+2. **P2 — The named positive `_published_proof` regression does not reproduce a failure.** Acceptance criteria says control `A X Y`, HEAD/base `A`, working `A X` currently reports “lines not yet on control.” Direct execution of `src/coga/git.py::_published_proof` with real fixture blobs returns `None` already; `_merge_union_bytes` already returns control unchanged. Keep this as a compatibility test if useful, but correct the baseline claim and add a case that actually fails before the fix. For example, control `A X Y`, HEAD/base `A`, working `A Y X` produces raw `A X Y Y X`; the current proof rejects it and the proposed filter would reduce it to control. Preserve the separate negative case containing new `Z`.
+
+### Optional recommendations
+
+- Clarify the ordering criterion alongside the moved-line case. With base = control `A L B` and working `A B L`, existing Git returns `A B L`, which the proposed helper preserves. State that ordering refers to surviving unmoved control occurrences, with clean moves treated as deletion/reinsertion, if that is intended; otherwise “control's own lines are never reordered” reads more broadly than the required moved-line behavior.
+- If adopting the optional prefix optimization, require a complete-line boundary as well as `merged.startswith(current)`. An unterminated last control line can prefix a different merged line, so byte-prefix matching alone is not equivalent to the stipulated `splitlines(keepends=True)` comparison. Pin unterminated-line and repeated-line cases before optimizing.
+
+### Verified scope and evidence
+
+- `src/coga/git.py::_publish_locked`, `_build_tree`, `_published_proof`, `_local_control_subsumed`, `_record_published`, and `fast_forward_control` confirm the two shared merge callers, merge-base selection, landed-blob provenance ref, and feature-checkout behavior. The change belongs in existing shared Git infrastructure and is one coherent PR; no new ref or dispatch mechanism is needed.
+- Re-ran the two-publish feature-checkout scenario using `tests/conftest.py::init_git_repo`, `GitRepo.push_competing_commit`, `logfile.append_log`, and public `git.publish` in a temporary repository: control contained `mine one` twice after `mine two` published. Scratch probes changed no repository source or tests.
+- Read the owning `coga/internals/spool-merge` and `coga/internals/state-publication` topics, `coga/internals/git-regressions`, and `src/coga/retire_worklist.py` parsing/discharge paths. Both requested topic twins exist under `src/coga/resources/templates/coga/bootstrap/contexts/`; the proposed documentation scope fits the contract change.
+- The ticket correctly places acceptance criteria, proposed shape, and scope under `## Description`. Topic citations identify the needed contracts. Its frozen workflow matches the packaged `code/design-then-implement` workflow and hands this review to the owner before implementation.
+- Verification: `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python -m pytest -q tests/test_git.py::test_log_appended_on_both_sides_keeps_both_lines tests/test_git.py::test_prepare_proves_a_union_log_published_after_control_moved tests/test_git.py::test_subsumed_guard_union_merges_committed_log_lines` → **3 passed**. Actual Git merge and proposed-filter probes established the counterexamples above. Full-suite validation is deferred to implementation; this step only reviewed the design.
