@@ -55,6 +55,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -717,6 +718,11 @@ def _build_tree(
 
 
 def _merge_union_bytes(*, current: bytes, base: bytes, other: bytes) -> bytes:
+    """`git merge-file --union` of the three copies, minus re-added lines.
+
+    A union-merged publication never increases the occurrence count of a
+    line already on control (`current`); see `coga/internals/spool-merge`.
+    """
     with tempfile.TemporaryDirectory(prefix="coga-union-merge-") as tmp:
         files = [Path(tmp) / name for name in ("current", "base", "other")]
         for path, data in zip(files, (current, base, other)):
@@ -727,7 +733,38 @@ def _merge_union_bytes(*, current: bytes, base: bytes, other: bytes) -> bytes:
                 f"`git merge-file --union` failed (exit {result.returncode}): "
                 f"{result.stderr.decode(errors='replace').strip()}"
             )
-        return files[0].read_bytes()
+        return _drop_reinserted_lines(current, files[0].read_bytes())
+
+
+def _drop_reinserted_lines(current: bytes, merged: bytes) -> bytes:
+    """`merged` with each line of `current` capped at its count there.
+
+    A line on control keeps `min(control count, merged count)` occurrences; a
+    new line keeps all of them. When `merged` holds all of `current` as a
+    subsequence, its earliest such embedding is kept; otherwise the earliest
+    occurrences within each cap are. Lines keep their ends, so the result is
+    a subsequence of `merged` and never splits a line.
+    """
+    control = current.splitlines(keepends=True)
+    lines = merged.splitlines(keepends=True)
+    protected: set[int] = set()
+    cursor = 0
+    for index, line in enumerate(lines):
+        if cursor < len(control) and line == control[cursor]:
+            protected.add(index)
+            cursor += 1
+    if cursor < len(control):
+        protected = set()
+    counts = Counter(control)
+    budget = counts - Counter(lines[index] for index in protected)
+    kept: list[bytes] = []
+    for index, line in enumerate(lines):
+        if index in protected or line not in counts:
+            kept.append(line)
+        elif budget[line] > 0:
+            budget[line] -= 1
+            kept.append(line)
+    return b"".join(kept)
 
 
 def _push(root: Path, remote: str, refspec: str) -> str | None:

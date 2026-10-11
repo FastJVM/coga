@@ -16,8 +16,10 @@ stub.
 
 from __future__ import annotations
 
+import itertools
 import shutil
 import subprocess
+from collections import Counter
 from dataclasses import replace
 from pathlib import Path
 from textwrap import dedent
@@ -506,6 +508,71 @@ def test_log_appended_on_both_sides_keeps_both_lines(git_repo):
     # The control checkout's working log carries the union result and is clean.
     assert (git_repo.coga_os / "log.md").read_text() == landed
     assert _dirty(git_repo) == set()
+
+
+def _lines(spec: str) -> bytes:
+    """`"A X"` -> `b"A\\nX\\n"`: one newline-terminated line per token."""
+    return b"".join(f"{token}\n".encode() for token in spec.split())
+
+
+@pytest.mark.parametrize(
+    ("base", "control", "working", "landed"),
+    [
+        # Control already has X at another position: it is not re-added.
+        ("A", "A X Y", "A Z X", "A X Y Z"),
+        # Concurrent appends from the same base both land once.
+        ("A", "A P", "A M", "A P M"),
+        # A control line the base never saw comes back.
+        ("A", "A L", "A Z", "A L Z"),
+        # A deletion the base saw still lands.
+        ("A L B", "A L B", "A B", "A B"),
+        # A clean move keeps raw-merge order.
+        ("A L B", "A L B", "A B L", "A B L"),
+        # Repeated lines: no side deleted anything, so every control line stays.
+        ("A C A C", "A C A C A", "A C B A C", "A C B A C A"),
+        # A clean partial deletion of a historical duplicate still lands.
+        ("A X X", "A X X", "A X", "A X"),
+        # No merge-base: lines control has anywhere are not re-added.
+        ("", "A X", "Q A X Z", "A X Q Z"),
+    ],
+)
+def test_union_merge_never_re_adds_a_control_line(base, control, working, landed):
+    merged = git._merge_union_bytes(
+        current=_lines(control), base=_lines(base), other=_lines(working)
+    )
+    assert merged == _lines(landed)
+
+
+def _is_subsequence(needle: list[bytes], haystack: list[bytes]) -> bool:
+    remaining = iter(haystack)
+    return all(line in remaining for line in needle)
+
+
+def test_drop_reinserted_lines_caps_counts_and_keeps_order():
+    sequences = [
+        [f"{token}\n".encode() for token in combo]
+        for size in range(5)
+        for combo in itertools.product("AB", repeat=size)
+    ]
+    for control, merged in itertools.product(sequences, repeat=2):
+        result = git._drop_reinserted_lines(b"".join(control), b"".join(merged))
+        lines = result.splitlines(keepends=True)
+        have, raw, cap = Counter(lines), Counter(merged), Counter(control)
+        for line in raw:
+            expected = min(cap[line], raw[line]) if line in cap else raw[line]
+            assert have[line] == expected, (control, merged)
+        assert _is_subsequence(lines, merged), (control, merged)
+        if _is_subsequence(control, merged):
+            assert _is_subsequence(control, lines), (control, merged)
+        assert git._drop_reinserted_lines(b"".join(control), result) == result
+
+
+@pytest.mark.parametrize(
+    ("current", "merged"),
+    [(b"A\nX\nX\n", b"A\nX\nX\n"), (b"A", b"A\nA"), (b"A", b"AB\nA"), (b"A\n", b"A\nA")],
+)
+def test_drop_reinserted_lines_compares_whole_lines_with_their_ends(current, merged):
+    assert git._drop_reinserted_lines(current, merged) == merged
 
 
 def test_expect_pins_the_exact_control_copy(git_repo):
@@ -2140,6 +2207,84 @@ def test_prepare_refuses_an_unpublished_log_line(git_repo):
     assert outcome.kind == "refused"
     assert outcome.blocking == ("coga/log.md (lines not yet on control)",)
     assert "not published" in (git_repo.coga_os / "log.md").read_text()
+
+
+def _publish_feature_log_twice(git_repo, cfg: Config) -> None:
+    """A feature checkout publishes once after a peer line, then publishes again.
+
+    HEAD never advances, so the second publish still merges from the old base
+    while control already carries this checkout's first line.
+    """
+    _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    base = _control(git_repo, "coga/log.md") or ""
+    git_repo.push_competing_commit("coga/log.md", base + "peer line\n")
+    append_log(cfg, "demo", "agent:claude", "mine one")
+    assert git.publish(cfg, [git.log_path(cfg)], "Log: demo") is True
+    append_log(cfg, "demo", "agent:claude", "mine two")
+    assert git.publish(cfg, [git.log_path(cfg)], "Log: demo") is True
+
+
+def test_feature_checkout_second_publish_does_not_re_add_a_landed_line(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _publish_feature_log_twice(git_repo, cfg)
+
+    landed = _control(git_repo, "coga/log.md")
+    assert landed.count("mine one") == 1
+    assert landed.count("peer line") == 1
+    assert landed.count("mine two") == 1
+
+
+def test_prepare_proves_a_feature_log_published_twice(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _publish_feature_log_twice(git_repo, cfg)
+
+    _assert_prepared(git_repo, git.prepare_control_checkout(cfg))
+    log = (git_repo.coga_os / "log.md").read_text()
+    assert log.count("mine one") == 1 and "mine two" in log
+
+
+def test_publish_from_a_far_back_merge_base_lands_no_duplicate(git_repo):
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.checkout_branch("feature/x")
+    base = _control(git_repo, "coga/log.md") or ""
+    for count in range(1, 4):
+        git_repo.push_competing_commit(
+            "coga/log.md", base + "".join(f"peer {n}\n" for n in range(1, count + 1))
+        )
+    # The working log carries control's later lines at different positions.
+    git.log_path(cfg).write_text(base + "peer 2\npeer 1\nmine\n")
+
+    assert git.publish(cfg, [git.log_path(cfg)], "Log: demo") is True
+
+    assert _control(git_repo, "coga/log.md") == base + "peer 1\npeer 2\npeer 3\nmine\n"
+
+
+def _blob(git_repo, data: bytes) -> str:
+    path = git_repo.origin.parent / "blob-input"
+    path.write_bytes(data)
+    return git_repo.git("hash-object", "-w", str(path)).strip()
+
+
+@pytest.mark.parametrize(
+    ("working", "reason"),
+    [
+        ("A Y X", None),
+        ("A X", None),
+        ("A Z X", "lines not yet on control"),
+    ],
+)
+def test_published_proof_filters_lines_already_on_control(git_repo, working, reason):
+    control = ("100644", _blob(git_repo, _lines("A X Y")))
+    head = ("100644", _blob(git_repo, _lines("A")))
+
+    proof = git._published_proof(
+        git_repo.root, "coga/log.md", ("100644", _lines(working)), control,
+        head_entry=head, union=True,
+    )
+
+    assert proof == reason
 
 
 def test_prepare_refuses_mixed_state_without_partial_cleanup(git_repo):
