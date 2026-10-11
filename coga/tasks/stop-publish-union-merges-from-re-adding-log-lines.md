@@ -30,7 +30,7 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (implement)
+step: 5 (open-pr)
 agent: claude
 ---
 
@@ -159,3 +159,49 @@ User requested the corrections after the evaluator handoff. Updated the ticket b
 ## Dev
 
 branch: union-merge-dedupe
+
+## Implement handoff (2026-10-11, claude)
+
+- `src/coga/git.py`: `_merge_union_bytes` keeps the `git merge-file --union` call and returns `_drop_reinserted_lines(current, merged)` — new private helper exactly per Proposed shape step 2 (complete-control-subsequence protection, then `Counter` budgets; linear; `splitlines(keepends=True)`, no byte-prefix path). No call-site changes; `_build_tree`, `_published_proof`, `_local_control_subsumed` inherit it.
+- Tests in `tests/test_git.py`: parametrized `_merge_union_bytes` table (all eight acceptance cases incl. repeated-line counterexample, `A X X` partial deletion, moved line, no merge-base, concurrent appends); exhaustive helper check over all pairs of 0–4-line `A`/`B` sequences (count rule, raw-order subsequence, control-subsequence preservation, idempotence); unterminated-line/unchanged cases; feature-checkout two-publish regression; prepare after two publishes; far-back merge-base publish; `_published_proof` table (`A Y X` → None, `A X` → None, `A Z X` → refuse). Confirmed the six regression cases fail with the fix stashed.
+- Docs: spool-merge (both twins, byte-identical) gains invariant, filter, deletion rule, why-not-published-ref, tradeoff; `retires.md` bullet reworded. state-publication step 4 (both twins) points at the filter.
+- No adjacent bugs found. No deviations from the ticket shape.
+
+## PR
+
+```yaml
+title: Stop publish union merges from re-adding lines already on control
+author: claude
+author_evidence: Implement session ran as Claude Code (Opus 5.5); this handoff.
+head: dcfa6be416531e9508a0021478d2ea01eab23163
+base: c96268e6c449a5acbd433f800e4eb76b0ecf98f0
+depth: deep
+rationale: Changes the bytes publish lands on control for every merge=union file and the prepare proof; repeated-line edge cases deserve a diff read, and no independent code review has run yet.
+implementation: _merge_union_bytes post-filters git merge-file --union output so each control line keeps min(control count, raw merge count) occurrences, protecting control's earliest complete embedding; new lines are untouched. Both union callers (_build_tree, _published_proof) share it.
+deviations: None from the ticket's proposed shape.
+limitations: Lines compare as bytes with line ends, so an unterminated last line differs from the same text with a newline. An identical line already on control cannot be re-added by publish (accepted tradeoff). Git-native union merges outside publish are unchanged.
+files:
+  src/coga/git.py: Add _drop_reinserted_lines and apply it in _merge_union_bytes; docstring names the invariant.
+  tests/test_git.py: Unit, exhaustive helper, publish, prepare, and _published_proof regressions for the filter.
+  docs/contexts/coga/internals/spool-merge/SKILL.md: Document the invariant, filter, deletion rule, base choice, and tradeoff; fix retires.md wording.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/spool-merge/SKILL.md: Packaged twin of the spool-merge topic change.
+  docs/contexts/coga/internals/state-publication/SKILL.md: Point publish step 4 at the duplicate filter.
+  src/coga/resources/templates/coga/bootstrap/contexts/coga/internals/state-publication/SKILL.md: Packaged twin of the state-publication pointer.
+review:
+  reviewer: none
+  kind: none
+  status: not-run
+  detail: Implement step; code review belongs to the later workflow step. Design approval is not code review.
+checks:
+  - command: .venv/bin/python -m pytest -q
+    status: passed
+    head: dcfa6be416531e9508a0021478d2ea01eab23163
+    base: c96268e6c449a5acbd433f800e4eb76b0ecf98f0
+    detail: 3549 passed on the committed, clean pushed head.
+  - command: .venv/bin/python -m pytest -q tests/test_git.py -k "union_merge_never or published_twice or far_back or published_proof_filters or second_publish"
+    status: passed
+    head: dcfa6be416531e9508a0021478d2ea01eab23163
+    base: c96268e6c449a5acbd433f800e4eb76b0ecf98f0
+    detail: Regression cases pass with the fix; 6 of them failed with src/coga/git.py stashed (pre-fix behavior) before commit.
+```
+
