@@ -158,6 +158,7 @@ User requested the corrections after the evaluator handoff. Updated the ticket b
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/989
 branch: union-merge-dedupe
 
 ## Implement handoff (2026-10-11, claude)
