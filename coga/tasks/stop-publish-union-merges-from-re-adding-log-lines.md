@@ -155,3 +155,7 @@ User requested the corrections after the evaluator handoff. Updated the ticket b
 - Optional findings addressed: stated the clean-move exception to control ordering and eliminated the unsafe byte-prefix optimization. Added unterminated-line checks.
 - Verification: an in-memory prototype run with `PYTHONPATH=/home/n/Code/coga/src .venv/bin/python` passed 8 cases through the existing real Git merge, including the counterexample and clean deletion/move cases. Exhaustively checked all 3,969 pairs of sequences of length 0–5 over two distinct lines for the count rule, raw-order preservation, complete-control-subsequence preservation, and idempotence. Four unterminated-line helper cases passed. No implementation files or tests were changed.
 - Workflow remains at owner `review-design`; this correction does not advance the owner gate or start implementation.
+
+## Dev
+
+branch: union-merge-dedupe
