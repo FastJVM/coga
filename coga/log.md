@@ -8165,3 +8165,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-12 10:35 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-12 10:35 [recurring/dream] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-12 10:48 [marketing/fix-installer/release-0-4-1-so-new-context-files-publish] [human:nicktoper] created (status=draft)
+2026-10-12 11:01 [recurring/dream] [agent:claude] slack: Dream Retro: opened knowledge PR https://github.com/FastJVM/coga/pull/991 (blackboard size remedy scope; deletes validate-drift-blackboard-hygiene-two-oversized-bl)
