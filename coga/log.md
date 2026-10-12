@@ -8102,3 +8102,25 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-11 16:52 [stop-publish-union-merges-from-re-adding-log-lines] [system] {"agent":"claude","agent_turns":1,"cache_creation_input_tokens":35841,"cache_read_input_tokens":269690,"cli":"claude","content_status":"ok","elapsed_seconds":24.460488,"ended_at":"2026-10-11T23:52:07.563361Z","human_turns":0,"input_tokens":10,"model":"claude-opus-5-5","outcome":"No code-review step in this workflow, and the `## PR` evidence says so honestly. Checkout is on clean `main` at `origin/main`, and the branch is recorded. Running open-pr next.","outcome_status":"completed","output_tokens":835,"provider":"anthropic","request":null,"schema":2,"session_id":"1c3edf9c-8a61-4f88-a5c8-09fd9586ee4f","slug":"stop-publish-union-merges-from-re-adding-log-lines","started_at":"2026-10-11T23:51:43.102873Z","step":"open-pr","title":"Stop publish union merges from re-adding log lines already on control","ts":"2026-10-11T23:52:07.563361Z","usage_reason":null,"usage_status":"ok"}
 2026-10-11 20:27 [bootstrap/orient] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-11 20:27 [make-coga-init-initizalizess-also-already-filled-r] [human:nicktoper] created (status=draft)
+2026-10-12 10:15 [recurring/address-pr-comments] [system] created (status=active)
+2026-10-12 10:15 [recurring/address-pr-comments] [system] deleted completed prior-period task before 2026-10-12
+2026-10-12 10:15 [recurring/address-pr-comments] [system] created recurring/address-pr-comments for 2026-10-12
+2026-10-12 10:15 [recurring/autoclose-merged] [system] created (status=active)
+2026-10-12 10:15 [recurring/autoclose-merged] [system] deleted completed prior-period task before 2026-10-12
+2026-10-12 10:15 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-10-12
+2026-10-12 10:15 [recurring/blocker-reminders] [system] created (status=active)
+2026-10-12 10:15 [recurring/blocker-reminders] [system] deleted completed prior-period task before 2026-10-12
+2026-10-12 10:15 [recurring/blocker-reminders] [system] created recurring/blocker-reminders for 2026-10-12
+2026-10-12 10:15 [recurring/branch-sweep] [system] created (status=active)
+2026-10-12 10:15 [recurring/branch-sweep] [system] created recurring/branch-sweep for 2026-W42
+2026-10-12 10:15 [recurring/dream] [system] created (status=active)
+2026-10-12 10:15 [recurring/dream] [system] deleted completed prior-period task before 2026-W42
+2026-10-12 10:15 [recurring/dream] [system] created recurring/dream for 2026-W42
+2026-10-12 10:15 [recurring/phone-home] [system] created (status=active)
+2026-10-12 10:15 [recurring/phone-home] [system] created recurring/phone-home for 2026-W42
+2026-10-12 10:15 [recurring/resolve-conflicts] [system] created (status=active)
+2026-10-12 10:15 [recurring/resolve-conflicts] [system] created recurring/resolve-conflicts for 2026-W42
+2026-10-12 10:15 [recurring/skill-update] [system] created (status=active)
+2026-10-12 10:15 [recurring/skill-update] [system] created recurring/skill-update for 2026-W42
+2026-10-12 10:15 [recurring/usage-report] [system] created (status=active)
+2026-10-12 10:15 [recurring/usage-report] [system] created recurring/usage-report for 2026-W42
