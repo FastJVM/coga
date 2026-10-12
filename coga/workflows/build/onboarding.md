@@ -92,12 +92,19 @@ After approval, publish the vision and the batch explicitly and confirm it
 landed:
 
 ```sh
-coga run publish-state --message "Publish build vision and starter tickets" \
+cd "$COGA_REPO_ROOT" && coga run publish-state \
+  --message "Publish build vision and starter tickets" \
   <contexts-dir>/product/vision/SKILL.md <each starter ticket file>
 ```
 
-Name every file: the vision `SKILL.md` and each ticket path `coga create`
-printed. The recipe runs the same publication as Coga's end-of-command sweep,
+Run it from the checkout root (`$COGA_REPO_ROOT`, which launch exports):
+`publish-state` resolves its operands against the current directory, and
+`<contexts-dir>` is checkout-root-relative. Name every file: the vision
+`SKILL.md` and each starter ticket file you edited. `coga create` prints only
+`<slug>: created (draft)`, not a path; derive each ticket's file from that
+slug as `<coga-root>/tasks/<slug>.md`, where `<coga-root>` is the Coga root
+(`coga/` by default; launch exports its absolute path as `$COGA_COGA_OS_ROOT`).
+The recipe runs the same publication as Coga's end-of-command sweep,
 but exits 0 only when every named file is confirmed on the control branch.
 
 - **Exit 0:** hand over the generic launch command — e.g. "Here's your starter
