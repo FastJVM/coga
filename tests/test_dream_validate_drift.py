@@ -243,6 +243,7 @@ def test_classifies_large_blackboard_as_attachment_remedy() -> None:
     assert "promote a file-form task" in classified.remediation
     assert "sibling attachments" in classified.remediation
     assert "unattached context" in classified.remediation
+    assert "## Superseded designs" in classified.remediation
     assert "do not delete" in classified.remediation.lower()
 
 
