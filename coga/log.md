@@ -8128,3 +8128,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-12 10:15 [recurring/address-pr-comments] [system] started (active → in_progress) via recurring delegation to bootstrap/address-pr-comments
 2026-10-12 10:15 [recurring/address-pr-comments] [system] launched delegated target bootstrap/address-pr-comments
 2026-10-12 10:27 [marketing/fix-installer/fail-loud-on-python-older-than-3-11] [human:nicktoper] created (status=draft)
+2026-10-12 10:29 [marketing/fix-installer/add-an-attended-coga-build-step-to-the-clean-insta] [human:nicktoper] created (status=draft)
