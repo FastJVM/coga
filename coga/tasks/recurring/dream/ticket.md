@@ -817,12 +817,20 @@ Phase 3 contract-audit: `reported` — 8/8 shards complete, 5 drift (copy-diverg
 
 No `owner: coga` findings (coga-source repo).
 
-## Phase 4 Retro (in flight)
-- Run dir: /tmp/claude-1000/-home-n-Code-claude-coga-coga/31f987cc-58e8-4434-b040-12fc7a181cb1/scratchpad/dream-retro.dbMLg5 (evidence/, progress.md)
-- Linked worktree: <run-dir>/checkout on temp branch `dream-retro-20261012T173807Z` from origin/main db2d9d927.
+## Phase 4 Retro
+- Result: `reported` — 11 tickets: 1 knowledge PR https://github.com/FastJVM/coga/pull/991 (K1; deletes validate-drift-blackboard-hygiene-two-oversized-bl), 10 direct deletes verified absent on origin/main (9 recurring/* period tickets + retire-reconcile-recurring-wrapper-tty-admission-guidance), nothing durable in them.
+- Verified: PR branch pushed; isolated checkout held nothing unlanded. Worktree, temp branch, copied coga.local.toml and run dir removed. PR FYI posted via coga slack.
+- Retirement debt deferred: 153 done tickets with a real `## Dev` checkout (not delegated).
 
 ## Phase 6 routing notes (draft, before Retro returns)
 - Phase 1 human-needed: unfrozen-workflow 14 → already decided by `coga/workflows` "Required at activation, not at draft" (`validate-drift: unfrozen-workflow`; all 14 members are draft or canceled — in scope). stuck-in-progress 19 → already ticketed as `validate-drift-stuck-in-progress-11-in-progress-ti` (new since filing: dream-s-own-blackboard-trips-large-blackboard-ever, investigate-successful-codex-sessions-reported-as, launch-locks/checkout-exclusivity-lock, marketing/publish-coga-1-0-as-the-final-v1-step, marketing/verify-posthog-telemetry-with-the-live-clean-wheel, record-the-two-self-qa-hazards-from-done-ticket-bl, repair-ticket-referents-when-a-referent-is-renamed, the three validate-drift-* owners, verify-dream-under-codex-on-the-real-repo-w40, webhook-for-slack-is-public). empty-description 5 → already ticketed as `validate-drift-empty-description-23-title-only-tic` (new: make-coga-init-initizalizess-also-already-filled-r). No machine-local kinds. 0 PR proposals.
 - D4 → covered by open PR #984 (diff carries the exact correction).
 - D5 → already ticketed as `document-quick-start-for-empty-and-existing-reposi` (blocked; owns the README Quick Start rewrite incl. `coga ticket` → `coga launch` path).
 - Planned proposal PRs: (A) context corrections S1,S4,S7,D1,D2; (B) git-refresh S3 + github_preflight docstring; (C) validate-drift remediation string S2; (D) shipped skill fixes S5,D3; (E) canceled-ticket knowledge K2,K3,K4; (F) cleanup/README S6.
+
+## Dream Skill: cleanup-orphan-markers
+
+Generated: 2026-10-12T18:01:52+00:00
+Task: `recurring/dream`
+
+Result: no-op. No cleanup-eligible processed done tickets still have task directories.
