@@ -95,6 +95,12 @@ an ordinary override that continues (`consecutive_agent_override`) only while
 the first and each directly following step *explicitly* declare
 `assignee: agent`. An omitted role, `owner`, or `other-agent` ends it for the
 rest of the launch. An override cannot repair invalid routing inputs.
+On an override of an agent-held step, a later lifecycle line's
+`[agent:<name>]` credits the configured operator, not the override; to
+attribute it to the CLI that actually ran, read the preceding
+`launched (operator=…, launch_agent=…, agent=…)` line's `launch_agent=`. An
+assist on an owner-held step is the exception: its lines credit the assisting
+agent ([coga/internals/human-assist](../internals/human-assist/SKILL.md)).
 
 ## Agent preflight order
 
