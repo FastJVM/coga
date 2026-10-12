@@ -41,7 +41,8 @@ a ticket is deleted without going through retire or a session dies mid-flight.
    and no PR currently open for it, judged by `merged_pr_verdict`. Its
    local-ref proof accepts landed history, whitespace-sensitive patch
    equivalence for rebased copies, and Coga state-only follow-ups; the
-   contract is in [dev/checkout-cleanup](../../../../../docs/contexts/dev/checkout-cleanup/SKILL.md#branch-sweep-protection-and-archive).
+   contract is in [dev/checkout-cleanup](context:dev/checkout-cleanup),
+   *Branch-sweep protection and archive*.
    A changed patch or unmerged source work preserves the ref and reports the
    offending paths. Inspect that difference before any manual clearance:
    `git cherry -v <merged-head> <tip>` can locate candidates, but its patch
