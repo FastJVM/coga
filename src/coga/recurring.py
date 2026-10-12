@@ -1153,6 +1153,9 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
         return out
     ledger = read_serviced_ledger(cfg, _template_period_targets(root, now))
     serviced = ledger.periods
+    # One read-only walk serves every template's lookups; the scan creates
+    # nothing, so the tree cannot change underneath it.
+    refs = list_tasks(cfg)
 
     for path in sorted(root.iterdir()):
         if path.name.startswith("_") or not path.is_dir():
@@ -1196,12 +1199,12 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
         next_fire = _next_firing(template.schedule, now)
         period_key = _period_key(template.schedule, last_fire)
         target_slug = _recurring_slug(template.name)
-        instance = _live_task_for_template(cfg, template.name)
+        instance = _live_task_for_template(cfg, template.name, refs)
         instance_status: str | None = None
         stale_done = False
         period_handled = False
         if instance is None:
-            candidate = _task_with_slug(cfg, target_slug)
+            candidate = _task_with_slug(cfg, target_slug, refs)
             if candidate is None:
                 # No task on disk at all — the period still counts as handled
                 # when the log records this template servicing it (the run
@@ -1963,14 +1966,18 @@ def _template_period_targets(
     return targets
 
 
-def _task_with_slug(cfg: Config, target_slug: str) -> TaskRef | None:
-    for ref in list_tasks(cfg):
+def _task_with_slug(
+    cfg: Config, target_slug: str, refs: list[TaskRef] | None = None
+) -> TaskRef | None:
+    for ref in list_tasks(cfg) if refs is None else refs:
         if ref.id_slug == target_slug:
             return ref
     return None
 
 
-def _live_task_for_template(cfg: Config, template_name: str) -> TaskRef | None:
+def _live_task_for_template(
+    cfg: Config, template_name: str, refs: list[TaskRef] | None = None
+) -> TaskRef | None:
     """The template's single live (`active`/`in_progress`) recurring task.
 
     Identity is the qualified slug `recurring/<name>`. That is what lets
@@ -1980,7 +1987,7 @@ def _live_task_for_template(cfg: Config, template_name: str) -> TaskRef | None:
     its step) over a never-launched `active`.
     """
     live: TaskRef | None = None
-    for ref in list_tasks(cfg):
+    for ref in list_tasks(cfg) if refs is None else refs:
         if ref.directory != "recurring" or ref.slug != template_name:
             continue
         status = read_ticket(ref).status

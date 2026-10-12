@@ -10812,6 +10812,29 @@ def test_recurring_views_render_malformed_period_as_error(
     assert "1 template · 0 due · 1 error" in result.output
 
 
+def test_list_templates_walks_the_task_tree_once(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Per-template lookups share one read-only walk instead of one each."""
+    _write_recurring_agent(
+        repo, "daily-check", schedule="0 9 * * *", title="Daily check"
+    )
+    cfg = load_config(repo)
+    calls: list[int] = []
+    real = recurring_module.list_tasks
+
+    def counting(*args, **kwargs):
+        calls.append(1)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(recurring_module, "list_tasks", counting)
+
+    statuses = list_templates(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+
+    assert len(statuses) >= 2
+    assert len(calls) == 1
+
+
 def test_scan_due_compares_serviced_periods_after_schedule_change(repo: Path) -> None:
     """An early ISO week must not sort after a later calendar month."""
     _write_recurring(
