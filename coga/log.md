@@ -8167,3 +8167,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-12 10:48 [marketing/fix-installer/release-0-4-1-so-new-context-files-publish] [human:nicktoper] created (status=draft)
 2026-10-12 11:01 [recurring/dream] [agent:claude] slack: Dream Retro: opened knowledge PR https://github.com/FastJVM/coga/pull/991 (blackboard size remedy scope; deletes validate-drift-blackboard-hygiene-two-oversized-bl)
 2026-10-12 11:05 [recurring/dream] [agent:claude] slack: Dream 2026-W42: validate-drift 38 human-needed (all already ticketed/decided), 1 Retro knowledge PR + 10 direct deletes, 6 stale/drift proposal PRs (#992-#997), 0 gap tickets, 153 retirement-debt tickets (18 with unextracted knowledge).
+2026-10-12 11:05 [recurring/dream] [agent:claude] task done — Dream 2026-W42: 7 PRs (#991-#997), 10 direct deletes, 0 new tickets
