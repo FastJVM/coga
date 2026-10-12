@@ -65,7 +65,8 @@ operating rules without a merge.
 - **State and notifications**: [sync](../sync/SKILL.md),
   [notifications](../notifications/SKILL.md),
   [important](../important/SKILL.md),
-  [patterns](../patterns/SKILL.md), [usage](../usage/SKILL.md).
+  [patterns](../patterns/SKILL.md), [usage](../usage/SKILL.md),
+  [telemetry](../telemetry/SKILL.md).
 - **Develop Coga**: [extension-model](../extension-model/SKILL.md),
   [skill-management](../skill-management/SKILL.md),
   [codebase](../codebase/SKILL.md), [testing](../testing/SKILL.md),

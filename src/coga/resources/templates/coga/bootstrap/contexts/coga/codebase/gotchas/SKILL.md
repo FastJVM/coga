@@ -20,8 +20,9 @@ pitfalls live in [coga/testing](../../testing/SKILL.md); checkout hazards in
   operator, and mutates an in-memory copy without writing. `mark_active`
   writes, validates, audits, and optionally syncs. `megalaunch._PREPARE_ACTIVE_ERRORS`
   encodes the division: `WorkflowMissing`, `WorkflowError`,
-  `RequiredExtensionMissing`, `BlackboardNeedsSynthesis`, and
-  `MainAgentUnavailable` refuse before any byte is written;
+  `RequiredExtensionMissing`, `BlackboardNeedsSynthesis`,
+  `MainAgentUnavailable`, and `RepoResourceUnreadable` refuse before any
+  byte is written;
   `TaskValidationError` comes from the post-write `assert_task_valid`.
   Megalaunch prepares on a throwaway copy (`_prepare_for_launch`), preflights
   prompt, env, and agent there, commits only after every refusal passes, and

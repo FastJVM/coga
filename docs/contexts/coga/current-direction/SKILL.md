@@ -79,15 +79,15 @@ is `coga status` and the ticket bodies; sequencing is
 ## Open intent, not live direction
 
 - **`workflow` → `playbook` rename.** Parked as
-  `v2/rename-workflow-primitive-to-playbook`. It touches a reserved
+  `_v2/rename-workflow-primitive-to-playbook`. It touches a reserved
   frontmatter key, so it needs a design pass (alias versus migration) before
   any mechanical rename. Until it merges, `workflow` is the canonical term;
   do not hand-edit the `workflow:` key ahead of the code change.
 
 ## Deliberately deferred
 
-- Inbound Slack → ticket creation (`v2/use-slack-as-a-sync-channel-for-tickets`)
-  and an enriched outbound inbox (`v2/issue-inbox-slack`).
+- Inbound Slack → ticket creation (`_v2/use-slack-as-a-sync-channel-for-tickets`)
+  and an enriched outbound inbox (`_v2/issue-inbox-slack`).
 - Multi-workspace Slack; one workspace is assumed.
 - Real-time sync through a server. Git push/pull is the sync layer through
   about five people; revisit at ten or more.
