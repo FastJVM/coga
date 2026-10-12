@@ -54,8 +54,12 @@ union merge — which is also why adding the wrong file is the mistake to avoid.
   control's whole line sequence as a subsequence, its earliest such
   embedding is kept; otherwise the earliest occurrences within each cap are.
   The result is always a subsequence of the raw merge — nothing is reordered
-  or added, so a clean move keeps the raw merge's order. Lines compare as
-  bytes with their line ends. Prepare's "already on control" proof
+  or added, so a clean move keeps the raw merge's order. Lines are split
+  at LF only, as `git merge-file` splits them (a bare CR is content), and
+  compare as bytes with their line ends. The working copy enters the merge
+  in its clean-filtered blob form (`_clean_bytes`, through `_hash_blob`'s
+  `--path`), so under `core.autocrlf` a CRLF working copy compares against
+  control's LF blob rather than looking like new lines. Prepare's "already on control" proof
   (`_published_proof`) uses the same function, so it agrees with what
   publish lands.
 - Deletions: a line the working copy dropped still lands as a deletion when

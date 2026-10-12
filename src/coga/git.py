@@ -699,7 +699,7 @@ def _build_tree(
                 data = _merge_union_bytes(
                     current=tree_bytes(root, base, rel) or b"",
                     base=(tree_bytes(root, ancestor, rel) or b"") if ancestor else b"",
-                    other=data,
+                    other=_clean_bytes(root, data, rel),
                 )
                 landed[rel] = data
             run_git(root, "rm", "-rf", "--cached", "--ignore-unmatch", "--", rel, env=env)
@@ -722,6 +722,8 @@ def _merge_union_bytes(*, current: bytes, base: bytes, other: bytes) -> bytes:
 
     A union-merged publication never increases the occurrence count of a
     line already on control (`current`); see `coga/internals/spool-merge`.
+    Pass `other` through `_clean_bytes` first so all three copies compare in
+    the blob form control stores.
     """
     with tempfile.TemporaryDirectory(prefix="coga-union-merge-") as tmp:
         files = [Path(tmp) / name for name in ("current", "base", "other")]
@@ -745,8 +747,8 @@ def _drop_reinserted_lines(current: bytes, merged: bytes) -> bytes:
     occurrences within each cap are. Lines keep their ends, so the result is
     a subsequence of `merged` and never splits a line.
     """
-    control = current.splitlines(keepends=True)
-    lines = merged.splitlines(keepends=True)
+    control = _lf_lines(current)
+    lines = _lf_lines(merged)
     protected: set[int] = set()
     cursor = 0
     for index, line in enumerate(lines):
@@ -765,6 +767,17 @@ def _drop_reinserted_lines(current: bytes, merged: bytes) -> bytes:
             budget[line] -= 1
             kept.append(line)
     return b"".join(kept)
+
+
+def _lf_lines(data: bytes) -> list[bytes]:
+    """`data` split after each LF, keeping ends.
+
+    `git merge-file` delimits lines by LF only; `bytes.splitlines` would also
+    split at a bare CR, which Git treats as content within a line.
+    """
+    lines = [line + b"\n" for line in data.split(b"\n")]
+    lines[-1] = lines[-1][:-1]
+    return lines if lines[-1] else lines[:-1]
 
 
 def _push(root: Path, remote: str, refspec: str) -> str | None:
@@ -1416,8 +1429,15 @@ def _published_proof(
         return "content differs from control"
     control_bytes = _blob_bytes(root, published[1])
     base = _blob_bytes(root, head_entry[1]) if head_entry is not None else b""
-    merged = _merge_union_bytes(current=control_bytes, base=base, other=data)
+    merged = _merge_union_bytes(
+        current=control_bytes, base=base, other=_clean_bytes(root, data, rel)
+    )
     return None if merged == control_bytes else "lines not yet on control"
+
+
+def _clean_bytes(root: Path, data: bytes, rel: str) -> bytes:
+    """`data` as the blob `git add` would store for `rel` (see `_hash_blob`)."""
+    return _blob_bytes(root, _hash_blob(root, data, rel))
 
 
 def _blob_bytes(root: Path, oid: str) -> bytes:

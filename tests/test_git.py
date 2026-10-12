@@ -575,6 +575,31 @@ def test_drop_reinserted_lines_compares_whole_lines_with_their_ends(current, mer
     assert git._drop_reinserted_lines(current, merged) == merged
 
 
+def test_drop_reinserted_lines_splits_only_at_lf():
+    """A bare CR is content inside a Git line, never a line boundary."""
+    assert git._drop_reinserted_lines(b"A\rB\n", b"A\rB\nC\rB\n") == b"A\rB\nC\rB\n"
+
+
+def test_union_publish_caps_control_lines_after_clean_filtering(git_repo):
+    """Under `core.autocrlf=true` the working log is CRLF while control's
+    blob is LF; the cap must compare the clean-filtered copy, or a line
+    already on control lands twice once `git add` normalizes it."""
+    cfg = load_config(git_repo.coga_os)
+    _seed_ticket(git_repo)
+    git_repo.git("config", "core.autocrlf", "true")
+    git_repo.checkout_branch("feature/x")
+    append_log(cfg, "demo", "agent:claude", "first line")
+    assert git.publish(cfg, [git.log_path(cfg)], "Log: demo") is True
+    log = git.log_path(cfg)
+    log.write_bytes(log.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+    append_log(cfg, "demo", "agent:claude", "second line")
+    assert git.publish(cfg, [git.log_path(cfg)], "Log: demo") is True
+
+    landed = _control(git_repo, "coga/log.md")
+    assert landed.count("first line") == 1
+    assert "second line" in landed
+
+
 def test_expect_pins_the_exact_control_copy(git_repo):
     cfg = load_config(git_repo.coga_os)
     ticket = _seed_ticket(git_repo)
