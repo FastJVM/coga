@@ -31,7 +31,9 @@ It is built around three ideas:
   
 - **Everything is inspectable and hackable.** The base prompt, workflows,
   docs and skills are plain files, and you can change any of them.
-  `coga launch --prompt-report` shows the exact prompt before anything runs.
+  `coga launch <slug> --prompt-report` lists the prompt layers a ticket
+  launch would compose, with each layer's size and approximate token count,
+  then exits without launching an agent.
   You and your agents change the system as your ways of working evolve. 
   Changes to the shared rules arrive as pull requests: nothing changes how
   agents work until you merge it.
