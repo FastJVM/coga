@@ -14,6 +14,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from types import ModuleType
 from dataclasses import dataclass
 from pathlib import Path
@@ -78,6 +79,20 @@ def _isolate_home(tmp_path_factory, monkeypatch):
     # alone so subprocess calls (git, etc.) still work in tests.
     fake_home = tmp_path_factory.mktemp("home")
     monkeypatch.setenv("HOME", str(fake_home))
+
+
+@pytest.fixture(autouse=True)
+def _isolate_tmpdir(tmp_path_factory, monkeypatch):
+    # `git.state_lock` keeps one never-deleted lock file per checkout under
+    # `gettempdir()`, and nearly every test builds a fresh checkout, so a run
+    # would otherwise leave thousands of empty files in the host's /tmp.
+    # A per-test dir under pytest's basetemp (pruned to recent runs) holds
+    # them instead; `TMPDIR` carries it to `coga` subprocesses so they lock
+    # in the same place. It stays apart from the tests' own repos so a temp
+    # scan cannot rediscover them.
+    tmp = tmp_path_factory.mktemp("tmp")
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp))
+    monkeypatch.setenv("TMPDIR", str(tmp))
 
 
 @pytest.fixture(autouse=True)
