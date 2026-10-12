@@ -1,6 +1,0 @@
-{
-  "parent": "phone-home",
-  "keys": {
-    "period_state": "{\"schema\":1,\"run\":3,\"repo_id\":null,\"offset\":1895555,\"digest\":\"d79a81e420b4ee1b0097f13f920635359780698ee67088ef2ab6d10bd8d9fe45\"}"
-  }
-}
