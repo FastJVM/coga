@@ -822,7 +822,7 @@ No `owner: coga` findings (coga-source repo).
 - Verified: PR branch pushed; isolated checkout held nothing unlanded. Worktree, temp branch, copied coga.local.toml and run dir removed. PR FYI posted via coga slack.
 - Retirement debt deferred: 153 done tickets with a real `## Dev` checkout (not delegated).
 
-## Phase 6 routing notes (draft, before Retro returns)
+## Phase 6 routing notes
 - Phase 1 human-needed: unfrozen-workflow 14 → already decided by `coga/workflows` "Required at activation, not at draft" (`validate-drift: unfrozen-workflow`; all 14 members are draft or canceled — in scope). stuck-in-progress 19 → already ticketed as `validate-drift-stuck-in-progress-11-in-progress-ti` (new since filing: dream-s-own-blackboard-trips-large-blackboard-ever, investigate-successful-codex-sessions-reported-as, launch-locks/checkout-exclusivity-lock, marketing/publish-coga-1-0-as-the-final-v1-step, marketing/verify-posthog-telemetry-with-the-live-clean-wheel, record-the-two-self-qa-hazards-from-done-ticket-bl, repair-ticket-referents-when-a-referent-is-renamed, the three validate-drift-* owners, verify-dream-under-codex-on-the-real-repo-w40, webhook-for-slack-is-public). empty-description 5 → already ticketed as `validate-drift-empty-description-23-title-only-tic` (new: make-coga-init-initizalizess-also-already-filled-r). No machine-local kinds. 0 PR proposals.
 - D4 → covered by open PR #984 (diff carries the exact correction).
 - D5 → already ticketed as `document-quick-start-for-empty-and-existing-reposi` (blocked; owns the README Quick Start rewrite incl. `coga ticket` → `coga launch` path).
@@ -834,3 +834,38 @@ Generated: 2026-10-12T18:01:52+00:00
 Task: `recurring/dream`
 
 Result: no-op. No cleanup-eligible processed done tickets still have task directories.
+
+## Dream Run Summary
+
+Generated: 2026-10-12T18:15Z — period 2026-W42 — repo identity: coga-source.
+
+| Phase | Result | Notes |
+|---|---|---|
+| Preflight | ok | git-common-dir, remote (origin/main), gh |
+| 1 validate-drift | reported | 38 human-needed (stuck-in-progress 19, unfrozen-workflow 14, empty-description 5); 0 direct-fix; 0 pr-proposal |
+| 2 knowledge-scan | reported | 37/37 shards; 29 findings (1 extract/done, 3 extract/canceled, 18 extract/done+checkout, 7 stale) |
+| 3 contract-audit | reported | 8/8 shards; 5 drift; copy-divergence clean |
+| 4 retro/done-ticket | pr-opened | 11 tickets: PR #991 (K1) + 10 direct deletes, verified on origin/main |
+| 5 cleanup-orphan-markers | no-op | — |
+| 6 disposition | proposed | 6 proposal PRs; 0 draft tickets; 0 upstream-captured (coga-source) |
+
+PRs opened (all pr-required, not merged):
+- #991 https://github.com/FastJVM/coga/pull/991 — Retro K1: blackboard size remedy scope (deletes validate-drift-blackboard-hygiene-two-oversized-bl).
+- #996 https://github.com/FastJVM/coga/pull/996 — S1, S4, S7, D1, D2 context corrections.
+- #995 https://github.com/FastJVM/coga/pull/995 — S3 git-refresh feature-checkout bump claim + github_preflight docstring.
+- #994 https://github.com/FastJVM/coga/pull/994 — S2 large-blackboard remediation string.
+- #993 https://github.com/FastJVM/coga/pull/993 — S5 autoclose/sweep proof 2, D3 branch-sweep link.
+- #997 https://github.com/FastJVM/coga/pull/997 — K2, K3, K4 decisions from canceled tickets (sources stay on disk).
+- #992 https://github.com/FastJVM/coga/pull/992 — S6 cleanup/README drained queue.
+
+Already owned / decided:
+- D4 README `--prompt-report` → reused open PR #984 (diff carries the correction).
+- D5 README `coga ticket` wording → already ticketed as `document-quick-start-for-empty-and-existing-reposi` (blocked).
+- validate-drift: stuck-in-progress (19) → already ticketed as `validate-drift-stuck-in-progress-11-in-progress-ti`; 13 new since filing (see routing notes).
+- validate-drift: empty-description (5) → already ticketed as `validate-drift-empty-description-23-title-only-tic`; new: make-coga-init-initizalizess-also-already-filled-r.
+- validate-drift: unfrozen-workflow (14) → already decided in `coga/workflows` ("Required at activation, not at draft"); all members draft/canceled.
+- Machine-local validator issues: none.
+
+Retirement debt: 153 done tickets with a real `## Dev` checkout (not delegated to Retro). 18 of them hold `extract` findings that `coga retire <slug>` would unlock — listed under `## Findings` → "extract — source: done+checkout" (e.g. simplify-git-sync ×2, detect-stranded-ticket-writes-across-checkouts, dedupe-claude-transcript-usage-by-message-id, validate-that-committed-skill-scripts-with-a-sheba, exclude-superseded-designs-from-launch-prompts, clean-up-owned-branches-when-tickets-finish-or-are).
+
+Human review gates: 7 PRs above. No stranded Retro work.
