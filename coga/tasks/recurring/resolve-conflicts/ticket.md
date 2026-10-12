@@ -1,6 +1,6 @@
 ---
 title: Resolve PR conflicts
-status: active
+status: in_progress
 owner: nicktoper
 agent: claude
 contexts:
