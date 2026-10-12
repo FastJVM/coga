@@ -40,7 +40,7 @@ and the local state lock serializes only one checkout's writers.
   and `released:` forms; ordinary-launch reconciliation of a released
   witness; retained evidence.
 - [PR publication](../internals/pr-publication/SKILL.md): `coga open-pr`'s
-  session witness, checkout gate, freshness and stranded-ticket checks,
+  checkout gate, freshness and stranded-ticket checks,
   leased push, and control-only `pr:` record.
 - [State publication](../internals/state-publication/SKILL.md): strict
   versus best-effort publication, the provenance check, and the state lock

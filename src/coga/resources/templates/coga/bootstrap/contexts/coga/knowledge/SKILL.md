@@ -74,9 +74,11 @@ every step. Decide per ticket across all planned steps:
   large relative to the rest of the prompt, or when the ticket will *edit*
   that topic (it gets read first anyway).
 
-Measure relative size at authoring time with `approx_tokens` from
-`coga launch --prompt-report` or a read-only `compose_prompt_report` on an
-in-memory ticket copy with the candidate added; do not edit lifecycle
+Measure relative size at authoring time with `approx_tokens` from a
+read-only `compose.compose_prompt_report` on an in-memory ticket copy with the
+candidate added. `coga launch --prompt-report` sweeps like any launch, so it
+would publish a trial `contexts:` edit (see
+[dev/checkouts](../../dev/checkouts/SKILL.md)); do not edit lifecycle
 frontmatter to measure, and do not quote sizes (they go stale). No topic is
 always-attach or always-cite.
 
