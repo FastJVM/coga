@@ -369,14 +369,14 @@ def stranded_task_state_paths(
     as implementation work. A
     path is stranded when the branch changed it since its merge base with
     `control_ref` and no commit on control's side of the fork ever carried the
-    branch tip's exact blob at that path — the rule
-    `git._refresh_committed_divergence_reason` applies before overlaying
-    control state onto a feature checkout. That second conjunct is what
-    separates a stranded write from supported staleness: a bump run from the
-    feature checkout commits the ticket there *and* lands identical bytes on
-    control, after which control advances past the branch copy. The branch is
-    then behind, not carrying content control lacks, and this returns nothing
-    for it. A path the branch deleted is stranded while control still has it.
+    branch tip's exact blob at that path. That second conjunct is what
+    separates a stranded write from supported staleness: a branch commit whose
+    exact bytes control also carried is merely behind, not content control
+    lacks, and this returns nothing for it. A bump run from a feature checkout
+    commits nothing on the branch at all — `git.publish` pushes to control and
+    leaves the branch's copy dirty — so a stranded path arises when ticket
+    content is committed on the branch by hand. A path the branch deleted is
+    stranded while control still has it.
 
     Returns `None` when the question could not be answered — a missing ref,
     an unusable `git`, a failed probe. Callers must treat that as unknown and
