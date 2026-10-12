@@ -58,9 +58,10 @@ carries its reason into every surface below:
    primary checkout is not debt at all, below), it is not the checkout
    running the sweep, it holds the
    recorded branch, and it carries no tracked or untracked local state
-   (ignored regenerable caches — `__pycache__/`, `.pytest_cache/`,
-   `.ruff_cache/`, `.mypy_cache/` — are deleted with it; any other ignored
-   file preserves it). No PR is open for the branch, and the branch has
+   (which ignored entries are deleted with it — the regenerable caches and a
+   byte-identical copy of the operator's `coga.local.toml` — and which
+   preserve it is owned by
+   [dev/checkout-cleanup](context:dev/checkout-cleanup), *Ignored state*). No PR is open for the branch, and the branch has
    landed on the control branch or its local and remote tips equal the merged
    PR's exact head. Then `git worktree remove`, unforced.
 3. *The local branch.* Plain `git branch -d` when the tip is reachable from
