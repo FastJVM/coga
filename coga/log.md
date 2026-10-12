@@ -8164,3 +8164,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-12 10:35 [recurring/blocker-reminders] [system] script exited with code 0
 2026-10-12 10:35 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
 2026-10-12 10:35 [recurring/dream] [human:nicktoper] launched (operator=claude, agent=claude)
+2026-10-12 10:48 [marketing/fix-installer/release-0-4-1-so-new-context-files-publish] [human:nicktoper] created (status=draft)
