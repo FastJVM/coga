@@ -12,20 +12,15 @@ these tickets are those findings, plus the release that makes a first run
 possible at all. The dated [step-1 findings](../../../docs/archive/launch-programs/phase-0-audit/step-1-findings.md)
 hold the original evidence; check each ticket for its current state.
 
-Drain the queue with `coga megalaunch cleanup`.
+The queue is drained: every ticket here is `done`, and each awaits
+retirement via `coga retire <slug>`.
 
 ## Ordering
 
-One hard dependency, recorded in the ticket bodies rather than in the
-directory name: `fix-coga-init-crash-on-python-3-11-by-adding-the-r` must land
-before `publish-coga-1-0-to-pypi` cuts the release, or the release must raise
-its Python floor instead. Everything else is independent and runs in age
-order.
-
-Whether the remaining polish also ships inside 1.0 is an open owner decision.
-If it should, rename the tickets with `1-` / `2-` / `3-` prefixes: megalaunch
-runs a numbered sub-directory in number order, and plain `mv` is the whole
-mechanism.
+One hard dependency was recorded in the ticket bodies:
+`fix-coga-init-crash-on-python-3-11-by-adding-the-r` had to land before the
+release ticket, now `marketing/publish-coga-1-0-as-the-final-v1-step`, cuts
+the release. That fix is `done`, so nothing here still gates the release.
 
 ## Not here
 
