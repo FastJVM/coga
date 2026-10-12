@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-observability
-    github-ref: refs/tags/v1.8.0
+    github-ref: refs/tags/v1.9.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 896c29ce7cda58e140d38c037ad44718c727969f
+    github-tree-sha: 80d1751d0a5b45dd98fecb64832ac81d6d1264c0
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.8.0
+    version: 1.9.0
 name: google-agents-cli-observability
 ---
 # Observability Guide

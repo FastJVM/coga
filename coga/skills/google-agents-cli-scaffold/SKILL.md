@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-scaffold
-    github-ref: refs/tags/v1.8.0
+    github-ref: refs/tags/v1.9.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 638afa1ba4f2b5a46ff9034a719c92d05be52ce9
+    github-tree-sha: 1389169dfaa6401522c7c63e01d10ad9a2ec39bf
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.8.0
+    version: 1.9.0
 name: google-agents-cli-scaffold
 ---
 # Project Scaffolding Guide
@@ -131,7 +131,7 @@ agents-cli scaffold enhance . --cicd-runner github_actions
 > **`adk` and `adk_go` are the only built-in templates.** `adk` is the default, so a Go project
 > needs `--agent adk_go` explicitly.
 > Other frameworks ship as template repos you scaffold
-> from directly: `--agent google/agents-cli/extensions/langchain/template@v1.8.0`, with nothing installed. The first-party LangChain
+> from directly: `--agent google/agents-cli/extensions/langchain/template@v1.9.0`, with nothing installed. The first-party LangChain
 > template is `extensions/langchain/template/` in the agents-cli repo; see
 > `/google-agents-cli-workflow` → `references/extension.md` to publish your own. Capabilities
 > beyond the template — retrieval, sandboxed execution, memory, OAuth, guardrails — are
