@@ -100,7 +100,8 @@ control branch missing locally and on the remote
    raises `StateRegressionError` before anything is pushed.
 4. **Tree and push**: a temporary `GIT_INDEX_FILE` seeded from base, each
    candidate overlaid (or removed when deleted), `merge=union` paths
-   three-way union-merged; `commit-tree` on base, then
+   three-way union-merged without re-adding a line control already has
+   (the duplicate filter in `coga/internals/spool-merge`); `commit-tree` on base, then
    `push <remote> <new>:refs/heads/<control>`. A non-fast-forward rejection
    refetches and rebuilds, at most `MAX_PUBLISH_ATTEMPTS` (5) times. Any other
    push failure rereads control once: `True` if control now carries the
