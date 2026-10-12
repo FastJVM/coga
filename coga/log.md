@@ -8146,3 +8146,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-12 10:33 [recurring/autoclose-merged] [system] script exited with code 0
 2026-10-12 10:33 [bootstrap/resolve-conflicts] [human:nicktoper] launched (operator=claude, agent=claude)
 2026-10-12 10:33 [recurring/resolve-conflicts] [system] started (active → in_progress) via recurring delegation to bootstrap/resolve-conflicts
+2026-10-12 10:34 [recurring/resolve-conflicts] [system] launched delegated target bootstrap/resolve-conflicts
