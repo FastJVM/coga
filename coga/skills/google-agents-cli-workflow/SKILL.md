@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-workflow
-    github-ref: refs/tags/v1.8.0
+    github-ref: refs/tags/v1.9.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: d9681ff537f84cbdacf669d1747fe0dfd1d05079
+    github-tree-sha: ce1c84124caeb2eb63d60702d5c982f37ed507f2
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 1.8.0
+    version: 1.9.0
 name: google-agents-cli-workflow
 ---
 # Agent Development Workflow & Guidelines
@@ -22,8 +22,8 @@ name: google-agents-cli-workflow
 > **Before writing agent code, make sure a scaffolded project exists (see Phase 2).** Skipping scaffolding loses eval boilerplate, CI/CD config, and project conventions.
 
 
-> Requires: google-agents-cli ~= 1.8.0
-> If version is behind, run: uv tool install "google-agents-cli~=1.8.0"
+> Requires: google-agents-cli ~= 1.9.0
+> If version is behind, run: uv tool install "google-agents-cli~=1.9.0"
 
 > Check version: agents-cli info
 > [Install uv](https://docs.astral.sh/uv/getting-started/installation/index.md) first if needed.
