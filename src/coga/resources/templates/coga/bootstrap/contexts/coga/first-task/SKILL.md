@@ -26,7 +26,8 @@ warns when `user` is unset. Network probes are opt-in:
 
 On an empty repo, `init` seeded an onboarding ticket. `coga build` is a
 default alias for `launch coga-build`: one question, an agent-led chat, a
-short vision, then a batch of starter tickets. Use `coga build --agent
+short vision, then a batch of starter tickets, offered for launch only once
+the vision and the batch are confirmed on the control branch. Use `coga build --agent
 codex` for Codex. It dispatches through `coga launch`, so it needs an
 initialized repo. When the onboarding agent's CLI is not on `PATH`, it offers
 to install it and log in first ([coga/install](../install/SKILL.md)). There is no separate `coga setup`.

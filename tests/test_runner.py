@@ -29,6 +29,7 @@ EXPECTED_RECIPES = (
     "skill-update",
     "open-pr",
     "delete-task",
+    "publish-state",
 )
 
 

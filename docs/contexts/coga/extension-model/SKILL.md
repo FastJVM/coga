@@ -117,7 +117,8 @@ is owned by [coga/script-tickets](../script-tickets/SKILL.md). Recurring
 
 `runner.RECIPES` is closed: `autoclose`, `blocker-reminders`, `branch-sweep`,
 `validate-drift`, `cleanup-orphan-markers`, `recurring-scan`,
-`autofix-analyze`, `skill-update`, `open-pr`, `delete-task`. Nothing is
+`autofix-analyze`, `skill-update`, `open-pr`, `delete-task`,
+`publish-state`. Nothing is
 discovered from skills, config, or entry points, and the ticket classifier
 never extends the table. An unknown name exits 2 and prints the known set.
 Every token after the name is forwarded as an ordinary `list[str]`, stdout and
@@ -127,7 +128,10 @@ a `## Recipe Failure` section on non-zero exit; that reporting contract belongs
 to [coga/recurring](../recurring/SKILL.md). `open-pr` and `delete-task` take a
 task ref; see [dev/dev-record](../../dev/dev-record/SKILL.md) and
 [dev/checkouts](../../dev/checkouts/SKILL.md). `autofix-analyze` is covered
-in [coga/recurring/autofix](../recurring/autofix/SKILL.md).
+in [coga/recurring/autofix](../recurring/autofix/SKILL.md). `publish-state`
+is the strict, exit-coded form of the state sweep for a handoff that must know
+its files reached control (`build/onboarding`); its contract is in
+[coga/internals/state-publication](../internals/state-publication/SKILL.md).
 
 ## Aliases
 
