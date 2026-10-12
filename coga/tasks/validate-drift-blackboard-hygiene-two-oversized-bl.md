@@ -75,3 +75,10 @@ Remaining before close: the reconcile warning, which clears when the retire task
 ## Blocker reminders
 
 - 3963fb99f82c last_reminded: 2026-10-07 11:24
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: retire a done ticket flagged large-blackboard instead of trimming it
