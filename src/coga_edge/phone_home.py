@@ -33,7 +33,7 @@ from coga import git, notification
 from coga.blackboard import append_blackboard_report
 from coga.config import Config, load_config
 from coga.lifecycle import VALID_STATUSES
-from coga.logfile import append_log
+from coga.logfile import append_log, decode_log_message
 from coga.paths import log_path, recurring_dir
 from coga.runner import run_reported
 from coga.task_env import blackboard_from_env
@@ -55,10 +55,10 @@ _NUMERIC = re.compile(r"[0-9]+(?:\.[0-9]+)*", re.ASCII)
 _STATE_LINE = re.compile(r"^period_state: ([^\r\n]+)(?=\r?$)", re.MULTILINE)
 # Names are producer-owned free text: actors/operators can contain spaces and
 # step names can contain parentheses. Only envelope delimiters end a field.
-_ENTRY = re.compile(r"([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}) \[([^\[\]\r\n]+)\] \[([^\[\]\r\n]+)\] (.+)")
+_ENTRY = re.compile(r"([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}) (?P<version>v1 )?\[([^\[\]\r\n]+)\] \[([^\[\]\r\n]+)\] (.+)")
 _MOVEMENT = re.compile(
-    r"(?:advanced to step [1-9][0-9]* \([^\r\n]+\)(?: → \S[^\r\n]*)?(?: — .+)?"
-    r"|task done(?: — .+)?"
+    r"(?:advanced to step [1-9][0-9]* \([^\r\n]+\)(?: → \S[^\r\n]*)?(?: — [\s\S]+)?"
+    r"|task done(?: — [\s\S]+)?"
     r"|auto-bumped on merge of (?:PR #[0-9]+|the linked PR) → done)"
 )
 _COUNT_KEYS = {f"tickets_{s}" for s in VALID_STATUSES} | {"movement_count"}
@@ -107,10 +107,11 @@ def _housekeeping(ref: str) -> bool:
 def _movement(line: bytes) -> bool:
     try:
         match = _ENTRY.fullmatch(line.decode("utf-8").removesuffix("\r"))
-        if not match or not match[2].strip() or not match[3].strip() or _housekeeping(match[2]):
+        if not match or not match[3].strip() or not match[4].strip() or _housekeeping(match[3]):
             return False
         datetime.strptime(match[1], "%Y-%m-%d %H:%M")
-        return _MOVEMENT.fullmatch(match[4]) is not None
+        message = decode_log_message(match[5]) if match["version"] else match[5]
+        return _MOVEMENT.fullmatch(message) is not None
     except (UnicodeDecodeError, ValueError):
         return False
 

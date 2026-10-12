@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Literal
 
 from coga.config import Config
-from coga.logfile import append_log
+from coga.logfile import append_log, decode_log_message, log_lines
 from coga.paths import log_path
 
 
@@ -27,10 +27,10 @@ OutcomeStatus = Literal[
 ParserKey = Literal["claude", "codex"]
 
 # A usage record rides the standard `coga/log.md` line shape —
-# `YYYY-MM-DD HH:MM [<task-ref>] [<actor>] <message>` — with the record's
+# `YYYY-MM-DD HH:MM v1 [<task-ref>] [<actor>] <message>` — with the record's
 # JSON object as the message.
 _LOG_LINE_RE = re.compile(
-    r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \[[^\]]*\] \[[^\]]*\] (\{.*)$"
+    r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} (?P<version>v1 )?\[[^\]]*\] \[[^\]]*\] (?P<message>\{.*)$"
 )
 
 # Every agent launch ends its prompt with this line carrying a fresh uuid, so
@@ -358,7 +358,8 @@ def load_records(cfg: Config) -> list[UsageRecord]:
 
     A usage line is an ordinary tagged log line whose message is the record's
     JSON object; every other line (state transitions, FYIs) fails the record
-    parse and is skipped.
+    parse and is skipped. Only v1-marked messages are decoded before JSON
+    parsing; unmarked legacy messages are parsed raw.
     """
     path = log_path(cfg)
     if not path.is_file():
@@ -368,12 +369,15 @@ def load_records(cfg: Config) -> list[UsageRecord]:
     except OSError:
         return []
     records: list[UsageRecord] = []
-    for line in text.splitlines():
+    for line in log_lines(text):
         match = _LOG_LINE_RE.match(line)
         if not match:
             continue
+        message = match.group("message")
+        if match.group("version"):
+            message = decode_log_message(message)
         try:
-            records.append(UsageRecord.from_json(match.group(1)))
+            records.append(UsageRecord.from_json(message))
         except ValueError:
             continue
     return records

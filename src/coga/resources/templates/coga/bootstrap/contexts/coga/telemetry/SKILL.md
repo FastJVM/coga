@@ -92,7 +92,9 @@ excludes templates, READMEs and attachments. Explicit zeros for all seven
 `lifecycle.VALID_STATUSES`. Never send partial counts from invalid inventory.
 
 Movement counts complete valid timestamp/ref/actor audit envelopes for work
-refs (including deleted tasks), whose message is exactly one of:
+refs (including deleted tasks), using the versioned/legacy decoding contract
+in [coga/internals/spool-merge](../internals/spool-merge/SKILL.md). The decoded
+message is exactly one of:
 
 - `advanced to step <positive integer> (<step name>)`, optionally followed by
   the producer's ` → <operator>` handoff and/or ` — <FYI>` suffix;
@@ -101,7 +103,7 @@ refs (including deleted tasks), whose message is exactly one of:
   `auto-bumped on merge of the linked PR → done`.
 
 Actor and handoff names may contain spaces; step names may contain parentheses,
-as permitted by the audit producers. These names are parsed locally, never sent.
+as permitted by the audit producers. An FYI suffix may contain line breaks. These names are parsed locally, never sent.
 
 No rewinds, launches, creates, other marks, blocks, unblocks, embedded prose,
 malformed lines or housekeeping. First enabled run baselines at complete-line

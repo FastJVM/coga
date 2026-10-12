@@ -560,3 +560,27 @@ def test_github_fixture_missing_record_fails_loud(tmp_path: Path, capsys) -> Non
 
     assert result == 2
     assert "has no object for recorded PR" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("versioned", [False, True])
+def test_parse_log_preserves_usage_text_and_skips_legacy_continuations(
+    tmp_path: Path, versioned: bool,
+) -> None:
+    from coga.logfile import encode_log_message
+
+    record = {
+        "schema": 2, "slug": "work", "usage_status": "ok",
+        "outcome": 'Said "done" at C:\\temp\\file; literal \\n',
+    }
+    message = json.dumps(record)
+    marker = "v1 " if versioned else ""
+    if versioned:
+        message = encode_log_message(message)
+    log = tmp_path / "log.md"
+    log.write_text(
+        "2026-06-23 10:00 [work] [git] sync failed:\n"
+        "legacy continuation\n"
+        f"2026-06-23 11:00 {marker}[work] [system] {message}\n"
+    )
+    data = human_minutes.parse_log(log, tz=ZoneInfo("UTC"), log_web_url=None)
+    assert data.usage_records == [record]

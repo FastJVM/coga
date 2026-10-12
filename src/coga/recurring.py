@@ -908,7 +908,7 @@ def _watchdog_pauses(cfg: Config, refs: set[str]) -> dict[str, str]:
     if not refs or not log_path(cfg).exists():
         return {}
     event_re = re.compile(
-        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) \[([^\]]+)\] "
+        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) (?:v1 )?\[([^\]]+)\] "
         r"\[([^\]]+)\] (paused|created) .*$"
     )
     latest: dict[str, tuple[str, str]] = {}

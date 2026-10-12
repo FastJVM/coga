@@ -1067,7 +1067,7 @@ def test_init_records_onboarding_creation_at_runtime(
 
     assert result.exit_code == 0, result.output
     assert (target / "coga" / "log.md").read_text() == (
-        "2031-02-03 04:05 [coga-build] [coga:init] "
+        "2031-02-03 04:05 v1 [coga-build] [coga:init] "
         "created (mode=interactive, status=active)\n"
     )
 

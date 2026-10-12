@@ -30,6 +30,7 @@ from typing import Any, Iterable, Sequence
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from coga.autoclose import parse_pr_url
+from coga.logfile import decode_log_message, log_lines
 
 
 DEFAULT_TIMEZONE = "America/Los_Angeles"
@@ -39,7 +40,7 @@ SENSITIVITY_FLOOR_MINUTES = 5.0
 AUTO_COMMIT_PREFIXES = ("Sync coga state", "Log:", "Ticket:")
 
 _LOG_RE = re.compile(
-    r"^(?P<stamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}) "
+    r"^(?P<stamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}) (?P<version>v1 )?"
     r"\[(?P<task>[^\]]+)\] \[(?P<actor>[^\]]+)\] (?P<message>.*)$"
 )
 _DEV_SECTION_RE = re.compile(
@@ -224,7 +225,7 @@ def parse_log(path: Path, *, tz: ZoneInfo, log_web_url: str | None) -> LogData:
         raise MetricsError(f"log file not found: {path}")
     data = LogData([], [], [], [], [], set(), {})
     try:
-        lines = path.read_text().splitlines()
+        lines = log_lines(path.read_text())
     except OSError as exc:
         raise MetricsError(f"cannot read log file {path}: {exc}") from exc
 
@@ -247,6 +248,8 @@ def parse_log(path: Path, *, tz: ZoneInfo, log_web_url: str | None) -> LogData:
         task = match.group("task")
         actor = match.group("actor")
         message = match.group("message")
+        if match.group("version"):
+            message = decode_log_message(message)
         link = f"{log_web_url}#L{line_number}" if log_web_url else None
 
         if actor.startswith("human:"):
