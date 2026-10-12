@@ -96,7 +96,19 @@ opening with an HTML comment naming the task and move date), and leave the
 current handoff, worklist and verification with a pointer to each. Keep
 `## Dev` and `## Blockers` in place, since CLI readers do not follow links.
 Material several tickets cite belongs in an unattached context. Record the
-before/after layer sizes on the blackboard.
+before/after layer sizes on the blackboard. A moved section leaves a
+same-named heading holding only the pointer, so references to it (an
+evaluator review citing `## Design`) still resolve.
+
+The remedy is for live tickets. A flagged `done` ticket is not trimmed: one
+with no recorded checkout is left to Dream's retro pass, and one with a
+recorded checkout is retirement debt that `coga retire <slug>` extracts and
+deletes ([coga/dream](../dream/SKILL.md) owns that split). A section a writer rewrites
+every run (a recurring template's state, Dream's own per-run report) is not
+trimmed by hand either: the next run overwrites the edit, and
+[coga/period-task](../period-task/SKILL.md) says to touch only your own keys.
+Route it to its owner as a decision (attachment, exemption, or accepted
+warning).
 
 ## What later passes do to content
 
