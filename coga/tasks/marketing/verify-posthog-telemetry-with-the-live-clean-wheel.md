@@ -1,6 +1,6 @@
 ---
 title: Verify PostHog telemetry with the live clean-wheel proof
-status: in_progress
+status: blocked
 owner: nicktoper
 contexts:
 - coga/telemetry/operations
@@ -173,12 +173,28 @@ Durable paths (not `/tmp`, which a reboot could wipe): `~/coga-telemetry-proof/`
   `Run 1: capture accepted; receipt accepted.`
   `Counts: {"movement_count": 0, "tickets_active": 1, "tickets_blocked": 0, "tickets_canceled": 0, "tickets_done": 0, "tickets_draft": 0, "tickets_in_progress": 0, "tickets_paused": 0}.`
   HTTP acceptance is not ingestion proof — Obs 1 still needs the query.
-- Slack receipt (prepared keyless envelope): **owner to paste** from the
-  channel.
+- Slack receipt (prepared keyless envelope), pasted by owner verbatim. It is
+  posted to the regular `webhook`, the same channel as this repo's notifications:
+  ```
+  [repo] phone-home attempted / HTTP accepted: {"event":"coga_weekly_snapshot","distinct_id":"358bebae-feed-4234-8ed8-ca86cffc8f0a","timestamp":"2026-10-13T19:05:19.855805Z","properties":{"coga_version":"0.4.0","os_name":"linux","os_version":"7.1.5","python_version":"3.12.12","tickets_active":1,"tickets_blocked":0,"tickets_canceled":0,"tickets_done":0,"tickets_draft":0,"tickets_in_progress":0,"tickets_paused":0,"movement_count":0}}
+  ```
+  Receipt check (client side only, not ingestion):
+  - Envelope: `event`, `distinct_id`, `timestamp`, `properties`. No `api_key`, so it is keyless as intended.
+  - `distinct_id` equals `repo_id`.
+  - The timestamp is inside the run window.
+  - `coga_version` 0.4.0 matches the wheel.
+  - Exactly the 12 allowlisted properties from `coga/telemetry`: `coga_version`, `os_name`, `os_version`, `python_version`, the 7 `tickets_*` counts and `movement_count`. No `$set`, no `$lib` and no extra keys.
+  - Counts equal the period report, with `movement_count` 0.
 
-**Still to do (session 2, together):** paste receipt → `project-get` (stop
+**Still to do (session 2, together):** `project-get` (stop
 unless 606347) → Obs 1 query + property-key check → known forward advance on a
 scratch work ticket + audit lines → `venv/bin/python recurring/phone-home/ticket.py`
 → Obs 2 query → `enabled = false` in scratch `coga.local.toml` + UTC time →
 rerun → Obs 3 `count()` query + automated no-worker/no-HTTP test → update
 `marketing/build-the-launch-plan` readiness line.
+
+---
+
+## Blockers
+
+- [ ] [2026-10-13 12:53] [agent:nicktoper] id=20261013T125319 Resume on 2026-10-20 (Tue): owner + attended agent run session 2 — project-get (606347) then Obs 1 query for repo 358bebae-feed-4234-8ed8-ca86cffc8f0a, Obs 2 advance+rerun, Obs 3 disable+count. Keep ~/coga-telemetry-proof/ intact. Then coga unblock + coga launch.
