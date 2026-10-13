@@ -69,6 +69,7 @@ def install_env(tmp_path: Path, monkeypatch) -> dict[str, str]:
                 > coga/tasks/coga-build.md
             echo '2026-10-13 10:05 [coga-build] [agent:claude] bumped' >> coga/log.md
             echo '2026-10-13 10:05 [other] [agent:claude] bumped' >> coga/log.md
+            echo '2026-10-13 10:05 [coga-build] [system] {"request":"secret idea"}' >> coga/log.md
         fi
         printf 'coga stub: %s\\n' "$*"
     """)
@@ -211,6 +212,7 @@ def test_clean_install_build_records_onboarding_outcome(install_env: dict[str, s
         "2026-10-13 10:05 [coga-build] [agent:claude] bumped",
         "build_exit_code=0",
     ]
+    assert "secret idea" not in (evidence / "build.txt").read_text()
 
 
 def test_clean_install_build_records_failure_and_removed_ticket(

@@ -103,8 +103,9 @@ conversation.
 step 1 (gather-and-spec). Answer the agent's question and let it work the
 step; under the launch supervisor it may chain into step 2. The record shows
 whether the step was reached and bumped: the ticket's `status:` and `step:`
-before and after the launch (`*_ticket=absent` if the file is gone), the
-scratch repo's `[coga-build]` audit-log lines, and the exit code.
+before and after the launch (a `done` ticket has no `step:`; `*_ticket=absent`
+if the file is gone), the scratch repo's `[coga-build]` audit-log lines without
+the `[system]` usage records, which quote the conversation, and the exit code.
 
 `ticket` runs `coga ticket` with the supplied title and records the command and
 exit code. Complete the interview with the agent; its exit code alone does not
