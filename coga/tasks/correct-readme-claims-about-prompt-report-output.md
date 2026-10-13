@@ -1,6 +1,6 @@
 ---
 title: Correct README claims about prompt report output
-status: in_progress
+status: done
 owner: nicktoper
 workflow:
   name: docs/with-review
@@ -18,7 +18,6 @@ workflow:
     skills:
     - code/address-pr-comments
     assignee: owner
-step: 4 (review)
 agent: claude
 ---
 
