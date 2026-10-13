@@ -35,3 +35,15 @@ The Linux clean-install harness (`scripts/clean-install/`, contract in `coga/tes
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: clean-install-build
+
+Plan (agreed with the human): `coga-clean-install build [--agent NAME]` mirroring
+`ticket` via a shared attended helper; `evidence/build.txt` records command,
+coga-build `status:`/`step:` before and after (or absent), exit code, and the
+scratch repo's `coga/log.md` lines for coga-build. Tests in
+`tests/test_clean_install_harness.py`; topic + packaged twin updated, including
+the `docker start` note. Prior 1011 containers no longer exist; the attended
+run uses fresh containers.
