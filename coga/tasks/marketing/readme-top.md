@@ -75,3 +75,28 @@ results.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Production notes
+
+### Positioning review — 2026-10-13 (owner + Claude)
+
+Decisions live in their owners, not here: `marketing/positioning` (root
+premise, `## Refinement — owner review session, 2026-10-13`, claim limits),
+`marketing/strategy` (`## Where value moves`), `coga/lifecycle` (cancel and
+restart on a wrong premise; rewind when the premise holds), with a linked
+summary in `product/vision`. Dated competitor facts:
+`docs/evidence/agent-memory-landscape-2026-10-13.md`.
+
+README change merged as PR #1000 (branch `marketing/readme-top`): opening
+with the "fix the file once" payoff, `## The problem`, Key ideas rooted in
+work discovered by doing, rewritten Example, "Who it is for" before Install,
+and `## First steps` split between an empty repo (`coga build`) and an
+existing project (`coga ticket`). PR #1001 adds the platform line, the
+`coga --version` check and the empty-repo rule on top.
+
+Still open for this ticket:
+- Proof: megalaunch carrying work forward is not shown yet; the Example shows
+  only the correction-becomes-context half.
+- Commands: `## First steps` is not yet checked against the `fix-installer`
+  final matrix.
+- Demo video: not watched; the README link and its caveat are unchanged.
