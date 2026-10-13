@@ -58,6 +58,11 @@ README's concrete behavior leads with and how it is worded.
   of; agents bring execution and breadth, including research and review; Coga
   makes sure the human's part reaches every later launch. Use this definition
   rather than the bare words "collaboration" or "human in the loop".
+- **README opening.** After the quote, say what Coga runs (Claude Code and
+  Codex out of the box, any CLI agent with a few lines of config) and lead
+  with the payoff: fix the file once and every later run starts from the fix.
+  Do not open with "never from chat history" or the collaboration definition;
+  the owner judged both unclear to a first-time reader.
 - **Entry pain.** Lead with the growing `CLAUDE.md`/`AGENTS.md`, instructions
   repeated in chat, and fresh sessions opened only to make an agent forget.
   Then say why size is not the whole problem: the same fact in diverging

@@ -3,26 +3,23 @@
 > Most tools are building infrastructure for agents. Coga is an instrument
 > for the human using them.
 
-Coga is a CLI that runs Claude Code or Codex from Markdown files in your Git
-repo. Every launch rebuilds the agent's prompt from those files (the ticket,
-the contexts it needs, the current workflow step), never from chat history.
-You bring what the model wouldn't think of: your decisions, your domain, what
-you found out along the way. Agents carry the work forward. Coga makes sure
-your part is there every time.
+Coga is a CLI that runs your coding agent from Markdown files in your Git
+repo. Claude Code and Codex work out of the box; any other CLI agent takes a
+few lines of config. Every launch rebuilds the agent's prompt from those
+files. When an agent gets something wrong, you fix the file once, and every
+later run starts from the fix.
 
 Coga is built with Coga: see the tickets in [`coga/tasks/`](coga/tasks) and
 the full history in [`coga/log.md`](coga/log.md).
 
 ## The problem
 
-On a real project, `CLAUDE.md` or `AGENTS.md` keeps growing. The agent skims
-it, you repeat the same instructions in chat, and sometimes you open a fresh
-session just to make it forget a bad idea. Size is only part of it: the same
-fact ends up in several places in diverging versions, tool-written memories
-add copies that live outside your repo, and nobody can tell which ones are
-still true. A capable agent working from missing or stale facts acts
-confidently and wrongly, and falls back on its defaults, which are everyone's
-defaults.
+On a real project, `CLAUDE.md` or `AGENTS.md` keeps growing until the agent
+only skims it. You repeat the same instructions in chat, and sometimes open a
+fresh session just to make the agent forget a bad idea. Worse, the same fact
+ends up written in several places that slowly disagree, including memories the
+tool keeps outside your repo. Nobody knows which version is true, so the agent
+acts on whichever copy it read, or falls back on its defaults.
 
 ## Key ideas
 
@@ -33,29 +30,22 @@ defaults.
   and the work picks up from the ticket. Contexts are short files stating
   facts and decisions, one owning file per fact; a ticket attaches only the
   ones its work needs.
-- **Knowledge moves out of the code and into files you correct.** Decisions,
-  domain facts and dead ends that used to live in code, chat or your head go
-  into contexts and tickets, where you and every agent read the same version.
-  The loop is short: an agent gets something wrong, you fix the file that owns
-  the fact, and the next launch uses the fix. When a premise turns out wrong,
-  cancel the ticket with the reason, update the owning context and start a new
-  one. A retro carries what a ticket taught into the contexts, and Dream, a
-  weekly job, checks contexts against the code and proposes fixes as pull
-  requests.
-- **Each kind of work gets its own process.** A workflow sets the steps and
-  who takes each one: you, the agent, or a second agent reviewing the first.
-  A routine fix can go straight to a pull request you review; risky or
-  uncertain work can stop for your approval of a written design first. Think
-  plan mode, except the plan is a file, reviewed cold by another agent,
-  approved by you as a step, and still there when implementation starts. You
-  write workflows yourself or ask an agent to; changes to the shared rules
-  arrive as pull requests, so nothing changes how agents work until you merge
-  it.
-- **Everything is hackable, and most of it is automated.** Every ticket,
-  context and workflow is a plain file you can edit, but you rarely write one
-  from scratch. In practice an agent writes it after a quick chat
-  (`coga ticket`, `coga build`), and then you edit it, rewrite it, or chat
-  again.
+- **What you learn goes into files, not chat.** Decisions, domain facts and
+  the things you tried and dropped go into contexts and tickets instead of
+  staying in your head. Fix the file that holds a fact and every later launch
+  uses the fix. When a ticket's premise turns out wrong, cancel it with the
+  reason, fix the context, and start a new one. Dream, a weekly job, checks
+  contexts against the code and proposes fixes as pull requests.
+- **Each kind of work gets its own process.** A workflow lists the steps and
+  says which ones need you. A routine fix goes straight to a pull request you
+  review. Risky work first stops for you to approve a written design that a
+  second agent has already reviewed. Think plan mode, except the plan is a file
+  that's still there when implementation starts. Changes to workflows and
+  other shared rules arrive as pull requests, so nothing changes how agents
+  work until you merge it.
+- **Hackable and automated.** Every ticket, context and workflow is a plain
+  file. Usually an agent writes it after a quick chat (`coga ticket`,
+  `coga build`); then you edit it, rewrite it, or chat again.
 - **Built on Claude Code and Codex, not instead of them.** The agents already
   plan, code and review well. Coga does the small part they leave to you:
   keeping what you decided and learned in files, putting the right part in
