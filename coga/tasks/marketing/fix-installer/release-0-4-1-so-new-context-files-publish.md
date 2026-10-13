@@ -35,3 +35,11 @@ The 2026-10-12 attended `coga build` walk on a fresh PyPI 0.4.0 install (Linux c
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: release-0.4.1
+
+Plan (agreed with owner 2026-10-12): bump `pyproject.toml` version to 0.4.1
+(only hard-coded `0.4.0` in the tree), run the pre-tag gate on the branch,
+rerun it on the merged `main` HEAD before tagging.
