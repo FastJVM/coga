@@ -92,16 +92,55 @@ Next step: PR description must include the per-artifact evidence above
 `clean-pypi-1013h`, `clean-main-1013h` are retained; remove with
 `docker rm -f` when done.
 
+## Peer review
+
+2026-10-13, Codex session (independent of Claude implementation): review is
+**not complete; do not bump**. Start check passed on clean main. Rebased
+`clean-install-build` unconditionally onto fetched main
+`a01f3e9e8a428a531c630f629b9dbc4b2d6d0e85`; pushed with
+`git push --force-with-lease origin clean-install-build`. Final feature head:
+`a2f4ea70224699623a4e29a9bea71999853094c5`. No code fixes made.
+
+`codex review --base main` failed before creating its review session:
+`app-server socket directory must be a user-owned directory with mode 0700`.
+The outside-sandbox retry and `codex --no-daemon review --base main` failed
+identically. No review verdict returned. `codex doctor --summary` found auth
+and connectivity available. Diagnostic log: `/tmp/coga-clean-install-build-review.log`.
+Human directed this session to exit so the CLI can restart it; fix/retry the
+runtime directly in the resumed session, then wait for the required review.
+
+`.venv/bin/python -m pytest -q` returned 3605 passed in 328.20s (Python
+3.12.12); log `/tmp/coga-clean-install-build-pytest.log`. This is not a clean
+final-head receipt: on the human's restart request, checkout returned to main
+while the last tests were still running. Re-run the suite on the feature
+branch before completing review. `git diff --check` passed on the feature.
+
+Terminal check performed here with real Docker PTY:
+`docker exec -it clean-main-1013h bash -lc 'stty rows 24 cols 80; coga-clean-install build --agent claude'`
+and again with `stty rows 40 cols 120`. Both visibly preserved the command's
+TTY, showed the expected already-done refusal, recorded before/after done,
+and propagated exit 2. Two refusal records appended to the retained main
+container's build.txt; existing host copies still contain the successful
+implementation runs. No new agent phase ran. Reviewed those host receipts:
+both artifacts advanced step 1 and completed, as recorded above. Successful
+interactive onboarding was exercised in implement; this session checked the
+completed-ticket terminal path, not another first-step interview.
+
+Remaining: returned Codex review, any must-fix findings, clean final-head test
+receipt, refresh PR preparation (historical receipts must stay historical),
+return clean main, then bump once. Current PR depth is deep solely because
+review is incomplete and the new head needs its verification receipts.
+
 ## PR
 
 ```yaml
 title: Add an attended coga build continuation to the clean-install harness
 author: claude
 author_evidence: Implement session ran as Claude Code (claude-opus-5-5), attended by the human.
-head: 165c9b7a185ddce114fc1e8ad323805874bccc7d
-base: 42112951e57fb812d5c89f11bbad3cf7299027b2
-depth: skim
-rationale: Repository test tooling and docs only; no package code changes. Read the build.txt contract and the attended-run evidence.
+head: a2f4ea70224699623a4e29a9bea71999853094c5
+base: a01f3e9e8a428a531c630f629b9dbc4b2d6d0e85
+depth: deep
+rationale: Review could not start due to a Codex runtime error; rebased head still needs a clean final-head suite receipt. Resume peer-review before publishing.
 implementation: Adds `coga-clean-install build [--agent NAME]` sharing an attended helper with `ticket`; records command, coga-build status/step before and after, non-[system] coga-build log lines, and exit code in evidence/build.txt. Documents the attended build steps and `docker start` for stopped containers.
 deviations: Attended runs used COGA_CLEAN_INSTALL_NETWORK=host because the bridge network could not fetch curl inside the container; the main container ran the branch's container.sh via docker cp after the [system]-filter fix.
 limitations: macOS walk does not yet pass `build` through. The PyPI container's own build.txt predates the [system] filter; its host copy was filtered.
@@ -114,7 +153,7 @@ review:
   reviewer: none
   kind: none
   status: not-run
-  detail: Code review has not run yet; the workflow's later review step owns it.
+  detail: Codex review attempted but failed at session startup (app-server socket directory permissions); no review verdict returned. Peer-review remains in progress.
 checks:
   - command: .venv/bin/python -m pytest -q
     status: passed
