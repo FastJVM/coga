@@ -8217,3 +8217,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-13 11:43 [marketing/verify-posthog-telemetry-with-the-live-clean-wheel] [human:nicktoper] ticket authoring launched (interviewer=claude, agent=claude)
 2026-10-13 12:29 [marketing/state-the-hatchling-prerequisite-in-the-clean-whee] [human:nicktoper] created (status=draft)
 2026-10-13 12:44 [make-coga-status-an-interactive-control-center] [human:zach] created (status=draft)
+2026-10-13 12:44 v1 [x] [human:zach] created (status=draft)
