@@ -62,6 +62,8 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+branch: docs/readme-quick-start
+
 - 2026-10-08 implement: not started — no branch created, no README edits. The
   ticket's hold note says do not start until the owner's README rewrite lands
   and to confirm the scope with the owner. README on `main` is still mid-rewrite:
