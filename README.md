@@ -58,9 +58,10 @@ read, change and redo from, not the code and not the chat.
   says which ones need you. A routine fix goes straight to a pull request you
   review. Risky work first stops for you to approve a written design that a
   second agent has already reviewed. Think plan mode, except the plan is a file
-  that's still there when implementation starts. Changes to workflows and
-  other shared rules arrive as pull requests, so nothing changes how agents
-  work until you merge it. You decide how closely to read each pull request;
+  that's still there when implementation starts. Workflows are files you edit
+  like any other, and every change is a commit in your Git history; what Dream
+  proposes arrives as a pull request, so none of it applies until you merge
+  it. You decide how closely to read each pull request;
   the agent that prepares one recommends a review depth in its title (merge,
   skim or deep), and Coga marks it deep when its recorded evidence is
   incomplete.

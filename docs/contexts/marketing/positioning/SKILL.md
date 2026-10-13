@@ -107,8 +107,11 @@ README's concrete behavior leads with and how it is worded.
   than replacing them; it does the part they leave to the human. Say it in the
   opening, qualitatively: no percentage.
 - **The process is yours.** Workflows set, per kind of work, where the human,
-  the agent or a second agent steps in, and an agent can write them; shared
-  rule changes arrive as pull requests. Plan mode is a useful anchor: here the
+  the agent or a second agent steps in, and an agent can write them. Edits to
+  shared rules publish as visible Git commits; Dream's proposals arrive as
+  pull requests ([publication contract](../../coga/internals/state-publication/SKILL.md)).
+  Do not say every rule change arrives as a pull request. Plan mode is a
+  useful anchor: here the
   plan is a file, reviewed cold by a second agent, approved as a step and still
   there at implementation.
 - **Reading guidance.** The human chooses how closely to read; the

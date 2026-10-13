@@ -48,14 +48,21 @@ part.
   "Autonomy is calibrated per class of task, explicitly and revisably", and
   "the autonomy level for each class of work is an explicit, versioned
   decision". Closest precedent for per-kind workflows. The authors call it
-  conceptual and grounded mostly in gray literature. Only the first part of
-  the HTML version was read.
+  conceptual and grounded mostly in gray literature, "a set of falsifiable
+  hypotheses" not yet validated empirically. The rest of the paper does not
+  contradict Harness 8; it adds that specific autonomy thresholds "date
+  quickly" (§8.3) and that a "deliberately lighter discipline" may suit
+  exploratory work (§8.2).
 - **PyAutoScientist** (vendor docs). Tasks start as Markdown files under
   `<work-type>/<target>/<name>.md` (examples: `feature/`, `bug/`, `refactor/`,
   `docs/`); autonomy is "defined once, in AUTONOMY.md" with a cap per work
   type, and the effective level is the minimum of the prompt's declared level
-  and the cap; merge stays human. **Unverified:** the actual cap values
-  (AUTONOMY.md itself was not opened).
+  and the cap; merge stays human. AUTONOMY.md in the PyAutoBrain repo
+  (primary) sets the caps: refactor, test and maintenance `safe`; feature and
+  docs `safe` up to medium difficulty, else `supervised`; bug and research
+  `supervised`; release `human-required`. Raising a cap is "a doctrine edit"
+  citing at least 10 clean calibration-log rows and no rejected ones; any
+  rejected row drops the cap one level.
 - **Doc-drift checks on a schedule** (precedent for Dream):
   agentpatterns.ai's "Instruction file fact checker" (secondary, pattern
   site) runs Claude Code weekly to verify `CLAUDE.md` claims against the code
@@ -65,8 +72,9 @@ part.
   monthly docs-drift audit issue that agents turn into fix PRs.
 - **The spec-driven category** (all vendor sources): GitHub Spec Kit (slash
   commands in the agent chat; "These are agent skills, not terminal
-  commands"), BMAD Method (skills inside the coding tool; how its role
-  personas are invoked is **unverified**), Kiro (its own IDE, plus CLI and
+  commands"), BMAD Method (role personas such as `bmad-agent-pm` and
+  `bmad-agent-architect` are skills installed into the coding tool and
+  invoked by skill ID), Kiro (its own IDE, plus CLI and
   web; requirements → design → tasks), OpenSpec (slash commands, above) and
   Agent OS by Builder Methods (installed into the project, "designed
   primarily for Claude Code, with slash commands"). Structural difference at
@@ -102,12 +110,14 @@ part.
   (primary).
 - PyAutoScientist:
   <https://pyautoscientist.readthedocs.io/en/latest/concepts/workflow.html>
-  (vendor).
+  (vendor), <https://github.com/pyautolabs/pyautobrain/blob/main/AUTONOMY.md>
+  (primary).
 - Drift checks: <https://agentpatterns.ai/workflows/instruction-file-fact-checker/>
   (secondary), <https://github.com/wei18/Upkeep> (primary),
   <https://github.com/stranske/Workflows/pull/2367> (primary).
 - Spec-driven tools: <https://github.com/github/spec-kit>,
   <https://github.com/bmad-code-org/BMAD-METHOD>,
+  <https://docs.bmad-method.org/reference/skills-and-agents/>,
   <https://kiro.dev/docs/specs/>, <https://buildermethods.com/agent-os>
   (vendor).
 - Ramp Glass: <https://ramp.com/blog/introducing-glass> (vendor),
