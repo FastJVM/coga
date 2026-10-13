@@ -8220,3 +8220,4 @@ fatal: Unable to add coga/tasks/launch-locks/checkout-exclusivity-lock.md to dat
 2026-10-13 12:44 v1 [x] [human:zach] created (status=draft)
 2026-10-13 12:53 [marketing/verify-posthog-telemetry-with-the-live-clean-wheel] [agent:nicktoper] blocked: Resume on 2026-10-20 (Tue): owner + attended agent run session 2 — project-get (606347) then Obs 1 query for repo 358bebae-feed-4234-8ed8-ca86cffc8f0a, Obs 2 advance+rerun, Obs 3 disable+count. Keep ~/coga-telemetry-proof/ intact. Then coga unblock + coga launch.
 2026-10-13 12:55 [document-quick-start-for-empty-and-existing-reposi] [human:nicktoper] activated (blocked → active) — auto on launch
+2026-10-13 12:55 [document-quick-start-for-empty-and-existing-reposi] [human:nicktoper] started (active → in_progress) via coga launch
